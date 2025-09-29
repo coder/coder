@@ -132,6 +132,7 @@ coder exp task create [input] [flags]
 Creates a new task with the provided input. You can specify input either as a command argument or via stdin.
 
 **Flags:**
+
 - `--name <name>` - Specify the name of the task (optional, will be auto-generated if not provided)
 - `--owner <owner>` - Specify the owner of the task (defaults to current user)
 - `--org, -O <organization>` - Select which organization (uuid or name) to use
@@ -142,6 +143,7 @@ Creates a new task with the provided input. You can specify input either as a co
 - `--quiet, -q` - Only display the created task's ID
 
 **Examples:**
+
 ```bash
 # Create a task with direct input
 coder exp task create "Add authentication to the user service"
@@ -157,6 +159,7 @@ coder exp task create "Review code changes" --owner alice --name "code-review-ta
 ```
 
 **Environment Variables:**
+
 - `CODER_TASK_TEMPLATE_NAME` - Default template name
 - `CODER_TASK_TEMPLATE_VERSION` - Default template version  
 - `CODER_TASK_PRESET_NAME` - Default preset name
@@ -171,12 +174,14 @@ coder exp task ls [flags]  # alias
 Lists tasks with status, state, and timing information.
 
 **Flags:**
+
 - `--status <status>` - Filter by task status (e.g., running, failed, stopped)
 - `--all, -a` - List tasks for all users you can view
 - `--user <user>` - List tasks for a specific user (username or "me")
 - `--quiet, -q` - Only display task IDs
 
 **Examples:**
+
 ```bash
 # List your tasks
 coder exp task list
@@ -204,9 +209,11 @@ coder exp task stat <task> [flags]  # alias
 Shows detailed status information for a specific task.
 
 **Flags:**
+
 - `--watch` - Watch the task status for live updates
 
 **Examples:**
+
 ```bash
 # Show task status
 coder exp task status my-task-name
@@ -219,6 +226,7 @@ coder exp task status my-task --watch
 ```
 
 > **Note**: The `--watch` flag will automatically exit when the task reaches a terminal state. Watch mode ends when:
+>
 > - The workspace is stopped
 > - The workspace agent becomes unhealthy or is shutting down
 > - The task completes (reaches a non-working state like completed, failed, or canceled)
@@ -232,9 +240,11 @@ coder exp task logs <task> [flags]
 Retrieves and displays the logs for a specific task.
 
 **Flags:**
+
 - (No additional flags beyond common options)
 
 **Examples:**
+
 ```bash
 # View logs for a task
 coder exp task logs my-task-name
@@ -252,9 +262,11 @@ coder exp task send <task> [<input> | --stdin] [flags]
 Sends additional input to a running task. This is useful for providing follow-up instructions or responding to task requests.
 
 **Flags:**
+
 - `--stdin` - Read input from stdin instead of command arguments
 
 **Examples:**
+
 ```bash
 # Send input to a task
 coder exp task send my-task "Please also add unit tests"
@@ -272,9 +284,11 @@ coder exp task delete <task> [<task> ...] [flags]
 Deletes one or more tasks. This action requires confirmation unless the `--yes` flag is used.
 
 **Flags:**
+
 - `--yes, -y` - Bypass confirmation prompts
 
 **Examples:**
+
 ```bash
 # Delete a single task (with confirmation)
 coder exp task delete my-task-name
@@ -289,6 +303,7 @@ coder exp task delete my-task --yes
 ### Task Identification
 
 Tasks can be identified in CLI commands using either:
+
 - **Task Name**: The human-readable name (e.g., `my-task-name`)
 - **Task ID**: The UUID identifier (e.g., `550e8400-e29b-41d4-a716-446655440000`)
 - **Owner/Name format**: For tasks owned by other users (e.g., `alice/her-task`)
@@ -296,6 +311,7 @@ Tasks can be identified in CLI commands using either:
 ### Global Options
 
 All task commands support standard Coder CLI global options:
+
 - `--url <url>` - Coder server URL
 - `--token <token>` - Authentication token
 - `--verbose` - Enable verbose logging
@@ -304,6 +320,7 @@ All task commands support standard Coder CLI global options:
 ### Common Command Options
 
 Many task commands also support these common formatting options:
+
 - `--output, -o <format>` - Output format (table, json). Default: table
 - `--column, -c <columns>` - Columns to display in table output (varies by command)
 
