@@ -44,8 +44,8 @@ brew install --cask coder/coder/coder-desktop
 #### Manual Installation
 
 1. Download the latest release from [coder-desktop-macos releases](https://github.com/coder/coder-desktop-macos/releases)
-1. Drag `Coder Desktop.app` to your Applications folder
-1. Open from Applications directory
+1. Run `Coder-Desktop.pkg` and follow the prompts to install
+1. `Coder Desktop.app` will be installed to your Applications folder
 
 </div>
 
@@ -129,12 +129,6 @@ Open `http://your-workspace.coder:PORT` in your browser, replacing `PORT` with t
 - Check system permissions for network extensions
 - Ensure only one copy of Coder Desktop is installed
 
-### Known Limitations
-
-#### Secure Browser Context
-
-Some web applications require HTTPS for certain features. While Coder Connect uses encrypted WireGuard tunnels, browsers may show security warnings for HTTP connections to `.coder` hostnames.
-
 ### Getting Help
 
 If you encounter issues not covered here:
@@ -162,3 +156,7 @@ If you encounter issues not covered here:
 4. **Remove configuration** (optional): Delete `%APPDATA%\Coder Desktop`
 
 </div>
+
+## Next Steps
+
+- [Using Coder Connect and File Sync](./desktop-connect-sync.md)

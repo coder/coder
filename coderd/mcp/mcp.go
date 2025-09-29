@@ -24,6 +24,9 @@ const (
 	MCPServerName = "Coder"
 	// MCPServerInstructions is the instructions text for the MCP server.
 	MCPServerInstructions = "Coder MCP Server providing workspace and template management tools"
+
+	// Used in tests and aibridge.
+	MCPEndpoint = "/api/experimental/mcp/http"
 )
 
 // Server represents an MCP HTTP server instance

@@ -20,7 +20,7 @@ func TestAPIKeyScopesExpand(t *testing.T) {
 		}{
 			{
 				name:   "all",
-				scopes: APIKeyScopes{APIKeyScopeAll},
+				scopes: APIKeyScopes{ApiKeyScopeCoderAll},
 				want: func(t *testing.T, s rbac.Scope) {
 					requirePermission(t, s, rbac.ResourceWildcard.Type, policy.Action(policy.WildcardSymbol))
 					requireAllowAll(t, s)
@@ -28,7 +28,7 @@ func TestAPIKeyScopesExpand(t *testing.T) {
 			},
 			{
 				name:   "application_connect",
-				scopes: APIKeyScopes{APIKeyScopeApplicationConnect},
+				scopes: APIKeyScopes{ApiKeyScopeCoderApplicationConnect},
 				want: func(t *testing.T, s rbac.Scope) {
 					requirePermission(t, s, rbac.ResourceWorkspace.Type, policy.ActionApplicationConnect)
 					requireAllowAll(t, s)
@@ -69,7 +69,7 @@ func TestAPIKeyScopesExpand(t *testing.T) {
 
 	t.Run("merge", func(t *testing.T) {
 		t.Parallel()
-		scopes := APIKeyScopes{APIKeyScopeApplicationConnect, APIKeyScopeAll, ApiKeyScopeWorkspaceRead}
+		scopes := APIKeyScopes{ApiKeyScopeCoderApplicationConnect, ApiKeyScopeCoderAll, ApiKeyScopeWorkspaceRead}
 		s, err := scopes.Expand()
 		require.NoError(t, err)
 		requirePermission(t, s, rbac.ResourceWildcard.Type, policy.Action(policy.WildcardSymbol))

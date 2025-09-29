@@ -11,7 +11,6 @@ import {
 	type ReactNode,
 	useState,
 } from "react";
-
 export type AlertColor = MuiAlertColor;
 
 export type AlertProps = MuiAlertProps & {

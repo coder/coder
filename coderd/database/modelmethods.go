@@ -134,9 +134,9 @@ func (w ConnectionLog) RBACObject() rbac.Object {
 
 func (s APIKeyScope) ToRBAC() rbac.ScopeName {
 	switch s {
-	case APIKeyScopeAll:
+	case ApiKeyScopeCoderAll:
 		return rbac.ScopeAll
-	case APIKeyScopeApplicationConnect:
+	case ApiKeyScopeCoderApplicationConnect:
 		return rbac.ScopeApplicationConnect
 	default:
 		// Allow low-level resource:action scopes to flow through to RBAC for
@@ -203,6 +203,13 @@ func (s APIKeyScopes) Expand() (rbac.Scope, error) {
 		}
 	}
 
+	// De-duplicate permissions across Site/Org/User
+	merged.Site = rbac.DeduplicatePermissions(merged.Site)
+	for orgID, perms := range merged.Org {
+		merged.Org[orgID] = rbac.DeduplicatePermissions(perms)
+	}
+	merged.User = rbac.DeduplicatePermissions(merged.User)
+
 	if allowAll || len(allowSet) == 0 {
 		merged.AllowIDList = []rbac.AllowListElement{rbac.AllowListAll()}
 	} else {
@@ -218,7 +225,8 @@ func (s APIKeyScopes) Expand() (rbac.Scope, error) {
 // Name returns a human-friendly identifier for tracing/logging.
 func (s APIKeyScopes) Name() rbac.RoleIdentifier {
 	if len(s) == 0 {
-		return rbac.RoleIdentifier{Name: string(APIKeyScopeAll)}
+		// Return all for backward compatibility.
+		return rbac.RoleIdentifier{Name: string(ApiKeyScopeCoderAll)}
 	}
 	names := make([]string, 0, len(s))
 	for _, s := range s {

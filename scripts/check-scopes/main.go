@@ -11,6 +11,7 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 )
 
@@ -53,13 +54,14 @@ func main() {
 		_, _ = fmt.Fprintf(os.Stderr, "  ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS '%s';\n", m)
 	}
 	_, _ = fmt.Fprintln(os.Stderr)
-	_, _ = fmt.Fprintln(os.Stderr, "Also decide if each new scope is public (exposed in the catalog) or internal-only (catalog task).")
+	_, _ = fmt.Fprintln(os.Stderr, "Also decide if each new scope is external (exposed in the `externalLowLevel` in coderd/rbac/scopes_catalog.go) or internal-only.")
 	os.Exit(1)
 }
 
 // expectedFromRBAC returns the set of <resource>:<action> pairs derived from RBACPermissions.
 func expectedFromRBAC() map[string]struct{} {
 	want := make(map[string]struct{})
+	// Low-level <resource>:<action>
 	for resource, def := range policy.RBACPermissions {
 		if resource == policy.WildcardSymbol {
 			// Ignore wildcard entry; it has no concrete <resource>:<action> pairs.
@@ -69,6 +71,10 @@ func expectedFromRBAC() map[string]struct{} {
 			key := resource + ":" + string(action)
 			want[key] = struct{}{}
 		}
+	}
+	// Composite coder:* names
+	for _, n := range rbac.CompositeScopeNames() {
+		want[n] = struct{}{}
 	}
 	return want
 }

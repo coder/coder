@@ -1,7 +1,5 @@
 import { useTheme } from "@emotion/react";
 import GitHubIcon from "@mui/icons-material/GitHub";
-import KeyIcon from "@mui/icons-material/VpnKey";
-import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
 import { API } from "api/api";
@@ -12,10 +10,11 @@ import type {
 	OIDCAuthMethod,
 	UserLoginType,
 } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Stack } from "components/Stack/Stack";
-import { CircleCheck as CircleCheckIcon } from "lucide-react";
+import { CircleCheck as CircleCheckIcon, KeyIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { useMutation } from "react-query";
 import { docs } from "utils/docs";
@@ -150,24 +149,26 @@ export const SingleSignOnSection: FC<SingleSignOnSectionProps> = ({
 						<>
 							{authMethods.github.enabled && (
 								<Button
-									size="large"
-									fullWidth
+									variant="outline"
+									size="lg"
+									className="w-full"
 									disabled={isUpdating}
-									startIcon={<GitHubIcon css={{ width: 16, height: 16 }} />}
 									onClick={() => openConfirmation("github")}
 								>
+									<GitHubIcon />
 									GitHub
 								</Button>
 							)}
 
 							{authMethods.oidc.enabled && (
 								<Button
-									size="large"
-									fullWidth
+									variant="outline"
+									size="lg"
+									className="w-full"
 									disabled={isUpdating}
-									startIcon={<OIDCIcon oidcAuth={authMethods.oidc} />}
 									onClick={() => openConfirmation("oidc")}
 								>
+									<OIDCIcon oidcAuth={authMethods.oidc} />
 									{getOIDCLabel(authMethods.oidc)}
 								</Button>
 							)}
@@ -230,7 +231,7 @@ interface OIDCIconProps {
 
 const OIDCIcon: FC<OIDCIconProps> = ({ oidcAuth }) => {
 	if (!oidcAuth.iconUrl) {
-		return <KeyIcon css={{ width: 16, height: 16 }} />;
+		return <KeyIcon />;
 	}
 
 	return (

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -327,6 +328,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			// Allow auditors to query deployment stats and insights.
 			ResourceDeploymentStats.Type:  {policy.ActionRead},
 			ResourceDeploymentConfig.Type: {policy.ActionRead},
+			// Allow auditors to query aibridge interceptions.
+			ResourceAibridgeInterception.Type: {policy.ActionRead},
 		}),
 		Org:  map[string][]Permission{},
 		User: []Permission{},
@@ -860,4 +863,23 @@ func Permissions(perms map[string][]policy.Action) []Permission {
 		return list[i].ResourceType < list[j].ResourceType
 	})
 	return list
+}
+
+// DeduplicatePermissions removes duplicate Permission entries while preserving
+// the original order of the first occurrence for deterministic evaluation.
+func DeduplicatePermissions(perms []Permission) []Permission {
+	if len(perms) == 0 {
+		return perms
+	}
+	seen := make(map[string]struct{}, len(perms))
+	deduped := make([]Permission, 0, len(perms))
+	for _, perm := range perms {
+		key := perm.ResourceType + "\x00" + string(perm.Action) + "\x00" + strconv.FormatBool(perm.Negate)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		deduped = append(deduped, perm)
+	}
+	return deduped
 }

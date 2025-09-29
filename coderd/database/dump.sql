@@ -11,8 +11,8 @@ CREATE TYPE agent_key_scope_enum AS ENUM (
 );
 
 CREATE TYPE api_key_scope AS ENUM (
-    'all',
-    'application_connect',
+    'coder:all',
+    'coder:application_connect',
     'aibridge_interception:create',
     'aibridge_interception:read',
     'aibridge_interception:update',
@@ -150,7 +150,14 @@ CREATE TYPE api_key_scope AS ENUM (
     'workspace_proxy:create',
     'workspace_proxy:delete',
     'workspace_proxy:read',
-    'workspace_proxy:update'
+    'workspace_proxy:update',
+    'coder:workspaces.create',
+    'coder:workspaces.operate',
+    'coder:workspaces.delete',
+    'coder:workspaces.access',
+    'coder:templates.build',
+    'coder:templates.author',
+    'coder:apikeys.manage_self'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -990,7 +997,8 @@ CREATE TABLE aibridge_interceptions (
     initiator_id uuid NOT NULL,
     provider text NOT NULL,
     model text NOT NULL,
-    started_at timestamp with time zone NOT NULL
+    started_at timestamp with time zone NOT NULL,
+    metadata jsonb
 );
 
 COMMENT ON TABLE aibridge_interceptions IS 'Audit log of requests intercepted by AI Bridge';
@@ -3110,6 +3118,12 @@ CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (cr
 CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_id);
 
 CREATE INDEX idx_aibridge_interceptions_initiator_id ON aibridge_interceptions USING btree (initiator_id);
+
+CREATE INDEX idx_aibridge_interceptions_model ON aibridge_interceptions USING btree (model);
+
+CREATE INDEX idx_aibridge_interceptions_provider ON aibridge_interceptions USING btree (provider);
+
+CREATE INDEX idx_aibridge_interceptions_started_id_desc ON aibridge_interceptions USING btree (started_at DESC, id DESC);
 
 CREATE INDEX idx_aibridge_token_usages_interception_id ON aibridge_token_usages USING btree (interception_id);
 

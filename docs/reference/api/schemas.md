@@ -375,6 +375,151 @@
 | `enabled`   | boolean                                                              | false    |              |             |
 | `openai`    | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              |             |
 
+## codersdk.AIBridgeInterception
+
+```json
+{
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
+  "metadata": {
+    "property1": null,
+    "property2": null
+  },
+  "model": "string",
+  "provider": "string",
+  "started_at": "2019-08-24T14:15:22Z",
+  "token_usages": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "input_tokens": 0,
+      "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+      "metadata": {
+        "property1": null,
+        "property2": null
+      },
+      "output_tokens": 0,
+      "provider_response_id": "string"
+    }
+  ],
+  "tool_usages": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "injected": true,
+      "input": "string",
+      "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+      "invocation_error": "string",
+      "metadata": {
+        "property1": null,
+        "property2": null
+      },
+      "provider_response_id": "string",
+      "server_url": "string",
+      "tool": "string"
+    }
+  ],
+  "user_prompts": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+      "metadata": {
+        "property1": null,
+        "property2": null
+      },
+      "prompt": "string",
+      "provider_response_id": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name               | Type                                                                | Required | Restrictions | Description |
+|--------------------|---------------------------------------------------------------------|----------|--------------|-------------|
+| `id`               | string                                                              | false    |              |             |
+| `initiator_id`     | string                                                              | false    |              |             |
+| `metadata`         | object                                                              | false    |              |             |
+| » `[any property]` | any                                                                 | false    |              |             |
+| `model`            | string                                                              | false    |              |             |
+| `provider`         | string                                                              | false    |              |             |
+| `started_at`       | string                                                              | false    |              |             |
+| `token_usages`     | array of [codersdk.AIBridgeTokenUsage](#codersdkaibridgetokenusage) | false    |              |             |
+| `tool_usages`      | array of [codersdk.AIBridgeToolUsage](#codersdkaibridgetoolusage)   | false    |              |             |
+| `user_prompts`     | array of [codersdk.AIBridgeUserPrompt](#codersdkaibridgeuserprompt) | false    |              |             |
+
+## codersdk.AIBridgeListInterceptionsResponse
+
+```json
+{
+  "results": [
+    {
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
+      "metadata": {
+        "property1": null,
+        "property2": null
+      },
+      "model": "string",
+      "provider": "string",
+      "started_at": "2019-08-24T14:15:22Z",
+      "token_usages": [
+        {
+          "created_at": "2019-08-24T14:15:22Z",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "input_tokens": 0,
+          "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+          "metadata": {
+            "property1": null,
+            "property2": null
+          },
+          "output_tokens": 0,
+          "provider_response_id": "string"
+        }
+      ],
+      "tool_usages": [
+        {
+          "created_at": "2019-08-24T14:15:22Z",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "injected": true,
+          "input": "string",
+          "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+          "invocation_error": "string",
+          "metadata": {
+            "property1": null,
+            "property2": null
+          },
+          "provider_response_id": "string",
+          "server_url": "string",
+          "tool": "string"
+        }
+      ],
+      "user_prompts": [
+        {
+          "created_at": "2019-08-24T14:15:22Z",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+          "metadata": {
+            "property1": null,
+            "property2": null
+          },
+          "prompt": "string",
+          "provider_response_id": "string"
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type                                                                    | Required | Restrictions | Description |
+|-----------|-------------------------------------------------------------------------|----------|--------------|-------------|
+| `results` | array of [codersdk.AIBridgeInterception](#codersdkaibridgeinterception) | false    |              |             |
+
 ## codersdk.AIBridgeOpenAIConfig
 
 ```json
@@ -390,6 +535,100 @@
 |------------|--------|----------|--------------|-------------|
 | `base_url` | string | false    |              |             |
 | `key`      | string | false    |              |             |
+
+## codersdk.AIBridgeTokenUsage
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "input_tokens": 0,
+  "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+  "metadata": {
+    "property1": null,
+    "property2": null
+  },
+  "output_tokens": 0,
+  "provider_response_id": "string"
+}
+```
+
+### Properties
+
+| Name                   | Type    | Required | Restrictions | Description |
+|------------------------|---------|----------|--------------|-------------|
+| `created_at`           | string  | false    |              |             |
+| `id`                   | string  | false    |              |             |
+| `input_tokens`         | integer | false    |              |             |
+| `interception_id`      | string  | false    |              |             |
+| `metadata`             | object  | false    |              |             |
+| » `[any property]`     | any     | false    |              |             |
+| `output_tokens`        | integer | false    |              |             |
+| `provider_response_id` | string  | false    |              |             |
+
+## codersdk.AIBridgeToolUsage
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "injected": true,
+  "input": "string",
+  "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+  "invocation_error": "string",
+  "metadata": {
+    "property1": null,
+    "property2": null
+  },
+  "provider_response_id": "string",
+  "server_url": "string",
+  "tool": "string"
+}
+```
+
+### Properties
+
+| Name                   | Type    | Required | Restrictions | Description |
+|------------------------|---------|----------|--------------|-------------|
+| `created_at`           | string  | false    |              |             |
+| `id`                   | string  | false    |              |             |
+| `injected`             | boolean | false    |              |             |
+| `input`                | string  | false    |              |             |
+| `interception_id`      | string  | false    |              |             |
+| `invocation_error`     | string  | false    |              |             |
+| `metadata`             | object  | false    |              |             |
+| » `[any property]`     | any     | false    |              |             |
+| `provider_response_id` | string  | false    |              |             |
+| `server_url`           | string  | false    |              |             |
+| `tool`                 | string  | false    |              |             |
+
+## codersdk.AIBridgeUserPrompt
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+  "metadata": {
+    "property1": null,
+    "property2": null
+  },
+  "prompt": "string",
+  "provider_response_id": "string"
+}
+```
+
+### Properties
+
+| Name                   | Type   | Required | Restrictions | Description |
+|------------------------|--------|----------|--------------|-------------|
+| `created_at`           | string | false    |              |             |
+| `id`                   | string | false    |              |             |
+| `interception_id`      | string | false    |              |             |
+| `metadata`             | object | false    |              |             |
+| » `[any property]`     | any    | false    |              |             |
+| `prompt`               | string | false    |              |             |
+| `provider_response_id` | string | false    |              |             |
 
 ## codersdk.AIConfig
 
@@ -426,6 +665,9 @@
   "lifetime_seconds": 0,
   "login_type": "password",
   "scope": "all",
+  "scopes": [
+    "all"
+  ],
   "token_name": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
@@ -434,18 +676,19 @@
 
 ### Properties
 
-| Name               | Type                                         | Required | Restrictions | Description |
-|--------------------|----------------------------------------------|----------|--------------|-------------|
-| `created_at`       | string                                       | true     |              |             |
-| `expires_at`       | string                                       | true     |              |             |
-| `id`               | string                                       | true     |              |             |
-| `last_used`        | string                                       | true     |              |             |
-| `lifetime_seconds` | integer                                      | true     |              |             |
-| `login_type`       | [codersdk.LoginType](#codersdklogintype)     | true     |              |             |
-| `scope`            | [codersdk.APIKeyScope](#codersdkapikeyscope) | true     |              |             |
-| `token_name`       | string                                       | true     |              |             |
-| `updated_at`       | string                                       | true     |              |             |
-| `user_id`          | string                                       | true     |              |             |
+| Name               | Type                                                  | Required | Restrictions | Description                     |
+|--------------------|-------------------------------------------------------|----------|--------------|---------------------------------|
+| `created_at`       | string                                                | true     |              |                                 |
+| `expires_at`       | string                                                | true     |              |                                 |
+| `id`               | string                                                | true     |              |                                 |
+| `last_used`        | string                                                | true     |              |                                 |
+| `lifetime_seconds` | integer                                               | true     |              |                                 |
+| `login_type`       | [codersdk.LoginType](#codersdklogintype)              | true     |              |                                 |
+| `scope`            | [codersdk.APIKeyScope](#codersdkapikeyscope)          | false    |              | Deprecated: use Scopes instead. |
+| `scopes`           | array of [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              |                                 |
+| `token_name`       | string                                                | true     |              |                                 |
+| `updated_at`       | string                                                | true     |              |                                 |
+| `user_id`          | string                                                | true     |              |                                 |
 
 #### Enumerated Values
 
@@ -468,10 +711,49 @@
 
 #### Enumerated Values
 
-| Value                 |
-|-----------------------|
-| `all`                 |
-| `application_connect` |
+| Value                           |
+|---------------------------------|
+| `all`                           |
+| `application_connect`           |
+| `api_key:*`                     |
+| `api_key:create`                |
+| `api_key:delete`                |
+| `api_key:read`                  |
+| `api_key:update`                |
+| `coder:all`                     |
+| `coder:apikeys.manage_self`     |
+| `coder:application_connect`     |
+| `coder:templates.author`        |
+| `coder:templates.build`         |
+| `coder:workspaces.access`       |
+| `coder:workspaces.create`       |
+| `coder:workspaces.delete`       |
+| `coder:workspaces.operate`      |
+| `file:*`                        |
+| `file:create`                   |
+| `file:read`                     |
+| `template:*`                    |
+| `template:create`               |
+| `template:delete`               |
+| `template:read`                 |
+| `template:update`               |
+| `template:use`                  |
+| `user:read_personal`            |
+| `user:update_personal`          |
+| `user_secret:*`                 |
+| `user_secret:create`            |
+| `user_secret:delete`            |
+| `user_secret:read`              |
+| `user_secret:update`            |
+| `workspace:*`                   |
+| `workspace:application_connect` |
+| `workspace:create`              |
+| `workspace:delete`              |
+| `workspace:read`                |
+| `workspace:ssh`                 |
+| `workspace:start`               |
+| `workspace:stop`                |
+| `workspace:update`              |
 
 ## codersdk.AddLicenseRequest
 
@@ -1744,24 +2026,21 @@ This is required on creation to enable a user-flow of validating a template work
 {
   "lifetime": 0,
   "scope": "all",
+  "scopes": [
+    "all"
+  ],
   "token_name": "string"
 }
 ```
 
 ### Properties
 
-| Name         | Type                                         | Required | Restrictions | Description |
-|--------------|----------------------------------------------|----------|--------------|-------------|
-| `lifetime`   | integer                                      | false    |              |             |
-| `scope`      | [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              |             |
-| `token_name` | string                                       | false    |              |             |
-
-#### Enumerated Values
-
-| Property | Value                 |
-|----------|-----------------------|
-| `scope`  | `all`                 |
-| `scope`  | `application_connect` |
+| Name         | Type                                                  | Required | Restrictions | Description                     |
+|--------------|-------------------------------------------------------|----------|--------------|---------------------------------|
+| `lifetime`   | integer                                               | false    |              |                                 |
+| `scope`      | [codersdk.APIKeyScope](#codersdkapikeyscope)          | false    |              | Deprecated: use Scopes instead. |
+| `scopes`     | array of [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              |                                 |
+| `token_name` | string                                                | false    |              |                                 |
 
 ## codersdk.CreateUserRequestWithOrgs
 
@@ -3488,6 +3767,22 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `mcp-server-http`      |
 | `workspace-sharing`    |
 | `aibridge`             |
+
+## codersdk.ExternalAPIKeyScopes
+
+```json
+{
+  "external": [
+    "all"
+  ]
+}
+```
+
+### Properties
+
+| Name       | Type                                                  | Required | Restrictions | Description |
+|------------|-------------------------------------------------------|----------|--------------|-------------|
+| `external` | array of [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              |             |
 
 ## codersdk.ExternalAgentCredentials
 

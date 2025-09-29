@@ -153,8 +153,8 @@ const (
 // ensure changes in rbac/scopes.go remain in sync here.
 func (e ScopeName) Valid() bool {
 	switch e {
-	case ScopeName("all"),
-		ScopeName("application_connect"),
+	case ScopeName("coder:all"),
+		ScopeName("coder:application_connect"),
 		ScopeName("no_user_data"),
 		ScopeAibridgeInterceptionCreate,
 		ScopeAibridgeInterceptionRead,
@@ -303,8 +303,8 @@ func (e ScopeName) Valid() bool {
 // including builtin and generated low-level scopes.
 func AllScopeNameValues() []ScopeName {
 	return []ScopeName{
-		ScopeName("all"),
-		ScopeName("application_connect"),
+		ScopeName("coder:all"),
+		ScopeName("coder:application_connect"),
 		ScopeName("no_user_data"),
 		ScopeAibridgeInterceptionCreate,
 		ScopeAibridgeInterceptionRead,

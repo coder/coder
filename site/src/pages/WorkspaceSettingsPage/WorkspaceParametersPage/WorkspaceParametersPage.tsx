@@ -1,14 +1,13 @@
-import Button from "@mui/material/Button";
 import { API } from "api/api";
 import { isApiValidationError } from "api/errors";
 import { checkAuthorization } from "api/queries/authCheck";
 import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Button } from "components/Button/Button";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Loader } from "components/Loader/Loader";
 import { ExternalLinkIcon } from "lucide-react";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery } from "react-query";
 import { useNavigate } from "react-router";
 import { docs } from "utils/docs";
@@ -72,9 +71,7 @@ const WorkspaceParametersPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle(workspace.name, "Parameters")}</title>
-			</Helmet>
+			<title>{pageTitle(workspace.name, "Parameters")}</title>
 
 			<WorkspaceParametersPageView
 				workspace={workspace}
@@ -166,15 +163,15 @@ export const WorkspaceParametersPageView: FC<
 					<EmptyState
 						message="This workspace has no parameters"
 						cta={
-							<Button
-								component="a"
-								href={docs("/admin/templates/extending-templates/parameters")}
-								startIcon={<ExternalLinkIcon className="size-icon-xs" />}
-								variant="contained"
-								target="_blank"
-								rel="noreferrer"
-							>
-								Learn more about parameters
+							<Button asChild>
+								<a
+									href={docs("/admin/templates/extending-templates/parameters")}
+									target="_blank"
+									rel="noreferrer"
+								>
+									<ExternalLinkIcon className="size-icon-xs" />
+									Learn more about parameters
+								</a>
 							</Button>
 						}
 						css={(theme) => ({

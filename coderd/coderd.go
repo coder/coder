@@ -44,6 +44,8 @@ import (
 	"tailscale.com/types/key"
 	"tailscale.com/util/singleflight"
 
+	"github.com/coder/coder/v2/provisionerd/proto"
+
 	"cdr.dev/slog"
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
@@ -95,7 +97,6 @@ import (
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
-	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/tailnet"
@@ -999,12 +1000,21 @@ func New(options *Options) *API {
 
 	// Experimental routes are not guaranteed to be stable and may change at any time.
 	r.Route("/api/experimental", func(r chi.Router) {
-		r.Use(apiKeyMiddleware)
+		api.ExperimentalHandler = r
+
+		r.NotFound(func(rw http.ResponseWriter, _ *http.Request) { httpapi.RouteNotFound(rw) })
+		r.Use(
+			// Specific routes can specify different limits, but every rate
+			// limit must be configurable by the admin.
+			apiRateLimiter,
+			httpmw.ReportCLITelemetry(api.Logger, options.Telemetry),
+		)
 		r.Route("/aitasks", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
 			r.Get("/prompts", api.aiTasksPrompts)
 		})
 		r.Route("/tasks", func(r chi.Router) {
-			r.Use(apiRateLimiter)
+			r.Use(apiKeyMiddleware)
 
 			r.Get("/", api.tasksList)
 
@@ -1012,11 +1022,14 @@ func New(options *Options) *API {
 				r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
 				r.Get("/{id}", api.taskGet)
 				r.Delete("/{id}", api.taskDelete)
+				r.Post("/{id}/send", api.taskSend)
+				r.Get("/{id}/logs", api.taskLogs)
 				r.Post("/", api.tasksCreate)
 			})
 		})
 		r.Route("/mcp", func(r chi.Router) {
 			r.Use(
+				apiKeyMiddleware,
 				httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2, codersdk.ExperimentMCPServerHTTP),
 			)
 			// MCP HTTP transport endpoint with mandatory authentication
@@ -1037,6 +1050,8 @@ func New(options *Options) *API {
 		r.Get("/", apiRoot)
 		// All CSP errors will be logged
 		r.Post("/csp/reports", api.logReportCSPViolations)
+
+		r.Get("/auth/scopes", api.listExternalScopes)
 
 		r.Get("/buildinfo", buildInfoHandler(buildInfo))
 		// /regions is overridden in the enterprise version
@@ -1715,6 +1730,8 @@ type API struct {
 
 	// APIHandler serves "/api/v2"
 	APIHandler chi.Router
+	// ExperimentalHandler serves "/api/experimental"
+	ExperimentalHandler chi.Router
 	// RootHandler serves "/"
 	RootHandler chi.Router
 

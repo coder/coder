@@ -286,7 +286,7 @@
 					"icon_path": "./images/icons/computer-code.svg",
 					"children": [
 						{
-							"title": "Coder Desktop connect and sync",
+							"title": "Coder Desktop Connect and Sync",
 							"description": "Use Coder Desktop to manage your workspace code and files locally",
 							"path": "./user-guides/desktop/desktop-connect-sync.md"
 						}

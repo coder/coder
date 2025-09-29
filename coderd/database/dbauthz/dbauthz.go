@@ -175,15 +175,15 @@ func (q *querier) authorizePrebuiltWorkspace(ctx context.Context, action policy.
 	return xerrors.Errorf("authorize context: %w", workspaceErr)
 }
 
-// authorizeAIBridgeInterceptionUpdate validates that the context's actor matches the initiator of the AIBridgeInterception.
+// authorizeAIBridgeInterceptionAction validates that the context's actor matches the initiator of the AIBridgeInterception.
 // This is used by all of the sub-resources which fall under the [ResourceAibridgeInterception] umbrella.
-func (q *querier) authorizeAIBridgeInterceptionUpdate(ctx context.Context, interceptionID uuid.UUID) error {
+func (q *querier) authorizeAIBridgeInterceptionAction(ctx context.Context, action policy.Action, interceptionID uuid.UUID) error {
 	inter, err := q.db.GetAIBridgeInterceptionByID(ctx, interceptionID)
 	if err != nil {
 		return xerrors.Errorf("fetch aibridge interception %q: %w", interceptionID, err)
 	}
 
-	err = q.authorizeContext(ctx, policy.ActionUpdate, inter.RBACObject())
+	err = q.authorizeContext(ctx, action, inter.RBACObject())
 	if err != nil {
 		return err
 	}
@@ -570,6 +570,7 @@ var (
 				DisplayName: "AIBridge Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceUser.Type: {
+						policy.ActionRead,         // Required to validate API key owner is active.
 						policy.ActionReadPersonal, // Required to read users' external auth links. // TODO: this is too broad; reduce scope to just external_auth_links by creating separate resource.
 					},
 					rbac.ResourceApiKey.Type:               {policy.ActionRead}, // Validate API keys.
@@ -1927,6 +1928,37 @@ func (q *querier) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UUID)
 	return fetch(q.log, q.auth, q.db.GetAIBridgeInterceptionByID)(ctx, id)
 }
 
+func (q *querier) GetAIBridgeInterceptions(ctx context.Context) ([]database.AIBridgeInterception, error) {
+	fetch := func(ctx context.Context, _ any) ([]database.AIBridgeInterception, error) {
+		return q.db.GetAIBridgeInterceptions(ctx)
+	}
+	return fetchWithPostFilter(q.auth, policy.ActionRead, fetch)(ctx, nil)
+}
+
+func (q *querier) GetAIBridgeTokenUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]database.AIBridgeTokenUsage, error) {
+	// All aibridge_token_usages records belong to the initiator of their associated interception.
+	if err := q.authorizeAIBridgeInterceptionAction(ctx, policy.ActionRead, interceptionID); err != nil {
+		return nil, err
+	}
+	return q.db.GetAIBridgeTokenUsagesByInterceptionID(ctx, interceptionID)
+}
+
+func (q *querier) GetAIBridgeToolUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]database.AIBridgeToolUsage, error) {
+	// All aibridge_token_usages records belong to the initiator of their associated interception.
+	if err := q.authorizeAIBridgeInterceptionAction(ctx, policy.ActionRead, interceptionID); err != nil {
+		return nil, err
+	}
+	return q.db.GetAIBridgeToolUsagesByInterceptionID(ctx, interceptionID)
+}
+
+func (q *querier) GetAIBridgeUserPromptsByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]database.AIBridgeUserPrompt, error) {
+	// All aibridge_token_usages records belong to the initiator of their associated interception.
+	if err := q.authorizeAIBridgeInterceptionAction(ctx, policy.ActionRead, interceptionID); err != nil {
+		return nil, err
+	}
+	return q.db.GetAIBridgeUserPromptsByInterceptionID(ctx, interceptionID)
+}
+
 func (q *querier) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
 	return fetch(q.log, q.auth, q.db.GetAPIKeyByID)(ctx, id)
 }
@@ -2279,6 +2311,13 @@ func (q *querier) GetLatestCryptoKeyByFeature(ctx context.Context, feature datab
 		return database.CryptoKey{}, err
 	}
 	return q.db.GetLatestCryptoKeyByFeature(ctx, feature)
+}
+
+func (q *querier) GetLatestWorkspaceAppStatusesByAppID(ctx context.Context, appID uuid.UUID) ([]database.WorkspaceAppStatus, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetLatestWorkspaceAppStatusesByAppID(ctx, appID)
 }
 
 func (q *querier) GetLatestWorkspaceAppStatusesByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAppStatus, error) {
@@ -3810,26 +3849,26 @@ func (q *querier) InsertAIBridgeInterception(ctx context.Context, arg database.I
 	return insert(q.log, q.auth, rbac.ResourceAibridgeInterception.WithOwner(arg.InitiatorID.String()), q.db.InsertAIBridgeInterception)(ctx, arg)
 }
 
-func (q *querier) InsertAIBridgeTokenUsage(ctx context.Context, arg database.InsertAIBridgeTokenUsageParams) error {
+func (q *querier) InsertAIBridgeTokenUsage(ctx context.Context, arg database.InsertAIBridgeTokenUsageParams) (database.AIBridgeTokenUsage, error) {
 	// All aibridge_token_usages records belong to the initiator of their associated interception.
-	if err := q.authorizeAIBridgeInterceptionUpdate(ctx, arg.InterceptionID); err != nil {
-		return err
+	if err := q.authorizeAIBridgeInterceptionAction(ctx, policy.ActionUpdate, arg.InterceptionID); err != nil {
+		return database.AIBridgeTokenUsage{}, err
 	}
 	return q.db.InsertAIBridgeTokenUsage(ctx, arg)
 }
 
-func (q *querier) InsertAIBridgeToolUsage(ctx context.Context, arg database.InsertAIBridgeToolUsageParams) error {
+func (q *querier) InsertAIBridgeToolUsage(ctx context.Context, arg database.InsertAIBridgeToolUsageParams) (database.AIBridgeToolUsage, error) {
 	// All aibridge_tool_usages records belong to the initiator of their associated interception.
-	if err := q.authorizeAIBridgeInterceptionUpdate(ctx, arg.InterceptionID); err != nil {
-		return err
+	if err := q.authorizeAIBridgeInterceptionAction(ctx, policy.ActionUpdate, arg.InterceptionID); err != nil {
+		return database.AIBridgeToolUsage{}, err
 	}
 	return q.db.InsertAIBridgeToolUsage(ctx, arg)
 }
 
-func (q *querier) InsertAIBridgeUserPrompt(ctx context.Context, arg database.InsertAIBridgeUserPromptParams) error {
+func (q *querier) InsertAIBridgeUserPrompt(ctx context.Context, arg database.InsertAIBridgeUserPromptParams) (database.AIBridgeUserPrompt, error) {
 	// All aibridge_user_prompts records belong to the initiator of their associated interception.
-	if err := q.authorizeAIBridgeInterceptionUpdate(ctx, arg.InterceptionID); err != nil {
-		return err
+	if err := q.authorizeAIBridgeInterceptionAction(ctx, policy.ActionUpdate, arg.InterceptionID); err != nil {
+		return database.AIBridgeUserPrompt{}, err
 	}
 	return q.db.InsertAIBridgeUserPrompt(ctx, arg)
 }
@@ -4375,6 +4414,44 @@ func (q *querier) InsertWorkspaceResourceMetadata(ctx context.Context, arg datab
 		return nil, err
 	}
 	return q.db.InsertWorkspaceResourceMetadata(ctx, arg)
+}
+
+func (q *querier) ListAIBridgeInterceptions(ctx context.Context, arg database.ListAIBridgeInterceptionsParams) ([]database.AIBridgeInterception, error) {
+	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceAibridgeInterception.Type)
+	if err != nil {
+		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
+	}
+	return q.db.ListAuthorizedAIBridgeInterceptions(ctx, arg, prep)
+}
+
+func (q *querier) ListAIBridgeTokenUsagesByInterceptionIDs(ctx context.Context, interceptionIDs []uuid.UUID) ([]database.AIBridgeTokenUsage, error) {
+	// This function is a system function until we implement a join for aibridge interceptions.
+	// Matches the behavior of the workspaces listing endpoint.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+
+	return q.db.ListAIBridgeTokenUsagesByInterceptionIDs(ctx, interceptionIDs)
+}
+
+func (q *querier) ListAIBridgeToolUsagesByInterceptionIDs(ctx context.Context, interceptionIDs []uuid.UUID) ([]database.AIBridgeToolUsage, error) {
+	// This function is a system function until we implement a join for aibridge interceptions.
+	// Matches the behavior of the workspaces listing endpoint.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+
+	return q.db.ListAIBridgeToolUsagesByInterceptionIDs(ctx, interceptionIDs)
+}
+
+func (q *querier) ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Context, interceptionIDs []uuid.UUID) ([]database.AIBridgeUserPrompt, error) {
+	// This function is a system function until we implement a join for aibridge interceptions.
+	// Matches the behavior of the workspaces listing endpoint.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+
+	return q.db.ListAIBridgeUserPromptsByInterceptionIDs(ctx, interceptionIDs)
 }
 
 func (q *querier) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
@@ -5728,4 +5805,11 @@ func (q *querier) GetAuthorizedConnectionLogsOffset(ctx context.Context, arg dat
 
 func (q *querier) CountAuthorizedConnectionLogs(ctx context.Context, arg database.CountConnectionLogsParams, _ rbac.PreparedAuthorized) (int64, error) {
 	return q.CountConnectionLogs(ctx, arg)
+}
+
+func (q *querier) ListAuthorizedAIBridgeInterceptions(ctx context.Context, arg database.ListAIBridgeInterceptionsParams, _ rbac.PreparedAuthorized) ([]database.AIBridgeInterception, error) {
+	// TODO: Delete this function, all ListAIBridgeInterceptions should be authorized. For now just call ListAIBridgeInterceptions on the authz querier.
+	// This cannot be deleted for now because it's included in the
+	// database.Store interface, so dbauthz needs to implement it.
+	return q.ListAIBridgeInterceptions(ctx, arg)
 }

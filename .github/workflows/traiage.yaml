@@ -12,6 +12,11 @@ on:
         required: true
         default: "traiage"
         type: string
+      template_preset:
+        description: "Template preset to use"
+        required: true
+        default: "Default"
+        type: string
       prefix:
         description: "Prefix for workspace name"
         required: false
@@ -68,35 +73,23 @@ jobs:
           coder whoami
           echo "$HOME/.local/bin" >> "${GITHUB_PATH}"
 
-      - name: Create Coder workspace
-        id: create-workspace
+      # TODO(Cian): this is a good use-case for 'recipes'
+      - name: Create Coder task
+        id: create-task
         env:
-          PREFIX: ${{ inputs.prefix }}
           CONTEXT_KEY: ${{ steps.extract-context.outputs.context_key }}
+          GITHUB_TOKEN: ${{ github.token }}
+          ISSUE_URL: ${{ inputs.issue_url }}
+          PREFIX: ${{ inputs.prefix }}
           RUN_ID: ${{ github.run_id }}
           TEMPLATE_PARAMETERS: ${{ secrets.TRAIAGE_TEMPLATE_PARAMETERS }}
+          TEMPLATE_PRESET: ${{ inputs.template_preset }}
         run: |
-          export WORKSPACE_NAME="${PREFIX}-${CONTEXT_KEY}-${RUN_ID}"
-          echo "Creating workspace: $WORKSPACE_NAME"
-          ./scripts/traiage.sh create
-          echo "workspace_name=$WORKSPACE_NAME" >> "${GITHUB_OUTPUT}"
-          echo "WORKSPACE_NAME=${WORKSPACE_NAME}" >> "${GITHUB_ENV}"
-
-      - name: Send prompt to AI agent inside workspace
-        id: prepare-prompt
-        env:
-          WORKSPACE_NAME: ${{ steps.create-workspace.outputs.workspace_name }}
-          ISSUE_URL: ${{ inputs.issue_url }}
-          GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          PROMPT_FILE=$(mktemp)
-          trap 'rm -f "${PROMPT_FILE}"' EXIT
-
           # Fetch issue description using `gh` CLI
           issue_description=$(gh issue view "${ISSUE_URL}")
 
           # Write a prompt to PROMPT_FILE
-          cat > "${PROMPT_FILE}" <<EOF
+          PROMPT=$(cat <<EOF
           Analyze the below GitHub issue description, understand the root cause, and make appropriate changes to resolve the issue.
 
           ISSUE URL: ${ISSUE_URL}
@@ -104,20 +97,24 @@ jobs:
 
           ${issue_description}
           EOF
+          )
+          export PROMPT
 
-          echo "WORKSPACE_NAME: ${WORKSPACE_NAME}"
-          # This command will run the prompt inside the workspace
-          # and exit once the agent has completed the task.
-          PROMPT=$(cat "${PROMPT_FILE}") ./scripts/traiage.sh prompt
+          export TASK_NAME="${PREFIX}-${CONTEXT_KEY}-${RUN_ID}"
+          echo "Creating task: $TASK_NAME"
+          ./scripts/traiage.sh create
+          coder exp task status "$TASK_NAME" --watch
+          echo "TASK_NAME=${TASK_NAME}" >> "${GITHUB_OUTPUT}"
+          echo "TASK_NAME=${TASK_NAME}" >> "${GITHUB_ENV}"
 
       - name: Create and upload archive
         id: create-archive
         env:
           BUCKET_PREFIX: "gs://coder-traiage-outputs/traiage"
         run: |
-          echo "Creating archive for workspace: $WORKSPACE_NAME"
+          echo "Creating archive for workspace: $TASK_NAME"
           ./scripts/traiage.sh archive
-          echo "archive_url=${BUCKET_PREFIX%%/}/$WORKSPACE_NAME.tar.gz" >> "${GITHUB_OUTPUT}"
+          echo "archive_url=${BUCKET_PREFIX%%/}/$TASK_NAME.tar.gz" >> "${GITHUB_OUTPUT}"
 
       - name: Generate a summary of the changes and post a comment on GitHub.
         id: generate-summary
@@ -128,7 +125,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           ISSUE_URL: ${{ inputs.issue_url }}
-          WORKSPACE_NAME: ${{ steps.create-workspace.outputs.workspace_name }}
+          TASK_NAME: ${{ steps.create-task.outputs.TASK_NAME }}
         run: |
           SUMMARY_FILE=$(mktemp)
           trap 'rm -f "${SUMMARY_FILE}"' EXIT
@@ -137,7 +134,7 @@ jobs:
             echo "## TrAIage Results"
             echo "- **Issue URL:** ${ISSUE_URL}"
             echo "- **Context Key:** ${CONTEXT_KEY}"
-            echo "- **Workspace:** ${WORKSPACE_NAME}"
+            echo "- **Workspace:** ${TASK_NAME}"
             echo "- **Archive URL:** ${ARCHIVE_URL}"
             echo
             echo "${AUTO_SUMMARY}"
@@ -145,7 +142,7 @@ jobs:
             echo "To fetch the output to your own workspace:"
             echo
             echo '```bash'
-            echo "BUCKET_PREFIX=${BUCKET_PREFIX} WORKSPACE_NAME=${WORKSPACE_NAME} ./scripts/traiage.sh resume"
+            echo "BUCKET_PREFIX=${BUCKET_PREFIX} TASK_NAME=${TASK_NAME} ./scripts/traiage.sh resume"
             echo '```'
             echo
           } >> "${SUMMARY_FILE}"
@@ -157,8 +154,8 @@ jobs:
           fi
           cat "${SUMMARY_FILE}" >> "${GITHUB_STEP_SUMMARY}"
 
-      - name: Cleanup workspace
-        if: steps.create-workspace.outputs.workspace_name != '' && steps.create-archive.outputs.archive_url != ''
+      - name: Cleanup task
+        if: steps.create-task.outputs.TASK_NAME != '' && steps.create-archive.outputs.archive_url != ''
         run: |
-          echo "Cleaning up workspace: $WORKSPACE_NAME"
+          echo "Cleaning up task: $TASK_NAME"
           ./scripts/traiage.sh delete || true
