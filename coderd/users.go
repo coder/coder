@@ -1584,6 +1584,12 @@ func convertAPIKey(k database.APIKey) codersdk.APIKey {
 	// "application_connect". Continue to return those for clients even
 	// though the database stores canonical values (e.g. "coder:all")
 	// and may include low-level scopes.
+	if len(k.Scopes) == 0 {
+		k.Scopes = database.APIKeyScopes{database.ApiKeyScopeCoderAll}
+	}
+	if len(k.AllowList) == 0 {
+		k.AllowList = database.AllowList{rbac.AllowListAll()}
+	}
 	var legacyScope codersdk.APIKeyScope
 	if k.Scopes.Has(database.ApiKeyScopeCoderApplicationConnect) {
 		legacyScope = codersdk.APIKeyScopeApplicationConnect

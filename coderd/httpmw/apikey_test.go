@@ -19,6 +19,7 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/oauth2"
 
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -27,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/testutil"
@@ -77,6 +79,43 @@ func TestAPIKey(t *testing.T) {
 		httpapi.Write(context.Background(), rw, http.StatusOK, codersdk.Response{
 			Message: "It worked!",
 		})
+	})
+
+	t.Run("LegacyScopeExpandsToAll", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		user := dbgen.User(t, db, database.User{})
+		_ = dbgen.UserLink(t, db, database.UserLink{
+			UserID:    user.ID,
+			LoginType: database.LoginTypeToken,
+		})
+
+		_, token := coderdtest.LegacyToken(t, db, user.ID)
+
+		assertHandler := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			auth, ok := httpmw.UserAuthorizationOptional(r.Context())
+			require.True(t, ok)
+			scope, err := auth.Scope.Expand()
+			require.NoError(t, err)
+			require.Len(t, scope.AllowIDList, 1)
+			require.Equal(t, policy.WildcardSymbol, scope.AllowIDList[0].ID)
+			require.Equal(t, policy.WildcardSymbol, scope.AllowIDList[0].Type)
+
+			httpapi.Write(context.Background(), rw, http.StatusOK, codersdk.Response{Message: "legacy ok"})
+		})
+
+		r := httptest.NewRequest("GET", "/", nil)
+		r.Header.Set(codersdk.SessionTokenHeader, token)
+		rw := httptest.NewRecorder()
+
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+			DB:              db,
+			RedirectToLogin: false,
+		})(assertHandler).ServeHTTP(rw, r)
+
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
 	})
 
 	t.Run("NoCookie", func(t *testing.T) {
