@@ -119,6 +119,194 @@ Coder can automatically generate a name your tasks if you set the `ANTHROPIC_API
 
 If you tried Tasks and decided you don't want to use it, you can hide the Tasks tab by starting `coder server` with the `CODER_HIDE_AI_TASKS=true` environment variable or the `--hide-ai-tasks` flag.
 
+## Command Line Interface
+
+The Coder CLI provides experimental task commands for managing tasks programmatically. These are available under `coder exp task`.
+
+### Creating Tasks
+
+```bash
+coder exp task create [input] [flags]
+```
+
+Creates a new task with the provided input. You can specify input either as a command argument or via stdin.
+
+**Flags:**
+- `--name <name>` - Specify the name of the task (optional, will be auto-generated if not provided)
+- `--owner <owner>` - Specify the owner of the task (defaults to current user)
+- `--org, -O <organization>` - Select which organization (uuid or name) to use
+- `--template <template>` - Template name to use for the task
+- `--template-version <version>` - Specific template version to use
+- `--preset <preset>` - Template preset to use
+- `--stdin` - Read task input from stdin instead of command arguments
+- `--quiet, -q` - Only display the created task's ID
+
+**Examples:**
+```bash
+# Create a task with direct input
+coder exp task create "Add authentication to the user service"
+
+# Create a task using stdin
+echo "Refactor the database layer" | coder exp task create --stdin
+
+# Create a task with a specific template
+coder exp task create "Fix bug in payment processing" --template backend-dev
+
+# Create a task for another user (requires appropriate permissions)
+coder exp task create "Review code changes" --owner alice --name "code-review-task"
+```
+
+**Environment Variables:**
+- `CODER_TASK_TEMPLATE_NAME` - Default template name
+- `CODER_TASK_TEMPLATE_VERSION` - Default template version  
+- `CODER_TASK_PRESET_NAME` - Default preset name
+
+### Listing Tasks
+
+```bash
+coder exp task list [flags]
+coder exp task ls [flags]  # alias
+```
+
+Lists tasks with status, state, and timing information.
+
+**Flags:**
+- `--status <status>` - Filter by task status (e.g., running, failed, stopped)
+- `--all, -a` - List tasks for all users you can view
+- `--user <user>` - List tasks for a specific user (username or "me")
+- `--quiet, -q` - Only display task IDs
+
+**Examples:**
+```bash
+# List your tasks
+coder exp task list
+
+# List all running tasks
+coder exp task list --status running
+
+# List tasks for all users
+coder exp task list --all
+
+# List tasks for a specific user
+coder exp task list --user alice
+
+# Get task IDs only
+coder exp task list --quiet
+```
+
+### Viewing Task Status
+
+```bash
+coder exp task status <task> [flags]
+coder exp task stat <task> [flags]  # alias
+```
+
+Shows detailed status information for a specific task.
+
+**Flags:**
+- `--watch` - Watch the task status for live updates
+
+**Examples:**
+```bash
+# Show task status
+coder exp task status my-task-name
+
+# Show status using task ID
+coder exp task status 550e8400-e29b-41d4-a716-446655440000
+
+# Watch task status for live updates
+coder exp task status my-task --watch
+```
+
+> **Note**: The `--watch` flag will automatically exit when the task reaches a terminal state. Watch mode ends when:
+> - The workspace is stopped
+> - The workspace agent becomes unhealthy or is shutting down
+> - The task completes (reaches a non-working state like completed, failed, or canceled)
+
+### Viewing Task Logs
+
+```bash
+coder exp task logs <task> [flags]
+```
+
+Retrieves and displays the logs for a specific task.
+
+**Flags:**
+- (No additional flags beyond common options)
+
+**Examples:**
+```bash
+# View logs for a task
+coder exp task logs my-task-name
+
+# View logs using task ID
+coder exp task logs 550e8400-e29b-41d4-a716-446655440000
+```
+
+### Sending Input to Tasks
+
+```bash
+coder exp task send <task> [<input> | --stdin] [flags]
+```
+
+Sends additional input to a running task. This is useful for providing follow-up instructions or responding to task requests.
+
+**Flags:**
+- `--stdin` - Read input from stdin instead of command arguments
+
+**Examples:**
+```bash
+# Send input to a task
+coder exp task send my-task "Please also add unit tests"
+
+# Send input via stdin
+echo "Use TypeScript instead of JavaScript" | coder exp task send my-task --stdin
+```
+
+### Deleting Tasks
+
+```bash
+coder exp task delete <task> [<task> ...] [flags]
+```
+
+Deletes one or more tasks. This action requires confirmation unless the `--yes` flag is used.
+
+**Flags:**
+- `--yes, -y` - Bypass confirmation prompts
+
+**Examples:**
+```bash
+# Delete a single task (with confirmation)
+coder exp task delete my-task-name
+
+# Delete multiple tasks
+coder exp task delete task1 task2 task3
+
+# Delete without confirmation prompt
+coder exp task delete my-task --yes
+```
+
+### Task Identification
+
+Tasks can be identified in CLI commands using either:
+- **Task Name**: The human-readable name (e.g., `my-task-name`)
+- **Task ID**: The UUID identifier (e.g., `550e8400-e29b-41d4-a716-446655440000`)
+- **Owner/Name format**: For tasks owned by other users (e.g., `alice/her-task`)
+
+### Global Options
+
+All task commands support standard Coder CLI global options:
+- `--url <url>` - Coder server URL
+- `--token <token>` - Authentication token
+- `--verbose` - Enable verbose logging
+- `--help` - Show command help
+
+### Common Command Options
+
+Many task commands also support these common formatting options:
+- `--output, -o <format>` - Output format (table, json). Default: table
+- `--column, -c <columns>` - Columns to display in table output (varies by command)
+
 ## Next Steps
 
 <children></children>
