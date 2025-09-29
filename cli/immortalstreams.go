@@ -108,6 +108,10 @@ func DialImmortalOrFallback(
 	reconnector := newClientStreamReconnector(ctx, agentConn, client, agentID, stream.ID, logger, ops.CoderConnectHost)
 	logger.Info(ctx, "immortal: created reconnector")
 	pipe := backedpipe.NewBackedPipe(ctx, reconnector)
+	// Ensure a 404 on upgrade terminates the pipe immediately.
+	reconnector.onPermanentFailure = func() {
+		_ = pipe.Close()
+	}
 	logger.Info(ctx, "immortal: connecting backed pipe")
 	if err := pipe.Connect(); err != nil {
 		_ = streamClient.deleteStream(ctx, stream.ID)

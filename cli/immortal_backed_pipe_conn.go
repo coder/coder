@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -39,6 +40,10 @@ type clientStreamReconnector struct {
 	// precomputed strategy
 	wsURL      string
 	httpClient *http.Client
+
+	// onPermanentFailure, if set, is invoked asynchronously when a non-recoverable
+	// condition is detected during reconnect (e.g., HTTP 404 from upgrade).
+	onPermanentFailure func()
 }
 
 // newClientStreamReconnector decides once whether to use Coder Connect or agentConn
@@ -131,15 +136,25 @@ func (r *clientStreamReconnector) Reconnect(ctx context.Context, readerSeqNum ui
 	ws, resp, err := websocket.Dial(dialCtx, r.wsURL, dialOptions)
 	if err != nil {
 		var status string
+		var statusCode int
 		var hdr http.Header
 		var bodyStr string
 		if resp != nil {
 			status = resp.Status
+			statusCode = resp.StatusCode
 			hdr = resp.Header.Clone()
 			if resp.Body != nil {
 				b, _ := io.ReadAll(resp.Body)
 				_ = resp.Body.Close()
 				bodyStr = string(b)
+			}
+		}
+		// If the server returned 404 on upgrade, the immortal stream no longer exists.
+		// Tear down the pipe to stop further reconnect attempts.
+		if statusCode == http.StatusNotFound {
+			r.logger.Info(ctx, "immortal: websocket upgrade returned 404, closing backed pipe", slog.F("url", r.wsURL))
+			if r.onPermanentFailure != nil {
+				go r.onPermanentFailure()
 			}
 		}
 		r.logger.Error(ctx, "immortal reconnect dial failed", slog.Error(err), slog.F("url", r.wsURL), slog.F("status", status), slog.F("headers", hdr), slog.F("body", bodyStr))
@@ -197,6 +212,11 @@ func (c *immortalBackedConn) startSupervisor() {
 			if !c.pipe.Connected() {
 				c.logger.Info(context.Background(), "immortal: supervisor forcing reconnect")
 				if err := c.pipe.ForceReconnect(); err != nil {
+					// If the pipe is closed, stop supervising.
+					if errors.Is(err, io.EOF) {
+						c.logger.Info(context.Background(), "immortal: pipe closed, stopping supervisor")
+						return
+					}
 					c.logger.Error(context.Background(), "backedpipe reconnect attempt failed", slog.Error(err))
 				}
 			}
