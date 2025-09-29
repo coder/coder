@@ -8115,6 +8115,7 @@
 						"CoderSessionToken": []
 					}
 				],
+				"produces": ["application/json"],
 				"tags": ["Agents"],
 				"summary": "Delete workspace agent immortal stream",
 				"operationId": "delete-workspace-agent-immortal-stream",

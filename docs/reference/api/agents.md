@@ -1148,7 +1148,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 ```shell
 # Example request using curl
 curl -X DELETE http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/immortal-streams/{immortalstream} \
-  -H 'Accept: */*' \
+  -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -1164,6 +1164,19 @@ curl -X DELETE http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/
 ### Example responses
 
 > 200 Response
+
+```json
+{
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
+}
+```
 
 ### Responses
 
