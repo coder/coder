@@ -11,6 +11,7 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 )
 
@@ -60,6 +61,7 @@ func main() {
 // expectedFromRBAC returns the set of <resource>:<action> pairs derived from RBACPermissions.
 func expectedFromRBAC() map[string]struct{} {
 	want := make(map[string]struct{})
+	// Low-level <resource>:<action>
 	for resource, def := range policy.RBACPermissions {
 		if resource == policy.WildcardSymbol {
 			// Ignore wildcard entry; it has no concrete <resource>:<action> pairs.
@@ -69,6 +71,10 @@ func expectedFromRBAC() map[string]struct{} {
 			key := resource + ":" + string(action)
 			want[key] = struct{}{}
 		}
+	}
+	// Composite coder:* names
+	for _, n := range rbac.CompositeScopeNames() {
+		want[n] = struct{}{}
 	}
 	return want
 }

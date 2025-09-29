@@ -1,7 +1,9 @@
 import {
+	MockAIPromptPresets,
 	MockNewTaskData,
 	MockPresets,
 	MockTask,
+	MockTasks,
 	MockTemplate,
 	MockTemplateVersionExternalAuthGithub,
 	MockTemplateVersionExternalAuthGithubAuthenticated,
@@ -15,9 +17,9 @@ import {
 } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
-import { AI_PROMPT_PARAMETER_NAME } from "modules/tasks/tasks";
 import { MockUsers } from "pages/UsersPage/storybookData/users";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import TasksPage from "./TasksPage";
 
 const meta: Meta<typeof TasksPage> = {
@@ -52,7 +54,7 @@ const meta: Meta<typeof TasksPage> = {
 export default meta;
 type Story = StoryObj<typeof TasksPage>;
 
-export const LoadingTemplates: Story = {
+export const LoadingAITemplates: Story = {
 	beforeEach: () => {
 		spyOn(API, "getTemplates").mockImplementation(
 			() => new Promise(() => 1000 * 60 * 60),
@@ -60,7 +62,7 @@ export const LoadingTemplates: Story = {
 	},
 };
 
-export const LoadingTemplatesError: Story = {
+export const LoadingAITemplatesError: Story = {
 	beforeEach: () => {
 		spyOn(API, "getTemplates").mockRejectedValue(
 			mockApiError({
@@ -71,41 +73,177 @@ export const LoadingTemplatesError: Story = {
 	},
 };
 
-export const NoTemplates: Story = {
+export const EmptyAITemplates: Story = {
 	beforeEach: () => {
 		spyOn(API, "getTemplates").mockResolvedValue([]);
+		spyOn(API.experimental, "getTasks").mockResolvedValue([]);
 	},
 };
 
-export const NoPreset: Story = {
+export const LoadingTasks: Story = {
 	beforeEach: () => {
 		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
+		spyOn(API.experimental, "getTasks").mockImplementation(
+			() => new Promise(() => 1000 * 60 * 60),
+		);
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+
+		await step("Select the first AI template", async () => {
+			const form = await canvas.findByRole("form");
+			const combobox = await within(form).findByRole("combobox");
+			expect(combobox).toHaveTextContent(MockTemplate.display_name);
+		});
 	},
 };
 
-export const WithPreset: Story = {
+export const LoadingTasksError: Story = {
 	beforeEach: () => {
 		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
-		spyOn(API, "getTemplateVersionPresets").mockResolvedValue(MockPresets);
+		spyOn(API.experimental, "getTasks").mockRejectedValue(
+			mockApiError({
+				message: "Failed to load tasks",
+			}),
+		);
 	},
 };
 
-export const PreDefinedPrompt: Story = {
+export const EmptyTasks: Story = {
 	beforeEach: () => {
 		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
-		spyOn(API, "getTemplateVersionPresets").mockResolvedValue([
-			{
-				...MockPresets[0],
-				Parameters: [
-					{ Name: AI_PROMPT_PARAMETER_NAME, Value: "Write a poem about AI" },
-				],
-			},
+		spyOn(API.experimental, "getTasks").mockResolvedValue([]);
+	},
+};
+
+export const LoadedTasks: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
+		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
+	},
+};
+
+export const LoadedTasksWithPresets: Story = {
+	beforeEach: () => {
+		const mockTemplateWithPresets = {
+			...MockTemplate,
+			id: "test-template-2",
+			name: "template-with-presets",
+			display_name: "Template with Presets",
+		};
+
+		spyOn(API, "getTemplates").mockResolvedValue([
+			MockTemplate,
+			mockTemplateWithPresets,
 		]);
+		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
+		spyOn(API, "getTemplateVersionPresets").mockImplementation(
+			async (versionId) => {
+				// Return presets only for the second template
+				if (versionId === mockTemplateWithPresets.active_version_id) {
+					return MockPresets;
+				}
+				return null;
+			},
+		);
+	},
+};
+
+export const LoadedTasksWithAIPromptPresets: Story = {
+	beforeEach: () => {
+		const mockTemplateWithPresets = {
+			...MockTemplate,
+			id: "test-template-2",
+			name: "template-with-presets",
+			display_name: "Template with AI Prompt Presets",
+		};
+
+		spyOn(API, "getTemplates").mockResolvedValue([
+			MockTemplate,
+			mockTemplateWithPresets,
+		]);
+		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
+		spyOn(API, "getTemplateVersionPresets").mockImplementation(
+			async (versionId) => {
+				// Return presets only for the second template
+				if (versionId === mockTemplateWithPresets.active_version_id) {
+					return MockAIPromptPresets;
+				}
+				return null;
+			},
+		);
+	},
+};
+
+export const LoadedTasksWaitingForInput: Story = {
+	beforeEach: () => {
+		const [firstTask, ...otherTasks] = MockTasks;
+		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
+		spyOn(API.experimental, "getTasks").mockResolvedValue([
+			{
+				...firstTask,
+				workspace: {
+					...firstTask.workspace,
+					latest_app_status: {
+						...firstTask.workspace.latest_app_status,
+						state: "idle",
+					},
+				},
+			},
+			...otherTasks,
+		]);
+	},
+};
+
+export const LoadedTasksWaitingForInputTab: Story = {
+	beforeEach: () => {
+		const [firstTask, ...otherTasks] = MockTasks;
+		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
+		spyOn(API.experimental, "getTasks").mockResolvedValue([
+			{
+				...firstTask,
+				workspace: {
+					...firstTask.workspace,
+					latest_app_status: {
+						...firstTask.workspace.latest_app_status,
+						state: "idle" as const,
+					},
+				},
+			},
+			...otherTasks,
+		]);
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+
+		await step("Switch to 'Waiting for input' tab", async () => {
+			const waitingForInputTab = await canvas.findByRole("button", {
+				name: /waiting for input/i,
+			});
+			await userEvent.click(waitingForInputTab);
+		});
 	},
 };
 
 export const CreateTaskSuccessfully: Story = {
 	decorators: [withGlobalSnackbar],
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/tasks",
+			},
+			routing: [
+				{
+					path: "/tasks",
+					useStoryElement: true,
+				},
+				{
+					path: "/tasks/:ownerName/:workspaceName",
+					element: <h1>Task page</h1>,
+				},
+			],
+		}),
+	},
 	beforeEach: () => {
 		const activeVersionId = `${MockTemplate.active_version_id}-latest`;
 		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
@@ -113,6 +251,9 @@ export const CreateTaskSuccessfully: Story = {
 			...MockTemplate,
 			active_version_id: activeVersionId,
 		});
+		spyOn(API.experimental, "getTasks")
+			.mockResolvedValueOnce(MockTasks)
+			.mockResolvedValue([MockNewTaskData, ...MockTasks]);
 		spyOn(API.experimental, "createTask").mockResolvedValue(MockTask);
 	},
 	play: async ({ canvasElement, step }) => {
@@ -142,6 +283,13 @@ export const CreateTaskSuccessfully: Story = {
 			const successMessage = await body.findByText(/task created/i);
 			expect(successMessage).toBeInTheDocument();
 		});
+
+		await step("Find task in the table", async () => {
+			const table = canvasElement.querySelector("table");
+			await waitFor(() => {
+				expect(table).toHaveTextContent(MockNewTaskData.prompt);
+			});
+		});
 	},
 };
 
@@ -150,6 +298,7 @@ export const CreateTaskError: Story = {
 	beforeEach: () => {
 		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
 		spyOn(API, "getTemplate").mockResolvedValue(MockTemplate);
+		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
 		spyOn(API.experimental, "createTask").mockRejectedValue(
 			mockApiError({
 				message: "Failed to create task",
@@ -176,7 +325,10 @@ export const CreateTaskError: Story = {
 
 export const WithAuthenticatedExternalAuth: Story = {
 	beforeEach: () => {
-		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
+		spyOn(API.experimental, "getTasks")
+			.mockResolvedValueOnce(MockTasks)
+			.mockResolvedValue([MockNewTaskData, ...MockTasks]);
+		spyOn(API.experimental, "createTask").mockResolvedValue(MockTask);
 		spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([
 			MockTemplateVersionExternalAuthGithubAuthenticated,
 		]);
@@ -199,7 +351,10 @@ export const WithAuthenticatedExternalAuth: Story = {
 
 export const MissingExternalAuth: Story = {
 	beforeEach: () => {
-		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
+		spyOn(API.experimental, "getTasks")
+			.mockResolvedValueOnce(MockTasks)
+			.mockResolvedValue([MockNewTaskData, ...MockTasks]);
+		spyOn(API.experimental, "createTask").mockResolvedValue(MockTask);
 		spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([
 			MockTemplateVersionExternalAuthGithub,
 		]);
@@ -222,7 +377,10 @@ export const MissingExternalAuth: Story = {
 
 export const ExternalAuthError: Story = {
 	beforeEach: () => {
-		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
+		spyOn(API.experimental, "getTasks")
+			.mockResolvedValueOnce(MockTasks)
+			.mockResolvedValue([MockNewTaskData, ...MockTasks]);
+		spyOn(API.experimental, "createTask").mockResolvedValue(MockTask);
 		spyOn(API, "getTemplateVersionExternalAuth").mockRejectedValue(
 			mockApiError({
 				message: "Failed to load external auth",
@@ -241,6 +399,28 @@ export const ExternalAuthError: Story = {
 
 		await step("Renders error", async () => {
 			await canvas.findByText(/failed to load external auth/i);
+		});
+	},
+};
+
+export const NonAdmin: Story = {
+	parameters: {
+		permissions: {
+			viewDeploymentConfig: false,
+		},
+	},
+	beforeEach: () => {
+		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
+		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+
+		await step("Can't see filters", async () => {
+			await canvas.findByRole("table");
+			expect(
+				canvas.queryByRole("region", { name: /filters/i }),
+			).not.toBeInTheDocument();
 		});
 	},
 };

@@ -17,6 +17,7 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 	var (
 		orgContext = NewOrganizationContext()
 
+		ownerArg            string
 		taskName            string
 		templateName        string
 		templateVersionName string
@@ -39,6 +40,14 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 				Value:       serpent.StringOf(&taskName),
 				Required:    false,
 				Default:     "",
+			},
+			{
+				Name:        "owner",
+				Flag:        "owner",
+				Description: "Specify the owner of the task. Defaults to the current user.",
+				Value:       serpent.StringOf(&ownerArg),
+				Required:    false,
+				Default:     codersdk.Me,
 			},
 			{
 				Name:  "template",
@@ -177,7 +186,7 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 				templateVersionPresetID = preset.ID
 			}
 
-			task, err := expClient.CreateTask(ctx, codersdk.Me, codersdk.CreateTaskRequest{
+			task, err := expClient.CreateTask(ctx, ownerArg, codersdk.CreateTaskRequest{
 				Name:                    taskName,
 				TemplateVersionID:       templateVersionID,
 				TemplateVersionPresetID: templateVersionPresetID,
