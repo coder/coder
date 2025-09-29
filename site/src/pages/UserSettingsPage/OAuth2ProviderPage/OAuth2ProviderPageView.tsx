@@ -1,4 +1,3 @@
-import Button from "@mui/material/Button";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
@@ -8,6 +7,7 @@ import TableRow from "@mui/material/TableRow";
 import type * as TypesGen from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
+import { Button } from "components/Button/Button";
 import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import type { FC } from "react";
@@ -74,12 +74,7 @@ const OAuth2AppRow: FC<OAuth2AppRowProps> = ({ app, revoke }) => {
 			</TableCell>
 
 			<TableCell>
-				<Button
-					variant="contained"
-					size="small"
-					color="error"
-					onClick={() => revoke(app)}
-				>
+				<Button size="sm" variant="destructive" onClick={() => revoke(app)}>
 					Revoke&hellip;
 				</Button>
 			</TableCell>
