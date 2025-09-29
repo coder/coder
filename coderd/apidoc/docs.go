@@ -3744,6 +3744,13 @@ const docTemplate = `{
                         "description": "Provisioner tags to filter by (JSON of the form {'tag1':'value1','tag2':'value2'})",
                         "name": "tags",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Filter results by initiator ID",
+                        "name": "initiator_id",
+                        "in": "query"
                     }
                 ],
                 "responses": {

@@ -2060,6 +2060,7 @@ export interface OrganizationProvisionerJobsOptions {
 	readonly IDs: readonly string[];
 	readonly Status: readonly ProvisionerJobStatus[];
 	readonly Tags: Record<string, string>;
+	readonly InitiatorID: string | null;
 }
 
 // From codersdk/idpsync.go
