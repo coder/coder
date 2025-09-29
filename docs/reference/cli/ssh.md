@@ -30,6 +30,25 @@ This command does not have full parity with the standard SSH command. For users 
 
 Specifies whether to emit SSH output over stdin/stdout.
 
+### --immortal
+
+|             |                                  |
+|-------------|----------------------------------|
+| Type        | <code>bool</code>                |
+| Environment | <code>$CODER_SSH_IMMORTAL</code> |
+
+Use an Immortal Stream for SSH in stdio mode.
+
+### --immortal-fallback
+
+|             |                                           |
+|-------------|-------------------------------------------|
+| Type        | <code>bool</code>                         |
+| Environment | <code>$CODER_SSH_IMMORTAL_FALLBACK</code> |
+| Default     | <code>false</code>                        |
+
+If enabled, fall back to regular TCP when Immortal Stream creation fails.
+
 ### --ssh-host-prefix
 
 |             |                                         |
