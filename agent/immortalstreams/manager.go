@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -289,6 +290,12 @@ func isConnectionRefused(err error) bool {
 	// Check for syscall.ECONNREFUSED through error unwrapping
 	var errno syscall.Errno
 	if errors.As(err, &errno) && errno == syscall.ECONNREFUSED {
+		return true
+	}
+	// Some dialers/tests surface a plain error message without a wrapped errno.
+	// Handle common cross-platform string forms conservatively.
+	msg := strings.ToLower(err.Error())
+	if strings.Contains(msg, "connection refused") || strings.Contains(msg, "connrefused") {
 		return true
 	}
 	return false
