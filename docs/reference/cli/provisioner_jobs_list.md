@@ -34,6 +34,15 @@ Filter by job status.
 
 Limit the number of jobs returned.
 
+### --initiator
+
+|             |                                                    |
+|-------------|----------------------------------------------------|
+| Type        | <code>string</code>                                |
+| Environment | <code>$CODER_PROVISIONER_JOB_LIST_INITIATOR</code> |
+
+Filter by initiator (user ID or username).
+
 ### -O, --org
 
 |             |                                  |

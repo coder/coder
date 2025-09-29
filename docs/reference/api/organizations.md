@@ -366,6 +366,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 | `ids`          | query | array(uuid)  | false    | Filter results by job IDs                                                          |
 | `status`       | query | string       | false    | Filter results by status                                                           |
 | `tags`         | query | object       | false    | Provisioner tags to filter by (JSON of the form {'tag1':'value1','tag2':'value2'}) |
+| `initiator_id` | query | string(uuid) | false    | Filter results by initiator ID                                                     |
 
 #### Enumerated Values
 

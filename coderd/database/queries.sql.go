@@ -9822,6 +9822,7 @@ WHERE
 	AND (COALESCE(array_length($2::uuid[], 1), 0) = 0 OR pj.id = ANY($2::uuid[]))
 	AND (COALESCE(array_length($3::provisioner_job_status[], 1), 0) = 0 OR pj.job_status = ANY($3::provisioner_job_status[]))
 	AND ($4::tagset = 'null'::tagset OR provisioner_tagset_contains(pj.tags::tagset, $4::tagset))
+	AND ($5::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR pj.initiator_id = $5::uuid)
 GROUP BY
 	pj.id,
 	qp.queue_position,
@@ -9837,7 +9838,7 @@ GROUP BY
 ORDER BY
 	pj.created_at DESC
 LIMIT
-	$5::int
+	$6::int
 `
 
 type GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams struct {
@@ -9845,6 +9846,7 @@ type GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerPar
 	IDs            []uuid.UUID            `db:"ids" json:"ids"`
 	Status         []ProvisionerJobStatus `db:"status" json:"status"`
 	Tags           StringMap              `db:"tags" json:"tags"`
+	InitiatorID    uuid.UUID              `db:"initiator_id" json:"initiator_id"`
 	Limit          sql.NullInt32          `db:"limit" json:"limit"`
 }
 
@@ -9869,6 +9871,7 @@ func (q *sqlQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionA
 		pq.Array(arg.IDs),
 		pq.Array(arg.Status),
 		arg.Tags,
+		arg.InitiatorID,
 		arg.Limit,
 	)
 	if err != nil {
