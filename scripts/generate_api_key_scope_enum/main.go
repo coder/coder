@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 )
 
@@ -18,6 +19,8 @@ func main() {
 			vals = append(vals, fmt.Sprintf("%s:%s", resource, action))
 		}
 	}
+	// Include composite coder:* scopes as first-class enum values
+	vals = append(vals, rbac.CompositeScopeNames()...)
 	sort.Strings(vals)
 	for _, v := range vals {
 		if _, ok := seen[v]; ok {

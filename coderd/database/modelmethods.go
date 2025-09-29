@@ -203,6 +203,13 @@ func (s APIKeyScopes) Expand() (rbac.Scope, error) {
 		}
 	}
 
+	// De-duplicate permissions across Site/Org/User
+	merged.Site = rbac.DeduplicatePermissions(merged.Site)
+	for orgID, perms := range merged.Org {
+		merged.Org[orgID] = rbac.DeduplicatePermissions(perms)
+	}
+	merged.User = rbac.DeduplicatePermissions(merged.User)
+
 	if allowAll || len(allowSet) == 0 {
 		merged.AllowIDList = []rbac.AllowListElement{rbac.AllowListAll()}
 	} else {
