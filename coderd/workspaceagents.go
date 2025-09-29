@@ -1031,6 +1031,7 @@ func (api *API) workspaceAgentCreateImmortalStream(rw http.ResponseWriter, r *ht
 // @Summary Delete workspace agent immortal stream
 // @ID delete-workspace-agent-immortal-stream
 // @Security CoderSessionToken
+// @Produce json
 // @Tags Agents
 // @Param workspaceagent path string true "Workspace agent ID" format(uuid)
 // @Param immortalstream path string true "Immortal stream ID" format(uuid)
