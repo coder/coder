@@ -33,6 +33,15 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// @Summary Get AI task prompts for workspace builds
+// @ID get-ai-task-prompts
+// @Security CoderSessionToken
+// @Tags Experimental
+// @Param build_ids query string true "Comma-separated list of workspace build IDs"
+// @Success 200 {object} codersdk.AITasksPromptsResponse
+// @Router /api/experimental/aitasks/prompts [get]
+// @x-apidocgen:skip
+//
 // This endpoint is experimental and not guaranteed to be stable, so we're not
 // generating public-facing documentation for it.
 func (api *API) aiTasksPrompts(rw http.ResponseWriter, r *http.Request) {
@@ -84,6 +93,16 @@ func (api *API) aiTasksPrompts(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @Summary Create a new AI task
+// @ID create-task
+// @Security CoderSessionToken
+// @Tags Experimental
+// @Param user path string true "Username, user ID, or 'me' for the authenticated user"
+// @Param request body codersdk.CreateTaskRequest true "Create task request"
+// @Success 201 {object} codersdk.Task
+// @Router /api/experimental/tasks/{user} [post]
+// @x-apidocgen:skip
+//
 // This endpoint is experimental and not guaranteed to be stable, so we're not
 // generating public-facing documentation for it.
 func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
@@ -318,6 +337,18 @@ type tasksListResponse struct {
 	Count int             `json:"count"`
 }
 
+// @Summary List AI tasks
+// @ID list-tasks
+// @Security CoderSessionToken
+// @Tags Experimental
+// @Param q query string false "Search query for filtering tasks"
+// @Param after_id query string false "Return tasks after this ID for pagination"
+// @Param limit query int false "Maximum number of tasks to return" minimum(1) maximum(100) default(25)
+// @Param offset query int false "Offset for pagination" minimum(0) default(0)
+// @Success 200 {object} coderd.tasksListResponse
+// @Router /api/experimental/tasks [get]
+// @x-apidocgen:skip
+//
 // tasksList is an experimental endpoint to list AI tasks by mapping
 // workspaces to a task-shaped response.
 func (api *API) tasksList(rw http.ResponseWriter, r *http.Request) {
@@ -421,6 +452,16 @@ func (api *API) tasksList(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @Summary Get AI task by ID
+// @ID get-task
+// @Security CoderSessionToken
+// @Tags Experimental
+// @Param user path string true "Username, user ID, or 'me' for the authenticated user"
+// @Param id path string true "Task ID" format(uuid)
+// @Success 200 {object} codersdk.Task
+// @Router /api/experimental/tasks/{user}/{id} [get]
+// @x-apidocgen:skip
+//
 // taskGet is an experimental endpoint to fetch a single AI task by ID
 // (workspace ID). It returns a synthesized task response including
 // prompt and status.
@@ -527,6 +568,16 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, tasks[0])
 }
 
+// @Summary Delete AI task by ID
+// @ID delete-task
+// @Security CoderSessionToken
+// @Tags Experimental
+// @Param user path string true "Username, user ID, or 'me' for the authenticated user"
+// @Param id path string true "Task ID" format(uuid)
+// @Success 202 "Task deletion initiated"
+// @Router /api/experimental/tasks/{user}/{id} [delete]
+// @x-apidocgen:skip
+//
 // taskDelete is an experimental endpoint to delete a task by ID (workspace ID).
 // It creates a delete workspace build and returns 202 Accepted if the build was
 // created.
@@ -602,6 +653,17 @@ func (api *API) taskDelete(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusAccepted)
 }
 
+// @Summary Send input to AI task
+// @ID send-task-input
+// @Security CoderSessionToken
+// @Tags Experimental
+// @Param user path string true "Username, user ID, or 'me' for the authenticated user"
+// @Param id path string true "Task ID" format(uuid)
+// @Param request body codersdk.TaskSendRequest true "Task input request"
+// @Success 204 "Input sent successfully"
+// @Router /api/experimental/tasks/{user}/{id}/send [post]
+// @x-apidocgen:skip
+//
 // taskSend submits task input to the tasks sidebar app by dialing the agent
 // directly over the tailnet. We enforce ApplicationConnect RBAC on the
 // workspace and validate the sidebar app health.
@@ -696,6 +758,15 @@ func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// @Summary Get AI task logs
+// @ID get-task-logs
+// @Security CoderSessionToken
+// @Tags Experimental
+// @Param user path string true "Username, user ID, or 'me' for the authenticated user"
+// @Param id path string true "Task ID" format(uuid)
+// @Success 200 {object} codersdk.TaskLogsResponse
+// @Router /api/experimental/tasks/{user}/{id}/logs [get]
+// @x-apidocgen:skip
 func (api *API) taskLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
