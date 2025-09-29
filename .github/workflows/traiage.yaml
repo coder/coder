@@ -83,7 +83,7 @@ jobs:
         run: |
           [[ -z "${{ env.GITHUB_USER_ID }}" ]] && echo "No GitHub actor ID found" && exit 1
           user_json=$(
-            coder users list --github-user-id="${{ env.GITHUB_USER_ID }}"
+            coder users list --github-user-id="${{ env.GITHUB_USER_ID }}" --output=json
           )
           coder_username=$(jq -r 'first | .username' <<< "$user_json")
           [[ -z "${coder_username}" ]] && echo "No Coder user with GitHub user ID ${env.GITHUB_USER_ID} found" && exit 1
