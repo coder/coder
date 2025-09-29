@@ -1000,6 +1000,8 @@ func TestAuthorizeScope(t *testing.T) {
 		},
 	)
 
+	createScopeWorkspaceID := uuid.New()
+
 	// This scope can only create workspaces
 	user = Subject{
 		ID: "me",
@@ -1012,15 +1014,15 @@ func TestAuthorizeScope(t *testing.T) {
 				Identifier:  RoleIdentifier{Name: "create_workspace"},
 				DisplayName: "Create Workspace",
 				Site: Permissions(map[string][]policy.Action{
-					// Only read access for workspaces.
+					// Only create access for workspaces.
 					ResourceWorkspace.Type: {policy.ActionCreate},
 				}),
 				Org:  map[string][]Permission{},
 				User: []Permission{},
 			},
-			// Empty string allow_list is allowed for actions like 'create'
+			// Specific IDs still allow creation; reads require matching IDs.
 			AllowIDList: []AllowListElement{{
-				Type: ResourceWorkspace.Type, ID: "",
+				Type: ResourceWorkspace.Type, ID: createScopeWorkspaceID.String(),
 			}},
 		},
 	}
@@ -1190,8 +1192,7 @@ func TestScopeAllowList(t *testing.T) {
 				Site: allPermsExcept(ResourceUser),
 			},
 			AllowIDList: []AllowListElement{
-				{Type: ResourceWorkspace.Type, ID: wid.String()},
-				{Type: ResourceWorkspace.Type, ID: ""}, // Allow to create
+				{Type: ResourceWorkspace.Type, ID: wid.String()}, // create bypass handled by policy
 				{Type: ResourceTemplate.Type, ID: policy.WildcardSymbol},
 				{Type: ResourceGroup.Type, ID: gid.String()},
 
@@ -1219,6 +1220,7 @@ func TestScopeAllowList(t *testing.T) {
 
 				// Group
 				{resource: ResourceGroup.InOrg(defOrg).WithID(gid), actions: []policy.Action{policy.ActionRead}},
+				{resource: ResourceGroup.InOrg(defOrg), actions: []policy.Action{policy.ActionCreate}},
 			},
 		),
 
@@ -1233,12 +1235,39 @@ func TestScopeAllowList(t *testing.T) {
 
 				// `wid` matches on the uuid, but not the type
 				{resource: ResourceGroup.WithID(wid), actions: []policy.Action{policy.ActionRead}},
-
-				// no empty id for the create action
-				{resource: ResourceGroup.InOrg(defOrg), actions: []policy.Action{policy.ActionCreate}},
 			},
 		),
 	)
+
+	t.Run("create requires matching type entry", func(t *testing.T) {
+		t.Parallel()
+
+		subject := Subject{
+			ID:    "me",
+			Roles: Roles{must(RoleByName(RoleOwner()))},
+			Scope: Scope{
+				Role: Role{
+					Identifier: RoleIdentifier{Name: "AllowListNoWorkspace"},
+					Site: Permissions(map[string][]policy.Action{
+						ResourceWorkspace.Type: {policy.ActionCreate},
+					}),
+				},
+				AllowIDList: []AllowListElement{{
+					Type: ResourceTemplate.Type, ID: uuid.NewString(),
+				}},
+			},
+		}
+
+		testAuthorize(t, "CreateRequiresMatchingType", subject,
+			[]authTestCase{
+				{
+					resource: ResourceWorkspace.InOrg(defOrg).WithOwner(subject.ID),
+					actions:  []policy.Action{policy.ActionCreate},
+					allow:    false,
+				},
+			},
+		)
+	})
 
 	// Wildcard type
 	user = Subject{
@@ -1271,6 +1300,7 @@ func TestScopeAllowList(t *testing.T) {
 			[]authTestCase{
 				// anything with the id is ok
 				{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID).WithID(wid), actions: []policy.Action{policy.ActionRead}},
+				{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID), actions: []policy.Action{policy.ActionCreate}},
 				{resource: ResourceGroup.InOrg(defOrg).WithID(wid), actions: []policy.Action{policy.ActionRead}},
 				{resource: ResourceTemplate.InOrg(defOrg).WithID(wid), actions: []policy.Action{policy.ActionRead}},
 			},
@@ -1283,11 +1313,62 @@ func TestScopeAllowList(t *testing.T) {
 		},
 			[]authTestCase{
 				// Anything without the id is not allowed
-				{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID), actions: []policy.Action{policy.ActionCreate}},
 				{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID).WithID(uuid.New()), actions: []policy.Action{policy.ActionRead}},
 			},
 		),
 	)
+}
+
+func TestScopeAllowListFilter(t *testing.T) {
+	t.Parallel()
+
+	workspaceID := uuid.New()
+	otherWorkspace := uuid.New()
+	defOrg := uuid.New()
+
+	subject := Subject{
+		ID:    "me",
+		Roles: Roles{must(RoleByName(RoleOwner()))},
+		Scope: Scope{
+			Role: Role{
+				Identifier: RoleIdentifier{Name: "AllowListFilter"},
+				Site: Permissions(map[string][]policy.Action{
+					ResourceWorkspace.Type: {policy.ActionRead},
+				}),
+			},
+			AllowIDList: []AllowListElement{
+				{Type: ResourceWorkspace.Type, ID: workspaceID.String()},
+			},
+		},
+	}
+
+	allowed := ResourceWorkspace.WithID(workspaceID).InOrg(defOrg).WithOwner(subject.ID)
+	denied := ResourceWorkspace.WithID(otherWorkspace).InOrg(defOrg).WithOwner(subject.ID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+
+	auth := NewAuthorizer(prometheus.NewRegistry())
+	filtered, err := Filter(ctx, auth, subject, policy.ActionRead, []Object{allowed, denied})
+	require.NoError(t, err)
+	require.Len(t, filtered, 1)
+	require.Equal(t, workspaceID.String(), filtered[0].ID)
+}
+
+func TestAuthorizeRequiresScope(t *testing.T) {
+	t.Parallel()
+
+	subject := Subject{
+		ID:    "me",
+		Roles: Roles{must(RoleByName(RoleOwner()))},
+	}
+
+	auth := NewAuthorizer(prometheus.NewRegistry())
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+
+	err := auth.Authorize(ctx, subject, policy.ActionRead, ResourceWorkspace.WithID(uuid.New()))
+	require.Error(t, err)
 }
 
 func TestScopeMetricsCounters(t *testing.T) {
