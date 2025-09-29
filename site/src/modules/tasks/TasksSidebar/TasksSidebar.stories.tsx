@@ -17,6 +17,14 @@ const meta: Meta<typeof TasksSidebar> = {
 		permissions: {
 			viewAllUsers: true,
 		},
+		reactRouter: reactRouterParameters({
+			location: {
+				pathParams: {
+					workspace: MockTasks[0].workspace.name,
+				},
+			},
+			routing: { path: "/tasks/:workspace" },
+		}),
 	},
 	beforeEach: () => {
 		spyOn(API, "getUsers").mockResolvedValue({
@@ -49,16 +57,6 @@ export const Loaded: Story = {
 	beforeEach: () => {
 		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
 	},
-	parameters: {
-		reactRouter: reactRouterParameters({
-			location: {
-				pathParams: {
-					workspace: MockTasks[0].workspace.name,
-				},
-			},
-			routing: { path: "/tasks/:workspace" },
-		}),
-	},
 };
 
 export const Empty: Story = {
@@ -71,19 +69,22 @@ export const Closed: Story = {
 	beforeEach: () => {
 		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
 	},
-	parameters: {
-		reactRouter: reactRouterParameters({
-			location: {
-				pathParams: {
-					workspace: MockTasks[0].workspace.name,
-				},
-			},
-			routing: { path: "/tasks/:workspace" },
-		}),
-	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const button = canvas.getByRole("button", { name: /close sidebar/i });
 		await userEvent.click(button);
+	},
+};
+
+export const OpenOptionsMenu: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const optionButtons = await canvas.findAllByRole("button", {
+			name: /task options/i,
+		});
+		await userEvent.click(optionButtons[0]);
 	},
 };
