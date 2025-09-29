@@ -817,11 +817,9 @@ func (a *agent) reportConnection(id uuid.UUID, connectionType proto.Connection_T
 	if host, _, err := net.SplitHostPort(ip); err == nil {
 		// Best effort.
 		ip = host
-	} else if !strings.Contains(ip, ":") {
-		// net.Pipe and other in-memory transports may not include a port. Use the
-		// provided value without logging an error so tests using these transports
-		// do not fail due to expected placeholder addresses like "pipe".
-	} else {
+	} else if strings.Contains(ip, ":") {
+		// The address includes a colon but could not be split into host:port.
+		// Log the error; otherwise, tolerate placeholders like "pipe" which lack ports.
 		a.logger.Error(a.hardCtx, "split host and port for connection report failed", slog.F("ip", ip), slog.Error(err))
 	}
 
