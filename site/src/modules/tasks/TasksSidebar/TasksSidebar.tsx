@@ -2,6 +2,7 @@ import { API } from "api/api";
 import { getErrorMessage } from "api/errors";
 import { cva } from "class-variance-authority";
 import { Button } from "components/Button/Button";
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -172,58 +173,84 @@ type TaskSidebarMenuItemProps = {
 const TaskSidebarMenuItem: FC<TaskSidebarMenuItemProps> = ({ task }) => {
 	const { workspace } = useParams<{ workspace: string }>();
 	const isActive = task.workspace.name === workspace;
+	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
 	return (
-		<Button
-			size="sm"
-			variant="subtle"
-			className={cn(
-				"overflow-visible group w-full justify-start text-content-secondary",
-				"transition-none hover:bg-surface-tertiary gap-2 has-[[data-state=open]]:bg-surface-tertiary",
-				{
-					"text-content-primary bg-surface-quaternary hover:bg-surface-quaternary has-[[data-state=open]]:bg-surface-quaternary":
-						isActive,
-				},
-			)}
-			asChild
-		>
-			<RouterLink
-				to={{
-					pathname: `/tasks/${task.workspace.owner_name}/${task.workspace.name}`,
-					search: window.location.search,
-				}}
+		<>
+			<Button
+				asChild
+				size="sm"
+				variant="subtle"
+				className={cn(
+					"overflow-visible group w-full justify-start text-content-secondary",
+					"transition-none hover:bg-surface-tertiary gap-2 has-[[data-state=open]]:bg-surface-tertiary",
+					{
+						"text-content-primary bg-surface-quaternary hover:bg-surface-quaternary has-[[data-state=open]]:bg-surface-quaternary":
+							isActive,
+					},
+				)}
 			>
-				<TaskSidebarMenuItemStatus task={task} />
-				<span className="truncate">{task.workspace.name}</span>
-				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
-						<Button
-							size="icon"
-							variant="subtle"
-							className={`
+				<RouterLink
+					to={{
+						pathname: `/tasks/${task.workspace.owner_name}/${task.workspace.name}`,
+						search: window.location.search,
+					}}
+				>
+					<TaskSidebarMenuItemStatus task={task} />
+					<span className="truncate">{task.workspace.name}</span>
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button
+								size="icon"
+								variant="subtle"
+								className={`
 								ml-auto -mr-2 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100
 								focus-visible:opacity-100 data-[state=open]:opacity-100
 							`}
-							onClick={(e) => {
-								e.preventDefault();
-							}}
-						>
-							<EllipsisIcon />
-							<span className="sr-only">Task options</span>
-						</Button>
-					</DropdownMenuTrigger>
+								onClick={(e) => {
+									e.stopPropagation();
+									e.preventDefault();
+								}}
+							>
+								<EllipsisIcon />
+								<span className="sr-only">Task options</span>
+							</Button>
+						</DropdownMenuTrigger>
 
-					<DropdownMenuContent align="end">
-						<DropdownMenuGroup>
-							<DropdownMenuItem className="text-content-destructive focus:text-content-destructive">
-								<TrashIcon />
-								Delete
-							</DropdownMenuItem>
-						</DropdownMenuGroup>
-					</DropdownMenuContent>
-				</DropdownMenu>
-			</RouterLink>
-		</Button>
+						<DropdownMenuContent align="end">
+							<DropdownMenuGroup>
+								<DropdownMenuItem
+									className="text-content-destructive focus:text-content-destructive"
+									onClick={(e) => {
+										e.stopPropagation();
+										setIsDeleteDialogOpen(true);
+									}}
+								>
+									<TrashIcon />
+									Delete
+								</DropdownMenuItem>
+							</DropdownMenuGroup>
+						</DropdownMenuContent>
+					</DropdownMenu>
+				</RouterLink>
+			</Button>
+
+			<ConfirmDialog
+				hideCancel={false}
+				open={isDeleteDialogOpen}
+				title="Delete task"
+				onClose={(): void => {
+					setIsDeleteDialogOpen(false);
+				}}
+				confirmText="Delete"
+				description={
+					<p>
+						This action is irreversible and removes all workspace resources and
+						data.
+					</p>
+				}
+			/>
+		</>
 	);
 };
 

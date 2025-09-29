@@ -88,3 +88,25 @@ export const OpenOptionsMenu: Story = {
 		await userEvent.click(optionButtons[0]);
 	},
 };
+
+export const DeleteTaskDialog: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
+	},
+	play: async ({ canvasElement, step }) => {
+		await step("Open menu", async () => {
+			const canvas = within(canvasElement);
+			const optionButtons = await canvas.findAllByRole("button", {
+				name: /task options/i,
+			});
+			await userEvent.click(optionButtons[0]);
+		});
+		await step("Open delete dialog", async () => {
+			const body = within(canvasElement.ownerDocument.body);
+			const deleteButton = await body.findByRole("menuitem", {
+				name: /delete/i,
+			});
+			await userEvent.click(deleteButton);
+		});
+	},
+};
