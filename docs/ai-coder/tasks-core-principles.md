@@ -31,7 +31,7 @@ Coder Tasks aren't limited to manual operation. They can operate as event-driven
 - **Event-Driven:** An automatic hook in your git repository
 - **Manual:** An engineer reviewing the bug backlog manually creates a task
 
-Other common triggers for event-based workflows include PRs being created/updated, a failure in your CI/CD pipeline, or issues being created/updated in your repository. 
+Other common triggers for event-based workflows include PRs being created/updated, a failure in your CI/CD pipeline, or issues being created/updated in your repository.
 
 ![Example Background Task](../images/guides/ai-agents/background-task-example.png)Example of Background Coder Tasks operation.
 
@@ -151,8 +151,7 @@ These design principles aren’t just technical guidelines; they're the lens thr
 
 ### Practical Considerations
 
-Tasks don't expose template parameters at runtime, other than the AI Prompt. If users need to choose different compute, region, or tooling options for example, you can define workspace presets in the template and have users select a preset when starting the Task. See workspace presets for details: ../admin/templates/extending-templates/parameters#workspace-presets
-
+Tasks don't expose template parameters at runtime, other than the AI Prompt. If users need to choose different compute, region, or tooling options for example, you can define workspace presets in the template and have users select a preset when starting the Task. See workspace presets for details: ../admin/templates/extending-templates/parameters#workspace-presets.
 
 ### Identity, Security, and Access
 
