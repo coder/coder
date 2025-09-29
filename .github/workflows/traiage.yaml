@@ -81,9 +81,9 @@ jobs:
             (github.event_name == 'workflow_dispatch' && github.actor_id)
             }}
         run: |
-          [[ -z "${{ env.GITHUB_USER_ID }}" ]] && echo "No GitHub actor ID found" && exit 1
+          [[ -z "${GITHUB_USER_ID}" || "${GITHUB_USER_ID}" == "null" ]] && echo "No GitHub actor ID found" && exit 1
           user_json=$(
-            coder users list --github-user-id="${{ env.GITHUB_USER_ID }}" --output=json
+            coder users list --github-user-id="${GITHUB_USER_ID}" --output=json
           )
           coder_username=$(jq -r 'first | .username' <<< "$user_json")
           [[ -z "${coder_username}" || "${coder_username}" == "null" ]] && echo "No Coder user with GitHub user ID ${env.GITHUB_USER_ID} found" && exit 1
