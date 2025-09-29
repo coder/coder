@@ -130,10 +130,6 @@ func TestStream_HandleReconnect(t *testing.T) {
 	_ = fromServerRead1.Close()
 	_ = fromServerWrite1.Close()
 
-	// Force disconnection for reliable testing in race conditions
-	// The automatic disconnection detection can be unreliable under race detection
-	stream.ForceDisconnect()
-
 	// Wait until the stream is marked disconnected with proper timeout handling
 	disconnectCtx := testutil.Context(t, testutil.WaitShort)
 	disconnected := make(chan bool, 1)
@@ -612,10 +608,7 @@ func TestStream_ReconnectionScenarios(t *testing.T) {
 			_ = remote.Close()
 			_ = clientConn.Close()
 
-			// Force disconnection for reliable testing; avoids races in async detection
-			stream3.ForceDisconnect()
-
-			// Wait until the stream observes the disconnect; avoid explicit ForceDisconnect
+			// Wait until the stream observes the disconnect
 			disconnectCtx := testutil.Context(t, testutil.WaitMedium)
 			testutil.Eventually(disconnectCtx, t, func(ctx context.Context) bool {
 				return !stream3.IsConnected()
@@ -701,9 +694,8 @@ func TestStream_SequenceNumberReconnection_WithSequenceNumbers(t *testing.T) {
 	// Simulate disconnection and wait for detection with proper timeout handling
 	_ = clientConn1.Close()
 	_ = serverConn1.Close()
-	// Force to ensure the test doesn't rely on timing of async detection
-	stream.ForceDisconnect()
 
+	// Wait until the stream is marked disconnected with proper timeout handling
 	disconnectCtx := testutil.Context(t, testutil.WaitShort)
 	disconnected := make(chan bool, 1)
 	go func() {
@@ -851,8 +843,6 @@ func TestStream_SequenceNumberReconnection_WithDataLoss(t *testing.T) {
 	// Simulate disconnection and wait for detection with proper timeout handling
 	_ = clientConn1.Close()
 	_ = serverConn1.Close()
-	// Force to ensure the test doesn't rely on timing of async detection
-	stream.ForceDisconnect()
 
 	// Wait until the stream is marked disconnected with proper timeout handling
 	disconnectCtx := testutil.Context(t, testutil.WaitMedium)

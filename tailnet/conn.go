@@ -47,8 +47,10 @@ import (
 	"github.com/coder/coder/v2/tailnet/proto"
 )
 
-var ErrConnClosed = xerrors.New("connection closed")
-var ErrNoInternalListener = xerrors.New("no internal listener")
+var (
+	ErrConnClosed         = xerrors.New("connection closed")
+	ErrNoInternalListener = xerrors.New("no internal listener")
+)
 
 const (
 	WorkspaceAgentSSHPort             = 1

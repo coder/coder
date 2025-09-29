@@ -51,12 +51,11 @@ func (d *LocalDialer) DialPort(ctx context.Context, port uint16) (net.Conn, erro
 			return c, nil
 		} else if err != nil {
 			// Only fall back to local dial if there is no internal listener.
-			if xerrors.Is(err, tailnet.ErrNoInternalListener) {
-				d.logger.Debug(ctx, "no internal listener; falling back to local dial", slog.F("port", port))
-			} else {
+			if !xerrors.Is(err, tailnet.ErrNoInternalListener) {
 				d.logger.Debug(ctx, "internal tailnet dial failed", slog.Error(err), slog.F("port", port))
 				return nil, err
 			}
+			d.logger.Debug(ctx, "no internal listener; falling back to local dial", slog.F("port", port))
 		}
 	}
 
