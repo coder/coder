@@ -26,15 +26,12 @@ Coder Tasks exist to solve these types of problems:
 
 ### Example Task Workflow
 
-Envision you're an engineer hopping onto work in the morning. You review your team's backlog of bugs or issues, and see a small bug was submitted overnight. It's not too complicated.
+Coder Tasks aren't limited to manual operation. They can operate as event-driven automations triggered by your team's everyday activities. Tasks can be thought of through two different type of triggers: manual and event-driven. In the below diagram, the user reported bug could result in a task being spun up via:
 
-You go to your GitHub repository, and open up the issue. You comment on it `@Coder`, and a Task-enabled Workspace automatically spins up.
+- **Event-Driven:** An automatic hook in your git repository
+- **Manual:** An engineer reviewing the bug backlog manually creates a task
 
-Claude Code starts analyzing the issue, and determines a recent PR introduced an untested regression. The agent analyzes the code, determines how to fix it, then opens a PR and runs your tests and other validation steps.
-
-You're then notified that a PR has been opened and is ready for your review. This all happened while you were on your team's daily standup, preparing for your own work. You review the PR, and the bug is squashed.
-
-This is the power of Coder Tasks.
+Other common triggers for event-based workflows include PRs being created/updated, a failure in your CI/CD pipeline, or issues being created/updated in your repository. 
 
 ![Example Background Task](../images/guides/ai-agents/background-task-example.png)Example of Background Coder Tasks operation.
 
