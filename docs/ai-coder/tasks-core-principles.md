@@ -4,7 +4,7 @@
 
 Coder Tasks is Coder's platform for managing coding agents. With Coder Tasks, you can
 
-- Connect an AI Agent like Claude Code or OpenAI's Codex to your IDE to assist in day-to-day development and building
+- Run an AI Agent like Claude Code or OpenAI's Codex in your Workspace to assist in day-to-day development and building
 - Kick off AI-enabled workflows such as upgrading a vulnerable package and automatically opening a GitHub Pull Requests with the patch
 - Configure a background operation where an automated agent can detect a failure in your CI/CD pipeline, spin up a Coder Workspace, apply a fix, and prepare a PR _without_ manual input
 
