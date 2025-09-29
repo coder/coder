@@ -10,7 +10,7 @@ Coder Tasks is Coder's platform for managing coding agents. With Coder Tasks, yo
 
 ![Tasks UI](../images/guides/ai-agents/tasks-ui.png)Coder Tasks Dashboard view to see all available tasks.
 
-Coder Tasks allows you and your organization to build and automate workflows to fully leverage AI. Tasks operate through Coder Workspaces, so developers can [connect via an IDE](../user-guides/workspace-access) to guide development and fully interact with the agent.
+Coder Tasks allows you and your organization to build and automate workflows to fully leverage AI. Tasks operate through Coder Workspaces. We support interacting with an agent through the Task UI and their CLI. Some Tasks can also be accessed through the Coder Workspace IDE, see [connect via an IDE](../user-guides/workspace-access).
 
 ## Why Use Tasks?
 
@@ -26,13 +26,13 @@ Coder Tasks exist to solve these types of problems:
 
 ### Example Task Workflow
 
-Envision you're an engineer hopping onto work in the morning. You review your team's backlog of bugs or issues, and see a small bug was submitted overnight. It's not too complicated. 
+Envision you're an engineer hopping onto work in the morning. You review your team's backlog of bugs or issues, and see a small bug was submitted overnight. It's not too complicated.
 
-You go to your GitHub repository, and open up the issue. You comment on it `@Coder`, and a Task-enabled Workspace automatically spins up. 
+You go to your GitHub repository, and open up the issue. You comment on it `@Coder`, and a Task-enabled Workspace automatically spins up.
 
-Claude Code starts analyzing the issue, and determines a recent PR introduced an untested regression. The agent analyzes the code, determines how to fix it, then opens a PR and runs your tests and other validation steps. 
+Claude Code starts analyzing the issue, and determines a recent PR introduced an untested regression. The agent analyzes the code, determines how to fix it, then opens a PR and runs your tests and other validation steps.
 
-You're then notified that a PR has been opened and is ready for your review. This all happened while you were on your team's daily standup, preparing for your own work. You review the PR, and the bug is squashed. 
+You're then notified that a PR has been opened and is ready for your review. This all happened while you were on your team's daily standup, preparing for your own work. You review the PR, and the bug is squashed.
 
 This is the power of Coder Tasks.
 
@@ -40,7 +40,7 @@ This is the power of Coder Tasks.
 
 ## How to Make a Task Template
 
-If you need a refresher on Coder Templates, check out our [starting guide here](https://coder.com/docs/tutorials/template-from-scratch). 
+If you need a refresher on Coder Templates, check out our [starting guide here](https://coder.com/docs/tutorials/template-from-scratch).
 
 ### What Makes a Task Template
 
@@ -51,10 +51,11 @@ There are two approaches to turning a Template into a Task Template:
 #### Using a Registry Module
 
 You can use a pre-existing agent module that [Coder maintains](https://registry.coder.com/modules). When using an agent module, you must define:
+
 - `coder_parameter` named _ai_prompt_: Define the AI prompt input so users can define/specify what tasks need to run
 - **Agentic Module** that defines the agent you want to use, e.g. Claude Code, Codex CLI, Gemini CLI
 
-Coder maintains various agentic modules; see [Coder Labs](https://registry.coder.com/contributors/coder-labs). These modules, in addition to defining connection information for the specific agent, reference the [AgentAPI module](https://registry.coder.com/modules/coder/agentapi) which provides connection, reporting, and agent life cycle management operations. The module also defines the `coder_ai_task` resource which allows the Task to be visible in the UI. 
+Coder maintains various agentic modules; see [Coder Labs](https://registry.coder.com/contributors/coder-labs). These modules, in addition to defining connection information for the specific agent, reference the [AgentAPI module](https://registry.coder.com/modules/coder/agentapi) which provides connection, reporting, and agent life cycle management operations. The module also defines the `coder_ai_task` resource which allows the Task to be visible in the UI.
 
 The following code snippet can be dropped into any existing template to modify it into a Claude-Code enabled task template. This snippet also includes space for a setup script that will prime the agent for execution.
 
@@ -120,7 +121,7 @@ Coder allows you to define a custom agent. When doing so, you must define:
 - `coder_ai_task` which registers the task with the UI and allows the task to be visible
 - **AgentAPI binary** which provides runtime execution logistics for the task
 
-You can find the latest [AgentAPI binary here](https://github.com/coder/agentapi/releases). You can alternatively import and use the [AgentAPI module](https://registry.coder.com/modules/coder/agentapi?tab=variables) Coder maintains, which also conveniently defines the `coder_ai_task` resource. 
+You can find the latest [AgentAPI binary here](https://github.com/coder/agentapi/releases). You can alternatively import and use the [AgentAPI module](https://registry.coder.com/modules/coder/agentapi?tab=variables) Coder maintains, which also conveniently defines the `coder_ai_task` resource.
 
 Read more about [custom agents here](https://coder.com/docs/ai-coder/custom-agents).
 
