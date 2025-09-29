@@ -58,26 +58,30 @@ func (r *Runner) RunReturningWorkspace(ctx context.Context, id string, logs io.W
 	}
 	r.workspaceID = workspace.ID
 
-	err = waitForBuild(ctx, logs, r.client, workspace.LatestBuild.ID)
-	if err != nil {
-		for i := 0; i < r.cfg.Retry; i++ {
-			_, _ = fmt.Fprintf(logs, "Retrying build %d/%d...\n", i+1, r.cfg.Retry)
-
-			workspace.LatestBuild, err = r.client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-				Transition:          codersdk.WorkspaceTransitionStart,
-				RichParameterValues: req.RichParameterValues,
-				TemplateVersionID:   req.TemplateVersionID,
-			})
-			if err != nil {
-				return codersdk.Workspace{}, xerrors.Errorf("create workspace build: %w", err)
-			}
-			err = waitForBuild(ctx, logs, r.client, workspace.LatestBuild.ID)
-			if err == nil {
-				break
-			}
-		}
+	if r.cfg.NoWaitForBuild {
+		_, _ = fmt.Fprintln(logs, "Skipping waiting for build")
+	} else {
+		err = waitForBuild(ctx, logs, r.client, workspace.LatestBuild.ID)
 		if err != nil {
-			return codersdk.Workspace{}, xerrors.Errorf("wait for build: %w", err)
+			for i := 0; i < r.cfg.Retry; i++ {
+				_, _ = fmt.Fprintf(logs, "Retrying build %d/%d...\n", i+1, r.cfg.Retry)
+
+				workspace.LatestBuild, err = r.client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+					Transition:          codersdk.WorkspaceTransitionStart,
+					RichParameterValues: req.RichParameterValues,
+					TemplateVersionID:   req.TemplateVersionID,
+				})
+				if err != nil {
+					return codersdk.Workspace{}, xerrors.Errorf("create workspace build: %w", err)
+				}
+				err = waitForBuild(ctx, logs, r.client, workspace.LatestBuild.ID)
+				if err == nil {
+					break
+				}
+			}
+			if err != nil {
+				return codersdk.Workspace{}, xerrors.Errorf("wait for build: %w", err)
+			}
 		}
 	}
 
