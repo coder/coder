@@ -234,6 +234,8 @@ function canSeeNotificationGroup(
 			return permissions.createTemplates;
 		case "User Events":
 			return permissions.createUser;
+		case "Task Events":
+			return true;
 		case "Custom Events":
 			return true;
 		default:
