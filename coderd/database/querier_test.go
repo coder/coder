@@ -4917,7 +4917,7 @@ func createPrebuiltWorkspace(
 	dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
 		CreatedAt:         createdAt,
 		WorkspaceID:       workspace.ID,
-		TemplateVersionID: extTmplVersion.ID,
+		TemplateVersionID: extTmplVersion.TemplateVersion.ID,
 		BuildNumber:       1,
 		Transition:        database.WorkspaceTransitionStart,
 		InitiatorID:       tmpl.CreatedBy,
