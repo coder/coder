@@ -5,13 +5,13 @@ import (
 	"errors"
 	"io"
 	"net"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -24,6 +24,7 @@ var (
 	ErrStreamNotFound   = xerrors.New("stream not found")
 	ErrConnRefused      = xerrors.New("connection refused")
 	ErrAlreadyConnected = xerrors.New("already connected")
+	ErrManagerClosed    = xerrors.New("manager closed")
 )
 
 const (
@@ -37,6 +38,9 @@ type Manager struct {
 
 	mu      sync.RWMutex
 	streams map[uuid.UUID]*Stream
+
+	// closed prevents new streams from being created after shutdown starts.
+	closed bool
 
 	// dialer is used to dial services
 	dialer Dialer
@@ -58,6 +62,12 @@ func New(logger slog.Logger, dialer Dialer) *Manager {
 
 // CreateStream creates a new immortal stream
 func (m *Manager) CreateStream(ctx context.Context, port uint16) (*codersdk.ImmortalStream, error) {
+	m.mu.RLock()
+	if m.closed {
+		m.mu.RUnlock()
+		return nil, ErrManagerClosed
+	}
+	m.mu.RUnlock()
 	// Always dial by port; internal listeners are handled by the dialer.
 	conn, err := m.dialer.DialPort(ctx, port)
 	if err != nil {
@@ -69,36 +79,48 @@ func (m *Manager) CreateStream(ctx context.Context, port uint16) (*codersdk.Immo
 
 	// Create the stream
 	id := uuid.New()
-	name := namesgenerator.GetRandomName(0)
 	stream := NewStream(
 		id,
-		name,
+		"",
 		port,
-		m.logger.With(slog.F("stream_id", id), slog.F("stream_name", name)),
+		// Set base logger; final name will be assigned under manager lock to avoid collisions.
+		m.logger.With(slog.F("stream_id", id)),
 	)
 
-	// Start the stream outside of the manager lock to avoid blocking other operations.
-	if err := stream.Start(conn); err != nil {
-		_ = conn.Close()
-		return nil, xerrors.Errorf("start stream: %w", err)
-	}
-
-	// Insert the stream, enforcing capacity without holding the lock during dial/start.
+	// Generate a unique name and reserve a slot before starting the stream to avoid races
+	// with goroutines that access the stream logger.
 	for {
 		m.mu.Lock()
+		if m.closed {
+			m.mu.Unlock()
+			_ = conn.Close()
+			_ = stream.Close()
+			return nil, ErrManagerClosed
+		}
 		if len(m.streams) < MaxStreams {
+			uniqueName := m.generateUniqueNameLocked()
+			stream.setNameAndLogger(uniqueName, stream.logger)
 			m.streams[id] = stream
 			m.mu.Unlock()
 			break
 		}
 		m.mu.Unlock()
-		// Try to evict a disconnected stream without holding the manager lock while closing it.
 		if !m.evictOldestDisconnected() {
-			// No space and nothing to evict: close the newly started stream and return an error.
+			_ = conn.Close()
 			_ = stream.Close()
 			return nil, ErrTooManyStreams
 		}
-		// Loop and try insertion again after eviction.
+	}
+
+	// Start the stream after it has been named and reserved in the map.
+	if err := stream.Start(conn); err != nil {
+		_ = conn.Close()
+		// Remove reserved slot on failure
+		m.mu.Lock()
+		delete(m.streams, id)
+		m.mu.Unlock()
+		_ = stream.Close()
+		return nil, xerrors.Errorf("start stream: %w", err)
 	}
 
 	// Return the API representation of the stream
@@ -126,6 +148,28 @@ func (m *Manager) ListStreams() []codersdk.ImmortalStream {
 	return streams
 }
 
+// generateUniqueNameLocked generates a stream name unique among current streams.
+// Must be called with m.mu held.
+func (m *Manager) generateUniqueNameLocked() string {
+	// Try a bounded number of attempts to avoid infinite loops in extreme cases.
+	// With random names and MaxStreams limit, collisions are highly unlikely.
+	for attempts := 0; attempts < 48; attempts++ {
+		candidate := namesgenerator.GetRandomName(0)
+		exists := false
+		for _, s := range m.streams {
+			if s != nil && s.name == candidate {
+				exists = true
+				break
+			}
+		}
+		if !exists {
+			return candidate
+		}
+	}
+	// Deterministic fallback with timestamp suffix to guarantee uniqueness.
+	return namesgenerator.GetRandomName(0) + "-" + time.Now().Format("150405.000")
+}
+
 // DeleteStream deletes a stream by ID
 func (m *Manager) DeleteStream(id uuid.UUID) error {
 	m.mu.Lock()
@@ -148,6 +192,11 @@ func (m *Manager) DeleteStream(id uuid.UUID) error {
 // Close closes all streams
 func (m *Manager) Close() error {
 	m.mu.Lock()
+	if m.closed {
+		m.mu.Unlock()
+		return nil
+	}
+	m.closed = true
 	// Move streams out of the map so we can close them without holding the lock.
 	streams := make([]*Stream, 0, len(m.streams))
 	for id, stream := range m.streams {
@@ -156,13 +205,14 @@ func (m *Manager) Close() error {
 	}
 	m.mu.Unlock()
 
-	var firstErr error
+	var g errgroup.Group
 	for _, stream := range streams {
-		if err := stream.Close(); err != nil && firstErr == nil {
-			firstErr = err
-		}
+		s := stream
+		g.Go(func() error {
+			return s.Close()
+		})
 	}
-	return firstErr
+	return g.Wait()
 }
 
 // evictOldestDisconnected finds, removes, and closes the oldest disconnected stream.
@@ -187,7 +237,7 @@ func (m *Manager) evictOldestDisconnected() bool {
 		// Compute activityAt = max(createdAt, lastDisconnectionAt) for eviction ordering
 		disconnectedAt := stream.LastDisconnectionAt()
 		activityAt := disconnectedAt
-		if activityAt.IsZero() || stream.createdAt.After(activityAt) {
+		if stream.createdAt.After(activityAt) {
 			activityAt = stream.createdAt
 		}
 
@@ -241,20 +291,5 @@ func isConnectionRefused(err error) bool {
 	if errors.As(err, &errno) && errno == syscall.ECONNREFUSED {
 		return true
 	}
-
-	// Fallback: check for net.OpError with "dial" operation
-	var opErr *net.OpError
-	if errors.As(err, &opErr) && opErr.Op == "dial" {
-		// Check if the underlying error is ECONNREFUSED
-		if errors.As(opErr.Err, &errno) && errno == syscall.ECONNREFUSED {
-			return true
-		}
-	}
-
-	// Cross-platform fallback: check error message for common connection refused patterns
-	// This handles Windows (connectex) and other platforms that might have different error constants
-	errStr := err.Error()
-	return strings.Contains(errStr, "connection refused") ||
-		strings.Contains(errStr, "connectex: No connection could be made because the target machine actively refused it") ||
-		strings.Contains(errStr, "actively refused")
+	return false
 }

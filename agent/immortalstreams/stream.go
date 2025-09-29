@@ -60,12 +60,21 @@ func NewStream(id uuid.UUID, name string, port uint16, logger slog.Logger) *Stre
 		disconnectChan: make(chan struct{}, 1),
 		shutdownChan:   make(chan struct{}),
 		cancel:         cancel, // Store cancel function for cleanup
+		// Create BackedPipe without a reconnector; reconnections are accepted
+		// explicitly via HandleReconnect.
+		pipe: backedpipe.NewBackedPipe(ctx, nil),
 	}
-	// Create BackedPipe without a reconnector; reconnections are accepted
-	// explicitly via HandleReconnect.
-	stream.pipe = backedpipe.NewBackedPipe(ctx, nil)
 
 	return stream
+}
+
+// setNameAndLogger sets the stream name and updates the logger to include it.
+// Must be called by the manager under its own lock before publishing the stream.
+func (s *Stream) setNameAndLogger(name string, baseLogger slog.Logger) {
+	s.mu.Lock()
+	s.name = name
+	s.logger = baseLogger.With(slog.F("stream_name", name))
+	s.mu.Unlock()
 }
 
 // Start starts the stream with an initial connection
@@ -88,19 +97,18 @@ func (s *Stream) Start(localConn io.ReadWriteCloser) error {
 
 // HandleReconnect handles a client reconnection
 func (s *Stream) HandleReconnect(clientConn io.ReadWriteCloser, readSeqNum uint64) error {
-	// Copy references while holding the lock, but perform the reconnection
-	// without holding the stream mutex to avoid deadlocks.
-	s.mu.Lock()
+	// Fast-path check: ensure the stream isn't closed, then operate on the
+	// backed pipe without holding the stream mutex.
+	s.mu.RLock()
 	if s.closed {
-		s.mu.Unlock()
+		s.mu.RUnlock()
 		return xerrors.New("stream is closed")
 	}
-	pipe := s.pipe
-	s.mu.Unlock()
+	s.mu.RUnlock()
 
 	// Attach the new connection and replay outbound data from the client's
 	// acknowledged sequence number.
-	if err := pipe.AcceptReconnection(readSeqNum, clientConn); err != nil {
+	if err := s.pipe.AcceptReconnection(readSeqNum, clientConn); err != nil {
 		_ = clientConn.Close()
 		return xerrors.Errorf("accept reconnection: %w", err)
 	}
@@ -189,13 +197,11 @@ func (s *Stream) Close() error {
 
 // IsConnected returns whether the stream has an active client connection
 func (s *Stream) IsConnected() bool {
-	s.mu.RLock()
-	pipe := s.pipe
-	s.mu.RUnlock()
-	if pipe == nil {
+	p := s.pipe
+	if p == nil {
 		return false
 	}
-	return pipe.Connected()
+	return p.Connected()
 }
 
 // LastDisconnectionAt returns when the stream was last disconnected
