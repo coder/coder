@@ -149,7 +149,7 @@ Together, these principles make up the core idea of designing task templates. Ta
 
 These design principles aren’t just technical guidelines, however. They're the lens through which to understand what Tasks are and how to use them effectively. By grounding Tasks in specificity, security, frugality, applicability, and automation, you ensure they remain reliable building blocks for both individual workflows and larger team processes.
 
-#### Practical Considerations
+### Practical Considerations
 
 Tasks don't expose template parameters at runtime, other than the AI Prompt. If users need to choose different compute, region, or tooling options for example, you can define workspace presets in the template and have users select a preset when starting the Task. See workspace presets for details: ../admin/templates/extending-templates/parameters#workspace-presets
 
