@@ -2,7 +2,7 @@
 
 ## What is a Task?
 
-Coder Tasks is Coder's platform for managing coding agents. With Coder Tasks, you can
+Coder Tasks is Coder's platform for managing coding agents. With Coder Tasks, you can:
 
 - Run an AI Agent like Claude Code or OpenAI's Codex in your Workspace to assist in day-to-day development and building
 - Kick off AI-enabled workflows such as upgrading a vulnerable package and automatically opening a GitHub Pull Requests with the patch
@@ -10,11 +10,11 @@ Coder Tasks is Coder's platform for managing coding agents. With Coder Tasks, yo
 
 ![Tasks UI](../images/guides/ai-agents/tasks-ui.png)Coder Tasks Dashboard view to see all available tasks.
 
-Coder Tasks allows you and your organization to build and automate workflows to fully leverage AI. Tasks operate through Coder Workspaces. We support interacting with an agent through the Task UI and their CLI. Some Tasks can also be accessed through the Coder Workspace IDE, see [connect via an IDE](../user-guides/workspace-access).
+Coder Tasks allows you and your organization to build and automate workflows to fully leverage AI. Tasks operate through Coder Workspaces. We support interacting with an agent through the Task UI and CLI. Some Tasks can also be accessed through the Coder Workspace IDE; see [connect via an IDE](../user-guides/workspace-access).
 
 ## Why Use Tasks?
 
-Coder Tasks make both developer-driven _and_ autonomous agentic workflows first-class citizens within your organization. Without Coder Tasks, teams will fall back to ad-hoc scripts, one-off commands, or manual checklists to perform simpler operations that LLMs can easily automate. These workarounds can help a single engineer, but don't scale or provide consistency across an organization that is attempting to use AI as a true force multiplier.
+Coder Tasks make both developer-driven _and_ autonomous agentic workflows first-class citizens within your organization. Without Coder Tasks, teams revert to ad-hoc scripts, one-off commands, or manual checklists even for tasks that LLMs could automate. These workarounds can help a single engineer, but don't scale or provide consistency across an organization that is attempting to use AI as a true force multiplier.
 
 Coder Tasks exist to solve these types of problems:
 
@@ -41,7 +41,7 @@ If you need a refresher on Coder Templates, check out our [starting guide here](
 
 ### What Makes a Task Template
 
-Task templates are regular Coder Templates, with a few specific resources defined additionally. These resources prime the template and corresponding workspaces for automated execution and AI-driven workflows rather than development environments for developers and builders.
+Task Templates are regular Coder Templates with a few additional resources defined. These resources include the logic that lets the Coder UI and infrastructure recognize a Task, and prepare the system for automated execution and AI-driven workflows rather than development environments for developers and builders.
 
 There are two approaches to turning a Template into a Task Template:
 
@@ -147,7 +147,7 @@ Coder Tasks, being based in a given Workspace, operate on very similar principle
 
 Together, these principles make up the core idea of designing task templates. Tasks are programmable, secure, and cost-efficient agents that integrate seamlessly into your team's workflow. By treating task templates as living and adaptable designs, you can evolve them with your team and needs without sacrificing clarity or control. The result is a system where automation, resource management, and security are baked into the foundation letting developers focus less on orchestration details and more on solving the problems that matter.
 
-These design principles aren’t just technical guidelines, however. They're the lens through which to understand what Tasks are and how to use them effectively. By grounding Tasks in specificity, security, frugality, applicability, and automation, you ensure they remain reliable building blocks for both individual workflows and larger team processes.
+These design principles aren’t just technical guidelines; they're the lens through which to understand what Tasks are and how to use them effectively. By grounding Tasks in specificity, security, frugality, applicability, and automation, you ensure they remain reliable building blocks for both individual workflows and larger team processes.
 
 ### Practical Considerations
 
