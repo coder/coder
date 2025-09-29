@@ -86,7 +86,7 @@ jobs:
             coder users list --github-user-id="${{ env.GITHUB_USER_ID }}" --output=json
           )
           coder_username=$(jq -r 'first | .username' <<< "$user_json")
-          [[ -z "${coder_username}" ]] && echo "No Coder user with GitHub user ID ${env.GITHUB_USER_ID} found" && exit 1
+          [[ -z "${coder_username}" || "${coder_username}" == "null" ]] && echo "No Coder user with GitHub user ID ${env.GITHUB_USER_ID} found" && exit 1
           echo "coder_username=${coder_username}" >> "${GITHUB_OUTPUT}"
 
       # TODO(Cian): this is a good use-case for 'recipes'
