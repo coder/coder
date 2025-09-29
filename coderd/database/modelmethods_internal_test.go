@@ -93,7 +93,7 @@ func TestAPIKeyScopesExpand(t *testing.T) {
 		expanded, err := effective.Expand()
 		require.NoError(t, err)
 		require.Len(t, expanded.AllowIDList, 1)
-		require.Equal(t, "workspace", expanded.AllowIDList[0].Type)
+		require.Equal(t, rbac.ResourceWorkspace.Type, expanded.AllowIDList[0].Type)
 		require.Equal(t, workspaceID.String(), expanded.AllowIDList[0].ID)
 	})
 
