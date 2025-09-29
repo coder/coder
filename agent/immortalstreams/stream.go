@@ -2,7 +2,6 @@ package immortalstreams
 
 import (
 	"context"
-	"errors"
 	"io"
 	"sync"
 	"time"
@@ -116,27 +115,7 @@ func (s *Stream) HandleReconnect(clientConn io.ReadWriteCloser, readSeqNum uint6
 	// Update state
 	s.mu.Lock()
 	s.lastConnectionAt = time.Now()
-	// Start upstream copy lazily on first client connection
-	if !s.upstreamCopyStarted {
-		s.upstreamCopyStarted = true
-		s.goroutines.Add(1)
-		local := s.localConn
-		p := s.pipe
-		s.mu.Unlock()
-		go func() {
-			defer s.goroutines.Done()
-			if local == nil || p == nil {
-				return
-			}
-			_, err := io.Copy(p, local)
-			if err != nil && !xerrors.Is(err, io.EOF) && !xerrors.Is(err, io.ErrClosedPipe) {
-				s.logger.Debug(context.Background(), "error copying from local to pipe", slog.Error(err))
-			}
-			s.SignalDisconnect()
-		}()
-	} else {
-		s.mu.Unlock()
-	}
+	s.mu.Unlock()
 
 	s.logger.Debug(context.Background(), "client reconnection successful",
 		slog.F("read_seq_num", readSeqNum))
@@ -239,78 +218,36 @@ func (s *Stream) GetPipe() *backedpipe.BackedPipe {
 // startCopyingLocked starts the goroutines to copy data from local connection
 // Must be called with mu held
 func (s *Stream) startCopyingLocked() {
-	// Defer starting upstream (local -> pipe) copying until we have a client attached.
-	// This reduces load and eliminates a large number of blocked goroutines in tests
-	// that create many streams without immediate clients.
+	// Start both copy goroutines. They keep running even when clients disconnect.
 	// Copy from backed pipe to local connection
 	// This goroutine must continue running even when clients disconnect
 	s.goroutines.Add(1)
 	go func() {
 		defer s.goroutines.Done()
 		defer s.logger.Debug(context.Background(), "exiting copy from pipe to local goroutine")
-
 		s.logger.Debug(context.Background(), "starting copy from pipe to local goroutine")
-		// Keep copying until the stream is closed
-		// The BackedPipe will block when no client is connected
-		buf := make([]byte, 32*1024)
-		for {
-			// Check if we should shut down before attempting to read
-			select {
-			case <-s.shutdownChan:
-				s.logger.Debug(context.Background(), "shutdown signal received, exiting copy goroutine")
-				return
-			default:
-			}
-
-			// Use a buffer for copying
-			n, err := s.pipe.Read(buf)
-			if err != nil {
-				// Check for fatal errors that should terminate the goroutine
-				if xerrors.Is(err, io.ErrClosedPipe) {
-					// The pipe itself is closed, we're done
-					s.logger.Debug(context.Background(), "pipe closed, exiting copy goroutine")
-					s.SignalDisconnect()
-					// Keep the goroutine alive to handle future reconnections
-					continue
-				}
-
-				// Check for BackedPipe specific errors
-				if xerrors.Is(err, backedpipe.ErrPipeClosed) {
-					s.logger.Debug(context.Background(), "backed pipe closed, exiting copy goroutine")
-					s.SignalDisconnect()
-					// Keep the goroutine alive to handle future reconnections
-					continue
-				}
-
-				// Treat EOF as terminal: the pipe is closed and this goroutine should exit
-				if errors.Is(err, io.EOF) {
-					s.logger.Debug(context.Background(), "got EOF from pipe, waiting for reconnection")
-					s.SignalDisconnect()
-					// Keep the goroutine alive to handle future reconnections
-					continue
-				}
-
-				// Log other errors but continue (reconnect will eventually succeed)
-				{
-					s.logger.Debug(context.Background(), "error reading from pipe", slog.Error(err))
-					s.SignalDisconnect()
-				}
-
-				// For non-fatal errors, continue the loop
-				continue
-			}
-
-			if n > 0 {
-				// Write to local connection
-				if _, writeErr := s.localConn.Write(buf[:n]); writeErr != nil {
-					s.logger.Debug(context.Background(), "error writing to local connection", slog.Error(writeErr))
-					// Local connection failed, we're done
-					s.SignalDisconnect()
-					_ = s.localConn.Close()
-					return
-				}
-			}
+		_, err := io.Copy(s.localConn, s.pipe)
+		if err != nil && !xerrors.Is(err, io.EOF) && !xerrors.Is(err, io.ErrClosedPipe) && !xerrors.Is(err, backedpipe.ErrPipeClosed) {
+			s.logger.Debug(context.Background(), "error copying from pipe to local", slog.Error(err))
 		}
+		s.SignalDisconnect()
+	}()
+
+	// Start upstream (local -> pipe) copy immediately.
+	s.upstreamCopyStarted = true
+	s.goroutines.Add(1)
+	local := s.localConn
+	p := s.pipe
+	go func() {
+		defer s.goroutines.Done()
+		if local == nil || p == nil {
+			return
+		}
+		_, err := io.Copy(p, local)
+		if err != nil && !xerrors.Is(err, io.EOF) && !xerrors.Is(err, io.ErrClosedPipe) {
+			s.logger.Debug(context.Background(), "error copying from local to pipe", slog.Error(err))
+		}
+		s.SignalDisconnect()
 	}()
 
 	// Start disconnection handler that listens to disconnection signals
