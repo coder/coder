@@ -128,6 +128,7 @@ Read more about [custom agents here](https://coder.com/docs/ai-coder/custom-agen
 #### Putting it all Together
 
 Coder recommends using pre-existing agent modules when making a Task Template. Making a Task Template boils down to:
+
 1. Identify the existing agent you want access to in our [Registry](https://registry.coder.com/modules)
 1. Add the agent's module to your existing template
 1. Define the module's required inputs
@@ -150,6 +151,11 @@ Coder Tasks, being based in a given Workspace, operate on very similar principle
 Together, these principles make up the core idea of designing task templates. Tasks are programmable, secure, and cost-efficient agents that integrate seamlessly into your team's workflow. By treating task templates as living and adaptable designs, you can evolve them with your team and needs without sacrificing clarity or control. The result is a system where automation, resource management, and security are baked into the foundation letting developers focus less on orchestration details and more on solving the problems that matter.
 
 These design principles aren’t just technical guidelines, however. They're the lens through which to understand what Tasks are and how to use them effectively. By grounding Tasks in specificity, security, frugality, applicability, and automation, you ensure they remain reliable building blocks for both individual workflows and larger team processes.
+
+#### Practical Considerations
+
+Tasks don't expose template parameters at runtime, other than the AI Prompt. If users need to choose different compute, region, or tooling options for example, you can define workspace presets in the template and have users select a preset when starting the Task. See workspace presets for details: ../admin/templates/extending-templates/parameters#workspace-presets
+
 
 ### Identity, Security, and Access
 
