@@ -10,6 +10,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/immortalstreams/backedpipe"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -32,12 +33,6 @@ type Stream struct {
 	// goroutines manages the copy goroutines
 	goroutines sync.WaitGroup
 
-	// Indicates whether the upstream (local -> pipe) copy goroutine has been started.
-	upstreamCopyStarted bool
-
-	// Disconnection detection
-	disconnectChan chan struct{}
-
 	// Shutdown signal
 	shutdownChan chan struct{}
 
@@ -51,18 +46,22 @@ func NewStream(id uuid.UUID, name string, port uint16, logger slog.Logger) *Stre
 	ctx, cancel := context.WithCancel(context.Background())
 
 	stream := &Stream{
-		id:             id,
-		name:           name,
-		port:           port,
-		createdAt:      time.Now(),
-		logger:         logger,
-		disconnectChan: make(chan struct{}, 1),
-		shutdownChan:   make(chan struct{}),
-		cancel:         cancel, // Store cancel function for cleanup
+		id:           id,
+		name:         name,
+		port:         port,
+		createdAt:    time.Now(),
+		logger:       logger,
+		shutdownChan: make(chan struct{}),
+		cancel:       cancel, // Store cancel function for cleanup
 		// Create BackedPipe without a reconnector; reconnections are accepted
 		// explicitly via HandleReconnect.
 		pipe: backedpipe.NewBackedPipe(ctx, nil),
 	}
+
+	// Track disconnection time via BackedPipe callback rather than read/write errors.
+	stream.pipe.SetDisconnectedCallback(func() {
+		stream.handleDisconnect()
+	})
 
 	return stream
 }
@@ -218,82 +217,37 @@ func (s *Stream) GetPipe() *backedpipe.BackedPipe {
 // startCopyingLocked starts the goroutines to copy data from local connection
 // Must be called with mu held
 func (s *Stream) startCopyingLocked() {
-	// Start both copy goroutines. They keep running even when clients disconnect.
-	// Copy from backed pipe to local connection
-	// This goroutine must continue running even when clients disconnect
+	// Start bidirectional copy using agentssh.Bicopy, but do not close endpoints
+	// on transient disconnects. We tie the lifecycle to the stream's shutdown context;
+	// Bicopy will only return (and close both ends) when the context is canceled.
 	s.goroutines.Add(1)
 	go func() {
 		defer s.goroutines.Done()
-		defer s.logger.Debug(context.Background(), "exiting copy from pipe to local goroutine")
-		s.logger.Debug(context.Background(), "starting copy from pipe to local goroutine")
-		_, err := io.Copy(s.localConn, s.pipe)
-		if err != nil && !xerrors.Is(err, io.EOF) && !xerrors.Is(err, io.ErrClosedPipe) && !xerrors.Is(err, backedpipe.ErrPipeClosed) {
-			s.logger.Debug(context.Background(), "error copying from pipe to local", slog.Error(err))
-		}
-		s.SignalDisconnect()
+		defer s.logger.Debug(context.Background(), "exiting bicopy goroutine")
+		s.logger.Debug(context.Background(), "starting bicopy goroutine")
+
+		// Create a context that cancels when the stream is shutting down
+		ctx, cancel := context.WithCancel(context.Background())
+		go func() {
+			<-s.shutdownChan
+			cancel()
+		}()
+
+		agentssh.Bicopy(ctx, s.pipe, s.localConn)
 	}()
 
-	// Start upstream (local -> pipe) copy immediately.
-	s.upstreamCopyStarted = true
-	s.goroutines.Add(1)
-	local := s.localConn
-	p := s.pipe
-	go func() {
-		defer s.goroutines.Done()
-		if local == nil || p == nil {
-			return
-		}
-		_, err := io.Copy(p, local)
-		if err != nil && !xerrors.Is(err, io.EOF) && !xerrors.Is(err, io.ErrClosedPipe) {
-			s.logger.Debug(context.Background(), "error copying from local to pipe", slog.Error(err))
-		}
-		s.SignalDisconnect()
-	}()
-
-	// Start disconnection handler that listens to disconnection signals
-	s.goroutines.Add(1)
-	go func() {
-		defer s.goroutines.Done()
-
-		// Keep listening for disconnection signals until shutdown
-		for {
-			select {
-			case <-s.disconnectChan:
-				s.handleDisconnect()
-			case <-s.shutdownChan:
-				return
-			}
-		}
-	}()
+	// BackedPipe disconnection callback will update disconnection timestamp.
 }
 
 // handleDisconnect handles when a connection is lost
 func (s *Stream) handleDisconnect() {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.lastDisconnectionAt = time.Now()
-	s.logger.Info(context.Background(), "stream disconnected")
-}
-
-// SignalDisconnect signals that the connection has been lost
-func (s *Stream) SignalDisconnect() {
-	s.mu.RLock()
-	closed := s.closed
-	s.mu.RUnlock()
-	if closed {
+	if s.closed {
+		s.mu.Unlock()
 		return
 	}
-	select {
-	case s.disconnectChan <- struct{}{}:
-	default:
-		// Channel is full, ignore
-	}
-}
-
-// ForceDisconnect forces the stream to be marked as disconnected (for testing)
-func (s *Stream) ForceDisconnect() {
-	s.handleDisconnect()
-	// Also signal disconnection to trigger proper cleanup and reconnection readiness
-	s.SignalDisconnect()
+	s.lastDisconnectionAt = time.Now()
+	name := s.name
+	s.mu.Unlock()
+	s.logger.Info(context.Background(), "stream disconnected", slog.F("stream_name", name))
 }

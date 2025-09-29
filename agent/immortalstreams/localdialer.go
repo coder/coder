@@ -5,6 +5,8 @@ import (
 	"net"
 	"strconv"
 
+	"golang.org/x/xerrors"
+
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/tailnet"
 )
@@ -48,7 +50,13 @@ func (d *LocalDialer) DialPort(ctx context.Context, port uint16) (net.Conn, erro
 			d.logger.Debug(ctx, "connected to internal tailnet listener via pipe", slog.F("port", port))
 			return c, nil
 		} else if err != nil {
-			d.logger.Debug(ctx, "internal tailnet dial failed", slog.Error(err), slog.F("port", port))
+			// Only fall back to local dial if there is no internal listener.
+			if xerrors.Is(err, tailnet.ErrNoInternalListener) {
+				d.logger.Debug(ctx, "no internal listener; falling back to local dial", slog.F("port", port))
+			} else {
+				d.logger.Debug(ctx, "internal tailnet dial failed", slog.Error(err), slog.F("port", port))
+				return nil, err
+			}
 		}
 	}
 

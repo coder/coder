@@ -86,6 +86,10 @@ type BackedPipe struct {
 
 	// Track first error per generation to avoid duplicate reconnections
 	lastErrorGen uint64
+
+	// onDisconnected is an optional callback invoked when the pipe transitions
+	// from connected to disconnected (before any reconnection attempt).
+	onDisconnected func()
 }
 
 // NewBackedPipe creates a new BackedPipe with default options and the specified reconnector.
@@ -112,6 +116,15 @@ func NewBackedPipe(ctx context.Context, reconnector Reconnector) *BackedPipe {
 	go bp.handleErrors()
 
 	return bp
+}
+
+// SetDisconnectedCallback sets a callback to be invoked when the pipe detects
+// a disconnection. The callback should be fast and must not call BackedPipe
+// methods that can deadlock. It may be invoked from an internal goroutine.
+func (bp *BackedPipe) SetDisconnectedCallback(cb func()) {
+	bp.mu.Lock()
+	defer bp.mu.Unlock()
+	bp.onDisconnected = cb
 }
 
 // Connect establishes the initial connection using the reconnect function.
@@ -279,6 +292,12 @@ func (bp *BackedPipe) handleConnectionError(errorEvt ErrorEvent) {
 
 	// Mark as disconnected
 	bp.state = disconnected
+
+	// Fire disconnection callback asynchronously
+	if bp.onDisconnected != nil {
+		cb := bp.onDisconnected
+		go cb()
+	}
 
 	// If no reconnector is configured, we rely on an external caller to
 	// provide a replacement connection using AcceptReconnection.

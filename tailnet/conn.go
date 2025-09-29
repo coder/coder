@@ -48,6 +48,7 @@ import (
 )
 
 var ErrConnClosed = xerrors.New("connection closed")
+var ErrNoInternalListener = xerrors.New("no internal listener")
 
 const (
 	WorkspaceAgentSSHPort             = 1
@@ -820,7 +821,7 @@ func (c *Conn) DialInternalTCP(ctx context.Context, dstPort uint16) (net.Conn, e
 	// Look up the internal listener for this destination port.
 	handler, _, ok := c.forwardTCP(netip.AddrPortFrom(unspec, 0), netip.AddrPortFrom(unspec, dstPort))
 	if !ok || handler == nil {
-		return nil, xerrors.Errorf("tailnet: no internal listener for port %d", dstPort)
+		return nil, xerrors.Errorf("tailnet: %w for port %d", ErrNoInternalListener, dstPort)
 	}
 
 	// Create an in-memory pipe and synchronously deliver the server end to the
