@@ -913,6 +913,8 @@ github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225 h1:tRIViZ5JR
 github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225/go.mod h1:rNLVpYgEVeu1Zk29K64z6Od8RBP9DwqCu9OfCzh8MR4=
 github.com/coder/aibridge v0.1.0 h1:UKkO1V7v3YYWLXuB3jQlCre5v7N3VOPI4KYgKZeM/bA=
 github.com/coder/aibridge v0.1.0/go.mod h1:GWc0Owtlzz5iMHosDm6FhbO+SoG5W+VeOKyP9p9g9ZM=
+github.com/coder/aibridge v0.1.1 h1:C0Yg5V8BFBbmHVCtNm9t/pTwDphM6nZZZUdihRAAxCw=
+github.com/coder/aibridge v0.1.1/go.mod h1:qq8WKf6i9erm+Fpljazyr4yGU2DcS0KOpmIGyFHEbeo=
 github.com/coder/aisdk-go v0.0.9 h1:Vzo/k2qwVGLTR10ESDeP2Ecek1SdPfZlEjtTfMveiVo=
 github.com/coder/aisdk-go v0.0.9/go.mod h1:KF6/Vkono0FJJOtWtveh5j7yfNrSctVTpwgweYWSp5M=
 github.com/coder/bubbletea v1.2.2-0.20241212190825-007a1cdb2c41 h1:SBN/DA63+ZHwuWwPHPYoCZ/KLAjHv5g4h2MS4f2/MTI=
