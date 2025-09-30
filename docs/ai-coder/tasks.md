@@ -121,7 +121,7 @@ If you tried Tasks and decided you don't want to use it, you can hide the Tasks 
 
 ## Command Line Interface
 
-The Coder CLI provides experimental task commands for managing tasks programmatically. These are available under `coder exp task`:
+The Coder CLI provides experimental commands for managing tasks programmatically. These are available under `coder exp task`:
 
 ```bash
 USAGE:
