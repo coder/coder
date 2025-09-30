@@ -340,10 +340,10 @@ describe("WorkspacePage", () => {
 
 		// After trying to update, a new dialog asking for missed parameters should
 		// be displayed and filled
-		const dialog = await screen.findByRole("dialog", {
-			name: /workspace parameters/i,
-			timeout: 5000,
-		});
+		const dialog = await screen.findByRole(
+			"dialog",
+			{ name: /workspace parameters/i }
+		);
 		const firstParameterInput = within(dialog).getByLabelText(
 			MockTemplateVersionParameter1.name,
 			{ exact: false },
