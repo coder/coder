@@ -1020,16 +1020,19 @@ endif
 
 TEST_PACKAGES ?= ./...
 
-test:
+warm-go-cache-db-cleaner:
 	# ensure Go's build cache for the cleanercmd is fresh so that tests don't have to build from scratch. This
 	# could take some time and counts against the test's timeout, which can lead to flakes.
 	# c.f. https://github.com/coder/internal/issues/1026
 	mkdir -p build
 	$(GIT_FLAGS) go build -o ./build/cleaner github.com/coder/coder/v2/coderd/database/dbtestutil/cleanercmd
+.PHONY: warm-go-cache-db-cleaner
+
+test: warm-go-cache-db-cleaner
 	$(GIT_FLAGS) gotestsum --format standard-quiet $(GOTESTSUM_RETRY_FLAGS) --packages="$(TEST_PACKAGES)" -- $(GOTEST_FLAGS)
 .PHONY: test
 
-test-cli:
+test-cli: warm-go-cache-db-cleaner
 	$(MAKE) test TEST_PACKAGES="./cli..."
 .PHONY: test-cli
 
