@@ -170,6 +170,30 @@ func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
 	return filter, parser.Errors
 }
 
+func Members(query string, organizationID uuid.UUID) (database.OrganizationMembersParams, []codersdk.ValidationError) {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return database.OrganizationMembersParams{
+			OrganizationID: organizationID,
+		}, nil
+	}
+	values, errors := searchTerms(query, nil)
+	if len(errors) > 0 {
+		return database.OrganizationMembersParams{}, errors
+	}
+
+	parser := httpapi.NewQueryParamParser()
+	params := database.OrganizationMembersParams{
+		OrganizationID: organizationID,
+		UserID:         parser.UUID(values, uuid.Nil, "user_id"),
+		IncludeSystem:  parser.Boolean(values, false, "include_system"),
+		GithubUserID:   parser.Int64(values, 0, "github_user_id"),
+	}
+	parser.ErrorExcessParams(values)
+
+	return params, parser.Errors
+}
+
 func Workspaces(ctx context.Context, db database.Store, query string, page codersdk.Pagination, agentInactiveDisconnectTimeout time.Duration) (database.GetWorkspacesParams, []codersdk.ValidationError) {
 	filter := database.GetWorkspacesParams{
 		AgentInactiveDisconnectTimeoutSeconds: int64(agentInactiveDisconnectTimeout.Seconds()),

@@ -7142,12 +7142,19 @@ WHERE
 		  ELSE
 			  is_system = false
 	END
+  -- Filter by github user ID. Note that this requires a join on the users table.
+  AND CASE
+    WHEN $4 :: bigint != 0 THEN
+      users.github_com_user_id = $4
+    ELSE true
+  END
 `
 
 type OrganizationMembersParams struct {
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 	UserID         uuid.UUID `db:"user_id" json:"user_id"`
 	IncludeSystem  bool      `db:"include_system" json:"include_system"`
+	GithubUserID   int64     `db:"github_user_id" json:"github_user_id"`
 }
 
 type OrganizationMembersRow struct {
@@ -7164,7 +7171,12 @@ type OrganizationMembersRow struct {
 //   - Use just 'user_id' to get all orgs a user is a member of
 //   - Use both to get a specific org member row
 func (q *sqlQuerier) OrganizationMembers(ctx context.Context, arg OrganizationMembersParams) ([]OrganizationMembersRow, error) {
-	rows, err := q.db.QueryContext(ctx, organizationMembers, arg.OrganizationID, arg.UserID, arg.IncludeSystem)
+	rows, err := q.db.QueryContext(ctx, organizationMembers,
+		arg.OrganizationID,
+		arg.UserID,
+		arg.IncludeSystem,
+		arg.GithubUserID,
+	)
 	if err != nil {
 		return nil, err
 	}
