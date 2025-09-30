@@ -22,7 +22,7 @@ This install guide is meant for **IT Administrators, DevOps, and Platform Teams*
 
 ## Local/Individual Installs 
 
-This install guide is meant for **individual developers, small teams, and/or open source community members** setting up Coder locally or on a single server. It covers the light weight install for Linux, MacOS, and Windows.
+This install guide is meant for **individual developers, small teams, and/or open source community members** setting up Coder locally or on a single server. It covers the light weight install for Linux, macOS, and Windows.
 
 <div class="tabs">
 
