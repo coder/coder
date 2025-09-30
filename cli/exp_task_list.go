@@ -67,8 +67,22 @@ func (r *RootCmd) taskList() *serpent.Command {
 	)
 
 	cmd := &serpent.Command{
-		Use:     "list",
-		Short:   "List experimental tasks",
+		Use:   "list",
+		Short: "List experimental tasks",
+		Long: `# List tasks for the current user
+$ coder exp task list
+
+# List tasks for a specific user
+$ coder exp task list --user someone-else
+
+# List all tasks you can view
+$ coder exp task list --all
+
+# List all your running tasks
+$ coder exp task list --status running
+
+# As above, but only show IDs
+$ coder exp task list --status running --quiet`,
 		Aliases: []string{"ls"},
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),

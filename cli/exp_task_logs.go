@@ -26,6 +26,8 @@ func (r *RootCmd) taskLogs() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "logs <task>",
 		Short: "Show a task's logs",
+		Long: `# Show a task's logs.
+$ coder exp task logs task1`,
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
 		),
