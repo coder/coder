@@ -130,7 +130,6 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 		r.connectCmd(),
 		r.expCmd(),
 		gitssh(),
-		r.boundary(),
 		r.support(),
 		r.vpnDaemon(),
 		r.vscodeSSH(),

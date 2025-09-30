@@ -18,7 +18,7 @@ func TestBoundarySubcommand(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	inv, _ := clitest.New(t, "boundary", "--help")
+	inv, _ := clitest.New(t, "exp", "boundary", "--help")
 	pty := ptytest.New(t).Attach(inv)
 
 	go func() {
