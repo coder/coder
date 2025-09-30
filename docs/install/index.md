@@ -71,8 +71,3 @@ To log in to an existing Coder deployment:
 ```sh
 coder login https://coder.example.com
 ```
-
-## Next steps
-
-- [Quickstart](../tutorials/quickstart.md)
-- [Configure Control Plane Access](../admin/setup/index.md)
