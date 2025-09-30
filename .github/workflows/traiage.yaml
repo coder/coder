@@ -73,10 +73,27 @@ jobs:
           coder whoami
           echo "$HOME/.local/bin" >> "${GITHUB_PATH}"
 
+      - name: Get Coder username from GitHub actor
+        id: get-coder-username
+        env:
+          CODER_SESSION_TOKEN: ${{ secrets.TRAIAGE_CODER_SESSION_TOKEN }}
+          GITHUB_USER_ID: ${{
+            (github.event_name == 'workflow_dispatch' && github.actor_id)
+            }}
+        run: |
+          [[ -z "${GITHUB_USER_ID}" || "${GITHUB_USER_ID}" == "null" ]] && echo "No GitHub actor ID found" && exit 1
+          user_json=$(
+            coder users list --github-user-id="${GITHUB_USER_ID}" --output=json
+          )
+          coder_username=$(jq -r 'first | .username' <<< "$user_json")
+          [[ -z "${coder_username}" || "${coder_username}" == "null" ]] && echo "No Coder user with GitHub user ID ${GITHUB_USER_ID} found" && exit 1
+          echo "coder_username=${coder_username}" >> "${GITHUB_OUTPUT}"
+
       # TODO(Cian): this is a good use-case for 'recipes'
       - name: Create Coder task
         id: create-task
         env:
+          CODER_USERNAME: ${{ steps.get-coder-username.outputs.coder_username }}
           CONTEXT_KEY: ${{ steps.extract-context.outputs.context_key }}
           GITHUB_TOKEN: ${{ github.token }}
           ISSUE_URL: ${{ inputs.issue_url }}
@@ -103,9 +120,9 @@ jobs:
           export TASK_NAME="${PREFIX}-${CONTEXT_KEY}-${RUN_ID}"
           echo "Creating task: $TASK_NAME"
           ./scripts/traiage.sh create
-          coder exp task status "$TASK_NAME" --watch
-          echo "TASK_NAME=${TASK_NAME}" >> "${GITHUB_OUTPUT}"
-          echo "TASK_NAME=${TASK_NAME}" >> "${GITHUB_ENV}"
+          coder exp task status "${CODER_USERNAME}/$TASK_NAME" --watch
+          echo "TASK_NAME=${CODER_USERNAME}/${TASK_NAME}" >> "${GITHUB_OUTPUT}"
+          echo "TASK_NAME=${CODER_USERNAME}/${TASK_NAME}" >> "${GITHUB_ENV}"
 
       - name: Create and upload archive
         id: create-archive
