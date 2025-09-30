@@ -19,6 +19,7 @@ import {
 import { RotateCcwIcon } from "lucide-react";
 import type { Task } from "modules/tasks/tasks";
 import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
+import { WorkspaceStatus } from "modules/workspaces/WorkspaceStatus/WorkspaceStatus";
 import type { FC, ReactNode } from "react";
 import { Link as RouterLink } from "react-router";
 import { relativeTime } from "utils/time";
@@ -47,7 +48,8 @@ export const TasksTable: FC<TasksTableProps> = ({ tasks, error, onRetry }) => {
 			<TableHeader>
 				<TableRow>
 					<TableHead>Task</TableHead>
-					<TableHead>Status</TableHead>
+					<TableHead>Agent status</TableHead>
+					<TableHead>Workspace status</TableHead>
 					<TableHead>Created by</TableHead>
 				</TableRow>
 			</TableHeader>
@@ -145,6 +147,9 @@ const Tasks: FC<TasksProps> = ({ tasks }) => {
 					/>
 				</TableCell>
 				<TableCell>
+					<WorkspaceStatus workspace={workspace} />
+				</TableCell>
+				<TableCell>
 					<AvatarData
 						title={workspace.owner_name}
 						subtitle={
@@ -166,6 +171,9 @@ const TasksSkeleton: FC = () => {
 			<TableRowSkeleton>
 				<TableCell>
 					<AvatarDataSkeleton />
+				</TableCell>
+				<TableCell>
+					<Skeleton className="w-[100px] h-6" />
 				</TableCell>
 				<TableCell>
 					<Skeleton className="w-[100px] h-6" />
