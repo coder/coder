@@ -24,7 +24,11 @@ import (
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
-const staleTerraformPluginRetention = 30 * 24 * time.Hour
+var staleTerraformPluginRetention = 30 * 24 * time.Hour
+
+// terraformPluginCleanupEnabled controls whether plugin cache cleanup runs.
+// Defaults to true.
+var terraformPluginCleanupEnabled = true
 
 func (s *server) setupContexts(parent context.Context, canceledOrComplete <-chan struct{}) (
 	ctx context.Context, cancel func(), killCtx context.Context, kill func(),
@@ -100,9 +104,11 @@ func (s *server) Plan(
 		}
 	}
 
-	err := CleanStaleTerraformPlugins(sess.Context(), s.cachePath, afero.NewOsFs(), time.Now(), s.logger)
-	if err != nil {
-		return provisionersdk.PlanErrorf("unable to clean stale Terraform plugins: %s", err)
+	if terraformPluginCleanupEnabled {
+		err := CleanStaleTerraformPlugins(sess.Context(), s.cachePath, afero.NewOsFs(), time.Now(), s.logger)
+		if err != nil {
+			return provisionersdk.PlanErrorf("unable to clean stale Terraform plugins: %s", err)
+		}
 	}
 
 	s.logger.Debug(ctx, "running initialization")
@@ -112,6 +118,7 @@ func (s *server) Plan(
 	initTimings := newTimingAggregator(database.ProvisionerJobTimingStageInit)
 	initTimings.ingest(createInitTimingsEvent(timingInitStart))
 
+	var err error
 	err = e.init(ctx, killCtx, sess)
 	if err != nil {
 		initTimings.ingest(createInitTimingsEvent(timingInitErrored))

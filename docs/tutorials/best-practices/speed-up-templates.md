@@ -159,10 +159,15 @@ provider versions.
 
 ### Cache directory
 
-Coder will instruct Terraform to cache its downloaded providers in the
-configured [`CODER_CACHE_DIRECTORY`](../../reference/cli/server.md#--cache-dir)
-directory.
+Coder will instruct Terraform to cache its downloaded providers in the configured [`CODER_CACHE_DIRECTORY`](../../reference/cli/server.md#--cache-dir) directory.
 
-Ensure that this directory is set to a location on disk which will persist
-across restarts of Coder or
-[external provisioners](../../admin/provisioners/index.md), if you're using them.
+Ensure that this directory is set to a location on disk which will persist across restarts of Coder or [external provisioners](../../admin/provisioners/index.md), if you're using them.
+
+#### Cache cleanup configuration
+
+Provisioner cache cleanup can be controlled at runtime via environment variables (on both built-in and external provisioners):
+
+- `CODER_TERRAFORM_PLUGIN_CLEANUP` (default `true`): enable or disable cleanup.
+- `CODER_TERRAFORM_PLUGIN_RETENTION` (default `720h`): age threshold for considering a provider plugin stale, parsed with Go's `time.ParseDuration` (example: `720h` ~30 days).
+
+If unset, cleanup runs with a default 30-day retention.

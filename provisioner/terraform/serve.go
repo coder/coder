@@ -3,7 +3,10 @@ package terraform
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -86,6 +89,17 @@ func systemBinary(ctx context.Context) (*systemBinaryDetails, error) {
 
 // Serve starts a dRPC server on the provided transport speaking Terraform provisioner.
 func Serve(ctx context.Context, options *ServeOptions) error {
+	// Optional environment overrides for plugin cache cleanup behavior.
+	if v, ok := os.LookupEnv("CODER_TERRAFORM_PLUGIN_CLEANUP"); ok {
+		if b, err := strconv.ParseBool(strings.TrimSpace(v)); err == nil {
+			terraformPluginCleanupEnabled = b
+		}
+	}
+	if v, ok := os.LookupEnv("CODER_TERRAFORM_PLUGIN_RETENTION"); ok {
+		if d, err := time.ParseDuration(strings.TrimSpace(v)); err == nil {
+			staleTerraformPluginRetention = d
+		}
+	}
 	if options.BinaryPath == "" {
 		binaryDetails, err := systemBinary(ctx)
 		if err != nil {
