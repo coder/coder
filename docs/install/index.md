@@ -46,6 +46,8 @@ package manager to install Coder:
 winget install Coder.Coder
 ```
 
+</div>
+
 ## Hosted/Enterprise Installs
 
 This install guide is meant for **IT Administrators, DevOps, and Platform Teams** deploying Coder for an organization. It covers production-grade, multi-user installs on Kubernetes and other hosted platforms.
