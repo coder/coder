@@ -531,6 +531,14 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getToken = async (tokenName: string): Promise<TypesGen.APIKey> => {
+		const response = await this.axios.get<TypesGen.APIKey>(
+			`/api/v2/users/me/keys/tokens/${tokenName}`,
+		);
+
+		return response.data;
+	};
+
 	deleteToken = async (keyId: string): Promise<void> => {
 		await this.axios.delete(`/api/v2/users/me/keys/${keyId}`);
 	};
@@ -546,9 +554,29 @@ class ApiMethods {
 		return response.data;
 	};
 
+	updateToken = async (
+		tokenName: string,
+		params: TypesGen.UpdateTokenRequest,
+	): Promise<TypesGen.APIKey> => {
+		const response = await this.axios.patch<TypesGen.APIKey>(
+			`/api/v2/users/me/keys/tokens/${tokenName}`,
+			params,
+		);
+
+		return response.data;
+	};
+
 	getTokenConfig = async (): Promise<TypesGen.TokenConfig> => {
 		const response = await this.axios.get(
 			"/api/v2/users/me/keys/tokens/tokenconfig",
+		);
+
+		return response.data;
+	};
+
+	getScopeCatalog = async (): Promise<TypesGen.ScopeCatalog> => {
+		const response = await this.axios.get<TypesGen.ScopeCatalog>(
+			"/api/v2/auth/scopes",
 		);
 
 		return response.data;

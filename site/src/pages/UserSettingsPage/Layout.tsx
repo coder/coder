@@ -18,7 +18,7 @@ const Layout: FC = () => {
 				<Stack css={{ padding: "48px 0" }} direction="row" spacing={6}>
 					<Sidebar user={me} />
 					<Suspense fallback={<Loader />}>
-						<main css={{ maxWidth: 800, width: "100%" }}>
+						<main css={{ maxWidth: 1100, width: "100%" }}>
 							<Outlet />
 						</main>
 					</Suspense>

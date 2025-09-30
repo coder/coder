@@ -200,6 +200,7 @@ const WorkspaceSettingsPage = lazy(
 const CreateTokenPage = lazy(
 	() => import("./pages/CreateTokenPage/CreateTokenPage"),
 );
+const EditTokenPage = lazy(() => import("./pages/EditTokenPage/EditTokenPage"));
 const TemplateDocsPage = lazy(
 	() => import("./pages/TemplatePage/TemplateDocsPage/TemplateDocsPage"),
 );
@@ -534,6 +535,7 @@ export const router = createBrowserRouter(
 						<Route path="tokens">
 							<Route index element={<TokensPage />} />
 							<Route path="new" element={<CreateTokenPage />} />
+							<Route path=":tokenName/edit" element={<EditTokenPage />} />
 						</Route>
 						<Route path="notifications" element={<UserNotificationsPage />} />
 					</Route>
