@@ -177,7 +177,19 @@ func Members(query string, organizationID uuid.UUID) (database.OrganizationMembe
 			OrganizationID: organizationID,
 		}, nil
 	}
-	values, errors := searchTerms(query, nil)
+	values, errors := searchTerms(query, func(term string, values url.Values) error {
+		switch term {
+		case "user_id":
+			values.Set("user_id", "")
+		case "github_user_id":
+			values.Set("github_user_id", "")
+		case "include_system":
+			values.Set("include_system", "")
+		default:
+			return fmt.Errorf("invalid search term: %s", term)
+		}
+		return nil
+	})
 	if len(errors) > 0 {
 		return database.OrganizationMembersParams{}, errors
 	}
