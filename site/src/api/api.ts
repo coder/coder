@@ -2728,6 +2728,10 @@ class ExperimentalApiMethods {
 			prompt: prompts.prompts[workspace.latest_build.id],
 		}));
 	};
+
+	deleteTask = async (user: string, id: string): Promise<void> => {
+		await this.axios.delete(`/api/experimental/tasks/${user}/${id}`);
+	};
 }
 
 // This is a hard coded CSRF token/cookie pair for local development. In prod,
