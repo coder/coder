@@ -1,6 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Link from "@mui/material/Link";
-import Tooltip from "@mui/material/Tooltip";
 import type {
 	WorkspaceAgent,
 	WorkspaceAgentDevcontainer,
@@ -13,6 +12,7 @@ import {
 	HelpTooltipTitle,
 	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
+import MiniTooltip from "components/MiniTooltip/MiniTooltip";
 import { TriangleAlertIcon } from "lucide-react";
 import type { FC } from "react";
 
@@ -35,13 +35,13 @@ const ReadyLifecycle: FC = () => {
 
 const StartingLifecycle: FC = () => {
 	return (
-		<Tooltip title="Starting...">
+		<MiniTooltip title="Starting...">
 			<div
 				role="status"
 				aria-label="Starting..."
 				css={[styles.status, styles.connecting]}
 			/>
-		</Tooltip>
+		</MiniTooltip>
 	);
 };
 
@@ -110,13 +110,13 @@ const StartErrorLifecycle: FC<AgentStatusProps> = ({ agent }) => {
 
 const ShuttingDownLifecycle: FC = () => {
 	return (
-		<Tooltip title="Stopping...">
+		<MiniTooltip title="Stopping...">
 			<div
 				role="status"
 				aria-label="Stopping..."
 				css={[styles.status, styles.connecting]}
 			/>
-		</Tooltip>
+		</MiniTooltip>
 	);
 };
 
@@ -170,13 +170,13 @@ const ShutdownErrorLifecycle: FC<AgentStatusProps> = ({ agent }) => {
 
 const OffLifecycle: FC = () => {
 	return (
-		<Tooltip title="Stopped">
+		<MiniTooltip title="Stopped">
 			<div
 				role="status"
 				aria-label="Stopped"
 				css={[styles.status, styles.disconnected]}
 			/>
-		</Tooltip>
+		</MiniTooltip>
 	);
 };
 
@@ -218,25 +218,25 @@ const ConnectedStatus: FC<AgentStatusProps> = ({ agent }) => {
 
 const DisconnectedStatus: FC = () => {
 	return (
-		<Tooltip title="Disconnected">
+		<MiniTooltip title="Disconnected">
 			<div
 				role="status"
 				aria-label="Disconnected"
 				css={[styles.status, styles.disconnected]}
 			/>
-		</Tooltip>
+		</MiniTooltip>
 	);
 };
 
 const ConnectingStatus: FC = () => {
 	return (
-		<Tooltip title="Connecting...">
+		<MiniTooltip title="Connecting...">
 			<div
 				role="status"
 				aria-label="Connecting..."
 				css={[styles.status, styles.connecting]}
 			/>
-		</Tooltip>
+		</MiniTooltip>
 	);
 };
 

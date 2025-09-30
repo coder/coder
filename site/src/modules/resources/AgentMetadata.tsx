@@ -1,5 +1,4 @@
 import Skeleton from "@mui/material/Skeleton";
-import Tooltip from "@mui/material/Tooltip";
 import { watchAgentMetadata } from "api/api";
 import type {
 	ServerSentEvent,
@@ -7,6 +6,7 @@ import type {
 	WorkspaceAgentMetadata,
 } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
+import MiniTooltip from "components/MiniTooltip/MiniTooltip";
 import { Stack } from "components/Stack/Stack";
 import dayjs from "dayjs";
 import {
@@ -183,11 +183,11 @@ const MetadataItem: FC<MetadataItemProps> = ({ item }) => {
 		status === "loading" ? (
 			<Skeleton width={65} height={12} variant="text" className="mt-[6px]" />
 		) : status === "stale" ? (
-			<Tooltip title="This data is stale and no longer up to date">
+			<MiniTooltip title="This data is stale and no longer up to date">
 				<StaticWidth className="text-ellipsis overflow-hidden whitespace-nowrap max-w-64 text-sm text-content-disabled cursor-pointer">
 					{item.result.value}
 				</StaticWidth>
-			</Tooltip>
+			</MiniTooltip>
 		) : (
 			<StaticWidth
 				className={cn(

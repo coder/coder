@@ -1,6 +1,6 @@
-import Tooltip from "@mui/material/Tooltip";
 import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import { TopbarButton } from "components/FullPageLayout/Topbar";
+import MiniTooltip from "components/MiniTooltip/MiniTooltip";
 import {
 	BanIcon,
 	CircleStopIcon,
@@ -30,7 +30,7 @@ export const UpdateButton: FC<ActionButtonProps> = ({
 	requireActiveVersion,
 }) => {
 	return (
-		<Tooltip
+		<MiniTooltip
 			title={
 				requireActiveVersion
 					? "This template requires automatic updates on workspace startup. Contact your administrator if you want to preserve the template version."
@@ -53,7 +53,7 @@ export const UpdateButton: FC<ActionButtonProps> = ({
 					<>Update and start&hellip;</>
 				)}
 			</TopbarButton>
-		</Tooltip>
+		</MiniTooltip>
 	);
 };
 
@@ -88,7 +88,7 @@ export const StartButton: FC<ActionButtonPropsWithWorkspace> = ({
 	);
 
 	if (tooltipText) {
-		mainButton = <Tooltip title={tooltipText}>{mainButton}</Tooltip>;
+		mainButton = <MiniTooltip title={tooltipText}>{mainButton}</MiniTooltip>;
 	}
 
 	return (

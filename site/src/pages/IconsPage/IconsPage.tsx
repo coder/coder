@@ -158,7 +158,7 @@ const IconsPage: FC = () => {
 						<EmptyState message="No results matched your search" />
 					)}
 					{searchedIcons.map((icon) => (
-						<CopyableValue key={icon.url} value={icon.url} placement="bottom">
+						<CopyableValue key={icon.url} value={icon.url} align="center">
 							<Stack alignItems="center" css={{ margin: 12 }}>
 								<img
 									alt={icon.url}
