@@ -10,6 +10,18 @@ minimal installation of Coder, or for a step-by-step guide on how to install and
 configure your first Coder deployment, follow the
 [quickstart guide](../tutorials/quickstart.md).
 
+## Hosted/Enterprise Installs
+
+This install guide is meant for **IT Administrators, DevOps, and Platform Teams** deploying Coder for an organization. It covers production-grade, multi-user installs on Kubernetes and other hosted platofrms. 
+
+<div>
+
+<children></children>
+
+</div>
+
+## Local/Individual Installs 
+
 For production deployments with 50+ users, we recommend
 [installing on Kubernetes](./kubernetes.md). Otherwise, you can install Coder on
 your local machine or on a VM:
