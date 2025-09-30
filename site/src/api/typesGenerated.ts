@@ -2037,6 +2037,13 @@ export interface OrganizationMemberWithUserData extends OrganizationMember {
 	readonly global_roles: readonly SlimRole[];
 }
 
+// From codersdk/users.go
+export interface OrganizationMembersQuery {
+	readonly UserID: string;
+	readonly IncludeSystem: boolean;
+	readonly GithubUserID: number;
+}
+
 // From codersdk/organizations.go
 export interface OrganizationProvisionerDaemonsOptions {
 	readonly Limit: number;
