@@ -46,6 +46,12 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: CHECKOUT MAIN
+        run: |
+          set -euxo pipefail
+          git checkout main
+          git checkout origin/dean/releases-freeze -- scripts/should_deploy.sh
+
       - name: Check if deploy is enabled
         id: check
         run: |
@@ -70,6 +76,11 @@ jobs:
         uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
         with:
           egress-policy: audit
+
+      - name: FAIL
+        run: |
+          echo "FAIL"
+          exit 1
 
       - name: Checkout
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
