@@ -246,8 +246,8 @@ const TaskSidebarMenuItem: FC<TaskSidebarMenuItemProps> = ({ task }) => {
 			</Button>
 
 			<ConfirmDialog
+				type="delete"
 				confirmLoading={deleteTaskMutation.isPending}
-				hideCancel={false}
 				open={isDeleteDialogOpen}
 				title="Delete task"
 				onClose={(): void => {
@@ -269,7 +269,6 @@ const TaskSidebarMenuItem: FC<TaskSidebarMenuItemProps> = ({ task }) => {
 						setIsDeleteDialogOpen(false);
 					}
 				}}
-				confirmText="Delete"
 				description={
 					<p>
 						This action is irreversible and removes all workspace resources and
