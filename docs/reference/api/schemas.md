@@ -670,6 +670,7 @@
 
 ```json
 {
+  "display_name": "string",
   "id": "string",
   "type": "*"
 }
@@ -677,10 +678,11 @@
 
 ### Properties
 
-| Name   | Type                                           | Required | Restrictions | Description |
-|--------|------------------------------------------------|----------|--------------|-------------|
-| `id`   | string                                         | false    |              |             |
-| `type` | [codersdk.RBACResource](#codersdkrbacresource) | false    |              |             |
+| Name           | Type                                           | Required | Restrictions | Description |
+|----------------|------------------------------------------------|----------|--------------|-------------|
+| `display_name` | string                                         | false    |              |             |
+| `id`           | string                                         | false    |              |             |
+| `type`         | [codersdk.RBACResource](#codersdkrbacresource) | false    |              |             |
 
 ## codersdk.APIKey
 
@@ -688,6 +690,7 @@
 {
   "allow_list": [
     {
+      "display_name": "string",
       "id": "string",
       "type": "*"
     }
@@ -2237,6 +2240,7 @@ This is required on creation to enable a user-flow of validating a template work
 {
   "allow_list": [
     {
+      "display_name": "string",
       "id": "string",
       "type": "*"
     }
@@ -9160,6 +9164,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 {
   "allow_list": [
     {
+      "display_name": "string",
       "id": "string",
       "type": "*"
     }

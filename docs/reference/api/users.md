@@ -759,6 +759,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/tokens \
   {
     "allow_list": [
       {
+        "display_name": "string",
         "id": "string",
         "type": "*"
       }
@@ -794,6 +795,7 @@ Status Code **200**
 |----------------------|----------------------------------------------------------|----------|--------------|---------------------------------|
 | `[array item]`       | array                                                    | false    |              |                                 |
 | `» allow_list`       | array                                                    | false    |              |                                 |
+| `»» display_name`    | string                                                   | false    |              |                                 |
 | `»» id`              | string                                                   | false    |              |                                 |
 | `»» type`            | [codersdk.RBACResource](schemas.md#codersdkrbacresource) | false    |              |                                 |
 | `» created_at`       | string(date-time)                                        | true     |              |                                 |
@@ -883,6 +885,7 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/keys/tokens \
 {
   "allow_list": [
     {
+      "display_name": "string",
       "id": "string",
       "type": "*"
     }
@@ -949,6 +952,85 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/tokens/{keyname} \
 {
   "allow_list": [
     {
+      "display_name": "string",
+      "id": "string",
+      "type": "*"
+    }
+  ],
+  "created_at": "2019-08-24T14:15:22Z",
+  "expires_at": "2019-08-24T14:15:22Z",
+  "id": "string",
+  "last_used": "2019-08-24T14:15:22Z",
+  "lifetime_seconds": 0,
+  "login_type": "password",
+  "scope": "all",
+  "scopes": [
+    "all"
+  ],
+  "token_name": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                       |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.APIKey](schemas.md#codersdkapikey) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update token API key
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/users/{user}/keys/tokens/{keyname} \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /users/{user}/keys/tokens/{keyname}`
+
+> Body parameter
+
+```json
+{
+  "allow_list": [
+    {
+      "display_name": "string",
+      "id": "string",
+      "type": "*"
+    }
+  ],
+  "lifetime": 0,
+  "scope": "all",
+  "scopes": [
+    "all"
+  ]
+}
+```
+
+### Parameters
+
+| Name      | In   | Type                                                                 | Required | Description          |
+|-----------|------|----------------------------------------------------------------------|----------|----------------------|
+| `user`    | path | string                                                               | true     | User ID, name, or me |
+| `keyname` | path | string(string)                                                       | true     | Key Name             |
+| `body`    | body | [codersdk.UpdateTokenRequest](schemas.md#codersdkupdatetokenrequest) | true     | Update token request |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "allow_list": [
+    {
+      "display_name": "string",
       "id": "string",
       "type": "*"
     }
@@ -1081,6 +1163,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/{keyid} \
 {
   "allow_list": [
     {
+      "display_name": "string",
       "id": "string",
       "type": "*"
     }

@@ -123,6 +123,7 @@ export interface AITasksPromptsResponse {
 export interface APIAllowListTarget {
 	readonly type: RBACResource;
 	readonly id: string;
+	readonly display_name?: string;
 }
 
 // From codersdk/apikey.go

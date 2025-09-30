@@ -11910,6 +11910,9 @@ const docTemplate = `{
         "codersdk.APIAllowListTarget": {
             "type": "object",
             "properties": {
+                "display_name": {
+                    "type": "string"
+                },
                 "id": {
                     "type": "string"
                 },

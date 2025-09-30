@@ -1611,3 +1611,65 @@ func convertAPIKey(k database.APIKey) codersdk.APIKey {
 		AllowList:       db2sdk.List(k.AllowList, db2sdk.APIAllowListTarget),
 	}
 }
+
+func (api *API) populateAllowListDisplayNames(ctx context.Context, allowList []codersdk.APIAllowListTarget) {
+	if len(allowList) == 0 {
+		return
+	}
+
+	cache := make(map[string]string, len(allowList))
+	for i := range allowList {
+		target := allowList[i]
+		if target.Type == codersdk.ResourceWildcard || target.ID == policy.WildcardSymbol {
+			continue
+		}
+
+		key := target.String()
+		name, ok := cache[key]
+		if !ok {
+			name, ok = api.allowListDisplayName(ctx, target.Type, target.ID)
+			if !ok {
+				cache[key] = ""
+				continue
+			}
+			cache[key] = name
+		}
+		if name != "" {
+			allowList[i].DisplayName = name
+		}
+	}
+}
+
+func (api *API) allowListDisplayName(ctx context.Context, resource codersdk.RBACResource, rawID string) (string, bool) {
+	if api == nil || api.Options == nil || api.Database == nil {
+		return "", false
+	}
+	if rawID == "" || rawID == policy.WildcardSymbol {
+		return "", false
+	}
+
+	id, err := uuid.Parse(rawID)
+	if err != nil {
+		return "", false
+	}
+
+	switch resource {
+	case codersdk.ResourceWorkspace:
+		workspace, err := api.Database.GetWorkspaceByID(ctx, id)
+		if err != nil {
+			return "", false
+		}
+		return workspace.Name, true
+	case codersdk.ResourceTemplate:
+		template, err := api.Database.GetTemplateByID(ctx, id)
+		if err != nil {
+			return "", false
+		}
+		if template.DisplayName != "" {
+			return template.DisplayName, true
+		}
+		return template.Name, true
+	default:
+		return "", false
+	}
+}
