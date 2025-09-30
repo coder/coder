@@ -1,6 +1,9 @@
 name: AI Triage Automation
 
 on:
+  issues:
+    types:
+      - labeled
   workflow_dispatch:
     inputs:
       issue_url:
@@ -32,6 +35,7 @@ jobs:
   traiage:
     name: Triage GitHub Issue with Claude Code
     runs-on: ubuntu-latest
+    if: github.event.label.name == 'traiage' || github.event.type == 'workflow_dispatch'
     timeout-minutes: 30
     env:
       CODER_URL: ${{ secrets.TRAIAGE_CODER_URL }}
@@ -43,6 +47,21 @@ jobs:
       actions: write
 
     steps:
+      - name: Check user permission
+        id: check-permission
+        uses: scherermichael-oss/action-has-permission@136e061bfe093832d87f090dd768e14e27a740d3
+        with:
+          required-permission: write
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Fail if user does not have permission
+        id: fail-if-no-permission
+        if: "! steps.check-permission.outputs.has-permission"
+        run: |
+          echo "You must be a member of the Coder GitHub organization to run this workflow."
+          exit 1
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
@@ -83,7 +102,8 @@ jobs:
         env:
           CODER_SESSION_TOKEN: ${{ secrets.TRAIAGE_CODER_SESSION_TOKEN }}
           GITHUB_USER_ID: ${{
-            (github.event_name == 'workflow_dispatch' && github.actor_id)
+            (github.event_name == 'workflow_dispatch' && github.actor_id) ||
+            (github.event_name == 'issues' && github.event.issue.user.login)
             }}
         run: |
           [[ -z "${GITHUB_USER_ID}" || "${GITHUB_USER_ID}" == "null" ]] && echo "No GitHub actor ID found" && exit 1
@@ -101,6 +121,7 @@ jobs:
           CODER_USERNAME: ${{ steps.get-coder-username.outputs.coder_username }}
           CONTEXT_KEY: ${{ steps.extract-context.outputs.context_key }}
           GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
           ISSUE_URL: ${{ inputs.issue_url }}
           PREFIX: ${{ inputs.prefix }}
           RUN_ID: ${{ github.run_id }}
@@ -125,7 +146,12 @@ jobs:
           export TASK_NAME="${PREFIX}-${CONTEXT_KEY}-${RUN_ID}"
           echo "Creating task: $TASK_NAME"
           ./scripts/traiage.sh create
-          coder exp task status "${CODER_USERNAME}/$TASK_NAME" --watch
+          if [[ "${ISSUE_URL}" == "https://github.com/${GITHUB_REPOSITORY}"* ]]; then
+            gh issue comment "${ISSUE_URL}" --body "Task created: ${TASK_NAME}"--create-if-none --edit-last
+          else
+            echo "Skipping comment on other repo."
+          fi
+          cat "${SUMMARY_FILE}" >> "${GITHUB_STEP_SUMMARY}"
           echo "TASK_NAME=${CODER_USERNAME}/${TASK_NAME}" >> "${GITHUB_OUTPUT}"
           echo "TASK_NAME=${CODER_USERNAME}/${TASK_NAME}" >> "${GITHUB_ENV}"
 
@@ -134,7 +160,11 @@ jobs:
         if: inputs.cleanup
         env:
           BUCKET_PREFIX: "gs://coder-traiage-outputs/traiage"
+          CODER_USERNAME: ${{ steps.get-coder-username.outputs.coder_username }}
+          TASK_NAME: ${{ steps.create-task.outputs.TASK_NAME }}
         run: |
+          echo "Waiting for task to complete..."
+          coder exp task status "${CODER_USERNAME}/$TASK_NAME" --watch
           echo "Creating archive for workspace: $TASK_NAME"
           ./scripts/traiage.sh archive
           echo "archive_url=${BUCKET_PREFIX%%/}/$TASK_NAME.tar.gz" >> "${GITHUB_OUTPUT}"
@@ -145,6 +175,7 @@ jobs:
         env:
           ARCHIVE_URL: ${{ steps.create-archive.outputs.archive_url }}
           BUCKET_PREFIX: "gs://coder-traiage-outputs/traiage"
+          CODER_USERNAME: ${{ steps.get-coder-username.outputs.coder_username }}
           CONTEXT_KEY: ${{ steps.extract-context.outputs.context_key }}
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
