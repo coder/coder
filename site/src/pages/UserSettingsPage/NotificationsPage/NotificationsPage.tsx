@@ -228,14 +228,12 @@ function canSeeNotificationGroup(
 	permissions: Permissions,
 ): boolean {
 	switch (group) {
-		case "Workspace Events":
-			return true;
 		case "Template Events":
 			return permissions.createTemplates;
 		case "User Events":
 			return permissions.createUser;
+		case "Workspace Events":
 		case "Task Events":
-			return true;
 		case "Custom Events":
 			return true;
 		default:

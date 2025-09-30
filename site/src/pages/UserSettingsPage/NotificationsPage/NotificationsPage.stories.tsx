@@ -54,7 +54,20 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof NotificationsPage>;
 
-export const Default: Story = {};
+export const Default: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// System notification templates
+		await canvas.findByRole("checkbox", { name: "Task Events" });
+		void canvas.findByRole("checkbox", { name: "Template Events" });
+		void canvas.findByRole("checkbox", { name: "User Events" });
+		void canvas.findByRole("checkbox", { name: "Workspace Events" });
+
+		// Custom notification template
+		void canvas.findByRole("checkbox", { name: "Custom Events" });
+	},
+};
 
 export const ToggleGroup: Story = {
 	play: async ({ canvasElement }) => {
