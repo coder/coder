@@ -54,8 +54,12 @@ export const TasksSidebar: FC = () => {
 							size="icon"
 							variant="subtle"
 							className={cn(["size-8 p-0 transition-[margin,opacity]"])}
+							asChild
 						>
-							<CoderIcon className="fill-content-primary !size-6 !p-0" />
+							<RouterLink to="/tasks">
+								<CoderIcon className="fill-content-primary !size-6 !p-0" />
+								<span className="sr-only">Navigate to tasks</span>
+							</RouterLink>
 						</Button>
 					)}
 
