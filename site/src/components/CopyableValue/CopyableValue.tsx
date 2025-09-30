@@ -1,5 +1,5 @@
 import MiniTooltip from "components/MiniTooltip/MiniTooltip";
-import { TooltipContentProps } from "components/Tooltip/Tooltip";
+import type { TooltipContentProps } from "components/Tooltip/Tooltip";
 import { useClickable } from "hooks/useClickable";
 import { useClipboard } from "hooks/useClipboard";
 import type { FC, HTMLAttributes } from "react";

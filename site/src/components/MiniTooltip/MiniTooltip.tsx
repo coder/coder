@@ -2,7 +2,7 @@ import {
 	Tooltip,
 	TooltipArrow,
 	TooltipContent,
-	TooltipContentProps,
+	type TooltipContentProps,
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
