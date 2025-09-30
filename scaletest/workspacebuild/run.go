@@ -26,11 +26,6 @@ type Runner struct {
 	workspaceID uuid.UUID
 }
 
-var (
-	_ harness.Runnable  = &Runner{}
-	_ harness.Cleanable = &Runner{}
-)
-
 func NewRunner(client *codersdk.Client, cfg Config) *Runner {
 	return &Runner{
 		client: client,
@@ -39,7 +34,7 @@ func NewRunner(client *codersdk.Client, cfg Config) *Runner {
 }
 
 // Run implements Runnable.
-func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
+func (r *Runner) RunReturningWorkspace(ctx context.Context, id string, logs io.Writer) (codersdk.Workspace, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -52,14 +47,14 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	if req.Name == "" {
 		randName, err := loadtestutil.GenerateWorkspaceName(id)
 		if err != nil {
-			return xerrors.Errorf("generate random name for workspace: %w", err)
+			return codersdk.Workspace{}, xerrors.Errorf("generate random name for workspace: %w", err)
 		}
 		req.Name = randName
 	}
 
 	workspace, err := r.client.CreateWorkspace(ctx, r.cfg.OrganizationID, r.cfg.UserID, req)
 	if err != nil {
-		return xerrors.Errorf("create workspace: %w", err)
+		return codersdk.Workspace{}, xerrors.Errorf("create workspace: %w", err)
 	}
 	r.workspaceID = workspace.ID
 
@@ -74,7 +69,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 				TemplateVersionID:   req.TemplateVersionID,
 			})
 			if err != nil {
-				return xerrors.Errorf("create workspace build: %w", err)
+				return codersdk.Workspace{}, xerrors.Errorf("create workspace build: %w", err)
 			}
 			err = waitForBuild(ctx, logs, r.client, workspace.LatestBuild.ID)
 			if err == nil {
@@ -82,7 +77,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 			}
 		}
 		if err != nil {
-			return xerrors.Errorf("wait for build: %w", err)
+			return codersdk.Workspace{}, xerrors.Errorf("wait for build: %w", err)
 		}
 	}
 
@@ -92,19 +87,16 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 		_, _ = fmt.Fprintln(logs, "")
 		err = waitForAgents(ctx, logs, r.client, workspace.ID)
 		if err != nil {
-			return xerrors.Errorf("wait for agent: %w", err)
+			return codersdk.Workspace{}, xerrors.Errorf("wait for agent: %w", err)
 		}
 	}
 
-	return nil
-}
-
-func (r *Runner) WorkspaceID() (uuid.UUID, error) {
-	if r.workspaceID == uuid.Nil {
-		return uuid.Nil, xerrors.New("workspace ID not set")
+	workspace, err = r.client.Workspace(ctx, workspace.ID)
+	if err != nil {
+		return codersdk.Workspace{}, xerrors.Errorf("get workspace %q: %w", workspace.ID.String(), err)
 	}
 
-	return r.workspaceID, nil
+	return workspace, nil
 }
 
 // CleanupRunner is a runner that deletes a workspace in the Run phase.

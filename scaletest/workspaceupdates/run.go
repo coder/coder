@@ -126,7 +126,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 		r.workspaces[workspaceName] = &workspace{
 			buildStartTime: time.Now(),
 		}
-		err = runner.Run(ctx, fmt.Sprintf("%s-%d", id, i), logs)
+		_, err = runner.RunReturningWorkspace(ctx, fmt.Sprintf("%s-%d", id, i), logs)
 		if err != nil {
 			return xerrors.Errorf("create workspace %d: %w", i, err)
 		}
