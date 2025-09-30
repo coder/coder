@@ -1,8 +1,7 @@
 import { API } from "api/api";
-import { getErrorDetail, getErrorMessage } from "api/errors";
+import { getErrorMessage } from "api/errors";
 import { cva } from "class-variance-authority";
 import { Button } from "components/Button/Button";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -10,7 +9,6 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { Skeleton } from "components/Skeleton/Skeleton";
@@ -25,9 +23,10 @@ import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { EditIcon, EllipsisIcon, PanelLeftIcon, TrashIcon } from "lucide-react";
 import type { Task } from "modules/tasks/tasks";
 import { type FC, useState } from "react";
-import { QueryClient, useMutation, useQuery } from "react-query";
+import { useQuery } from "react-query";
 import { Link as RouterLink, useNavigate, useParams } from "react-router";
 import { cn } from "utils/cn";
+import { TaskDeleteDialog } from "../TaskDeleteDialog/TaskDeleteDialog";
 import { UserCombobox } from "./UserCombobox";
 
 export const TasksSidebar: FC = () => {
@@ -176,14 +175,6 @@ const TaskSidebarMenuItem: FC<TaskSidebarMenuItemProps> = ({ task }) => {
 	const isActive = task.workspace.name === workspace;
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 	const navigate = useNavigate();
-	const queryClient = new QueryClient();
-	const deleteTaskMutation = useMutation({
-		mutationFn: () =>
-			API.experimental.deleteTask(task.workspace.owner_name, task.workspace.id),
-		onSuccess: async () => {
-			await queryClient.invalidateQueries({ queryKey: ["tasks"] });
-		},
-	});
 
 	return (
 		<>
@@ -245,36 +236,17 @@ const TaskSidebarMenuItem: FC<TaskSidebarMenuItemProps> = ({ task }) => {
 				</RouterLink>
 			</Button>
 
-			<ConfirmDialog
-				type="delete"
-				confirmLoading={deleteTaskMutation.isPending}
+			<TaskDeleteDialog
 				open={isDeleteDialogOpen}
-				title="Delete task"
-				onClose={(): void => {
+				task={task}
+				onClose={() => {
 					setIsDeleteDialogOpen(false);
 				}}
-				onConfirm={async () => {
-					try {
-						await deleteTaskMutation.mutateAsync();
-						displaySuccess("Task deleted successfully");
-						if (isActive) {
-							navigate("/tasks");
-						}
-					} catch (error) {
-						displayError(
-							getErrorMessage(error, "Failed to delete task"),
-							getErrorDetail(error),
-						);
-					} finally {
-						setIsDeleteDialogOpen(false);
+				onSuccess={() => {
+					if (isActive) {
+						navigate("/tasks");
 					}
 				}}
-				description={
-					<p>
-						This action is irreversible and removes all workspace resources and
-						data.
-					</p>
-				}
 			/>
 		</>
 	);
