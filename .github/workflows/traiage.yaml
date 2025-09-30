@@ -103,7 +103,7 @@ jobs:
           CODER_SESSION_TOKEN: ${{ secrets.TRAIAGE_CODER_SESSION_TOKEN }}
           GITHUB_USER_ID: ${{
             (github.event_name == 'workflow_dispatch' && github.actor_id) ||
-            (github.event_name == 'issues' && github.event.issue.user.login)
+            (github.event_name == 'issues' && github.event.issue.user.id)
             }}
         run: |
           [[ -z "${GITHUB_USER_ID}" || "${GITHUB_USER_ID}" == "null" ]] && echo "No GitHub actor ID found" && exit 1
