@@ -18,7 +18,22 @@ curl -X GET http://coder-server:8080/api/v2/auth/scopes \
 
 ```json
 {
-  "external": [
+  "composites": [
+    {
+      "expands_to": [
+        "all"
+      ],
+      "name": "all"
+    }
+  ],
+  "low_level": [
+    {
+      "action": "string",
+      "name": "all",
+      "resource": "*"
+    }
+  ],
+  "specials": [
     "all"
   ]
 }
@@ -26,9 +41,9 @@ curl -X GET http://coder-server:8080/api/v2/auth/scopes \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                   |
-|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ExternalAPIKeyScopes](schemas.md#codersdkexternalapikeyscopes) |
+| Status | Meaning                                                 | Description | Schema                                                   |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ScopeCatalog](schemas.md#codersdkscopecatalog) |
 
 ## Check authorization
 
