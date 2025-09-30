@@ -58,14 +58,16 @@ export const Default: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		// System notification templates
-		await canvas.findByRole("checkbox", { name: "Task Events" });
-		void canvas.findByRole("checkbox", { name: "Template Events" });
-		void canvas.findByRole("checkbox", { name: "User Events" });
-		void canvas.findByRole("checkbox", { name: "Workspace Events" });
+		await Promise.all([
+			// System notification templates
+			canvas.findByRole("checkbox", { name: "Task Events" }),
+			canvas.findByRole("checkbox", { name: "Template Events" }),
+			canvas.findByRole("checkbox", { name: "User Events" }),
+			canvas.findByRole("checkbox", { name: "Workspace Events" }),
 
-		// Custom notification template
-		void canvas.findByRole("checkbox", { name: "Custom Events" });
+			// Custom notification template
+			canvas.findByRole("checkbox", { name: "Custom Events" }),
+		]);
 	},
 };
 
