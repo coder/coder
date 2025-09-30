@@ -22,6 +22,11 @@ on:
         required: false
         default: "traiage"
         type: string
+      cleanup:
+        description: "Cleanup workspace after triage."
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   traiage:
@@ -73,10 +78,27 @@ jobs:
           coder whoami
           echo "$HOME/.local/bin" >> "${GITHUB_PATH}"
 
+      - name: Get Coder username from GitHub actor
+        id: get-coder-username
+        env:
+          CODER_SESSION_TOKEN: ${{ secrets.TRAIAGE_CODER_SESSION_TOKEN }}
+          GITHUB_USER_ID: ${{
+            (github.event_name == 'workflow_dispatch' && github.actor_id)
+            }}
+        run: |
+          [[ -z "${GITHUB_USER_ID}" || "${GITHUB_USER_ID}" == "null" ]] && echo "No GitHub actor ID found" && exit 1
+          user_json=$(
+            coder users list --github-user-id="${GITHUB_USER_ID}" --output=json
+          )
+          coder_username=$(jq -r 'first | .username' <<< "$user_json")
+          [[ -z "${coder_username}" || "${coder_username}" == "null" ]] && echo "No Coder user with GitHub user ID ${GITHUB_USER_ID} found" && exit 1
+          echo "coder_username=${coder_username}" >> "${GITHUB_OUTPUT}"
+
       # TODO(Cian): this is a good use-case for 'recipes'
       - name: Create Coder task
         id: create-task
         env:
+          CODER_USERNAME: ${{ steps.get-coder-username.outputs.coder_username }}
           CONTEXT_KEY: ${{ steps.extract-context.outputs.context_key }}
           GITHUB_TOKEN: ${{ github.token }}
           ISSUE_URL: ${{ inputs.issue_url }}
@@ -84,8 +106,6 @@ jobs:
           RUN_ID: ${{ github.run_id }}
           TEMPLATE_PARAMETERS: ${{ secrets.TRAIAGE_TEMPLATE_PARAMETERS }}
           TEMPLATE_PRESET: ${{ inputs.template_preset }}
-          # TODO: replace with coder exp task command
-          APP_SLUG: ccw
         run: |
           # Fetch issue description using `gh` CLI
           issue_description=$(gh issue view "${ISSUE_URL}")
@@ -105,12 +125,13 @@ jobs:
           export TASK_NAME="${PREFIX}-${CONTEXT_KEY}-${RUN_ID}"
           echo "Creating task: $TASK_NAME"
           ./scripts/traiage.sh create
-          ./scripts/traiage.sh wait
-          echo "TASK_NAME=${TASK_NAME}" >> "${GITHUB_OUTPUT}"
-          echo "TASK_NAME=${TASK_NAME}" >> "${GITHUB_ENV}"
+          coder exp task status "${CODER_USERNAME}/$TASK_NAME" --watch
+          echo "TASK_NAME=${CODER_USERNAME}/${TASK_NAME}" >> "${GITHUB_OUTPUT}"
+          echo "TASK_NAME=${CODER_USERNAME}/${TASK_NAME}" >> "${GITHUB_ENV}"
 
       - name: Create and upload archive
         id: create-archive
+        if: inputs.cleanup
         env:
           BUCKET_PREFIX: "gs://coder-traiage-outputs/traiage"
         run: |
@@ -120,9 +141,9 @@ jobs:
 
       - name: Generate a summary of the changes and post a comment on GitHub.
         id: generate-summary
+        if: inputs.cleanup
         env:
           ARCHIVE_URL: ${{ steps.create-archive.outputs.archive_url }}
-          APP_SLUG: ccw
           BUCKET_PREFIX: "gs://coder-traiage-outputs/traiage"
           CONTEXT_KEY: ${{ steps.extract-context.outputs.context_key }}
           GITHUB_TOKEN: ${{ github.token }}
@@ -158,7 +179,7 @@ jobs:
           cat "${SUMMARY_FILE}" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Cleanup task
-        if: steps.create-task.outputs.TASK_NAME != '' && steps.create-archive.outputs.archive_url != ''
+        if: inputs.cleanup && steps.create-task.outputs.TASK_NAME != '' && steps.create-archive.outputs.archive_url != ''
         run: |
           echo "Cleaning up task: $TASK_NAME"
           ./scripts/traiage.sh delete || true

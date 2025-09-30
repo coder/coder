@@ -148,8 +148,12 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 
 		experiments := agplcoderd.ReadExperiments(options.Logger, options.DeploymentValues.Experiments.Value())
 
-		var aibridgeDaemon *aibridged.Server
 		// In-memory aibridge daemon.
+		// TODO(@deansheather): the lifecycle of the aibridged server is
+		// probably better managed by the enterprise API type itself. Managing
+		// it in the API type means we can avoid starting it up when the license
+		// is not entitled to the feature.
+		var aibridgeDaemon *aibridged.Server
 		if options.DeploymentValues.AI.BridgeConfig.Enabled {
 			if experiments.Enabled(codersdk.ExperimentAIBridge) {
 				aibridgeDaemon, err = newAIBridgeDaemon(api)

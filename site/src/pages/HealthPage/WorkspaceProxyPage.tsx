@@ -1,9 +1,8 @@
 import { useTheme } from "@emotion/react";
-import PublicOutlined from "@mui/icons-material/PublicOutlined";
 import Tooltip from "@mui/material/Tooltip";
 import type { HealthcheckReport } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
-import { HashIcon } from "lucide-react";
+import { EarthIcon, HashIcon } from "lucide-react";
 import type { FC } from "react";
 import { useOutletContext } from "react-router";
 import { createDayString } from "utils/createDayString";
@@ -108,7 +107,7 @@ const WorkspaceProxyPage: FC = () => {
 								<div css={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
 									{region.wildcard_hostname && (
 										<Tooltip title="Wildcard Hostname">
-											<Pill icon={<PublicOutlined />}>
+											<Pill icon={<EarthIcon />}>
 												{region.wildcard_hostname}
 											</Pill>
 										</Tooltip>

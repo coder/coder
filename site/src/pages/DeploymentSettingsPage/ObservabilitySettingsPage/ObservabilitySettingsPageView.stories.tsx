@@ -52,3 +52,5 @@ export default meta;
 type Story = StoryObj<typeof ObservabilitySettingsPageView>;
 
 export const Page: Story = {};
+
+export const Premium: Story = { args: { isPremium: true } };

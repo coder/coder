@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import ArrowForwardOutlined from "@mui/icons-material/ArrowForwardOutlined";
 import Skeleton from "@mui/material/Skeleton";
 import { hasError, isApiValidationError } from "api/errors";
 import type { Template, TemplateExample } from "api/typesGenerated";
@@ -38,7 +37,7 @@ import {
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
-import { PlusIcon } from "lucide-react";
+import { ArrowRightIcon, PlusIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import type { WorkspacePermissions } from "modules/permissions/workspaces";
 import type { FC } from "react";
@@ -172,7 +171,7 @@ const TemplateRow: FC<TemplateRowProps> = ({
 						}}
 					>
 						<RouterLink to={`${templatePageLink}/workspace`}>
-							<ArrowForwardOutlined />
+							<ArrowRightIcon />
 							Create Workspace
 						</RouterLink>
 					</Button>

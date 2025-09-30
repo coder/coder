@@ -151,13 +151,6 @@ data "coder_parameter" "image_type" {
   }
 }
 
-variable "anthropic_api_key" {
-  type        = string
-  description = "The API key used to authenticate with the Anthropic API."
-  default     = ""
-  sensitive   = true
-}
-
 locals {
   default_regions = {
     // keys should match group names
@@ -479,6 +472,8 @@ resource "coder_agent" "dev" {
   dir  = local.repo_dir
   env = {
     OIDC_TOKEN : data.coder_workspace_owner.me.oidc_access_token,
+    ANTHROPIC_BASE_URL : "https://dev.coder.com/api/experimental/aibridge/anthropic",
+    ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token
   }
   startup_script_behavior = "blocking"
 
@@ -875,7 +870,7 @@ module "claude-code" {
   workdir             = local.repo_dir
   claude_code_version = "latest"
   order               = 999
-  claude_api_key      = var.anthropic_api_key
+  claude_api_key      = data.coder_workspace_owner.me.session_token
 
   system_prompt       = local.claude_system_prompt
   ai_prompt           = data.coder_parameter.ai_prompt.value

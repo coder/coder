@@ -120,7 +120,14 @@ export type APIKeyScope =
 	| "api_key:update"
 	| "application_connect"
 	| "coder:all"
+	| "coder:apikeys.manage_self"
 	| "coder:application_connect"
+	| "coder:templates.author"
+	| "coder:templates.build"
+	| "coder:workspaces.access"
+	| "coder:workspaces.create"
+	| "coder:workspaces.delete"
+	| "coder:workspaces.operate"
 	| "file:*"
 	| "file:create"
 	| "file:read"
@@ -156,7 +163,14 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"api_key:update",
 	"application_connect",
 	"coder:all",
+	"coder:apikeys.manage_self",
 	"coder:application_connect",
+	"coder:templates.author",
+	"coder:templates.build",
+	"coder:workspaces.access",
+	"coder:workspaces.create",
+	"coder:workspaces.delete",
+	"coder:workspaces.operate",
 	"file:*",
 	"file:create",
 	"file:read",
@@ -1222,6 +1236,7 @@ export interface Feature {
 
 // From codersdk/deployment.go
 export type FeatureName =
+	| "aibridge"
 	| "access_control"
 	| "advanced_template_scheduling"
 	| "appearance"
@@ -1246,6 +1261,7 @@ export type FeatureName =
 	| "workspace_proxy";
 
 export const FeatureNames: FeatureName[] = [
+	"aibridge",
 	"access_control",
 	"advanced_template_scheduling",
 	"appearance",
