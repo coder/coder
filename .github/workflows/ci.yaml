@@ -1475,8 +1475,8 @@ jobs:
             ./build/*.deb
           retention-days: 7
 
-  # Deploy is handled in deploy.yaml so we can
-  trigger-deploy:
+  # Deploy is handled in deploy.yaml so we can apply concurrency limits.
+  deploy:
     needs:
       - changes
       - build
