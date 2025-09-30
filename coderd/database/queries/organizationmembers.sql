@@ -1,5 +1,5 @@
 -- name: OrganizationMembers :many
--- Arguments are optional with uuid.Nil to ignore.
+-- Arguments are optional with uuid.Nil or 0 to ignore.
 --  - Use just 'organization_id' to get all members of an org
 --  - Use just 'user_id' to get all orgs a user is a member of
 --  - Use both to get a specific org member row
@@ -28,6 +28,12 @@ WHERE
 		  WHEN @include_system::bool THEN TRUE
 		  ELSE
 			  is_system = false
+	END
+	-- Filter by GitHub user ID
+	AND CASE
+		WHEN @github_user_id :: bigint <> 0 THEN
+			users.github_com_user_id = @github_user_id
+		ELSE true
 	END;
 
 -- name: InsertOrganizationMember :one
