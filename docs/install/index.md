@@ -12,7 +12,7 @@ configure your first Coder deployment, follow the
 
 ## Hosted/Enterprise Installs
 
-This install guide is meant for **IT Administrators, DevOps, and Platform Teams** deploying Coder for an organization. It covers production-grade, multi-user installs on Kubernetes and other hosted platofrms. 
+This install guide is meant for **IT Administrators, DevOps, and Platform Teams** deploying Coder for an organization. It covers production-grade, multi-user installs on Kubernetes and other hosted platforms.
 
 <div>
 
@@ -22,9 +22,7 @@ This install guide is meant for **IT Administrators, DevOps, and Platform Teams*
 
 ## Local/Individual Installs 
 
-For production deployments with 50+ users, we recommend
-[installing on Kubernetes](./kubernetes.md). Otherwise, you can install Coder on
-your local machine or on a VM:
+This install guide is meant for **individual developers, small teams, and/or open source community members** setting up Coder locally or on a single server. It covers the light weight install for Linux, MacOS, and Windows.
 
 <div class="tabs">
 
@@ -58,11 +56,7 @@ package manager to install Coder:
 winget install Coder.Coder
 ```
 
-## Other
-
-<children></children>
-
-</div>
+## Starting the Coder Server
 
 To start the Coder server:
 
