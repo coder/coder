@@ -108,11 +108,15 @@ interface MultiSelectComboboxProps {
 	"data-testid"?: string;
 }
 
-interface MultiSelectComboboxRef {
+export interface MultiSelectComboboxRef {
 	selectedValue: Option[];
 	input: HTMLInputElement;
 	focus: () => void;
 	reset: () => void;
+	setInputValue: (
+		value: string,
+		options?: { focus?: boolean; open?: boolean },
+	) => void;
 }
 
 function transitionToGroupOption(options: Option[], groupBy?: string) {
@@ -211,21 +215,40 @@ export const MultiSelectCombobox = forwardRef<
 		}: MultiSelectComboboxProps,
 		ref,
 	) => {
-		const inputRef = useRef<HTMLInputElement>(null);
-		const [open, setOpen] = useState(false);
-		const [onScrollbar, setOnScrollbar] = useState(false);
-		const [isLoading, setIsLoading] = useState(false);
-		const dropdownRef = useRef<HTMLDivElement>(null);
-		const listRef = useRef<HTMLDivElement>(null);
+	const inputRef = useRef<HTMLInputElement>(null);
+	const [open, setOpen] = useState(false);
+	const [onScrollbar, setOnScrollbar] = useState(false);
+	const [isLoading, setIsLoading] = useState(false);
+	const dropdownRef = useRef<HTMLDivElement>(null);
+	const listRef = useRef<HTMLDivElement>(null);
 
-		const [selected, setSelected] = useState<Option[]>(
-			arrayDefaultOptions ?? [],
-		);
-		const [options, setOptions] = useState<GroupOption>(
-			transitionToGroupOption(arrayDefaultOptions, groupBy),
-		);
-		const [inputValue, setInputValue] = useState("");
-		const debouncedSearchTerm = useDebouncedValue(inputValue, delay || 500);
+	const [selected, setSelected] = useState<Option[]>(
+		arrayDefaultOptions ?? [],
+	);
+	const [options, setOptions] = useState<GroupOption>(
+		transitionToGroupOption(arrayDefaultOptions, groupBy),
+	);
+	const [inputValue, setInputValueState] = useState("");
+	const debouncedSearchTerm = useDebouncedValue(inputValue, delay || 500);
+
+	const setComboboxInputValue = useCallback(
+		(value: string, options?: { focus?: boolean; open?: boolean }) => {
+			setInputValueState(value);
+			if (options?.open === true) {
+				setOpen(true);
+			} else if (options?.open === false) {
+				setOpen(false);
+			} else if (value !== "" && !open) {
+				setOpen(true);
+			}
+			if (options?.focus) {
+				setTimeout(() => {
+					inputRef.current?.focus();
+				}, 0);
+			}
+		},
+		[open],
+	);
 
 		const [previousValue, setPreviousValue] = useState<Option[]>(value || []);
 		if (value && value !== previousValue) {
@@ -233,16 +256,19 @@ export const MultiSelectCombobox = forwardRef<
 			setSelected(value);
 		}
 
-		useImperativeHandle(
-			ref,
-			() => ({
-				selectedValue: [...selected],
-				input: inputRef.current as HTMLInputElement,
-				focus: () => inputRef?.current?.focus(),
-				reset: () => setSelected([]),
-			}),
-			[selected],
-		);
+	useImperativeHandle(
+		ref,
+		() => ({
+			selectedValue: [...selected],
+			input: inputRef.current as HTMLInputElement,
+			focus: () => inputRef?.current?.focus(),
+			reset: () => setSelected([]),
+			setInputValue: (value: string, options?: { focus?: boolean; open?: boolean }) => {
+				setComboboxInputValue(value, options);
+			},
+		}),
+		[selected, setComboboxInputValue],
+	);
 
 		const handleUnselect = useCallback(
 			(option: Option) => {
@@ -398,7 +424,7 @@ export const MultiSelectCombobox = forwardRef<
 							onMaxSelected?.(selected.length);
 							return;
 						}
-						setInputValue("");
+						setComboboxInputValue("");
 						const newOptions = [...selected, { value, label: value }];
 						setSelected(newOptions);
 						onChange?.(newOptions);
@@ -554,7 +580,7 @@ export const MultiSelectCombobox = forwardRef<
 								value={inputValue}
 								disabled={disabled}
 								onValueChange={(value) => {
-									setInputValue(value);
+						setInputValueState(value);
 									inputProps?.onValueChange?.(value);
 								}}
 								onBlur={(event) => {
@@ -663,7 +689,7 @@ export const MultiSelectCombobox = forwardRef<
 																	onMaxSelected?.(selected.length);
 																	return;
 																}
-																setInputValue("");
+									setComboboxInputValue("");
 																const newOptions = [...selected, option];
 																setSelected(newOptions);
 																onChange?.(newOptions);

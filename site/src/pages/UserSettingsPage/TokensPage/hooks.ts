@@ -6,14 +6,12 @@ import {
 	useQuery,
 	useQueryClient,
 } from "react-query";
+import { tokens as tokensQuery } from "api/queries/tokens";
 
 // Load all tokens
 export const useTokensData = ({ include_all }: TokensFilter) => {
 	const queryKey = ["tokens", include_all];
-	const result = useQuery({
-		queryKey,
-		queryFn: () => API.getTokens({ include_all }),
-	});
+	const result = useQuery(tokensQuery({ include_all }));
 
 	return {
 		queryKey,
