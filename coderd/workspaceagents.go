@@ -494,10 +494,10 @@ func (api *API) enqueueAITaskStateNotification(
 				"workspace": workspace.Name,
 			},
 			map[string]any{
-				// Use a 10-second bucketed timestamp to bypass per-day dedupe,
+				// Use a 1-minute bucketed timestamp to bypass per-day dedupe,
 				// allowing identical content to resend within the same day
 				// (but not more than once every 10s).
-				"dedupe_bypass_ts": api.Clock.Now().UTC().Truncate(10 * time.Second),
+				"dedupe_bypass_ts": api.Clock.Now().UTC().Truncate(time.Minute),
 			},
 			"api-workspace-agent-app-status",
 			// Associate this notification with related entities
