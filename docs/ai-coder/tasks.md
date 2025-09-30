@@ -148,20 +148,25 @@ USAGE:
 
   Create an experimental task
 
-  # Create a task with direct input
-  $ coder exp task create "Add authentication to the user service"
+    - Create a task with direct input:
 
-  # Create a task with stdin input
-  $ echo "Add authentication to the user service" | coder exp task create
+        $ coder exp task create "Add authentication to the user service"
 
-  # Create a task with a specific name
-  $ coder exp task create --name task1 "Add authentication to the user service"
+    - Create a task with stdin input:
 
-  # Create a task from a specific template / preset
-  $ coder exp task create --template backend-dev --preset "My Preset" "Add authentication to the user service"
+        $ echo "Add authentication to the user service" | coder exp task create
 
-  # Create a task for another user (requires appropriate permissions)
-  $ coder exp task create --owner user@example.com "Add authentication to the user service"
+    - Create a task with a specific name:
+
+        $ coder exp task create --name task1 "Add authentication to the user service"
+
+    - Create a task from a specific template / preset:
+
+        $ coder exp task create --template backend-dev --preset "My Preset" "Add authentication to the user service"
+
+    - Create a task for another user (requires appropriate permissions):
+
+        $ coder exp task create --owner user@example.com "Add authentication to the user service"
 
 OPTIONS:
   -O, --org string, $CODER_ORGANIZATION
@@ -194,14 +199,17 @@ USAGE:
 
   Aliases: rm
 
-  # Delete a single task.
-  $ coder exp task delete task1
+    - Delete a single task.:
 
-  # Delete multiple tasks.
-  $ coder exp task delete task1 task2 task3
+        $ $ coder exp task delete task1
 
-  # Delete a task without confirmation
-  $ coder exp task delete task4 --yes
+    - Delete multiple tasks.:
+
+        $ $ coder exp task delete task1 task2 task3
+
+    - Delete a task without confirmation.:
+
+        $ $ coder exp task delete task4 --yes
 
 OPTIONS:
   -y, --yes bool
@@ -218,20 +226,25 @@ USAGE:
 
   Aliases: ls
 
-    # List tasks for the current user
-  $ coder exp task list
+    - List tasks for the current user.:
 
-  # List tasks for a specific user
-  $ coder exp task list --user someone-else
+        $ coder exp task list
 
-  # List all tasks you can view
-  $ coder exp task list --all
+    - List tasks for a specific user.:
 
-  # List all your running tasks
-  $ coder exp task list --status running
+        $ coder exp task list --user someone-else
 
-  # As above, but only show IDs
-  $ coder exp task list --status running --quiet
+    - List all tasks you can view.:
+
+        $ coder exp task list --all
+
+    - List all your running tasks.:
+
+        $ coder exp task list --status running
+
+    - As above, but only show IDs.:
+
+        $ coder exp task list --status running --quiet
 
 OPTIONS:
   -a, --all bool (default: false)
@@ -261,8 +274,9 @@ USAGE:
 
   Show a task's logs
 
-    # Show a task's logs.
-  $ coder exp task logs task1
+    - Show logs for a given task.:
+
+        $ coder exp task logs task1
 
 OPTIONS:
   -c, --column [id|content|type|time] (default: type,content)
@@ -280,11 +294,13 @@ USAGE:
 
   Send input to a task
 
-# Send input to a task.
-  $ coder exp task send task1 "Please also add unit tests"
+    - Send direct input to a task.:
 
-  # Send input from stdin to a task.
-  $ echo "Please also add unit tests" | coder exp task send task1 --stdin
+        $ coder exp task send task1 "Please also add unit tests"
+
+    - Send input from stdin to a task.:
+
+        $ echo "Please also add unit tests" | coder exp task send task1 --stdin
 
 OPTIONS:
       --stdin bool
@@ -301,11 +317,13 @@ USAGE:
 
   Aliases: stat
 
-  # Show the status of a given task.
-  $ coder exp task status task1
+    - Show the status of a given task.:
 
-  # Watch the status of a given task until it completes (idle or stopped).
-  $ coder exp task status task1 --watch
+        $ coder exp task status task1
+
+    - Watch the status of a given task until it completes (idle or stopped).:
+
+        $ coder exp task status task1 --watch
 
 OPTIONS:
   -c, --column [state changed|status|healthy|state|message] (default: state changed,status,healthy,state,message)

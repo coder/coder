@@ -29,20 +29,28 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "create [input]",
 		Short: "Create an experimental task",
-		Long: `# Create a task with direct input
-$ coder exp task create "Add authentication to the user service"
-
-# Create a task with stdin input
-$ echo "Add authentication to the user service" | coder exp task create
-
-# Create a task with a specific name
-$ coder exp task create --name task1 "Add authentication to the user service"
-
-# Create a task from a specific template / preset
-$ coder exp task create --template backend-dev --preset "My Preset" "Add authentication to the user service"
-
-# Create a task for another user (requires appropriate permissions)
-$ coder exp task create --owner user@example.com "Add authentication to the user service"`,
+		Long: FormatExamples(
+			Example{
+				Description: "Create a task with direct input",
+				Command:     "coder exp task create \"Add authentication to the user service\"",
+			},
+			Example{
+				Description: "Create a task with stdin input",
+				Command:     "echo \"Add authentication to the user service\" | coder exp task create",
+			},
+			Example{
+				Description: "Create a task with a specific name",
+				Command:     "coder exp task create --name task1 \"Add authentication to the user service\"",
+			},
+			Example{
+				Description: "Create a task from a specific template / preset",
+				Command:     "coder exp task create --template backend-dev --preset \"My Preset\" \"Add authentication to the user service\"",
+			},
+			Example{
+				Description: "Create a task for another user (requires appropriate permissions)",
+				Command:     "coder exp task create --owner user@example.com \"Add authentication to the user service\"",
+			},
+		),
 		Middleware: serpent.Chain(
 			serpent.RequireRangeArgs(0, 1),
 		),

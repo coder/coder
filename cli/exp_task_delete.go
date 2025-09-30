@@ -19,14 +19,20 @@ func (r *RootCmd) taskDelete() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "delete <task> [<task> ...]",
 		Short: "Delete experimental tasks",
-		Long: `# Delete a single task.
-$ coder exp task delete task1
-
-# Delete multiple tasks.
-$ coder exp task delete task1 task2 task3
-
-# Delete a task without confirmation
-$ coder exp task delete task4 --yes`,
+		Long: FormatExamples(
+			Example{
+				Description: "Delete a single task.",
+				Command:     "$ coder exp task delete task1",
+			},
+			Example{
+				Description: "Delete multiple tasks.",
+				Command:     "$ coder exp task delete task1 task2 task3",
+			},
+			Example{
+				Description: "Delete a task without confirmation.",
+				Command:     "$ coder exp task delete task4 --yes",
+			},
+		),
 		Middleware: serpent.Chain(
 			serpent.RequireRangeArgs(1, -1),
 		),

@@ -45,11 +45,16 @@ func (r *RootCmd) taskStatus() *serpent.Command {
 	)
 	cmd := &serpent.Command{
 		Short: "Show the status of a task.",
-		Long: `# Show the status of a given task.
-$ coder exp task status task1
-
-# Watch the status of a given task until it completes (idle or stopped).
-$ coder exp task status task1 --watch`,
+		Long: FormatExamples(
+			Example{
+				Description: "Show the status of a given task.",
+				Command:     "coder exp task status task1",
+			},
+			Example{
+				Description: "Watch the status of a given task until it completes (idle or stopped).",
+				Command:     "coder exp task status task1 --watch",
+			},
+		),
 		Use:     "status",
 		Aliases: []string{"stat"},
 		Options: serpent.OptionSet{
