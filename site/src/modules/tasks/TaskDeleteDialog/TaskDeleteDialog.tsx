@@ -10,7 +10,7 @@ type TaskDeleteDialogProps = {
 	open: boolean;
 	task: Task;
 	onClose: () => void;
-	onSuccess: () => void;
+	onSuccess?: () => void;
 };
 
 export const TaskDeleteDialog: FC<TaskDeleteDialogProps> = ({
@@ -37,7 +37,7 @@ export const TaskDeleteDialog: FC<TaskDeleteDialogProps> = ({
 				try {
 					await deleteTaskMutation.mutateAsync();
 					displaySuccess("Task deleted successfully");
-					onSuccess();
+					onSuccess?.();
 				} catch (error) {
 					displayError(
 						getErrorMessage(error, "Failed to delete task"),
