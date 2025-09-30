@@ -181,6 +181,7 @@ func ExtractOrganizationMember(ctx context.Context, auth func(r *http.Request, a
 		OrganizationID: orgID,
 		UserID:         user.ID,
 		IncludeSystem:  true,
+		GithubUserID:   0,
 	})
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)

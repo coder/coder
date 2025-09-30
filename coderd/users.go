@@ -1236,6 +1236,7 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 		UserID:         user.ID,
 		OrganizationID: uuid.Nil,
 		IncludeSystem:  false,
+		GithubUserID:   0,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

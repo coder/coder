@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"cdr.dev/slog"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -166,9 +165,9 @@ func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
 			Message:     "Invalid organization member search query.",
 			Validations: errors,
 		})
+		return
 	}
 
-	api.Logger.Debug(ctx, "list organization members", slog.F("params", params))
 	members, err := api.Database.OrganizationMembers(ctx, params)
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)

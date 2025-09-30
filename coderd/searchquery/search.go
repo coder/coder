@@ -175,6 +175,9 @@ func Members(query string, organizationID uuid.UUID) (database.OrganizationMembe
 	if query == "" {
 		return database.OrganizationMembersParams{
 			OrganizationID: organizationID,
+			UserID:         uuid.Nil,
+			IncludeSystem:  false,
+			GithubUserID:   0,
 		}, nil
 	}
 	values, errors := searchTerms(query, func(term string, values url.Values) error {
@@ -186,12 +189,17 @@ func Members(query string, organizationID uuid.UUID) (database.OrganizationMembe
 		case "include_system":
 			values.Set("include_system", "")
 		default:
-			return fmt.Errorf("invalid search term: %s", term)
+			return xerrors.Errorf("invalid search term: %s", term)
 		}
 		return nil
 	})
 	if len(errors) > 0 {
-		return database.OrganizationMembersParams{}, errors
+		return database.OrganizationMembersParams{
+			OrganizationID: organizationID,
+			UserID:         uuid.Nil,
+			IncludeSystem:  false,
+			GithubUserID:   0,
+		}, errors
 	}
 
 	parser := httpapi.NewQueryParamParser()
