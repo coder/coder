@@ -1,13 +1,29 @@
 package rbac
 
 import (
+	"fmt"
 	"sort"
 	"strings"
+
+	"golang.org/x/exp/slices"
+
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 )
 
 // externalLowLevel is the curated set of low-level scope names exposed to users.
 // Any valid resource:action pair not in this set is considered internal-only
 // and must not be user-requestable.
+type LowLevelScopeMeta struct {
+	Name     ScopeName
+	Resource string
+	Action   policy.Action
+}
+
+type CompositeScopeMeta struct {
+	Name      ScopeName
+	ExpandsTo []ScopeName
+}
+
 var externalLowLevel = map[ScopeName]struct{}{
 	// Workspaces
 	"workspace:read":                {},
@@ -71,6 +87,8 @@ var externalComposite = map[ScopeName]struct{}{
 	"coder:apikeys.manage_self": {},
 }
 
+var externalSpecial = []ScopeName{ScopeAll, ScopeApplicationConnect}
+
 // IsExternalScope returns true if the scope is public, including the
 // `all` and `application_connect` special scopes and the curated
 // low-level resource:action scopes.
@@ -112,4 +130,76 @@ func ExternalScopeNames() []string {
 
 	sort.Slice(names, func(i, j int) bool { return strings.Compare(names[i], names[j]) < 0 })
 	return names
+}
+
+// ExternalLowLevelCatalog returns metadata for all public low-level scopes.
+func ExternalLowLevelCatalog() []LowLevelScopeMeta {
+	metas := make([]LowLevelScopeMeta, 0, len(externalLowLevel))
+	for name := range externalLowLevel {
+		resource, action, ok := parseLowLevelScope(name)
+		if !ok {
+			continue
+		}
+		metas = append(metas, LowLevelScopeMeta{
+			Name:     name,
+			Resource: resource,
+			Action:   action,
+		})
+	}
+	sort.Slice(metas, func(i, j int) bool {
+		if metas[i].Resource == metas[j].Resource {
+			return metas[i].Name < metas[j].Name
+		}
+		return metas[i].Resource < metas[j].Resource
+	})
+	return metas
+}
+
+// ExternalCompositeCatalog returns metadata for public composite coder:* scopes.
+func ExternalCompositeCatalog() []CompositeScopeMeta {
+	metas := make([]CompositeScopeMeta, 0, len(externalComposite))
+	for name := range externalComposite {
+		perms, ok := compositePerms[name]
+		if !ok {
+			continue
+		}
+		expands := make([]ScopeName, 0)
+		for resource, actions := range perms {
+			for _, action := range actions {
+				expands = append(expands, ScopeName(fmt.Sprintf("%s:%s", resource, action)))
+			}
+		}
+		slices.Sort(expands)
+		metas = append(metas, CompositeScopeMeta{
+			Name:      name,
+			ExpandsTo: uniqueScopeNames(expands),
+		})
+	}
+	sort.Slice(metas, func(i, j int) bool { return metas[i].Name < metas[j].Name })
+	return metas
+}
+
+// ExternalSpecialScopes returns the list of legacy/special public scopes that
+// are not part of the low-level or composite catalogs but remain requestable
+// for backward compatibility.
+func ExternalSpecialScopes() []ScopeName {
+	out := make([]ScopeName, len(externalSpecial))
+	copy(out, externalSpecial)
+	slices.Sort(out)
+	return out
+}
+
+func uniqueScopeNames(in []ScopeName) []ScopeName {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]ScopeName, 0, len(in))
+	last := ScopeName("")
+	for i, name := range in {
+		if i == 0 || name != last {
+			out = append(out, name)
+			last = name
+		}
+	}
+	return out
 }

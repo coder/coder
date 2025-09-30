@@ -616,7 +616,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.ExternalAPIKeyScopes"
+                            "$ref": "#/definitions/codersdk.ScopeCatalog"
                         }
                     }
                 }
@@ -14356,17 +14356,6 @@ const docTemplate = `{
                 "ExperimentAIBridge"
             ]
         },
-        "codersdk.ExternalAPIKeyScopes": {
-            "type": "object",
-            "properties": {
-                "external": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.APIKeyScope"
-                    }
-                }
-            }
-        },
         "codersdk.ExternalAgentCredentials": {
             "type": "object",
             "properties": {
@@ -17613,6 +17602,57 @@ const docTemplate = `{
                     "additionalProperties": {
                         "type": "string"
                     }
+                }
+            }
+        },
+        "codersdk.ScopeCatalog": {
+            "type": "object",
+            "properties": {
+                "composites": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ScopeCatalogComposite"
+                    }
+                },
+                "low_level": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ScopeCatalogLowLevel"
+                    }
+                },
+                "specials": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.APIKeyScope"
+                    }
+                }
+            }
+        },
+        "codersdk.ScopeCatalogComposite": {
+            "type": "object",
+            "properties": {
+                "expands_to": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.APIKeyScope"
+                    }
+                },
+                "name": {
+                    "$ref": "#/definitions/codersdk.APIKeyScope"
+                }
+            }
+        },
+        "codersdk.ScopeCatalogLowLevel": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string"
+                },
+                "name": {
+                    "$ref": "#/definitions/codersdk.APIKeyScope"
+                },
+                "resource": {
+                    "$ref": "#/definitions/codersdk.RBACResource"
                 }
             }
         },

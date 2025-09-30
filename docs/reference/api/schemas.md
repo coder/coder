@@ -3995,22 +3995,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `workspace-sharing`    |
 | `aibridge`             |
 
-## codersdk.ExternalAPIKeyScopes
-
-```json
-{
-  "external": [
-    "all"
-  ]
-}
-```
-
-### Properties
-
-| Name       | Type                                                  | Required | Restrictions | Description |
-|------------|-------------------------------------------------------|----------|--------------|-------------|
-| `external` | array of [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              |             |
-
 ## codersdk.ExternalAgentCredentials
 
 ```json
@@ -7490,6 +7474,75 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `hostname_suffix`    | string | false    |              | Hostname suffix is the suffix to append to workspace names for SSH hostnames.                                         |
 | `ssh_config_options` | object | false    |              |                                                                                                                       |
 | » `[any property]`   | string | false    |              |                                                                                                                       |
+
+## codersdk.ScopeCatalog
+
+```json
+{
+  "composites": [
+    {
+      "expands_to": [
+        "all"
+      ],
+      "name": "all"
+    }
+  ],
+  "low_level": [
+    {
+      "action": "string",
+      "name": "all",
+      "resource": "*"
+    }
+  ],
+  "specials": [
+    "all"
+  ]
+}
+```
+
+### Properties
+
+| Name         | Type                                                                      | Required | Restrictions | Description |
+|--------------|---------------------------------------------------------------------------|----------|--------------|-------------|
+| `composites` | array of [codersdk.ScopeCatalogComposite](#codersdkscopecatalogcomposite) | false    |              |             |
+| `low_level`  | array of [codersdk.ScopeCatalogLowLevel](#codersdkscopecataloglowlevel)   | false    |              |             |
+| `specials`   | array of [codersdk.APIKeyScope](#codersdkapikeyscope)                     | false    |              |             |
+
+## codersdk.ScopeCatalogComposite
+
+```json
+{
+  "expands_to": [
+    "all"
+  ],
+  "name": "all"
+}
+```
+
+### Properties
+
+| Name         | Type                                                  | Required | Restrictions | Description |
+|--------------|-------------------------------------------------------|----------|--------------|-------------|
+| `expands_to` | array of [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              |             |
+| `name`       | [codersdk.APIKeyScope](#codersdkapikeyscope)          | false    |              |             |
+
+## codersdk.ScopeCatalogLowLevel
+
+```json
+{
+  "action": "string",
+  "name": "all",
+  "resource": "*"
+}
+```
+
+### Properties
+
+| Name       | Type                                           | Required | Restrictions | Description |
+|------------|------------------------------------------------|----------|--------------|-------------|
+| `action`   | string                                         | false    |              |             |
+| `name`     | [codersdk.APIKeyScope](#codersdkapikeyscope)   | false    |              |             |
+| `resource` | [codersdk.RBACResource](#codersdkrbacresource) | false    |              |             |
 
 ## codersdk.ServerSentEvent
 
