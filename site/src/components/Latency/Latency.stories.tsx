@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { screen, userEvent, within } from "storybook/test";
+import { expect, screen, userEvent, within } from "storybook/test";
 import { Latency } from "./Latency";
 
 const meta: Meta<typeof Latency> = {
@@ -46,6 +46,8 @@ export const NoLatency: Story = {
 
 		// Need to await getting the tooltip because the tooltip doesn't open
 		// immediately on hover
-		await screen.findByRole("tooltip", { name: /Latency not available/i });
+		expect(await screen.findByRole("tooltip")).toHaveTextContent(
+			/Latency not available/i,
+		);
 	},
 };

@@ -20,7 +20,9 @@ const MiniTooltip: FC<MiniTooltipProps> = (props) => {
 	return (
 		<TooltipProvider>
 			<Tooltip delayDuration={0}>
-				<TooltipTrigger asChild>{children}</TooltipTrigger>
+				<TooltipTrigger asChild aria-label={title}>
+					{children}
+				</TooltipTrigger>
 				<TooltipContent
 					collisionPadding={16}
 					side="bottom"
