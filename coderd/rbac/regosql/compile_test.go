@@ -218,6 +218,14 @@ func TestRegoQueries(t *testing.T) {
 			VariableConverter: regosql.WorkspaceConverter(),
 		},
 		{
+			Name: "WorkspaceIDMatcher",
+			Queries: []string{
+				`input.object.id = "a8d0f8ce-6a01-4d0d-ab1d-1d546958feae"`,
+			},
+			ExpectedSQL:       p("workspaces.id :: text = 'a8d0f8ce-6a01-4d0d-ab1d-1d546958feae'"),
+			VariableConverter: regosql.WorkspaceConverter(),
+		},
+		{
 			Name: "NoACLConfig",
 			Queries: []string{
 				`input.object.org_owner != "";
@@ -260,6 +268,14 @@ neq(input.object.owner, "");
 				p("t.organization_id :: text = ANY(ARRAY ['3bf82434-e40b-44ae-b3d8-d0115bba9bad','5630fda3-26ab-462c-9014-a88a62d7a415','c304877a-bc0d-4e9b-9623-a38eae412929'])") + " AND " +
 				p("false") + " AND " +
 				p("false")),
+			VariableConverter: regosql.TemplateConverter(),
+		},
+		{
+			Name: "TemplateIDMatcher",
+			Queries: []string{
+				`input.object.id = "a829cb9d-7c5b-4c3b-bf78-053827a56e58"`,
+			},
+			ExpectedSQL:       p("t.id :: text = 'a829cb9d-7c5b-4c3b-bf78-053827a56e58'"),
 			VariableConverter: regosql.TemplateConverter(),
 		},
 		{

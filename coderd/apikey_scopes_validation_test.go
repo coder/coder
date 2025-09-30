@@ -93,9 +93,10 @@ func TestTokenCreation_AllowListValidation(t *testing.T) {
 	// Invalid resource type should be rejected.
 	_, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
 		Scopes: []codersdk.APIKeyScope{codersdk.APIKeyScopeWorkspaceRead},
-		AllowList: []codersdk.APIAllowListTarget{
-			{Type: codersdk.RBACResource("unknown"), ID: uuid.New().String()},
-		},
+		AllowList: []codersdk.APIAllowListTarget{{
+			Type: codersdk.RBACResource("unknown"),
+			ID:   uuid.New().String(),
+		}},
 	})
 	require.Error(t, err)
 
