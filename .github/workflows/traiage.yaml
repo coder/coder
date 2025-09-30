@@ -22,6 +22,11 @@ on:
         required: false
         default: "traiage"
         type: string
+      cleanup:
+        description: "Cleanup workspace after triage."
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   traiage:
@@ -126,6 +131,7 @@ jobs:
 
       - name: Create and upload archive
         id: create-archive
+        if: inputs.cleanup
         env:
           BUCKET_PREFIX: "gs://coder-traiage-outputs/traiage"
         run: |
@@ -135,6 +141,7 @@ jobs:
 
       - name: Generate a summary of the changes and post a comment on GitHub.
         id: generate-summary
+        if: inputs.cleanup
         env:
           ARCHIVE_URL: ${{ steps.create-archive.outputs.archive_url }}
           BUCKET_PREFIX: "gs://coder-traiage-outputs/traiage"
@@ -172,7 +179,7 @@ jobs:
           cat "${SUMMARY_FILE}" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Cleanup task
-        if: steps.create-task.outputs.TASK_NAME != '' && steps.create-archive.outputs.archive_url != ''
+        if: inputs.cleanup && steps.create-task.outputs.TASK_NAME != '' && steps.create-archive.outputs.archive_url != ''
         run: |
           echo "Cleaning up task: $TASK_NAME"
           ./scripts/traiage.sh delete || true
