@@ -73,42 +73,54 @@ data "coder_parameter" "setup_script" {
 }
 
 # The Claude Code module does the automatic task reporting
-# Other agent modules: https://registry.coder.com/modules?search=tag%3Atasks
+# Other agent modules: https://registry.coder.com/modules?search=agent
 # Or use a custom agent:  
 module "claude-code" {
-  count               = data.coder_workspace.me.start_count
-  source              = "registry.coder.com/coder/claude-code/coder"
-  version             = "2.2.0"
-  agent_id            = coder_agent.main.id
-  folder              = "/home/coder/projects"
-  install_claude_code = true
-  claude_code_version = "latest"
-  order               = 999
+  source   = "registry.coder.com/coder/claude-code/coder"
+  version  = "3.0.1"
+  agent_id = coder_agent.example.id
+  workdir  = "/home/coder/project"
 
-  # experiment_post_install_script = data.coder_parameter.setup_script.value
+  claude_api_key = var.anthropic_api_key
+  # OR
+  # claude_code_oauth_token = var.anthropic_oauth_token
 
-  # This enables Coder Tasks
-  experiment_report_tasks = true
+  claude_code_version = "1.0.82" # Pin to a specific version
+  agentapi_version    = "v0.6.1"
+
+  ai_prompt = data.coder_parameter.ai_prompt.value
+  model     = "sonnet"
+
+  # Optional: run your pre-flight script
+  # pre_install_script = data.coder_parameter.setup_script.value
+
+  permission_mode = "plan"
+
+  mcp = <<-EOF
+  {
+    "mcpServers": {
+      "my-custom-tool": {
+        "command": "my-tool-server",
+        "args": ["--port", "8080"]
+      }
+    }
+  }
+  EOF
 }
 
+# Rename to `anthropic_oauth_token` if using the Oauth Token
 variable "anthropic_api_key" {
   type        = string
   description = "Generate one at: https://console.anthropic.com/settings/keys"
   sensitive   = true
-}
-
-resource "coder_env" "anthropic_api_key" {
-  agent_id = coder_agent.main.id
-  name     = "CODER_MCP_CLAUDE_API_KEY"
-  value    = var.anthropic_api_key
 }
 ```
 
 Let's break down this snippet:
 
 - The `module "claude-code"` sets up the Task template to use Claude Code, but Coder's Registry supports many other agent modules like [OpenAI's Codex](https://registry.coder.com/modules/coder-labs/codex) or [Gemini CLI](https://registry.coder.com/modules/coder-labs/gemini)
-- Each module defines its own specific inputs. Claude Code expects the `CODER_MCP_CLAUDE_API_KEY` environment variable to exist, but OpenAI based agents expect `OPENAI_API_KEY` for example. You'll want to check the specific module's defined variables to know what exactly needs to be defined
-- You can define specific scripts to run at startup of the Task. For example, you could define a setup script that calls to AWS S3 and pulls specific files you want your agent to have access to
+- Each module defines its own specific inputs. Claude Code expects the `claude_api_key` input, but OpenAI based agents expect `OPENAI_API_KEY` for example. You'll want to check the specific module's defined variables to know what exactly needs to be defined
+- You can define specific scripts to run before the module is installed, `pre_install_script`, or after install, `pre_install_script`. For example, you could define a setup script that calls to AWS S3 and pulls specific files you want your agent to have access to
 
 #### Using a Custom Agent
 
