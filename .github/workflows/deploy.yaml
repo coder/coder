@@ -9,8 +9,6 @@ on:
         required: true
         type: string
     secrets:
-      GITHUB_TOKEN:
-        required: true
       FLY_API_TOKEN:
         required: true
       FLY_PARIS_CODER_PROXY_SESSION_TOKEN:
