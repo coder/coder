@@ -10,12 +10,12 @@ on:
       template_name:
         description: "Coder template to use for workspace"
         required: true
-        default: "coder"
+        default: "traiage"
         type: string
       template_preset:
         description: "Template preset to use"
         required: true
-        default: "Pittsburgh"
+        default: "Default"
         type: string
       prefix:
         description: "Prefix for workspace name"
