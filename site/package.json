@@ -169,7 +169,7 @@
 		"jest-websocket-mock": "2.5.0",
 		"jest_workaround": "0.1.14",
 		"knip": "5.64.1",
-		"msw": "2.4.8",
+		"msw": "2.11.3",
 		"postcss": "8.5.1",
 		"protobufjs": "7.4.0",
 		"rollup-plugin-visualizer": "5.14.0",
