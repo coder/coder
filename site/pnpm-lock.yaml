@@ -444,8 +444,8 @@ importers:
         specifier: 3.4.18
         version: 3.4.18(yaml@2.7.0)
       ts-proto:
-        specifier: 1.164.0
-        version: 1.164.0
+        specifier: 1.181.2
+        version: 1.181.2
       typescript:
         specifier: 5.6.3
         version: 5.6.3
@@ -4863,6 +4863,9 @@ packages:
   long@5.2.3:
     resolution: {integrity: sha512-lcHwpNoggQTObv5apGNCTdJrO69eHOZMi4BNC+rTLER8iHAqGrUVeLh/irVIM7zTw2bOXA8T6uNPeujwOLg/2Q==, tarball: https://registry.npmjs.org/long/-/long-5.2.3.tgz}
 
+  long@5.3.2:
+    resolution: {integrity: sha512-mNAgZ1GmyNhD7AuqnTG3/VQ26o760+ZYBPKjPvugO8+nLbYfX6TVpJPseBvopbdY+qpZ/lKUnmEc1LeZYS3QAA==, tarball: https://registry.npmjs.org/long/-/long-5.3.2.tgz}
+
   longest-streak@3.1.0:
     resolution: {integrity: sha512-9Ri+o0JYgehTaVBBDoMqIl8GXtbWg711O3srftcHhZ0dqnETqLaoIK0x17fUw9rFSlK/0NlsKe0Ahhyl5pXE2g==, tarball: https://registry.npmjs.org/longest-streak/-/longest-streak-3.1.0.tgz}
 
@@ -6159,14 +6162,14 @@ packages:
       '@swc/wasm':
         optional: true
 
-  ts-poet@6.11.0:
-    resolution: {integrity: sha512-r5AGF8vvb+GjBsnqiTqbLhN1/U2FJt6BI+k0dfCrkKzWvUhNlwMmq9nDHuucHs45LomgHjZPvYj96dD3JawjJA==, tarball: https://registry.npmjs.org/ts-poet/-/ts-poet-6.11.0.tgz}
+  ts-poet@6.12.0:
+    resolution: {integrity: sha512-xo+iRNMWqyvXpFTaOAvLPA5QAWO6TZrSUs5s4Odaya3epqofBu/fMLHEWl8jPmjhA0s9sgj9sNvF1BmaQlmQkA==, tarball: https://registry.npmjs.org/ts-poet/-/ts-poet-6.12.0.tgz}
 
-  ts-proto-descriptors@1.15.0:
-    resolution: {integrity: sha512-TYyJ7+H+7Jsqawdv+mfsEpZPTIj9siDHS6EMCzG/z3b/PZiphsX+mWtqFfFVe5/N0Th6V3elK9lQqjnrgTOfrg==, tarball: https://registry.npmjs.org/ts-proto-descriptors/-/ts-proto-descriptors-1.15.0.tgz}
+  ts-proto-descriptors@1.16.0:
+    resolution: {integrity: sha512-3yKuzMLpltdpcyQji1PJZRfoo4OJjNieKTYkQY8pF7xGKsYz/RHe3aEe4KiRxcinoBmnEhmuI+yJTxLb922ULA==, tarball: https://registry.npmjs.org/ts-proto-descriptors/-/ts-proto-descriptors-1.16.0.tgz}
 
-  ts-proto@1.164.0:
-    resolution: {integrity: sha512-yIyMucjcozS7Vxtyy5mH6C8ltbY4gEBVNW4ymZ0kWiKlyMxsvhyUZ63CbxcF7dCKQVjHR+fLJ3SiorfgyhQ+AQ==, tarball: https://registry.npmjs.org/ts-proto/-/ts-proto-1.164.0.tgz}
+  ts-proto@1.181.2:
+    resolution: {integrity: sha512-knJ8dtjn2Pd0c5ZGZG8z9DMiD4PUY8iGI9T9tb8DvGdWRMkLpf0WcPO7G+7cmbZyxvNTAG6ci3fybEaFgMZIvg==, tarball: https://registry.npmjs.org/ts-proto/-/ts-proto-1.181.2.tgz}
     hasBin: true
 
   tsconfig-paths@4.2.0:
@@ -11329,6 +11332,8 @@ snapshots:
 
   long@5.2.3: {}
 
+  long@5.3.2: {}
+
   longest-streak@3.1.0: {}
 
   loose-envify@1.4.0:
@@ -12944,21 +12949,21 @@ snapshots:
       '@swc/core': 1.3.38
     optional: true
 
-  ts-poet@6.11.0:
+  ts-poet@6.12.0:
     dependencies:
       dprint-node: 1.0.8
 
-  ts-proto-descriptors@1.15.0:
+  ts-proto-descriptors@1.16.0:
     dependencies:
-      long: 5.2.3
+      long: 5.3.2
       protobufjs: 7.4.0
 
-  ts-proto@1.164.0:
+  ts-proto@1.181.2:
     dependencies:
       case-anything: 2.1.13
       protobufjs: 7.4.0
-      ts-poet: 6.11.0
-      ts-proto-descriptors: 1.15.0
+      ts-poet: 6.12.0
+      ts-proto-descriptors: 1.16.0
 
   tsconfig-paths@4.2.0:
     dependencies:
