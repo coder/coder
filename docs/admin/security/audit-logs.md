@@ -149,6 +149,22 @@ ORDER BY pg_total_relation_size(relid) DESC;
 Should you wish to purge these records, it is safe to do so. This can only be done by running SQL queries
 directly against the `audit_logs` table in the database. We advise users to only purge old records (>1yr).
 
+### Backup/Archive
+
+Consider exporting or archiving these records before deletion:
+
+```sql
+-- Export to CSV
+COPY (SELECT * FROM audit_logs WHERE time < CURRENT_TIMESTAMP - INTERVAL '1 year')
+TO '/path/to/audit_logs_archive.csv' DELIMITER ',' CSV HEADER;
+
+-- Copy to archive table
+CREATE TABLE audit_logs_archive AS
+SELECT * FROM audit_logs WHERE time < CURRENT_TIMESTAMP - INTERVAL '1 year';
+```
+
+### Permanent Deletion
+
 > [!NOTE]
 > For large `audit_logs` tables, consider running the `DELETE` operation during maintenance windows as it may impact
 > database performance. You can also batch the deletions to reduce lock time.
