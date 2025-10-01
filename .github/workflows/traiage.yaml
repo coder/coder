@@ -35,7 +35,7 @@ jobs:
   traiage:
     name: Triage GitHub Issue with Claude Code
     runs-on: ubuntu-latest
-    if: github.event.label.name == 'traiage' || github.event.type == 'workflow_dispatch'
+    if: github.event.label.name == 'traiage' || github.event_name == 'workflow_dispatch'
     timeout-minutes: 30
     env:
       CODER_URL: ${{ secrets.TRAIAGE_CODER_URL }}
@@ -47,26 +47,50 @@ jobs:
       actions: write
 
     steps:
-      - name: Check user permission
-        id: check-permission
-        uses: scherermichael-oss/action-has-permission@136e061bfe093832d87f090dd768e14e27a740d3
-        with:
-          required-permission: write
+      - name: Get GitHub user ID
+        id: github-user-id
+        if: always()
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_EVENT_USER_ID: ${{ github.event.issue.user.id }}
+          GITHUB_EVENT_USER_LOGIN: ${{ github.event.issue.user.login }}
+        run: |
+          # For workflow_dispatch, use the actor who triggered it
+          # For issues events, use the issue author
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            if ! GITHUB_USER_ID=$(gh api "users/${GITHUB_ACTOR}" --jq '.id'); then
+              echo "::error::Failed to get GitHub user ID for actor ${GITHUB_ACTOR}"
+              exit 1
+            fi
+            echo "Using workflow_dispatch actor: ${GITHUB_ACTOR} (ID: ${GITHUB_USER_ID})"
+            echo "github_user_id=${GITHUB_USER_ID}" >> "${GITHUB_OUTPUT}"
+            echo "github_username=${GITHUB_ACTOR}" >> "${GITHUB_OUTPUT}"
+          elif [[ "${GITHUB_EVENT_NAME}" == "issues" ]]; then
+            GITHUB_USER_ID=${GITHUB_EVENT_USER_ID}
+            echo "Using issue author: ${GITHUB_EVENT_USER_LOGIN} (ID: ${GITHUB_USER_ID})"
+            echo "github_user_id=${GITHUB_USER_ID}" >> "${GITHUB_OUTPUT}"
+            echo "github_username=${GITHUB_EVENT_USER_LOGIN}" >> "${GITHUB_OUTPUT}"
+          else
+            echo "::error::Unsupported event type: ${GITHUB_EVENT_NAME}"
+            exit 1
+          fi
+          [[ -z "${GITHUB_USER_ID}" || "${GITHUB_USER_ID}" == "null" ]] && echo "No GitHub user ID found" && exit 1
+
+      - name: Verify organization membership
         env:
           GITHUB_TOKEN: ${{ github.token }}
-
-      - name: Fail if user does not have permission
-        id: fail-if-no-permission
-        if: "! steps.check-permission.outputs.has-permission"
+          GITHUB_USERNAME: ${{ steps.github-user-id.outputs.github_username }}
+          GITHUB_USER_ID: ${{ steps.github-user-id.outputs.github_user_id }}
+          GITHUB_ORG: ${{ github.repository_owner }}
         run: |
-          echo "You must be a member of the Coder GitHub organization to run this workflow."
-          exit 1
-
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-          fetch-depth: 0
+          # Check if the actor is a member of the organization
+          if ! gh api "orgs/${GITHUB_ORG}/members/${GITHUB_USERNAME}" --silent 2>/dev/null; then
+            echo "::error title=Access Denied::User ${GITHUB_USERNAME} is not a member of the ${GITHUB_ORG} organization"
+            echo "::error::You must be a member of the ${GITHUB_ORG} GitHub organization to run this workflow."
+            exit 1
+          fi
+          echo "::notice::User ${GITHUB_USERNAME} verified as member of ${GITHUB_ORG} organization"
 
       - name: Extract context key from issue
         id: extract-context
@@ -101,18 +125,21 @@ jobs:
         id: get-coder-username
         env:
           CODER_SESSION_TOKEN: ${{ secrets.TRAIAGE_CODER_SESSION_TOKEN }}
-          GITHUB_USER_ID: ${{
-            (github.event_name == 'workflow_dispatch' && github.actor_id) ||
-            (github.event_name == 'issues' && github.event.issue.user.id)
-            }}
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_USER_ID: ${{ steps.github-user-id.outputs.github_user_id }}
         run: |
-          [[ -z "${GITHUB_USER_ID}" || "${GITHUB_USER_ID}" == "null" ]] && echo "No GitHub actor ID found" && exit 1
           user_json=$(
             coder users list --github-user-id="${GITHUB_USER_ID}" --output=json
           )
           coder_username=$(jq -r 'first | .username' <<< "$user_json")
           [[ -z "${coder_username}" || "${coder_username}" == "null" ]] && echo "No Coder user with GitHub user ID ${GITHUB_USER_ID} found" && exit 1
           echo "coder_username=${coder_username}" >> "${GITHUB_OUTPUT}"
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
 
       # TODO(Cian): this is a good use-case for 'recipes'
       - name: Create Coder task
@@ -151,7 +178,6 @@ jobs:
           else
             echo "Skipping comment on other repo."
           fi
-          cat "${SUMMARY_FILE}" >> "${GITHUB_STEP_SUMMARY}"
           echo "TASK_NAME=${CODER_USERNAME}/${TASK_NAME}" >> "${GITHUB_OUTPUT}"
           echo "TASK_NAME=${CODER_USERNAME}/${TASK_NAME}" >> "${GITHUB_ENV}"
 
