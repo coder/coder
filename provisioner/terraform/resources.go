@@ -1023,15 +1023,14 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			return nil, xerrors.Errorf("decode coder_ai_task attributes: %w", err)
 		}
 
-		if len(task.SidebarApp) < 1 {
-			return nil, xerrors.Errorf("coder_ai_task has no sidebar_app defined")
+		if task.AppID == "" {
+			return nil, xerrors.Errorf("coder_ai_task has no app_id defined")
 		}
 
 		aiTasks = append(aiTasks, &proto.AITask{
-			Id: task.ID,
-			SidebarApp: &proto.AITaskSidebarApp{
-				Id: task.SidebarApp[0].ID,
-			},
+			Id:     task.ID,
+			AppId:  task.AppID,
+			Prompt: task.Prompt,
 		})
 	}
 
