@@ -226,7 +226,7 @@ jobs:
 
       - name: Create and upload archive
         id: create-archive
-        if: ${{ steps.determine-inputs.outputs.cleanup }}
+        if: steps.determine-inputs.outputs.cleanup == 'true'
         env:
           BUCKET_PREFIX: "gs://coder-traiage-outputs/traiage"
           CODER_USERNAME: ${{ steps.get-coder-username.outputs.coder_username }}
@@ -240,7 +240,7 @@ jobs:
 
       - name: Generate a summary of the changes and post a comment on GitHub.
         id: generate-summary
-        if: ${{ steps.determine-inputs.outputs.cleanup }}
+        if: steps.determine-inputs.outputs.cleanup == 'true'
         env:
           ARCHIVE_URL: ${{ steps.create-archive.outputs.archive_url }}
           BUCKET_PREFIX: "gs://coder-traiage-outputs/traiage"
@@ -279,7 +279,7 @@ jobs:
           cat "${SUMMARY_FILE}" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Cleanup task
-        if: steps.determine-inputs.outputs.cleanup && steps.create-task.outputs.TASK_NAME != '' && steps.create-archive.outputs.archive_url != ''
+        if: steps.determine-inputs.outputs.cleanup == 'true' && steps.create-task.outputs.TASK_NAME != '' && steps.create-archive.outputs.archive_url != ''
         run: |
           echo "Cleaning up task: $TASK_NAME"
           ./scripts/traiage.sh delete || true
