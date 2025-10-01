@@ -123,7 +123,7 @@ If you tried Tasks and decided you don't want to use it, you can hide the Tasks 
 
 The Coder CLI provides experimental commands for managing tasks programmatically. These are available under `coder exp task`:
 
-```bash
+```console
 USAGE:
   coder exp task
 
@@ -142,7 +142,7 @@ SUBCOMMANDS:
 
 ### Create task
 
-```bash
+```console
 USAGE:
   coder exp task create [flags] [input]
 
@@ -191,7 +191,7 @@ OPTIONS:
 
 ### Deleting Tasks
 
-```bash
+```console
 USAGE:
   coder exp task delete [flags] <task> [<task> ...]
 
@@ -218,7 +218,7 @@ OPTIONS:
 
 ### List tasks
 
-```bash
+```console
 USAGE:
   coder exp task list [flags]
 
@@ -268,7 +268,7 @@ OPTIONS:
 
 ### Viewing Task Logs
 
-```bash
+```console
 USAGE:
   coder exp task logs [flags] <task>
 
@@ -288,7 +288,7 @@ OPTIONS:
 
 ### Send input to a task
 
-```bash
+```console
 USAGE:
   coder exp task send [flags] <task> [<input> | --stdin]
 
@@ -309,7 +309,7 @@ OPTIONS:
 
 ### Viewing Task Status
 
-```bash
+```console
 USAGE:
   coder exp task status [flags]
 
