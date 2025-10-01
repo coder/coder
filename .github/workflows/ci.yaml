@@ -676,7 +676,7 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     needs: changes
     if: needs.changes.outputs.site == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
-    timeout-minutes: 20
+    timeout-minutes: 10
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
@@ -692,7 +692,7 @@ jobs:
       - name: Setup Node
         uses: ./.github/actions/setup-node
 
-      - run: pnpm test:ci --max-workers "$(nproc)"
+      - run: pnpm test:ci --max-workers=$(nproc)
         working-directory: site
 
   test-e2e:
