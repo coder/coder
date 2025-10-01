@@ -54,7 +54,7 @@ importers:
         version: 5.2.5
       '@monaco-editor/react':
         specifier: 4.7.0
-        version: 4.7.0(monaco-editor@0.52.2)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        version: 4.7.0(monaco-editor@0.53.0)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@mui/icons-material':
         specifier: 5.18.0
         version: 5.18.0(@mui/material@5.18.0(@emotion/react@11.14.0(@types/react@19.1.17)(react@19.1.1))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.1.17)(react@19.1.1))(@types/react@19.1.17)(react@19.1.1))(@types/react@19.1.17)(react-dom@19.1.1(react@19.1.1))(react@19.1.1))(@types/react@19.1.17)(react@19.1.1)
@@ -191,8 +191,8 @@ importers:
         specifier: 0.474.0
         version: 0.474.0(react@19.1.1)
       monaco-editor:
-        specifier: 0.52.2
-        version: 0.52.2
+        specifier: 0.53.0
+        version: 0.53.0
       pretty-bytes:
         specifier: 6.1.1
         version: 6.1.1
@@ -3031,6 +3031,9 @@ packages:
   '@types/tough-cookie@4.0.5':
     resolution: {integrity: sha512-/Ad8+nIOV7Rl++6f1BdKxFSMgmoqEoYbHRpPcx3JEfv8VRsQe9Z4mCXeJBzxs7mbHY/XOZZuXlRNfhpVPbs6ZA==, tarball: https://registry.npmjs.org/@types/tough-cookie/-/tough-cookie-4.0.5.tgz}
 
+  '@types/trusted-types@1.0.6':
+    resolution: {integrity: sha512-230RC8sFeHoT6sSUlRO6a8cAnclO06eeiq1QDfiv2FGCLWFvvERWgwIQD4FWqD9A69BN7Lzee4OXwoMVnnsWDw==, tarball: https://registry.npmjs.org/@types/trusted-types/-/trusted-types-1.0.6.tgz}
+
   '@types/ua-parser-js@0.7.36':
     resolution: {integrity: sha512-N1rW+njavs70y2cApeIw1vLMYXRwfBy+7trgavGuuTfOd7j1Yh7QTRc/yqsPl6ncokt72ZXuxEU0PiCp9bSwNQ==, tarball: https://registry.npmjs.org/@types/ua-parser-js/-/ua-parser-js-0.7.36.tgz}
 
@@ -5182,8 +5185,8 @@ packages:
     resolution: {integrity: sha512-qxBgB7Qa2sEQgHFjj0dSigq7fX4k6Saisd5Nelwp2q8mlbAFh5dHV9JTTlF8viYJLSSWgMCZFUom8PJcMNBoJw==, tarball: https://registry.npmjs.org/mock-socket/-/mock-socket-9.3.1.tgz}
     engines: {node: '>= 8'}
 
-  monaco-editor@0.52.2:
-    resolution: {integrity: sha512-GEQWEZmfkOGLdd3XK8ryrfWz3AIP8YymVXiPHEdewrUq7mh0qrKrfHLNCXcbB6sTnMLnOZ3ztSiKcciFUkIJwQ==, tarball: https://registry.npmjs.org/monaco-editor/-/monaco-editor-0.52.2.tgz}
+  monaco-editor@0.53.0:
+    resolution: {integrity: sha512-0WNThgC6CMWNXXBxTbaYYcunj08iB5rnx4/G56UOPeL9UVIUGGHA1GR0EWIh9Ebabj7NpCRawQ5b0hfN1jQmYQ==, tarball: https://registry.npmjs.org/monaco-editor/-/monaco-editor-0.53.0.tgz}
 
   moo-color@1.0.3:
     resolution: {integrity: sha512-i/+ZKXMDf6aqYtBhuOcej71YSlbjT3wCO/4H1j8rPvxDJEifdwgg5MaFyu6iYAT8GBZJg2z0dkgK4YMzvURALQ==, tarball: https://registry.npmjs.org/moo-color/-/moo-color-1.0.3.tgz}
@@ -7660,10 +7663,10 @@ snapshots:
     dependencies:
       state-local: 1.0.7
 
-  '@monaco-editor/react@4.7.0(monaco-editor@0.52.2)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)':
+  '@monaco-editor/react@4.7.0(monaco-editor@0.53.0)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)':
     dependencies:
       '@monaco-editor/loader': 1.5.0
-      monaco-editor: 0.52.2
+      monaco-editor: 0.53.0
       react: 19.1.1
       react-dom: 19.1.1(react@19.1.1)
 
@@ -9237,6 +9240,8 @@ snapshots:
   '@types/tough-cookie@4.0.2': {}
 
   '@types/tough-cookie@4.0.5': {}
+
+  '@types/trusted-types@1.0.6': {}
 
   '@types/ua-parser-js@0.7.36': {}
 
@@ -12013,7 +12018,9 @@ snapshots:
 
   mock-socket@9.3.1: {}
 
-  monaco-editor@0.52.2: {}
+  monaco-editor@0.53.0:
+    dependencies:
+      '@types/trusted-types': 1.0.6
 
   moo-color@1.0.3:
     dependencies:
