@@ -79,7 +79,7 @@ RUN apt-get update && \
 	# yq v3 used in v1.
 	go install github.com/mikefarah/yq/v4@v4.44.3 && \
 	mv /tmp/bin/yq /tmp/bin/yq4 && \
-	go install go.uber.org/mock/mockgen@v0.5.0 && \
+	go install go.uber.org/mock/mockgen@v0.6.0 && \
 	# Reduce image size.
 	apt-get remove --yes gcc && \
 	apt-get autoremove --yes && \
