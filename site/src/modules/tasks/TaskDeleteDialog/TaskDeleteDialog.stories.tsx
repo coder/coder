@@ -1,4 +1,4 @@
-import { MockTasks } from "testHelpers/entities";
+import { MockTasks, MockWorkspace } from "testHelpers/entities";
 import { withGlobalSnackbar } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
@@ -18,6 +18,8 @@ export const DeleteTaskSuccess: Story = {
 	decorators: [withGlobalSnackbar],
 	args: {
 		open: true,
+		task: { prompt: "My Task", workspace: MockWorkspace },
+		onClose: () => {},
 	},
 	parameters: {
 		chromatic: {
