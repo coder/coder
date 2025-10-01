@@ -203,8 +203,8 @@ importers:
         specifier: 2.19.3
         version: 2.19.3(react@19.1.1)
       react-confetti:
-        specifier: 6.2.2
-        version: 6.2.2(react@19.1.1)
+        specifier: 6.4.0
+        version: 6.4.0(react@19.1.1)
       react-date-range:
         specifier: 1.4.0
         version: 1.4.0(date-fns@2.30.0)(react@19.1.1)
@@ -5588,8 +5588,8 @@ packages:
     peerDependencies:
       react: '*'
 
-  react-confetti@6.2.2:
-    resolution: {integrity: sha512-K+kTyOPgX+ZujMZ+Rmb7pZdHBvg+DzinG/w4Eh52WOB8/pfO38efnnrtEZNJmjTvLxc16RBYO+tPM68Fg8viBA==, tarball: https://registry.npmjs.org/react-confetti/-/react-confetti-6.2.2.tgz}
+  react-confetti@6.4.0:
+    resolution: {integrity: sha512-5MdGUcqxrTU26I2EU7ltkWPwxvucQTuqMm8dUz72z2YMqTD6s9vMcDUysk7n9jnC+lXuCPeJJ7Knf98VEYE9Rg==, tarball: https://registry.npmjs.org/react-confetti/-/react-confetti-6.4.0.tgz}
     engines: {node: '>=16'}
     peerDependencies:
       react: ^16.3.0 || ^17.0.1 || ^18.0.0 || ^19.0.0
@@ -12427,7 +12427,7 @@ snapshots:
       reactcss: 1.2.3(react@19.1.1)
       tinycolor2: 1.6.0
 
-  react-confetti@6.2.2(react@19.1.1):
+  react-confetti@6.4.0(react@19.1.1):
     dependencies:
       react: 19.1.1
       tween-functions: 1.2.0
