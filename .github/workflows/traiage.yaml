@@ -70,7 +70,7 @@ jobs:
           GITHUB_EVENT_NAME: ${{ github.event_name }}
           GITHUB_EVENT_USER_ID: ${{ github.event.sender.id }}
           GITHUB_EVENT_USER_LOGIN: ${{ github.event.sender.login }}
-          INPUTS_CLEANUP: ${{ inputs.cleanup || 'false' }}
+          INPUTS_CLEANUP: ${{ inputs.cleanup || false }}
           INPUTS_ISSUE_URL: ${{ inputs.issue_url }}
           INPUTS_TEMPLATE_NAME: ${{ inputs.template_name || 'traiage' }}
           INPUTS_TEMPLATE_PRESET: ${{ inputs.template_preset || 'Default'}}
