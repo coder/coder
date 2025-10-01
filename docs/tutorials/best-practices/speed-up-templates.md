@@ -167,7 +167,7 @@ Ensure that this directory is set to a location on disk which will persist acros
 
 Provisioner cache cleanup can be controlled at runtime via environment variables (on both built-in and external provisioners):
 
-- `CODER_TERRAFORM_PLUGIN_CLEANUP` (default `true`): enable or disable cleanup.
-- `CODER_TERRAFORM_PLUGIN_RETENTION` (default `720h`): age threshold for considering a provider plugin stale, parsed with Go's `time.ParseDuration` (example: `720h` ~30 days).
+- `CODER_PROVISIONER_CACHE_CLEANUP` (default `true`): enable or disable cleanup.
+- `CODER_PROVISIONER_CACHE_RETENTION` (default `720h`): age threshold for considering a cached provider stale, parsed with Go's `time.ParseDuration` (example: `720h` ~30 days).
 
 If unset, cleanup runs with a default 30-day retention.
