@@ -692,7 +692,7 @@ jobs:
       - name: Setup Node
         uses: ./.github/actions/setup-node
 
-      - run: pnpm test:ci --max-workers=$(nproc)
+      - run: pnpm test:ci --runInBand
         working-directory: site
 
   test-e2e:
