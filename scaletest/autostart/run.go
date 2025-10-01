@@ -72,7 +72,8 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 		codersdk.WithLogger(logger),
 		codersdk.WithLogBodies())
 
-	logger.Info(ctx, fmt.Sprintf("user %q created", newUser.Username), slog.F("id", newUser.ID.String()))
+	//nolint:gocritic // short log is fine
+	logger.Info(ctx, "user created", slog.F("username", newUser.Username), slog.F("user_id", newUser.ID.String()))
 
 	workspaceBuildConfig := r.cfg.Workspace
 	workspaceBuildConfig.OrganizationID = r.cfg.User.OrganizationID
@@ -107,7 +108,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 		return xerrors.Errorf("timeout waiting for initial workspace build to complete: %w", err)
 	}
 
-	logger.Info(ctx, fmt.Sprintf("stopping workspace %q", workspace.Name))
+	logger.Info(ctx, "stopping workspace", slog.F("workspace_name", workspace.Name))
 
 	_, err = newUserClient.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 		Transition: codersdk.WorkspaceTransitionStop,
@@ -129,7 +130,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 		return xerrors.Errorf("timeout waiting for stop build to complete: %w", err)
 	}
 
-	logger.Info(ctx, fmt.Sprintf("workspace %q stopped successfully", workspace.Name))
+	logger.Info(ctx, "workspace stopped successfully", slog.F("workspace_name", workspace.Name))
 
 	logger.Info(ctx, "waiting for all runners to reach barrier")
 	reachedBarrier = true
@@ -137,12 +138,11 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	r.cfg.SetupBarrier.Wait()
 	logger.Info(ctx, "all runners reached barrier, proceeding with autostart schedule")
 
-	testStartTime := time.Now()
+	testStartTime := time.Now().UTC()
 	autostartTime := testStartTime.Add(r.cfg.AutostartDelay).Round(time.Minute)
-	timeUntilAutostart := autostartTime.Sub(testStartTime)
 	schedule := fmt.Sprintf("CRON_TZ=UTC %d %d * * *", autostartTime.Minute(), autostartTime.Hour())
 
-	logger.Info(ctx, fmt.Sprintf("setting autostart schedule for workspace %q: %s", workspace.Name, schedule))
+	logger.Info(ctx, "setting autostart schedule for workspace", slog.F("workspace_name", workspace.Name), slog.F("schedule", schedule))
 
 	err = newUserClient.UpdateWorkspaceAutostart(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
 		Schedule: &schedule,
@@ -152,9 +152,9 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 		return xerrors.Errorf("update workspace autostart: %w", err)
 	}
 
-	logger.Info(ctx, fmt.Sprintf("waiting for workspace %q to autostart", workspace.Name))
+	logger.Info(ctx, "waiting for workspace to autostart", slog.F("workspace_name", workspace.Name))
 
-	autostartInitiateCtx, cancel4 := context.WithTimeout(ctx, timeUntilAutostart+r.cfg.AutostartTimeout)
+	autostartInitiateCtx, cancel4 := context.WithDeadline(ctx, autostartTime.Add(r.cfg.AutostartDelay))
 	defer cancel4()
 
 	logger.Info(ctx, "listening for workspace updates to detect autostart build")
@@ -189,7 +189,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 
 	r.autostartTotalLatency = time.Since(autostartTime)
 
-	logger.Info(ctx, fmt.Sprintf("autostart completed in %v", r.autostartTotalLatency))
+	logger.Info(ctx, "autostart workspace build complete", slog.F("duration", r.autostartTotalLatency))
 	r.cfg.Metrics.RecordCompletion(r.autostartTotalLatency, newUser.Username, workspace.Name)
 
 	return nil
