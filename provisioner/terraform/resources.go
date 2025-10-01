@@ -219,40 +219,10 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 
 	resources := make([]*proto.Resource, 0)
 
-	// Indexes Terraform resources by their label.
-	// The label is what "terraform graph" uses to reference nodes.
-	tfResourcesByLabel := map[string]map[string]*tfjson.StateResource{}
-
-	// Extra array to preserve the order of rich parameters.
-	tfResourcesRichParameters := make([]*tfjson.StateResource, 0)
-	tfResourcesPresets := make([]*tfjson.StateResource, 0)
-	tfResourcesAITasks := make([]*tfjson.StateResource, 0)
-	var findTerraformResources func(mod *tfjson.StateModule)
-	findTerraformResources = func(mod *tfjson.StateModule) {
-		for _, module := range mod.ChildModules {
-			findTerraformResources(module)
-		}
-		for _, resource := range mod.Resources {
-			if resource.Type == "coder_parameter" {
-				tfResourcesRichParameters = append(tfResourcesRichParameters, resource)
-			}
-			if resource.Type == "coder_workspace_preset" {
-				tfResourcesPresets = append(tfResourcesPresets, resource)
-			}
-			if resource.Type == "coder_ai_task" {
-				tfResourcesAITasks = append(tfResourcesAITasks, resource)
-			}
-
-			label := convertAddressToLabel(resource.Address)
-			if tfResourcesByLabel[label] == nil {
-				tfResourcesByLabel[label] = map[string]*tfjson.StateResource{}
-			}
-			tfResourcesByLabel[label][resource.Address] = resource
-		}
-	}
-	for _, module := range modules {
-		findTerraformResources(module)
-	}
+	tfResourcesByLabel,
+		tfResourcesRichParameters,
+		tfResourcesPresets,
+		tfResourcesAITasks := findTerraformResources(modules)
 
 	// Find all agents!
 	resourceAgents, err := findResourceAgents(tfResourcesByLabel, graph)
@@ -1094,6 +1064,47 @@ func findResourceAgents(tfResourcesByLabel map[string]map[string]*tfjson.StateRe
 	}
 
 	return resourceAgents, nil
+}
+
+func findTerraformResources(modules []*tfjson.StateModule) (resourcesByLabel map[string]map[string]*tfjson.StateResource, richParams, presets, AITasks []*tfjson.StateResource) {
+	// Indexes Terraform resources by their label.
+	// The label is what "terraform graph" uses to reference nodes.
+	resourcesByLabel = map[string]map[string]*tfjson.StateResource{}
+
+	// Extra array to preserve the order of rich parameters.
+	richParams = make([]*tfjson.StateResource, 0)
+	presets = make([]*tfjson.StateResource, 0)
+	AITasks = make([]*tfjson.StateResource, 0)
+
+	var findTerraformResources func(mod *tfjson.StateModule)
+	findTerraformResources = func(mod *tfjson.StateModule) {
+		for _, module := range mod.ChildModules {
+			findTerraformResources(module)
+		}
+		for _, resource := range mod.Resources {
+			if resource.Type == "coder_parameter" {
+				richParams = append(richParams, resource)
+			}
+			if resource.Type == "coder_workspace_preset" {
+				presets = append(presets, resource)
+			}
+			if resource.Type == "coder_ai_task" {
+				AITasks = append(AITasks, resource)
+			}
+
+			label := convertAddressToLabel(resource.Address)
+			if resourcesByLabel[label] == nil {
+				resourcesByLabel[label] = map[string]*tfjson.StateResource{}
+			}
+			resourcesByLabel[label][resource.Address] = resource
+		}
+	}
+
+	for _, module := range modules {
+		findTerraformResources(module)
+	}
+
+	return
 }
 
 func convertScheduling(scheduling provider.Scheduling) *proto.Scheduling {
