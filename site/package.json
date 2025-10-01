@@ -83,7 +83,7 @@
 		"color-convert": "2.0.1",
 		"cron-parser": "4.9.0",
 		"cronstrue": "2.50.0",
-		"dayjs": "1.11.13",
+		"dayjs": "1.11.18",
 		"emoji-mart": "5.6.0",
 		"file-saver": "2.0.5",
 		"formik": "2.4.6",
