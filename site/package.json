@@ -114,7 +114,7 @@
 		"tailwind-merge": "2.6.0",
 		"tailwindcss-animate": "1.0.7",
 		"tzdata": "1.0.46",
-		"ua-parser-js": "1.0.40",
+		"ua-parser-js": "1.0.41",
 		"ufuzzy": "npm:@leeoniya/ufuzzy@1.0.10",
 		"undici": "6.21.3",
 		"unique-names-generator": "4.7.1",
