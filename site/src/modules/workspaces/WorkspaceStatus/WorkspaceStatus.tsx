@@ -16,9 +16,12 @@ export const WorkspaceStatus: FC<WorkspaceStatusProps> = ({ workspace }) => {
 					<WorkspaceDormantBadge workspace={workspace} />
 				)}
 			</WorkspaceStatusIndicator>
-			<span className="text-xs font-medium text-content-secondary ml-6 whitespace-nowrap">
+			<time
+				dateTime={workspace.last_used_at}
+				className="text-xs font-medium text-content-secondary ml-6 whitespace-nowrap"
+			>
 				{lastUsedMessage(workspace.last_used_at)}
-			</span>
+			</time>
 		</div>
 	);
 };
