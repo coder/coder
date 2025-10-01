@@ -26,6 +26,7 @@ import { RotateCcwIcon, TrashIcon } from "lucide-react";
 import { TaskDeleteDialog } from "modules/tasks/TaskDeleteDialog/TaskDeleteDialog";
 import type { Task } from "modules/tasks/tasks";
 import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
+import { WorkspaceStatus } from "modules/workspaces/WorkspaceStatus/WorkspaceStatus";
 import { type FC, type ReactNode, useState } from "react";
 import { Link as RouterLink } from "react-router";
 import { relativeTime } from "utils/time";
@@ -54,7 +55,8 @@ export const TasksTable: FC<TasksTableProps> = ({ tasks, error, onRetry }) => {
 			<TableHeader>
 				<TableRow>
 					<TableHead>Task</TableHead>
-					<TableHead>Status</TableHead>
+					<TableHead>Agent status</TableHead>
+					<TableHead>Workspace status</TableHead>
 					<TableHead>Created by</TableHead>
 					<TableHead />
 				</TableRow>
@@ -154,6 +156,9 @@ const TaskRow: FC<TaskRowProps> = ({ task }) => {
 					/>
 				</TableCell>
 				<TableCell>
+					<WorkspaceStatus workspace={task.workspace} />
+				</TableCell>
+				<TableCell>
 					<AvatarData
 						title={task.workspace.owner_name}
 						subtitle={
@@ -201,6 +206,9 @@ const TasksSkeleton: FC = () => {
 			<TableRowSkeleton>
 				<TableCell>
 					<AvatarDataSkeleton />
+				</TableCell>
+				<TableCell>
+					<Skeleton className="w-[100px] h-6" />
 				</TableCell>
 				<TableCell>
 					<Skeleton className="w-[100px] h-6" />
