@@ -34,7 +34,7 @@ import (
 )
 
 // @Summary Get AI task prompts for workspace builds
-// @Description: EXPERIMENTAL: this endpoint is experimental and not guranteed to be stable.
+// @Description: EXPERIMENTAL: this endpoint is experimental and not guaranteed to be stable.
 // @ID get-ai-task-prompts
 // @Security CoderSessionToken
 // @Tags Experimental
@@ -93,7 +93,7 @@ func (api *API) aiTasksPrompts(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Create a new AI task
-// @Description: EXPERIMENTAL: this endpoint is experimental and not guranteed to be stable.
+// @Description: EXPERIMENTAL: this endpoint is experimental and not guaranteed to be stable.
 // @ID create-task
 // @Security CoderSessionToken
 // @Tags Experimental
@@ -337,7 +337,7 @@ type tasksListResponse struct {
 }
 
 // @Summary List AI tasks
-// @Description: EXPERIMENTAL: this endpoint is experimental and not guranteed to be stable.
+// @Description: EXPERIMENTAL: this endpoint is experimental and not guaranteed to be stable.
 // @ID list-tasks
 // @Security CoderSessionToken
 // @Tags Experimental
@@ -453,7 +453,7 @@ func (api *API) tasksList(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get AI task by ID
-// @Description: EXPERIMENTAL: this endpoint is experimental and not guranteed to be stable.
+// @Description: EXPERIMENTAL: this endpoint is experimental and not guaranteed to be stable.
 // @ID get-task
 // @Security CoderSessionToken
 // @Tags Experimental
@@ -570,7 +570,7 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Delete AI task by ID
-// @Description: EXPERIMENTAL: this endpoint is experimental and not guranteed to be stable.
+// @Description: EXPERIMENTAL: this endpoint is experimental and not guaranteed to be stable.
 // @ID delete-task
 // @Security CoderSessionToken
 // @Tags Experimental
@@ -656,7 +656,7 @@ func (api *API) taskDelete(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Send input to AI task
-// @Description: EXPERIMENTAL: this endpoint is experimental and not guranteed to be stable.
+// @Description: EXPERIMENTAL: this endpoint is experimental and not guaranteed to be stable.
 // @ID send-task-input
 // @Security CoderSessionToken
 // @Tags Experimental
@@ -762,7 +762,7 @@ func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get AI task logs
-// @Description: EXPERIMENTAL: this endpoint is experimental and not guranteed to be stable.
+// @Description: EXPERIMENTAL: this endpoint is experimental and not guaranteed to be stable.
 // @ID get-task-logs
 // @Security CoderSessionToken
 // @Tags Experimental
