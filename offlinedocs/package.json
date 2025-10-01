@@ -27,14 +27,14 @@
 		"react-markdown": "9.0.3",
 		"rehype-raw": "7.0.0",
 		"remark-gfm": "4.0.0",
-		"sanitize-html": "2.14.0"
+		"sanitize-html": "2.17.0"
 	},
 	"devDependencies": {
 		"@types/lodash": "4.17.15",
 		"@types/node": "20.17.16",
 		"@types/react": "18.3.12",
 		"@types/react-dom": "18.3.1",
-		"@types/sanitize-html": "2.13.0",
+		"@types/sanitize-html": "2.16.0",
 		"eslint": "8.57.1",
 		"eslint-config-next": "14.2.23",
 		"prettier": "3.4.1",
