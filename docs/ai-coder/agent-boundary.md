@@ -1,4 +1,4 @@
-
+# Agent Boundary
 
 Agent Boundaries are process-level firewalls that restrict and audit what autonomous programs, such as AI agents, can access and use. 
 
