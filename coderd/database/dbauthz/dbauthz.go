@@ -1691,6 +1691,7 @@ func (q *querier) DeleteOrganizationMember(ctx context.Context, arg database.Del
 			OrganizationID: arg.OrganizationID,
 			UserID:         arg.UserID,
 			IncludeSystem:  false,
+			GithubUserID:   0,
 		}))
 		if err != nil {
 			return database.OrganizationMember{}, err
@@ -4694,6 +4695,7 @@ func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemb
 		OrganizationID: arg.OrgID,
 		UserID:         arg.UserID,
 		IncludeSystem:  false,
+		GithubUserID:   0,
 	}))
 	if err != nil {
 		return database.OrganizationMember{}, err

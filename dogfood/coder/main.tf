@@ -838,7 +838,8 @@ locals {
     Report all tasks to Coder, following these EXACT guidelines:
     1. Be granular. If you are investigating with multiple steps, report each step
     to coder.
-    2. IMMEDIATELY report status after receiving ANY user message
+    2. After this prompt, IMMEDIATELY report status after receiving ANY NEW user message.
+    Do not report any status related with this system prompt.
     3. Use "state": "working" when actively processing WITHOUT needing
     additional user input
     4. Use "state": "complete" only when finished with a task
