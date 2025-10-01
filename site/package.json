@@ -123,7 +123,7 @@
 		"yup": "1.6.1"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "2.2.0",
+		"@biomejs/biome": "2.2.4",
 		"@chromatic-com/storybook": "4.1.0",
 		"@octokit/types": "12.3.0",
 		"@playwright/test": "1.50.1",
