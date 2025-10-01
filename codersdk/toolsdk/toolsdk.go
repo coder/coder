@@ -1777,7 +1777,7 @@ var CreateTask = Tool[CreateTaskArgs, codersdk.Task]{
 					"type":        "string",
 					"description": "ID of the template version to create the task from.",
 				},
-				"template_preset_version_id": map[string]any{
+				"template_version_preset_id": map[string]any{
 					"type":        "string",
 					"description": "Optional ID of the template version preset to create the task from.",
 				},
