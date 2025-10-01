@@ -70,6 +70,7 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 	t.Parallel()
 
 	defaultHeaders := map[string]string{"Authorization": "Bearer key"}
+	httpClient := &http.Client{}
 
 	cases := []struct {
 		name           string
@@ -155,7 +156,7 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 				req.Header.Set(k, v)
 			}
 
-			resp, err := http.DefaultClient.Do(req)
+			resp, err := httpClient.Do(req)
 			t.Cleanup(func() {
 				if resp == nil || resp.Body == nil {
 					return
