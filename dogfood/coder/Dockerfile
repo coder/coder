@@ -141,11 +141,11 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 	ca-certificates \
 	cargo \
 	cmake \
-	containerd.io \
+	containerd.io=1.7.23-1 \
 	crypto-policies \
 	curl \
-	docker-ce \
-	docker-ce-cli \
+	docker-ce=5:27.5.0-1~ubuntu.22.04~jammy \
+	docker-ce-cli=5:27.5.0-1~ubuntu.22.04~jammy \
 	docker-compose-plugin \
 	exa \
 	fd-find \
