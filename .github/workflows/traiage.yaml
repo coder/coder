@@ -70,6 +70,7 @@ jobs:
           GITHUB_EVENT_NAME: ${{ github.event_name }}
           GITHUB_EVENT_USER_ID: ${{ github.event.sender.id }}
           GITHUB_EVENT_USER_LOGIN: ${{ github.event.sender.login }}
+          INPUTS_CLEANUP: ${{ inputs.cleanup || 'false' }}
           INPUTS_ISSUE_URL: ${{ inputs.issue_url }}
           INPUTS_TEMPLATE_NAME: ${{ inputs.template_name || 'traiage' }}
           INPUTS_TEMPLATE_PRESET: ${{ inputs.template_preset || 'Default'}}
@@ -84,6 +85,9 @@ jobs:
 
           echo "Using prefix: ${INPUTS_PREFIX}"
           echo "prefix=${INPUTS_PREFIX}" >> "${GITHUB_OUTPUT}"
+
+          echo "Using cleanup: ${INPUTS_CLEANUP}"
+          echo "cleanup=${INPUTS_CLEANUP}" >> "${GITHUB_OUTPUT}"
 
           # For workflow_dispatch, use the actor who triggered it
           # For issues events, use the issue author.
@@ -222,7 +226,7 @@ jobs:
 
       - name: Create and upload archive
         id: create-archive
-        if: inputs.cleanup
+        if: ${{ steps.determine-inputs.outputs.cleanup }}
         env:
           BUCKET_PREFIX: "gs://coder-traiage-outputs/traiage"
           CODER_USERNAME: ${{ steps.get-coder-username.outputs.coder_username }}
@@ -236,7 +240,7 @@ jobs:
 
       - name: Generate a summary of the changes and post a comment on GitHub.
         id: generate-summary
-        if: inputs.cleanup
+        if: ${{ steps.determine-inputs.outputs.cleanup }}
         env:
           ARCHIVE_URL: ${{ steps.create-archive.outputs.archive_url }}
           BUCKET_PREFIX: "gs://coder-traiage-outputs/traiage"
@@ -275,7 +279,7 @@ jobs:
           cat "${SUMMARY_FILE}" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Cleanup task
-        if: inputs.cleanup && steps.create-task.outputs.TASK_NAME != '' && steps.create-archive.outputs.archive_url != ''
+        if: steps.determine-inputs.outputs.cleanup && steps.create-task.outputs.TASK_NAME != '' && steps.create-archive.outputs.archive_url != ''
         run: |
           echo "Cleaning up task: $TASK_NAME"
           ./scripts/traiage.sh delete || true
