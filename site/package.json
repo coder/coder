@@ -116,7 +116,7 @@
 		"tzdata": "1.0.46",
 		"ua-parser-js": "1.0.40",
 		"ufuzzy": "npm:@leeoniya/ufuzzy@1.0.10",
-		"undici": "6.21.2",
+		"undici": "6.21.3",
 		"unique-names-generator": "4.7.1",
 		"uuid": "9.0.1",
 		"websocket-ts": "2.2.1",
