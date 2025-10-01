@@ -97,18 +97,15 @@ jobs:
       - name: Determine issue URL
         id: determine-issue-url
         env:
-          GH_TOKEN: ${{ github.token }}
           INPUTS_ISSUE_URL: ${{ inputs.issue_url }}
           GITHUB_EVENT_ISSUE_HTML_URL: ${{ github.event.issue.html_url }}
           GITHUB_EVENT_NAME: ${{ github.event_name }}
         run: |
           if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
-            ISSUE_URL="${GITHUB_EVENT_ISSUE_HTML_URL}"
-            echo "issue_url=${ISSUE_URL}" >> "${GITHUB_OUTPUT}"
+            echo "issue_url=${INPUTS_ISSUE_URL}" >> "${GITHUB_OUTPUT}"
             exit 0
           elif [[ "${GITHUB_EVENT_NAME}" == "issues" ]]; then
-            ISSUE_URL="${GITHUB_EVENT_ISSUE_HTML_URL}"
-            echo "issue_url=${ISSUE_URL}" >> "${GITHUB_OUTPUT}"
+            echo "issue_url=${GITHUB_EVENT_ISSUE_HTML_URL}" >> "${GITHUB_OUTPUT}"
             exit 0
           else
             echo "::error::Unsupported event type: ${GITHUB_EVENT_NAME}"
