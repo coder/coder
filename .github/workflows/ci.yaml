@@ -996,7 +996,7 @@ jobs:
         uses: ./.github/actions/setup-go
 
       - name: Install rcodesign
-        if: ${{ github.repository_owner == 'coder' && github.ref == 'refs/heads/main' }}
+        if: ${{ github.repository_owner == 'coder' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) }}
         run: |
           set -euo pipefail
           wget -O /tmp/rcodesign.tar.gz https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F0.22.0/apple-codesign-0.22.0-macos-universal.tar.gz
@@ -1007,7 +1007,7 @@ jobs:
           rm /tmp/rcodesign.tar.gz
 
       - name: Setup Apple Developer certificate and API key
-        if: ${{ github.repository_owner == 'coder' && github.ref == 'refs/heads/main' }}
+        if: ${{ github.repository_owner == 'coder' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) }}
         run: |
           set -euo pipefail
           touch /tmp/{apple_cert.p12,apple_cert_password.txt,apple_apikey.p8}
@@ -1028,12 +1028,12 @@ jobs:
           make gen/mark-fresh
           make build/coder-dylib
         env:
-          CODER_SIGN_DARWIN: ${{ github.ref == 'refs/heads/main' && '1' || '0' }}
+          CODER_SIGN_DARWIN: ${{ (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) && '1' || '0' }}
           AC_CERTIFICATE_FILE: /tmp/apple_cert.p12
           AC_CERTIFICATE_PASSWORD_FILE: /tmp/apple_cert_password.txt
 
       - name: Upload build artifacts
-        if: ${{ github.repository_owner == 'coder' && github.ref == 'refs/heads/main' }}
+        if: ${{ github.repository_owner == 'coder' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: dylibs
@@ -1043,7 +1043,7 @@ jobs:
           retention-days: 7
 
       - name: Delete Apple Developer certificate and API key
-        if: ${{ github.repository_owner == 'coder' && github.ref == 'refs/heads/main' }}
+        if: ${{ github.repository_owner == 'coder' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) }}
         run: rm -f /tmp/{apple_cert.p12,apple_cert_password.txt,apple_apikey.p8}
 
   check-build:
