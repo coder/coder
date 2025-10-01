@@ -233,8 +233,8 @@ jobs:
           TASK_NAME: ${{ steps.create-task.outputs.TASK_NAME }}
         run: |
           echo "Waiting for task to complete..."
-          coder exp task status "${CODER_USERNAME}/$TASK_NAME" --watch
-          echo "Creating archive for workspace: $TASK_NAME"
+          coder exp task status "${TASK_NAME}" --watch
+          echo "Creating archive for workspace: ${TASK_NAME}"
           ./scripts/traiage.sh archive
           echo "archive_url=${BUCKET_PREFIX%%/}/$TASK_NAME.tar.gz" >> "${GITHUB_OUTPUT}"
 
