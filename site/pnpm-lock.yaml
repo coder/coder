@@ -6,7 +6,7 @@ settings:
 
 overrides:
   optionator: 0.9.3
-  semver: 7.6.2
+  semver: 7.7.2
   '@babel/runtime': 7.26.10
   '@babel/helpers': 7.26.10
   esbuild: ^0.25.0
@@ -245,8 +245,8 @@ importers:
         specifier: 1.5.1
         version: 1.5.1
       semver:
-        specifier: 7.6.2
-        version: 7.6.2
+        specifier: 7.7.2
+        version: 7.7.2
       tailwind-merge:
         specifier: 2.6.0
         version: 2.6.0
@@ -366,8 +366,8 @@ importers:
         specifier: 1.8.8
         version: 1.8.8
       '@types/semver':
-        specifier: 7.5.8
-        version: 7.5.8
+        specifier: 7.7.1
+        version: 7.7.1
       '@types/ssh2':
         specifier: 1.15.1
         version: 1.15.1
@@ -2619,8 +2619,8 @@ packages:
   '@types/resolve@1.20.4':
     resolution: {integrity: sha512-BKGK0T1VgB1zD+PwQR4RRf0ais3NyvH1qjLUrHI5SEiccYaJrhLstLuoXFWJ+2Op9whGizSPUMGPJY/Qtb/A2w==, tarball: https://registry.npmjs.org/@types/resolve/-/resolve-1.20.4.tgz}
 
-  '@types/semver@7.5.8':
-    resolution: {integrity: sha512-I8EUhyrgfLrcTkzV3TSsGyl1tSuPrEDzr0yd5m90UgNxQkyDXULk3b6MlQqTCpZpNtWe1K0hzclnZkTcLBe2UQ==, tarball: https://registry.npmjs.org/@types/semver/-/semver-7.5.8.tgz}
+  '@types/semver@7.7.1':
+    resolution: {integrity: sha512-FmgJfu+MOcQ370SD0ev7EI8TlCAfKYU+B4m5T3yXc1CiRN94g/SZPtsCkk506aUDtlMnFZvasDwHHUcZUEaYuA==, tarball: https://registry.npmjs.org/@types/semver/-/semver-7.7.1.tgz}
 
   '@types/send@0.17.1':
     resolution: {integrity: sha512-Cwo8LE/0rnvX7kIIa3QHCkcuF21c05Ayb0ZfxPiv0W8VRiZiNW/WuRupHKpqqGVGf7SUA44QSOUKaEd9lIrd/Q==, tarball: https://registry.npmjs.org/@types/send/-/send-0.17.1.tgz}
@@ -5539,8 +5539,8 @@ packages:
   scheduler@0.26.0:
     resolution: {integrity: sha512-NlHwttCI/l5gCPR3D1nNXtWABUmBwvZpEQiD4IXSbIDq8BzLIK/7Ir5gTFSGZDUu37K5cMNp0hFtzO38sC7gWA==, tarball: https://registry.npmjs.org/scheduler/-/scheduler-0.26.0.tgz}
 
-  semver@7.6.2:
-    resolution: {integrity: sha512-FNAIBWCx9qcRhoHcgcJ0gvU7SN1lYU2ZXuSfl04bSC5OpvDHFyJCjdNHomPXxjQlCBU67YW64PzY7/VIEH7F2w==, tarball: https://registry.npmjs.org/semver/-/semver-7.6.2.tgz}
+  semver@7.7.2:
+    resolution: {integrity: sha512-RF0Fw+rO5AMf9MAyaRXI4AV0Ulj5lMHqVxxdSgiVbixSCXoEmmX/jk0CuJw4+3SqroYO9VoUh+HcuJivvtJemA==, tarball: https://registry.npmjs.org/semver/-/semver-7.7.2.tgz}
     engines: {node: '>=10'}
     hasBin: true
 
@@ -6404,7 +6404,7 @@ snapshots:
       debug: 4.4.0
       gensync: 1.0.0-beta.2
       json5: 2.2.3
-      semver: 7.6.2
+      semver: 7.7.2
     transitivePeerDependencies:
       - supports-color
 
@@ -6424,7 +6424,7 @@ snapshots:
       debug: 4.4.0
       gensync: 1.0.0-beta.2
       json5: 2.2.3
-      semver: 7.6.2
+      semver: 7.7.2
     transitivePeerDependencies:
       - supports-color
 
@@ -6444,7 +6444,7 @@ snapshots:
       debug: 4.4.1
       gensync: 1.0.0-beta.2
       json5: 2.2.3
-      semver: 7.6.2
+      semver: 7.7.2
     transitivePeerDependencies:
       - supports-color
 
@@ -6478,7 +6478,7 @@ snapshots:
       '@babel/helper-validator-option': 7.25.9
       browserslist: 4.24.3
       lru-cache: 5.1.1
-      semver: 7.6.2
+      semver: 7.7.2
 
   '@babel/helper-compilation-targets@7.27.2':
     dependencies:
@@ -6486,7 +6486,7 @@ snapshots:
       '@babel/helper-validator-option': 7.27.1
       browserslist: 4.24.3
       lru-cache: 5.1.1
-      semver: 7.6.2
+      semver: 7.7.2
 
   '@babel/helper-globals@7.28.0': {}
 
@@ -8676,7 +8676,7 @@ snapshots:
 
   '@types/resolve@1.20.4': {}
 
-  '@types/semver@7.5.8': {}
+  '@types/semver@7.7.1': {}
 
   '@types/send@0.17.1':
     dependencies:
@@ -10317,7 +10317,7 @@ snapshots:
       '@babel/parser': 7.26.3
       '@istanbuljs/schema': 0.1.3
       istanbul-lib-coverage: 3.2.2
-      semver: 7.6.2
+      semver: 7.7.2
     transitivePeerDependencies:
       - supports-color
 
@@ -10327,7 +10327,7 @@ snapshots:
       '@babel/parser': 7.26.3
       '@istanbuljs/schema': 0.1.3
       istanbul-lib-coverage: 3.2.2
-      semver: 7.6.2
+      semver: 7.7.2
     transitivePeerDependencies:
       - supports-color
 
@@ -10669,7 +10669,7 @@ snapshots:
       jest-util: 29.7.0
       natural-compare: 1.4.0
       pretty-format: 29.7.0
-      semver: 7.6.2
+      semver: 7.7.2
     transitivePeerDependencies:
       - supports-color
 
@@ -10923,7 +10923,7 @@ snapshots:
 
   make-dir@4.0.0:
     dependencies:
-      semver: 7.6.2
+      semver: 7.7.2
 
   make-error@1.3.6:
     optional: true
@@ -12268,7 +12268,7 @@ snapshots:
 
   scheduler@0.26.0: {}
 
-  semver@7.6.2: {}
+  semver@7.7.2: {}
 
   send@0.19.0:
     dependencies:
@@ -12426,7 +12426,7 @@ snapshots:
       esbuild: 0.25.3
       esbuild-register: 3.6.0(esbuild@0.25.3)
       recast: 0.23.9
-      semver: 7.6.2
+      semver: 7.7.2
       ws: 8.18.0
     optionalDependencies:
       prettier: 3.4.1

@@ -110,7 +110,7 @@
 		"recharts": "2.15.0",
 		"remark-gfm": "4.0.0",
 		"resize-observer-polyfill": "1.5.1",
-		"semver": "7.6.2",
+		"semver": "7.7.2",
 		"tailwind-merge": "2.6.0",
 		"tailwindcss-animate": "1.0.7",
 		"tzdata": "1.0.46",
@@ -152,7 +152,7 @@
 		"@types/react-syntax-highlighter": "15.5.13",
 		"@types/react-virtualized-auto-sizer": "1.0.4",
 		"@types/react-window": "1.8.8",
-		"@types/semver": "7.5.8",
+		"@types/semver": "7.7.1",
 		"@types/ssh2": "1.15.1",
 		"@types/ua-parser-js": "0.7.36",
 		"@types/uuid": "9.0.2",
@@ -190,7 +190,7 @@
 	],
 	"resolutions": {
 		"optionator": "0.9.3",
-		"semver": "7.6.2"
+		"semver": "7.7.2"
 	},
 	"engines": {
 		"pnpm": ">=10.0.0 <11.0.0",
