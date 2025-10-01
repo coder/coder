@@ -65,15 +65,18 @@ A _role_ is a set of permissions. When evaluating a role's permission to form an
 The following table shows the per-level role evaluation.
 Y indicates that the role provides positive permissions, N indicates the role provides negative permissions, and _indicates the role does not provide positive or negative permissions. YN_ indicates that the value in the cell does not matter for the access result.
 
-| Role (example)  | Site | Org  | User | Result |
-|-----------------|------|------|------|--------|
-| site-admin      | Y    | YN\_ | YN\_ | Y      |
-| no-permission   | N    | YN\_ | YN\_ | N      |
-| org-admin       | \_   | Y    | YN\_ | Y      |
-| non-org-member  | \_   | N    | YN\_ | N      |
-| user            | \_   | \_   | Y    | Y      |
-|                 | \_   | \_   | N    | N      |
-| unauthenticated | \_   | \_   | \_   | N      |
+| Role (example)  | Site | Org  | OrgMember | User | Result |
+|-----------------|------|------|-----------|------|--------|
+| site-admin      | Y    | YN\_ | YN\_      | YN\_ | Y      |
+| no-permission   | N    | YN\_ | YN\_      | YN\_ | N      |
+| org-admin       | \_   | Y    | YN\_      | YN\_ | Y      |
+| non-org-member  | \_   | N    | YN\_      | YN\_ | N      |
+| org-object      | \_   | \_   | Y         | YN\_ | N      |
+| org-object      | \_   | \_   | N         | YN\_ | N      |
+| org-object      | \_   | \_   | \_        | YN\_ | N      |
+| no-org          | \_   | \_   | YN\_      | Y    | Y      |
+| no-org          | \_   | \_   | YN\_      | N    | N      |
+| unauthenticated | \_   | \_   | \_        | \_   | N      |
 
 ## Scopes
 
