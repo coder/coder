@@ -1861,8 +1861,7 @@ var DeleteTask = Tool[DeleteTaskArgs, codersdk.Response]{
 			}
 			owner = task.OwnerName
 		} else {
-			workspaceName := NormalizeWorkspaceInput(args.TaskID)
-			ws, err := namedWorkspace(ctx, deps.coderClient, workspaceName)
+			ws, err := normalizedNamedWorkspace(ctx, deps.coderClient, args.TaskID)
 			if err != nil {
 				return codersdk.Response{}, xerrors.Errorf("get task workspace %q: %w", args.TaskID, err)
 			}
@@ -1962,8 +1961,7 @@ var GetTaskStatus = Tool[GetTaskStatusArgs, GetTaskStatusResponse]{
 
 		id, err := uuid.Parse(args.TaskID)
 		if err != nil {
-			workspaceName := NormalizeWorkspaceInput(args.TaskID)
-			ws, err := namedWorkspace(ctx, deps.coderClient, workspaceName)
+			ws, err := normalizedNamedWorkspace(ctx, deps.coderClient, args.TaskID)
 			if err != nil {
 				return GetTaskStatusResponse{}, xerrors.Errorf("get task workspace %q: %w", args.TaskID, err)
 			}
@@ -1980,6 +1978,13 @@ var GetTaskStatus = Tool[GetTaskStatusArgs, GetTaskStatusResponse]{
 			State:  task.CurrentState,
 		}, nil
 	},
+}
+
+// normalizedNamedWorkspace normalizes the workspace name before getting the
+// workspace by name.
+func normalizedNamedWorkspace(ctx context.Context, client *codersdk.Client, name string) (codersdk.Workspace, error) {
+	// Maybe namedWorkspace should itself call NormalizeWorkspaceInput?
+	return namedWorkspace(ctx, client, NormalizeWorkspaceInput(name))
 }
 
 // NormalizeWorkspaceInput converts workspace name input to standard format.
