@@ -218,7 +218,6 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 	}
 
 	resources := make([]*proto.Resource, 0)
-	resourceAgents := map[string][]*proto.Agent{}
 
 	// Indexes Terraform resources by their label.
 	// The label is what "terraform graph" uses to reference nodes.
@@ -256,196 +255,9 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 	}
 
 	// Find all agents!
-	agentNames := map[string]struct{}{}
-	for _, tfResources := range tfResourcesByLabel {
-		for _, tfResource := range tfResources {
-			if tfResource.Type != "coder_agent" {
-				continue
-			}
-			var attrs agentAttributes
-			err = mapstructure.Decode(tfResource.AttributeValues, &attrs)
-			if err != nil {
-				return nil, xerrors.Errorf("decode agent attributes: %w", err)
-			}
-
-			// Similar logic is duplicated in terraform/resources.go.
-			if tfResource.Name == "" {
-				return nil, xerrors.Errorf("agent name cannot be empty")
-			}
-			// In 2025-02 we removed support for underscores in agent names. To
-			// provide a nicer error message, we check the regex first and check
-			// for underscores if it fails.
-			if !provisioner.AgentNameRegex.MatchString(tfResource.Name) {
-				if strings.Contains(tfResource.Name, "_") {
-					return nil, xerrors.Errorf("agent name %q contains underscores which are no longer supported, please use hyphens instead (regex: %q)", tfResource.Name, provisioner.AgentNameRegex.String())
-				}
-				return nil, xerrors.Errorf("agent name %q does not match regex %q", tfResource.Name, provisioner.AgentNameRegex.String())
-			}
-			// Agent names must be case-insensitive-unique, to be unambiguous in
-			// `coder_app`s and CoderVPN DNS names.
-			if _, ok := agentNames[strings.ToLower(tfResource.Name)]; ok {
-				return nil, xerrors.Errorf("duplicate agent name: %s", tfResource.Name)
-			}
-			agentNames[strings.ToLower(tfResource.Name)] = struct{}{}
-
-			// Handling for deprecated attributes. login_before_ready was replaced
-			// by startup_script_behavior, but we still need to support it for
-			// backwards compatibility.
-			startupScriptBehavior := string(codersdk.WorkspaceAgentStartupScriptBehaviorNonBlocking)
-			if attrs.StartupScriptBehavior != "" {
-				startupScriptBehavior = attrs.StartupScriptBehavior
-			} else {
-				// Handling for provider pre-v0.6.10 (because login_before_ready
-				// defaulted to true, we must check for its presence).
-				if _, ok := tfResource.AttributeValues["login_before_ready"]; ok && !attrs.LoginBeforeReady {
-					startupScriptBehavior = string(codersdk.WorkspaceAgentStartupScriptBehaviorBlocking)
-				}
-			}
-
-			var metadata []*proto.Agent_Metadata
-			for _, item := range attrs.Metadata {
-				metadata = append(metadata, &proto.Agent_Metadata{
-					Key:         item.Key,
-					DisplayName: item.DisplayName,
-					Script:      item.Script,
-					Interval:    item.Interval,
-					Timeout:     item.Timeout,
-					Order:       item.Order,
-				})
-			}
-
-			// If a user doesn't specify 'display_apps' then they default
-			// into all apps except VSCode Insiders.
-			displayApps := provisionersdk.DefaultDisplayApps()
-
-			if len(attrs.DisplayApps) != 0 {
-				displayApps = &proto.DisplayApps{
-					Vscode:               attrs.DisplayApps[0].VSCode,
-					VscodeInsiders:       attrs.DisplayApps[0].VSCodeInsiders,
-					WebTerminal:          attrs.DisplayApps[0].WebTerminal,
-					PortForwardingHelper: attrs.DisplayApps[0].PortForwardingHelper,
-					SshHelper:            attrs.DisplayApps[0].SSHHelper,
-				}
-			}
-
-			resourcesMonitoring := &proto.ResourcesMonitoring{
-				Volumes: make([]*proto.VolumeResourceMonitor, 0),
-			}
-
-			for _, resource := range attrs.ResourcesMonitoring {
-				for _, memoryResource := range resource.Memory {
-					resourcesMonitoring.Memory = &proto.MemoryResourceMonitor{
-						Enabled:   memoryResource.Enabled,
-						Threshold: memoryResource.Threshold,
-					}
-				}
-			}
-
-			for _, resource := range attrs.ResourcesMonitoring {
-				for _, volume := range resource.Volumes {
-					resourcesMonitoring.Volumes = append(resourcesMonitoring.Volumes, &proto.VolumeResourceMonitor{
-						Path:      volume.Path,
-						Enabled:   volume.Enabled,
-						Threshold: volume.Threshold,
-					})
-				}
-			}
-
-			agent := &proto.Agent{
-				Name:                     tfResource.Name,
-				Id:                       attrs.ID,
-				Env:                      attrs.Env,
-				OperatingSystem:          attrs.OperatingSystem,
-				Architecture:             attrs.Architecture,
-				Directory:                attrs.Directory,
-				ConnectionTimeoutSeconds: attrs.ConnectionTimeoutSeconds,
-				TroubleshootingUrl:       attrs.TroubleshootingURL,
-				MotdFile:                 attrs.MOTDFile,
-				ResourcesMonitoring:      resourcesMonitoring,
-				Metadata:                 metadata,
-				DisplayApps:              displayApps,
-				Order:                    attrs.Order,
-				ApiKeyScope:              attrs.APIKeyScope,
-			}
-			// Support the legacy script attributes in the agent!
-			if attrs.StartupScript != "" {
-				agent.Scripts = append(agent.Scripts, &proto.Script{
-					// This is ▶️
-					Icon:             "/emojis/25b6-fe0f.png",
-					LogPath:          "coder-startup-script.log",
-					DisplayName:      "Startup Script",
-					Script:           attrs.StartupScript,
-					StartBlocksLogin: startupScriptBehavior == string(codersdk.WorkspaceAgentStartupScriptBehaviorBlocking),
-					RunOnStart:       true,
-				})
-			}
-			if attrs.ShutdownScript != "" {
-				agent.Scripts = append(agent.Scripts, &proto.Script{
-					// This is ◀️
-					Icon:        "/emojis/25c0.png",
-					LogPath:     "coder-shutdown-script.log",
-					DisplayName: "Shutdown Script",
-					Script:      attrs.ShutdownScript,
-					RunOnStop:   true,
-				})
-			}
-			switch attrs.Auth {
-			case "token":
-				agent.Auth = &proto.Agent_Token{
-					Token: attrs.Token,
-				}
-			default:
-				// If token authentication isn't specified,
-				// assume instance auth. It's our only other
-				// authentication type!
-				agent.Auth = &proto.Agent_InstanceId{}
-			}
-
-			// The label is used to find the graph node!
-			agentLabel := convertAddressToLabel(tfResource.Address)
-
-			var agentNode *gographviz.Node
-			for _, node := range graph.Nodes.Lookup {
-				// The node attributes surround the label with quotes.
-				if strings.Trim(node.Attrs["label"], `"`) != agentLabel {
-					continue
-				}
-				agentNode = node
-				break
-			}
-			if agentNode == nil {
-				return nil, xerrors.Errorf("couldn't find node on graph: %q", agentLabel)
-			}
-
-			var agentResource *graphResource
-			for _, resource := range findResourcesInGraph(graph, tfResourcesByLabel, agentNode.Name, 0, true) {
-				if agentResource == nil {
-					// Default to the first resource because we have nothing to compare!
-					agentResource = resource
-					continue
-				}
-				if resource.Depth < agentResource.Depth {
-					// There's a closer resource!
-					agentResource = resource
-					continue
-				}
-				if resource.Depth == agentResource.Depth && resource.Label < agentResource.Label {
-					agentResource = resource
-					continue
-				}
-			}
-
-			if agentResource == nil {
-				continue
-			}
-
-			agents, exists := resourceAgents[agentResource.Label]
-			if !exists {
-				agents = make([]*proto.Agent, 0, 1)
-			}
-			agents = append(agents, agent)
-			resourceAgents[agentResource.Label] = agents
-		}
+	resourceAgents, err := findResourceAgents(tfResourcesByLabel, graph)
+	if err != nil {
+		return nil, xerrors.Errorf("find resource agents: %w", err)
 	}
 
 	// Manually associate agents with instance IDs.
@@ -1084,6 +896,204 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		AITasks:               aiTasks,
 		HasExternalAgents:     hasExternalAgentResources(graph),
 	}, nil
+}
+
+func findResourceAgents(tfResourcesByLabel map[string]map[string]*tfjson.StateResource, graph *gographviz.Graph) (map[string][]*proto.Agent, error) {
+	agentNames := map[string]struct{}{}
+	resourceAgents := make(map[string][]*proto.Agent)
+
+	for _, tfResources := range tfResourcesByLabel {
+		for _, tfResource := range tfResources {
+			if tfResource.Type != "coder_agent" {
+				continue
+			}
+			var attrs agentAttributes
+			err := mapstructure.Decode(tfResource.AttributeValues, &attrs)
+			if err != nil {
+				return nil, xerrors.Errorf("decode agent attributes: %w", err)
+			}
+
+			// Similar logic is duplicated in terraform/resources.go.
+			if tfResource.Name == "" {
+				return nil, xerrors.Errorf("agent name cannot be empty")
+			}
+			// In 2025-02 we removed support for underscores in agent names. To
+			// provide a nicer error message, we check the regex first and check
+			// for underscores if it fails.
+			if !provisioner.AgentNameRegex.MatchString(tfResource.Name) {
+				if strings.Contains(tfResource.Name, "_") {
+					return nil, xerrors.Errorf("agent name %q contains underscores which are no longer supported, please use hyphens instead (regex: %q)", tfResource.Name, provisioner.AgentNameRegex.String())
+				}
+				return nil, xerrors.Errorf("agent name %q does not match regex %q", tfResource.Name, provisioner.AgentNameRegex.String())
+			}
+			// Agent names must be case-insensitive-unique, to be unambiguous in
+			// `coder_app`s and CoderVPN DNS names.
+			if _, ok := agentNames[strings.ToLower(tfResource.Name)]; ok {
+				return nil, xerrors.Errorf("duplicate agent name: %s", tfResource.Name)
+			}
+			agentNames[strings.ToLower(tfResource.Name)] = struct{}{}
+
+			// Handling for deprecated attributes. login_before_ready was replaced
+			// by startup_script_behavior, but we still need to support it for
+			// backwards compatibility.
+			startupScriptBehavior := string(codersdk.WorkspaceAgentStartupScriptBehaviorNonBlocking)
+			if attrs.StartupScriptBehavior != "" {
+				startupScriptBehavior = attrs.StartupScriptBehavior
+			} else {
+				// Handling for provider pre-v0.6.10 (because login_before_ready
+				// defaulted to true, we must check for its presence).
+				if _, ok := tfResource.AttributeValues["login_before_ready"]; ok && !attrs.LoginBeforeReady {
+					startupScriptBehavior = string(codersdk.WorkspaceAgentStartupScriptBehaviorBlocking)
+				}
+			}
+
+			var metadata []*proto.Agent_Metadata
+			for _, item := range attrs.Metadata {
+				metadata = append(metadata, &proto.Agent_Metadata{
+					Key:         item.Key,
+					DisplayName: item.DisplayName,
+					Script:      item.Script,
+					Interval:    item.Interval,
+					Timeout:     item.Timeout,
+					Order:       item.Order,
+				})
+			}
+
+			// If a user doesn't specify 'display_apps' then they default
+			// into all apps except VSCode Insiders.
+			displayApps := provisionersdk.DefaultDisplayApps()
+
+			if len(attrs.DisplayApps) != 0 {
+				displayApps = &proto.DisplayApps{
+					Vscode:               attrs.DisplayApps[0].VSCode,
+					VscodeInsiders:       attrs.DisplayApps[0].VSCodeInsiders,
+					WebTerminal:          attrs.DisplayApps[0].WebTerminal,
+					PortForwardingHelper: attrs.DisplayApps[0].PortForwardingHelper,
+					SshHelper:            attrs.DisplayApps[0].SSHHelper,
+				}
+			}
+
+			resourcesMonitoring := &proto.ResourcesMonitoring{
+				Volumes: make([]*proto.VolumeResourceMonitor, 0),
+			}
+
+			for _, resource := range attrs.ResourcesMonitoring {
+				for _, memoryResource := range resource.Memory {
+					resourcesMonitoring.Memory = &proto.MemoryResourceMonitor{
+						Enabled:   memoryResource.Enabled,
+						Threshold: memoryResource.Threshold,
+					}
+				}
+			}
+
+			for _, resource := range attrs.ResourcesMonitoring {
+				for _, volume := range resource.Volumes {
+					resourcesMonitoring.Volumes = append(resourcesMonitoring.Volumes, &proto.VolumeResourceMonitor{
+						Path:      volume.Path,
+						Enabled:   volume.Enabled,
+						Threshold: volume.Threshold,
+					})
+				}
+			}
+
+			agent := &proto.Agent{
+				Name:                     tfResource.Name,
+				Id:                       attrs.ID,
+				Env:                      attrs.Env,
+				OperatingSystem:          attrs.OperatingSystem,
+				Architecture:             attrs.Architecture,
+				Directory:                attrs.Directory,
+				ConnectionTimeoutSeconds: attrs.ConnectionTimeoutSeconds,
+				TroubleshootingUrl:       attrs.TroubleshootingURL,
+				MotdFile:                 attrs.MOTDFile,
+				ResourcesMonitoring:      resourcesMonitoring,
+				Metadata:                 metadata,
+				DisplayApps:              displayApps,
+				Order:                    attrs.Order,
+				ApiKeyScope:              attrs.APIKeyScope,
+			}
+			// Support the legacy script attributes in the agent!
+			if attrs.StartupScript != "" {
+				agent.Scripts = append(agent.Scripts, &proto.Script{
+					// This is ▶️
+					Icon:             "/emojis/25b6-fe0f.png",
+					LogPath:          "coder-startup-script.log",
+					DisplayName:      "Startup Script",
+					Script:           attrs.StartupScript,
+					StartBlocksLogin: startupScriptBehavior == string(codersdk.WorkspaceAgentStartupScriptBehaviorBlocking),
+					RunOnStart:       true,
+				})
+			}
+			if attrs.ShutdownScript != "" {
+				agent.Scripts = append(agent.Scripts, &proto.Script{
+					// This is ◀️
+					Icon:        "/emojis/25c0.png",
+					LogPath:     "coder-shutdown-script.log",
+					DisplayName: "Shutdown Script",
+					Script:      attrs.ShutdownScript,
+					RunOnStop:   true,
+				})
+			}
+			switch attrs.Auth {
+			case "token":
+				agent.Auth = &proto.Agent_Token{
+					Token: attrs.Token,
+				}
+			default:
+				// If token authentication isn't specified,
+				// assume instance auth. It's our only other
+				// authentication type!
+				agent.Auth = &proto.Agent_InstanceId{}
+			}
+
+			// The label is used to find the graph node!
+			agentLabel := convertAddressToLabel(tfResource.Address)
+
+			var agentNode *gographviz.Node
+			for _, node := range graph.Nodes.Lookup {
+				// The node attributes surround the label with quotes.
+				if strings.Trim(node.Attrs["label"], `"`) != agentLabel {
+					continue
+				}
+				agentNode = node
+				break
+			}
+			if agentNode == nil {
+				return nil, xerrors.Errorf("couldn't find node on graph: %q", agentLabel)
+			}
+
+			var agentResource *graphResource
+			for _, resource := range findResourcesInGraph(graph, tfResourcesByLabel, agentNode.Name, 0, true) {
+				if agentResource == nil {
+					// Default to the first resource because we have nothing to compare!
+					agentResource = resource
+					continue
+				}
+				if resource.Depth < agentResource.Depth {
+					// There's a closer resource!
+					agentResource = resource
+					continue
+				}
+				if resource.Depth == agentResource.Depth && resource.Label < agentResource.Label {
+					agentResource = resource
+					continue
+				}
+			}
+
+			if agentResource == nil {
+				continue
+			}
+
+			agents, exists := resourceAgents[agentResource.Label]
+			if !exists {
+				agents = make([]*proto.Agent, 0, 1)
+			}
+			agents = append(agents, agent)
+			resourceAgents[agentResource.Label] = agents
+		}
+	}
+
+	return resourceAgents, nil
 }
 
 func convertScheduling(scheduling provider.Scheduling) *proto.Scheduling {
