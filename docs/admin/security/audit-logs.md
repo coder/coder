@@ -125,6 +125,39 @@ log entry:
 2023-06-13 03:43:29.233 [info]  coderd: audit_log  ID=95f7c392-da3e-480c-a579-8909f145fbe2  Time="2023-06-13T03:43:29.230422Z"  UserID=6c405053-27e3-484a-9ad7-bcb64e7bfde6  OrganizationID=00000000-0000-0000-0000-000000000000  Ip=<nil>  UserAgent=<nil>  ResourceType=workspace_build  ResourceID=988ae133-5b73-41e3-a55e-e1e9d3ef0b66  ResourceTarget=""  Action=start  Diff="{}"  StatusCode=200  AdditionalFields="{\"workspace_name\":\"linux-container\",\"build_number\":\"7\",\"build_reason\":\"initiator\",\"workspace_owner\":\"\"}"  RequestID=9682b1b5-7b9f-4bf2-9a39-9463f8e41cd6  ResourceIcon=""
 ```
 
+## Purging Old Audit Logs
+
+> [!WARNING]
+> Audit Logs provide critical security and compliance information. Purging Audit Logs may impact your organization's ability
+> to investigate security incidents or meet compliance requirements. Consult your security and compliance teams before purging any audit data.
+
+Audit Logs are not automatically purged from the database, though they can account for a large amount of disk usage.
+Use the following query to determine the amount of disk space used by the `audit_logs` table.
+
+```sql
+SELECT
+		relname AS table_name,
+		pg_size_pretty(pg_total_relation_size(relid)) AS total_size,
+		pg_size_pretty(pg_relation_size(relid)) AS table_size,
+		pg_size_pretty(pg_indexes_size(relid)) AS indexes_size,
+		(SELECT COUNT(*) FROM audit_logs) AS total_records
+FROM pg_catalog.pg_statio_user_tables
+WHERE relname = 'audit_logs'
+ORDER BY pg_total_relation_size(relid) DESC;
+```
+
+Should you wish to purge these records, it is safe to do so. This can only be done by running SQL queries
+directly against the `audit_logs` table in the database. We advise users to only purge old records (>1yr).
+
+> [!NOTE]
+> For large `audit_logs` tables, consider running the `DELETE` operation during maintenance windows as it may impact
+> database performance. You can also batch the deletions to reduce lock time.
+
+```sql
+DELETE FROM audit_logs WHERE time < CURRENT_TIMESTAMP - INTERVAL '1 year';
+-- Consider running `VACUUM VERBOSE audit_logs` afterwards for large datasets to reclaim disk space.
+```
+
 ## How to Enable Audit Logs
 
-This feature is only available with a [Premium license](../licensing/index.md).
+This feature is only available with a [Premium license](../licensing/index.md), and is automatically enabled.
