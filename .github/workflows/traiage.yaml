@@ -55,7 +55,7 @@ jobs:
           GITHUB_EVENT_NAME: ${{ github.event_name }}
           GITHUB_EVENT_USER_ID: ${{ github.event.issue.user.id }}
           GITHUB_EVENT_USER_LOGIN: ${{ github.event.issue.user.login }}
-          GITHUB_TOKEN: ${{ github.tokne }}
+          GH_TOKEN: ${{ github.tokne }}
         run: |
           # For workflow_dispatch, use the actor who triggered it
           # For issues events, use the issue author
@@ -81,7 +81,7 @@ jobs:
       - name: Verify organization membership
         env:
           GITHUB_ORG: ${{ github.repository_owner }}
-          GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
           GITHUB_USERNAME: ${{ steps.github-user-id.outputs.github_username }}
           GITHUB_USER_ID: ${{ steps.github-user-id.outputs.github_user_id }}
         run: |
@@ -97,7 +97,7 @@ jobs:
         id: extract-context
         env:
           ISSUE_URL: ${{ inputs.issue_url }}
-          GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           issue_number="$(gh issue view "${ISSUE_URL}" --json number --jq '.number')"
           context_key="gh-${issue_number}"
@@ -126,7 +126,7 @@ jobs:
         id: get-coder-username
         env:
           CODER_SESSION_TOKEN: ${{ secrets.TRAIAGE_CODER_SESSION_TOKEN }}
-          GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
           GITHUB_USER_ID: ${{ steps.github-user-id.outputs.github_user_id }}
         run: |
           user_json=$(
@@ -148,7 +148,7 @@ jobs:
         env:
           CODER_USERNAME: ${{ steps.get-coder-username.outputs.coder_username }}
           CONTEXT_KEY: ${{ steps.extract-context.outputs.context_key }}
-          GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           ISSUE_URL: ${{ inputs.issue_url }}
           PREFIX: ${{ inputs.prefix }}
@@ -204,7 +204,7 @@ jobs:
           BUCKET_PREFIX: "gs://coder-traiage-outputs/traiage"
           CODER_USERNAME: ${{ steps.get-coder-username.outputs.coder_username }}
           CONTEXT_KEY: ${{ steps.extract-context.outputs.context_key }}
-          GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           ISSUE_URL: ${{ inputs.issue_url }}
           TASK_NAME: ${{ steps.create-task.outputs.TASK_NAME }}
