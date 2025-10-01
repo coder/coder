@@ -1,6 +1,9 @@
 name: AI Triage Automation
 
 on:
+  issues:
+    types:
+      - labeled
   workflow_dispatch:
     inputs:
       issue_url:
@@ -32,6 +35,7 @@ jobs:
   traiage:
     name: Triage GitHub Issue with Claude Code
     runs-on: ubuntu-latest
+    if: github.event.label.name == 'traiage' || github.event_name == 'workflow_dispatch'
     timeout-minutes: 30
     env:
       CODER_URL: ${{ secrets.TRAIAGE_CODER_URL }}
@@ -43,17 +47,76 @@ jobs:
       actions: write
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-          fetch-depth: 0
+      - name: Get GitHub user ID
+        id: github-user-id
+        if: always()
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_EVENT_USER_ID: ${{ github.event.sender.id }}
+          GITHUB_EVENT_USER_LOGIN: ${{ github.event.sender.login }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # For workflow_dispatch, use the actor who triggered it
+          # For issues events, use the issue author
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            if ! GITHUB_USER_ID=$(gh api "users/${GITHUB_ACTOR}" --jq '.id'); then
+              echo "::error::Failed to get GitHub user ID for actor ${GITHUB_ACTOR}"
+              exit 1
+            fi
+            echo "Using workflow_dispatch actor: ${GITHUB_ACTOR} (ID: ${GITHUB_USER_ID})"
+            echo "github_user_id=${GITHUB_USER_ID}" >> "${GITHUB_OUTPUT}"
+            echo "github_username=${GITHUB_ACTOR}" >> "${GITHUB_OUTPUT}"
+            exit 0
+          elif [[ "${GITHUB_EVENT_NAME}" == "issues" ]]; then
+            GITHUB_USER_ID=${GITHUB_EVENT_USER_ID}
+            echo "Using issue author: ${GITHUB_EVENT_USER_LOGIN} (ID: ${GITHUB_USER_ID})"
+            echo "github_user_id=${GITHUB_USER_ID}" >> "${GITHUB_OUTPUT}"
+            echo "github_username=${GITHUB_EVENT_USER_LOGIN}" >> "${GITHUB_OUTPUT}"
+            exit 0
+          else
+            echo "::error::Unsupported event type: ${GITHUB_EVENT_NAME}"
+            exit 1
+          fi
+
+      - name: Verify organization membership
+        env:
+          GITHUB_ORG: ${{ github.repository_owner }}
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_USERNAME: ${{ steps.github-user-id.outputs.github_username }}
+          GITHUB_USER_ID: ${{ steps.github-user-id.outputs.github_user_id }}
+        run: |
+          # Check if the actor is a member of the organization
+          if ! gh api "orgs/${GITHUB_ORG}/members/${GITHUB_USERNAME}" --silent 2>/dev/null; then
+            echo "::error title=Access Denied::User ${GITHUB_USERNAME} is not a member of the ${GITHUB_ORG} organization"
+            echo "::error::You must be a member of the ${GITHUB_ORG} GitHub organization to run this workflow."
+            exit 1
+          fi
+          echo "::notice::User ${GITHUB_USERNAME} verified as member of ${GITHUB_ORG} organization"
+
+      - name: Determine issue URL
+        id: determine-issue-url
+        env:
+          INPUTS_ISSUE_URL: ${{ inputs.issue_url }}
+          GITHUB_EVENT_ISSUE_HTML_URL: ${{ github.event.issue.html_url }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            echo "issue_url=${INPUTS_ISSUE_URL}" >> "${GITHUB_OUTPUT}"
+            exit 0
+          elif [[ "${GITHUB_EVENT_NAME}" == "issues" ]]; then
+            echo "issue_url=${GITHUB_EVENT_ISSUE_HTML_URL}" >> "${GITHUB_OUTPUT}"
+            exit 0
+          else
+            echo "::error::Unsupported event type: ${GITHUB_EVENT_NAME}"
+            exit 1
+          fi
 
       - name: Extract context key from issue
         id: extract-context
         env:
-          ISSUE_URL: ${{ inputs.issue_url }}
-          GITHUB_TOKEN: ${{ github.token }}
+          ISSUE_URL: ${{ steps.determine-issue-url.outputs.issue_url }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           issue_number="$(gh issue view "${ISSUE_URL}" --json number --jq '.number')"
           context_key="gh-${issue_number}"
@@ -82,11 +145,9 @@ jobs:
         id: get-coder-username
         env:
           CODER_SESSION_TOKEN: ${{ secrets.TRAIAGE_CODER_SESSION_TOKEN }}
-          GITHUB_USER_ID: ${{
-            (github.event_name == 'workflow_dispatch' && github.actor_id)
-            }}
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_USER_ID: ${{ steps.github-user-id.outputs.github_user_id }}
         run: |
-          [[ -z "${GITHUB_USER_ID}" || "${GITHUB_USER_ID}" == "null" ]] && echo "No GitHub actor ID found" && exit 1
           user_json=$(
             coder users list --github-user-id="${GITHUB_USER_ID}" --output=json
           )
@@ -94,14 +155,21 @@ jobs:
           [[ -z "${coder_username}" || "${coder_username}" == "null" ]] && echo "No Coder user with GitHub user ID ${GITHUB_USER_ID} found" && exit 1
           echo "coder_username=${coder_username}" >> "${GITHUB_OUTPUT}"
 
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
       # TODO(Cian): this is a good use-case for 'recipes'
       - name: Create Coder task
         id: create-task
         env:
           CODER_USERNAME: ${{ steps.get-coder-username.outputs.coder_username }}
           CONTEXT_KEY: ${{ steps.extract-context.outputs.context_key }}
-          GITHUB_TOKEN: ${{ github.token }}
-          ISSUE_URL: ${{ inputs.issue_url }}
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          ISSUE_URL: ${{ steps.determine-issue-url.outputs.issue_url }}
           PREFIX: ${{ inputs.prefix }}
           RUN_ID: ${{ github.run_id }}
           TEMPLATE_PARAMETERS: ${{ secrets.TRAIAGE_TEMPLATE_PARAMETERS }}
@@ -125,7 +193,11 @@ jobs:
           export TASK_NAME="${PREFIX}-${CONTEXT_KEY}-${RUN_ID}"
           echo "Creating task: $TASK_NAME"
           ./scripts/traiage.sh create
-          coder exp task status "${CODER_USERNAME}/$TASK_NAME" --watch
+          if [[ "${ISSUE_URL}" == "https://github.com/${GITHUB_REPOSITORY}"* ]]; then
+            gh issue comment "${ISSUE_URL}" --body "Task created: ${TASK_NAME}" --create-if-none --edit-last
+          else
+            echo "Skipping comment on other repo."
+          fi
           echo "TASK_NAME=${CODER_USERNAME}/${TASK_NAME}" >> "${GITHUB_OUTPUT}"
           echo "TASK_NAME=${CODER_USERNAME}/${TASK_NAME}" >> "${GITHUB_ENV}"
 
@@ -134,7 +206,11 @@ jobs:
         if: inputs.cleanup
         env:
           BUCKET_PREFIX: "gs://coder-traiage-outputs/traiage"
+          CODER_USERNAME: ${{ steps.get-coder-username.outputs.coder_username }}
+          TASK_NAME: ${{ steps.create-task.outputs.TASK_NAME }}
         run: |
+          echo "Waiting for task to complete..."
+          coder exp task status "${CODER_USERNAME}/$TASK_NAME" --watch
           echo "Creating archive for workspace: $TASK_NAME"
           ./scripts/traiage.sh archive
           echo "archive_url=${BUCKET_PREFIX%%/}/$TASK_NAME.tar.gz" >> "${GITHUB_OUTPUT}"
@@ -145,10 +221,11 @@ jobs:
         env:
           ARCHIVE_URL: ${{ steps.create-archive.outputs.archive_url }}
           BUCKET_PREFIX: "gs://coder-traiage-outputs/traiage"
+          CODER_USERNAME: ${{ steps.get-coder-username.outputs.coder_username }}
           CONTEXT_KEY: ${{ steps.extract-context.outputs.context_key }}
-          GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-          ISSUE_URL: ${{ inputs.issue_url }}
+          ISSUE_URL: ${{ steps.determine-issue-url.outputs.issue_url }}
           TASK_NAME: ${{ steps.create-task.outputs.TASK_NAME }}
         run: |
           SUMMARY_FILE=$(mktemp)
