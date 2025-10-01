@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 
 # This script determines if a commit in either the main branch or a
-# `release/x.y` branch should be deployed to dogfood. Returns 0 if deploys are
-# enabled on this branch, 1 otherwise.
+# `release/x.y` branch should be deployed to dogfood.
+#
+# To avoid masking unrelated failures, this script will return 0 in either case,
+# and will print `DEPLOY` or `NOOP` to stdout.
 
 set -euo pipefail
 # shellcheck source=scripts/lib.sh
@@ -59,6 +61,8 @@ log "Deploy branch: $deploy_branch"
 log
 if [[ "$branch_name" != "$deploy_branch" ]]; then
 	log "VERDICT: DO NOT DEPLOY"
-	exit 1
+	echo "NOOP" # stdout
+else
+	log "VERDICT: DEPLOY"
+	echo "DEPLOY" # stdout
 fi
-log "VERDICT: DEPLOY"

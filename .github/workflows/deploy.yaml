@@ -33,7 +33,7 @@ jobs:
     name: should-deploy
     runs-on: ubuntu-latest
     outputs:
-      verdict: ${{ steps.check.outputs.verdict }}
+      verdict: ${{ steps.check.outputs.verdict }} # DEPLOY or NOOP
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
@@ -49,6 +49,7 @@ jobs:
       - name: CHECKOUT MAIN
         run: |
           set -euxo pipefail
+          git fetch origin
           git checkout main
           git checkout origin/dean/releases-freeze -- scripts/should_deploy.sh
 
@@ -56,10 +57,7 @@ jobs:
         id: check
         run: |
           set -euo pipefail
-          verdict="false"
-          if ./scripts/should_deploy.sh; then
-            verdict="true"
-          fi
+          verdict="$(./scripts/should_deploy.sh)"
           echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
 
   deploy:
@@ -67,10 +65,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: should-deploy
-    if: needs.should-deploy.outputs.verdict == 'true'
+    if: needs.should-deploy.outputs.verdict == 'DEPLOY'
     permissions:
       contents: read
       id-token: write
+      packages: write # to retag image as dogfood
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
@@ -108,7 +107,7 @@ jobs:
         uses: fluxcd/flux2/action@6bf37f6a560fd84982d67f853162e4b3c2235edb # v2.6.4
         with:
           # Keep this and the github action up to date with the version of flux installed in dogfood cluster
-          version: "2.6.4"
+          version: "2.7.0"
 
       - name: Get Cluster Credentials
         uses: google-github-actions/get-gke-credentials@3da1e46a907576cefaa90c484278bb5b259dd395 # v3.0.0
