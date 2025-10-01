@@ -53,8 +53,8 @@ jobs:
         env:
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_EVENT_NAME: ${{ github.event_name }}
-          GITHUB_EVENT_USER_ID: ${{ github.event.issue.user.id }}
-          GITHUB_EVENT_USER_LOGIN: ${{ github.event.issue.user.login }}
+          GITHUB_EVENT_USER_ID: ${{ github.event.sender.id }}
+          GITHUB_EVENT_USER_LOGIN: ${{ github.event.sender.login }}
           GH_TOKEN: ${{ github.token }}
         run: |
           # For workflow_dispatch, use the actor who triggered it
