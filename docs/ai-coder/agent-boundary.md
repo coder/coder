@@ -2,6 +2,7 @@
 
 Agent Boundaries are process-level firewalls that restrict and audit what autonomous programs, such as AI agents, can access and use. 
 
+
 [insert screenshot here]
 
 
@@ -12,19 +13,107 @@ The easiest way to use Agent Boundaries is through existing Coder modules, such 
 
 # Supported Agents 
 
-Coder Boundary supports the securing of any terminal-based agent, including your own custom agents. 
+Coder Boundary supports the securing of any terminal-based agent, including your own custom agents.    
 
 # Features
 
 Boundaries extend Coder's trusted workspaces with a defense-in-depth model that detects and prevents destructive actions without reducing productivity by slowing down workflows or blocking automation. They offer the following features:
-- Policy-driven access controls: limit what an agent can access (repos, registries, APIs, files, commands)
-- Network policy enforcement: block domains, subnets, or HTTP verbs to prevent exfiltration
-- Audit-ready: centralize logs, exportable for compliance, with full visibility into agent actions
+
+- _Policy-driven access controls_: limit what an agent can access (repos, registries, APIs, files, commands)
+- _Network policy enforcement_: block domains, subnets, or HTTP verbs to prevent exfiltration
+- _Audit-ready_: centralize logs, exportable for compliance, with full visibility into agent actions
 
 # Architecture
 
 # Getting Started with Boundary
 
+There are two ways to use Agent Boundaries in your project. 
+
+Users of Coder Premium can enable Agent Boundaries simply by updating to the latest versions of their preferred coding agent modules, which integrate with Coder with just a few lines of Terraform. Once configured by platform admins, developers get agent-ready environments automatically - no extra setup required.
+
+All other users can use Agent Boundaries through its [open source CLI](https://github.com/coder/boundary), which can be run to wrap any process or invoked through rules in a YAML file.  
+
 ## Option 1) Apply Boundary through Coder modules
 
+This option is available to Coder Premium users. It is the easiest way to use Agent Boundaries and offers centralized policy management with strong isolation.
+
 ## Option 2) Wrap the agent process with the Boundary CLI
+
+Users can also run Boundary directly in your workspace and configure it per template or per script. While free tier users won't get centralized policy management or the deeper, "strong isolation," they can still enforce per workspace network rules and log decisions locally. 
+
+There are two ways to integrate the open source Boundary CLI into a workspace.
+
+### Wrap a command inline with flags
+
+1. Install the [binary](https://github.com/coder/boundary) into the workspace image or at start-up. You can do so with the following command:
+
+    `curl -fsSL https://raw.githubusercontent.com/coder/boundary/main/install.sh | bash`
+
+2. Use the included `Makefile` to build your project. Here are a few example commands:
+
+    ```
+    make build          # Build for current platform
+    make build-all      # Build for all platforms
+    make test           # Run tests
+    make test-coverage  # Run tests with coverage
+    make clean          # Clean build artifacts
+    make fmt            # Format code
+    make lint           # Lint code
+    ```
+
+3. Wrap the tool you want to guard. Below are some examples of usage:
+
+    ```
+    # Allow only requests to github.com
+    boundary --allow "github.com" -- curl https://github.com
+
+    # Allow full access to GitHub issues API, but only GET/HEAD elsewhere on GitHub
+    boundary \
+    --allow "github.com/api/issues/*" \
+    --allow "GET,HEAD github.com" \
+    -- npm install
+
+    # Default deny-all: everything is blocked unless explicitly allowed
+    boundary -- curl https://example.com
+    ```
+
+    Additional information, such as Allow Rules, can be found in the [repository README](https://github.com/coder/boundary).
+
+### Use a config file (YAML) to set rules
+
+Another option is to define rules in a YAML file, which only needs to be invoked once as opposed to through flags with each command.
+
+1. Similarly to the previous method, install the [binary](https://github.com/coder/boundary) into the workspace image or at start-up. You can do so with the following command:
+
+    `curl -fsSL https://raw.githubusercontent.com/coder/boundary/main/install.sh | bash`
+
+2. Use the included `Makefile` to build your project. Here are a few example commands:
+
+    ```
+    make build          # Build for current platform
+    make build-all      # Build for all platforms
+    make test           # Run tests
+    make test-coverage  # Run tests with coverage
+    make clean          # Clean build artifacts
+    make fmt            # Format code
+    make lint           # Lint code
+    ```
+3. Create a YAML file to store rules that will be applied to all `boundary` commands run in the Workspace. In this example, we call it `boundary.yaml`.
+
+    A config example can be seen below:
+
+    ```
+    allow:
+
+    - domain: [github.com](http://github.com)
+        
+        path: /api/issues/*
+        
+    - domain: [github.com](http://github.com)
+        
+        methods: [GET, HEAD]
+    ```
+4. Run a `boundary` command. For example: 
+    `boundary run --config ./boundary.yaml -- claude`
+
+    You will notice that the rules are automatically applied without any need for additional customization.
