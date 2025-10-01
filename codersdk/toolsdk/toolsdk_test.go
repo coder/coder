@@ -822,7 +822,7 @@ func TestTools(t *testing.T) {
 				name: "OK",
 				args: toolsdk.CreateTaskArgs{
 					TemplateVersionID: aiTV.TemplateVersion.ID.String(),
-					Prompt:            "do a barrel roll",
+					Input:             "do a barrel roll",
 					User:              "me",
 				},
 			},
@@ -830,21 +830,21 @@ func TestTools(t *testing.T) {
 				name: "NoUser",
 				args: toolsdk.CreateTaskArgs{
 					TemplateVersionID: aiTV.TemplateVersion.ID.String(),
-					Prompt:            "do another barrel roll",
+					Input:             "do another barrel roll",
 				},
 			},
 			{
-				name: "NoPrompt",
+				name: "NoInput",
 				args: toolsdk.CreateTaskArgs{
 					TemplateVersionID: aiTV.TemplateVersion.ID.String(),
 				},
-				error: "prompt is required",
+				error: "input is required",
 			},
 			{
 				name: "NotTaskTemplate",
 				args: toolsdk.CreateTaskArgs{
 					TemplateVersionID: r.TemplateVersion.ID.String(),
-					Prompt:            "do yet another barrel roll",
+					Input:             "do yet another barrel roll",
 				},
 				error: "Template does not have required parameter \"AI Prompt\"",
 			},
@@ -853,7 +853,7 @@ func TestTools(t *testing.T) {
 				args: toolsdk.CreateTaskArgs{
 					TemplateVersionID:       r.TemplateVersion.ID.String(),
 					TemplateVersionPresetID: presetID.String(),
-					Prompt:                  "not enough barrel rolls",
+					Input:                   "not enough barrel rolls",
 				},
 				error: "Template does not have required parameter \"AI Prompt\"",
 			},

@@ -1757,7 +1757,7 @@ var WorkspacePortForward = Tool[WorkspacePortForwardArgs, WorkspacePortForwardRe
 }
 
 type CreateTaskArgs struct {
-	Prompt                  string `json:"prompt"`
+	Input                   string `json:"input"`
 	TemplateVersionID       string `json:"template_version_id"`
 	TemplateVersionPresetID string `json:"template_version_preset_id"`
 	User                    string `json:"user"`
@@ -1769,9 +1769,9 @@ var CreateTask = Tool[CreateTaskArgs, codersdk.Task]{
 		Description: `Create a task.`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
-				"prompt": map[string]any{
+				"input": map[string]any{
 					"type":        "string",
-					"description": "Prompt for the task.",
+					"description": "Input/prompt for the task.",
 				},
 				"template_version_id": map[string]any{
 					"type":        "string",
@@ -1786,13 +1786,13 @@ var CreateTask = Tool[CreateTaskArgs, codersdk.Task]{
 					"description": userDescription("create a task"),
 				},
 			},
-			Required: []string{"prompt", "template_version_id"},
+			Required: []string{"input", "template_version_id"},
 		},
 	},
 	UserClientOptional: true,
 	Handler: func(ctx context.Context, deps Deps, args CreateTaskArgs) (codersdk.Task, error) {
-		if args.Prompt == "" {
-			return codersdk.Task{}, xerrors.New("a prompt is required")
+		if args.Input == "" {
+			return codersdk.Task{}, xerrors.New("input is required")
 		}
 
 		tvID, err := uuid.Parse(args.TemplateVersionID)
@@ -1814,7 +1814,7 @@ var CreateTask = Tool[CreateTaskArgs, codersdk.Task]{
 
 		expClient := codersdk.NewExperimentalClient(deps.coderClient)
 		task, err := expClient.CreateTask(ctx, args.User, codersdk.CreateTaskRequest{
-			Prompt:                  args.Prompt,
+			Input:                   args.Input,
 			TemplateVersionID:       tvID,
 			TemplateVersionPresetID: tvPresetID,
 		})
