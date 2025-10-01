@@ -51,10 +51,11 @@ jobs:
         id: github-user-id
         if: always()
         env:
-          GITHUB_EVENT_NAME: ${{ github.event_name }}
           GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
           GITHUB_EVENT_USER_ID: ${{ github.event.issue.user.id }}
           GITHUB_EVENT_USER_LOGIN: ${{ github.event.issue.user.login }}
+          GITHUB_TOKEN: ${{ github.tokne }}
         run: |
           # For workflow_dispatch, use the actor who triggered it
           # For issues events, use the issue author
@@ -79,10 +80,10 @@ jobs:
 
       - name: Verify organization membership
         env:
+          GITHUB_ORG: ${{ github.repository_owner }}
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_USERNAME: ${{ steps.github-user-id.outputs.github_username }}
           GITHUB_USER_ID: ${{ steps.github-user-id.outputs.github_user_id }}
-          GITHUB_ORG: ${{ github.repository_owner }}
         run: |
           # Check if the actor is a member of the organization
           if ! gh api "orgs/${GITHUB_ORG}/members/${GITHUB_USERNAME}" --silent 2>/dev/null; then
