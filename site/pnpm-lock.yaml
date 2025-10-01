@@ -230,8 +230,8 @@ importers:
         specifier: 8.5.9
         version: 8.5.9(@types/react@19.1.17)(react@19.1.1)
       react-virtualized-auto-sizer:
-        specifier: 1.0.24
-        version: 1.0.24(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        specifier: 1.0.26
+        version: 1.0.26(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       react-window:
         specifier: 1.8.11
         version: 1.8.11(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
@@ -360,8 +360,8 @@ importers:
         specifier: 15.5.13
         version: 15.5.13
       '@types/react-virtualized-auto-sizer':
-        specifier: 1.0.4
-        version: 1.0.4
+        specifier: 1.0.8
+        version: 1.0.8(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@types/react-window':
         specifier: 1.8.8
         version: 1.8.8
@@ -2995,8 +2995,9 @@ packages:
     peerDependencies:
       '@types/react': '*'
 
-  '@types/react-virtualized-auto-sizer@1.0.4':
-    resolution: {integrity: sha512-nhYwlFiYa8M3S+O2T9QO/e1FQUYMr/wJENUdf/O0dhRi1RS/93rjrYQFYdbUqtdFySuhrtnEDX29P6eKOttY+A==, tarball: https://registry.npmjs.org/@types/react-virtualized-auto-sizer/-/react-virtualized-auto-sizer-1.0.4.tgz}
+  '@types/react-virtualized-auto-sizer@1.0.8':
+    resolution: {integrity: sha512-keJpNyhiwfl2+N12G1ocCVA5ZDBArbPLe/S90X3kt7fam9naeHdaYYWbpe2sHczp70JWJ+2QLhBE8kLvLuVNjA==, tarball: https://registry.npmjs.org/@types/react-virtualized-auto-sizer/-/react-virtualized-auto-sizer-1.0.8.tgz}
+    deprecated: This is a stub types definition. react-virtualized-auto-sizer provides its own type definitions, so you do not need this installed.
 
   '@types/react-window@1.8.8':
     resolution: {integrity: sha512-8Ls660bHR1AUA2kuRvVG9D/4XpRC6wjAaPT9dil7Ckc76eP9TKWZwwmgfq8Q1LANX3QNDnoU4Zp48A3w+zK69Q==, tarball: https://registry.npmjs.org/@types/react-window/-/react-window-1.8.8.tgz}
@@ -5750,11 +5751,11 @@ packages:
       react: '>=16.6.0'
       react-dom: '>=16.6.0'
 
-  react-virtualized-auto-sizer@1.0.24:
-    resolution: {integrity: sha512-3kCn7N9NEb3FlvJrSHWGQ4iVl+ydQObq2fHMn12i5wbtm74zHOPhz/i64OL3c1S1vi9i2GXtZqNqUJTQ+BnNfg==, tarball: https://registry.npmjs.org/react-virtualized-auto-sizer/-/react-virtualized-auto-sizer-1.0.24.tgz}
+  react-virtualized-auto-sizer@1.0.26:
+    resolution: {integrity: sha512-CblNyiNVw2o+hsa5/49NH2ogGxZ+t+3aweRvNSq7TVjDIlwk7ir4lencEg5HxHeSzwNarSkNkiu0qJSOXtxm5A==, tarball: https://registry.npmjs.org/react-virtualized-auto-sizer/-/react-virtualized-auto-sizer-1.0.26.tgz}
     peerDependencies:
-      react: ^15.3.0 || ^16.0.0-alpha || ^17.0.0 || ^18.0.0
-      react-dom: ^15.3.0 || ^16.0.0-alpha || ^17.0.0 || ^18.0.0
+      react: ^15.3.0 || ^16.0.0-alpha || ^17.0.0 || ^18.0.0 || ^19.0.0
+      react-dom: ^15.3.0 || ^16.0.0-alpha || ^17.0.0 || ^18.0.0 || ^19.0.0
 
   react-window@1.8.11:
     resolution: {integrity: sha512-+SRbUVT2scadgFSWx+R1P754xHPEqvcfSfVX10QYg6POOz+WNgkN48pS+BtZNIMGiL1HYrSEiCkwsMS15QogEQ==, tarball: https://registry.npmjs.org/react-window/-/react-window-1.8.11.tgz}
@@ -9223,9 +9224,12 @@ snapshots:
     dependencies:
       '@types/react': 19.1.17
 
-  '@types/react-virtualized-auto-sizer@1.0.4':
+  '@types/react-virtualized-auto-sizer@1.0.8(react-dom@19.1.1(react@19.1.1))(react@19.1.1)':
     dependencies:
-      '@types/react': 19.1.17
+      react-virtualized-auto-sizer: 1.0.26(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+    transitivePeerDependencies:
+      - react
+      - react-dom
 
   '@types/react-window@1.8.8':
     dependencies:
@@ -12644,7 +12648,7 @@ snapshots:
       react: 19.1.1
       react-dom: 19.1.1(react@19.1.1)
 
-  react-virtualized-auto-sizer@1.0.24(react-dom@19.1.1(react@19.1.1))(react@19.1.1):
+  react-virtualized-auto-sizer@1.0.26(react-dom@19.1.1(react@19.1.1))(react@19.1.1):
     dependencies:
       react: 19.1.1
       react-dom: 19.1.1(react@19.1.1)
