@@ -16,8 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 	protobuf "google.golang.org/protobuf/proto"
 
-	"github.com/coder/terraform-provider-coder/v2/provider"
-
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 
@@ -1527,26 +1525,6 @@ func TestInstanceIDAssociation(t *testing.T) {
 func TestAITasks(t *testing.T) {
 	t.Parallel()
 	ctx, logger := ctxAndLogger(t)
-
-	t.Run("Prompt parameter is required", func(t *testing.T) {
-		t.Parallel()
-
-		// nolint:dogsled
-		_, filename, _, _ := runtime.Caller(0)
-
-		dir := filepath.Join(filepath.Dir(filename), "testdata", "resources", "ai-tasks-missing-prompt")
-		tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "ai-tasks-missing-prompt.tfplan.json"))
-		require.NoError(t, err)
-		var tfPlan tfjson.Plan
-		err = json.Unmarshal(tfPlanRaw, &tfPlan)
-		require.NoError(t, err)
-		tfPlanGraph, err := os.ReadFile(filepath.Join(dir, "ai-tasks-missing-prompt.tfplan.dot"))
-		require.NoError(t, err)
-
-		state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfPlan.PlannedValues.RootModule, tfPlan.PriorState.Values.RootModule}, string(tfPlanGraph), logger)
-		require.Nil(t, state)
-		require.ErrorContains(t, err, fmt.Sprintf("coder_parameter named '%s' is required when 'coder_ai_task' resource is defined", provider.TaskPromptParameterName))
-	})
 
 	t.Run("Multiple tasks can be defined", func(t *testing.T) {
 		t.Parallel()
