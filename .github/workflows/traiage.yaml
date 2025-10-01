@@ -94,10 +94,28 @@ jobs:
           fi
           echo "::notice::User ${GITHUB_USERNAME} verified as member of ${GITHUB_ORG} organization"
 
+      - name: Determine issue URL
+        id: determine-issue-url
+        env:
+          INPUTS_ISSUE_URL: ${{ inputs.issue_url }}
+          GITHUB_EVENT_ISSUE_HTML_URL: ${{ github.event.issue.html_url }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            echo "issue_url=${INPUTS_ISSUE_URL}" >> "${GITHUB_OUTPUT}"
+            exit 0
+          elif [[ "${GITHUB_EVENT_NAME}" == "issues" ]]; then
+            echo "issue_url=${GITHUB_EVENT_ISSUE_HTML_URL}" >> "${GITHUB_OUTPUT}"
+            exit 0
+          else
+            echo "::error::Unsupported event type: ${GITHUB_EVENT_NAME}"
+            exit 1
+          fi
+
       - name: Extract context key from issue
         id: extract-context
         env:
-          ISSUE_URL: ${{ inputs.issue_url }}
+          ISSUE_URL: ${{ steps.determine-issue-url.outputs.issue_url }}
           GH_TOKEN: ${{ github.token }}
         run: |
           issue_number="$(gh issue view "${ISSUE_URL}" --json number --jq '.number')"
@@ -151,7 +169,7 @@ jobs:
           CONTEXT_KEY: ${{ steps.extract-context.outputs.context_key }}
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-          ISSUE_URL: ${{ inputs.issue_url }}
+          ISSUE_URL: ${{ steps.determine-issue-url.outputs.issue_url }}
           PREFIX: ${{ inputs.prefix }}
           RUN_ID: ${{ github.run_id }}
           TEMPLATE_PARAMETERS: ${{ secrets.TRAIAGE_TEMPLATE_PARAMETERS }}
@@ -207,7 +225,7 @@ jobs:
           CONTEXT_KEY: ${{ steps.extract-context.outputs.context_key }}
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-          ISSUE_URL: ${{ inputs.issue_url }}
+          ISSUE_URL: ${{ steps.determine-issue-url.outputs.issue_url }}
           TASK_NAME: ${{ steps.create-task.outputs.TASK_NAME }}
         run: |
           SUMMARY_FILE=$(mktemp)
