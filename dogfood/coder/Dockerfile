@@ -12,7 +12,7 @@ FROM ubuntu:jammy@sha256:0e5e4a57c2499249aafc3b40fcd541e9a456aab7296681a3994d631
 
 # Install Go manually, so that we can control the version
 ARG GO_VERSION=1.25.1
-ARG GO_CHECKSUM="3ebd4c97f10a0c3e7d5b0ca5ef32a4b27ff5dc21b0ca1acb84ca81ac86e8e8c3"
+ARG GO_CHECKSUM="7716a0d940a0f6ae8e1f3b3f4f36299dc53e31b16840dbd171254312c41ca12e"
 
 # Boring Go is needed to build FIPS-compliant binaries.
 RUN apt-get update && \
