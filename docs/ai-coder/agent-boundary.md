@@ -11,11 +11,11 @@ The easiest way to use Agent Boundaries is through existing Coder modules, such 
 > [!NOTE]
 > The Coder Boundary CLI is free and open source. Integrations with the core product, such as through modules, offers strong isolation and is available to Coder Premium customers.
 
-# Supported Agents 
+## Supported Agents 
 
 Coder Boundary supports the securing of any terminal-based agent, including your own custom agents.    
 
-# Features
+## Features
 
 Boundaries extend Coder's trusted workspaces with a defense-in-depth model that detects and prevents destructive actions without reducing productivity by slowing down workflows or blocking automation. They offer the following features:
 
@@ -23,7 +23,7 @@ Boundaries extend Coder's trusted workspaces with a defense-in-depth model that 
 - _Network policy enforcement_: block domains, subnets, or HTTP verbs to prevent exfiltration
 - _Audit-ready_: centralize logs, exportable for compliance, with full visibility into agent actions
 
-# Architecture
+## Architecture
 
 Agent Boundary runs in two locations:
 - Workspace: Boundary runs alongside your agent or tool, wrapping its process and enforcing outbound network policy at runtime
@@ -31,7 +31,7 @@ Agent Boundary runs in two locations:
 
 [More detail to be added here]
 
-# Getting Started with Boundary
+## Getting Started with Boundary
 
 There are two ways to use Agent Boundaries in your project. 
 
@@ -39,7 +39,7 @@ Users of Coder Premium can enable Agent Boundaries simply by updating to the lat
 
 All other users can use Agent Boundaries through its [open source CLI](https://github.com/coder/boundary), which can be run to wrap any process or invoked through rules in a YAML file.  
 
-## Option 1) Apply Boundary through Coder modules
+### Option 1) Apply Boundary through Coder modules
 
 This option is available to Coder Premium users. It is the easiest way to use Agent Boundaries and offers centralized policy management with strong isolation. 
 
@@ -62,13 +62,13 @@ To apply Agent Boundaries through Coder modules, follow the instructions below.
 
 [More detail to be added here]
 
-## Option 2) Wrap the agent process with the Boundary CLI
+### Option 2) Wrap the agent process with the Boundary CLI
 
 Users can also run Boundary directly in your workspace and configure it per template or per script. While free tier users won't get centralized policy management or the deeper, "strong isolation," they can still enforce per workspace network rules and log decisions locally. 
 
 There are two ways to integrate the open source Boundary CLI into a workspace.
 
-### Wrap a command inline with flags
+#### Wrap a command inline with flags
 
 1. Install the [binary](https://github.com/coder/boundary) into the workspace image or at start-up. You can do so with the following command:
 
@@ -104,7 +104,7 @@ There are two ways to integrate the open source Boundary CLI into a workspace.
 
     Additional information, such as Allow Rules, can be found in the [repository README](https://github.com/coder/boundary).
 
-### Use a config file (YAML) to set rules
+#### Use a config file (YAML) to set rules
 
 Another option is to define rules in a YAML file, which only needs to be invoked once as opposed to through flags with each command.
 
@@ -143,6 +143,6 @@ Another option is to define rules in a YAML file, which only needs to be invoked
 
     You will notice that the rules are automatically applied without any need for additional customization.
 
-## Opting out of Boundary
+### Opting out of Boundary
 
 If you tried Boundary through a Coder module and decided you don't want to use it, you can turn it off by setting the flag to `boundary_enabled=false`.
