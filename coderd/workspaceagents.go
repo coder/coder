@@ -899,7 +899,11 @@ func (api *API) watchWorkspaceAgentContainers(rw http.ResponseWriter, r *http.Re
 		case <-ctx.Done():
 			return
 
-		case containers := <-containersCh:
+		case containers, ok := <-containersCh:
+			if !ok {
+				return
+			}
+
 			if err := encoder.Encode(containers); err != nil {
 				api.Logger.Error(ctx, "encode containers", slog.Error(err))
 				return
