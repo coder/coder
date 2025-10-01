@@ -384,8 +384,8 @@ importers:
         specifier: 10.4.20
         version: 10.4.20(postcss@8.5.1)
       chromatic:
-        specifier: 11.25.2
-        version: 11.25.2
+        specifier: 11.29.0
+        version: 11.29.0
       dpdm:
         specifier: 3.14.0
         version: 3.14.0
@@ -3074,8 +3074,8 @@ packages:
   chroma-js@2.4.2:
     resolution: {integrity: sha512-U9eDw6+wt7V8z5NncY2jJfZa+hUH8XEj8FQHgFJTrUFnJfXYf4Ml4adI2vXZOjqRDpFWtYVWypDfZwnJ+HIR4A==, tarball: https://registry.npmjs.org/chroma-js/-/chroma-js-2.4.2.tgz}
 
-  chromatic@11.25.2:
-    resolution: {integrity: sha512-/9eQWn6BU1iFsop86t8Au21IksTRxwXAl7if8YHD05L2AbuMjClLWZo5cZojqrJHGKDhTqfrC2X2xE4uSm0iKw==, tarball: https://registry.npmjs.org/chromatic/-/chromatic-11.25.2.tgz}
+  chromatic@11.29.0:
+    resolution: {integrity: sha512-yisBlntp9hHVj19lIQdpTlcYIXuU9H/DbFuu6tyWHmj6hWT2EtukCCcxYXL78XdQt1vm2GfIrtgtKpj/Rzmo4A==, tarball: https://registry.npmjs.org/chromatic/-/chromatic-11.29.0.tgz}
     hasBin: true
     peerDependencies:
       '@chromatic-com/cypress': ^0.*.* || ^1.0.0
@@ -9176,7 +9176,7 @@ snapshots:
 
   chroma-js@2.4.2: {}
 
-  chromatic@11.25.2: {}
+  chromatic@11.29.0: {}
 
   chromatic@12.2.0: {}
 
