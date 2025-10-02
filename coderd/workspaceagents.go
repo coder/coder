@@ -486,8 +486,7 @@ func (api *API) enqueueAITaskStateNotification(
 
 		// As task prompt may be particularly long, truncate it to 160 characters for notifications.
 		if len(taskName) > 160 {
-			taskName = taskName[:157]
-			taskName += "..."
+			taskName = strutil.Truncate(taskName, 160, strutil.TruncateWithEllipsis, strutil.TruncateWithFullWords)
 		}
 
 		if _, err := api.NotificationsEnqueuer.EnqueueWithData(

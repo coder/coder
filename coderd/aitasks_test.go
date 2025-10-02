@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -1133,9 +1134,10 @@ func TestTasksNotification(t *testing.T) {
 				require.Len(t, sent, 1)
 				require.Equal(t, memberUser.ID, sent[0].UserID)
 				require.Len(t, sent[0].Labels, 2)
-				require.LessOrEqual(t, len(sent[0].Labels["task"]), 160)
+				// NOTE: len(string) is the number of bytes in the string, not the number of runes.
+				require.LessOrEqual(t, utf8.RuneCountInString(sent[0].Labels["task"]), 160)
 				if len(tc.taskPrompt) > 160 {
-					require.Contains(t, tc.taskPrompt, strings.TrimSuffix(sent[0].Labels["task"], "..."))
+					require.Contains(t, tc.taskPrompt, strings.TrimSuffix(sent[0].Labels["task"], "…"))
 				} else {
 					require.Equal(t, tc.taskPrompt, sent[0].Labels["task"])
 				}
