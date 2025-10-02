@@ -389,7 +389,9 @@ func TestAuthorizeDomain(t *testing.T) {
 		{resource: ResourceWorkspace.AnyOrganization().WithOwner(user.ID), actions: ResourceWorkspace.AvailableActions(), allow: true},
 		{resource: ResourceTemplate.AnyOrganization(), actions: []policy.Action{policy.ActionCreate}, allow: false},
 
-		{resource: ResourceWorkspace.WithOwner(user.ID), actions: ResourceWorkspace.AvailableActions(), allow: true},
+		// ResourceWorkspace WITHOUT an organization. Should never happen in prod. The default member role omits these
+		// permissions.
+		{resource: ResourceWorkspace.WithOwner(user.ID), actions: ResourceWorkspace.AvailableActions(), allow: false},
 
 		{resource: ResourceWorkspace.All(), actions: ResourceWorkspace.AvailableActions(), allow: false},
 
@@ -455,6 +457,7 @@ func TestAuthorizeDomain(t *testing.T) {
 		Scope: must(ExpandScope(ScopeAll)),
 		Roles: Roles{
 			must(RoleByName(ScopedRoleOrgAdmin(defOrg))),
+			must(RoleByName(ScopedRoleOrgMember(defOrg))),
 			must(RoleByName(RoleMember())),
 		},
 	}
@@ -469,7 +472,8 @@ func TestAuthorizeDomain(t *testing.T) {
 		{resource: ResourceWorkspace.InOrg(defOrg), actions: workspaceExceptConnect, allow: true},
 		{resource: ResourceWorkspace.InOrg(defOrg), actions: workspaceConnect, allow: false},
 
-		{resource: ResourceWorkspace.WithOwner(user.ID), actions: ResourceWorkspace.AvailableActions(), allow: true},
+		// Workspace is not in any organization, will never happen in prod.
+		{resource: ResourceWorkspace.WithOwner(user.ID), actions: ResourceWorkspace.AvailableActions(), allow: false},
 
 		{resource: ResourceWorkspace.All(), actions: ResourceWorkspace.AvailableActions(), allow: false},
 
@@ -546,7 +550,8 @@ func TestAuthorizeDomain(t *testing.T) {
 			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID), allow: true},
 			{resource: ResourceWorkspace.InOrg(defOrg), allow: false},
 
-			{resource: ResourceWorkspace.WithOwner(user.ID), allow: true},
+			// Workspace with no ownership will never happen in prod.
+			{resource: ResourceWorkspace.WithOwner(user.ID), allow: false},
 
 			{resource: ResourceWorkspace.All(), allow: false},
 
@@ -634,6 +639,13 @@ func TestAuthorizeDomain(t *testing.T) {
 				Identifier: RoleIdentifier{Name: "ReadOnlyOrgAndUser"},
 				Site:       []Permission{},
 				Org: map[string][]Permission{
+					defOrg.String(): {{
+						Negate:       false,
+						ResourceType: "*",
+						Action:       policy.ActionRead,
+					}},
+				},
+				OrgMember: map[string][]Permission{
 					defOrg.String(): {{
 						Negate:       false,
 						ResourceType: "*",
@@ -1145,10 +1157,14 @@ func TestAuthorizeScope(t *testing.T) {
 						ResourceWorkspace.Type: {policy.ActionRead},
 					}),
 				},
+				OrgMember: map[string][]Permission{
+					defOrg.String(): Permissions(map[string][]policy.Action{
+						ResourceWorkspace.Type: {policy.ActionRead},
+					}),
+				},
 				User: Permissions(map[string][]policy.Action{
 					ResourceUser.Type: {policy.ActionRead},
 				}),
-				OrgMember: nil,
 			},
 			AllowIDList: []AllowListElement{AllowListAll()},
 		},

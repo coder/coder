@@ -233,7 +233,8 @@ scope_user := user_allow([input.subject.scope])
 user_allow(roles) := num if {
 	input.object.owner != ""
 	 # if there is an org, use org_member permissions instead
-	input.object.org_owner != ""
+	input.object.org_owner == ""
+	input.object.any_org == false
 	input.subject.id = input.object.owner
 
 	allow := {is_allowed |
