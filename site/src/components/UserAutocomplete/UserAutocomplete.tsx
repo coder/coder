@@ -132,6 +132,14 @@ const InnerAutocomplete = <T extends SelectedUser>({
 			open={open}
 			isOptionEqualToValue={(a, b) => a.username === b.username}
 			getOptionLabel={(option) => option.email}
+			filterOptions={(options, state) => {
+				const inputValue = state.inputValue.toLowerCase();
+				return options.filter(
+					(option) =>
+						option.username.toLowerCase().includes(inputValue) ||
+						option.email.toLowerCase().includes(inputValue),
+				);
+			}}
 			onOpen={() => {
 				setOpen(true);
 				setFilter(value?.email ?? "");
