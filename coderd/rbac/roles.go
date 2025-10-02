@@ -301,8 +301,6 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				// Users cannot do create/update/delete on themselves, but they
 				// can read their own details.
 				ResourceUser.Type: {policy.ActionRead, policy.ActionReadPersonal, policy.ActionUpdatePersonal},
-				// Users can create provisioner daemons scoped to themselves.
-				ResourceProvisionerDaemon.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
 			})...,
 		),
 		OrgMember: map[string][]Permission{},
@@ -453,7 +451,13 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				User: []Permission{},
 				OrgMember: map[string][]Permission{
 					organizationID.String(): Permissions(map[string][]policy.Action{
-						ResourceWorkspace.Type: ResourceWorkspace.AvailableActions(),
+						// Users can create provisioner daemons scoped to themselves.
+						// All provisioners still need an organization relation as well.
+						ResourceProvisionerDaemon.Type: ResourceProvisionerDaemon.AvailableActions(),
+						// All group members can read their own group membership
+						ResourceGroupMember.Type:       {policy.ActionRead},
+						ResourceInboxNotification.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
+						ResourceWorkspace.Type:         ResourceWorkspace.AvailableActions(),
 						// Reduced permission set on dormant workspaces. No build, ssh, or exec
 						ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent},
 						// Can read their own organization member record
