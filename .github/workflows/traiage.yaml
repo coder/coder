@@ -217,7 +217,7 @@ jobs:
           echo "Creating task: $TASK_NAME"
           ./scripts/traiage.sh create
           if [[ "${ISSUE_URL}" == "https://github.com/${GITHUB_REPOSITORY}"* ]]; then
-            gh issue comment "${ISSUE_URL}" --body "Task created: ${TASK_NAME}" --create-if-none --edit-last
+            gh issue comment "${ISSUE_URL}" --body "Task created: https://dev.coder.com/tasks/${CODER_USERNAME}/${TASK_NAME}" --create-if-none --edit-last
           else
             echo "Skipping comment on other repo."
           fi
