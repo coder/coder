@@ -111,7 +111,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	r.cfg.DialBarrier.Done()
 	r.cfg.DialBarrier.Wait()
 
-	logger.Info(ctx, fmt.Sprintf("waiting for notifications", slog.F("timeout", r.cfg.NotificationTimeout))
+	logger.Info(ctx, "waiting for notifications", slog.F("timeout", r.cfg.NotificationTimeout))
 
 	watchCtx, cancel := context.WithTimeout(ctx, r.cfg.NotificationTimeout)
 	defer cancel()
@@ -192,7 +192,7 @@ func (r *Runner) watchNotifications(ctx context.Context, conn *websocket.Conn, u
 
 	// Read notifications until we have both expected types
 	for !receivedCreated || !receivedDeleted {
-		notif, err := r.readNotification(ctx, conn)
+		notif, err := readNotification(ctx, conn)
 		if err != nil {
 			logger.Error(ctx, "read notification", slog.Error(err))
 			r.cfg.Metrics.AddError(user.Username, "read_notification")
@@ -224,7 +224,7 @@ func (r *Runner) watchNotifications(ctx context.Context, conn *websocket.Conn, u
 	return nil
 }
 
-readNotification(ctx context.Context, conn *websocket.Conn) (codersdk.GetInboxNotificationResponse, error) {
+func readNotification(ctx context.Context, conn *websocket.Conn) (codersdk.GetInboxNotificationResponse, error) {
 	_, message, err := conn.Read(ctx)
 	if err != nil {
 		return codersdk.GetInboxNotificationResponse{}, err
