@@ -149,14 +149,8 @@ export const OrganizationMembersPageView: FC<
 											isLoading={isUpdatingMemberRoles}
 											canEditUsers={canEditMembers}
 											onEditRoles={async (roles) => {
-												try {
-													await updateMemberRoles(member, roles);
-													displaySuccess("Roles updated successfully.");
-												} catch (error) {
-													displayError(
-														getErrorMessage(error, "Failed to update roles."),
-													);
-												}
+												await updateMemberRoles(member, roles);
+												displaySuccess("Roles updated successfully.");
 											}}
 										/>
 										<UserGroupsCell userGroups={member.groups} />
