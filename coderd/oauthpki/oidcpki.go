@@ -260,6 +260,7 @@ func (src *jwtTokenSource) Token() (*oauth2.Token, error) {
 	if convertErr != nil {
 		return nil, xerrors.Errorf("oauth2: cannot convert expires_in to int64: %w", convertErr)
 	}
+
 	if expiresIn > 0 {
 		newToken.Expiry = time.Now().Add(time.Duration(expiresIn) * time.Second)
 	}
