@@ -135,10 +135,11 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 			Value:         serpent.Int64Of(&limit),
 		},
 		{
-			Flag:        "initiator",
-			Env:         "CODER_PROVISIONER_JOB_LIST_INITIATOR",
-			Description: "Filter by initiator (user ID or username).",
-			Value:       serpent.StringOf(&initiatorIDStr),
+			Flag:          "initiator",
+			FlagShorthand: "i",
+			Env:           "CODER_PROVISIONER_JOB_LIST_INITIATOR",
+			Description:   "Filter by initiator (user ID or username).",
+			Value:         serpent.StringOf(&initiatorIDStr),
 		},
 	}...)
 

@@ -34,7 +34,7 @@ Filter by job status.
 
 Limit the number of jobs returned.
 
-### --initiator
+### -i, --initiator
 
 |             |                                                    |
 |-------------|----------------------------------------------------|
