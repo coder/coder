@@ -358,6 +358,7 @@ func convertProvisionerJob(pj database.GetProvisionerJobsByIDsWithQueuePositionR
 	job := codersdk.ProvisionerJob{
 		ID:             provisionerJob.ID,
 		OrganizationID: provisionerJob.OrganizationID,
+		InitiatorID:    provisionerJob.InitiatorID,
 		CreatedAt:      provisionerJob.CreatedAt,
 		Type:           codersdk.ProvisionerJobType(provisionerJob.Type),
 		Error:          provisionerJob.Error.String,
