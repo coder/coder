@@ -234,7 +234,7 @@ user_allow(roles) := num if {
 	input.object.owner != ""
 	 # if there is an org, use org_member permissions instead
 	input.object.org_owner == ""
-	input.object.any_org == false
+  not input.object.any_org
 	input.subject.id = input.object.owner
 
 	allow := {is_allowed |

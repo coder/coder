@@ -1329,9 +1329,9 @@ type authTestCase struct {
 func testAuthorize(t *testing.T, name string, subject Subject, sets ...[]authTestCase) {
 	t.Helper()
 	authorizer := NewAuthorizer(prometheus.NewRegistry())
-	for _, cases := range sets {
+	for si, cases := range sets {
 		for i, c := range cases {
-			caseName := fmt.Sprintf("%s/%d", name, i)
+			caseName := fmt.Sprintf("%s/%d-%d", name, si, i)
 			t.Run(caseName, func(t *testing.T) {
 				t.Parallel()
 				for _, a := range c.actions {

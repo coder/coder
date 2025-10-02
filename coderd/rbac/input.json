@@ -24,8 +24,7 @@
 					}
 				],
 				"org": {},
-				"user": [],
-				"org_member": {}
+				"user": []
 			}
 		],
 		"groups": ["b617a647-b5d0-4cbe-9e40-26f89710bf18"],
@@ -45,8 +44,7 @@
 				{
 					"type": "workspace",
 					"id": "*"
-				}
-			]
+				}]
 		}
 	}
 }
