@@ -19,18 +19,18 @@ usage() {
 }
 
 create() {
-	requiredenvs CODER_URL CODER_SESSION_TOKEN TASK_NAME TEMPLATE_NAME TEMPLATE_PRESET PROMPT
+	requiredenvs CODER_URL CODER_SESSION_TOKEN CODER_USERNAME TASK_NAME TEMPLATE_NAME TEMPLATE_PRESET PROMPT
 	# Check if a task already exists
 	set +e
 	task_json=$("${CODER_BIN}" \
 		--url "${CODER_URL}" \
 		--token "${CODER_SESSION_TOKEN}" \
-		exp tasks status "${TASK_NAME}" \
+		exp tasks status "${CODER_USERNAME}/${TASK_NAME}" \
 		--output json)
 	set -e
 
 	if [[ "${TASK_NAME}" == $(jq -r '.name' <<<"${task_json}") ]]; then
-		echo "Task \"${TASK_NAME}\" already exists. Sending prompt to existing task."
+		echo "Task \"${CODER_USERNAME}/${TASK_NAME}\" already exists. Sending prompt to existing task."
 		prompt
 		exit 0
 	fi
@@ -43,6 +43,7 @@ create() {
 		--template "${TEMPLATE_NAME}" \
 		--preset "${TEMPLATE_PRESET}" \
 		--org coder \
+		--owner "${CODER_USERNAME}" \
 		--stdin <<<"${PROMPT}"
 	exit 0
 }

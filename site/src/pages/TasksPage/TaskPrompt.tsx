@@ -1,3 +1,4 @@
+import type { SelectTriggerProps } from "@radix-ui/react-select";
 import { API } from "api/api";
 import { getErrorDetail, getErrorMessage } from "api/errors";
 import { templateVersionPresets } from "api/queries/templates";
@@ -29,14 +30,15 @@ import {
 } from "components/Tooltip/Tooltip";
 import { useAuthenticated } from "hooks/useAuthenticated";
 import { useExternalAuth } from "hooks/useExternalAuth";
-import { RedoIcon, RotateCcwIcon, SendIcon } from "lucide-react";
+import { ArrowUpIcon, RedoIcon, RotateCcwIcon } from "lucide-react";
 import { AI_PROMPT_PARAMETER_NAME } from "modules/tasks/tasks";
 import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import TextareaAutosize from "react-textarea-autosize";
+import TextareaAutosize, {
+	type TextareaAutosizeProps,
+} from "react-textarea-autosize";
+import { cn } from "utils/cn";
 import { docs } from "utils/docs";
-
-const textareaPlaceholder = "Prompt your AI agent to start a task...";
 
 type TaskPromptProps = {
 	templates: Template[] | undefined;
@@ -92,23 +94,14 @@ const TaskPromptLoadingError: FC<{
 
 const TaskPromptSkeleton: FC = () => {
 	return (
-		<div className="border border-border border-solid rounded-lg p-4">
-			<div className="space-y-4">
-				{/* Textarea skeleton */}
-				<TextareaAutosize
-					disabled
-					id="prompt"
-					name="prompt"
-					placeholder={textareaPlaceholder}
-					className={`border-0 resize-none w-full h-full bg-transparent rounded-lg outline-none flex min-h-[60px]
-				text-sm shadow-sm text-content-primary placeholder:text-content-secondary md:text-sm`}
-				/>
+		<div className="border border-border border-solid rounded-3xl p-3 bg-surface-secondary">
+			{/* Textarea skeleton */}
+			<PromptTextarea disabled />
 
-				{/* Bottom controls skeleton */}
-				<div className="flex items-center justify-between pt-2">
-					<Skeleton className="w-[208px] h-8" />
-					<Skeleton className="w-[96px] h-8" />
-				</div>
+			{/* Bottom controls skeleton */}
+			<div className="flex items-center justify-between pt-2">
+				<Skeleton className="w-[208px] h-8 rounded-full" />
+				<Skeleton className="size-8 rounded-full" />
 			</div>
 		</div>
 	);
@@ -225,7 +218,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 			{externalAuthError && <ErrorAlert error={externalAuthError} />}
 
 			<fieldset
-				className="border border-border border-solid rounded-lg p-4"
+				className="border border-border border-solid rounded-3xl p-3 bg-surface-secondary"
 				disabled={createTaskMutation.isPending}
 			>
 				<label
@@ -238,25 +231,15 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 				>
 					{isPromptReadOnly ? "Prompt defined by preset" : "Prompt"}
 				</label>
-				<TextareaAutosize
+				<PromptTextarea
 					required
-					id="prompt"
-					name="prompt"
 					value={presetAIPrompt || undefined}
 					readOnly={isPromptReadOnly}
-					placeholder={textareaPlaceholder}
-					className={`border-0 resize-none w-full h-full bg-transparent rounded-lg outline-none flex min-h-[60px]
-						text-sm shadow-sm text-content-primary placeholder:text-content-secondary md:text-sm ${
-							isPromptReadOnly ? "opacity-60 cursor-not-allowed" : ""
-						}`}
 				/>
 				<div className="flex items-center justify-between pt-2">
-					<div className="flex items-center gap-4">
+					<div className="flex items-center gap-1">
 						<div className="flex flex-col gap-1">
-							<label
-								htmlFor="templateID"
-								className="text-xs font-medium text-content-primary"
-							>
+							<label htmlFor="templateID" className="sr-only">
 								Template
 							</label>
 							<Select
@@ -265,12 +248,9 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 								defaultValue={templates[0].id}
 								required
 							>
-								<SelectTrigger
-									id="templateID"
-									className="w-80 text-xs [&_svg]:size-icon-xs border-0 bg-surface-secondary h-8 px-3"
-								>
+								<PromptSelectTrigger id="templateID">
 									<SelectValue placeholder="Select a template" />
-								</SelectTrigger>
+								</PromptSelectTrigger>
 								<SelectContent>
 									{templates.map((template) => {
 										return (
@@ -285,40 +265,26 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 							</Select>
 						</div>
 
-						{isLoadingPresets ? (
-							<div className="flex flex-col gap-1">
-								<label
-									htmlFor="presetID"
-									className="text-xs font-medium text-content-primary"
-								>
-									Preset
-								</label>
+						<div className="flex flex-col gap-1">
+							<label htmlFor="presetID" className="sr-only">
+								Preset
+							</label>
+							{isLoadingPresets ? (
 								<Skeleton className="w-[320px] h-8" />
-							</div>
-						) : (
-							presets &&
-							presets.length > 0 && (
-								<div className="flex flex-col gap-1">
-									<label
-										htmlFor="presetID"
-										className="text-xs font-medium text-content-primary"
-									>
-										Preset
-									</label>
+							) : (
+								presets &&
+								presets.length > 0 && (
 									<Select
 										key={`preset-select-${selectedTemplate.active_version_id}`}
 										name="presetID"
 										value={selectedPresetId || undefined}
 										onValueChange={setSelectedPresetId}
 									>
-										<SelectTrigger
-											id="presetID"
-											className="w-80 text-xs [&_svg]:size-icon-xs border-0 bg-surface-secondary h-8 px-3"
-										>
+										<PromptSelectTrigger id="presetID">
 											<SelectValue placeholder="Select a preset" />
-										</SelectTrigger>
+										</PromptSelectTrigger>
 										<SelectContent>
-											{presets.toSorted(sortByDefault).map((preset) => (
+											{presets?.toSorted(sortByDefault).map((preset) => (
 												<SelectItem value={preset.ID} key={preset.ID}>
 													<span className="overflow-hidden text-ellipsis block">
 														{preset.Name} {preset.Default && "(Default)"}
@@ -327,9 +293,9 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 											))}
 										</SelectContent>
 									</Select>
-								</div>
-							)
-						)}
+								)
+							)}
+						</div>
 					</div>
 
 					<div className="flex items-center gap-2">
@@ -340,7 +306,12 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 							/>
 						)}
 
-						<Button size="sm" type="submit" disabled={isMissingExternalAuth}>
+						<Button
+							size="icon"
+							type="submit"
+							disabled={isMissingExternalAuth}
+							className="rounded-full disabled:bg-surface-invert-primary disabled:opacity-70"
+						>
 							<Spinner
 								loading={
 									isLoadingExternalAuth ||
@@ -348,14 +319,31 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 									createTaskMutation.isPending
 								}
 							>
-								<SendIcon />
+								<ArrowUpIcon />
 							</Spinner>
-							Run task
+							<span className="sr-only">Run task</span>
 						</Button>
 					</div>
 				</div>
 			</fieldset>
 		</form>
+	);
+};
+
+const PromptSelectTrigger: FC<SelectTriggerProps> = ({
+	className,
+	...props
+}) => {
+	return (
+		<SelectTrigger
+			{...props}
+			className={cn([
+				className,
+				`border-0 bg-surface-secondary text-sm text-content-primary gap-2 px-3
+				[&_svg]:text-inherit cursor-pointer hover:bg-surface-quaternary rounded-full
+				h-8 data-[state=open]:bg-surface-tertiary`,
+			])}
+		/>
 	);
 };
 
@@ -379,7 +367,7 @@ const ExternalAuthButtons: FC<ExternalAuthButtonProps> = ({
 		return (
 			<div className="flex items-center gap-2" key={auth.id}>
 				<Button
-					variant="outline"
+					className="bg-surface-tertiary hover:bg-surface-quaternary rounded-full text-white"
 					size="sm"
 					disabled={isPollingExternalAuth || auth.authenticated}
 					onClick={() => {
@@ -446,3 +434,17 @@ async function createTaskWithLatestTemplateVersion(
 		template_version_preset_id: presetId,
 	});
 }
+
+const PromptTextarea: FC<TextareaAutosizeProps> = (props) => {
+	return (
+		<TextareaAutosize
+			required
+			id="prompt"
+			name="prompt"
+			placeholder="Prompt your AI agent to start a task..."
+			className={`border-0 px-3 py-2 resize-none w-full h-full bg-transparent rounded-lg
+						outline-none flex min-h-24 text-sm shadow-sm text-content-primary
+						placeholder:text-content-secondary md:text-sm ${props.readOnly ? "opacity-60 cursor-not-allowed" : ""}`}
+		/>
+	);
+};
