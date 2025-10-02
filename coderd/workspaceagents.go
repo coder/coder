@@ -484,6 +484,12 @@ func (api *API) enqueueAITaskStateNotification(
 			}
 		}
 
+		// As task prompt may be particularly long, truncate it to 160 characters for notifications.
+		if len(taskName) > 160 {
+			taskName = taskName[:157]
+			taskName += "..."
+		}
+
 		if _, err := api.NotificationsEnqueuer.EnqueueWithData(
 			// nolint:gocritic // Need notifier actor to enqueue notifications
 			dbauthz.AsNotifier(ctx),
