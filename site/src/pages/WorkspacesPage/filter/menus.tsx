@@ -117,13 +117,24 @@ export const useStatusFilterMenu = ({
 			),
 		};
 	});
+
+	// Add "unhealthy" as a special filter option (not a WorkspaceStatus)
+	const allOptions = [
+		...statusOptions,
+		{
+			label: "Unhealthy",
+			value: "unhealthy",
+			startIcon: <StatusIndicatorDot variant="warning" />,
+		},
+	];
+
 	return useFilterMenu({
 		onChange,
 		value,
 		id: "status",
 		getSelectedOption: async () =>
-			statusOptions.find((option) => option.value === value) ?? null,
-		getOptions: async () => statusOptions,
+			allOptions.find((option) => option.value === value) ?? null,
+		getOptions: async () => allOptions,
 	});
 };
 
