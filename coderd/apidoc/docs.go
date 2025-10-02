@@ -15981,6 +15981,10 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "initiator_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "input": {
                     "$ref": "#/definitions/codersdk.ProvisionerJobInput"
                 },

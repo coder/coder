@@ -2380,6 +2380,7 @@ export interface ProvisionerJob {
 	readonly queue_position: number;
 	readonly queue_size: number;
 	readonly organization_id: string;
+	readonly initiator_id: string;
 	readonly input: ProvisionerJobInput;
 	readonly type: ProvisionerJobType;
 	readonly available_workers?: readonly string[];
