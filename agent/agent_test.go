@@ -2027,7 +2027,8 @@ func runSubAgentMain() int {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	req = req.WithContext(ctx)
-	resp, err := http.DefaultClient.Do(req)
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "agent connection failed: %v\n", err)
 		return 11
