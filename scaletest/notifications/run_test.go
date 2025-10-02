@@ -66,21 +66,24 @@ func TestRun(t *testing.T) {
 	require.NoError(t, err)
 
 	client := coderdtest.New(t, &coderdtest.Options{
-		Database:                 db,
-		Pubsub:                   ps,
-		NotificationsEnqueuer:    enqueuer,
+		Database:              db,
+		Pubsub:                ps,
+		NotificationsEnqueuer: enqueuer,
 	})
 	firstUser := coderdtest.CreateFirstUser(t, client)
 
 	const numOwners = 2
-	barrier := new(sync.WaitGroup)
-	barrier.Add(numOwners + 1)
+	const numRegularUsers = 2
+	ownerBarrier := new(sync.WaitGroup)
+	regularBarrier := new(sync.WaitGroup)
+	ownerBarrier.Add(numOwners)
+	regularBarrier.Add(numRegularUsers)
 	metrics := notifications.NewMetrics(prometheus.NewRegistry())
 
 	eg, runCtx := errgroup.WithContext(ctx)
 
 	// Start owner runners who will receive notifications
-	runners := make([]*notifications.Runner, 0, numOwners)
+	ownerRunners := make([]*notifications.Runner, 0, numOwners)
 	for i := range numOwners {
 		runnerCfg := notifications.Config{
 			User: createusers.Config{
@@ -90,22 +93,47 @@ func TestRun(t *testing.T) {
 			NotificationTimeout: testutil.WaitLong,
 			DialTimeout:         testutil.WaitLong,
 			Metrics:             metrics,
-			DialBarrier:         barrier,
+			DialBarrier:         ownerBarrier,
 		}
 		err := runnerCfg.Validate()
 		require.NoError(t, err)
 
 		runner := notifications.NewRunner(client, runnerCfg)
-		runners = append(runners, runner)
+		ownerRunners = append(ownerRunners, runner)
 		eg.Go(func() error {
 			return runner.Run(runCtx, "owner-"+strconv.Itoa(i), io.Discard)
 		})
 	}
 
+	// Start regular user runners who will maintain websocket connections
+	regularRunners := make([]*notifications.Runner, 0, numRegularUsers)
+	for i := range numRegularUsers {
+		runnerCfg := notifications.Config{
+			User: createusers.Config{
+				OrganizationID: firstUser.OrganizationID,
+			},
+			IsOwner:             false,
+			NotificationTimeout: testutil.WaitLong,
+			DialTimeout:         testutil.WaitLong,
+			Metrics:             metrics,
+			DialBarrier:         regularBarrier,
+			OwnerDialBarrier:    ownerBarrier,
+		}
+		err := runnerCfg.Validate()
+		require.NoError(t, err)
+
+		runner := notifications.NewRunner(client, runnerCfg)
+		regularRunners = append(regularRunners, runner)
+		eg.Go(func() error {
+			return runner.Run(runCtx, "regular-"+strconv.Itoa(i), io.Discard)
+		})
+	}
+
 	// Trigger notifications by creating and deleting a user
 	eg.Go(func() error {
-		barrier.Done()
-		barrier.Wait()
+		// Wait for all runners to connect
+		ownerBarrier.Wait()
+		regularBarrier.Wait()
 
 		newUser, err := client.CreateUserWithOrgs(runCtx, codersdk.CreateUserRequestWithOrgs{
 			OrganizationIDs: []uuid.UUID{firstUser.OrganizationID},
@@ -128,19 +156,36 @@ func TestRun(t *testing.T) {
 	require.NoError(t, err, "runner execution should complete successfully")
 
 	cleanupEg, cleanupCtx := errgroup.WithContext(ctx)
-	for i, runner := range runners {
+	for i, runner := range ownerRunners {
 		cleanupEg.Go(func() error {
-			return runner.Cleanup(cleanupCtx, strconv.Itoa(i), io.Discard)
+			return runner.Cleanup(cleanupCtx, "owner-"+strconv.Itoa(i), io.Discard)
+		})
+	}
+	for i, runner := range regularRunners {
+		cleanupEg.Go(func() error {
+			return runner.Cleanup(cleanupCtx, "regular-"+strconv.Itoa(i), io.Discard)
 		})
 	}
 	err = cleanupEg.Wait()
 	require.NoError(t, err)
 
-	// Verify that each runner received both notifications and recorded metrics
-	for _, runner := range runners {
+	users, err := client.Users(ctx, codersdk.UsersRequest{})
+	require.NoError(t, err)
+	require.Len(t, users.Users, 1)
+	require.Equal(t, firstUser.UserID, users.Users[0].ID)
+
+	// Verify that owner runners received both notifications and recorded metrics
+	for _, runner := range ownerRunners {
 		runnerMetrics := runner.GetMetrics()
 		require.Contains(t, runnerMetrics, notifications.UserCreatedNotificationLatencyMetric)
 		require.Contains(t, runnerMetrics, notifications.UserDeletedNotificationLatencyMetric)
+	}
+
+	// Verify that regular runners don't have notification metrics
+	for _, runner := range regularRunners {
+		runnerMetrics := runner.GetMetrics()
+		require.NotContains(t, runnerMetrics, notifications.UserCreatedNotificationLatencyMetric)
+		require.NotContains(t, runnerMetrics, notifications.UserDeletedNotificationLatencyMetric)
 	}
 }
 

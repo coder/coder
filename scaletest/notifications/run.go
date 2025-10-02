@@ -89,13 +89,6 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 
 	logger.Info(ctx, "notification runner is ready")
 
-	// We don't need to wait for notifications since we're not an owner
-	if !r.cfg.IsOwner {
-		reachedBarrier = true
-		r.cfg.DialBarrier.Done()
-		return nil
-	}
-
 	dialCtx, cancel := context.WithTimeout(ctx, r.cfg.DialTimeout)
 	defer cancel()
 
@@ -110,6 +103,25 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	reachedBarrier = true
 	r.cfg.DialBarrier.Done()
 	r.cfg.DialBarrier.Wait()
+
+	if !r.cfg.IsOwner {
+		logger.Info(ctx, "maintaining websocket connection, waiting for owner users to complete")
+
+		// Wait for owners to complete
+		done := make(chan struct{})
+		go func() {
+			r.cfg.OwnerDialBarrier.Wait()
+			close(done)
+		}()
+
+		select {
+		case <-done:
+			logger.Info(ctx, "owner users complete, closing connection")
+		case <-ctx.Done():
+			logger.Info(ctx, "context canceled, closing connection")
+		}
+		return nil
+	}
 
 	logger.Info(ctx, "waiting for notifications", slog.F("timeout", r.cfg.NotificationTimeout))
 

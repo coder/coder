@@ -29,6 +29,9 @@ type Config struct {
 
 	// DialBarrier ensures all runners are connected before notifications are triggered.
 	DialBarrier *sync.WaitGroup `json:"-"`
+
+	// OwnerDialBarrier is the barrier for owner users. Regular users wait on this to disconnect after owner users complete.
+	OwnerDialBarrier *sync.WaitGroup `json:"-"`
 }
 
 func (c Config) Validate() error {
@@ -43,6 +46,10 @@ func (c Config) Validate() error {
 
 	if c.DialBarrier == nil {
 		return xerrors.New("dial barrier must be set")
+	}
+
+	if !c.IsOwner && c.OwnerDialBarrier == nil {
+		return xerrors.New("owner_dial_barrier must be set for regular users")
 	}
 
 	if c.NotificationTimeout <= 0 {
