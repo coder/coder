@@ -25,6 +25,10 @@ type Config struct {
 	// DialTimeout is how long to wait for websocket connection.
 	DialTimeout time.Duration `json:"dial_timeout"`
 
+	// ExpectedNotifications maps notification template IDs to channels
+	// that receive the trigger time for each notification.
+	ExpectedNotifications map[uuid.UUID]chan time.Time `json:"-"`
+
 	Metrics *Metrics `json:"-"`
 
 	// DialBarrier ensures all runners are connected before notifications are triggered.
@@ -50,6 +54,10 @@ func (c Config) Validate() error {
 
 	if !c.IsOwner && c.OwnerDialBarrier == nil {
 		return xerrors.New("owner_dial_barrier must be set for regular users")
+	}
+
+	if c.IsOwner && len(c.ExpectedNotifications) == 0 {
+		return xerrors.New("expected_notifications must be set for owner users")
 	}
 
 	if c.NotificationTimeout <= 0 {

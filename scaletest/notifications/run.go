@@ -8,12 +8,12 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 
-	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/scaletest/createusers"
@@ -28,14 +28,15 @@ type Runner struct {
 
 	createUserRunner *createusers.Runner
 
-	userCreatedNotificationLatency time.Duration
-	userDeletedNotificationLatency time.Duration
+	// notificationLatencies stores the latency for each notification type
+	notificationLatencies map[uuid.UUID]time.Duration
 }
 
 func NewRunner(client *codersdk.Client, cfg Config) *Runner {
 	return &Runner{
-		client: client,
-		cfg:    cfg,
+		client:                client,
+		cfg:                   cfg,
+		notificationLatencies: make(map[uuid.UUID]time.Duration),
 	}
 }
 
@@ -73,7 +74,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 		codersdk.WithLogger(logger),
 		codersdk.WithLogBodies())
 
-	logger.Info(ctx, "user created", slog.F("username", newUser.Username), slog.F("user_id", newUser.ID.String()))
+	logger.Info(ctx, "runner user created", slog.F("username", newUser.Username), slog.F("user_id", newUser.ID.String()))
 
 	if r.cfg.IsOwner {
 		logger.Info(ctx, "assigning Owner role to user")
@@ -128,7 +129,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	watchCtx, cancel := context.WithTimeout(ctx, r.cfg.NotificationTimeout)
 	defer cancel()
 
-	if err := r.watchNotifications(watchCtx, conn, newUser, logger); err != nil {
+	if err := r.watchNotifications(watchCtx, conn, newUser, logger, r.cfg.ExpectedNotifications); err != nil {
 		return xerrors.Errorf("notification watch failed: %w", err)
 	}
 
@@ -146,20 +147,16 @@ func (r *Runner) Cleanup(ctx context.Context, id string, logs io.Writer) error {
 	return nil
 }
 
-const (
-	UserCreatedNotificationLatencyMetric = "user_created_notification_latency_seconds"
-	UserDeletedNotificationLatencyMetric = "user_deleted_notification_latency_seconds"
-)
+const NotificationDeliveryLatencyMetric = "notification_delivery_latency_seconds"
 
 func (r *Runner) GetMetrics() map[string]any {
 	metrics := map[string]any{}
 
-	if r.userCreatedNotificationLatency > 0 {
-		metrics[UserCreatedNotificationLatencyMetric] = r.userCreatedNotificationLatency.Seconds()
-	}
-
-	if r.userDeletedNotificationLatency > 0 {
-		metrics[UserDeletedNotificationLatencyMetric] = r.userDeletedNotificationLatency.Seconds()
+	for templateID, latency := range r.notificationLatencies {
+		if latency > 0 {
+			metricKey := fmt.Sprintf("%s_%s", NotificationDeliveryLatencyMetric, templateID.String())
+			metrics[metricKey] = latency.Seconds()
+		}
 	}
 
 	return metrics
@@ -193,17 +190,37 @@ func (r *Runner) dialNotificationWebsocket(ctx context.Context, client *codersdk
 	return conn, nil
 }
 
-// watchNotifications reads notifications from the websockert and returns error or nil
-// once both expected notifications are received.
-func (r *Runner) watchNotifications(ctx context.Context, conn *websocket.Conn, user codersdk.User, logger slog.Logger) error {
-	notificationStartTime := time.Now()
-	logger.Info(ctx, "waiting for notifications", slog.F("username", user.Username))
+// watchNotifications reads notifications from the websocket and returns error or nil
+// once all expected notifications are received.
+func (r *Runner) watchNotifications(ctx context.Context, conn *websocket.Conn, user codersdk.User, logger slog.Logger, expectedNotifications map[uuid.UUID]chan time.Time) error {
+	logger.Info(ctx, "waiting for notifications",
+		slog.F("username", user.Username),
+		slog.F("expected_count", len(expectedNotifications)))
 
-	receivedCreated := false
-	receivedDeleted := false
+	receivedNotifications := make(map[uuid.UUID]bool, len(expectedNotifications))
+	for templateID := range expectedNotifications {
+		receivedNotifications[templateID] = false
+	}
 
-	// Read notifications until we have both expected types
-	for !receivedCreated || !receivedDeleted {
+	for {
+		select {
+		case <-ctx.Done():
+			return xerrors.Errorf("context canceled while waiting for notifications: %w", ctx.Err())
+		default:
+		}
+
+		allReceived := true
+		for _, received := range receivedNotifications {
+			if !received {
+				allReceived = false
+				break
+			}
+		}
+		if allReceived {
+			logger.Info(ctx, "received all expected notifications")
+			return nil
+		}
+
 		notif, err := readNotification(ctx, conn)
 		if err != nil {
 			logger.Error(ctx, "read notification", slog.Error(err))
@@ -211,29 +228,30 @@ func (r *Runner) watchNotifications(ctx context.Context, conn *websocket.Conn, u
 			return xerrors.Errorf("read notification: %w", err)
 		}
 
-		switch notif.Notification.TemplateID {
-		case notifications.TemplateUserAccountCreated:
-			if !receivedCreated {
-				r.userCreatedNotificationLatency = time.Since(notificationStartTime)
-				r.cfg.Metrics.RecordLatency(r.userCreatedNotificationLatency, user.Username, "user_created")
-				receivedCreated = true
-				logger.Info(ctx, "received user created notification")
+		templateID := notif.Notification.TemplateID
+		if triggerTimeChan, exists := expectedNotifications[templateID]; exists {
+			if !receivedNotifications[templateID] {
+				select {
+				case triggerTime := <-triggerTimeChan:
+					latency := time.Since(triggerTime)
+					r.notificationLatencies[templateID] = latency
+					r.cfg.Metrics.RecordLatency(latency, user.Username, templateID.String())
+					receivedNotifications[templateID] = true
+
+					logger.Info(ctx, "received expected notification",
+						slog.F("template_id", templateID),
+						slog.F("title", notif.Notification.Title),
+						slog.F("latency", latency))
+				case <-ctx.Done():
+					return xerrors.Errorf("context canceled while waiting for trigger time: %w", ctx.Err())
+				}
 			}
-		case notifications.TemplateUserAccountDeleted:
-			if !receivedDeleted {
-				r.userDeletedNotificationLatency = time.Since(notificationStartTime)
-				r.cfg.Metrics.RecordLatency(r.userDeletedNotificationLatency, user.Username, "user_deleted")
-				receivedDeleted = true
-				logger.Info(ctx, "received user deleted notification")
-			}
-		default:
-			logger.Warn(ctx, "received unexpected notification type",
-				slog.F("template_id", notif.Notification.TemplateID),
+		} else {
+			logger.Debug(ctx, "received notification not being tested",
+				slog.F("template_id", templateID),
 				slog.F("title", notif.Notification.Title))
 		}
 	}
-	logger.Info(ctx, "received both notifications successfully")
-	return nil
 }
 
 func readNotification(ctx context.Context, conn *websocket.Conn) (codersdk.GetInboxNotificationResponse, error) {

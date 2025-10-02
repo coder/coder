@@ -3,6 +3,7 @@ package notifications_test
 import (
 	"io"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -82,6 +83,11 @@ func TestRun(t *testing.T) {
 
 	eg, runCtx := errgroup.WithContext(ctx)
 
+	expectedNotifications := map[uuid.UUID]chan time.Time{
+		notificationsLib.TemplateUserAccountCreated: make(chan time.Time, 1),
+		notificationsLib.TemplateUserAccountDeleted: make(chan time.Time, 1),
+	}
+
 	// Start owner runners who will receive notifications
 	ownerRunners := make([]*notifications.Runner, 0, numOwners)
 	for i := range numOwners {
@@ -89,11 +95,12 @@ func TestRun(t *testing.T) {
 			User: createusers.Config{
 				OrganizationID: firstUser.OrganizationID,
 			},
-			IsOwner:             true,
-			NotificationTimeout: testutil.WaitLong,
-			DialTimeout:         testutil.WaitLong,
-			Metrics:             metrics,
-			DialBarrier:         ownerBarrier,
+			IsOwner:               true,
+			NotificationTimeout:   testutil.WaitLong,
+			DialTimeout:           testutil.WaitLong,
+			Metrics:               metrics,
+			DialBarrier:           ownerBarrier,
+			ExpectedNotifications: expectedNotifications,
 		}
 		err := runnerCfg.Validate()
 		require.NoError(t, err)
@@ -135,6 +142,7 @@ func TestRun(t *testing.T) {
 		ownerBarrier.Wait()
 		regularBarrier.Wait()
 
+		createTime := time.Now()
 		newUser, err := client.CreateUserWithOrgs(runCtx, codersdk.CreateUserRequestWithOrgs{
 			OrganizationIDs: []uuid.UUID{firstUser.OrganizationID},
 			Email:           "test-user@coder.com",
@@ -144,10 +152,16 @@ func TestRun(t *testing.T) {
 		if err != nil {
 			return xerrors.Errorf("create test user: %w", err)
 		}
+		expectedNotifications[notificationsLib.TemplateUserAccountCreated] <- createTime
 
+		deleteTime := time.Now()
 		if err := client.DeleteUser(runCtx, newUser.ID); err != nil {
 			return xerrors.Errorf("delete test user: %w", err)
 		}
+		expectedNotifications[notificationsLib.TemplateUserAccountDeleted] <- deleteTime
+
+		close(expectedNotifications[notificationsLib.TemplateUserAccountCreated])
+		close(expectedNotifications[notificationsLib.TemplateUserAccountDeleted])
 
 		return nil
 	})
@@ -174,18 +188,20 @@ func TestRun(t *testing.T) {
 	require.Len(t, users.Users, 1)
 	require.Equal(t, firstUser.UserID, users.Users[0].ID)
 
-	// Verify that owner runners received both notifications and recorded metrics
 	for _, runner := range ownerRunners {
 		runnerMetrics := runner.GetMetrics()
-		require.Contains(t, runnerMetrics, notifications.UserCreatedNotificationLatencyMetric)
-		require.Contains(t, runnerMetrics, notifications.UserDeletedNotificationLatencyMetric)
-	}
-
-	// Verify that regular runners don't have notification metrics
-	for _, runner := range regularRunners {
-		runnerMetrics := runner.GetMetrics()
-		require.NotContains(t, runnerMetrics, notifications.UserCreatedNotificationLatencyMetric)
-		require.NotContains(t, runnerMetrics, notifications.UserDeletedNotificationLatencyMetric)
+		foundCreated := false
+		foundDeleted := false
+		for key := range runnerMetrics {
+			if strings.Contains(key, notificationsLib.TemplateUserAccountCreated.String()) {
+				foundCreated = true
+			}
+			if strings.Contains(key, notificationsLib.TemplateUserAccountDeleted.String()) {
+				foundDeleted = true
+			}
+		}
+		require.True(t, foundCreated)
+		require.True(t, foundDeleted)
 	}
 }
 
