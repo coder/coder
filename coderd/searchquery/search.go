@@ -1,8 +1,59 @@
+// Package searchquery provides a unified search interface for Coder entities.
+//
+// The package parses human-readable search queries into structured database
+// parameters that can be used to filter database queries efficiently.
+//
+// # Search Query Format
+//
+// The package supports two types of search terms:
+//
+// 1. Key-Value Pairs (with colon):
+//   - "owner:prebuilds" → filters by owner username
+//   - "template:my-template" → filters by template name
+//   - "status:running" → filters by status
+//
+// 2. Free-form Terms (without colon):
+//   - "my workspace" → uses entity-specific default search field
+//   - For workspaces: searches by workspace name
+//   - For templates: searches by template display name
+//   - For provisioner jobs: searches by job type
+//
+// # Query Processing
+//
+// The searchTerms() function is the core parser that:
+//   - Splits queries by spaces while preserving quoted strings
+//   - Groups non-field terms together for free-form search
+//   - Validates query syntax and returns clear error messages
+//   - Converts parsed terms into url.Values for further processing
+//
+// Each entity type (Workspaces, Templates, ProvisionerJobs, etc.) has its
+// own search function that:
+//   - Uses the generic searchTerms() parser
+//   - Maps search parameters to database filter structs
+//   - Handles entity-specific logic (like "me" → current user)
+//   - Returns database parameters for SQL queries
+//
+// # Performance
+//
+// The searchquery package only parses queries and generates database parameters.
+// No in-memory filtering is performed.
+//
+// Example Usage
+//
+//	// Parse workspace search
+//	filter, errors := searchquery.Workspaces(ctx, db, "owner:prebuilds template:my-template", page, timeout)
+//	if len(errors) > 0 {
+//	    return errors
+//	}
+//
+//	// Use filter in database query
+//	workspaces, err := db.GetWorkspaces(ctx, filter)
 package searchquery
 
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"strings"
@@ -36,8 +87,6 @@ import (
 func AuditLogs(ctx context.Context, db database.Store, query string) (database.GetAuditLogsOffsetParams,
 	database.CountAuditLogsParams, []codersdk.ValidationError,
 ) {
-	// Always lowercase for all searches.
-	query = strings.ToLower(query)
 	values, errors := searchTerms(query, func(term string, values url.Values) error {
 		values.Add("resource_type", term)
 		return nil
@@ -87,8 +136,6 @@ func AuditLogs(ctx context.Context, db database.Store, query string) (database.G
 }
 
 func ConnectionLogs(ctx context.Context, db database.Store, query string, apiKey database.APIKey) (database.GetConnectionLogsOffsetParams, database.CountConnectionLogsParams, []codersdk.ValidationError) {
-	// Always lowercase for all searches.
-	query = strings.ToLower(query)
 	values, errors := searchTerms(query, func(term string, values url.Values) error {
 		values.Add("search", term)
 		return nil
@@ -144,8 +191,6 @@ func ConnectionLogs(ctx context.Context, db database.Store, query string, apiKey
 }
 
 func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
-	// Always lowercase for all searches.
-	query = strings.ToLower(query)
 	values, errors := searchTerms(query, func(term string, values url.Values) error {
 		values.Add("search", term)
 		return nil
@@ -184,8 +229,6 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 		return filter, nil
 	}
 
-	// Always lowercase for all searches.
-	query = strings.ToLower(query)
 	values, errors := searchTerms(query, func(term string, values url.Values) error {
 		// It is a workspace name, and maybe includes an owner
 		parts := splitQueryParameterByDelimiter(term, '/', false)
@@ -269,8 +312,6 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 }
 
 func Templates(ctx context.Context, db database.Store, actorID uuid.UUID, query string) (database.GetTemplatesWithFilterParams, []codersdk.ValidationError) {
-	// Always lowercase for all searches.
-	query = strings.ToLower(query)
 	values, errors := searchTerms(query, func(term string, values url.Values) error {
 		// Default to the display name
 		values.Add("display_name", term)
@@ -345,7 +386,34 @@ func AIBridgeInterceptions(ctx context.Context, db database.Store, query string,
 	return filter, parser.Errors
 }
 
+// searchTerms parses a search query string into structured key-value pairs.
+//
+// It handles two types of search terms:
+//   - Key-value pairs: "owner:prebuilds" → {"owner": "prebuilds"}
+//   - Free-form terms: "my workspace" → calls defaultKey("my workspace", values)
+//
+// The function uses a two-pass parsing approach:
+//  1. Split by spaces while preserving quoted strings
+//  2. Group non-field terms together for free-form search
+//
+// Parameters:
+//   - query: The search query string to parse
+//   - defaultKey: Function called for terms without colons to determine default field
+//
+// Returns:
+//   - url.Values: Parsed key-value pairs
+//   - []codersdk.ValidationError: Any parsing errors encountered
+//
+// Example:
+//
+//	searchTerms("owner:prebuilds template:my-template", func(term, values) {
+//	    values.Add("name", term) // Default to searching by name
+//	    return nil
+//	})
+//	// Returns: {"owner": ["prebuilds"], "template": ["my-template"]}
 func searchTerms(query string, defaultKey func(term string, values url.Values) error) (url.Values, []codersdk.ValidationError) {
+	// Always lowercase for all searches.
+	query = strings.ToLower(query)
 	searchValues := make(url.Values)
 
 	// Because we do this in 2 passes, we want to maintain quotes on the first
@@ -534,4 +602,57 @@ func processTokens(tokens []string) []string {
 		results = append(results, strings.Join(nonFieldTerms, " "))
 	}
 	return results
+}
+
+// ProvisionerJobs parses a search query for provisioner jobs and returns database filter parameters.
+//
+// Supported search parameters:
+//   - status:<status> - Filter by job status (pending, running, succeeded, failed, etc.)
+//   - initiator:<user> - Filter by user who initiated the job
+//   - organization:<org> - Filter by organization
+//   - tags:<json> - Filter by job tags (JSON format)
+//
+// Free-form terms (without colons) default to searching by job type.
+//
+// All filtering is performed in SQL using database indexes for optimal performance.
+//
+// Example queries:
+//   - "status:running initiator:me"
+//   - "status:pending status:running" (multiple statuses)
+//   - "workspace_build" (searches by job type)
+func ProvisionerJobs(ctx context.Context, db database.Store, query string, page codersdk.Pagination) (database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams, []codersdk.ValidationError) {
+	filter := database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams{
+		// #nosec G115 - Safe conversion for pagination limit which is expected to be within int32 range
+		Limit: sql.NullInt32{Int32: int32(page.Limit), Valid: page.Limit > 0},
+	}
+
+	if query == "" {
+		return filter, nil
+	}
+
+	values, errors := searchTerms(query, func(_ string, _ url.Values) error {
+		// Provisioner jobs don't support free-form search terms
+		// Users must specify search parameters like status:, initiator:, etc.
+		return xerrors.Errorf("Free-form search terms are not supported for provisioner jobs. Use specific search parameters like 'status:running', 'initiator:username', or 'organization:orgname'")
+	})
+	if len(errors) > 0 {
+		return filter, errors
+	}
+
+	parser := httpapi.NewQueryParamParser()
+	filter.OrganizationID = parseOrganization(ctx, db, parser, values, "organization")
+	filter.Status = httpapi.ParseCustomList(parser, values, []database.ProvisionerJobStatus{}, "status", httpapi.ParseEnum[database.ProvisionerJobStatus])
+	filter.InitiatorID = parseUser(ctx, db, parser, values, "initiator", uuid.Nil)
+
+	// Parse tags as a map
+	tagsStr := parser.String(values, "", "tags")
+	if tagsStr != "" {
+		var tags map[string]string
+		if err := json.Unmarshal([]byte(tagsStr), &tags); err == nil {
+			filter.Tags = database.StringMap(tags)
+		}
+	}
+
+	parser.ErrorExcessParams(values)
+	return filter, parser.Errors
 }
