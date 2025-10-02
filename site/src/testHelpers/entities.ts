@@ -4702,6 +4702,31 @@ export const MockSystemNotificationTemplates: TypesGen.NotificationTemplate[] =
 			kind: "system",
 			enabled_by_default: true,
 		},
+		{
+			id: "d4a6271c-cced-4ed0-84ad-afd02a9c7799",
+			name: "Task Idle",
+			title_template: "Task '{{.Labels.workspace}}' is idle",
+			body_template: "The task '{{.Labels.task}}' is idle and ready for input.",
+			actions:
+				'[{"url": "{{base_url}}/tasks/{{.UserUsername}}/{{.Labels.workspace}}", "label": "View task"}, {"url": "{{base_url}}/@{{.UserUsername}}/{{.Labels.workspace}}", "label": "View workspace"}]',
+			group: "Task Events",
+			method: "",
+			kind: "system",
+			enabled_by_default: true,
+		},
+		{
+			id: "bd4b7168-d05e-4e19-ad0f-3593b77aa90f",
+			name: "Task Working",
+			title_template: "Task '{{.Labels.workspace}}' is working",
+			body_template:
+				"The task '{{.Labels.task}}' transitioned to a working state.",
+			actions:
+				'[{"url": "{{base_url}}/tasks/{{.UserUsername}}/{{.Labels.workspace}}", "label": "View task"}, {"url": "{{base_url}}/@{{.UserUsername}}/{{.Labels.workspace}}", "label": "View workspace"}]',
+			group: "Task Events",
+			method: "",
+			kind: "system",
+			enabled_by_default: true,
+		},
 	];
 
 export const MockCustomNotificationTemplates: TypesGen.NotificationTemplate[] =

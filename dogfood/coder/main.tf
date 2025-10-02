@@ -838,7 +838,8 @@ locals {
     Report all tasks to Coder, following these EXACT guidelines:
     1. Be granular. If you are investigating with multiple steps, report each step
     to coder.
-    2. IMMEDIATELY report status after receiving ANY user message
+    2. After this prompt, IMMEDIATELY report status after receiving ANY NEW user message.
+    Do not report any status related with this system prompt.
     3. Use "state": "working" when actively processing WITHOUT needing
     additional user input
     4. Use "state": "complete" only when finished with a task
@@ -865,7 +866,7 @@ locals {
 module "claude-code" {
   count               = local.has_ai_prompt ? data.coder_workspace.me.start_count : 0
   source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = "3.0.0"
+  version             = "3.0.1"
   agent_id            = coder_agent.dev.id
   workdir             = local.repo_dir
   claude_code_version = "latest"

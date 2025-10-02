@@ -511,7 +511,8 @@ func tsDERPMap(ctx context.Context, t testing.TB) *tailcfg.DERPMap {
 	req, err := http.NewRequestWithContext(ctx, "GET", ipn.DefaultControlURL+"/derpmap/default", nil)
 	require.NoError(t, err)
 
-	res, err := http.DefaultClient.Do(req)
+	client := &http.Client{}
+	res, err := client.Do(req)
 	require.NoError(t, err)
 	defer res.Body.Close()
 	require.Equal(t, http.StatusOK, res.StatusCode)
