@@ -101,20 +101,7 @@ const IconsPage: FC = () => {
 						<div className="flex items-center gap-4">
 							<Tooltip
 								placement="bottom-end"
-								title={
-									<p
-										css={{
-											padding: 8,
-											fontSize: 13,
-											lineHeight: 1.5,
-										}}
-									>
-										You can suggest a new icon by submitting a Pull Request to
-										our public GitHub repository. Just keep in mind that it
-										should be relevant to many Coder users, and redistributable
-										under a permissive license.
-									</p>
-								}
+								title="Submit a PR to suggest a new icon"
 							>
 								<Link href="https://github.com/coder/coder/tree/main/site/static/icon">
 									Suggest an icon
