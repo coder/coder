@@ -1,6 +1,7 @@
 package strings_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -23,17 +24,47 @@ func TestTruncate(t *testing.T) {
 		s        string
 		n        int
 		expected string
+		options  []strings.TruncateOption
 	}{
-		{"foo", 4, "foo"},
-		{"foo", 3, "foo"},
-		{"foo", 2, "fo"},
-		{"foo", 1, "f"},
-		{"foo", 0, ""},
-		{"foo", -1, ""},
+		{"foo", 4, "foo", nil},
+		{"foo", 3, "foo", nil},
+		{"foo", 2, "fo", nil},
+		{"foo", 1, "f", nil},
+		{"foo", 0, "", nil},
+		{"foo", -1, "", nil},
+		{"foo bar", 7, "foo bar", []strings.TruncateOption{strings.TruncateWithEllipsis}},
+		{"foo bar", 6, "foo b…", []strings.TruncateOption{strings.TruncateWithEllipsis}},
+		{"foo bar", 5, "foo …", []strings.TruncateOption{strings.TruncateWithEllipsis}},
+		{"foo bar", 4, "foo…", []strings.TruncateOption{strings.TruncateWithEllipsis}},
+		{"foo bar", 3, "fo…", []strings.TruncateOption{strings.TruncateWithEllipsis}},
+		{"foo bar", 2, "f…", []strings.TruncateOption{strings.TruncateWithEllipsis}},
+		{"foo bar", 1, "…", []strings.TruncateOption{strings.TruncateWithEllipsis}},
+		{"foo bar", 0, "", []strings.TruncateOption{strings.TruncateWithEllipsis}},
+		{"foo bar", 7, "foo bar", []strings.TruncateOption{strings.TruncateWithFullWords}},
+		{"foo bar", 6, "foo", []strings.TruncateOption{strings.TruncateWithFullWords}},
+		{"foo bar", 5, "foo", []strings.TruncateOption{strings.TruncateWithFullWords}},
+		{"foo bar", 4, "foo", []strings.TruncateOption{strings.TruncateWithFullWords}},
+		{"foo bar", 3, "foo", []strings.TruncateOption{strings.TruncateWithFullWords}},
+		{"foo bar", 2, "fo", []strings.TruncateOption{strings.TruncateWithFullWords}},
+		{"foo bar", 1, "f", []strings.TruncateOption{strings.TruncateWithFullWords}},
+		{"foo bar", 0, "", []strings.TruncateOption{strings.TruncateWithFullWords}},
+		{"foo bar", 7, "foo bar", []strings.TruncateOption{strings.TruncateWithFullWords, strings.TruncateWithEllipsis}},
+		{"foo bar", 6, "foo…", []strings.TruncateOption{strings.TruncateWithFullWords, strings.TruncateWithEllipsis}},
+		{"foo bar", 5, "foo…", []strings.TruncateOption{strings.TruncateWithFullWords, strings.TruncateWithEllipsis}},
+		{"foo bar", 4, "foo…", []strings.TruncateOption{strings.TruncateWithFullWords, strings.TruncateWithEllipsis}},
+		{"foo bar", 3, "fo…", []strings.TruncateOption{strings.TruncateWithFullWords, strings.TruncateWithEllipsis}},
+		{"foo bar", 2, "f…", []strings.TruncateOption{strings.TruncateWithFullWords, strings.TruncateWithEllipsis}},
+		{"foo bar", 1, "…", []strings.TruncateOption{strings.TruncateWithFullWords, strings.TruncateWithEllipsis}},
+		{"foo bar", 0, "", []strings.TruncateOption{strings.TruncateWithFullWords, strings.TruncateWithEllipsis}},
+		{"This is a very long task prompt that should be truncated to 160 characters. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.", 160, "This is a very long task prompt that should be truncated to 160 characters. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor…", []strings.TruncateOption{strings.TruncateWithFullWords, strings.TruncateWithEllipsis}},
 	} {
-		t.Run(tt.expected, func(t *testing.T) {
+		tName := fmt.Sprintf("%s_%d", tt.s, tt.n)
+		for _, opt := range tt.options {
+			tName += fmt.Sprintf("_%v", opt)
+		}
+		t.Run(tName, func(t *testing.T) {
 			t.Parallel()
-			actual := strings.Truncate(tt.s, tt.n)
+			actual := strings.Truncate(tt.s, tt.n, tt.options...)
 			require.Equal(t, tt.expected, actual)
 		})
 	}
