@@ -1086,13 +1086,9 @@ func TestUpdateUserProfile(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
-		numLogs := len(auditor.AuditLogs())
 
 		firstUser := coderdtest.CreateFirstUser(t, client)
-		numLogs++ // add an audit log for login
-
 		memberClient, memberUser := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
-		numLogs++ // add an audit log for user creation
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
