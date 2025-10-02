@@ -2060,89 +2060,16 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 				configs = append(configs, config)
 			}
 
-			go func() {
-				logger.Info(ctx, "waiting for owner users to connect")
-
-				// Wait for owner users to connect
-				ownerWaitCtx, cancel := context.WithTimeout(ctx, dialTimeout+30*time.Second)
-				defer cancel()
-
-				ownerDone := make(chan struct{})
-				go func() {
-					ownerDialBarrier.Wait()
-					close(ownerDone)
-				}()
-
-				select {
-				case <-ownerDone:
-					logger.Info(ctx, "all owner users connected")
-				case <-ownerWaitCtx.Done():
-					if ownerWaitCtx.Err() == context.DeadlineExceeded {
-						logger.Error(ctx, "timeout waiting for owner users to connect")
-					} else {
-						logger.Info(ctx, "context canceled while waiting for owner users")
-					}
-					return
-				}
-
-				// Wait for regular users to connect
-				logger.Info(ctx, "waiting for regular users to connect")
-				regularWaitCtx, cancel := context.WithTimeout(ctx, dialTimeout+30*time.Second)
-				defer cancel()
-
-				regularDone := make(chan struct{})
-				go func() {
-					regularDialBarrier.Wait()
-					close(regularDone)
-				}()
-
-				select {
-				case <-regularDone:
-					logger.Info(ctx, "all regular users connected")
-				case <-regularWaitCtx.Done():
-					if regularWaitCtx.Err() == context.DeadlineExceeded {
-						logger.Error(ctx, "timeout waiting for regular users to connect")
-					} else {
-						logger.Info(ctx, "context canceled while waiting for regular users")
-					}
-					return
-				}
-
-				logger.Info(ctx, "all users connected, triggering notifications")
-
-				const (
-					triggerUsername = "scaletest-trigger-user"
-					triggerEmail    = "scaletest-trigger@example.com"
-				)
-
-				logger.Info(ctx, "creating test user to test notifications",
-					slog.F("username", triggerUsername),
-					slog.F("email", triggerEmail),
-					slog.F("org_id", me.OrganizationIDs[0]))
-
-				createTime := time.Now()
-				testUser, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
-					OrganizationIDs: []uuid.UUID{me.OrganizationIDs[0]},
-					Username:        triggerUsername,
-					Email:           triggerEmail,
-					Password:        "test-password-123",
-				})
-				if err != nil {
-					logger.Error(ctx, "create test user", slog.Error(err))
-					return
-				}
-				expectedNotifications[notificationsLib.TemplateUserAccountCreated] <- createTime
-
-				deleteTime := time.Now()
-				err = client.DeleteUser(ctx, testUser.ID)
-				if err != nil {
-					logger.Error(ctx, "delete test user", slog.Error(err))
-					return
-				}
-				expectedNotifications[notificationsLib.TemplateUserAccountDeleted] <- deleteTime
-				close(expectedNotifications[notificationsLib.TemplateUserAccountCreated])
-				close(expectedNotifications[notificationsLib.TemplateUserAccountDeleted])
-			}()
+			go triggerUserNotifications(
+				ctx,
+				logger,
+				client,
+				me.OrganizationIDs[0],
+				ownerDialBarrier,
+				regularDialBarrier,
+				dialTimeout,
+				expectedNotifications,
+			)
 
 			th := harness.NewTestHarness(timeoutStrategy.wrapStrategy(harness.ConcurrentExecutionStrategy{}), cleanupStrategy.toStrategy())
 
@@ -2444,6 +2371,101 @@ func parseTargetRange(name, targets string) (start, end int, err error) {
 	}
 
 	return start, end, nil
+}
+
+// triggerUserNotifications waits for all test users to connect,
+// then creates and deletes a test user to trigger notification events for testing.
+func triggerUserNotifications(
+	ctx context.Context,
+	logger slog.Logger,
+	client *codersdk.Client,
+	orgID uuid.UUID,
+	ownerDialBarrier *sync.WaitGroup,
+	regularDialBarrier *sync.WaitGroup,
+	dialTimeout time.Duration,
+	expectedNotifications map[uuid.UUID]chan time.Time,
+) {
+	logger.Info(ctx, "waiting for owner users to connect")
+
+	// Wait for owner users to connect
+	ownerWaitCtx, cancel := context.WithTimeout(ctx, dialTimeout+30*time.Second)
+	defer cancel()
+
+	ownerDone := make(chan struct{})
+	go func() {
+		ownerDialBarrier.Wait()
+		close(ownerDone)
+	}()
+
+	select {
+	case <-ownerDone:
+		logger.Info(ctx, "all owner users connected")
+	case <-ownerWaitCtx.Done():
+		if ownerWaitCtx.Err() == context.DeadlineExceeded {
+			logger.Error(ctx, "timeout waiting for owner users to connect")
+		} else {
+			logger.Info(ctx, "context canceled while waiting for owner users")
+		}
+		return
+	}
+
+	// Wait for regular users to connect
+	logger.Info(ctx, "waiting for regular users to connect")
+	regularWaitCtx, cancel := context.WithTimeout(ctx, dialTimeout+30*time.Second)
+	defer cancel()
+
+	regularDone := make(chan struct{})
+	go func() {
+		regularDialBarrier.Wait()
+		close(regularDone)
+	}()
+
+	select {
+	case <-regularDone:
+		logger.Info(ctx, "all regular users connected")
+	case <-regularWaitCtx.Done():
+		if regularWaitCtx.Err() == context.DeadlineExceeded {
+			logger.Error(ctx, "timeout waiting for regular users to connect")
+		} else {
+			logger.Info(ctx, "context canceled while waiting for regular users")
+		}
+		return
+	}
+
+	logger.Info(ctx, "all users connected, triggering notifications")
+
+	const (
+		triggerUsername = "scaletest-trigger-user"
+		triggerEmail    = "scaletest-trigger@example.com"
+	)
+
+	logger.Info(ctx, "creating test user to test notifications",
+		slog.F("username", triggerUsername),
+		slog.F("email", triggerEmail),
+		slog.F("org_id", orgID))
+
+	createTime := time.Now()
+	testUser, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+		OrganizationIDs: []uuid.UUID{orgID},
+		Username:        triggerUsername,
+		Email:           triggerEmail,
+		Password:        "test-password-123",
+	})
+	if err != nil {
+		logger.Error(ctx, "create test user", slog.Error(err))
+		return
+	}
+	expectedNotifications[notificationsLib.TemplateUserAccountCreated] <- createTime
+
+	deleteTime := time.Now()
+	err = client.DeleteUser(ctx, testUser.ID)
+	if err != nil {
+		logger.Error(ctx, "delete test user", slog.Error(err))
+		return
+	}
+	expectedNotifications[notificationsLib.TemplateUserAccountDeleted] <- deleteTime
+	close(expectedNotifications[notificationsLib.TemplateUserAccountCreated])
+	close(expectedNotifications[notificationsLib.TemplateUserAccountDeleted])
 }
 
 func createWorkspaceAppConfig(client *codersdk.Client, appHost, app string, workspace codersdk.Workspace, agent codersdk.WorkspaceAgent) (workspacetraffic.AppConfig, error) {
