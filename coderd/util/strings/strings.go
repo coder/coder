@@ -38,10 +38,10 @@ func (o TruncateOption) String() string {
 
 const (
 	// TruncateWithEllipsis adds a Unicode ellipsis character to the end of the string.
-	TruncateWithEllipsis TruncateOption = 1
+	TruncateWithEllipsis TruncateOption = 1 << 0
 	// TruncateWithFullWords ensures that words are not split in the middle.
 	// As a special case, if there is no word boundary, the string is truncated.
-	TruncateWithFullWords TruncateOption = 2
+	TruncateWithFullWords TruncateOption = 1 << 1
 )
 
 // Truncate truncates s to n characters.
