@@ -29,6 +29,7 @@ import (
 
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	notificationsLib "github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -2018,17 +2019,23 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 			ownerDialBarrier.Add(int(ownerUserCount))
 			regularDialBarrier.Add(int(regularUserCount))
 
+			expectedNotifications := map[uuid.UUID]chan time.Time{
+				notificationsLib.TemplateUserAccountCreated: make(chan time.Time, 1),
+				notificationsLib.TemplateUserAccountDeleted: make(chan time.Time, 1),
+			}
+
 			configs := make([]notifications.Config, 0, userCount)
 			for range ownerUserCount {
 				config := notifications.Config{
 					User: createusers.Config{
 						OrganizationID: me.OrganizationIDs[0],
 					},
-					IsOwner:             true,
-					NotificationTimeout: notificationTimeout,
-					DialTimeout:         dialTimeout,
-					DialBarrier:         ownerDialBarrier,
-					Metrics:             metrics,
+					IsOwner:               true,
+					NotificationTimeout:   notificationTimeout,
+					DialTimeout:           dialTimeout,
+					DialBarrier:           ownerDialBarrier,
+					ExpectedNotifications: expectedNotifications,
+					Metrics:               metrics,
 				}
 				if err := config.Validate(); err != nil {
 					return xerrors.Errorf("validate config: %w", err)
@@ -2113,6 +2120,7 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 					slog.F("email", triggerEmail),
 					slog.F("org_id", me.OrganizationIDs[0]))
 
+				createTime := time.Now()
 				testUser, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
 					OrganizationIDs: []uuid.UUID{me.OrganizationIDs[0]},
 					Username:        triggerUsername,
@@ -2123,14 +2131,17 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 					logger.Error(ctx, "create test user", slog.Error(err))
 					return
 				}
+				expectedNotifications[notificationsLib.TemplateUserAccountCreated] <- createTime
 
+				deleteTime := time.Now()
 				err = client.DeleteUser(ctx, testUser.ID)
 				if err != nil {
 					logger.Error(ctx, "delete test user", slog.Error(err))
 					return
 				}
-
-				logger.Info(ctx, "test user created and deleted successfully")
+				expectedNotifications[notificationsLib.TemplateUserAccountDeleted] <- deleteTime
+				close(expectedNotifications[notificationsLib.TemplateUserAccountCreated])
+				close(expectedNotifications[notificationsLib.TemplateUserAccountDeleted])
 			}()
 
 			th := harness.NewTestHarness(timeoutStrategy.wrapStrategy(harness.ConcurrentExecutionStrategy{}), cleanupStrategy.toStrategy())
