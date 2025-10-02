@@ -147,7 +147,8 @@ ORDER BY pg_total_relation_size(relid) DESC;
 ```
 
 Should you wish to purge these records, it is safe to do so. This can only be done by running SQL queries
-directly against the `audit_logs` table in the database. We advise users to only purge old records (>1yr).
+directly against the `audit_logs` table in the database. We advise users to only purge old records (>1yr)
+and in accordance with your compliance requirements.
 
 ### Backup/Archive
 
