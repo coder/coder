@@ -33,16 +33,8 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// @Summary Get AI task prompts for workspace builds
-// @Description: EXPERIMENTAL: this endpoint is experimental and not guaranteed to be stable.
-// @ID get-ai-task-prompts
-// @Security CoderSessionToken
-// @Tags Experimental
-// @Param build_ids query string true "Comma-separated list of workspace build IDs"
-// @Success 200 {object} codersdk.AITasksPromptsResponse
-// @Router /api/experimental/aitasks/prompts [get]
-//
-// EXPERIMENTAL: This endpoint is experimental and not guaranteed to be stable.
+// This endpoint is experimental and not guaranteed to be stable, so we're not
+// generating public-facing documentation for it.
 func (api *API) aiTasksPrompts(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

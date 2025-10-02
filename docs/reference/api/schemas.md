@@ -705,24 +705,6 @@
 |----------|----------------------------------------------------|----------|--------------|-------------|
 | `bridge` | [codersdk.AIBridgeConfig](#codersdkaibridgeconfig) | false    |              |             |
 
-## codersdk.AITasksPromptsResponse
-
-```json
-{
-  "prompts": {
-    "property1": "string",
-    "property2": "string"
-  }
-}
-```
-
-### Properties
-
-| Name               | Type   | Required | Restrictions | Description                                         |
-|--------------------|--------|----------|--------------|-----------------------------------------------------|
-| `prompts`          | object | false    |              | Prompts is a map of workspace build IDs to prompts. |
-| » `[any property]` | string | false    |              |                                                     |
-
 ## codersdk.APIKey
 
 ```json

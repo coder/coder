@@ -130,37 +130,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/experimental/aitasks/prompts": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "tags": [
-                    "Experimental"
-                ],
-                "summary": "Get AI task prompts for workspace builds",
-                "operationId": "get-ai-task-prompts",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Comma-separated list of workspace build IDs",
-                        "name": "build_ids",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.AITasksPromptsResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/api/experimental/tasks": {
             "get": {
                 "security": [
@@ -11734,18 +11703,6 @@ const docTemplate = `{
             "properties": {
                 "bridge": {
                     "$ref": "#/definitions/codersdk.AIBridgeConfig"
-                }
-            }
-        },
-        "codersdk.AITasksPromptsResponse": {
-            "type": "object",
-            "properties": {
-                "prompts": {
-                    "description": "Prompts is a map of workspace build IDs to prompts.",
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
                 }
             }
         },

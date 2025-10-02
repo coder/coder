@@ -1,36 +1,5 @@
 # Experimental
 
-## Get AI task prompts for workspace builds
-
-### Code samples
-
-```shell
-# Example request using curl
-curl -X GET http://coder-server:8080/api/v2/api/experimental/aitasks/prompts?build_ids=string \
-  -H 'Accept: */*' \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`GET /api/experimental/aitasks/prompts`
-
-### Parameters
-
-| Name        | In    | Type   | Required | Description                                 |
-|-------------|-------|--------|----------|---------------------------------------------|
-| `build_ids` | query | string | true     | Comma-separated list of workspace build IDs |
-
-### Example responses
-
-> 200 Response
-
-### Responses
-
-| Status | Meaning                                                 | Description | Schema                                                                       |
-|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AITasksPromptsResponse](schemas.md#codersdkaitaskspromptsresponse) |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
 ## List AI tasks
 
 ### Code samples
