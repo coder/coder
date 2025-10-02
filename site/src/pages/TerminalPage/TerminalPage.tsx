@@ -12,6 +12,7 @@ import {
 	workspaceByOwnerAndName,
 	workspaceUsage,
 } from "api/queries/workspaces";
+import { displayError } from "components/GlobalSnackbar/utils";
 import { useProxy } from "contexts/ProxyContext";
 import { ThemeOverride } from "contexts/ThemeProvider";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
@@ -147,12 +148,28 @@ const TerminalPage: FC = () => {
 			}),
 		);
 
-		// Make shift+enter send ^[^M (escaped carriage return).  Applications
-		// typically take this to mean to insert a literal newline.  There is no way
-		// to remove this handler, so we must attach it once and rely on a ref to
-		// send it to the current socket.
+		const copySelection = () => {
+			const selection = terminal.getSelection();
+			if (selection) {
+				navigator.clipboard.writeText(selection).catch((err) => {
+					console.error(err);
+					if (err.message) {
+						displayError(`Failed to copy text: ${err.message}`);
+					} else {
+						displayError(
+							"Failed to copy text, but no error message was provided",
+						);
+					}
+				});
+			}
+		};
+
+		// There is no way to remove this handler, so we must attach it once and
+		// rely on a ref to send it to the current socket.
 		const escapedCarriageReturn = "\x1b\r";
 		terminal.attachCustomKeyEventHandler((ev) => {
+			// Make shift+enter send ^[^M (escaped carriage return).  Applications
+			// typically take this to mean to insert a literal newline.
 			if (ev.shiftKey && ev.key === "Enter") {
 				if (ev.type === "keydown") {
 					websocketRef.current?.send(
@@ -163,7 +180,38 @@ const TerminalPage: FC = () => {
 				}
 				return false;
 			}
+			// Make ctrl+shift+c (command+shift+c on macOS) copy the selected text.
+			// By default this usually launches the browser dev tools, but users
+			// expect this keybinding to copy when in the context of the web terminal.
+			if (
+				(navigator.platform.match("Mac") ? ev.metaKey : ev.ctrlKey) &&
+				ev.shiftKey &&
+				ev.key === "C"
+			) {
+				ev.preventDefault();
+				if (ev.type === "keydown") {
+					copySelection();
+				}
+				return false;
+			}
 			return true;
+		});
+
+		// Copy using the clipboard API on selection.  This selected text will go
+		// into the clipboard, not the primary selection, as the browser does not
+		// give us an API to set the primary selection (only relevant to systems
+		// that have this distinction, like X11).
+		//
+		// We could bind the middle mouse button to paste from the clipboard to
+		// compensate, but then we would break pasting selections from external
+		// applications into the web terminal.  Not sure which tradeoff is worse; it
+		// probably varies between users.
+		//
+		// In other words, this copied text can be pasted with a keybinding
+		// (typically ctrl+v, ctrl+shift+v, or shift+insert), but *not* with the
+		// middle mouse button.
+		terminal.onSelectionChange(() => {
+			copySelection();
 		});
 
 		terminal.open(terminalWrapperRef.current);
