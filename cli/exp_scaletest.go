@@ -2013,8 +2013,10 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 
 			_, _ = fmt.Fprintln(inv.Stderr, "Creating users...")
 
-			dialBarrier := &sync.WaitGroup{}
-			dialBarrier.Add(int(userCount))
+			ownerDialBarrier := &sync.WaitGroup{}
+			regularDialBarrier := &sync.WaitGroup{}
+			ownerDialBarrier.Add(int(ownerUserCount))
+			regularDialBarrier.Add(int(regularUserCount))
 
 			configs := make([]notifications.Config, 0, userCount)
 			for range ownerUserCount {
@@ -2025,7 +2027,7 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 					IsOwner:             true,
 					NotificationTimeout: notificationTimeout,
 					DialTimeout:         dialTimeout,
-					DialBarrier:         dialBarrier,
+					DialBarrier:         ownerDialBarrier,
 					Metrics:             metrics,
 				}
 				if err := config.Validate(); err != nil {
@@ -2041,7 +2043,8 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 					IsOwner:             false,
 					NotificationTimeout: notificationTimeout,
 					DialTimeout:         dialTimeout,
-					DialBarrier:         dialBarrier,
+					DialBarrier:         regularDialBarrier,
+					OwnerDialBarrier:    ownerDialBarrier,
 					Metrics:             metrics,
 				}
 				if err := config.Validate(); err != nil {
@@ -2051,30 +2054,54 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 			}
 
 			go func() {
-				logger.Info(ctx, "waiting for all users to connect")
+				logger.Info(ctx, "waiting for owner users to connect")
 
-				// Create timeout context for the entire trigger operation
-				waitCtx, cancel := context.WithTimeout(ctx, dialTimeout+30*time.Second)
+				// Wait for owner users to connect
+				ownerWaitCtx, cancel := context.WithTimeout(ctx, dialTimeout+30*time.Second)
 				defer cancel()
 
-				// Wait for all runners to reach the barrier
-				done := make(chan struct{})
+				ownerDone := make(chan struct{})
 				go func() {
-					dialBarrier.Wait()
-					close(done)
+					ownerDialBarrier.Wait()
+					close(ownerDone)
 				}()
 
 				select {
-				case <-done:
-					logger.Info(ctx, "all users connected")
-				case <-waitCtx.Done():
-					if waitCtx.Err() == context.DeadlineExceeded {
-						logger.Error(ctx, "timeout waiting for all users to connect")
+				case <-ownerDone:
+					logger.Info(ctx, "all owner users connected")
+				case <-ownerWaitCtx.Done():
+					if ownerWaitCtx.Err() == context.DeadlineExceeded {
+						logger.Error(ctx, "timeout waiting for owner users to connect")
 					} else {
-						logger.Info(ctx, "context canceled while waiting for users")
+						logger.Info(ctx, "context canceled while waiting for owner users")
 					}
 					return
 				}
+
+				// Wait for regular users to connect
+				logger.Info(ctx, "waiting for regular users to connect")
+				regularWaitCtx, cancel := context.WithTimeout(ctx, dialTimeout+30*time.Second)
+				defer cancel()
+
+				regularDone := make(chan struct{})
+				go func() {
+					regularDialBarrier.Wait()
+					close(regularDone)
+				}()
+
+				select {
+				case <-regularDone:
+					logger.Info(ctx, "all regular users connected")
+				case <-regularWaitCtx.Done():
+					if regularWaitCtx.Err() == context.DeadlineExceeded {
+						logger.Error(ctx, "timeout waiting for regular users to connect")
+					} else {
+						logger.Info(ctx, "context canceled while waiting for regular users")
+					}
+					return
+				}
+
+				logger.Info(ctx, "all users connected, triggering notifications")
 
 				const (
 					triggerUsername = "scaletest-trigger-user"
