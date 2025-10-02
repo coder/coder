@@ -104,11 +104,11 @@ jobs:
           location: us-central1-a
           project_id: coder-dogfood-v2
 
+      # Retag image as dogfood while maintaining the multi-arch manifest
       - name: Tag image as dogfood
-        run: |
-          set -euxo pipefail
-          # Retag image as dogfood while maintaining the multi-arch manifest
-          docker buildx imagetools create --tag "ghcr.io/coder/coder-preview:dogfood" "$IMAGE"
+        run: docker buildx imagetools create --tag "ghcr.io/coder/coder-preview:dogfood" "$IMAGE"
+        env:
+          IMAGE: ${{ inputs.image }}
 
       - name: Reconcile Flux
         run: |
