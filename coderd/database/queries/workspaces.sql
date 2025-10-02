@@ -396,6 +396,33 @@ WHERE
 			workspaces.group_acl ? (@shared_with_group_id :: uuid) :: text
 		ELSE true
 	END
+	-- Filter by unhealthy workspaces
+	AND CASE
+		WHEN @unhealthy :: boolean != 'false' THEN
+			(
+				SELECT COUNT(*) > 0
+				FROM
+					workspace_resources
+				JOIN
+					workspace_agents
+				ON
+					workspace_agents.resource_id = workspace_resources.id
+				WHERE
+					workspace_resources.job_id = latest_build.provisioner_job_id AND
+					latest_build.transition = 'start'::workspace_transition AND
+					workspace_agents.deleted = FALSE AND
+					(
+						-- Agent has never connected
+						workspace_agents.first_connected_at IS NULL OR
+						-- Agent is disconnected
+						workspace_agents.disconnected_at > workspace_agents.last_connected_at OR
+						-- Agent has been inactive for too long
+						(workspace_agents.last_connected_at IS NOT NULL AND
+						 NOW() - workspace_agents.last_connected_at > INTERVAL '1 second' * @agent_inactive_disconnect_timeout_seconds :: bigint)
+					)
+			)
+		ELSE true
+	END
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
 ), filtered_workspaces_order AS (

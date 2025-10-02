@@ -21631,6 +21631,33 @@ WHERE
 			workspaces.group_acl ? ($23 :: uuid) :: text
 		ELSE true
 	END
+	-- Filter by unhealthy workspaces
+	AND CASE
+		WHEN $24 :: boolean != 'false' THEN
+			(
+				SELECT COUNT(*) > 0
+				FROM
+					workspace_resources
+				JOIN
+					workspace_agents
+				ON
+					workspace_agents.resource_id = workspace_resources.id
+				WHERE
+					workspace_resources.job_id = latest_build.provisioner_job_id AND
+					latest_build.transition = 'start'::workspace_transition AND
+					workspace_agents.deleted = FALSE AND
+					(
+						-- Agent has never connected
+						workspace_agents.first_connected_at IS NULL OR
+						-- Agent is disconnected
+						workspace_agents.disconnected_at > workspace_agents.last_connected_at OR
+						-- Agent has been inactive for too long
+						(workspace_agents.last_connected_at IS NOT NULL AND
+						 NOW() - workspace_agents.last_connected_at > INTERVAL '1 second' * $14 :: bigint)
+					)
+			)
+		ELSE true
+	END
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
 ), filtered_workspaces_order AS (
@@ -21640,7 +21667,7 @@ WHERE
 		filtered_workspaces fw
 	ORDER BY
 		-- To ensure that 'favorite' workspaces show up first in the list only for their owner.
-		CASE WHEN owner_id = $24 AND favorite THEN 0 ELSE 1 END ASC,
+		CASE WHEN owner_id = $25 AND favorite THEN 0 ELSE 1 END ASC,
 		(latest_build_completed_at IS NOT NULL AND
 			latest_build_canceled_at IS NULL AND
 			latest_build_error IS NULL AND
@@ -21649,11 +21676,11 @@ WHERE
 		LOWER(name) ASC
 	LIMIT
 		CASE
-			WHEN $26 :: integer > 0 THEN
-				$26
+			WHEN $27 :: integer > 0 THEN
+				$27
 		END
 	OFFSET
-		$25
+		$26
 ), filtered_workspaces_order_with_summary AS (
 	SELECT
 		fwo.id, fwo.created_at, fwo.updated_at, fwo.owner_id, fwo.organization_id, fwo.template_id, fwo.deleted, fwo.name, fwo.autostart_schedule, fwo.ttl, fwo.last_used_at, fwo.dormant_at, fwo.deleting_at, fwo.automatic_updates, fwo.favorite, fwo.next_start_at, fwo.group_acl, fwo.user_acl, fwo.owner_avatar_url, fwo.owner_username, fwo.owner_name, fwo.organization_name, fwo.organization_display_name, fwo.organization_icon, fwo.organization_description, fwo.template_name, fwo.template_display_name, fwo.template_icon, fwo.template_description, fwo.template_version_id, fwo.template_version_name, fwo.latest_build_completed_at, fwo.latest_build_canceled_at, fwo.latest_build_error, fwo.latest_build_transition, fwo.latest_build_status, fwo.latest_build_has_ai_task, fwo.latest_build_has_external_agent
@@ -21703,7 +21730,7 @@ WHERE
 		false, -- latest_build_has_ai_task
 		false -- latest_build_has_external_agent
 	WHERE
-		$27 :: boolean = true
+		$28 :: boolean = true
 ), total_count AS (
 	SELECT
 		count(*) AS count
@@ -21743,6 +21770,7 @@ type GetWorkspacesParams struct {
 	Shared                                sql.NullBool `db:"shared" json:"shared"`
 	SharedWithUserID                      uuid.UUID    `db:"shared_with_user_id" json:"shared_with_user_id"`
 	SharedWithGroupID                     uuid.UUID    `db:"shared_with_group_id" json:"shared_with_group_id"`
+	Unhealthy                             bool         `db:"unhealthy" json:"unhealthy"`
 	RequesterID                           uuid.UUID    `db:"requester_id" json:"requester_id"`
 	Offset                                int32        `db:"offset_" json:"offset_"`
 	Limit                                 int32        `db:"limit_" json:"limit_"`
@@ -21819,6 +21847,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 		arg.Shared,
 		arg.SharedWithUserID,
 		arg.SharedWithGroupID,
+		arg.Unhealthy,
 		arg.RequesterID,
 		arg.Offset,
 		arg.Limit,

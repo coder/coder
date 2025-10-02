@@ -256,6 +256,7 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 	filter.Status = string(httpapi.ParseCustom(parser, values, "", "status", httpapi.ParseEnum[database.WorkspaceStatus]))
 	filter.HasAgent = parser.String(values, "", "has-agent")
 	filter.Dormant = parser.Boolean(values, false, "dormant")
+	filter.Unhealthy = parser.Boolean(values, false, "unhealthy")
 	filter.LastUsedAfter = parser.Time3339Nano(values, time.Time{}, "last_used_after")
 	filter.LastUsedBefore = parser.Time3339Nano(values, time.Time{}, "last_used_before")
 	filter.UsingActive = sql.NullBool{
