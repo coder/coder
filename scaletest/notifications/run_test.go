@@ -66,7 +66,6 @@ func TestRun(t *testing.T) {
 	require.NoError(t, err)
 
 	client := coderdtest.New(t, &coderdtest.Options{
-		IncludeProvisionerDaemon: true,
 		Database:                 db,
 		Pubsub:                   ps,
 		NotificationsEnqueuer:    enqueuer,

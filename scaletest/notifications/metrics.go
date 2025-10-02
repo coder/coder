@@ -21,7 +21,7 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 		Namespace: "coderd",
 		Subsystem: "scaletest",
 		Name:      "notification_delivery_latency_seconds",
-		Help:      "Time between test trigger and receipt of notification by client",
+		Help:      "Time between notification-creating action and receipt of notification by client",
 	}, []string{"username", "notification_type"})
 	errors := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "coderd",

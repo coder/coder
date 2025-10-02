@@ -73,7 +73,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 		codersdk.WithLogger(logger),
 		codersdk.WithLogBodies())
 
-	logger.Info(ctx, fmt.Sprintf("user %q created", newUser.Username), slog.F("id", newUser.ID.String()))
+	logger.Info(ctx, "user created", slog.F("username", newUser.Username), slog.F("user_id", newUser.ID.String()))
 
 	if r.cfg.IsOwner {
 		logger.Info(ctx, "assigning Owner role to user")
@@ -111,7 +111,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	r.cfg.DialBarrier.Done()
 	r.cfg.DialBarrier.Wait()
 
-	logger.Info(ctx, fmt.Sprintf("waiting up to %v for notifications...", r.cfg.NotificationTimeout))
+	logger.Info(ctx, fmt.Sprintf("waiting for notifications", slog.F("timeout", r.cfg.NotificationTimeout))
 
 	watchCtx, cancel := context.WithTimeout(ctx, r.cfg.NotificationTimeout)
 	defer cancel()
@@ -224,7 +224,7 @@ func (r *Runner) watchNotifications(ctx context.Context, conn *websocket.Conn, u
 	return nil
 }
 
-func (*Runner) readNotification(ctx context.Context, conn *websocket.Conn) (codersdk.GetInboxNotificationResponse, error) {
+readNotification(ctx context.Context, conn *websocket.Conn) (codersdk.GetInboxNotificationResponse, error) {
 	_, message, err := conn.Read(ctx)
 	if err != nil {
 		return codersdk.GetInboxNotificationResponse{}, err
