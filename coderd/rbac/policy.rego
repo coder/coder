@@ -120,10 +120,10 @@ org_members := {orgID |
 # 'org' is the same as 'site' except we need to iterate over each organization
 # that the actor is a member of.
 default org := 0
-org := org_allow(input.subject.roles)
+org := org_allow(input.subject.roles, "org")
 
 default scope_org := 0
-scope_org := org_allow([input.subject.scope])
+scope_org := org_allow([input.subject.scope], "org")
 
 # org_allow_set is a helper function that iterates over all orgs that the actor
 # is a member of. For each organization it sets the numerical allow value
@@ -135,12 +135,12 @@ scope_org := org_allow([input.subject.scope])
 # The reason we calculate this for all orgs, and not just the input.object.org_owner
 # is that sometimes the input.object.org_owner is unknown. In those cases
 # we have a list of org_ids that can we use in a SQL 'WHERE' clause.
-org_allow_set(roles) := allow_set if {
+org_allow_set(roles, key) := allow_set if {
 	allow_set := {id: num |
 		id := org_members[_]
 		set := {is_allowed |
 			# Iterate over all org permissions in all roles
-			perm := roles[_].org[id][_]
+			perm := roles[_][key][id][_]
 			perm.action in [input.action, "*"]
 			perm.resource_type in [input.object.type, "*"]
 
@@ -151,11 +151,11 @@ org_allow_set(roles) := allow_set if {
 	}
 }
 
-org_allow(roles) := num if {
+org_allow(roles, key) := num if {
 	# If the object has "any_org" set to true, then use the other
 	# org_allow block.
 	not input.object.any_org
-	allow := org_allow_set(roles)
+	allow := org_allow_set(roles, key)
 
 	# Return only the org value of the input's org.
 	# The reason why we do not do this up front, is that we need to make sure
@@ -171,9 +171,9 @@ org_allow(roles) := num if {
 # This is useful for UI elements when we want to conclude, "Can the user create
 # a new template in any organization?"
 # It is easier than iterating over every organization the user is apart of.
-org_allow(roles) := num if {
+org_allow(roles, key) := num if {
 	input.object.any_org # if this is false, this code block is not used
-	allow := org_allow_set(roles)
+	allow := org_allow_set(roles, key)
 
 	# allow is a map of {"<org_id>": <number>}. We only care about values
 	# that are 1, and ignore the rest.
@@ -232,6 +232,8 @@ scope_user := user_allow([input.subject.scope])
 
 user_allow(roles) := num if {
 	input.object.owner != ""
+	 # if there is an org, use org_member permissions instead
+	input.object.org_owner != ""
 	input.subject.id = input.object.owner
 
 	allow := {is_allowed |
@@ -250,35 +252,22 @@ user_allow(roles) := num if {
 # Organization Member Owner Rules
 # -------------------
 
-# 'org_member_owner' combines org membership and ownership requirements.
-# These rules only apply if:
-# 1. The user is a member of the organization the resource belongs to
-# 2. The user is the owner of the resource
-default org_member_owner := 0
-org_member_owner := org_member_owner_allow(input.subject.roles)
-
-default scope_org_member_owner := 0
-scope_org_member_owner := org_member_owner_allow([input.subject.scope])
-
-org_member_owner_allow(roles) := num if {
-	# Must be the owner of the object
+# 'org_member' applies if the object is owned by both the user and an organization.
+# It replaces the `user` permissions in this case.
+default org_member := 0
+org_member_owner := num if {
+	# Object must be jointly owned by the user
 	input.object.owner != ""
 	input.subject.id = input.object.owner
+	num := org_allow(input.subject.roles, "org_member")
+}
 
-	# Must be a member of the organization
-	input.object.org_owner != ""
-	input.object.org_owner in org_members
-
-	allow := {is_allowed |
-		# Iterate over all org_member_owner permissions in all roles
-		perm := roles[_].org_member_owner[_]
-		perm.action in [input.action, "*"]
-		perm.resource_type in [input.object.type, "*"]
-
-		# is_allowed is either 'true' or 'false' if a matching permission exists.
-		is_allowed := bool_flip(perm.negate)
-	}
-	num := number(allow)
+default scope_org_member_owner := 0
+scope_org_member_owner := num if {
+	# Object must be jointly owned by the user
+	input.object.owner != ""
+	input.subject.id = input.object.owner
+	num := org_allow([input.subject.scope], "org_member")
 }
 
 # Scope allow_list is a list of resource (Type, ID) tuples explicitly allowed by the scope.
@@ -320,16 +309,16 @@ scope_allow_list if {
 # Role-Specific Rules
 # -------------------
 
-role_allow if {
+role_allow if { # site level authed
 	site = 1
 }
 
-role_allow if {
+role_allow if { # org level authed
 	not site = -1
 	org = 1
 }
 
-role_allow if {
+role_allow if { # user level authed
 	not site = -1
 	not org = -1
 
@@ -339,31 +328,30 @@ role_allow if {
 	user = 1
 }
 
-role_allow if {
+role_allow if { # org member auth
 	not site = -1
 	not org = -1
-	not user = -1
 
 	# Organization member owner permissions require both ownership and org membership
-	org_member_owner = 1
+	org_member = 1
 }
 
 # -------------------
 # Scope-Specific Rules
 # -------------------
 
-scope_allow if {
+scope_allow if { # scope site level authed
 	scope_allow_list
 	scope_site = 1
 }
 
-scope_allow if {
+scope_allow if { # scope org level authed
 	scope_allow_list
 	not scope_site = -1
 	scope_org = 1
 }
 
-scope_allow if {
+scope_allow if { # scope user level authed
 	scope_allow_list
 	not scope_site = -1
 	not scope_org = -1
@@ -374,11 +362,10 @@ scope_allow if {
 	scope_user = 1
 }
 
-scope_allow if {
+scope_allow if { # scope org member auth
 	scope_allow_list
 	not scope_site = -1
 	not scope_org = -1
-	not scope_user = -1
 
 	# Organization member owner permissions require both ownership and org membership
 	scope_org_member_owner = 1
