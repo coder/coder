@@ -296,15 +296,11 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			ResourceWorkspaceProxy.Type: {policy.ActionRead},
 		}),
 		Org: map[string][]Permission{},
-		User: append(allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceUser, ResourceOrganizationMember),
+		User: append(allPermsExcept(ResourceWorkspace, ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceUser, ResourceOrganizationMember),
 			Permissions(map[string][]policy.Action{
-				// Reduced permission set on dormant workspaces. No build, ssh, or exec
-				ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent},
 				// Users cannot do create/update/delete on themselves, but they
 				// can read their own details.
 				ResourceUser.Type: {policy.ActionRead, policy.ActionReadPersonal, policy.ActionUpdatePersonal},
-				// Can read their own organization member record
-				ResourceOrganizationMember.Type: {policy.ActionRead},
 				// Users can create provisioner daemons scoped to themselves.
 				ResourceProvisionerDaemon.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
 			})...,
@@ -454,8 +450,16 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 						ResourceAssignOrgRole.Type: {policy.ActionRead},
 					}),
 				},
-				User:      []Permission{},
-				OrgMember: map[string][]Permission{},
+				User: []Permission{},
+				OrgMember: map[string][]Permission{
+					organizationID.String(): Permissions(map[string][]policy.Action{
+						ResourceWorkspace.Type: ResourceWorkspace.AvailableActions(),
+						// Reduced permission set on dormant workspaces. No build, ssh, or exec
+						ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent},
+						// Can read their own organization member record
+						ResourceOrganizationMember.Type: {policy.ActionRead},
+					}),
+				},
 			}
 		},
 		orgAuditor: func(organizationID uuid.UUID) Role {

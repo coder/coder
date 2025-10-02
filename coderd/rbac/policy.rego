@@ -255,15 +255,15 @@ user_allow(roles) := num if {
 # 'org_member' applies if the object is owned by both the user and an organization.
 # It replaces the `user` permissions in this case.
 default org_member := 0
-org_member_owner := num if {
+org_member := num if {
 	# Object must be jointly owned by the user
 	input.object.owner != ""
 	input.subject.id = input.object.owner
 	num := org_allow(input.subject.roles, "org_member")
 }
 
-default scope_org_member_owner := 0
-scope_org_member_owner := num if {
+default scope_org_member := 0
+scope_org_member := num if {
 	# Object must be jointly owned by the user
 	input.object.owner != ""
 	input.subject.id = input.object.owner
@@ -368,7 +368,7 @@ scope_allow if { # scope org member auth
 	not scope_org = -1
 
 	# Organization member owner permissions require both ownership and org membership
-	scope_org_member_owner = 1
+	scope_org_member = 1
 }
 
 # -------------------
