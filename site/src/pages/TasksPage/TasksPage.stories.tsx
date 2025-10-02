@@ -424,3 +424,17 @@ export const NonAdmin: Story = {
 		});
 	},
 };
+
+export const OpenDeleteDialog: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
+		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const deleteButtons = await canvas.findAllByRole("button", {
+			name: /delete task/i,
+		});
+		await userEvent.click(deleteButtons[0]);
+	},
+};
