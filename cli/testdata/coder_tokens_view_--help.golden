@@ -1,0 +1,16 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder tokens view [flags] <name|id>
+
+  Display detailed information about a token
+
+OPTIONS:
+  -c, --column [id|name|scopes|allow list|last used|expires at|created at|owner] (default: id,name,scopes,allow list,last used,expires at,created at,owner)
+          Columns to display in table output.
+
+  -o, --output table|json (default: table)
+          Output format.
+
+———
+Run `coder --help` for a list of global options.
