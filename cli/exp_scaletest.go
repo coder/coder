@@ -2014,10 +2014,10 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 
 			_, _ = fmt.Fprintln(inv.Stderr, "Creating users...")
 
-			ownerDialBarrier := &sync.WaitGroup{}
-			regularDialBarrier := &sync.WaitGroup{}
-			ownerDialBarrier.Add(int(ownerUserCount))
-			regularDialBarrier.Add(int(regularUserCount))
+			dialBarrier := &sync.WaitGroup{}
+			ownerWatchBarrier := &sync.WaitGroup{}
+			dialBarrier.Add(int(userCount))
+			ownerWatchBarrier.Add(int(ownerUserCount))
 
 			expectedNotifications := map[uuid.UUID]chan time.Time{
 				notificationsLib.TemplateUserAccountCreated: make(chan time.Time, 1),
@@ -2030,10 +2030,11 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 					User: createusers.Config{
 						OrganizationID: me.OrganizationIDs[0],
 					},
-					IsOwner:               true,
+					Roles:                 []string{codersdk.RoleOwner},
 					NotificationTimeout:   notificationTimeout,
 					DialTimeout:           dialTimeout,
-					DialBarrier:           ownerDialBarrier,
+					DialBarrier:           dialBarrier,
+					OwnerWatchBarrier:     ownerWatchBarrier,
 					ExpectedNotifications: expectedNotifications,
 					Metrics:               metrics,
 				}
@@ -2047,11 +2048,11 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 					User: createusers.Config{
 						OrganizationID: me.OrganizationIDs[0],
 					},
-					IsOwner:             false,
+					Roles:               []string{},
 					NotificationTimeout: notificationTimeout,
 					DialTimeout:         dialTimeout,
-					DialBarrier:         regularDialBarrier,
-					OwnerDialBarrier:    ownerDialBarrier,
+					DialBarrier:         dialBarrier,
+					OwnerWatchBarrier:   ownerWatchBarrier,
 					Metrics:             metrics,
 				}
 				if err := config.Validate(); err != nil {
@@ -2065,8 +2066,7 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 				logger,
 				client,
 				me.OrganizationIDs[0],
-				ownerDialBarrier,
-				regularDialBarrier,
+				dialBarrier,
 				dialTimeout,
 				expectedNotifications,
 			)
@@ -2380,59 +2380,33 @@ func triggerUserNotifications(
 	logger slog.Logger,
 	client *codersdk.Client,
 	orgID uuid.UUID,
-	ownerDialBarrier *sync.WaitGroup,
-	regularDialBarrier *sync.WaitGroup,
+	dialBarrier *sync.WaitGroup,
 	dialTimeout time.Duration,
 	expectedNotifications map[uuid.UUID]chan time.Time,
 ) {
-	logger.Info(ctx, "waiting for owner users to connect")
+	logger.Info(ctx, "waiting for all users to connect")
 
-	// Wait for owner users to connect
-	ownerWaitCtx, cancel := context.WithTimeout(ctx, dialTimeout+30*time.Second)
+	// Wait for all users to connect
+	waitCtx, cancel := context.WithTimeout(ctx, dialTimeout+30*time.Second)
 	defer cancel()
 
-	ownerDone := make(chan struct{})
+	done := make(chan struct{})
 	go func() {
-		ownerDialBarrier.Wait()
-		close(ownerDone)
+		dialBarrier.Wait()
+		close(done)
 	}()
 
 	select {
-	case <-ownerDone:
-		logger.Info(ctx, "all owner users connected")
-	case <-ownerWaitCtx.Done():
-		if ownerWaitCtx.Err() == context.DeadlineExceeded {
-			logger.Error(ctx, "timeout waiting for owner users to connect")
+	case <-done:
+		logger.Info(ctx, "all users connected")
+	case <-waitCtx.Done():
+		if waitCtx.Err() == context.DeadlineExceeded {
+			logger.Error(ctx, "timeout waiting for users to connect")
 		} else {
-			logger.Info(ctx, "context canceled while waiting for owner users")
+			logger.Info(ctx, "context canceled while waiting for users")
 		}
 		return
 	}
-
-	// Wait for regular users to connect
-	logger.Info(ctx, "waiting for regular users to connect")
-	regularWaitCtx, cancel := context.WithTimeout(ctx, dialTimeout+30*time.Second)
-	defer cancel()
-
-	regularDone := make(chan struct{})
-	go func() {
-		regularDialBarrier.Wait()
-		close(regularDone)
-	}()
-
-	select {
-	case <-regularDone:
-		logger.Info(ctx, "all regular users connected")
-	case <-regularWaitCtx.Done():
-		if regularWaitCtx.Err() == context.DeadlineExceeded {
-			logger.Error(ctx, "timeout waiting for regular users to connect")
-		} else {
-			logger.Info(ctx, "context canceled while waiting for regular users")
-		}
-		return
-	}
-
-	logger.Info(ctx, "all users connected, triggering notifications")
 
 	const (
 		triggerUsername = "scaletest-trigger-user"
