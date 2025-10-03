@@ -61,7 +61,6 @@ you may specify the base URL(s) above to the appropriate API endpoint.
 
 ---
 
-
 > [!NOTE]
 > See [Supported APIs](#supported-apis) section below for a comprehensive list.
 
@@ -73,9 +72,11 @@ AI Bridge collects:
 - All token usage
 - All tool invocations
 
+All of these records are associated to an "interception" record, which maps 1:1 with requests received from clients but may involve several interactions with upstream providers.
+
 ## Implementation Details
 
-`coderd` runs an in-memory instance of https://github.com/coder/aibridge. In future releases we will support running external instances for higher throughput and complete memory isolation from `coderd`.
+`coderd` runs an in-memory instance of `aibridged`, whose logic is mostly contained in https://github.com/coder/aibridge. In future releases we will support running external instances for higher throughput and complete memory isolation from `coderd`.
 
 <details>
 <summary>See a diagram of how AI Bridge interception works</summary>
@@ -143,6 +144,7 @@ AI Bridge can connect to MCP servers and inject tools automatically, enabling yo
 
 > [!NOTE]
 > Only MCP servers which support OAuth2 Authorization are supported currently. In future releases we will support [optional authorization](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization#protocol-requirements).
+>
 > [_Streamable HTTP_](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#streamable-http) is the only supported transport currently. In future releases we will support the (now deprecated) [_Server-Sent Events_](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#backwards-compatibility) transport.
 
 AI Bridge makes use of [External Auth](../admin/external-auth/index.md) applications, as they define OAuth2 connections to upstream services. If your External Auth application hosts a remote MCP server, you can configure AI Bridge to connect to it, retrieve its tools and inject them into requests automatically - all while using each individual user's access token.
@@ -193,9 +195,16 @@ If you have the `oauth2` and `mcp-server-http` experiments enabled, Coder's own 
 
 ## Troubleshooting
 
-- Too many tools
-- Coder MCP tools not being listed
-- External Auth tools not being injected
+- **Too many tools**: should you receive an error like `Invalid 'tools': array too long. Expected an array with maximum length 128, but got an array with length 132 instead`, you can reduce the number by filtering out tools using the allow/deny patterns documented in the [MCP](#mcp) section.
+
+- **Coder MCP tools not being injected**: in order for Coder MCP tools to be injected, the internal MCP server needs to be active. Follow the instructions in the [MCP Server](mcp-server.md) page to enable it.
+
+- **External Auth tools not being injected**: this is generally due to the requesting user not being authenticated against the External Auth app; when this is the case, no attempt is made to connect to the MCP server.
+
+## Known Issues / Limitations
+
+- Codex CLI currently does not work with AI Bridge due to a JSON marshaling issue: https://github.com/coder/aibridge/issues/19
+- Claude Code web searches do not report correctly: https://github.com/coder/aibridge/issues/11
 
 ## Supported APIs
 
@@ -204,7 +213,7 @@ API support is broken down into two categories:
 - **Intercepted**: requests are intercepted, audited, and augmented - full AI Bridge functionality
 - **Passthrough**: requests are proxied directly to the upstream, no auditing or augmentation takes place
 
-Where relevant, both streaming and o
+Where relevant, both streaming and non-streaming requests are supported.
 
 ### OpenAI
 
