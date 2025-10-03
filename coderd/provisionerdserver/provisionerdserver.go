@@ -731,7 +731,8 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					WorkspaceOwnerRbacRoles:       ownerRbacRoles,
 					RunningAgentAuthTokens:        runningAgentAuthTokens,
 					PrebuiltWorkspaceBuildStage:   input.PrebuiltWorkspaceBuildStage,
-					// TODO(DanielleMaywood): Fill out Task ID
+					// TODO(DanielleMaywood):
+					// Plumb a task ID into this when we have the new data-model ready.
 					TaskId:     "",
 					TaskPrompt: taskPrompt,
 				},
