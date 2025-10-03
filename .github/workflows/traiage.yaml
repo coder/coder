@@ -203,11 +203,10 @@ jobs:
 
           # Write a prompt to PROMPT_FILE
           PROMPT=$(cat <<EOF
+          Fix ${ISSUE_URL}
+
           Analyze the below GitHub issue description, understand the root cause, and make appropriate changes to resolve the issue.
-
-          ISSUE URL: ${ISSUE_URL}
-          ISSUE DESCRIPTION BELOW:
-
+          ---
           ${issue_description}
           EOF
           )
