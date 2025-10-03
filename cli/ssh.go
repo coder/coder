@@ -732,7 +732,71 @@ func (r *RootCmd) ssh() *serpent.Command {
 		},
 		sshDisableAutostartOption(serpent.BoolOf(&disableAutostart)),
 	}
+	cmd.CompletionHandler = r.sshCompletionHandler()
 	return cmd
+}
+
+// sshCompletionHandler provides tab completion for workspace and agent names.
+// It returns suggestions in the format:
+// - <workspace> for single-agent workspaces
+// - <agent>.<workspace> for multi-agent workspaces
+func (r *RootCmd) sshCompletionHandler() serpent.CompletionHandlerFunc {
+	return func(inv *serpent.Invocation) []string {
+		// Create a temporary RootCmd to initialize the client
+		// We need to parse the global config from the invocation args
+		var tempRoot RootCmd
+		
+		// Parse the --global-config flag from args
+		for i, arg := range inv.Args {
+			if arg == "--global-config" && i+1 < len(inv.Args) {
+				tempRoot.globalConfig = inv.Args[i+1]
+				break
+			}
+		}
+		
+		// Try to initialize the client
+		// If this fails (e.g., not logged in), just return no completions
+		client, err := tempRoot.InitClient(inv)
+		if err != nil {
+			return []string{}
+		}
+
+		ctx := inv.Context()
+		
+		// Fetch all workspaces for the current user
+		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			FilterQuery: "owner:me",
+		})
+		if err != nil {
+			return []string{}
+		}
+
+		var completions []string
+		for _, workspace := range workspaces.Workspaces {
+			// Count agents in the workspace
+			var agents []codersdk.WorkspaceAgent
+			for _, resource := range workspace.LatestBuild.Resources {
+				agents = append(agents, resource.Agents...)
+			}
+
+			if len(agents) == 0 {
+				// Skip workspaces without agents
+				continue
+			}
+
+			if len(agents) == 1 {
+				// For single-agent workspaces, suggest just the workspace name
+				completions = append(completions, workspace.Name)
+			}
+
+			// For all workspaces (including single-agent), suggest agent.workspace format
+			for _, agent := range agents {
+				completions = append(completions, fmt.Sprintf("%s.%s", agent.Name, workspace.Name))
+			}
+		}
+
+		return completions
+	}
 }
 
 // findWorkspaceAndAgentByHostname parses the hostname from the commandline and finds the workspace and agent it
