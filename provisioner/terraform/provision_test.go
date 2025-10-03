@@ -1180,6 +1180,30 @@ func TestProvision(t *testing.T) {
 				}
 				`, provider.TaskPromptParameterName),
 			},
+			Response: &proto.PlanComplete{
+				Resources: []*proto.Resource{
+					{
+						Name: "a",
+						Type: "coder_ai_task",
+					},
+				},
+				Parameters: []*proto.RichParameter{
+					{
+						Name:     provider.TaskPromptParameterName,
+						Type:     "string",
+						Required: true,
+						FormType: proto.ParameterFormType_INPUT,
+					},
+				},
+				AiTasks: []*proto.AITask{
+					{
+						Id:    "a",
+						AppId: "7128be08-8722-44cb-bbe1-b5a391c4d94b",
+					},
+				},
+				HasAiTasks: true,
+			},
+			SkipCacheProviders: true,
 		},
 	}
 
