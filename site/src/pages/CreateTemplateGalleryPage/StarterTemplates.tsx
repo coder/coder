@@ -22,7 +22,7 @@ const selectTags = (starterTemplatesByTag: StarterTemplatesByTag) => {
 		: undefined;
 };
 
-const moveTasksOnDockerTemplateToFront = (templates: TemplateExample[]) => {
+const sortVisibleTemplates = (templates: TemplateExample[]) => {
 	// The tasks-docker template should be the first template.
 	const tasksOnDockerTemplateId = "tasks-docker";
 	return [...templates].sort((a, b) => {
@@ -49,7 +49,7 @@ export const StarterTemplates: FC<StarterTemplatesProps> = ({
 		: undefined;
 	const activeTag = urlParams.get("tag") ?? "all";
 	const visibleTemplates = starterTemplatesByTag
-		? moveTasksOnDockerTemplateToFront(starterTemplatesByTag[activeTag])
+		? sortVisibleTemplates(starterTemplatesByTag[activeTag])
 		: undefined;
 
 	return (
