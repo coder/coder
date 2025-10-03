@@ -21,7 +21,7 @@ on:
         default: "Default"
         type: string
       prefix:
-        description: "Prefix to use for workspace name"
+        description: "Prefix for workspace name"
         required: false
         default: "traiage"
         type: string
