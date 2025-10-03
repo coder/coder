@@ -36,7 +36,7 @@ jobs:
       CODER_URL: ${{ secrets.TRAIAGE_CODER_URL }}
       CODER_SESSION_TOKEN: ${{ secrets.TRAIAGE_CODER_SESSION_TOKEN }}
     permissions:
-      contents: write # required for checking permissions on the repo
+      contents: read
       issues: write
       actions: write
 
@@ -118,7 +118,7 @@ jobs:
           GITHUB_USER_ID: ${{ steps.determine-inputs.outputs.github_user_id }}
         run: |
           # Query the actor’s permission on this repo
-          can_push="$(gh api "/repos/${GITHUB_REPOSITORY}/collaborators/${GITHUB_USERNAME}/permission" --jq '.user.permission.push')"
+          can_push="$(gh api "/repos/${GITHUB_REPOSITORY}/collaborators/${GITHUB_USERNAME}/permission" --jq '.user.permissions.push')"
           if [[ "${can_push}" != "true" ]]; then
             echo "::error title=Access Denied::${GITHUB_USERNAME} does not have push access to ${GITHUB_REPOSITORY}"
             exit 1
