@@ -1160,6 +1160,27 @@ func TestProvision(t *testing.T) {
 			},
 			SkipCacheProviders: true,
 		},
+		{
+			Name: "ai-task-app-id",
+			Files: map[string]string{
+				"main.tf": fmt.Sprintf(`terraform {
+					required_providers {
+						coder = {
+							source  = "coder/coder"
+							version = ">= 2.7.0"
+						}
+					}
+				}
+				data "coder_parameter" "prompt" {
+					name = "%s"
+					type = "string"
+				}
+				resource "coder_ai_task" "a" {
+				  app_id = "7128be08-8722-44cb-bbe1-b5a391c4d94b" # fake ID, irrelevant here anyway but needed for validation
+				}
+				`, provider.TaskPromptParameterName),
+			},
+		},
 	}
 
 	// Remove unused cache dirs before running tests.
