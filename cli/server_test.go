@@ -1254,8 +1254,9 @@ func TestServer(t *testing.T) {
 					t.Logf("error creating request: %s", err.Error())
 					return false
 				}
+				client := &http.Client{}
 				// nolint:bodyclose
-				res, err := http.DefaultClient.Do(req)
+				res, err := client.Do(req)
 				if err != nil {
 					t.Logf("error hitting prometheus endpoint: %s", err.Error())
 					return false
@@ -1316,8 +1317,9 @@ func TestServer(t *testing.T) {
 					t.Logf("error creating request: %s", err.Error())
 					return false
 				}
+				client := &http.Client{}
 				// nolint:bodyclose
-				res, err := http.DefaultClient.Do(req)
+				res, err := client.Do(req)
 				if err != nil {
 					t.Logf("error hitting prometheus endpoint: %s", err.Error())
 					return false
