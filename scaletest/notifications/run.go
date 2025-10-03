@@ -57,6 +57,13 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 		}
 	}()
 
+	reachedOwnerWatchBarrier := false
+	defer func() {
+		if len(r.cfg.ExpectedNotifications) > 0 && !reachedOwnerWatchBarrier {
+			r.cfg.OwnerWatchBarrier.Done()
+		}
+	}()
+
 	logs = loadtestutil.NewSyncWriter(logs)
 	logger := slog.Make(sloghuman.Sink(logs)).Leveled(slog.LevelDebug)
 	r.client.SetLogger(logger)
@@ -76,15 +83,15 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 
 	logger.Info(ctx, "runner user created", slog.F("username", newUser.Username), slog.F("user_id", newUser.ID.String()))
 
-	if r.cfg.IsOwner {
-		logger.Info(ctx, "assigning Owner role to user")
+	if len(r.cfg.Roles) > 0 {
+		logger.Info(ctx, "assigning roles to user", slog.F("roles", r.cfg.Roles))
 
 		_, err := r.client.UpdateUserRoles(ctx, newUser.ID.String(), codersdk.UpdateRoles{
-			Roles: []string{codersdk.RoleOwner},
+			Roles: r.cfg.Roles,
 		})
 		if err != nil {
-			r.cfg.Metrics.AddError(newUser.Username, "assign_owner_role")
-			return xerrors.Errorf("assign owner role: %w", err)
+			r.cfg.Metrics.AddError(newUser.Username, "assign_roles")
+			return xerrors.Errorf("assign roles: %w", err)
 		}
 	}
 
@@ -105,13 +112,13 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	r.cfg.DialBarrier.Done()
 	r.cfg.DialBarrier.Wait()
 
-	if !r.cfg.IsOwner {
+	if len(r.cfg.ExpectedNotifications) == 0 {
 		logger.Info(ctx, "maintaining websocket connection, waiting for owner users to complete")
 
 		// Wait for owners to complete
 		done := make(chan struct{})
 		go func() {
-			r.cfg.OwnerDialBarrier.Wait()
+			r.cfg.OwnerWatchBarrier.Wait()
 			close(done)
 		}()
 
@@ -132,6 +139,9 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	if err := r.watchNotifications(watchCtx, conn, newUser, logger, r.cfg.ExpectedNotifications); err != nil {
 		return xerrors.Errorf("notification watch failed: %w", err)
 	}
+
+	reachedOwnerWatchBarrier = true
+	r.cfg.OwnerWatchBarrier.Done()
 
 	return nil
 }
@@ -197,10 +207,7 @@ func (r *Runner) watchNotifications(ctx context.Context, conn *websocket.Conn, u
 		slog.F("username", user.Username),
 		slog.F("expected_count", len(expectedNotifications)))
 
-	receivedNotifications := make(map[uuid.UUID]bool, len(expectedNotifications))
-	for templateID := range expectedNotifications {
-		receivedNotifications[templateID] = false
-	}
+	receivedNotifications := make(map[uuid.UUID]bool)
 
 	for {
 		select {
@@ -209,14 +216,7 @@ func (r *Runner) watchNotifications(ctx context.Context, conn *websocket.Conn, u
 		default:
 		}
 
-		allReceived := true
-		for _, received := range receivedNotifications {
-			if !received {
-				allReceived = false
-				break
-			}
-		}
-		if allReceived {
+		if len(receivedNotifications) == len(expectedNotifications) {
 			logger.Info(ctx, "received all expected notifications")
 			return nil
 		}

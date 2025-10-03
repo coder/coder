@@ -75,10 +75,10 @@ func TestRun(t *testing.T) {
 
 	const numOwners = 2
 	const numRegularUsers = 2
-	ownerBarrier := new(sync.WaitGroup)
-	regularBarrier := new(sync.WaitGroup)
-	ownerBarrier.Add(numOwners)
-	regularBarrier.Add(numRegularUsers)
+	dialBarrier := new(sync.WaitGroup)
+	ownerWatchBarrier := new(sync.WaitGroup)
+	dialBarrier.Add(numOwners + numRegularUsers)
+	ownerWatchBarrier.Add(numOwners)
 	metrics := notifications.NewMetrics(prometheus.NewRegistry())
 
 	eg, runCtx := errgroup.WithContext(ctx)
@@ -95,11 +95,12 @@ func TestRun(t *testing.T) {
 			User: createusers.Config{
 				OrganizationID: firstUser.OrganizationID,
 			},
-			IsOwner:               true,
+			Roles:                 []string{codersdk.RoleOwner},
 			NotificationTimeout:   testutil.WaitLong,
 			DialTimeout:           testutil.WaitLong,
 			Metrics:               metrics,
-			DialBarrier:           ownerBarrier,
+			DialBarrier:           dialBarrier,
+			OwnerWatchBarrier:     ownerWatchBarrier,
 			ExpectedNotifications: expectedNotifications,
 		}
 		err := runnerCfg.Validate()
@@ -119,12 +120,12 @@ func TestRun(t *testing.T) {
 			User: createusers.Config{
 				OrganizationID: firstUser.OrganizationID,
 			},
-			IsOwner:             false,
+			Roles:               []string{},
 			NotificationTimeout: testutil.WaitLong,
 			DialTimeout:         testutil.WaitLong,
 			Metrics:             metrics,
-			DialBarrier:         regularBarrier,
-			OwnerDialBarrier:    ownerBarrier,
+			DialBarrier:         dialBarrier,
+			OwnerWatchBarrier:   ownerWatchBarrier,
 		}
 		err := runnerCfg.Validate()
 		require.NoError(t, err)
@@ -139,8 +140,7 @@ func TestRun(t *testing.T) {
 	// Trigger notifications by creating and deleting a user
 	eg.Go(func() error {
 		// Wait for all runners to connect
-		ownerBarrier.Wait()
-		regularBarrier.Wait()
+		dialBarrier.Wait()
 
 		createTime := time.Now()
 		newUser, err := client.CreateUserWithOrgs(runCtx, codersdk.CreateUserRequestWithOrgs{

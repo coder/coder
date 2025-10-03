@@ -15,9 +15,8 @@ type Config struct {
 	// User is the configuration for the user to create.
 	User createusers.Config `json:"user"`
 
-	// IsOwner indicates if this user should be assigned Owner role.
-	// If true, the user will receive notifications.
-	IsOwner bool `json:"is_owner"`
+	// Roles are the roles to assign to the user.
+	Roles []string `json:"roles"`
 
 	// NotificationTimeout is how long to wait for notifications after triggering.
 	NotificationTimeout time.Duration `json:"notification_timeout"`
@@ -34,8 +33,8 @@ type Config struct {
 	// DialBarrier ensures all runners are connected before notifications are triggered.
 	DialBarrier *sync.WaitGroup `json:"-"`
 
-	// OwnerDialBarrier is the barrier for owner users. Regular users wait on this to disconnect after owner users complete.
-	OwnerDialBarrier *sync.WaitGroup `json:"-"`
+	// OwnerWatchBarrier is the barrier for owner users. Regular users wait on this to disconnect after owner users complete.
+	OwnerWatchBarrier *sync.WaitGroup `json:"-"`
 }
 
 func (c Config) Validate() error {
@@ -52,12 +51,8 @@ func (c Config) Validate() error {
 		return xerrors.New("dial barrier must be set")
 	}
 
-	if !c.IsOwner && c.OwnerDialBarrier == nil {
-		return xerrors.New("owner_dial_barrier must be set for regular users")
-	}
-
-	if c.IsOwner && len(c.ExpectedNotifications) == 0 {
-		return xerrors.New("expected_notifications must be set for owner users")
+	if c.OwnerWatchBarrier == nil {
+		return xerrors.New("owner_watch_barrier must be set")
 	}
 
 	if c.NotificationTimeout <= 0 {
