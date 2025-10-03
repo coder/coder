@@ -188,19 +188,9 @@ func TestRun(t *testing.T) {
 	require.Equal(t, firstUser.UserID, users.Users[0].ID)
 
 	for _, runner := range receivingRunners {
-		runnerMetrics := runner.GetMetrics()[notifications.NotificationDeliveryLatencyMetric]
-		foundCreated := false
-		foundDeleted := false
-		for key := range runnerMetrics.(map[uuid.UUID]time.Duration) {
-			if key == notificationsLib.TemplateUserAccountCreated {
-				foundCreated = true
-			}
-			if key == notificationsLib.TemplateUserAccountDeleted {
-				foundDeleted = true
-			}
-		}
-		require.True(t, foundCreated)
-		require.True(t, foundDeleted)
+		runnerMetrics := runner.GetMetrics()[notifications.NotificationDeliveryLatencyMetric].(map[uuid.UUID]time.Duration)
+		require.Contains(t, runnerMetrics, notificationsLib.TemplateUserAccountCreated)
+		require.Contains(t, runnerMetrics, notificationsLib.TemplateUserAccountDeleted)
 	}
 }
 
