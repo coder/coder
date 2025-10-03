@@ -60,6 +60,7 @@ func (r *RootCmd) scaletestCmd() *serpent.Command {
 			r.scaletestCreateWorkspaces(),
 			r.scaletestWorkspaceUpdates(),
 			r.scaletestWorkspaceTraffic(),
+			r.scaletestDynamicParameters(),
 		},
 	}
 
