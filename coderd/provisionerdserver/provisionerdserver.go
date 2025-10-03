@@ -607,6 +607,10 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			break
 		}
 
+		// TODO(DanielleMaywood):
+		// Plumb a task ID into this when we have the new data-model ready.
+		var taskID string
+
 		dbExternalAuthProviders := []database.ExternalAuthProvider{}
 		err = json.Unmarshal(templateVersion.ExternalAuthProviders, &dbExternalAuthProviders)
 		if err != nil {
@@ -731,10 +735,8 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					WorkspaceOwnerRbacRoles:       ownerRbacRoles,
 					RunningAgentAuthTokens:        runningAgentAuthTokens,
 					PrebuiltWorkspaceBuildStage:   input.PrebuiltWorkspaceBuildStage,
-					// TODO(DanielleMaywood):
-					// Plumb a task ID into this when we have the new data-model ready.
-					TaskId:     "",
-					TaskPrompt: taskPrompt,
+					TaskId:                        taskID,
+					TaskPrompt:                    taskPrompt,
 				},
 				LogLevel: input.LogLevel,
 			},
