@@ -33,8 +33,8 @@ type Config struct {
 	// DialBarrier ensures all runners are connected before notifications are triggered.
 	DialBarrier *sync.WaitGroup `json:"-"`
 
-	// OwnerWatchBarrier is the barrier for owner users. Regular users wait on this to disconnect after owner users complete.
-	OwnerWatchBarrier *sync.WaitGroup `json:"-"`
+	// ReceivingWatchBarrier is the barrier for receiving users. Regular users wait on this to disconnect after receiving users complete.
+	ReceivingWatchBarrier *sync.WaitGroup `json:"-"`
 }
 
 func (c Config) Validate() error {
@@ -51,8 +51,8 @@ func (c Config) Validate() error {
 		return xerrors.New("dial barrier must be set")
 	}
 
-	if c.OwnerWatchBarrier == nil {
-		return xerrors.New("owner_watch_barrier must be set")
+	if c.ReceivingWatchBarrier == nil {
+		return xerrors.New("receiving_watch_barrier must be set")
 	}
 
 	if c.NotificationTimeout <= 0 {

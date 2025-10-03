@@ -57,10 +57,10 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 		}
 	}()
 
-	reachedOwnerWatchBarrier := false
+	reachedReceivingWatchBarrier := false
 	defer func() {
-		if len(r.cfg.ExpectedNotifications) > 0 && !reachedOwnerWatchBarrier {
-			r.cfg.OwnerWatchBarrier.Done()
+		if len(r.cfg.ExpectedNotifications) > 0 && !reachedReceivingWatchBarrier {
+			r.cfg.ReceivingWatchBarrier.Done()
 		}
 	}()
 
@@ -113,18 +113,18 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	r.cfg.DialBarrier.Wait()
 
 	if len(r.cfg.ExpectedNotifications) == 0 {
-		logger.Info(ctx, "maintaining websocket connection, waiting for owner users to complete")
+		logger.Info(ctx, "maintaining websocket connection, waiting for receiving users to complete")
 
-		// Wait for owners to complete
+		// Wait for receiving users to complete
 		done := make(chan struct{})
 		go func() {
-			r.cfg.OwnerWatchBarrier.Wait()
+			r.cfg.ReceivingWatchBarrier.Wait()
 			close(done)
 		}()
 
 		select {
 		case <-done:
-			logger.Info(ctx, "owner users complete, closing connection")
+			logger.Info(ctx, "receiving users complete, closing connection")
 		case <-ctx.Done():
 			logger.Info(ctx, "context canceled, closing connection")
 		}
@@ -140,8 +140,8 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 		return xerrors.Errorf("notification watch failed: %w", err)
 	}
 
-	reachedOwnerWatchBarrier = true
-	r.cfg.OwnerWatchBarrier.Done()
+	reachedReceivingWatchBarrier = true
+	r.cfg.ReceivingWatchBarrier.Done()
 
 	return nil
 }
@@ -160,16 +160,9 @@ func (r *Runner) Cleanup(ctx context.Context, id string, logs io.Writer) error {
 const NotificationDeliveryLatencyMetric = "notification_delivery_latency_seconds"
 
 func (r *Runner) GetMetrics() map[string]any {
-	metrics := map[string]any{}
-
-	for templateID, latency := range r.notificationLatencies {
-		if latency > 0 {
-			metricKey := fmt.Sprintf("%s_%s", NotificationDeliveryLatencyMetric, templateID.String())
-			metrics[metricKey] = latency.Seconds()
-		}
+	return map[string]any{
+		NotificationDeliveryLatencyMetric: r.notificationLatencies,
 	}
-
-	return metrics
 }
 
 func (r *Runner) dialNotificationWebsocket(ctx context.Context, client *codersdk.Client, user codersdk.User, logger slog.Logger) (*websocket.Conn, error) {
@@ -207,7 +200,7 @@ func (r *Runner) watchNotifications(ctx context.Context, conn *websocket.Conn, u
 		slog.F("username", user.Username),
 		slog.F("expected_count", len(expectedNotifications)))
 
-	receivedNotifications := make(map[uuid.UUID]bool)
+	receivedNotifications := make(map[uuid.UUID]struct{})
 
 	for {
 		select {
@@ -230,13 +223,14 @@ func (r *Runner) watchNotifications(ctx context.Context, conn *websocket.Conn, u
 
 		templateID := notif.Notification.TemplateID
 		if triggerTimeChan, exists := expectedNotifications[templateID]; exists {
-			if !receivedNotifications[templateID] {
+			if _, exists := receivedNotifications[templateID]; !exists {
+				receiptTime := time.Now()
 				select {
 				case triggerTime := <-triggerTimeChan:
-					latency := time.Since(triggerTime)
+					latency := receiptTime.Sub(triggerTime)
 					r.notificationLatencies[templateID] = latency
 					r.cfg.Metrics.RecordLatency(latency, user.Username, templateID.String())
-					receivedNotifications[templateID] = true
+					receivedNotifications[templateID] = struct{}{}
 
 					logger.Info(ctx, "received expected notification",
 						slog.F("template_id", templateID),

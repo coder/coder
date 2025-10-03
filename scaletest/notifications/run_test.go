@@ -3,7 +3,6 @@ package notifications_test
 import (
 	"io"
 	"strconv"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -73,12 +72,12 @@ func TestRun(t *testing.T) {
 	})
 	firstUser := coderdtest.CreateFirstUser(t, client)
 
-	const numOwners = 2
+	const numReceivingUsers = 2
 	const numRegularUsers = 2
 	dialBarrier := new(sync.WaitGroup)
-	ownerWatchBarrier := new(sync.WaitGroup)
-	dialBarrier.Add(numOwners + numRegularUsers)
-	ownerWatchBarrier.Add(numOwners)
+	receivingWatchBarrier := new(sync.WaitGroup)
+	dialBarrier.Add(numReceivingUsers + numRegularUsers)
+	receivingWatchBarrier.Add(numReceivingUsers)
 	metrics := notifications.NewMetrics(prometheus.NewRegistry())
 
 	eg, runCtx := errgroup.WithContext(ctx)
@@ -88,9 +87,9 @@ func TestRun(t *testing.T) {
 		notificationsLib.TemplateUserAccountDeleted: make(chan time.Time, 1),
 	}
 
-	// Start owner runners who will receive notifications
-	ownerRunners := make([]*notifications.Runner, 0, numOwners)
-	for i := range numOwners {
+	// Start receiving runners who will receive notifications
+	receivingRunners := make([]*notifications.Runner, 0, numReceivingUsers)
+	for i := range numReceivingUsers {
 		runnerCfg := notifications.Config{
 			User: createusers.Config{
 				OrganizationID: firstUser.OrganizationID,
@@ -100,16 +99,16 @@ func TestRun(t *testing.T) {
 			DialTimeout:           testutil.WaitLong,
 			Metrics:               metrics,
 			DialBarrier:           dialBarrier,
-			OwnerWatchBarrier:     ownerWatchBarrier,
+			ReceivingWatchBarrier: receivingWatchBarrier,
 			ExpectedNotifications: expectedNotifications,
 		}
 		err := runnerCfg.Validate()
 		require.NoError(t, err)
 
 		runner := notifications.NewRunner(client, runnerCfg)
-		ownerRunners = append(ownerRunners, runner)
+		receivingRunners = append(receivingRunners, runner)
 		eg.Go(func() error {
-			return runner.Run(runCtx, "owner-"+strconv.Itoa(i), io.Discard)
+			return runner.Run(runCtx, "receiving-"+strconv.Itoa(i), io.Discard)
 		})
 	}
 
@@ -120,12 +119,12 @@ func TestRun(t *testing.T) {
 			User: createusers.Config{
 				OrganizationID: firstUser.OrganizationID,
 			},
-			Roles:               []string{},
-			NotificationTimeout: testutil.WaitLong,
-			DialTimeout:         testutil.WaitLong,
-			Metrics:             metrics,
-			DialBarrier:         dialBarrier,
-			OwnerWatchBarrier:   ownerWatchBarrier,
+			Roles:                 []string{},
+			NotificationTimeout:   testutil.WaitLong,
+			DialTimeout:           testutil.WaitLong,
+			Metrics:               metrics,
+			DialBarrier:           dialBarrier,
+			ReceivingWatchBarrier: receivingWatchBarrier,
 		}
 		err := runnerCfg.Validate()
 		require.NoError(t, err)
@@ -170,9 +169,9 @@ func TestRun(t *testing.T) {
 	require.NoError(t, err, "runner execution should complete successfully")
 
 	cleanupEg, cleanupCtx := errgroup.WithContext(ctx)
-	for i, runner := range ownerRunners {
+	for i, runner := range receivingRunners {
 		cleanupEg.Go(func() error {
-			return runner.Cleanup(cleanupCtx, "owner-"+strconv.Itoa(i), io.Discard)
+			return runner.Cleanup(cleanupCtx, "receiving-"+strconv.Itoa(i), io.Discard)
 		})
 	}
 	for i, runner := range regularRunners {
@@ -188,15 +187,15 @@ func TestRun(t *testing.T) {
 	require.Len(t, users.Users, 1)
 	require.Equal(t, firstUser.UserID, users.Users[0].ID)
 
-	for _, runner := range ownerRunners {
-		runnerMetrics := runner.GetMetrics()
+	for _, runner := range receivingRunners {
+		runnerMetrics := runner.GetMetrics()[notifications.NotificationDeliveryLatencyMetric]
 		foundCreated := false
 		foundDeleted := false
-		for key := range runnerMetrics {
-			if strings.Contains(key, notificationsLib.TemplateUserAccountCreated.String()) {
+		for key := range runnerMetrics.(map[uuid.UUID]time.Duration) {
+			if key == notificationsLib.TemplateUserAccountCreated {
 				foundCreated = true
 			}
-			if strings.Contains(key, notificationsLib.TemplateUserAccountDeleted.String()) {
+			if key == notificationsLib.TemplateUserAccountDeleted {
 				foundDeleted = true
 			}
 		}
