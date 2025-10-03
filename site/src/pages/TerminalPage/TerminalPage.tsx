@@ -148,6 +148,8 @@ const TerminalPage: FC = () => {
 			}),
 		);
 
+		const isMac = navigator.platform.match("Mac");
+
 		const copySelection = () => {
 			const selection = terminal.getSelection();
 			if (selection) {
@@ -183,11 +185,7 @@ const TerminalPage: FC = () => {
 			// Make ctrl+shift+c (command+shift+c on macOS) copy the selected text.
 			// By default this usually launches the browser dev tools, but users
 			// expect this keybinding to copy when in the context of the web terminal.
-			if (
-				(navigator.platform.match("Mac") ? ev.metaKey : ev.ctrlKey) &&
-				ev.shiftKey &&
-				ev.key === "C"
-			) {
+			if ((isMac ? ev.metaKey : ev.ctrlKey) && ev.shiftKey && ev.key === "C") {
 				ev.preventDefault();
 				if (ev.type === "keydown") {
 					copySelection();
