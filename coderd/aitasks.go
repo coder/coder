@@ -1,17 +1,13 @@
 package coderd
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"net/url"
-	"path"
 	"slices"
 	"strings"
 	"time"
@@ -31,6 +27,8 @@ import (
 	"github.com/coder/coder/v2/coderd/taskname"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
+
+	aiagentapi "github.com/coder/agentapi-sdk-go"
 )
 
 // This endpoint is experimental and not guaranteed to be stable, so we're not
@@ -629,61 +627,40 @@ func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if err = api.authAndDoWithTaskSidebarAppClient(r, taskID, func(ctx context.Context, client *http.Client, appURL *url.URL) error {
-		status, err := agentapiDoStatusRequest(ctx, client, appURL)
+		// Create aiagentapi client with the app URL
+		agentAPIClient, err := aiagentapi.NewClient(appURL.String(), aiagentapi.WithHTTPClient(client))
 		if err != nil {
-			return err
+			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
+				Message: "Failed to create agentapi client.",
+				Detail:  err.Error(),
+			})
 		}
 
-		if status != "stable" {
+		// Get status using SDK
+		statusResp, err := agentAPIClient.GetStatus(ctx)
+		if err != nil {
+			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
+				Message: "Failed to get status from task app.",
+				Detail:  err.Error(),
+			})
+		}
+
+		if statusResp.Status != "stable" {
 			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
 				Message: "Task app is not ready to accept input.",
-				Detail:  fmt.Sprintf("Status: %s", status),
+				Detail:  fmt.Sprintf("Status: %s", statusResp.Status),
 			})
 		}
 
-		var reqBody struct {
-			Content string `json:"content"`
-			Type    string `json:"type"`
-		}
-		reqBody.Content = req.Input
-		reqBody.Type = "user"
-
-		req, err := agentapiNewRequest(ctx, http.MethodPost, appURL, "message", reqBody)
-		if err != nil {
-			return err
-		}
-
-		resp, err := client.Do(req)
+		// Send message using SDK
+		_, err = agentAPIClient.PostMessage(ctx, aiagentapi.PostMessageParams{
+			Content: req.Input,
+			Type:    "user",
+		})
 		if err != nil {
 			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
-				Message: "Failed to reach task app endpoint.",
-				Detail:  err.Error(),
-			})
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			body, _ := io.ReadAll(io.LimitReader(resp.Body, 128))
-			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
 				Message: "Task app rejected the message.",
-				Detail:  fmt.Sprintf("Upstream status: %d; Body: %s", resp.StatusCode, body),
-			})
-		}
-
-		// {"$schema":"http://localhost:3284/schemas/MessageResponseBody.json","ok":true}
-		// {"$schema":"http://localhost:3284/schemas/ErrorModel.json","title":"Unprocessable Entity","status":422,"detail":"validation failed","errors":[{"location":"body.type","value":"oof"}]}
-		var respBody map[string]any
-		if err := json.NewDecoder(resp.Body).Decode(&respBody); err != nil {
-			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
-				Message: "Failed to decode task app response body.",
 				Detail:  err.Error(),
-			})
-		}
-
-		if v, ok := respBody["ok"].(bool); !ok || !v {
-			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
-				Message: "Task app rejected the message.",
-				Detail:  fmt.Sprintf("Upstream response: %v", respBody),
 			})
 		}
 
@@ -710,51 +687,30 @@ func (api *API) taskLogs(rw http.ResponseWriter, r *http.Request) {
 
 	var out codersdk.TaskLogsResponse
 	if err := api.authAndDoWithTaskSidebarAppClient(r, taskID, func(ctx context.Context, client *http.Client, appURL *url.URL) error {
-		req, err := agentapiNewRequest(ctx, http.MethodGet, appURL, "messages", nil)
-		if err != nil {
-			return err
-		}
-
-		resp, err := client.Do(req)
+		// Create aiagentapi client with the app URL
+		agentAPIClient, err := aiagentapi.NewClient(appURL.String(), aiagentapi.WithHTTPClient(client))
 		if err != nil {
 			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
-				Message: "Failed to reach task app endpoint.",
-				Detail:  err.Error(),
-			})
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			body, _ := io.ReadAll(io.LimitReader(resp.Body, 128))
-			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
-				Message: "Task app rejected the request.",
-				Detail:  fmt.Sprintf("Upstream status: %d; Body: %s", resp.StatusCode, body),
-			})
-		}
-
-		// {"$schema":"http://localhost:3284/schemas/MessagesResponseBody.json","messages":[]}
-		var respBody struct {
-			Messages []struct {
-				ID      int       `json:"id"`
-				Content string    `json:"content"`
-				Role    string    `json:"role"`
-				Time    time.Time `json:"time"`
-			} `json:"messages"`
-		}
-		if err := json.NewDecoder(resp.Body).Decode(&respBody); err != nil {
-			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
-				Message: "Failed to decode task app response body.",
+				Message: "Failed to create agentapi client.",
 				Detail:  err.Error(),
 			})
 		}
 
-		logs := make([]codersdk.TaskLogEntry, 0, len(respBody.Messages))
-		for _, m := range respBody.Messages {
+		messagesResp, err := agentAPIClient.GetMessages(ctx)
+		if err != nil {
+			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
+				Message: "Failed to get messages from task app.",
+				Detail:  err.Error(),
+			})
+		}
+
+		logs := make([]codersdk.TaskLogEntry, 0, len(messagesResp.Messages))
+		for _, m := range messagesResp.Messages {
 			var typ codersdk.TaskLogType
-			switch strings.ToLower(m.Role) {
-			case "user":
+			switch m.Role {
+			case aiagentapi.RoleUser:
 				typ = codersdk.TaskLogTypeInput
-			case "agent":
+			case aiagentapi.RoleAgent:
 				typ = codersdk.TaskLogTypeOutput
 			default:
 				return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
@@ -763,7 +719,7 @@ func (api *API) taskLogs(rw http.ResponseWriter, r *http.Request) {
 				})
 			}
 			logs = append(logs, codersdk.TaskLogEntry{
-				ID:      m.ID,
+				ID:      int(m.Id),
 				Content: m.Content,
 				Type:    typ,
 				Time:    m.Time,
@@ -902,70 +858,4 @@ func (api *API) authAndDoWithTaskSidebarAppClient(
 		},
 	}
 	return do(ctx, client, parsedURL)
-}
-
-func agentapiNewRequest(ctx context.Context, method string, appURL *url.URL, appURLPath string, body any) (*http.Request, error) {
-	u := *appURL
-	u.Path = path.Join(appURL.Path, appURLPath)
-
-	var bodyReader io.Reader
-	if body != nil {
-		b, err := json.Marshal(body)
-		if err != nil {
-			return nil, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
-				Message: "Failed to marshal task app request body.",
-				Detail:  err.Error(),
-			})
-		}
-		bodyReader = bytes.NewReader(b)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, method, u.String(), bodyReader)
-	if err != nil {
-		return nil, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
-			Message: "Failed to create task app request.",
-			Detail:  err.Error(),
-		})
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-
-	return req, nil
-}
-
-func agentapiDoStatusRequest(ctx context.Context, client *http.Client, appURL *url.URL) (string, error) {
-	req, err := agentapiNewRequest(ctx, http.MethodGet, appURL, "status", nil)
-	if err != nil {
-		return "", err
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
-			Message: "Failed to reach task app endpoint.",
-			Detail:  err.Error(),
-		})
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return "", httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
-			Message: "Task app status returned an error.",
-			Detail:  fmt.Sprintf("Status code: %d", resp.StatusCode),
-		})
-	}
-
-	// {"$schema":"http://localhost:3284/schemas/StatusResponseBody.json","status":"stable"}
-	var respBody struct {
-		Status string `json:"status"`
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&respBody); err != nil {
-		return "", httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
-			Message: "Failed to decode task app status response body.",
-			Detail:  err.Error(),
-		})
-	}
-
-	return respBody.Status, nil
 }
