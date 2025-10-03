@@ -149,24 +149,24 @@ Another option is to define rules in a YAML file, which only needs to be invoked
 
 ### Unprivileged vs. Privileged Mode
 
-There are two approaches you can take to secure your agentic workflows with Agent Boundary.
+There are two approaches you can take to secure your agentic workflows with Agent Boundary.  
 
 #### Unprivileged Mode
 
-In this case, a specific agent process or tool (for example, Claude Code or a CLI agent) runs inside of a constrained sandbox. This is the default mode in which Boundary will operate in and does not require root access.
+In this case, a specific agent process or tool (for example, Claude Code or a CLI agent) runs inside of a constrained sandbox. This is the default mode in which Boundary will operate in and does not require root access.  
 
-Agents are prevented from reaching restricted domains or exfiltrating data, without blocking the rest of the dev's environment.
+Agents are prevented from reaching restricted domains or exfiltrating data, without blocking the rest of the dev's environment.  
 
-This is the fastest way to add real guardrails, but a determined user could still operate a tool outside of Boundary restrictions because the broader environment allows it. This mode relies on tools respecting certain settings, like HTTP proxies, and can lead to silent failures if a tool bypasses them. 
+This is the fastest way to add real guardrails, but a determined user could still operate a tool outside of Boundary restrictions because the broader environment allows it. This mode relies on tools respecting certain settings, like HTTP proxies, and can lead to silent failures if a tool bypasses them.   
 
 #### Privileged Mode
 
-In this case, boundaries are enforced at the level of the environment that the agent lives in. These are workspace- or session-level controls, including how the developer connects to it. 
+In this case, boundaries are enforced at the level of the environment that the agent lives in. These are workspace- or session-level controls, including how the developer connects to it.  
 
-Currently, this must be turned on with a flag and ran with higher-level permissions such as root access or `CapNetAdmin`.
+Currently, this must be turned on with a flag and ran with higher-level permissions such as root access or `CapNetAdmin`.  
 
-In addition to process-level egress rules, privileged mode locks down all pathways that could bypass policy, such as restricting or disabling SSH tunnels or parallel unbound IDEs. This delivers deterministic, policy-as-code enforcement and offers the highest assurance for regulated environments, but results in slightly more friction for mixed human-and-agent workflows.
+In addition to process-level egress rules, privileged mode locks down all pathways that could bypass policy, such as restricting or disabling SSH tunnels or parallel unbound IDEs. This delivers deterministic, policy-as-code enforcement and offers the highest assurance for regulated environments, but results in slightly more friction for mixed human-and-agent workflows.  
 
 ### Opting out of Boundary
 
-If you tried Boundary through a Coder module and decided you don't want to use it, you can turn it off by setting the flag to `boundary_enabled=false`.
+If you tried Boundary through a Coder module and decided you don't want to use it, you can turn it off by setting the flag to `boundary_enabled=false`.  
