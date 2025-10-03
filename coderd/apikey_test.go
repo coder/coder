@@ -93,6 +93,134 @@ func TestTokenScoped(t *testing.T) {
 	require.Equal(t, "*:*", keys[0].AllowList[0].String())
 }
 
+func TestTokenCreateAuditAdditionalFields(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	auditor := audit.NewMock()
+	client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
+	_ = coderdtest.CreateFirstUser(t, client)
+	auditor.ResetLogs()
+
+	workspaceID := uuid.New()
+	scope := codersdk.APIKeyScopeWorkspaceRead
+	allowTarget := codersdk.AllowResourceTarget(codersdk.ResourceWorkspace, workspaceID)
+
+	_, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
+		TokenName: "auditfields",
+		Scopes:    []codersdk.APIKeyScope{scope},
+		AllowList: []codersdk.APIAllowListTarget{allowTarget},
+	})
+	require.NoError(t, err)
+
+	logs := auditor.AuditLogs()
+	var found *database.AuditLog
+	for i := len(logs) - 1; i >= 0; i-- {
+		if logs[i].ResourceType == database.ResourceTypeApiKey && logs[i].Action == database.AuditActionCreate {
+			found = &logs[i]
+			break
+		}
+	}
+	require.NotNil(t, found, "expected api key create audit log")
+
+	var payload struct {
+		APIKey        audit.APIKeyAuditFields `json:"api_key"`
+		RequestAPIKey audit.APIKeyAuditFields `json:"request_api_key"`
+	}
+	require.NoError(t, json.Unmarshal(found.AdditionalFields, &payload))
+	require.NotEmpty(t, payload.APIKey.ID)
+	require.ElementsMatch(t, []string{string(scope)}, payload.APIKey.Scopes)
+	require.Equal(t, []string{allowTarget.String()}, payload.APIKey.AllowList)
+	require.NotNil(t, payload.APIKey.EffectiveScope)
+	assert.Contains(t, payload.APIKey.EffectiveScope.AllowList, allowTarget.String())
+	require.NotEmpty(t, payload.RequestAPIKey.ID)
+}
+
+func TestTokenUpdateAuditAdditionalFields(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	auditor := audit.NewMock()
+	client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	_, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{TokenName: "mutable"})
+	require.NoError(t, err)
+	auditor.ResetLogs()
+
+	scopes := []codersdk.APIKeyScope{codersdk.APIKeyScopeTemplateRead}
+	resourceID := uuid.New()
+	allow := codersdk.AllowResourceTarget(codersdk.ResourceTemplate, resourceID)
+	lifetime := 90 * time.Minute
+
+	_, err = client.UpdateToken(ctx, codersdk.Me, "mutable", codersdk.UpdateTokenRequest{
+		Scopes:    &scopes,
+		AllowList: &[]codersdk.APIAllowListTarget{allow},
+		Lifetime:  &lifetime,
+	})
+	require.NoError(t, err)
+
+	logs := auditor.AuditLogs()
+	var found *database.AuditLog
+	for i := len(logs) - 1; i >= 0; i-- {
+		if logs[i].ResourceType == database.ResourceTypeApiKey && logs[i].Action == database.AuditActionWrite {
+			found = &logs[i]
+			break
+		}
+	}
+	require.NotNil(t, found, "expected api key update audit log")
+
+	var payload struct {
+		APIKey        audit.APIKeyAuditFields `json:"api_key"`
+		RequestAPIKey audit.APIKeyAuditFields `json:"request_api_key"`
+	}
+	require.NoError(t, json.Unmarshal(found.AdditionalFields, &payload))
+	require.Equal(t, []string{string(scopes[0])}, payload.APIKey.Scopes)
+	require.Equal(t, []string{allow.String()}, payload.APIKey.AllowList)
+	require.NotNil(t, payload.APIKey.EffectiveScope)
+	assert.Contains(t, payload.APIKey.EffectiveScope.Site, "template:read")
+	require.NotEmpty(t, payload.RequestAPIKey.ID)
+}
+
+func TestAuditRequestIncludesAPIKeyMetadata(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	auditor := audit.NewMock()
+	client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
+	user := coderdtest.CreateFirstUser(t, client)
+	auditor.ResetLogs()
+
+	_, err := client.UpdateUserProfile(ctx, codersdk.Me, codersdk.UpdateUserProfileRequest{
+		Username: coderdtest.FirstUserParams.Username,
+		Name:     "audit metadata",
+	})
+	require.NoError(t, err)
+
+	logs := auditor.AuditLogs()
+	var found *database.AuditLog
+	for i := len(logs) - 1; i >= 0; i-- {
+		if logs[i].ResourceType == database.ResourceTypeUser && logs[i].Action == database.AuditActionWrite {
+			found = &logs[i]
+			break
+		}
+	}
+	require.NotNil(t, found, "expected user update audit log")
+
+	var payload struct {
+		APIKey        audit.APIKeyAuditFields `json:"api_key"`
+		RequestAPIKey audit.APIKeyAuditFields `json:"request_api_key"`
+	}
+	require.NoError(t, json.Unmarshal(found.AdditionalFields, &payload))
+	require.NotEmpty(t, payload.RequestAPIKey.ID)
+	require.Equal(t, user.UserID, found.UserID)
+	require.NotNil(t, payload.RequestAPIKey.EffectiveScope)
+	require.NotEmpty(t, payload.RequestAPIKey.EffectiveScope.AllowList)
+}
+
 // Ensure backward-compat: when a token is created using the legacy singular
 // scope names ("all" or "application_connect"), the API returns the same
 // legacy value in the deprecated singular Scope field while also supporting

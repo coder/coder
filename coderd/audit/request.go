@@ -58,6 +58,12 @@ func (r *Request[T]) UpdateOrganizationID(id uuid.UUID) {
 	r.params.OrganizationID = id
 }
 
+// SetAdditionalFields allows callers to attach custom metadata that will be
+// merged into the audit log payload.
+func (r *Request[T]) SetAdditionalFields(fields interface{}) {
+	r.params.AdditionalFields = fields
+}
+
 type BackgroundAuditParams[T Auditable] struct {
 	Audit Auditor
 	Log   slog.Logger
@@ -395,6 +401,11 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 			} else {
 				additionalFieldsRaw = json.RawMessage(data)
 			}
+		}
+
+		if key, ok := httpmw.APIKeyOptional(p.Request); ok {
+			fields := APIKeyFields(logCtx, p.Log, key)
+			additionalFieldsRaw = mergeAdditionalFields(logCtx, p.Log, additionalFieldsRaw, fields)
 		}
 
 		var userID uuid.UUID
