@@ -1,0 +1,89 @@
+name: Docs Preview Comment
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - "docs/**"
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  comment-preview-link:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: Get changed docs files
+        id: changed-files
+        uses: tj-actions/changed-files@4563c729c555b4141fac99c80f699f571219b836 # v45.0.7
+        with:
+          files: |
+            docs/**/*.md
+          separator: "\n"
+
+      - name: Generate preview links
+        id: preview-links
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          # URI encode the branch name
+          BRANCH_NAME="${{ github.head_ref }}"
+          ENCODED_BRANCH=$(printf '%s' "$BRANCH_NAME" | jq -sRr @uri)
+
+          # Generate preview links for each changed docs file
+          PREVIEW_LINKS=""
+          while IFS= read -r file; do
+            if [[ -n "$file" && "$file" == docs/*.md ]]; then
+              # Convert file path to URL path
+              # Remove 'docs/' prefix and '.md' suffix
+              DOC_PATH="${file#docs/}"
+              DOC_PATH="${DOC_PATH%.md}"
+
+              # Generate preview URL
+              PREVIEW_URL="https://coder.com/docs/@${ENCODED_BRANCH}/${DOC_PATH}"
+              PREVIEW_LINKS="${PREVIEW_LINKS}- [\`${file}\`](${PREVIEW_URL})"$'\n'
+            fi
+          done <<< "${{ steps.changed-files.outputs.all_changed_files }}"
+
+          # Store the links in output
+          echo "links<<EOF" >> $GITHUB_OUTPUT
+          echo "$PREVIEW_LINKS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "encoded_branch=$ENCODED_BRANCH" >> $GITHUB_OUTPUT
+
+      - name: Find existing comment
+        id: find-comment
+        if: steps.changed-files.outputs.any_changed == 'true'
+        uses: peter-evans/find-comment@1e8dcc190e7b1c9f00b5e9e0e8ce9c95ae6fb9d0 # v3.2.0
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: "github-actions[bot]"
+          body-includes: "📚 Documentation Preview"
+
+      - name: Create or update comment
+        if: steps.changed-files.outputs.any_changed == 'true'
+        uses: peter-evans/create-or-update-comment@e3e50edcbcd6c45e77fc2c35e9cc7d4cd6ad7541 # v4.0.0
+        with:
+          comment-id: ${{ steps.find-comment.outputs.comment-id }}
+          issue-number: ${{ github.event.pull_request.number }}
+          edit-mode: replace
+          body: |
+            ## 📚 Documentation Preview
+
+            Preview the documentation changes from this PR at:
+
+            **Base preview URL:** https://coder.com/docs/@${{ steps.preview-links.outputs.encoded_branch }}
+
+            ### Changed documentation files:
+
+            ${{ steps.preview-links.outputs.links }}
+
+            ---
+
+            *Note: Preview links are generated based on the branch name `${{ github.head_ref }}`. It may take a few minutes for the preview to be available after pushing changes.*
