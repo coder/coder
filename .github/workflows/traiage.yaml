@@ -36,7 +36,7 @@ jobs:
       CODER_URL: ${{ secrets.TRAIAGE_CODER_URL }}
       CODER_SESSION_TOKEN: ${{ secrets.TRAIAGE_CODER_SESSION_TOKEN }}
     permissions:
-      contents: read
+      contents: write # required for checking permissions on the repo
       issues: write
       actions: write
 
