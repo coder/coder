@@ -1,0 +1,228 @@
+# AI Bridge
+
+> [!NOTE]
+> AI Bridge is currently an _experimental_ feature.
+
+AI Bridge is a smart proxy for AI. It acts as a man-in-the-middle between your users' coding agents / IDEs
+and AI providers like OpenAI and Anthropic. By intercepting all the AI traffic between these clients and
+the upstream APIs, AI Bridge can record user prompts, token usage, and tool invocations.
+
+AI Bridge solves 3 key problems:
+
+1. **Centralized authn/z management**: no more issuing & managing API tokens for OpenAI/Anthropic usage.
+   Users use their Coder session or API tokens to authenticate with `coderd` (Coder control plane), and
+   `coderd` securely communicates with the upstream APIs on their behalf. Use a single key for all users.
+2. **Auditing and attribution**: all interactions with AI services, whether autonomous or human-initiated,
+   will be audited and attributed back to a user.
+3. **Centralized MCP administration**: define a set of approved MCP servers and tools which your users may
+   use, and prevent users from using their own.
+
+## Setup
+
+**Required**:
+
+1. A **Premium** license
+1. Feature must be [enabled](#activation)
+1. One or more [provider](#providers) API keys must be configured
+
+### Activation
+
+To enable this feature, activate the `aibridge` experiment using an environment variable or a CLI flag.
+Additionally, you will need to enable AI Bridge explicitly:
+
+```sh
+CODER_EXPERIMENTS="aibridge" CODER_AIBRIDGE_ENABLED=true coder server
+# or
+coder server --experiments=aibridge --aibridge-enabled=true
+```
+
+_If you have other experiments enabled, separate them by commas._
+
+### Providers
+
+AI Bridge currently supports OpenAI and Anthropic APIs.
+
+**API Key**:
+
+The single key used to authenticate all requests from AI Bridge to OpenAI/Anthropic APIs.
+
+- `CODER_AIBRIDGE_OPENAI_KEY` or `--aibridge-openai-key`
+- `CODER_AIBRIDGE_ANTHROPIC_KEY` or `--aibridge-anthropic-key`
+
+**Base URL**:
+
+The API to which AI Bridge will relay requests.
+
+- `CODER_AIBRIDGE_OPENAI_BASE_URL` or `--aibridge-openai-base-url`, defaults to `https://api.openai.com/v1/`
+- `CODER_AIBRIDGE_ANTHROPIC_BASE_URL` or `--aibridge-anthropic-base-url`, defaults to `https://api.anthropic.com/`
+
+If you're using _[Google Vertex AI](https://cloud.google.com/vertex-ai?hl=en)_, _[AWS Bedrock](https://aws.amazon.com/bedrock/)_, or others,
+you may specify the base URL(s) above to the appropriate API endpoint.
+
+---
+
+
+> [!NOTE]
+> See [Supported APIs](#supported-apis) section below for a comprehensive list.
+
+## Collected Data
+
+AI Bridge collects:
+
+- The last `user` prompt of each request
+- All token usage
+- All tool invocations
+
+## Implementation Details
+
+`coderd` runs an in-memory instance of https://github.com/coder/aibridge. In future releases we will support running external instances for higher throughput and complete memory isolation from `coderd`.
+
+<details>
+<summary>See a diagram of how AI Bridge interception works</summary>
+
+```mermaid
+
+sequenceDiagram
+    actor User
+    participant Client
+    participant Bridge
+
+    User->>Client: Issues prompt
+    activate Client
+
+    Note over User, Client: Coder session key used<br>as AI token
+    Client-->>Bridge: Sends request
+
+    activate Bridge
+    Note over Client, Bridge: Coder session key <br>passed along
+
+    Note over Bridge: Authenticate
+    Note over Bridge: Parse request
+
+    alt Rejected
+        Bridge-->>Client: Send response
+        Client->>User: Display response
+    end
+
+    Note over Bridge: If first request, establish <br>connection(s) with MCP server(s)<br>and list tools
+
+    Note over Bridge: Inject MCP tools
+
+    Bridge-->>AIProvider: Send modified request
+
+    activate AIProvider
+
+    AIProvider-->>Bridge: Send response
+
+    Note over Client: Client is unaware of injected<br>tools and invocations,<br>just receives one long response
+
+    alt Has injected tool calls
+        loop
+            Note over Bridge: Invoke injected tool
+            Bridge-->>AIProvider: Send tool result
+            AIProvider-->>Bridge: Send response
+        end
+    end
+
+    deactivate AIProvider
+
+    Bridge-->>Client: Relay response
+    deactivate Bridge
+
+    Client->>User: Display response
+    deactivate Client
+```
+
+</details>
+
+## MCP
+
+[Model Context Protocol (MCP)](https://modelcontextprotocol.io/docs/getting-started/intro) is a mechanism for connecting AI applications to external systems.
+
+AI Bridge can connect to MCP servers and inject tools automatically, enabling you to centrally manage the list of tools you wish to grant your users.
+
+> [!NOTE]
+> Only MCP servers which support OAuth2 Authorization are supported currently. In future releases we will support [optional authorization](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization#protocol-requirements).
+> [_Streamable HTTP_](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#streamable-http) is the only supported transport currently. In future releases we will support the (now deprecated) [_Server-Sent Events_](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#backwards-compatibility) transport.
+
+AI Bridge makes use of [External Auth](../admin/external-auth/index.md) applications, as they define OAuth2 connections to upstream services. If your External Auth application hosts a remote MCP server, you can configure AI Bridge to connect to it, retrieve its tools and inject them into requests automatically - all while using each individual user's access token.
+
+For example, GitHub has a [remote MCP server](https://github.com/github/github-mcp-server?tab=readme-ov-file#remote-github-mcp-server) and we can use it as follows.
+
+```bash
+CODER_EXTERNAL_AUTH_0_TYPE=github
+CODER_EXTERNAL_AUTH_0_CLIENT_ID=...
+CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=...
+# Tell AI Bridge where it can find this service's remote MCP server.
+CODER_EXTERNAL_AUTH_0_MCP_URL=https://api.githubcopilot.com/mcp/
+```
+
+See the diagram in [Implementation Details](#implementation-details) for more information.
+
+You can also control which tools are injected by using an allow and/or a deny regular expression on the tool names:
+
+```bash
+CODER_EXTERNAL_AUTH_0_MCP_TOOL_ALLOW_REGEX=(.+_gist.*)
+CODER_EXTERNAL_AUTH_0_MCP_TOOL_DENY_REGEX=(create_gist)
+```
+
+In the above example, all tools containing `_gist` in their name will be allowed, but `create_gist` is denied.
+
+The logic works as follows:
+
+- If neither the allow/deny patterns are defined, all tools will be injected.
+- The deny pattern takes precedence.
+- If only a deny pattern is defined, all tools are injected except those explicitly denied.
+
+In the above example, if you prompted your AI model with "list your available github tools by name", it would reply something like:
+
+> Certainly! Here are the GitHub-related tools that I have available:
+>
+> 1. `bmcp_github_update_gist`
+> 2. `bmcp_github_list_gists`
+
+AI Bridge marks automatically injected tools with a prefix `bmcp_` ("bridged MCP"). It also namespaces all tool names by the ID of their associated External Auth application (in this case `github`).
+
+## Tool Injection
+
+If a model decides to invoke a tool and it has a `bmcp_` suffix and AI Bridge has a connection with the related MCP server, it will invoke the tool. The tool result will be passed back to the upstream AI provider, and this will loop until the model has all of its required data. These inner loops are not relayed back to the client; all it seems is the result of this loop. See [Implementation Details](#implementation-details).
+
+In contrast, tools which are defined by the client (i.e. the [`Bash` tool](https://docs.claude.com/en/docs/claude-code/settings#tools-available-to-claude) defined by _Claude Code_) cannot be invoked by AI Bridge, and the tool call from the model will be relayed to the client, after which it will invoke the tool.
+
+If you have the `oauth2` and `mcp-server-http` experiments enabled, Coder's own [internal MCP tools](mcp-server.md) will be injected automatically.
+
+## Troubleshooting
+
+- Too many tools
+- Coder MCP tools not being listed
+- External Auth tools not being injected
+
+## Supported APIs
+
+API support is broken down into two categories:
+
+- **Intercepted**: requests are intercepted, audited, and augmented - full AI Bridge functionality
+- **Passthrough**: requests are proxied directly to the upstream, no auditing or augmentation takes place
+
+Where relevant, both streaming and o
+
+### OpenAI
+
+**Intercepted**:
+
+- [`/v1/chat/completions`](https://platform.openai.com/docs/api-reference/chat/create)
+
+**Passthrough**:
+
+- [`/v1/models(/*)`](https://platform.openai.com/docs/api-reference/models/list)
+- [`/v1/responses`](https://platform.openai.com/docs/api-reference/responses/create) _(Interception support coming in **Beta**)_
+
+### Anthropic
+
+**Intercepted**:
+
+- [`/v1/messages`](https://docs.claude.com/en/api/messages)
+
+**Passthrough**:
+
+- [`/v1/models(/*)`](https://docs.claude.com/en/api/models-list)
