@@ -627,7 +627,6 @@ func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if err = api.authAndDoWithTaskSidebarAppClient(r, taskID, func(ctx context.Context, client *http.Client, appURL *url.URL) error {
-		// Create aiagentapi client with the app URL
 		agentAPIClient, err := aiagentapi.NewClient(appURL.String(), aiagentapi.WithHTTPClient(client))
 		if err != nil {
 			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
@@ -636,7 +635,6 @@ func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 			})
 		}
 
-		// Get status using SDK
 		statusResp, err := agentAPIClient.GetStatus(ctx)
 		if err != nil {
 			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
@@ -645,17 +643,16 @@ func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 			})
 		}
 
-		if statusResp.Status != "stable" {
+		if statusResp.Status != aiagentapi.StatusStable {
 			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
 				Message: "Task app is not ready to accept input.",
 				Detail:  fmt.Sprintf("Status: %s", statusResp.Status),
 			})
 		}
 
-		// Send message using SDK
 		_, err = agentAPIClient.PostMessage(ctx, aiagentapi.PostMessageParams{
 			Content: req.Input,
-			Type:    "user",
+			Type:    aiagentapi.MessageTypeUser,
 		})
 		if err != nil {
 			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
@@ -687,7 +684,6 @@ func (api *API) taskLogs(rw http.ResponseWriter, r *http.Request) {
 
 	var out codersdk.TaskLogsResponse
 	if err := api.authAndDoWithTaskSidebarAppClient(r, taskID, func(ctx context.Context, client *http.Client, appURL *url.URL) error {
-		// Create aiagentapi client with the app URL
 		agentAPIClient, err := aiagentapi.NewClient(appURL.String(), aiagentapi.WithHTTPClient(client))
 		if err != nil {
 			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
