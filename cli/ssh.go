@@ -745,7 +745,7 @@ func (r *RootCmd) sshCompletionHandler() serpent.CompletionHandlerFunc {
 		// Create a temporary RootCmd to initialize the client
 		// We need to parse the global config from the invocation args
 		var tempRoot RootCmd
-		
+
 		// Parse the --global-config flag from args
 		for i, arg := range inv.Args {
 			if arg == "--global-config" && i+1 < len(inv.Args) {
@@ -753,7 +753,7 @@ func (r *RootCmd) sshCompletionHandler() serpent.CompletionHandlerFunc {
 				break
 			}
 		}
-		
+
 		// Try to initialize the client
 		// If this fails (e.g., not logged in), just return no completions
 		client, err := tempRoot.InitClient(inv)
@@ -762,7 +762,7 @@ func (r *RootCmd) sshCompletionHandler() serpent.CompletionHandlerFunc {
 		}
 
 		ctx := inv.Context()
-		
+
 		// Fetch all workspaces for the current user
 		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
 			FilterQuery: "owner:me",
