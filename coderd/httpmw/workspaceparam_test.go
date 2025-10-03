@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 )
@@ -67,7 +68,9 @@ func TestWorkspaceParam(t *testing.T) {
 			ExpiresAt:    dbtime.Now().Add(time.Minute),
 			LoginType:    database.LoginTypePassword,
 			Scopes:       database.APIKeyScopes{database.ApiKeyScopeCoderAll},
-			AllowList:    database.AllowList{database.AllowListWildcard()},
+			AllowList: database.AllowList{
+				{Type: policy.WildcardSymbol, ID: policy.WildcardSymbol},
+			},
 			IPAddress: pqtype.Inet{
 				IPNet: net.IPNet{
 					IP:   net.IPv4(127, 0, 0, 1),

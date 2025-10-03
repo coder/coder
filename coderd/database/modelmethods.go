@@ -145,24 +145,30 @@ func (s APIKeyScope) ToRBAC() rbac.ScopeName {
 	}
 }
 
-// APIKeyScopes allows expanding multiple API key scopes into a single
-// RBAC scope for authorization. This implements rbac.ExpandableScope so
-// callers can pass the list directly without deriving a single scope.
+// APIKeyScopes represents a collection of individual API key scope names as
+// stored in the database. Helper methods on this type are used to derive the
+// RBAC scope that should be authorized for the key.
 type APIKeyScopes []APIKeyScope
 
-var _ rbac.ExpandableScope = APIKeyScopes{}
+// WithAllowList wraps the scopes with a database allow list, producing an
+// ExpandableScope that always enforces the allow list overlay when expanded.
+func (s APIKeyScopes) WithAllowList(list AllowList) APIKeyScopeSet {
+	return APIKeyScopeSet{Scopes: s, AllowList: list}
+}
 
 // Has returns true if the slice contains the provided scope.
 func (s APIKeyScopes) Has(target APIKeyScope) bool {
 	return slices.Contains(s, target)
 }
 
-// Expand merges the permissions of all scopes in the list into a single scope.
-// If the list is empty, it defaults to rbac.ScopeAll.
-func (s APIKeyScopes) Expand() (rbac.Scope, error) {
+// expandRBACScope merges the permissions of all scopes in the list into a
+// single RBAC scope. If the list is empty, it defaults to rbac.ScopeAll for
+// backward compatibility. This method is internal; use ScopeSet() to combine
+// scopes with the API key's allow list for authorization.
+func (s APIKeyScopes) expandRBACScope() (rbac.Scope, error) {
 	// Default to ScopeAll for backward compatibility when no scopes provided.
 	if len(s) == 0 {
-		return rbac.ScopeAll.Expand()
+		return rbac.Scope{}, xerrors.New("no scopes provided")
 	}
 
 	var merged rbac.Scope
@@ -233,6 +239,37 @@ func (s APIKeyScopes) Name() rbac.RoleIdentifier {
 		names = append(names, string(s))
 	}
 	return rbac.RoleIdentifier{Name: "scopes[" + strings.Join(names, "+") + "]"}
+}
+
+// APIKeyScopeSet merges expanded scopes with the API key's DB allow_list. If
+// the DB allow_list is a wildcard or empty, the merged scope's allow list is
+// unchanged. Otherwise, the DB allow_list overrides the merged AllowIDList to
+// enforce the token's resource scoping consistently across all permissions.
+type APIKeyScopeSet struct {
+	Scopes    APIKeyScopes
+	AllowList AllowList
+}
+
+var _ rbac.ExpandableScope = APIKeyScopeSet{}
+
+func (s APIKeyScopeSet) Name() rbac.RoleIdentifier { return s.Scopes.Name() }
+
+func (s APIKeyScopeSet) Expand() (rbac.Scope, error) {
+	merged, err := s.Scopes.expandRBACScope()
+	if err != nil {
+		return rbac.Scope{}, err
+	}
+	merged.AllowIDList = rbac.IntersectAllowLists(merged.AllowIDList, s.AllowList)
+	return merged, nil
+}
+
+// ScopeSet returns the scopes combined with the database allow list. It is the
+// canonical way to expose an API key's effective scope for authorization.
+func (k APIKey) ScopeSet() APIKeyScopeSet {
+	return APIKeyScopeSet{
+		Scopes:    k.Scopes,
+		AllowList: k.AllowList,
+	}
 }
 
 func (k APIKey) RBACObject() rbac.Object {
