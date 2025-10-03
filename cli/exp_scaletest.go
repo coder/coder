@@ -1942,7 +1942,7 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 		Short: "Simulate notification delivery by creating many users listening to notifications.",
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
-			client, err := r.TryInitClient(inv)
+			client, err := r.InitClient(inv)
 			if err != nil {
 				return err
 			}
@@ -2034,7 +2034,7 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 					NotificationTimeout:   notificationTimeout,
 					DialTimeout:           dialTimeout,
 					DialBarrier:           dialBarrier,
-					OwnerWatchBarrier:     ownerWatchBarrier,
+					ReceivingWatchBarrier: ownerWatchBarrier,
 					ExpectedNotifications: expectedNotifications,
 					Metrics:               metrics,
 				}
@@ -2048,12 +2048,12 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 					User: createusers.Config{
 						OrganizationID: me.OrganizationIDs[0],
 					},
-					Roles:               []string{},
-					NotificationTimeout: notificationTimeout,
-					DialTimeout:         dialTimeout,
-					DialBarrier:         dialBarrier,
-					OwnerWatchBarrier:   ownerWatchBarrier,
-					Metrics:             metrics,
+					Roles:                 []string{},
+					NotificationTimeout:   notificationTimeout,
+					DialTimeout:           dialTimeout,
+					DialBarrier:           dialBarrier,
+					ReceivingWatchBarrier: ownerWatchBarrier,
+					Metrics:               metrics,
 				}
 				if err := config.Validate(); err != nil {
 					return xerrors.Errorf("validate config: %w", err)
@@ -2418,7 +2418,6 @@ func triggerUserNotifications(
 		slog.F("email", triggerEmail),
 		slog.F("org_id", orgID))
 
-	createTime := time.Now()
 	testUser, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
 		OrganizationIDs: []uuid.UUID{orgID},
 		Username:        triggerUsername,
@@ -2429,15 +2428,14 @@ func triggerUserNotifications(
 		logger.Error(ctx, "create test user", slog.Error(err))
 		return
 	}
-	expectedNotifications[notificationsLib.TemplateUserAccountCreated] <- createTime
+	expectedNotifications[notificationsLib.TemplateUserAccountCreated] <- time.Now()
 
-	deleteTime := time.Now()
 	err = client.DeleteUser(ctx, testUser.ID)
 	if err != nil {
 		logger.Error(ctx, "delete test user", slog.Error(err))
 		return
 	}
-	expectedNotifications[notificationsLib.TemplateUserAccountDeleted] <- deleteTime
+	expectedNotifications[notificationsLib.TemplateUserAccountDeleted] <- time.Now()
 	close(expectedNotifications[notificationsLib.TemplateUserAccountCreated])
 	close(expectedNotifications[notificationsLib.TemplateUserAccountDeleted])
 }
