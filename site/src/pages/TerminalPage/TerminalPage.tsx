@@ -15,6 +15,7 @@ import {
 import { displayError } from "components/GlobalSnackbar/utils";
 import { useProxy } from "contexts/ProxyContext";
 import { ThemeOverride } from "contexts/ThemeProvider";
+import { copyToClipboard } from "hooks/useClipboard";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { type FC, useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
@@ -151,15 +152,9 @@ const TerminalPage: FC = () => {
 		const copySelection = () => {
 			const selection = terminal.getSelection();
 			if (selection) {
-				navigator.clipboard.writeText(selection).catch((err) => {
+				copyToClipboard(selection).catch((err) => {
 					console.error(err);
-					if (err.message) {
-						displayError(`Failed to copy text: ${err.message}`);
-					} else {
-						displayError(
-							"Failed to copy text, but no error message was provided",
-						);
-					}
+					displayError(err.message);
 				});
 			}
 		};
