@@ -12,6 +12,7 @@ import { docs } from "utils/docs";
 
 // Those are from https://github.com/coder/coder/tree/main/examples/templates
 const featuredExampleIds = [
+	"tasks-docker",
 	"docker",
 	"kubernetes",
 	"aws-linux",
