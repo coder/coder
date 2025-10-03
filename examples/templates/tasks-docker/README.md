@@ -1,9 +1,10 @@
 ---
 display_name: Tasks on Docker
 description: Run Coder Tasks on Docker with an example application
-icon: ../../../../.icons/tasks.svg
+icon: ../../../site/static/icon/tasks.svg
 verified: false
 tags: [docker, container, ai, tasks]
+maintainer_github: coder
 ---
 
 # Run Coder Tasks on Docker
