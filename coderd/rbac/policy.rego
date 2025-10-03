@@ -391,3 +391,34 @@ allow if {
 	acl_allow
 	scope_allow
 }
+
+scope_metrics_allow := true if {
+	allow
+} else := false
+
+scope_metrics_scope_allow := true if {
+	scope_allow
+} else := false
+
+scope_metrics_scope_allow_list := true if {
+	scope_allow_list
+} else := false
+
+scope_metrics_role_allow := true if {
+	role_allow
+} else := false
+
+scope_metrics_acl_allow := true if {
+	acl_allow
+} else := false
+
+# scope_metrics provides a simple structured view of the policy outcomes so the
+# Go authorizer can classify why a request was allowed or denied without
+# re-evaluating the policy.
+scope_metrics := {
+	"allow":           scope_metrics_allow,
+	"scope_allow":     scope_metrics_scope_allow,
+	"scope_allow_list": scope_metrics_scope_allow_list,
+	"role_allow":      scope_metrics_role_allow,
+	"acl_allow":       scope_metrics_acl_allow,
+}
