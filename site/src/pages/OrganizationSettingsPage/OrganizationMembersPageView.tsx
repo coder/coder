@@ -149,7 +149,7 @@ export const OrganizationMembersPageView: FC<
 											isLoading={isUpdatingMemberRoles}
 											canEditUsers={canEditMembers}
 											onEditRoles={async (roles) => {
-												// React doesn't mind uncaught errors in even handlers,
+												// React doesn't mind uncaught errors in event handlers,
 												// but testing-library does.
 												try {
 													await updateMemberRoles(member, roles);
