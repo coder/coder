@@ -53,6 +53,9 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 		t := time.NewTimer(0)
 		defer t.Stop()
 
+		startTime := time.Now()
+		baseInterval := opts.FetchInterval
+
 		for {
 			select {
 			case <-ctx.Done():
@@ -68,7 +71,11 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 					return
 				}
 				fetchedAgent <- fetchAgent{agent: agent}
-				t.Reset(opts.FetchInterval)
+
+				// Adjust the interval based on how long we've been waiting.
+				elapsed := time.Since(startTime)
+				currentInterval := GetProgressiveInterval(baseInterval, elapsed)
+				t.Reset(currentInterval)
 			}
 		}
 	}()
@@ -291,6 +298,24 @@ func safeDuration(sw *stageWriter, a, b *time.Time) time.Duration {
 		return 0
 	}
 	return a.Sub(*b)
+}
+
+// GetProgressiveInterval returns an interval that increases over time.
+// The interval starts at baseInterval and increases to
+// a maximum of baseInterval * 16 over time.
+func GetProgressiveInterval(baseInterval time.Duration, elapsed time.Duration) time.Duration {
+	switch {
+	case elapsed < 60*time.Second:
+		return baseInterval // 500ms for first 60 seconds
+	case elapsed < 2*time.Minute:
+		return baseInterval * 2 // 1s for next 1 minute
+	case elapsed < 5*time.Minute:
+		return baseInterval * 4 // 2s for next 3 minutes
+	case elapsed < 10*time.Minute:
+		return baseInterval * 8 // 4s for next 5 minutes
+	default:
+		return baseInterval * 16 // 8s after 10 minutes
+	}
 }
 
 type closeFunc func() error

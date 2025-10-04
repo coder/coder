@@ -866,3 +866,31 @@ func TestConnDiagnostics(t *testing.T) {
 		})
 	}
 }
+
+func TestGetProgressiveInterval(t *testing.T) {
+	t.Parallel()
+
+	baseInterval := 500 * time.Millisecond
+
+	testCases := []struct {
+		name     string
+		elapsed  time.Duration
+		expected time.Duration
+	}{
+		{"first_minute", 30 * time.Second, baseInterval},
+		{"second_minute", 90 * time.Second, baseInterval * 2},
+		{"third_to_fifth_minute", 3 * time.Minute, baseInterval * 4},
+		{"sixth_to_tenth_minute", 7 * time.Minute, baseInterval * 8},
+		{"after_ten_minutes", 15 * time.Minute, baseInterval * 16},
+		{"boundary_first_minute", 59 * time.Second, baseInterval},
+		{"boundary_second_minute", 61 * time.Second, baseInterval * 2},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			result := cliui.GetProgressiveInterval(baseInterval, tc.elapsed)
+			require.Equal(t, tc.expected, result)
+		})
+	}
+}
