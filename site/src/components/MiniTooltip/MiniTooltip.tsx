@@ -2,9 +2,9 @@ import {
 	Tooltip,
 	TooltipArrow,
 	TooltipContent,
-	type TooltipContentProps,
 	TooltipProvider,
 	TooltipTrigger,
+	type TooltipContentProps,
 } from "components/Tooltip/Tooltip";
 import { useState, type FC, type ReactNode } from "react";
 import { cn } from "utils/cn";
