@@ -11,8 +11,8 @@ RUN cargo install jj-cli typos-cli watchexec-cli
 FROM ubuntu:jammy@sha256:4e0171b9275e12d375863f2b3ae9ce00a4c53ddda176bd55868df97ac6f21a6e AS go
 
 # Install Go manually, so that we can control the version
-ARG GO_VERSION=1.24.6
-ARG GO_CHECKSUM="bbca37cc395c974ffa4893ee35819ad23ebb27426df87af92e93a9ec66ef8712"
+ARG GO_VERSION=1.25.1
+ARG GO_CHECKSUM="7716a0d940a0f6ae8e1f3b3f4f36299dc53e31b16840dbd171254312c41ca12e"
 
 # Boring Go is needed to build FIPS-compliant binaries.
 RUN apt-get update && \
@@ -79,7 +79,7 @@ RUN apt-get update && \
 	# yq v3 used in v1.
 	go install github.com/mikefarah/yq/v4@v4.44.3 && \
 	mv /tmp/bin/yq /tmp/bin/yq4 && \
-	go install go.uber.org/mock/mockgen@v0.5.0 && \
+	go install go.uber.org/mock/mockgen@v0.6.0 && \
 	# Reduce image size.
 	apt-get remove --yes gcc && \
 	apt-get autoremove --yes && \
@@ -141,11 +141,11 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 	ca-certificates \
 	cargo \
 	cmake \
-	containerd.io \
+	containerd.io=1.7.23-1 \
 	crypto-policies \
 	curl \
-	docker-ce \
-	docker-ce-cli \
+	docker-ce=5:27.5.0-1~ubuntu.22.04~jammy \
+	docker-ce-cli=5:27.5.0-1~ubuntu.22.04~jammy \
 	docker-compose-plugin \
 	exa \
 	fd-find \
