@@ -109,6 +109,42 @@ func (r *RootCmd) ssh() *serpent.Command {
 				}
 			},
 		),
+		CompletionHandler: func(inv *serpent.Invocation) []string {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return []string{"# Error: Unable to initialize client - " + err.Error()}
+			}
+
+			res, err := client.Workspaces(inv.Context(), codersdk.WorkspaceFilter{
+				Owner: "me",
+			})
+			if err != nil {
+				return []string{"# Error: Unable to fetch workspaces - " + err.Error()}
+			}
+
+			var completions []string
+			for _, ws := range res.Workspaces {
+			if ws.LatestBuild.Status != codersdk.WorkspaceStatusRunning {
+			 continue
+			}
+
+			var agents []codersdk.WorkspaceAgent
+			for _, resource := range ws.LatestBuild.Resources {
+				agents = append(agents, resource.Agents...)
+			}
+
+			if len(agents) == 1 {
+			 completions = append(completions, ws.Name)
+			}
+
+			for _, agent := range agents {
+			 completions = append(completions, fmt.Sprintf("%s.%s", agent.Name, ws.Name))
+			}
+			}
+
+		slices.Sort(completions)
+		return completions
+		},
 		Handler: func(inv *serpent.Invocation) (retErr error) {
 			client, err := r.InitClient(inv)
 			if err != nil {
