@@ -14,8 +14,15 @@ func (r *RootCmd) taskSend() *serpent.Command {
 	var stdin bool
 
 	cmd := &serpent.Command{
-		Use:        "send <task> [<input> | --stdin]",
-		Short:      "Send input to a task",
+		Use:   "send <task> [<input> | --stdin]",
+		Short: "Send input to a task",
+		Long: FormatExamples(Example{
+			Description: "Send direct input to a task.",
+			Command:     "coder exp task send task1 \"Please also add unit tests\"",
+		}, Example{
+			Description: "Send input from stdin to a task.",
+			Command:     "echo \"Please also add unit tests\" | coder exp task send task1 --stdin",
+		}),
 		Middleware: serpent.RequireRangeArgs(1, 2),
 		Options: serpent.OptionSet{
 			{
