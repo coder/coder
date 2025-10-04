@@ -597,6 +597,20 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			return nil, failJob(fmt.Sprintf("get workspace build parameters: %s", err))
 		}
 
+		var taskPrompt string
+		for _, buildParameter := range workspaceBuildParameters {
+			if buildParameter.Name != codersdk.AITaskPromptParameterName {
+				continue
+			}
+
+			taskPrompt = buildParameter.Value
+			break
+		}
+
+		// TODO(DanielleMaywood):
+		// Plumb a task ID into this when we have the new data-model ready.
+		var taskID string
+
 		dbExternalAuthProviders := []database.ExternalAuthProvider{}
 		err = json.Unmarshal(templateVersion.ExternalAuthProviders, &dbExternalAuthProviders)
 		if err != nil {
@@ -721,6 +735,8 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					WorkspaceOwnerRbacRoles:       ownerRbacRoles,
 					RunningAgentAuthTokens:        runningAgentAuthTokens,
 					PrebuiltWorkspaceBuildStage:   input.PrebuiltWorkspaceBuildStage,
+					TaskId:                        taskID,
+					TaskPrompt:                    taskPrompt,
 				},
 				LogLevel: input.LogLevel,
 			},
@@ -1982,16 +1998,23 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		if tasks := jobType.WorkspaceBuild.GetAiTasks(); len(tasks) > 0 {
 			hasAITask = true
 			task := tasks[0]
-			if task == nil || task.GetSidebarApp() == nil || len(task.GetSidebarApp().GetId()) == 0 {
-				return xerrors.Errorf("update ai task: sidebar app is nil or empty")
+			if task == nil {
+				return xerrors.Errorf("update ai task: task is nil")
 			}
 
-			sidebarTaskID := task.GetSidebarApp().GetId()
-			if !slices.Contains(appIDs, sidebarTaskID) {
+			appID := task.GetAppId()
+			if appID == "" && task.GetSidebarApp() != nil {
+				appID = task.GetSidebarApp().GetId()
+			}
+			if appID == "" {
+				return xerrors.Errorf("update ai task: app id is empty")
+			}
+
+			if !slices.Contains(appIDs, appID) {
 				warnUnknownSidebarAppID = true
 			}
 
-			id, err := uuid.Parse(task.GetSidebarApp().GetId())
+			id, err := uuid.Parse(appID)
 			if err != nil {
 				return xerrors.Errorf("parse sidebar app id: %w", err)
 			}
