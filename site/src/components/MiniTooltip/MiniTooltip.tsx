@@ -2,11 +2,11 @@ import {
 	Tooltip,
 	TooltipArrow,
 	TooltipContent,
+	type TooltipContentProps,
 	TooltipProvider,
 	TooltipTrigger,
-	type TooltipContentProps,
 } from "components/Tooltip/Tooltip";
-import { useState, type FC, type ReactNode } from "react";
+import { type FC, type ReactNode, useState } from "react";
 import { cn } from "utils/cn";
 
 type MiniTooltipProps = Omit<TooltipContentProps, "title"> & {
