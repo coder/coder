@@ -58,32 +58,39 @@ export const useClipboard = (input: UseClipboardInput): UseClipboardResult => {
 		}, CLIPBOARD_TIMEOUT_MS);
 	};
 
-	const copyToClipboard = async () => {
+	const handleCopyToClipboard = async () => {
 		try {
-			await window.navigator.clipboard.writeText(textToCopy);
+			await copyToClipboard(textToCopy);
 			handleSuccessfulCopy();
 		} catch (err) {
-			const fallbackCopySuccessful = simulateClipboardWrite(textToCopy);
-			if (fallbackCopySuccessful) {
-				handleSuccessfulCopy();
-				return;
-			}
+			console.error(err);
+			// copyToClipboard always throws an Error.
+			setError(err as Error);
+			const notifyUser = errorCallback ?? displayError;
+			notifyUser((err as Error).message);
+		}
+	};
 
+	return { showCopiedSuccess, error, copyToClipboard: handleCopyToClipboard };
+};
+
+/**
+ * Attempt to copy the provided text to the clipboard.  If this fails, try the
+ * fallback method.  If this also fails, throw an Error.
+ */
+export async function copyToClipboard(textToCopy: string): Promise<void> {
+	try {
+		await window.navigator.clipboard.writeText(textToCopy);
+	} catch (err) {
+		if (!simulateClipboardWrite(textToCopy)) {
 			const wrappedErr = new Error(COPY_FAILED_MESSAGE);
 			if (err instanceof Error) {
 				wrappedErr.stack = err.stack;
 			}
-
-			console.error(wrappedErr);
-			setError(wrappedErr);
-
-			const notifyUser = errorCallback ?? displayError;
-			notifyUser(COPY_FAILED_MESSAGE);
+			throw wrappedErr;
 		}
-	};
-
-	return { showCopiedSuccess, error, copyToClipboard };
-};
+	}
+}
 
 /**
  * Provides a fallback clipboard method for when browsers do not have access
