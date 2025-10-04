@@ -2519,8 +2519,11 @@ func TestSSH_Completion(t *testing.T) {
 		_ = err
 
 		// For multi-agent workspaces, completions should include agent.workspace format
+		// but NOT the bare workspace name
 		output := stdout.String()
 		t.Logf("Completion output: %q", output)
+		lines := strings.Split(strings.TrimSpace(output), "\n")
+		require.NotContains(t, lines, r.Workspace.Name)
 		require.Contains(t, output, "agent1."+r.Workspace.Name)
 		require.Contains(t, output, "agent2."+r.Workspace.Name)
 	})
