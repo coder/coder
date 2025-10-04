@@ -45,6 +45,7 @@ const styles = {
 
     & a {
       color: inherit;
+      text-decoration: underline;
     }
   `,
 } satisfies Record<string, Interpolation<Theme>>;
