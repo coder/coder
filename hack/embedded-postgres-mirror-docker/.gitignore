@@ -1,0 +1,5 @@
+# Downloaded PostgreSQL binaries
+files/
+
+# Docker build context
+.dockerignore
