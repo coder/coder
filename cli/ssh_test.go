@@ -57,6 +57,7 @@ import (
 	"github.com/coder/coder/v2/pty"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
 
 func setupWorkspaceForAgent(t *testing.T, mutations ...func([]*proto.Agent) []*proto.Agent) (*codersdk.Client, database.WorkspaceTable, string) {
@@ -2446,4 +2447,153 @@ func tempDirUnixSocket(t *testing.T) string {
 	}
 
 	return t.TempDir()
+}
+
+func TestSSH_Completion(t *testing.T) {
+	t.Parallel()
+
+	// Helper function to find the ssh subcommand
+	findSSHCommand := func(rootCmd *serpent.Command) *serpent.Command {
+		for _, child := range rootCmd.Children {
+			if child.Name() == "ssh" {
+				return child
+			}
+		}
+		return nil
+	}
+
+	t.Run("SingleAgentWorkspace", func(t *testing.T) {
+		t.Parallel()
+
+		// Setup workspace with single agent
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		_ = agenttest.New(t, client.URL, agentToken)
+		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+		// Create the CLI command with completion mode enabled
+		inv, root := clitest.New(t, "ssh")
+		clitest.SetupConfig(t, client, root)
+
+		// Set up the context with completion mode
+		ctx := context.Background()
+		inv = inv.WithContext(ctx)
+
+		// Enable completion mode
+		inv.Environ.Set("COMPLETION_MODE", "1")
+
+		// Get the ssh command from the root command
+		sshCmd := findSSHCommand(inv.Command)
+		require.NotNil(t, sshCmd, "ssh command not found")
+		require.NotNil(t, sshCmd.CompletionHandler, "completion handler not set")
+
+		// Update the invocation to use the ssh command
+		sshInv := *inv
+		sshInv.Command = sshCmd
+
+		completions := sshCmd.CompletionHandler(&sshInv)
+
+		// Should contain workspace name for single-agent workspace
+		require.Contains(t, completions, workspace.Name)
+		// Should also contain agent.workspace format
+		require.Contains(t, completions, fmt.Sprintf("dev.%s", workspace.Name))
+	})
+
+	t.Run("MultiAgentWorkspace", func(t *testing.T) {
+		t.Parallel()
+
+		// Setup workspace with multiple agents
+		client, store := coderdtest.NewWithDatabase(t, nil)
+		client.SetLogger(testutil.Logger(t).Named("client"))
+		first := coderdtest.CreateFirstUser(t, client)
+		userClient, user := coderdtest.CreateAnotherUserMutators(t, client, first.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
+			r.Username = "testuser"
+		})
+
+		r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+			Name:           "multiagent",
+			OrganizationID: first.OrganizationID,
+			OwnerID:        user.ID,
+		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+			return []*proto.Agent{
+				{
+					Id:   "agent1",
+					Name: "agent1",
+					Auth: &proto.Agent_Token{
+						Token: uuid.NewString(),
+					},
+				},
+				{
+					Id:   "agent2",
+					Name: "agent2",
+					Auth: &proto.Agent_Token{
+						Token: uuid.NewString(),
+					},
+				},
+			}
+		}).Do()
+
+		// We don't need to start the agents for completion to work
+		// The completion handler only needs to fetch the workspace metadata
+
+		// Create the CLI command with completion mode enabled
+		inv, root := clitest.New(t, "ssh")
+		clitest.SetupConfig(t, userClient, root)
+
+		// Set up the context with completion mode
+		ctx := context.Background()
+		inv = inv.WithContext(ctx)
+
+		// Enable completion mode
+		inv.Environ.Set("COMPLETION_MODE", "1")
+
+		// Get the ssh command from the root command
+		sshCmd := findSSHCommand(inv.Command)
+		require.NotNil(t, sshCmd, "ssh command not found")
+		require.NotNil(t, sshCmd.CompletionHandler, "completion handler not set")
+
+		// Update the invocation to use the ssh command
+		sshInv := *inv
+		sshInv.Command = sshCmd
+
+		completions := sshCmd.CompletionHandler(&sshInv)
+
+		// Should NOT contain bare workspace name (multi-agent)
+		require.NotContains(t, completions, r.Workspace.Name)
+		// Should contain both agent.workspace formats
+		require.Contains(t, completions, fmt.Sprintf("agent1.%s", r.Workspace.Name))
+		require.Contains(t, completions, fmt.Sprintf("agent2.%s", r.Workspace.Name))
+	})
+
+	t.Run("NoWorkspaces", func(t *testing.T) {
+		t.Parallel()
+
+		// Setup client without workspaces
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		// Create the CLI command with completion mode enabled
+		inv, root := clitest.New(t, "ssh")
+		clitest.SetupConfig(t, client, root)
+
+		// Set up the context with completion mode
+		ctx := context.Background()
+		inv = inv.WithContext(ctx)
+
+		// Enable completion mode
+		inv.Environ.Set("COMPLETION_MODE", "1")
+
+		// Get the ssh command from the root command
+		sshCmd := findSSHCommand(inv.Command)
+		require.NotNil(t, sshCmd, "ssh command not found")
+		require.NotNil(t, sshCmd.CompletionHandler, "completion handler not set")
+
+		// Update the invocation to use the ssh command
+		sshInv := *inv
+		sshInv.Command = sshCmd
+
+		completions := sshCmd.CompletionHandler(&sshInv)
+
+		// Should return empty list
+		require.Empty(t, completions)
+	})
 }
