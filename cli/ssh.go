@@ -124,26 +124,26 @@ func (r *RootCmd) ssh() *serpent.Command {
 
 			var completions []string
 			for _, ws := range res.Workspaces {
-			if ws.LatestBuild.Status != codersdk.WorkspaceStatusRunning {
-			 continue
+				if ws.LatestBuild.Status != codersdk.WorkspaceStatusRunning {
+					continue
+				}
+
+				var agents []codersdk.WorkspaceAgent
+				for _, resource := range ws.LatestBuild.Resources {
+					agents = append(agents, resource.Agents...)
+				}
+
+				if len(agents) == 1 {
+					completions = append(completions, ws.Name)
+				}
+
+				for _, agent := range agents {
+					completions = append(completions, fmt.Sprintf("%s.%s", agent.Name, ws.Name))
+				}
 			}
 
-			var agents []codersdk.WorkspaceAgent
-			for _, resource := range ws.LatestBuild.Resources {
-				agents = append(agents, resource.Agents...)
-			}
-
-			if len(agents) == 1 {
-			 completions = append(completions, ws.Name)
-			}
-
-			for _, agent := range agents {
-			 completions = append(completions, fmt.Sprintf("%s.%s", agent.Name, ws.Name))
-			}
-			}
-
-		slices.Sort(completions)
-		return completions
+			slices.Sort(completions)
+			return completions
 		},
 		Handler: func(inv *serpent.Invocation) (retErr error) {
 			client, err := r.InitClient(inv)
