@@ -190,7 +190,9 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 			</div>
 
 			<div css={styles.group}>
-				<MiniTooltip title={`Activity in the last ~${aggregatedMinutes} minutes`}>
+				<MiniTooltip
+					title={`Activity in the last ~${aggregatedMinutes} minutes`}
+				>
 					<div css={styles.category}>Transmission</div>
 				</MiniTooltip>
 

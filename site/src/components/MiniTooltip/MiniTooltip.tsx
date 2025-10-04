@@ -9,7 +9,7 @@ import {
 import { useState, type FC, type ReactNode } from "react";
 import { cn } from "utils/cn";
 
-type MiniTooltipProps = Omit<TooltipContentProps, 'title'> & {
+type MiniTooltipProps = Omit<TooltipContentProps, "title"> & {
 	title: ReactNode;
 	arrow?: boolean;
 	open?: boolean;
@@ -17,12 +17,15 @@ type MiniTooltipProps = Omit<TooltipContentProps, 'title'> & {
 
 const MiniTooltip: FC<MiniTooltipProps> = (props) => {
 	const { title, children, arrow, open, ...contentProps } = props;
-	const [isOpen, setIsOpen] = useState(false)
+	const [isOpen, setIsOpen] = useState(false);
 
 	return (
 		<TooltipProvider>
 			<Tooltip delayDuration={0} open={isOpen} onOpenChange={setIsOpen}>
-				<TooltipTrigger asChild aria-label={typeof title === 'string' ? title : undefined}>
+				<TooltipTrigger
+					asChild
+					aria-label={typeof title === "string" ? title : undefined}
+				>
 					{children}
 				</TooltipTrigger>
 				<TooltipContent
