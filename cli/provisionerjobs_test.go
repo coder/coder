@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -26,33 +27,32 @@ import (
 func TestProvisionerJobs(t *testing.T) {
 	t.Parallel()
 
-	db, ps := dbtestutil.NewDB(t)
-	client, _, coderdAPI := coderdtest.NewWithAPI(t, &coderdtest.Options{
-		IncludeProvisionerDaemon: false,
-		Database:                 db,
-		Pubsub:                   ps,
-	})
-	owner := coderdtest.CreateFirstUser(t, client)
-	templateAdminClient, templateAdmin := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.ScopedRoleOrgTemplateAdmin(owner.OrganizationID))
-	memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-
-	// These CLI tests are related to provisioner job CRUD operations and as such
-	// do not require the overhead of starting a provisioner. Other provisioner job
-	// functionalities (acquisition etc.) are tested elsewhere.
-	template := dbgen.Template(t, db, database.Template{
-		OrganizationID:               owner.OrganizationID,
-		CreatedBy:                    owner.UserID,
-		AllowUserCancelWorkspaceJobs: true,
-	})
-	version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-		OrganizationID: owner.OrganizationID,
-		CreatedBy:      owner.UserID,
-		TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
-	})
-
 	t.Run("Cancel", func(t *testing.T) {
 		t.Parallel()
 
+		db, ps := dbtestutil.NewDB(t)
+		client, _, coderdAPI := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: false,
+			Database:                 db,
+			Pubsub:                   ps,
+		})
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdminClient, templateAdmin := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.ScopedRoleOrgTemplateAdmin(owner.OrganizationID))
+		memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		// These CLI tests are related to provisioner job CRUD operations and as such
+		// do not require the overhead of starting a provisioner. Other provisioner job
+		// functionalities (acquisition etc.) are tested elsewhere.
+		template := dbgen.Template(t, db, database.Template{
+			OrganizationID:               owner.OrganizationID,
+			CreatedBy:                    owner.UserID,
+			AllowUserCancelWorkspaceJobs: true,
+		})
+		version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: owner.OrganizationID,
+			CreatedBy:      owner.UserID,
+			TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+		})
 		// Test helper to create a provisioner job of a given type with a given input.
 		prepareJob := func(t *testing.T, jobType database.ProvisionerJobType, input json.RawMessage) database.ProvisionerJob {
 			t.Helper()
@@ -177,5 +177,149 @@ func TestProvisionerJobs(t *testing.T) {
 				}
 			})
 		}
+	})
+
+	t.Run("List", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		client, _, coderdAPI := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: false,
+			Database:                 db,
+			Pubsub:                   ps,
+		})
+		owner := coderdtest.CreateFirstUser(t, client)
+		_, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		// These CLI tests are related to provisioner job CRUD operations and as such
+		// do not require the overhead of starting a provisioner. Other provisioner job
+		// functionalities (acquisition etc.) are tested elsewhere.
+		template := dbgen.Template(t, db, database.Template{
+			OrganizationID:               owner.OrganizationID,
+			CreatedBy:                    owner.UserID,
+			AllowUserCancelWorkspaceJobs: true,
+		})
+		version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: owner.OrganizationID,
+			CreatedBy:      owner.UserID,
+			TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+		})
+		// Create some test jobs
+		job1 := dbgen.ProvisionerJob(t, db, coderdAPI.Pubsub, database.ProvisionerJob{
+			OrganizationID: owner.OrganizationID,
+			InitiatorID:    owner.UserID,
+			Type:           database.ProvisionerJobTypeTemplateVersionImport,
+			Input:          []byte(`{"template_version_id":"` + version.ID.String() + `"}`),
+			Tags:           database.StringMap{provisionersdk.TagScope: provisionersdk.ScopeOrganization},
+		})
+
+		job2 := dbgen.ProvisionerJob(t, db, coderdAPI.Pubsub, database.ProvisionerJob{
+			OrganizationID: owner.OrganizationID,
+			InitiatorID:    member.ID,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			Input:          []byte(`{"workspace_build_id":"` + uuid.New().String() + `"}`),
+			Tags:           database.StringMap{provisionersdk.TagScope: provisionersdk.ScopeOrganization},
+		})
+		// Test basic list command
+		t.Run("Basic", func(t *testing.T) {
+			t.Parallel()
+
+			inv, root := clitest.New(t, "provisioner", "jobs", "list")
+			clitest.SetupConfig(t, client, root)
+			var buf bytes.Buffer
+			inv.Stdout = &buf
+			err := inv.Run()
+			require.NoError(t, err)
+
+			// Should contain both jobs
+			output := buf.String()
+			assert.Contains(t, output, job1.ID.String())
+			assert.Contains(t, output, job2.ID.String())
+		})
+
+		// Test list with JSON output
+		t.Run("JSON", func(t *testing.T) {
+			t.Parallel()
+
+			inv, root := clitest.New(t, "provisioner", "jobs", "list", "--output", "json")
+			clitest.SetupConfig(t, client, root)
+			var buf bytes.Buffer
+			inv.Stdout = &buf
+			err := inv.Run()
+			require.NoError(t, err)
+
+			// Parse JSON output
+			var jobs []codersdk.ProvisionerJob
+			err = json.Unmarshal(buf.Bytes(), &jobs)
+			require.NoError(t, err)
+
+			// Should contain both jobs
+			jobIDs := make([]uuid.UUID, len(jobs))
+			for i, job := range jobs {
+				jobIDs[i] = job.ID
+			}
+			assert.Contains(t, jobIDs, job1.ID)
+			assert.Contains(t, jobIDs, job2.ID)
+		})
+
+		// Test list with limit
+		t.Run("Limit", func(t *testing.T) {
+			t.Parallel()
+
+			inv, root := clitest.New(t, "provisioner", "jobs", "list", "--limit", "1")
+			clitest.SetupConfig(t, client, root)
+			var buf bytes.Buffer
+			inv.Stdout = &buf
+			err := inv.Run()
+			require.NoError(t, err)
+
+			// Should contain at most 1 job
+			output := buf.String()
+			jobCount := 0
+			if strings.Contains(output, job1.ID.String()) {
+				jobCount++
+			}
+			if strings.Contains(output, job2.ID.String()) {
+				jobCount++
+			}
+			assert.LessOrEqual(t, jobCount, 1)
+		})
+
+		// Test list with initiator filter
+		t.Run("InitiatorFilter", func(t *testing.T) {
+			t.Parallel()
+
+			// Get owner user details to access username
+			ctx := testutil.Context(t, testutil.WaitShort)
+			ownerUser, err := client.User(ctx, owner.UserID.String())
+			require.NoError(t, err)
+
+			// Test filtering by initiator (using username)
+			inv, root := clitest.New(t, "provisioner", "jobs", "list", "--initiator", ownerUser.Username)
+			clitest.SetupConfig(t, client, root)
+			var buf bytes.Buffer
+			inv.Stdout = &buf
+			err = inv.Run()
+			require.NoError(t, err)
+
+			// Should only contain job1 (initiated by owner)
+			output := buf.String()
+			assert.Contains(t, output, job1.ID.String())
+			assert.NotContains(t, output, job2.ID.String())
+		})
+
+		// Test list with invalid user
+		t.Run("InvalidUser", func(t *testing.T) {
+			t.Parallel()
+
+			// Test with non-existent user
+			inv, root := clitest.New(t, "provisioner", "jobs", "list", "--initiator", "nonexistent-user")
+			clitest.SetupConfig(t, client, root)
+			var buf bytes.Buffer
+			inv.Stdout = &buf
+			err := inv.Run()
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "initiator not found: nonexistent-user")
+		})
 	})
 }

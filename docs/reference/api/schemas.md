@@ -6390,6 +6390,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "error_code": "REQUIRED_TEMPLATE_VARIABLES",
   "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
   "input": {
     "error": "string",
     "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
@@ -6432,6 +6433,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `error_code`        | [codersdk.JobErrorCode](#codersdkjoberrorcode)                     | false    |              |             |
 | `file_id`           | string                                                             | false    |              |             |
 | `id`                | string                                                             | false    |              |             |
+| `initiator_id`      | string                                                             | false    |              |             |
 | `input`             | [codersdk.ProvisionerJobInput](#codersdkprovisionerjobinput)       | false    |              |             |
 | `logs_overflowed`   | boolean                                                            | false    |              |             |
 | `metadata`          | [codersdk.ProvisionerJobMetadata](#codersdkprovisionerjobmetadata) | false    |              |             |
@@ -8118,6 +8120,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     "error_code": "REQUIRED_TEMPLATE_VARIABLES",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "input": {
       "error": "string",
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
@@ -9386,6 +9389,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "error_code": "REQUIRED_TEMPLATE_VARIABLES",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
       "input": {
         "error": "string",
         "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
@@ -10553,6 +10557,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "error_code": "REQUIRED_TEMPLATE_VARIABLES",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "input": {
       "error": "string",
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
@@ -11389,6 +11394,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "error_code": "REQUIRED_TEMPLATE_VARIABLES",
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
           "input": {
             "error": "string",
             "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",

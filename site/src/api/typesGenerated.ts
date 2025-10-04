@@ -2060,6 +2060,7 @@ export interface OrganizationProvisionerJobsOptions {
 	readonly IDs: readonly string[];
 	readonly Status: readonly ProvisionerJobStatus[];
 	readonly Tags: Record<string, string>;
+	readonly InitiatorID: string | null;
 }
 
 // From codersdk/idpsync.go
@@ -2379,6 +2380,7 @@ export interface ProvisionerJob {
 	readonly queue_position: number;
 	readonly queue_size: number;
 	readonly organization_id: string;
+	readonly initiator_id: string;
 	readonly input: ProvisionerJobInput;
 	readonly type: ProvisionerJobType;
 	readonly available_workers?: readonly string[];

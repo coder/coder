@@ -198,6 +198,7 @@ type ProvisionerJob struct {
 	QueuePosition    int                    `json:"queue_position" table:"queue position"`
 	QueueSize        int                    `json:"queue_size" table:"queue size"`
 	OrganizationID   uuid.UUID              `json:"organization_id" format:"uuid" table:"organization id"`
+	InitiatorID      uuid.UUID              `json:"initiator_id" format:"uuid" table:"initiator id"`
 	Input            ProvisionerJobInput    `json:"input" table:"input,recursive_inline"`
 	Type             ProvisionerJobType     `json:"type" table:"type"`
 	AvailableWorkers []uuid.UUID            `json:"available_workers,omitempty" format:"uuid" table:"available workers"`

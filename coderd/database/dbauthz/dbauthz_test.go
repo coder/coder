@@ -2484,10 +2484,12 @@ func (s *MethodTestSuite) TestExtraMethods() {
 
 		ds, err := db.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(context.Background(), database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams{
 			OrganizationID: org.ID,
+			InitiatorID:    uuid.Nil,
 		})
 		s.NoError(err, "get provisioner jobs by org")
 		check.Args(database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams{
 			OrganizationID: org.ID,
+			InitiatorID:    uuid.Nil,
 		}).Asserts(j1, policy.ActionRead, j2, policy.ActionRead).Returns(ds)
 	}))
 }
