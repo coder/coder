@@ -1,9 +1,9 @@
 import type { CSSObject, Interpolation, Theme } from "@emotion/react";
 import Link from "@mui/material/Link";
 import TableCell from "@mui/material/TableCell";
-import Tooltip from "@mui/material/Tooltip";
 import type { ConnectionLog } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
+import MiniTooltip from "components/MiniTooltip/MiniTooltip";
 import { Stack } from "components/Stack/Stack";
 import { StatusPill } from "components/StatusPill/StatusPill";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
@@ -87,7 +87,7 @@ export const ConnectionLogRow: FC<ConnectionLogRowProps> = ({
 										label={isWeb ? "HTTP Status Code" : "SSH Exit Code"}
 									/>
 								)}
-								<Tooltip
+								<MiniTooltip
 									title={
 										<div css={styles.connectionLogInfoTooltip}>
 											{connectionLog.ip && (
@@ -140,7 +140,7 @@ export const ConnectionLogRow: FC<ConnectionLogRowProps> = ({
 											color: theme.palette.info.light,
 										})}
 									/>
-								</Tooltip>
+								</MiniTooltip>
 							</Stack>
 						</Stack>
 					</Stack>

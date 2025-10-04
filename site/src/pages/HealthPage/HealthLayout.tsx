@@ -3,11 +3,11 @@ import NotificationsOffOutlined from "@mui/icons-material/NotificationsOffOutlin
 import ReplayIcon from "@mui/icons-material/Replay";
 import CircularProgress from "@mui/material/CircularProgress";
 import IconButton from "@mui/material/IconButton";
-import Tooltip from "@mui/material/Tooltip";
 import { health, refreshHealth } from "api/queries/debug";
 import type { HealthSeverity } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
+import MiniTooltip from "components/MiniTooltip/MiniTooltip";
 import kebabCase from "lodash/fp/kebabCase";
 import { DashboardFullPage } from "modules/dashboard/DashboardLayout";
 import { type FC, Suspense } from "react";
@@ -79,7 +79,7 @@ export const HealthLayout: FC = () => {
 								<div className="flex items-center justify-between">
 									<HealthIcon size={32} severity={healthStatus.severity} />
 
-									<Tooltip title="Refresh health checks">
+									<MiniTooltip title="Refresh health checks">
 										<IconButton
 											size="small"
 											disabled={isRefreshing}
@@ -94,7 +94,7 @@ export const HealthLayout: FC = () => {
 												<ReplayIcon className="size-5" />
 											)}
 										</IconButton>
-									</Tooltip>
+									</MiniTooltip>
 								</div>
 								<div className="font-medium mt-4">
 									{healthStatus.healthy ? "Healthy" : "Unhealthy"}

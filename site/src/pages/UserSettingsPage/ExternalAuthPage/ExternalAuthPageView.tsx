@@ -5,7 +5,6 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import Tooltip from "@mui/material/Tooltip";
 import visuallyHidden from "@mui/utils/visuallyHidden";
 import { externalAuthProvider } from "api/queries/externalAuth";
 import type {
@@ -23,6 +22,7 @@ import {
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
 import { Loader } from "components/Loader/Loader";
+import MiniTooltip from "components/MiniTooltip/MiniTooltip";
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
@@ -137,12 +137,12 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 					 * attempt to authenticate when the token expires.
 					 */}
 					{link?.has_refresh_token && authenticated && (
-						<Tooltip
+						<MiniTooltip
 							title="Authentication token will automatically refresh when expired."
-							placement="right"
+							side="right"
 						>
 							<RefreshCcwIcon className="size-3" />
-						</Tooltip>
+						</MiniTooltip>
 					)}
 
 					{link?.validate_error && (
