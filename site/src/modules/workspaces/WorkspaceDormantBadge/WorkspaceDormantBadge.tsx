@@ -1,6 +1,6 @@
-import Tooltip from "@mui/material/Tooltip";
 import type { Workspace } from "api/typesGenerated";
 import { Badge } from "components/Badge/Badge";
+import MiniTooltip from "components/MiniTooltip/MiniTooltip";
 import type { FC } from "react";
 import {
 	DATE_FORMAT,
@@ -16,7 +16,7 @@ export const WorkspaceDormantBadge: FC<WorkspaceDormantBadgeProps> = ({
 	workspace,
 }) => {
 	return workspace.deleting_at ? (
-		<Tooltip
+		<MiniTooltip
 			title={
 				<>
 					This workspace has not been used for{" "}
@@ -29,9 +29,9 @@ export const WorkspaceDormantBadge: FC<WorkspaceDormantBadgeProps> = ({
 			<Badge role="status" variant="destructive" size="xs">
 				Deletion Pending
 			</Badge>
-		</Tooltip>
+		</MiniTooltip>
 	) : (
-		<Tooltip
+		<MiniTooltip
 			title={
 				<>
 					This workspace has not been used for{" "}
@@ -44,6 +44,6 @@ export const WorkspaceDormantBadge: FC<WorkspaceDormantBadgeProps> = ({
 			<Badge role="status" variant="warning" size="xs">
 				Dormant
 			</Badge>
-		</Tooltip>
+		</MiniTooltip>
 	);
 };

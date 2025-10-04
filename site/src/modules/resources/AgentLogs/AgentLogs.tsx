@@ -1,7 +1,7 @@
-import MuiTooltip from "@mui/material/Tooltip";
 import type { WorkspaceAgentLogSource } from "api/typesGenerated";
 import { Badge } from "components/Badge/Badge";
 import type { Line } from "components/Logs/LogLine";
+import MiniTooltip from "components/MiniTooltip/MiniTooltip";
 import {
 	Tooltip,
 	TooltipContent,
@@ -126,7 +126,7 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
 								maxLineNumber={logs.length}
 								style={style}
 								sourceIcon={
-									<MuiTooltip
+									<MiniTooltip
 										title={
 											<>
 												{logSource.display_name}
@@ -140,7 +140,7 @@ export const AgentLogs = forwardRef<List, AgentLogsProps>(
 										}
 									>
 										{icon}
-									</MuiTooltip>
+									</MiniTooltip>
 								}
 							/>
 						);

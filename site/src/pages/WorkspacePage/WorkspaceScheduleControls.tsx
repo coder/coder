@@ -1,7 +1,6 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import IconButton from "@mui/material/IconButton";
 import Link, { type LinkProps } from "@mui/material/Link";
-import Tooltip from "@mui/material/Tooltip";
 import { visuallyHidden } from "@mui/utils";
 import { getErrorMessage } from "api/errors";
 import {
@@ -11,6 +10,7 @@ import {
 import type { Template, Workspace } from "api/typesGenerated";
 import { TopbarData, TopbarIcon } from "components/FullPageLayout/Topbar";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import MiniTooltip from "components/MiniTooltip/MiniTooltip";
 import dayjs, { type Dayjs } from "dayjs";
 import { useTime } from "hooks/useTime";
 import { ClockIcon, MinusIcon, PlusIcon } from "lucide-react";
@@ -45,7 +45,7 @@ const WorkspaceScheduleContainer: FC<WorkspaceScheduleContainerProps> = ({
 
 	return (
 		<TopbarData>
-			<Tooltip title="Schedule">
+			<MiniTooltip title="Schedule">
 				{onClickIcon ? (
 					<button
 						type="button"
@@ -58,7 +58,7 @@ const WorkspaceScheduleContainer: FC<WorkspaceScheduleContainerProps> = ({
 				) : (
 					icon
 				)}
-			</Tooltip>
+			</MiniTooltip>
 			{children}
 		</TopbarData>
 	);
@@ -200,7 +200,7 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 
 	const controls = canUpdateSchedule && canEditDeadline(workspace) && (
 		<div css={styles.scheduleControls}>
-			<Tooltip title="Subtract 1 hour from deadline">
+			<MiniTooltip title="Subtract 1 hour from deadline">
 				<IconButton
 					disabled={!deadlineMinusEnabled}
 					size="small"
@@ -212,8 +212,8 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 					<MinusIcon className="size-icon-xs" />
 					<span style={visuallyHidden}>Subtract 1 hour</span>
 				</IconButton>
-			</Tooltip>
-			<Tooltip title="Add 1 hour to deadline">
+			</MiniTooltip>
+			<MiniTooltip title="Add 1 hour to deadline">
 				<IconButton
 					disabled={!deadlinePlusEnabled}
 					size="small"
@@ -225,14 +225,14 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 					<PlusIcon className="size-icon-xs" />
 					<span style={visuallyHidden}>Add 1 hour</span>
 				</IconButton>
-			</Tooltip>
+			</MiniTooltip>
 		</div>
 	);
 
 	if (tooltip) {
 		return (
 			<WorkspaceScheduleContainer onClickIcon={onClickScheduleIcon}>
-				<Tooltip title={tooltip}>{display}</Tooltip>
+				<MiniTooltip title={tooltip}>{display}</MiniTooltip>
 				{controls}
 			</WorkspaceScheduleContainer>
 		);

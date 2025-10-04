@@ -6,21 +6,23 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import type { FC } from "react";
+import { useState, type FC, type ReactNode } from "react";
 import { cn } from "utils/cn";
 
-type MiniTooltipProps = TooltipContentProps & {
-	title: string;
+type MiniTooltipProps = Omit<TooltipContentProps, 'title'> & {
+	title: ReactNode;
 	arrow?: boolean;
+	open?: boolean;
 };
 
 const MiniTooltip: FC<MiniTooltipProps> = (props) => {
-	const { title, children, arrow, ...contentProps } = props;
+	const { title, children, arrow, open, ...contentProps } = props;
+	const [isOpen, setIsOpen] = useState(false)
 
 	return (
 		<TooltipProvider>
-			<Tooltip delayDuration={0}>
-				<TooltipTrigger asChild aria-label={title}>
+			<Tooltip delayDuration={0} open={isOpen} onOpenChange={setIsOpen}>
+				<TooltipTrigger asChild aria-label={typeof title === 'string' ? title : undefined}>
 					{children}
 				</TooltipTrigger>
 				<TooltipContent

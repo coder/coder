@@ -1,7 +1,6 @@
 import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
-import Tooltip from "@mui/material/Tooltip";
 import type {
 	DeploymentStats,
 	HealthcheckReport,
@@ -12,6 +11,7 @@ import { JetBrainsIcon } from "components/Icons/JetBrainsIcon";
 import { RocketIcon } from "components/Icons/RocketIcon";
 import { TerminalIcon } from "components/Icons/TerminalIcon";
 import { VSCodeIcon } from "components/Icons/VSCodeIcon";
+import MiniTooltip from "components/MiniTooltip/MiniTooltip";
 import { Stack } from "components/Stack/Stack";
 import dayjs from "dayjs";
 import {
@@ -124,11 +124,8 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 				whiteSpace: "nowrap",
 			}}
 		>
-			<Tooltip
-				classes={{
-					tooltip:
-						"ml-3 mb-1 w-[400px] p-4 text-sm text-content-primary bg-surface-secondary border border-solid border-border pointer-events-none",
-				}}
+			<MiniTooltip
+				className="w-[400px] p-4 text-sm pointer-events-none"
 				title={
 					healthErrors.length > 0 ? (
 						<>
@@ -146,7 +143,6 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 					)
 				}
 				open={process.env.STORYBOOK === "true" ? true : undefined}
-				css={{ marginRight: -16 }}
 			>
 				{healthErrors.length > 0 ? (
 					<Link
@@ -161,7 +157,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 						<RocketIcon />
 					</div>
 				)}
-			</Tooltip>
+			</MiniTooltip>
 
 			<div css={styles.group}>
 				<div css={styles.category}>Workspaces</div>
@@ -194,26 +190,26 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 			</div>
 
 			<div css={styles.group}>
-				<Tooltip title={`Activity in the last ~${aggregatedMinutes} minutes`}>
+				<MiniTooltip title={`Activity in the last ~${aggregatedMinutes} minutes`}>
 					<div css={styles.category}>Transmission</div>
-				</Tooltip>
+				</MiniTooltip>
 
 				<div css={styles.values}>
-					<Tooltip title="Data sent to workspaces">
+					<MiniTooltip title="Data sent to workspaces">
 						<div css={styles.value}>
 							<CloudDownloadIcon className="size-icon-xs" />
 							{stats ? prettyBytes(stats.workspaces.rx_bytes) : "-"}
 						</div>
-					</Tooltip>
+					</MiniTooltip>
 					<ValueSeparator />
-					<Tooltip title="Data sent from workspaces">
+					<MiniTooltip title="Data sent from workspaces">
 						<div css={styles.value}>
 							<CloudUploadIcon className="size-icon-xs" />
 							{stats ? prettyBytes(stats.workspaces.tx_bytes) : "-"}
 						</div>
-					</Tooltip>
+					</MiniTooltip>
 					<ValueSeparator />
-					<Tooltip
+					<MiniTooltip
 						title={
 							displayLatency < 0
 								? "No recent workspace connections have been made"
@@ -224,7 +220,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 							<GaugeIcon className="size-icon-xs" />
 							{displayLatency > 0 ? `${displayLatency?.toFixed(2)} ms` : "-"}
 						</div>
-					</Tooltip>
+					</MiniTooltip>
 				</div>
 			</div>
 
@@ -232,7 +228,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 				<div css={styles.category}>Active Connections</div>
 
 				<div css={styles.values}>
-					<Tooltip title="VS Code Editors with the Coder Remote Extension">
+					<MiniTooltip title="VS Code Editors with the Coder Remote Extension">
 						<div css={styles.value}>
 							<VSCodeIcon
 								css={css`
@@ -245,9 +241,9 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 								? "-"
 								: stats?.session_count.vscode}
 						</div>
-					</Tooltip>
+					</MiniTooltip>
 					<ValueSeparator />
-					<Tooltip title="JetBrains Editors">
+					<MiniTooltip title="JetBrains Editors">
 						<div css={styles.value}>
 							<JetBrainsIcon
 								css={css`
@@ -260,25 +256,25 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 								? "-"
 								: stats?.session_count.jetbrains}
 						</div>
-					</Tooltip>
+					</MiniTooltip>
 					<ValueSeparator />
-					<Tooltip title="SSH Sessions">
+					<MiniTooltip title="SSH Sessions">
 						<div css={styles.value}>
 							<TerminalIcon />
 							{typeof stats?.session_count.ssh === "undefined"
 								? "-"
 								: stats?.session_count.ssh}
 						</div>
-					</Tooltip>
+					</MiniTooltip>
 					<ValueSeparator />
-					<Tooltip title="Web Terminal Sessions">
+					<MiniTooltip title="Web Terminal Sessions">
 						<div css={styles.value}>
 							<AppWindowIcon className="size-icon-xs" />
 							{typeof stats?.session_count.reconnecting_pty === "undefined"
 								? "-"
 								: stats?.session_count.reconnecting_pty}
 						</div>
-					</Tooltip>
+					</MiniTooltip>
 				</div>
 			</div>
 
@@ -291,14 +287,14 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 					gap: 16,
 				}}
 			>
-				<Tooltip title="The last time stats were aggregated. Workspaces report statistics periodically, so it may take a bit for these to update!">
+				<MiniTooltip title="The last time stats were aggregated. Workspaces report statistics periodically, so it may take a bit for these to update!">
 					<div css={styles.value}>
 						<GitCompareArrowsIcon className="size-icon-xs" />
 						{lastAggregated}
 					</div>
-				</Tooltip>
+				</MiniTooltip>
 
-				<Tooltip title="A countdown until stats are fetched again. Click to refresh!">
+				<MiniTooltip title="A countdown until stats are fetched again. Click to refresh!">
 					<Button
 						css={[
 							styles.value,
@@ -328,7 +324,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 						<RotateCwIcon className="size-icon-xs" />
 						{timeUntilRefresh}s
 					</Button>
-				</Tooltip>
+				</MiniTooltip>
 			</div>
 		</div>
 	);
@@ -352,7 +348,7 @@ const WorkspaceBuildValue: FC<WorkspaceBuildValueProps> = ({
 	}
 
 	return (
-		<Tooltip title={`${statusText} Workspaces`}>
+		<MiniTooltip title={`${statusText} Workspaces`}>
 			<Link
 				component={RouterLink}
 				to={`/workspaces?filter=${encodeURIComponent(`status:${status}`)}`}
@@ -362,7 +358,7 @@ const WorkspaceBuildValue: FC<WorkspaceBuildValueProps> = ({
 					{typeof count === "undefined" ? "-" : count}
 				</div>
 			</Link>
-		</Tooltip>
+		</MiniTooltip>
 	);
 };
 

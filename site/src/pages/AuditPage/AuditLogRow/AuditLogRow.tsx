@@ -2,10 +2,10 @@ import type { CSSObject, Interpolation, Theme } from "@emotion/react";
 import Collapse from "@mui/material/Collapse";
 import Link from "@mui/material/Link";
 import TableCell from "@mui/material/TableCell";
-import Tooltip from "@mui/material/Tooltip";
 import type { AuditLog, BuildReason } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
+import MiniTooltip from "components/MiniTooltip/MiniTooltip";
 import { Stack } from "components/Stack/Stack";
 import { StatusPill } from "components/StatusPill/StatusPill";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
@@ -128,7 +128,7 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 									{/* With multi-org, there is not enough space so show
                       everything in a tooltip. */}
 									{showOrgDetails ? (
-										<Tooltip
+										<MiniTooltip
 											title={
 												<div css={styles.auditLogInfoTooltip}>
 													{auditLog.ip && (
@@ -188,7 +188,7 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 													color: theme.palette.info.light,
 												})}
 											/>
-										</Tooltip>
+										</MiniTooltip>
 									) : (
 										<Stack direction="row" spacing={1} alignItems="baseline">
 											{auditLog.ip && (

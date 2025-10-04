@@ -5,11 +5,11 @@ import type { InputBaseComponentProps } from "@mui/material/InputBase";
 import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
 import TextField, { type TextFieldProps } from "@mui/material/TextField";
-import Tooltip from "@mui/material/Tooltip";
 import type { TemplateVersionParameter } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { MemoizedMarkdown } from "components/Markdown/Markdown";
+import MiniTooltip from "components/MiniTooltip/MiniTooltip";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
 import { CircleAlertIcon, SettingsIcon } from "lucide-react";
@@ -136,26 +136,26 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ parameter, isPreset }) => {
 			{displayName}
 
 			{!parameter.required && (
-				<Tooltip title="If no value is specified, the system will default to the value set by the administrator.">
+				<MiniTooltip title="If no value is specified, the system will default to the value set by the administrator.">
 					<span css={styles.optionalLabel}>(optional)</span>
-				</Tooltip>
+				</MiniTooltip>
 			)}
 			{!parameter.mutable && (
-				<Tooltip title="This value cannot be modified after the workspace has been created.">
+				<MiniTooltip title="This value cannot be modified after the workspace has been created.">
 					<Pill
 						type="warning"
 						icon={<CircleAlertIcon className="size-icon-xs" />}
 					>
 						Immutable
 					</Pill>
-				</Tooltip>
+				</MiniTooltip>
 			)}
 			{isPreset && (
-				<Tooltip title="This value was set by a preset">
+				<MiniTooltip title="This value was set by a preset">
 					<Pill type="info" icon={<SettingsIcon className="size-icon-xs" />}>
 						Preset
 					</Pill>
-				</Tooltip>
+				</MiniTooltip>
 			)}
 		</span>
 	);
@@ -328,7 +328,7 @@ const RichParameterField: FC<RichParameterInputProps> = ({
 										css={{ padding: small ? undefined : "4px 0" }}
 									>
 										{small ? (
-											<Tooltip
+											<MiniTooltip
 												title={
 													<MemoizedMarkdown>
 														{option.description}
@@ -336,7 +336,7 @@ const RichParameterField: FC<RichParameterInputProps> = ({
 												}
 											>
 												<div>{option.name}</div>
-											</Tooltip>
+											</MiniTooltip>
 										) : (
 											<>
 												<span>{option.name}</span>
