@@ -11,11 +11,11 @@ import {
 } from "components/PageHeader/PageHeader";
 import { useAuthenticated } from "hooks";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
+import { TaskPrompt } from "modules/tasks/TaskPrompt/TaskPrompt";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { cn } from "utils/cn";
 import { pageTitle } from "utils/page";
-import { TaskPrompt } from "./TaskPrompt";
 import { TasksTable } from "./TasksTable";
 import { UsersCombobox } from "./UsersCombobox";
 
