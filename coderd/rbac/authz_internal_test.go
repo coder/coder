@@ -389,7 +389,9 @@ func TestAuthorizeDomain(t *testing.T) {
 		{resource: ResourceWorkspace.AnyOrganization().WithOwner(user.ID), actions: ResourceWorkspace.AvailableActions(), allow: true},
 		{resource: ResourceTemplate.AnyOrganization(), actions: []policy.Action{policy.ActionCreate}, allow: false},
 
-		{resource: ResourceWorkspace.WithOwner(user.ID), actions: ResourceWorkspace.AvailableActions(), allow: true},
+		// ResourceWorkspace WITHOUT an organization. Should never happen in prod. The default member role omits these
+		// permissions.
+		{resource: ResourceWorkspace.WithOwner(user.ID), actions: ResourceWorkspace.AvailableActions(), allow: false},
 
 		{resource: ResourceWorkspace.All(), actions: ResourceWorkspace.AvailableActions(), allow: false},
 
@@ -455,6 +457,7 @@ func TestAuthorizeDomain(t *testing.T) {
 		Scope: must(ExpandScope(ScopeAll)),
 		Roles: Roles{
 			must(RoleByName(ScopedRoleOrgAdmin(defOrg))),
+			must(RoleByName(ScopedRoleOrgMember(defOrg))),
 			must(RoleByName(RoleMember())),
 		},
 	}
@@ -469,7 +472,8 @@ func TestAuthorizeDomain(t *testing.T) {
 		{resource: ResourceWorkspace.InOrg(defOrg), actions: workspaceExceptConnect, allow: true},
 		{resource: ResourceWorkspace.InOrg(defOrg), actions: workspaceConnect, allow: false},
 
-		{resource: ResourceWorkspace.WithOwner(user.ID), actions: ResourceWorkspace.AvailableActions(), allow: true},
+		// Workspace is not in any organization, will never happen in prod.
+		{resource: ResourceWorkspace.WithOwner(user.ID), actions: ResourceWorkspace.AvailableActions(), allow: false},
 
 		{resource: ResourceWorkspace.All(), actions: ResourceWorkspace.AvailableActions(), allow: false},
 
@@ -546,7 +550,8 @@ func TestAuthorizeDomain(t *testing.T) {
 			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID), allow: true},
 			{resource: ResourceWorkspace.InOrg(defOrg), allow: false},
 
-			{resource: ResourceWorkspace.WithOwner(user.ID), allow: true},
+			// Workspace with no ownership will never happen in prod.
+			{resource: ResourceWorkspace.WithOwner(user.ID), allow: false},
 
 			{resource: ResourceWorkspace.All(), allow: false},
 
@@ -634,6 +639,13 @@ func TestAuthorizeDomain(t *testing.T) {
 				Identifier: RoleIdentifier{Name: "ReadOnlyOrgAndUser"},
 				Site:       []Permission{},
 				Org: map[string][]Permission{
+					defOrg.String(): {{
+						Negate:       false,
+						ResourceType: "*",
+						Action:       policy.ActionRead,
+					}},
+				},
+				OrgMember: map[string][]Permission{
 					defOrg.String(): {{
 						Negate:       false,
 						ResourceType: "*",
@@ -926,8 +938,9 @@ func TestAuthorizeScope(t *testing.T) {
 					// Only read access for workspaces.
 					ResourceWorkspace.Type: {policy.ActionRead},
 				}),
-				Org:  map[string][]Permission{},
-				User: []Permission{},
+				Org:       map[string][]Permission{},
+				User:      []Permission{},
+				OrgMember: map[string][]Permission{},
 			},
 			AllowIDList: []AllowListElement{{Type: ResourceWorkspace.Type, ID: workspaceID.String()}},
 		},
@@ -1015,8 +1028,9 @@ func TestAuthorizeScope(t *testing.T) {
 					// Only read access for workspaces.
 					ResourceWorkspace.Type: {policy.ActionCreate},
 				}),
-				Org:  map[string][]Permission{},
-				User: []Permission{},
+				Org:       map[string][]Permission{},
+				User:      []Permission{},
+				OrgMember: map[string][]Permission{},
 			},
 			// Empty string allow_list is allowed for actions like 'create'
 			AllowIDList: []AllowListElement{{
@@ -1139,6 +1153,11 @@ func TestAuthorizeScope(t *testing.T) {
 				DisplayName: "OrgAndUserScope",
 				Site:        nil,
 				Org: map[string][]Permission{
+					defOrg.String(): Permissions(map[string][]policy.Action{
+						ResourceWorkspace.Type: {policy.ActionRead},
+					}),
+				},
+				OrgMember: map[string][]Permission{
 					defOrg.String(): Permissions(map[string][]policy.Action{
 						ResourceWorkspace.Type: {policy.ActionRead},
 					}),
@@ -1310,9 +1329,9 @@ type authTestCase struct {
 func testAuthorize(t *testing.T, name string, subject Subject, sets ...[]authTestCase) {
 	t.Helper()
 	authorizer := NewAuthorizer(prometheus.NewRegistry())
-	for _, cases := range sets {
+	for si, cases := range sets {
 		for i, c := range cases {
-			caseName := fmt.Sprintf("%s/%d", name, i)
+			caseName := fmt.Sprintf("%s/%d-%d", name, si, i)
 			t.Run(caseName, func(t *testing.T) {
 				t.Parallel()
 				for _, a := range c.actions {
