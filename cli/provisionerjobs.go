@@ -66,20 +66,18 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 				return xerrors.Errorf("current organization: %w", err)
 			}
 
-			var initiatorID *uuid.UUID
-
 			if initiator != "" {
 				user, err := client.User(ctx, initiator)
 				if err != nil {
 					return xerrors.Errorf("initiator not found: %s", initiator)
 				}
-				initiatorID = &user.ID
+				initiator = user.ID.String()
 			}
 
 			jobs, err := client.OrganizationProvisionerJobs(ctx, org.ID, &codersdk.OrganizationProvisionerJobsOptions{
-				Status:      slice.StringEnums[codersdk.ProvisionerJobStatus](status),
-				Limit:       int(limit),
-				InitiatorID: initiatorID,
+				Status:    slice.StringEnums[codersdk.ProvisionerJobStatus](status),
+				Limit:     int(limit),
+				Initiator: initiator,
 			})
 			if err != nil {
 				return xerrors.Errorf("list provisioner jobs: %w", err)

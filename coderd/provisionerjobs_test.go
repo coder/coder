@@ -173,7 +173,7 @@ func TestProvisionerJobs(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitMedium)
 
 			jobs, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
-				InitiatorID: &member.ID,
+				Initiator: member.ID.String(),
 			})
 			require.NoError(t, err)
 			require.GreaterOrEqual(t, len(jobs), 1)
@@ -186,8 +186,8 @@ func TestProvisionerJobs(t *testing.T) {
 
 			// Test filtering by initiator ID combined with status filter
 			jobs, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
-				InitiatorID: &owner.UserID,
-				Status:      []codersdk.ProvisionerJobStatus{codersdk.ProvisionerJobSucceeded},
+				Initiator: owner.UserID.String(),
+				Status:    []codersdk.ProvisionerJobStatus{codersdk.ProvisionerJobSucceeded},
 			})
 			require.NoError(t, err)
 
@@ -204,8 +204,8 @@ func TestProvisionerJobs(t *testing.T) {
 
 			// Test filtering by initiator ID with limit
 			jobs, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
-				InitiatorID: &owner.UserID,
-				Limit:       1,
+				Initiator: owner.UserID.String(),
+				Limit:     1,
 			})
 			require.NoError(t, err)
 			require.Len(t, jobs, 1)
@@ -220,8 +220,8 @@ func TestProvisionerJobs(t *testing.T) {
 
 			// Test filtering by initiator ID combined with tags
 			jobs, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
-				InitiatorID: &member.ID,
-				Tags:        map[string]string{"initiatorTest": "true"},
+				Initiator: member.ID.String(),
+				Tags:      map[string]string{"initiatorTest": "true"},
 			})
 			require.NoError(t, err)
 			require.Len(t, jobs, 1)
@@ -238,7 +238,7 @@ func TestProvisionerJobs(t *testing.T) {
 			// Test with non-existent initiator ID
 			nonExistentID := uuid.New()
 			jobs, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
-				InitiatorID: &nonExistentID,
+				Initiator: nonExistentID.String(),
 			})
 			require.NoError(t, err)
 			require.Len(t, jobs, 0)
@@ -250,7 +250,7 @@ func TestProvisionerJobs(t *testing.T) {
 
 			// Test with nil initiator ID (should return all jobs)
 			jobs, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
-				InitiatorID: nil,
+				Initiator: "",
 			})
 			require.NoError(t, err)
 			require.GreaterOrEqual(t, len(jobs), 50) // Should return all jobs (up to default limit)
@@ -282,7 +282,7 @@ func TestProvisionerJobs(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitMedium)
 			// Member should not be able to access jobs even with initiator filter
 			jobs, err := memberClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
-				InitiatorID: &member.ID,
+				Initiator: member.ID.String(),
 			})
 			require.Error(t, err)
 			require.Len(t, jobs, 0)
