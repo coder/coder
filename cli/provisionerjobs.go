@@ -43,9 +43,9 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 			cliui.TableFormat([]provisionerJobRow{}, []string{"created at", "id", "type", "template display name", "status", "queue", "tags"}),
 			cliui.JSONFormat(),
 		)
-		status         []string
-		limit          int64
-		initiatorIDStr string
+		status    []string
+		limit     int64
+		initiator string
 	)
 
 	cmd := &serpent.Command{
@@ -68,10 +68,10 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 
 			var initiatorID *uuid.UUID
 
-			if initiatorIDStr != "" {
-				user, err := client.User(ctx, initiatorIDStr)
+			if initiator != "" {
+				user, err := client.User(ctx, initiator)
 				if err != nil {
-					return xerrors.Errorf("initiator not found: %s", initiatorIDStr)
+					return xerrors.Errorf("initiator not found: %s", initiator)
 				}
 				initiatorID = &user.ID
 			}
@@ -139,7 +139,7 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 			FlagShorthand: "i",
 			Env:           "CODER_PROVISIONER_JOB_LIST_INITIATOR",
 			Description:   "Filter by initiator (user ID or username).",
-			Value:         serpent.StringOf(&initiatorIDStr),
+			Value:         serpent.StringOf(&initiator),
 		},
 	}...)
 
