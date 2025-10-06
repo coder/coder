@@ -262,6 +262,19 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 		expect(result.current.error).toBeInstanceOf(Error);
 	});
 
+	it("Clears out existing errors if a new copy operation succeeds", async () => {
+		const text = "dummy-text";
+		const { result } = renderUseClipboard();
+		setSimulateFailure(true);
+
+		await act(() => result.current.copyToClipboard(text));
+		expect(result.current.error).toBeInstanceOf(Error);
+
+		setSimulateFailure(false);
+		await assertClipboardUpdateLifecycle(result, text);
+		expect(result.current.error).toBeUndefined();
+	});
+
 	// This check is really important to ensure that it's easy to plop this
 	// inside of useEffect calls without having to think about dependencies too
 	// much
@@ -269,6 +282,7 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 		const initialOnError = jest.fn();
 		const { result, rerender } = renderUseClipboard({
 			onError: initialOnError,
+			clearErrorOnSuccess: true,
 		});
 		const initialCopy = result.current.copyToClipboard;
 
@@ -282,6 +296,11 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 		rerender({ onError: jest.fn() });
 		expect(result.current.copyToClipboard).toBe(initialCopy);
 		rerender({ onError: initialOnError });
+
+		// Re-render with a new clear value then swap back to simplify testing
+		rerender({ onError: initialOnError, clearErrorOnSuccess: false });
+		expect(result.current.copyToClipboard).toBe(initialCopy);
+		rerender({ onError: initialOnError, clearErrorOnSuccess: true });
 
 		// Trigger a failed clipboard interaction
 		setSimulateFailure(true);
