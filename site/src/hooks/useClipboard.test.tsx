@@ -275,7 +275,7 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 		expect(result.current.error).toBeUndefined();
 	});
 
-	// This check is really important to ensure that it's easy to plop this
+	// This test case is really important to ensure that it's easy to plop this
 	// inside of useEffect calls without having to think about dependencies too
 	// much
 	it("Ensures that the copyToClipboard function always maintains a stable reference across all re-renders", async () => {

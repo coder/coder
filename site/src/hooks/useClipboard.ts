@@ -1,8 +1,3 @@
-/**
- * Modified version of the useClipboard hook from Coder core.
- * @see {@link https://github.com/coder/coder/blob/main/site/src/hooks/useClipboard.ts}
- */
-
 import { displayError } from "components/GlobalSnackbar/utils";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useEffectEvent } from "./hookPolyfills";
