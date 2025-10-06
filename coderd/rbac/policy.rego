@@ -114,7 +114,7 @@ site_allow(roles) := num if {
 #  Adding a second org_members set might affect the partial evaluation.
 #  This is being left until org scopes are used.
 org_members := {orgID |
-	input.subject.roles[_].org[orgID]
+	input.subject.roles[_].by_org_id[orgID]
 }
 
 # 'org' is the same as 'site' except we need to iterate over each organization
@@ -140,7 +140,7 @@ org_allow_set(roles, key) := allow_set if {
 		id := org_members[_]
 		set := {is_allowed |
 			# Iterate over all org permissions in all roles
-			perm := roles[_][key][id][_]
+			perm := roles[_].by_org_id[id][key][_]
 			perm.action in [input.action, "*"]
 			perm.resource_type in [input.object.type, "*"]
 
@@ -260,7 +260,7 @@ org_member := num if {
 	# Object must be jointly owned by the user
 	input.object.owner != ""
 	input.subject.id = input.object.owner
-	num := org_allow(input.subject.roles, "org_member")
+	num := org_allow(input.subject.roles, "member")
 }
 
 default scope_org_member := 0
@@ -268,7 +268,7 @@ scope_org_member := num if {
 	# Object must be jointly owned by the user
 	input.object.owner != ""
 	input.subject.id = input.object.owner
-	num := org_allow([input.subject.scope], "org_member")
+	num := org_allow([input.subject.scope], "member")
 }
 
 # Scope allow_list is a list of resource (Type, ID) tuples explicitly allowed by the scope.
