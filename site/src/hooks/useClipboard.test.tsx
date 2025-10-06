@@ -9,9 +9,11 @@
  * immediately pollutes the tests with false negatives. Even if something should
  * fail, it won't.
  */
-import { act, renderHook, screen } from "@testing-library/react";
+
+import { renderHook, screen } from "@testing-library/react";
 import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
 import { ThemeOverride } from "contexts/ThemeProvider";
+import { act } from "react";
 import themes, { DEFAULT_THEME } from "theme";
 import {
 	COPY_FAILED_MESSAGE,
@@ -258,5 +260,50 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 		await act(() => result.current.copyToClipboard(textToCopy));
 
 		expect(result.current.error).toBeInstanceOf(Error);
+	});
+
+	// This check is really important to ensure that it's easy to plop this
+	// inside of useEffect calls without having to think about dependencies too
+	// much
+	it("Ensures that the copyToClipboard function always maintains a stable reference across all re-renders", async () => {
+		const initialOnError = jest.fn();
+		const { result, rerender } = renderUseClipboard({
+			onError: initialOnError,
+		});
+		const initialCopy = result.current.copyToClipboard;
+
+		// Re-render arbitrarily with no clipboard state transitions to make
+		// sure that a parent re-rendering doesn't break anything
+		rerender({ onError: initialOnError });
+		expect(result.current.copyToClipboard).toBe(initialCopy);
+
+		// Re-render with new onError prop and then swap back to simplify
+		// testing
+		rerender({ onError: jest.fn() });
+		expect(result.current.copyToClipboard).toBe(initialCopy);
+		rerender({ onError: initialOnError });
+
+		// Trigger a failed clipboard interaction
+		setSimulateFailure(true);
+		await act(() => result.current.copyToClipboard("dummy-text-2"));
+		expect(result.current.copyToClipboard).toBe(initialCopy);
+	});
+
+	it("Always uses the most up-to-date onError prop", async () => {
+		const initialOnError = jest.fn();
+		const { result, rerender } = renderUseClipboard({
+			onError: initialOnError,
+		});
+		setSimulateFailure(true);
+
+		const secondOnError = jest.fn();
+		rerender({ onError: secondOnError });
+		await act(() => result.current.copyToClipboard("dummy-text"));
+
+		expect(initialOnError).not.toHaveBeenCalled();
+		expect(secondOnError).toHaveBeenCalledTimes(1);
+		expect(secondOnError).toHaveBeenCalledWith(
+			"Failed to copy text to clipboard",
+		);
 	});
 });
