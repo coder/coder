@@ -3032,6 +3032,7 @@ export interface Task {
 	readonly workspace_agent_id: string | null;
 	readonly workspace_agent_lifecycle: WorkspaceAgentLifecycle | null;
 	readonly workspace_agent_health: WorkspaceAgentHealth | null;
+	readonly latest_build_id: string | null;
 	readonly initial_prompt: string;
 	readonly status: WorkspaceStatus;
 	readonly current_state: TaskStateEntry | null;

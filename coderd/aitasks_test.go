@@ -270,6 +270,7 @@ func TestTasks(t *testing.T) {
 		assert.Equal(t, wantPrompt, got.InitialPrompt, "task prompt should match the AI Prompt parameter")
 		assert.Equal(t, workspace.Name, got.Name, "task name should map from workspace name")
 		assert.Equal(t, workspace.ID, got.WorkspaceID.UUID, "workspace id should match")
+		assert.Equal(t, workspace.LatestBuild.ID, got.LatestBuildID, "latest build id should match")
 		// Status should be populated via app status or workspace status mapping.
 		assert.NotEmpty(t, got.Status, "task status should not be empty")
 	})
@@ -320,6 +321,7 @@ func TestTasks(t *testing.T) {
 		assert.Equal(t, workspace.Name, task.Name, "task name should map from workspace name")
 		assert.Equal(t, wantPrompt, task.InitialPrompt, "task prompt should match the AI Prompt parameter")
 		assert.Equal(t, workspace.ID, task.WorkspaceID.UUID, "workspace id should match")
+		assert.Equal(t, workspace.LatestBuild.ID, task.LatestBuildID, "latest build id should match")
 		assert.NotEmpty(t, task.Status, "task status should not be empty")
 
 		// Stop the workspace
