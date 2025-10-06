@@ -3748,8 +3748,8 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "format": "uuid",
-                        "description": "Filter results by initiator ID",
-                        "name": "initiator_id",
+                        "description": "Filter results by initiator",
+                        "name": "initiator",
                         "in": "query"
                     }
                 ],
