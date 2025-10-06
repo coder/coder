@@ -2,6 +2,8 @@
  * Modified version of the useClipboard hook from Coder core.
  * @see {@link https://github.com/coder/coder/blob/main/site/src/hooks/useClipboard.ts}
  */
+
+import { displayError } from "components/GlobalSnackbar/utils";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useEffectEvent } from "./hookPolyfills";
 
@@ -40,7 +42,7 @@ export type UseClipboardResult = Readonly<{
 }>;
 
 export const useClipboard = (input?: UseClipboardInput): UseClipboardResult => {
-	const { onError: errorCallback, clearErrorOnSuccess = true } = input ?? {};
+	const { onError = displayError, clearErrorOnSuccess = true } = input ?? {};
 
 	const [showCopiedSuccess, setShowCopiedSuccess] = useState(false);
 	const [error, setError] = useState<Error>();
@@ -53,9 +55,7 @@ export const useClipboard = (input?: UseClipboardInput): UseClipboardResult => {
 		return clearTimeoutOnUnmount;
 	}, []);
 
-	const stableOnError = useEffectEvent(() => {
-		errorCallback?.(COPY_FAILED_MESSAGE);
-	});
+	const stableOnError = useEffectEvent(() => onError(COPY_FAILED_MESSAGE));
 	const handleSuccessfulCopy = useEffectEvent(() => {
 		setShowCopiedSuccess(true);
 		if (clearErrorOnSuccess) {
