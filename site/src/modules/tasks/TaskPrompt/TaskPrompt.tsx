@@ -1,7 +1,10 @@
 import type { SelectTriggerProps } from "@radix-ui/react-select";
 import { API } from "api/api";
 import { getErrorDetail, getErrorMessage } from "api/errors";
-import { templateVersionPresets } from "api/queries/templates";
+import {
+	templateVersionPresets,
+	templateVersions,
+} from "api/queries/templates";
 import type {
 	Preset,
 	Task,
@@ -135,12 +138,14 @@ type CreateTaskFormProps = {
 };
 
 const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
-	const { user } = useAuthenticated();
+	const { user, permissions } = useAuthenticated();
 	const queryClient = useQueryClient();
+	const [prompt, setPrompt] = useState("");
+
+	// Template
 	const [selectedTemplateId, setSelectedTemplateId] = useState<string>(
 		templates[0].id,
 	);
-	const [selectedPresetId, setSelectedPresetId] = useState<string>();
 	const selectedTemplate = templates.find(
 		(t) => t.id === selectedTemplateId,
 	) as Template;
@@ -152,24 +157,38 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 		isLoadingExternalAuth,
 	} = useExternalAuth(selectedTemplate.active_version_id);
 
-	// Fetch presets when template changes
-	const { data: presets, isLoading: isLoadingPresets } = useQuery(
-		templateVersionPresets(selectedTemplate.active_version_id),
+	// Template versions
+	const [selectedVersionId, setSelectedVersionId] = useState(
+		selectedTemplate.active_version_id,
 	);
-	const defaultPreset = presets?.find((p) => p.Default);
+	const versionsQuery = useQuery({
+		...templateVersions(selectedTemplate.id),
+		enabled: permissions.updateTemplates,
+	});
 
-	// Handle preset selection when data changes
+	// Presets
+	const { data: presets, isLoading: isLoadingPresets } = useQuery(
+		templateVersionPresets(selectedVersionId),
+	);
+	const [selectedPresetId, setSelectedPresetId] = useState<string>();
 	useEffect(() => {
-		setSelectedPresetId(defaultPreset?.ID);
-	}, [defaultPreset?.ID]);
-
-	// Extract AI prompt from selected preset
+		const defaultPreset = presets?.find((p) => p.Default);
+		setSelectedPresetId(defaultPreset?.ID ?? presets?.[0]?.ID);
+	}, [presets]);
 	const selectedPreset = presets?.find((p) => p.ID === selectedPresetId);
-	const presetAIPrompt = selectedPreset?.Parameters?.find(
+
+	// Read-only prompt if defined in preset
+	const presetPrompt = selectedPreset?.Parameters?.find(
 		(param) => param.Name === AI_PROMPT_PARAMETER_NAME,
 	)?.Value;
-	const isPromptReadOnly = !!presetAIPrompt;
+	const isPromptReadOnly = !!presetPrompt;
+	useEffect(() => {
+		if (presetPrompt) {
+			setPrompt(presetPrompt);
+		}
+	}, [presetPrompt]);
 
+	// External Auth
 	const missedExternalAuth = externalAuth?.filter(
 		(auth) => !auth.optional && !auth.authenticated,
 	);
@@ -178,13 +197,26 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 		: true;
 
 	const createTaskMutation = useMutation({
-		mutationFn: async ({ prompt }: CreateTaskMutationFnProps) =>
-			createTaskWithLatestTemplateVersion(
+		mutationFn: async ({ prompt }: CreateTaskMutationFnProps) => {
+			// Users with updateTemplates permission can select the version to use.
+			if (permissions.updateTemplates) {
+				return API.experimental.createTask(user.id, {
+					input: prompt,
+					template_version_id: selectedVersionId,
+					template_version_preset_id: selectedPresetId,
+				});
+			}
+
+			// For regular users we want to enforce task creation to always use the latest
+			// active template version, to avoid issues when the active version changes
+			// between template load and user action.
+			return createTaskWithLatestTemplateVersion(
 				prompt,
 				user.id,
 				selectedTemplate.id,
 				selectedPresetId,
-			),
+			);
+		},
 		onSuccess: async (task) => {
 			await queryClient.invalidateQueries({ queryKey: ["tasks"] });
 			onSuccess(task);
@@ -193,10 +225,6 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 
 	const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
 		e.preventDefault();
-
-		const form = e.currentTarget;
-		const formData = new FormData(form);
-		const prompt = presetAIPrompt || (formData.get("prompt") as string);
 
 		try {
 			await createTaskMutation.mutateAsync({
@@ -225,7 +253,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 					htmlFor="prompt"
 					className={
 						isPromptReadOnly
-							? "text-xs font-medium text-content-primary mb-2 block"
+							? "text-xs font-medium text-content-primary block px-3 pt-2"
 							: "sr-only"
 					}
 				>
@@ -233,12 +261,13 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 				</label>
 				<PromptTextarea
 					required
-					value={presetAIPrompt || undefined}
+					value={prompt}
+					onChange={(e) => setPrompt(e.target.value)}
 					readOnly={isPromptReadOnly}
 				/>
 				<div className="flex items-center justify-between pt-2">
 					<div className="flex items-center gap-1">
-						<div className="flex flex-col gap-1">
+						<div>
 							<label htmlFor="templateID" className="sr-only">
 								Template
 							</label>
@@ -265,7 +294,34 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 							</Select>
 						</div>
 
-						<div className="flex flex-col gap-1">
+						{versionsQuery.data && (
+							<div>
+								<label htmlFor="versionId" className="sr-only">
+									Template version
+								</label>
+								<Select
+									name="versionId"
+									onValueChange={(value) => setSelectedVersionId(value)}
+									value={selectedVersionId}
+									required
+								>
+									<PromptSelectTrigger id="versionId">
+										<SelectValue placeholder="Select a version" />
+									</PromptSelectTrigger>
+									<SelectContent>
+										{versionsQuery.data.map((version) => {
+											return (
+												<SelectItem value={version.id} key={version.id}>
+													{version.name}
+												</SelectItem>
+											);
+										})}
+									</SelectContent>
+								</Select>
+							</div>
+						)}
+
+						<div>
 							<label htmlFor="presetID" className="sr-only">
 								Preset
 							</label>
@@ -273,11 +329,12 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 								<Skeleton className="w-[320px] h-8" />
 							) : (
 								presets &&
-								presets.length > 0 && (
+								presets.length > 0 &&
+								selectedPresetId && (
 									<Select
 										key={`preset-select-${selectedTemplate.active_version_id}`}
 										name="presetID"
-										value={selectedPresetId || undefined}
+										value={selectedPresetId}
 										onValueChange={setSelectedPresetId}
 									>
 										<PromptSelectTrigger id="presetID">
@@ -438,6 +495,7 @@ async function createTaskWithLatestTemplateVersion(
 const PromptTextarea: FC<TextareaAutosizeProps> = (props) => {
 	return (
 		<TextareaAutosize
+			{...props}
 			required
 			id="prompt"
 			name="prompt"
