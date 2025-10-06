@@ -166,6 +166,46 @@ const (
 	ApiKeyScopeCoderTemplatesbuild                 APIKeyScope = "coder:templates.build"
 	ApiKeyScopeCoderTemplatesauthor                APIKeyScope = "coder:templates.author"
 	ApiKeyScopeCoderApikeysmanageSelf              APIKeyScope = "coder:apikeys.manage_self"
+	ApiKeyScopeAibridgeInterception                APIKeyScope = "aibridge_interception:*"
+	ApiKeyScopeApiKey                              APIKeyScope = "api_key:*"
+	ApiKeyScopeAssignOrgRole                       APIKeyScope = "assign_org_role:*"
+	ApiKeyScopeAssignRole                          APIKeyScope = "assign_role:*"
+	ApiKeyScopeAuditLog                            APIKeyScope = "audit_log:*"
+	ApiKeyScopeConnectionLog                       APIKeyScope = "connection_log:*"
+	ApiKeyScopeCryptoKey                           APIKeyScope = "crypto_key:*"
+	ApiKeyScopeDebugInfo                           APIKeyScope = "debug_info:*"
+	ApiKeyScopeDeploymentConfig                    APIKeyScope = "deployment_config:*"
+	ApiKeyScopeDeploymentStats                     APIKeyScope = "deployment_stats:*"
+	ApiKeyScopeFile                                APIKeyScope = "file:*"
+	ApiKeyScopeGroup                               APIKeyScope = "group:*"
+	ApiKeyScopeGroupMember                         APIKeyScope = "group_member:*"
+	ApiKeyScopeIdpsyncSettings                     APIKeyScope = "idpsync_settings:*"
+	ApiKeyScopeInboxNotification                   APIKeyScope = "inbox_notification:*"
+	ApiKeyScopeLicense                             APIKeyScope = "license:*"
+	ApiKeyScopeNotificationMessage                 APIKeyScope = "notification_message:*"
+	ApiKeyScopeNotificationPreference              APIKeyScope = "notification_preference:*"
+	ApiKeyScopeNotificationTemplate                APIKeyScope = "notification_template:*"
+	ApiKeyScopeOauth2App                           APIKeyScope = "oauth2_app:*"
+	ApiKeyScopeOauth2AppCodeToken                  APIKeyScope = "oauth2_app_code_token:*"
+	ApiKeyScopeOauth2AppSecret                     APIKeyScope = "oauth2_app_secret:*"
+	ApiKeyScopeOrganization                        APIKeyScope = "organization:*"
+	ApiKeyScopeOrganizationMember                  APIKeyScope = "organization_member:*"
+	ApiKeyScopePrebuiltWorkspace                   APIKeyScope = "prebuilt_workspace:*"
+	ApiKeyScopeProvisionerDaemon                   APIKeyScope = "provisioner_daemon:*"
+	ApiKeyScopeProvisionerJobs                     APIKeyScope = "provisioner_jobs:*"
+	ApiKeyScopeReplicas                            APIKeyScope = "replicas:*"
+	ApiKeyScopeSystem                              APIKeyScope = "system:*"
+	ApiKeyScopeTailnetCoordinator                  APIKeyScope = "tailnet_coordinator:*"
+	ApiKeyScopeTemplate                            APIKeyScope = "template:*"
+	ApiKeyScopeUsageEvent                          APIKeyScope = "usage_event:*"
+	ApiKeyScopeUser                                APIKeyScope = "user:*"
+	ApiKeyScopeUserSecret                          APIKeyScope = "user_secret:*"
+	ApiKeyScopeWebpushSubscription                 APIKeyScope = "webpush_subscription:*"
+	ApiKeyScopeWorkspace                           APIKeyScope = "workspace:*"
+	ApiKeyScopeWorkspaceAgentDevcontainers         APIKeyScope = "workspace_agent_devcontainers:*"
+	ApiKeyScopeWorkspaceAgentResourceMonitor       APIKeyScope = "workspace_agent_resource_monitor:*"
+	ApiKeyScopeWorkspaceDormant                    APIKeyScope = "workspace_dormant:*"
+	ApiKeyScopeWorkspaceProxy                      APIKeyScope = "workspace_proxy:*"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -351,7 +391,47 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeCoderWorkspacesaccess,
 		ApiKeyScopeCoderTemplatesbuild,
 		ApiKeyScopeCoderTemplatesauthor,
-		ApiKeyScopeCoderApikeysmanageSelf:
+		ApiKeyScopeCoderApikeysmanageSelf,
+		ApiKeyScopeAibridgeInterception,
+		ApiKeyScopeApiKey,
+		ApiKeyScopeAssignOrgRole,
+		ApiKeyScopeAssignRole,
+		ApiKeyScopeAuditLog,
+		ApiKeyScopeConnectionLog,
+		ApiKeyScopeCryptoKey,
+		ApiKeyScopeDebugInfo,
+		ApiKeyScopeDeploymentConfig,
+		ApiKeyScopeDeploymentStats,
+		ApiKeyScopeFile,
+		ApiKeyScopeGroup,
+		ApiKeyScopeGroupMember,
+		ApiKeyScopeIdpsyncSettings,
+		ApiKeyScopeInboxNotification,
+		ApiKeyScopeLicense,
+		ApiKeyScopeNotificationMessage,
+		ApiKeyScopeNotificationPreference,
+		ApiKeyScopeNotificationTemplate,
+		ApiKeyScopeOauth2App,
+		ApiKeyScopeOauth2AppCodeToken,
+		ApiKeyScopeOauth2AppSecret,
+		ApiKeyScopeOrganization,
+		ApiKeyScopeOrganizationMember,
+		ApiKeyScopePrebuiltWorkspace,
+		ApiKeyScopeProvisionerDaemon,
+		ApiKeyScopeProvisionerJobs,
+		ApiKeyScopeReplicas,
+		ApiKeyScopeSystem,
+		ApiKeyScopeTailnetCoordinator,
+		ApiKeyScopeTemplate,
+		ApiKeyScopeUsageEvent,
+		ApiKeyScopeUser,
+		ApiKeyScopeUserSecret,
+		ApiKeyScopeWebpushSubscription,
+		ApiKeyScopeWorkspace,
+		ApiKeyScopeWorkspaceAgentDevcontainers,
+		ApiKeyScopeWorkspaceAgentResourceMonitor,
+		ApiKeyScopeWorkspaceDormant,
+		ApiKeyScopeWorkspaceProxy:
 		return true
 	}
 	return false
@@ -506,6 +586,46 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeCoderTemplatesbuild,
 		ApiKeyScopeCoderTemplatesauthor,
 		ApiKeyScopeCoderApikeysmanageSelf,
+		ApiKeyScopeAibridgeInterception,
+		ApiKeyScopeApiKey,
+		ApiKeyScopeAssignOrgRole,
+		ApiKeyScopeAssignRole,
+		ApiKeyScopeAuditLog,
+		ApiKeyScopeConnectionLog,
+		ApiKeyScopeCryptoKey,
+		ApiKeyScopeDebugInfo,
+		ApiKeyScopeDeploymentConfig,
+		ApiKeyScopeDeploymentStats,
+		ApiKeyScopeFile,
+		ApiKeyScopeGroup,
+		ApiKeyScopeGroupMember,
+		ApiKeyScopeIdpsyncSettings,
+		ApiKeyScopeInboxNotification,
+		ApiKeyScopeLicense,
+		ApiKeyScopeNotificationMessage,
+		ApiKeyScopeNotificationPreference,
+		ApiKeyScopeNotificationTemplate,
+		ApiKeyScopeOauth2App,
+		ApiKeyScopeOauth2AppCodeToken,
+		ApiKeyScopeOauth2AppSecret,
+		ApiKeyScopeOrganization,
+		ApiKeyScopeOrganizationMember,
+		ApiKeyScopePrebuiltWorkspace,
+		ApiKeyScopeProvisionerDaemon,
+		ApiKeyScopeProvisionerJobs,
+		ApiKeyScopeReplicas,
+		ApiKeyScopeSystem,
+		ApiKeyScopeTailnetCoordinator,
+		ApiKeyScopeTemplate,
+		ApiKeyScopeUsageEvent,
+		ApiKeyScopeUser,
+		ApiKeyScopeUserSecret,
+		ApiKeyScopeWebpushSubscription,
+		ApiKeyScopeWorkspace,
+		ApiKeyScopeWorkspaceAgentDevcontainers,
+		ApiKeyScopeWorkspaceAgentResourceMonitor,
+		ApiKeyScopeWorkspaceDormant,
+		ApiKeyScopeWorkspaceProxy,
 	}
 }
 
