@@ -697,13 +697,15 @@ type Role struct {
 	// that means the UI should never display it.
 	DisplayName string       `json:"display_name"`
 	Site        []Permission `json:"site"`
-	// Org is a map of organization IDs to permissions. Grouping by organization
-	// makes roles easy to combine.
-	Org  map[string][]Permission `json:"org"`
-	User []Permission            `json:"user"`
-	// OrgMember is a map of organization IDs to permissions. Grouping by
-	// organization makes roles easy to combine.
-	OrgMember map[string][]Permission `json:"org_member"`
+	User        []Permission `json:"user"`
+	ByOrgID     map[string]struct {
+		// Org is a map of organization IDs to permissions. Grouping by organization
+		// makes roles easy to combine.
+		Org []Permission `json:"org"`
+		// OrgMember is a map of organization IDs to permissions. Grouping by
+		// organization makes roles easy to combine.
+		Member []Permission `json:"member"`
+	} `json:"by_org_id"`
 
 	// cachedRegoValue can be used to cache the rego value for this role.
 	// This is helpful for static roles that never change.
