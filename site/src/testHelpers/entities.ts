@@ -5031,6 +5031,7 @@ export const MockTask: TypesGen.Task = {
 	workspace_agent_id: MockWorkspaceAgent.id,
 	workspace_agent_lifecycle: MockWorkspaceAgent.lifecycle_state,
 	workspace_agent_health: MockWorkspaceAgent.health,
+	latest_build_id: MockWorkspace.latest_build.id,
 	initial_prompt: "Perform some task",
 	status: "running",
 	current_state: {
