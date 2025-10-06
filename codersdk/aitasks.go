@@ -119,7 +119,6 @@ type Task struct {
 	WorkspaceAgentID        uuid.NullUUID            `json:"workspace_agent_id" format:"uuid" table:"workspace agent id"`
 	WorkspaceAgentLifecycle *WorkspaceAgentLifecycle `json:"workspace_agent_lifecycle" table:"workspace agent lifecycle"`
 	WorkspaceAgentHealth    *WorkspaceAgentHealth    `json:"workspace_agent_health" table:"workspace agent health"`
-	LatestBuildID           uuid.NullUUID            `json:"latest_build_id" format:"uuid" table:"latest build id"`
 	InitialPrompt           string                   `json:"initial_prompt" table:"initial prompt"`
 	Status                  WorkspaceStatus          `json:"status" enums:"pending,starting,running,stopping,stopped,failed,canceling,canceled,deleting,deleted" table:"status"`
 	CurrentState            *TaskStateEntry          `json:"current_state" table:"cs,recursive_inline"`

@@ -272,7 +272,6 @@ func taskFromWorkspace(ws codersdk.Workspace, initialPrompt string) codersdk.Tas
 		WorkspaceAgentID:        taskAgentID,
 		WorkspaceAgentLifecycle: taskAgentLifecycle,
 		WorkspaceAgentHealth:    taskAgentHealth,
-		LatestBuildID:           uuid.NullUUID{Valid: true, UUID: ws.LatestBuild.ID},
 		CreatedAt:               ws.CreatedAt,
 		UpdatedAt:               ws.UpdatedAt,
 		InitialPrompt:           initialPrompt,
