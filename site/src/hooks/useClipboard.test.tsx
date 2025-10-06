@@ -287,6 +287,22 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 		setSimulateFailure(true);
 		await act(() => result.current.copyToClipboard("dummy-text-2"));
 		expect(result.current.copyToClipboard).toBe(initialCopy);
+
+		/**
+		 * Trigger a successful clipboard interaction
+		 *
+		 * @todo For some reason, using the assertClipboardUpdateLifecycle
+		 * helper triggers Jest errors with it thinking that values are being
+		 * accessed after teardown, even though the problem doesn't exist for
+		 * any other test case.
+		 *
+		 * It's not a huge deal, because we only need to inspect React after the
+		 * interaction, instead of the full DOM, but for correctness, it would
+		 * be nice if we could get this issue figured out.
+		 */
+		setSimulateFailure(false);
+		await act(() => result.current.copyToClipboard("dummy-text-2"));
+		expect(result.current.copyToClipboard).toBe(initialCopy);
 	});
 
 	it("Always uses the most up-to-date onError prop", async () => {
