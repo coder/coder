@@ -6,10 +6,7 @@
 		"defaultBranch": "main"
 	},
 	"files": {
-		"includes": [
-			"**",
-			"!**/pnpm-lock.yaml"
-		],
+		"includes": ["**", "!**/pnpm-lock.yaml"],
 		"ignoreUnknown": true
 	},
 	"linter": {
@@ -69,11 +66,7 @@
 				"noConsole": {
 					"level": "error",
 					"options": {
-						"allow": [
-							"error",
-							"info",
-							"warn"
-						]
+						"allow": ["error", "info", "warn"]
 					}
 				}
 			},
@@ -82,5 +75,5 @@
 			}
 		}
 	},
-	"$schema": "https://biomejs.dev/schemas/2.2.0/schema.json"
+	"$schema": "./node_modules/@biomejs/biome/configuration_schema.json"
 }
