@@ -462,7 +462,7 @@ require (
 	sigs.k8s.io/yaml v1.5.0 // indirect
 )
 
-require github.com/coder/clistat v1.0.0
+require github.com/coder/clistat v1.0.1
 
 require github.com/SherClockHolmes/webpush-go v1.4.0
 

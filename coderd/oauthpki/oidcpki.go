@@ -247,7 +247,7 @@ func (src *jwtTokenSource) Token() (*oauth2.Token, error) {
 	}
 
 	if unmarshalError != nil {
-		return nil, xerrors.Errorf("oauth2: cannot unmarshal token: %w", err)
+		return nil, xerrors.Errorf("oauth2: cannot unmarshal token: %w", unmarshalError)
 	}
 
 	newToken := &oauth2.Token{

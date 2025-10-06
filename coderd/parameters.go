@@ -139,6 +139,8 @@ func (api *API) handleParameterWebsocket(rw http.ResponseWriter, r *http.Request
 		})
 		return
 	}
+	go httpapi.Heartbeat(ctx, conn)
+
 	stream := wsjson.NewStream[codersdk.DynamicParametersRequest, codersdk.DynamicParametersResponse](
 		conn,
 		websocket.MessageText,

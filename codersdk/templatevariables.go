@@ -68,7 +68,7 @@ func ParseUserVariableValues(varsFiles []string, variablesFile string, commandLi
 		return nil, err
 	}
 
-	return combineVariableValues(fromVars, fromFile, fromCommandLine), nil
+	return CombineVariableValues(fromVars, fromFile, fromCommandLine), nil
 }
 
 func parseVariableValuesFromVarsFiles(varsFiles []string) ([]VariableValue, error) {
@@ -252,7 +252,7 @@ func parseVariableValuesFromCommandLine(variables []string) ([]VariableValue, er
 	return values, nil
 }
 
-func combineVariableValues(valuesSets ...[]VariableValue) []VariableValue {
+func CombineVariableValues(valuesSets ...[]VariableValue) []VariableValue {
 	combinedValues := make(map[string]string)
 
 	for _, values := range valuesSets {

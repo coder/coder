@@ -33,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/scaletest/agentconn"
+	"github.com/coder/coder/v2/scaletest/autostart"
 	"github.com/coder/coder/v2/scaletest/createusers"
 	"github.com/coder/coder/v2/scaletest/createworkspaces"
 	"github.com/coder/coder/v2/scaletest/dashboard"
@@ -60,6 +61,7 @@ func (r *RootCmd) scaletestCmd() *serpent.Command {
 			r.scaletestCreateWorkspaces(),
 			r.scaletestWorkspaceUpdates(),
 			r.scaletestWorkspaceTraffic(),
+			r.scaletestAutostart(),
 		},
 	}
 
@@ -1679,6 +1681,239 @@ func (r *RootCmd) scaletestDashboard() *serpent.Command {
 	output.attach(&cmd.Options)
 	prometheusFlags.attach(&cmd.Options)
 
+	return cmd
+}
+
+const (
+	autostartTestName = "autostart"
+)
+
+func (r *RootCmd) scaletestAutostart() *serpent.Command {
+	var (
+		workspaceCount      int64
+		workspaceJobTimeout time.Duration
+		autostartDelay      time.Duration
+		autostartTimeout    time.Duration
+		template            string
+		noCleanup           bool
+
+		parameterFlags  workspaceParameterFlags
+		tracingFlags    = &scaletestTracingFlags{}
+		timeoutStrategy = &timeoutFlags{}
+		cleanupStrategy = newScaletestCleanupStrategy()
+		output          = &scaletestOutputFlags{}
+		prometheusFlags = &scaletestPrometheusFlags{}
+	)
+
+	cmd := &serpent.Command{
+		Use:   "autostart",
+		Short: "Replicate a thundering herd of autostarting workspaces",
+		Handler: func(inv *serpent.Invocation) error {
+			ctx := inv.Context()
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
+			notifyCtx, stop := signal.NotifyContext(ctx, StopSignals...) // Checked later.
+			defer stop()
+			ctx = notifyCtx
+
+			me, err := requireAdmin(ctx, client)
+			if err != nil {
+				return err
+			}
+
+			client.HTTPClient = &http.Client{
+				Transport: &codersdk.HeaderTransport{
+					Transport: http.DefaultTransport,
+					Header: map[string][]string{
+						codersdk.BypassRatelimitHeader: {"true"},
+					},
+				},
+			}
+
+			if workspaceCount <= 0 {
+				return xerrors.Errorf("--workspace-count must be greater than zero")
+			}
+
+			outputs, err := output.parse()
+			if err != nil {
+				return xerrors.Errorf("could not parse --output flags")
+			}
+
+			tpl, err := parseTemplate(ctx, client, me.OrganizationIDs, template)
+			if err != nil {
+				return xerrors.Errorf("parse template: %w", err)
+			}
+
+			cliRichParameters, err := asWorkspaceBuildParameters(parameterFlags.richParameters)
+			if err != nil {
+				return xerrors.Errorf("can't parse given parameter values: %w", err)
+			}
+
+			richParameters, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
+				Action:            WorkspaceCreate,
+				TemplateVersionID: tpl.ActiveVersionID,
+
+				RichParameterFile: parameterFlags.richParameterFile,
+				RichParameters:    cliRichParameters,
+			})
+			if err != nil {
+				return xerrors.Errorf("prepare build: %w", err)
+			}
+
+			tracerProvider, closeTracing, tracingEnabled, err := tracingFlags.provider(ctx)
+			if err != nil {
+				return xerrors.Errorf("create tracer provider: %w", err)
+			}
+			tracer := tracerProvider.Tracer(scaletestTracerName)
+
+			reg := prometheus.NewRegistry()
+			metrics := autostart.NewMetrics(reg)
+
+			setupBarrier := new(sync.WaitGroup)
+			setupBarrier.Add(int(workspaceCount))
+
+			th := harness.NewTestHarness(timeoutStrategy.wrapStrategy(harness.ConcurrentExecutionStrategy{}), cleanupStrategy.toStrategy())
+			for i := range workspaceCount {
+				id := strconv.Itoa(int(i))
+				config := autostart.Config{
+					User: createusers.Config{
+						OrganizationID: me.OrganizationIDs[0],
+					},
+					Workspace: workspacebuild.Config{
+						OrganizationID: me.OrganizationIDs[0],
+						Request: codersdk.CreateWorkspaceRequest{
+							TemplateID:          tpl.ID,
+							RichParameterValues: richParameters,
+						},
+					},
+					WorkspaceJobTimeout: workspaceJobTimeout,
+					AutostartDelay:      autostartDelay,
+					AutostartTimeout:    autostartTimeout,
+					Metrics:             metrics,
+					SetupBarrier:        setupBarrier,
+				}
+				if err := config.Validate(); err != nil {
+					return xerrors.Errorf("validate config: %w", err)
+				}
+				var runner harness.Runnable = autostart.NewRunner(client, config)
+				if tracingEnabled {
+					runner = &runnableTraceWrapper{
+						tracer:   tracer,
+						spanName: fmt.Sprintf("%s/%s", autostartTestName, id),
+						runner:   runner,
+					}
+				}
+				th.AddRun(autostartTestName, id, runner)
+			}
+
+			logger := inv.Logger
+			prometheusSrvClose := ServeHandler(ctx, logger, promhttp.HandlerFor(reg, promhttp.HandlerOpts{}), prometheusFlags.Address, "prometheus")
+			defer prometheusSrvClose()
+
+			defer func() {
+				_, _ = fmt.Fprintln(inv.Stderr, "\nUploading traces...")
+				if err := closeTracing(ctx); err != nil {
+					_, _ = fmt.Fprintf(inv.Stderr, "\nError uploading traces: %+v\n", err)
+				}
+				// Wait for prometheus metrics to be scraped
+				_, _ = fmt.Fprintf(inv.Stderr, "Waiting %s for prometheus metrics to be scraped\n", prometheusFlags.Wait)
+				<-time.After(prometheusFlags.Wait)
+			}()
+
+			_, _ = fmt.Fprintln(inv.Stderr, "Running autostart load test...")
+			testCtx, testCancel := timeoutStrategy.toContext(ctx)
+			defer testCancel()
+			err = th.Run(testCtx)
+			if err != nil {
+				return xerrors.Errorf("run test harness (harness failure, not a test failure): %w", err)
+			}
+
+			// If the command was interrupted, skip stats.
+			if notifyCtx.Err() != nil {
+				return notifyCtx.Err()
+			}
+
+			res := th.Results()
+			for _, o := range outputs {
+				err = o.write(res, inv.Stdout)
+				if err != nil {
+					return xerrors.Errorf("write output %q to %q: %w", o.format, o.path, err)
+				}
+			}
+
+			if !noCleanup {
+				_, _ = fmt.Fprintln(inv.Stderr, "\nCleaning up...")
+				cleanupCtx, cleanupCancel := cleanupStrategy.toContext(ctx)
+				defer cleanupCancel()
+				err = th.Cleanup(cleanupCtx)
+				if err != nil {
+					return xerrors.Errorf("cleanup tests: %w", err)
+				}
+			}
+
+			if res.TotalFail > 0 {
+				return xerrors.New("load test failed, see above for more details")
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Options = serpent.OptionSet{
+		{
+			Flag:          "workspace-count",
+			FlagShorthand: "c",
+			Env:           "CODER_SCALETEST_WORKSPACE_COUNT",
+			Description:   "Required: Total number of workspaces to create.",
+			Value:         serpent.Int64Of(&workspaceCount),
+			Required:      true,
+		},
+		{
+			Flag:        "workspace-job-timeout",
+			Env:         "CODER_SCALETEST_WORKSPACE_JOB_TIMEOUT",
+			Default:     "5m",
+			Description: "Timeout for workspace jobs (e.g. build, start).",
+			Value:       serpent.DurationOf(&workspaceJobTimeout),
+		},
+		{
+			Flag:        "autostart-delay",
+			Env:         "CODER_SCALETEST_AUTOSTART_DELAY",
+			Default:     "2m",
+			Description: "How long after all the workspaces have been stopped to schedule them to be started again.",
+			Value:       serpent.DurationOf(&autostartDelay),
+		},
+		{
+			Flag:        "autostart-timeout",
+			Env:         "CODER_SCALETEST_AUTOSTART_TIMEOUT",
+			Default:     "5m",
+			Description: "Timeout for the autostart build to be initiated after the scheduled start time.",
+			Value:       serpent.DurationOf(&autostartTimeout),
+		},
+		{
+			Flag:          "template",
+			FlagShorthand: "t",
+			Env:           "CODER_SCALETEST_TEMPLATE",
+			Description:   "Required: Name or ID of the template to use for workspaces.",
+			Value:         serpent.StringOf(&template),
+			Required:      true,
+		},
+		{
+			Flag:        "no-cleanup",
+			Env:         "CODER_SCALETEST_NO_CLEANUP",
+			Description: "Do not clean up resources after the test completes.",
+			Value:       serpent.BoolOf(&noCleanup),
+		},
+	}
+
+	cmd.Options = append(cmd.Options, parameterFlags.cliParameters()...)
+	tracingFlags.attach(&cmd.Options)
+	timeoutStrategy.attach(&cmd.Options)
+	cleanupStrategy.attach(&cmd.Options)
+	output.attach(&cmd.Options)
+	prometheusFlags.attach(&cmd.Options)
 	return cmd
 }
 
