@@ -111,7 +111,7 @@ func (api *API) handleAuthAndFetchProvisionerJobs(rw http.ResponseWriter, r *htt
 		ids = p.UUIDs(qp, nil, "ids")
 	}
 	tags := p.JSONStringMap(qp, database.StringMap{}, "tags")
-	initiatorID := p.UUID(qp, uuid.Nil, "initiator_id")
+	initiatorID := p.UUID(qp, uuid.Nil, "initiator")
 	p.ErrorExcessParams(qp)
 	if len(p.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
