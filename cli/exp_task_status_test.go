@@ -193,7 +193,7 @@ STATE CHANGED  STATUS   HEALTHY  STATE  MESSAGE
   "workspace_agent_id": null,
   "workspace_agent_lifecycle": null,
   "workspace_agent_health": null,
-	"latest_build_id": null,
+  "latest_build_id": null,
   "initial_prompt": "",
   "status": "running",
   "current_state": {
