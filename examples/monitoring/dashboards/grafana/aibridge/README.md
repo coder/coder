@@ -1,8 +1,6 @@
 # AI Bridge Grafana Dashboard
 
-A sample Grafana dashboard for monitoring AI Bridge token usage, costs, and cache hit rates in Coder.
-
-![AI Bridge example Grafana Dashboard](./grafana_dashboard.png)
+![AI Bridge example Grafana Dashboard](./grafana_dashboard.png)A sample Grafana dashboard for monitoring AI Bridge token usage, costs, and cache hit rates in Coder.
 
 The dashboard includes three main sections with multiple visualization panels:
 
