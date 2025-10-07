@@ -99,6 +99,8 @@ This data is currently accessible through the API and CLI (experimental), which 
 
 ![Grafana Dashboard](https://i.imgur.com/kyWqES5.png)
 
+We provide an example Grafana dashboard that you can import as a starting point for your tooling adoption metrics. See [here](../examples/monitoring/dashboards/grafana/aibridge/README.md).
+
 ## Implementation Details
 
 `coderd` runs an in-memory instance of `aibridged`, whose logic is mostly contained in https://github.com/coder/aibridge. In future releases we will support running external instances for higher throughput and complete memory isolation from `coderd`.
