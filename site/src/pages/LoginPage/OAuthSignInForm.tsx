@@ -6,11 +6,6 @@ import { Button } from "components/Button/Button";
 import { type FC, useId } from "react";
 import { Language } from "./Language";
 
-const iconStyles = {
-	width: 16,
-	height: 16,
-};
-
 type OAuthSignInFormProps = {
 	isSigningIn: boolean;
 	redirectTo: string;
@@ -38,7 +33,7 @@ export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
 							redirectTo,
 						)}`}
 					>
-						<GitHubIcon css={iconStyles} />
+						<GitHubIcon />
 						{Language.githubSignIn}
 					</a>
 				</Button>
@@ -61,7 +56,7 @@ export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
 						{authMethods.oidc.iconUrl ? (
 							<OidcIcon iconUrl={authMethods.oidc.iconUrl} />
 						) : (
-							<KeyIcon css={iconStyles} />
+							<KeyIcon />
 						)}
 						{authMethods.oidc.signInText || Language.oidcSignIn}
 					</a>
