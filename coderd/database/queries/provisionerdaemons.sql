@@ -113,7 +113,7 @@ WHERE
 	-- Filter by max age if provided
 	AND (
 		sqlc.narg('max_age_ms')::bigint IS NULL
-		OR pd.last_seen_at IS NULL 
+		OR pd.last_seen_at IS NULL
 		OR pd.last_seen_at >= (NOW() - (sqlc.narg('max_age_ms')::bigint || ' ms')::interval)
 	)
 	AND (
