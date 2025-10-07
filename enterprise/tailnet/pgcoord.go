@@ -106,8 +106,8 @@ var pgCoordSubject = rbac.Subject{
 			Site: rbac.Permissions(map[string][]policy.Action{
 				rbac.ResourceTailnetCoordinator.Type: {policy.WildcardSymbol},
 			}),
-			Org:  map[string][]rbac.Permission{},
-			User: []rbac.Permission{},
+			User:    []rbac.Permission{},
+			ByOrgID: map[string]rbac.OrgPermissions{},
 		},
 	}),
 	Scope: rbac.ScopeAll,
