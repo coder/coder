@@ -59,11 +59,11 @@ pages.
 |------------------------------------------------|--------------------|------------------|----------------------------------------------------------------|
 | [2.21](https://coder.com/changelog/coder-2-21) | April 02, 2025     | Not Supported    | [v2.21.3](https://github.com/coder/coder/releases/tag/v2.21.3) |
 | [2.22](https://coder.com/changelog/coder-2-22) | May 16, 2025       | Not Supported    | [v2.22.1](https://github.com/coder/coder/releases/tag/v2.22.1) |
-| [2.23](https://coder.com/changelog/coder-2-23) | June 03, 2025      | Security Support | [v2.23.2](https://github.com/coder/coder/releases/tag/v2.23.4) |
-| [2.24](https://coder.com/changelog/coder-2-24) | August 07, 2025    | Security Support | [v2.24.3](https://github.com/coder/coder/releases/tag/v2.24.3) |
-| [2.25](https://coder.com/changelog/coder-2-25) | September 04, 2025 | Stable           | [v2.25.2](https://github.com/coder/coder/releases/tag/v2.25.2) |
-| [2.26](https://coder.com/changelog/coder-2-26) | September 02, 2025 | Mainline         | [v2.26.0](https://github.com/coder/coder/releases/tag/v2.26.0) |
-| 2.27                                           | October 07, 2025   | Not Released     | N/A                                                            |
+| [2.23](https://coder.com/changelog/coder-2-23) | June 03, 2025      | Not Supported    | [v2.23.5](https://github.com/coder/coder/releases/tag/v2.23.5) |
+| [2.24](https://coder.com/changelog/coder-2-24) | July 01, 2025      | Security Support | [v2.24.4](https://github.com/coder/coder/releases/tag/v2.24.4) |
+| [2.25](https://coder.com/changelog/coder-2-25) | August 05, 2025    | Stable           | [v2.25.3](https://github.com/coder/coder/releases/tag/v2.25.3) |
+| [2.26](https://coder.com/changelog/coder-2-26) | September 03, 2025 | Mainline         | [v2.26.1](https://github.com/coder/coder/releases/tag/v2.26.1) |
+| 2.27                                           |                    | Not Released     | N/A                                                            |
 <!-- RELEASE_CALENDAR_END -->
 
 > [!TIP]
