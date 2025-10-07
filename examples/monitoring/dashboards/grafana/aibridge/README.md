@@ -2,6 +2,9 @@
 
 A sample Grafana dashboard for monitoring AI Bridge token usage, costs, and cache hit rates in Coder.
 
+![AI Bridge example Grafana Dashboard](https://github.com/user-attachments/assets/c33d5028-265f-4add-9def-fe3a56a785f1)
+
+
 ## Setup
 
 1. **Install the Infinity plugin**: `grafana-cli plugins install yesoreyeram-infinity-datasource`
