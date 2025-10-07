@@ -100,7 +100,7 @@ const DERPPage: FC = () => {
 							})
 							.map(({ severity, region }) => {
 								return (
-									<Button variant="outline" key={region!.RegionID}>
+									<Button variant="outline" key={region!.RegionID} asChild>
 										<Link to={`/health/derp/regions/${region!.RegionID}`}>
 											<MapPinIcon
 												style={{

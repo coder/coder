@@ -26,6 +26,7 @@ export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
 		<div css={{ display: "grid", gap: "16px" }}>
 			{authMethods?.github.enabled && (
 				<Button
+					variant="outline"
 					asChild
 					disabled={isSigningIn}
 					className="w-full"
@@ -45,6 +46,7 @@ export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
 
 			{authMethods?.oidc.enabled && (
 				<Button
+					variant="outline"
 					asChild
 					className="w-full"
 					size="lg"

@@ -118,7 +118,7 @@ const ChangePasswordPage: FC<ChangePasswordChangeProps> = ({ redirect }) => {
 										<Spinner loading={form.isSubmitting} />
 										Reset password
 									</Button>
-									<Button size="lg" className="w-full" variant="subtle">
+									<Button size="lg" className="w-full" variant="subtle" asChild>
 										<RouterLink to="/login">Back to login</RouterLink>
 									</Button>
 								</Stack>
