@@ -33,7 +33,7 @@ All panels support filtering by time range, username, provider (Anthropic, OpenA
    - **PostgreSQL datasource** (`coder-observability-ro`): Connect to your Coder database with read access to `aibridge_interceptions`, `aibridge_token_usages`, `aibridge_user_prompts`, `aibridge_tool_usages` and `users`
    - **Infinity datasource** (`litellm-pricing-data`): Point to `https://raw.githubusercontent.com/BerriAI/litellm/refs/heads/main/model_prices_and_context_window.json` for model pricing data
 
-3. **Import**: Download `dashboard.json` from this directory, then in Grafana navigate to **Dashboards** → **Import** → **Upload JSON file**. Map the data sources when prompted.
+3. **Import**: Download [`dashboard.json`](https://raw.githubusercontent.com/coder/coder/main/examples/monitoring/dashboards/grafana/aibridge/dashboard.json) from this directory, then in Grafana navigate to **Dashboards** → **Import** → **Upload JSON file**. Map the data sources when prompted.
 
 ## Features
 
