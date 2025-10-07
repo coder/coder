@@ -1,11 +1,10 @@
-import NotificationsOffOutlined from "@mui/icons-material/NotificationsOffOutlined";
-import NotificationOutlined from "@mui/icons-material/NotificationsOutlined";
 import Skeleton from "@mui/material/Skeleton";
 import { healthSettings, updateHealthSettings } from "api/queries/debug";
 import type { HealthSection } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Spinner } from "components/Spinner/Spinner";
+import { BellIcon, BellOffIcon } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 
 export const DismissWarningButton = (props: { healthcheck: HealthSection }) => {
@@ -49,7 +48,7 @@ export const DismissWarningButton = (props: { healthcheck: HealthSection }) => {
 				}}
 			>
 				<Spinner loading={enableMutation.isPending}>
-					<NotificationsOffOutlined />
+					<BellOffIcon />
 				</Spinner>
 				Enable warnings
 			</Button>
@@ -69,7 +68,7 @@ export const DismissWarningButton = (props: { healthcheck: HealthSection }) => {
 			}}
 		>
 			<Spinner loading={dismissMutation.isPending}>
-				<NotificationOutlined />
+				<BellIcon />
 			</Spinner>
 			Dismiss warnings
 		</Button>

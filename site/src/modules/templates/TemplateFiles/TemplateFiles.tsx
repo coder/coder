@@ -1,8 +1,7 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import EditOutlined from "@mui/icons-material/EditOutlined";
-import RadioButtonCheckedOutlined from "@mui/icons-material/RadioButtonCheckedOutlined";
 import { SyntaxHighlighter } from "components/SyntaxHighlighter/SyntaxHighlighter";
 import set from "lodash/set";
+import { CircleCheckIcon, EditIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { type FC, useCallback, useMemo } from "react";
 import { Link } from "react-router";
@@ -96,13 +95,7 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 									<header css={styles.fileHeader}>
 										{filename}
 										{info.hasDiff && (
-											<RadioButtonCheckedOutlined
-												css={{
-													width: 14,
-													height: 14,
-													color: theme.roles.warning.fill.outline,
-												}}
-											/>
+											<CircleCheckIcon className="size-icon-sm text-content-warning" />
 										)}
 
 										<div css={{ marginLeft: "auto" }}>
@@ -121,7 +114,7 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 													},
 												}}
 											>
-												<EditOutlined css={{ fontSize: "inherit" }} />
+												<EditIcon className="text-inherit" />
 												Edit
 											</Link>
 										</div>
