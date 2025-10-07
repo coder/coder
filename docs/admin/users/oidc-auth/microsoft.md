@@ -26,7 +26,7 @@ Set the following environment variables on your Coder deployment and restart Cod
 
 ```env
 CODER_OIDC_ISSUER_URL=https://login.microsoftonline.com/{tenant-id}/v2.0 # Replace {tenant-id} with your Azure tenant ID
-CODER_OIDC_CLIENT_ID=<client id, located in "Overview"> 
+CODER_OIDC_CLIENT_ID=<client id, located in "Overview">
 CODER_OIDC_CLIENT_SECRET=<client secret, saved from step 6>
 # Restrict to one or more email domains (comma-separated)
 CODER_OIDC_EMAIL_DOMAIN="example.com"
