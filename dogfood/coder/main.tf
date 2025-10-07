@@ -872,6 +872,7 @@ module "claude-code" {
   claude_code_version = "latest"
   order               = 999
   claude_api_key      = data.coder_workspace_owner.me.session_token
+  agentapi_version    = "latest"
 
   system_prompt       = local.claude_system_prompt
   ai_prompt           = data.coder_parameter.ai_prompt.value

@@ -9,9 +9,11 @@
  * immediately pollutes the tests with false negatives. Even if something should
  * fail, it won't.
  */
-import { act, renderHook, screen } from "@testing-library/react";
+
+import { renderHook, screen } from "@testing-library/react";
 import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
 import { ThemeOverride } from "contexts/ThemeProvider";
+import { act } from "react";
 import themes, { DEFAULT_THEME } from "theme";
 import {
 	COPY_FAILED_MESSAGE,
@@ -115,8 +117,8 @@ function setupMockClipboard(isSecure: boolean): SetupMockClipboardResult {
 	};
 }
 
-function renderUseClipboard<TInput extends UseClipboardInput>(inputs: TInput) {
-	return renderHook<UseClipboardResult, TInput>(
+function renderUseClipboard(inputs?: UseClipboardInput) {
+	return renderHook<UseClipboardResult, UseClipboardInput>(
 		(props) => useClipboard(props),
 		{
 			initialProps: inputs,
@@ -188,9 +190,9 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 
 	const assertClipboardUpdateLifecycle = async (
 		result: RenderResult,
-		textToCheck: string,
+		textToCopy: string,
 	): Promise<void> => {
-		await act(() => result.current.copyToClipboard());
+		await act(() => result.current.copyToClipboard(textToCopy));
 		expect(result.current.showCopiedSuccess).toBe(true);
 
 		// Because of timing trickery, any timeouts for flipping the copy status
@@ -203,18 +205,18 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 		await act(() => jest.runAllTimersAsync());
 
 		const clipboardText = getClipboardText();
-		expect(clipboardText).toEqual(textToCheck);
+		expect(clipboardText).toEqual(textToCopy);
 	};
 
 	it("Copies the current text to the user's clipboard", async () => {
 		const textToCopy = "dogs";
-		const { result } = renderUseClipboard({ textToCopy });
+		const { result } = renderUseClipboard();
 		await assertClipboardUpdateLifecycle(result, textToCopy);
 	});
 
 	it("Should indicate to components not to show successful copy after a set period of time", async () => {
 		const textToCopy = "cats";
-		const { result } = renderUseClipboard({ textToCopy });
+		const { result } = renderUseClipboard();
 		await assertClipboardUpdateLifecycle(result, textToCopy);
 		expect(result.current.showCopiedSuccess).toBe(false);
 	});
@@ -222,16 +224,16 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 	it("Should notify the user of an error using the provided callback", async () => {
 		const textToCopy = "birds";
 		const onError = jest.fn();
-		const { result } = renderUseClipboard({ textToCopy, onError });
+		const { result } = renderUseClipboard({ onError });
 
 		setSimulateFailure(true);
-		await act(() => result.current.copyToClipboard());
+		await act(() => result.current.copyToClipboard(textToCopy));
 		expect(onError).toBeCalled();
 	});
 
 	it("Should dispatch a new toast message to the global snackbar when errors happen while no error callback is provided to the hook", async () => {
 		const textToCopy = "crow";
-		const { result } = renderUseClipboard({ textToCopy });
+		const { result } = renderUseClipboard();
 
 		/**
 		 * @todo Look into why deferring error-based state updates to the global
@@ -241,7 +243,7 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 		 * flushed through the GlobalSnackbar component afterwards
 		 */
 		setSimulateFailure(true);
-		await act(() => result.current.copyToClipboard());
+		await act(() => result.current.copyToClipboard(textToCopy));
 
 		const errorMessageNode = screen.queryByText(COPY_FAILED_MESSAGE);
 		expect(errorMessageNode).not.toBeNull();
@@ -252,11 +254,91 @@ describe.each(secureContextValues)("useClipboard - secure: %j", (isSecure) => {
 		// Snackbar state transitions that you might get if the hook uses the
 		// default
 		const textToCopy = "hamster";
-		const { result } = renderUseClipboard({ textToCopy, onError: jest.fn() });
+		const { result } = renderUseClipboard({ onError: jest.fn() });
 
 		setSimulateFailure(true);
-		await act(() => result.current.copyToClipboard());
+		await act(() => result.current.copyToClipboard(textToCopy));
 
 		expect(result.current.error).toBeInstanceOf(Error);
+	});
+
+	it("Clears out existing errors if a new copy operation succeeds", async () => {
+		const text = "dummy-text";
+		const { result } = renderUseClipboard();
+		setSimulateFailure(true);
+
+		await act(() => result.current.copyToClipboard(text));
+		expect(result.current.error).toBeInstanceOf(Error);
+
+		setSimulateFailure(false);
+		await assertClipboardUpdateLifecycle(result, text);
+		expect(result.current.error).toBeUndefined();
+	});
+
+	// This test case is really important to ensure that it's easy to plop this
+	// inside of useEffect calls without having to think about dependencies too
+	// much
+	it("Ensures that the copyToClipboard function always maintains a stable reference across all re-renders", async () => {
+		const initialOnError = jest.fn();
+		const { result, rerender } = renderUseClipboard({
+			onError: initialOnError,
+			clearErrorOnSuccess: true,
+		});
+		const initialCopy = result.current.copyToClipboard;
+
+		// Re-render arbitrarily with no clipboard state transitions to make
+		// sure that a parent re-rendering doesn't break anything
+		rerender({ onError: initialOnError });
+		expect(result.current.copyToClipboard).toBe(initialCopy);
+
+		// Re-render with new onError prop and then swap back to simplify
+		// testing
+		rerender({ onError: jest.fn() });
+		expect(result.current.copyToClipboard).toBe(initialCopy);
+		rerender({ onError: initialOnError });
+
+		// Re-render with a new clear value then swap back to simplify testing
+		rerender({ onError: initialOnError, clearErrorOnSuccess: false });
+		expect(result.current.copyToClipboard).toBe(initialCopy);
+		rerender({ onError: initialOnError, clearErrorOnSuccess: true });
+
+		// Trigger a failed clipboard interaction
+		setSimulateFailure(true);
+		await act(() => result.current.copyToClipboard("dummy-text-2"));
+		expect(result.current.copyToClipboard).toBe(initialCopy);
+
+		/**
+		 * Trigger a successful clipboard interaction
+		 *
+		 * @todo For some reason, using the assertClipboardUpdateLifecycle
+		 * helper triggers Jest errors with it thinking that values are being
+		 * accessed after teardown, even though the problem doesn't exist for
+		 * any other test case.
+		 *
+		 * It's not a huge deal, because we only need to inspect React after the
+		 * interaction, instead of the full DOM, but for correctness, it would
+		 * be nice if we could get this issue figured out.
+		 */
+		setSimulateFailure(false);
+		await act(() => result.current.copyToClipboard("dummy-text-2"));
+		expect(result.current.copyToClipboard).toBe(initialCopy);
+	});
+
+	it("Always uses the most up-to-date onError prop", async () => {
+		const initialOnError = jest.fn();
+		const { result, rerender } = renderUseClipboard({
+			onError: initialOnError,
+		});
+		setSimulateFailure(true);
+
+		const secondOnError = jest.fn();
+		rerender({ onError: secondOnError });
+		await act(() => result.current.copyToClipboard("dummy-text"));
+
+		expect(initialOnError).not.toHaveBeenCalled();
+		expect(secondOnError).toHaveBeenCalledTimes(1);
+		expect(secondOnError).toHaveBeenCalledWith(
+			"Failed to copy text to clipboard",
+		);
 	});
 });
