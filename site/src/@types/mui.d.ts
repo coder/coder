@@ -13,16 +13,6 @@ declare module "@mui/material/styles" {
 	}
 }
 
-declare module "@mui/material/Button" {
-	interface ButtonPropsColorOverrides {
-		neutral: true;
-	}
-
-	interface ButtonPropsSizeOverrides {
-		xlarge: true;
-	}
-}
-
 declare module "@mui/material/Checkbox" {
 	interface CheckboxPropsSizeOverrides {
 		xsmall: true;

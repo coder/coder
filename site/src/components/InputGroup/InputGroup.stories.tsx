@@ -1,6 +1,6 @@
-import Button from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { Button } from "components/Button/Button";
 import { InputGroup } from "./InputGroup";
 
 const meta: Meta<typeof InputGroup> = {
@@ -70,7 +70,7 @@ export const WithThreeElements: Story = {
 	args: {
 		children: (
 			<>
-				<Button>Menu</Button>
+				<Button variant="outline">Menu</Button>
 				<TextField size="small" placeholder="Search..." />
 				<Button>Submit</Button>
 			</>

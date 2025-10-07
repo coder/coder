@@ -1,8 +1,8 @@
 import GitHubIcon from "@mui/icons-material/GitHub";
 import KeyIcon from "@mui/icons-material/VpnKey";
-import Button from "@mui/material/Button";
 import { visuallyHidden } from "@mui/utils";
 import type { AuthMethods } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import { type FC, useId } from "react";
 import { Language } from "./Language";
 
@@ -26,41 +26,43 @@ export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
 		<div css={{ display: "grid", gap: "16px" }}>
 			{authMethods?.github.enabled && (
 				<Button
-					component="a"
-					href={`/api/v2/users/oauth2/github/callback?redirect=${encodeURIComponent(
-						redirectTo,
-					)}`}
-					variant="contained"
-					startIcon={<GitHubIcon css={iconStyles} />}
+					asChild
 					disabled={isSigningIn}
-					fullWidth
+					className="w-full"
 					type="submit"
-					size="xlarge"
+					size="lg"
 				>
-					{Language.githubSignIn}
+					<a
+						href={`/api/v2/users/oauth2/github/callback?redirect=${encodeURIComponent(
+							redirectTo,
+						)}`}
+					>
+						<GitHubIcon css={iconStyles} />
+						{Language.githubSignIn}
+					</a>
 				</Button>
 			)}
 
 			{authMethods?.oidc.enabled && (
 				<Button
-					component="a"
-					href={`/api/v2/users/oidc/callback?redirect=${encodeURIComponent(
-						redirectTo,
-					)}`}
-					variant="contained"
-					size="xlarge"
-					startIcon={
-						authMethods.oidc.iconUrl ? (
+					asChild
+					className="w-full"
+					size="lg"
+					disabled={isSigningIn}
+					type="submit"
+				>
+					<a
+						href={`/api/v2/users/oidc/callback?redirect=${encodeURIComponent(
+							redirectTo,
+						)}`}
+					>
+						{authMethods.oidc.iconUrl ? (
 							<OidcIcon iconUrl={authMethods.oidc.iconUrl} />
 						) : (
 							<KeyIcon css={iconStyles} />
-						)
-					}
-					disabled={isSigningIn}
-					fullWidth
-					type="submit"
-				>
-					{authMethods.oidc.signInText || Language.oidcSignIn}
+						)}
+						{authMethods.oidc.signInText || Language.oidcSignIn}
+					</a>
 				</Button>
 			)}
 		</div>
