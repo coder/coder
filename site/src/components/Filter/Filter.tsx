@@ -10,6 +10,7 @@ import {
 	isApiValidationError,
 } from "api/errors";
 import { Button } from "components/Button/Button";
+import { InputGroup } from "components/InputGroup/InputGroup";
 import { SearchField } from "components/SearchField/SearchField";
 import { useDebouncedFunction } from "hooks/debounce";
 import { ChevronDownIcon, ExternalLinkIcon } from "lucide-react";
@@ -218,7 +219,7 @@ export const Filter: FC<FilterProps> = ({
 				</>
 			) : (
 				<>
-					<div className="flex items-center gap-0.5">
+					<InputGroup css={{ width: "100%" }}>
 						<PresetMenu
 							onSelect={(query) => filter.update(query)}
 							presets={presets}
@@ -250,7 +251,7 @@ export const Filter: FC<FilterProps> = ({
 								},
 							}}
 						/>
-					</div>
+					</InputGroup>
 					{options}
 				</>
 			)}
