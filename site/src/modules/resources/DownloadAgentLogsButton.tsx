@@ -1,9 +1,9 @@
-import DownloadOutlined from "@mui/icons-material/DownloadOutlined";
 import { agentLogs } from "api/queries/workspaces";
 import type { WorkspaceAgent, WorkspaceAgentLog } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { saveAs } from "file-saver";
+import { DownloadIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { useQueryClient } from "react-query";
 
@@ -54,7 +54,7 @@ export const DownloadAgentLogsButton: FC<DownloadAgentLogsButtonProps> = ({
 				}
 			}}
 		>
-			<DownloadOutlined />
+			<DownloadIcon />
 			{isDownloading ? "Downloading..." : "Download logs"}
 		</Button>
 	);

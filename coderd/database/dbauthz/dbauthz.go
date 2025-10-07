@@ -1691,6 +1691,7 @@ func (q *querier) DeleteOrganizationMember(ctx context.Context, arg database.Del
 			OrganizationID: arg.OrganizationID,
 			UserID:         arg.UserID,
 			IncludeSystem:  false,
+			GithubUserID:   0,
 		}))
 		if err != nil {
 			return database.OrganizationMember{}, err
@@ -2311,6 +2312,13 @@ func (q *querier) GetLatestCryptoKeyByFeature(ctx context.Context, feature datab
 		return database.CryptoKey{}, err
 	}
 	return q.db.GetLatestCryptoKeyByFeature(ctx, feature)
+}
+
+func (q *querier) GetLatestWorkspaceAppStatusesByAppID(ctx context.Context, appID uuid.UUID) ([]database.WorkspaceAppStatus, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetLatestWorkspaceAppStatusesByAppID(ctx, appID)
 }
 
 func (q *querier) GetLatestWorkspaceAppStatusesByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAppStatus, error) {
@@ -4687,6 +4695,7 @@ func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemb
 		OrganizationID: arg.OrgID,
 		UserID:         arg.UserID,
 		IncludeSystem:  false,
+		GithubUserID:   0,
 	}))
 	if err != nil {
 		return database.OrganizationMember{}, err

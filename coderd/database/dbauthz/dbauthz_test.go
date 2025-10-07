@@ -2484,10 +2484,12 @@ func (s *MethodTestSuite) TestExtraMethods() {
 
 		ds, err := db.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(context.Background(), database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams{
 			OrganizationID: org.ID,
+			InitiatorID:    uuid.Nil,
 		})
 		s.NoError(err, "get provisioner jobs by org")
 		check.Args(database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams{
 			OrganizationID: org.ID,
+			InitiatorID:    uuid.Nil,
 		}).Asserts(j1, policy.ActionRead, j2, policy.ActionRead).Returns(ds)
 	}))
 }
@@ -2682,6 +2684,11 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		arg := database.UpdateUserLinkedIDParams{UserID: u.ID, LinkedID: l.LinkedID, LoginType: database.LoginTypeGithub}
 		dbm.EXPECT().UpdateUserLinkedID(gomock.Any(), arg).Return(l, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(l)
+	}))
+	s.Run("GetLatestWorkspaceAppStatusesByAppID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		appID := uuid.New()
+		dbm.EXPECT().GetLatestWorkspaceAppStatusesByAppID(gomock.Any(), appID).Return([]database.WorkspaceAppStatus{}, nil).AnyTimes()
+		check.Args(appID).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetLatestWorkspaceAppStatusesByWorkspaceIDs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		ids := []uuid.UUID{uuid.New()}

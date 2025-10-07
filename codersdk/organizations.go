@@ -397,10 +397,11 @@ func (c *Client) OrganizationProvisionerDaemons(ctx context.Context, organizatio
 }
 
 type OrganizationProvisionerJobsOptions struct {
-	Limit  int
-	IDs    []uuid.UUID
-	Status []ProvisionerJobStatus
-	Tags   map[string]string
+	Limit     int
+	IDs       []uuid.UUID
+	Status    []ProvisionerJobStatus
+	Tags      map[string]string
+	Initiator string
 }
 
 func (c *Client) OrganizationProvisionerJobs(ctx context.Context, organizationID uuid.UUID, opts *OrganizationProvisionerJobsOptions) ([]ProvisionerJob, error) {
@@ -421,6 +422,9 @@ func (c *Client) OrganizationProvisionerJobs(ctx context.Context, organizationID
 				return nil, xerrors.Errorf("marshal tags: %w", err)
 			}
 			qp.Add("tags", string(tagsRaw))
+		}
+		if opts.Initiator != "" {
+			qp.Add("initiator", opts.Initiator)
 		}
 	}
 

@@ -47,7 +47,7 @@ func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Reques
 	if page.Offset != 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Offset pagination is not supported.",
-			Detail:  "Offset pagination is not supported for AIBridge interceptions. Use cursor pagination instead with after_id..",
+			Detail:  "Offset pagination is not supported for AIBridge interceptions. Use cursor pagination instead with after_id.",
 		})
 		return
 	}

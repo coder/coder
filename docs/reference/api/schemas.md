@@ -711,42 +711,197 @@
 
 #### Enumerated Values
 
-| Value                           |
-|---------------------------------|
-| `all`                           |
-| `application_connect`           |
-| `api_key:*`                     |
-| `api_key:create`                |
-| `api_key:delete`                |
-| `api_key:read`                  |
-| `api_key:update`                |
-| `coder:all`                     |
-| `coder:application_connect`     |
-| `file:*`                        |
-| `file:create`                   |
-| `file:read`                     |
-| `template:*`                    |
-| `template:create`               |
-| `template:delete`               |
-| `template:read`                 |
-| `template:update`               |
-| `template:use`                  |
-| `user:read_personal`            |
-| `user:update_personal`          |
-| `user_secret:*`                 |
-| `user_secret:create`            |
-| `user_secret:delete`            |
-| `user_secret:read`              |
-| `user_secret:update`            |
-| `workspace:*`                   |
-| `workspace:application_connect` |
-| `workspace:create`              |
-| `workspace:delete`              |
-| `workspace:read`                |
-| `workspace:ssh`                 |
-| `workspace:start`               |
-| `workspace:stop`                |
-| `workspace:update`              |
+| Value                                     |
+|-------------------------------------------|
+| `all`                                     |
+| `application_connect`                     |
+| `aibridge_interception:*`                 |
+| `aibridge_interception:create`            |
+| `aibridge_interception:read`              |
+| `aibridge_interception:update`            |
+| `api_key:*`                               |
+| `api_key:create`                          |
+| `api_key:delete`                          |
+| `api_key:read`                            |
+| `api_key:update`                          |
+| `assign_org_role:*`                       |
+| `assign_org_role:assign`                  |
+| `assign_org_role:create`                  |
+| `assign_org_role:delete`                  |
+| `assign_org_role:read`                    |
+| `assign_org_role:unassign`                |
+| `assign_org_role:update`                  |
+| `assign_role:*`                           |
+| `assign_role:assign`                      |
+| `assign_role:read`                        |
+| `assign_role:unassign`                    |
+| `audit_log:*`                             |
+| `audit_log:create`                        |
+| `audit_log:read`                          |
+| `coder:all`                               |
+| `coder:apikeys.manage_self`               |
+| `coder:application_connect`               |
+| `coder:templates.author`                  |
+| `coder:templates.build`                   |
+| `coder:workspaces.access`                 |
+| `coder:workspaces.create`                 |
+| `coder:workspaces.delete`                 |
+| `coder:workspaces.operate`                |
+| `connection_log:*`                        |
+| `connection_log:read`                     |
+| `connection_log:update`                   |
+| `crypto_key:*`                            |
+| `crypto_key:create`                       |
+| `crypto_key:delete`                       |
+| `crypto_key:read`                         |
+| `crypto_key:update`                       |
+| `debug_info:*`                            |
+| `debug_info:read`                         |
+| `deployment_config:*`                     |
+| `deployment_config:read`                  |
+| `deployment_config:update`                |
+| `deployment_stats:*`                      |
+| `deployment_stats:read`                   |
+| `file:*`                                  |
+| `file:create`                             |
+| `file:read`                               |
+| `group:*`                                 |
+| `group:create`                            |
+| `group:delete`                            |
+| `group:read`                              |
+| `group:update`                            |
+| `group_member:*`                          |
+| `group_member:read`                       |
+| `idpsync_settings:*`                      |
+| `idpsync_settings:read`                   |
+| `idpsync_settings:update`                 |
+| `inbox_notification:*`                    |
+| `inbox_notification:create`               |
+| `inbox_notification:read`                 |
+| `inbox_notification:update`               |
+| `license:*`                               |
+| `license:create`                          |
+| `license:delete`                          |
+| `license:read`                            |
+| `notification_message:*`                  |
+| `notification_message:create`             |
+| `notification_message:delete`             |
+| `notification_message:read`               |
+| `notification_message:update`             |
+| `notification_preference:*`               |
+| `notification_preference:read`            |
+| `notification_preference:update`          |
+| `notification_template:*`                 |
+| `notification_template:read`              |
+| `notification_template:update`            |
+| `oauth2_app:*`                            |
+| `oauth2_app:create`                       |
+| `oauth2_app:delete`                       |
+| `oauth2_app:read`                         |
+| `oauth2_app:update`                       |
+| `oauth2_app_code_token:*`                 |
+| `oauth2_app_code_token:create`            |
+| `oauth2_app_code_token:delete`            |
+| `oauth2_app_code_token:read`              |
+| `oauth2_app_secret:*`                     |
+| `oauth2_app_secret:create`                |
+| `oauth2_app_secret:delete`                |
+| `oauth2_app_secret:read`                  |
+| `oauth2_app_secret:update`                |
+| `organization:*`                          |
+| `organization:create`                     |
+| `organization:delete`                     |
+| `organization:read`                       |
+| `organization:update`                     |
+| `organization_member:*`                   |
+| `organization_member:create`              |
+| `organization_member:delete`              |
+| `organization_member:read`                |
+| `organization_member:update`              |
+| `prebuilt_workspace:*`                    |
+| `prebuilt_workspace:delete`               |
+| `prebuilt_workspace:update`               |
+| `provisioner_daemon:*`                    |
+| `provisioner_daemon:create`               |
+| `provisioner_daemon:delete`               |
+| `provisioner_daemon:read`                 |
+| `provisioner_daemon:update`               |
+| `provisioner_jobs:*`                      |
+| `provisioner_jobs:create`                 |
+| `provisioner_jobs:read`                   |
+| `provisioner_jobs:update`                 |
+| `replicas:*`                              |
+| `replicas:read`                           |
+| `system:*`                                |
+| `system:create`                           |
+| `system:delete`                           |
+| `system:read`                             |
+| `system:update`                           |
+| `tailnet_coordinator:*`                   |
+| `tailnet_coordinator:create`              |
+| `tailnet_coordinator:delete`              |
+| `tailnet_coordinator:read`                |
+| `tailnet_coordinator:update`              |
+| `template:*`                              |
+| `template:create`                         |
+| `template:delete`                         |
+| `template:read`                           |
+| `template:update`                         |
+| `template:use`                            |
+| `template:view_insights`                  |
+| `usage_event:*`                           |
+| `usage_event:create`                      |
+| `usage_event:read`                        |
+| `usage_event:update`                      |
+| `user:*`                                  |
+| `user:create`                             |
+| `user:delete`                             |
+| `user:read`                               |
+| `user:read_personal`                      |
+| `user:update`                             |
+| `user:update_personal`                    |
+| `user_secret:*`                           |
+| `user_secret:create`                      |
+| `user_secret:delete`                      |
+| `user_secret:read`                        |
+| `user_secret:update`                      |
+| `webpush_subscription:*`                  |
+| `webpush_subscription:create`             |
+| `webpush_subscription:delete`             |
+| `webpush_subscription:read`               |
+| `workspace:*`                             |
+| `workspace:application_connect`           |
+| `workspace:create`                        |
+| `workspace:create_agent`                  |
+| `workspace:delete`                        |
+| `workspace:delete_agent`                  |
+| `workspace:read`                          |
+| `workspace:ssh`                           |
+| `workspace:start`                         |
+| `workspace:stop`                          |
+| `workspace:update`                        |
+| `workspace_agent_devcontainers:*`         |
+| `workspace_agent_devcontainers:create`    |
+| `workspace_agent_resource_monitor:*`      |
+| `workspace_agent_resource_monitor:create` |
+| `workspace_agent_resource_monitor:read`   |
+| `workspace_agent_resource_monitor:update` |
+| `workspace_dormant:*`                     |
+| `workspace_dormant:application_connect`   |
+| `workspace_dormant:create`                |
+| `workspace_dormant:create_agent`          |
+| `workspace_dormant:delete`                |
+| `workspace_dormant:delete_agent`          |
+| `workspace_dormant:read`                  |
+| `workspace_dormant:ssh`                   |
+| `workspace_dormant:start`                 |
+| `workspace_dormant:stop`                  |
+| `workspace_dormant:update`                |
+| `workspace_proxy:*`                       |
+| `workspace_proxy:create`                  |
+| `workspace_proxy:delete`                  |
+| `workspace_proxy:read`                    |
+| `workspace_proxy:update`                  |
 
 ## codersdk.AddLicenseRequest
 
@@ -6383,6 +6538,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "error_code": "REQUIRED_TEMPLATE_VARIABLES",
   "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
   "input": {
     "error": "string",
     "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
@@ -6425,6 +6581,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `error_code`        | [codersdk.JobErrorCode](#codersdkjoberrorcode)                     | false    |              |             |
 | `file_id`           | string                                                             | false    |              |             |
 | `id`                | string                                                             | false    |              |             |
+| `initiator_id`      | string                                                             | false    |              |             |
 | `input`             | [codersdk.ProvisionerJobInput](#codersdkprovisionerjobinput)       | false    |              |             |
 | `logs_overflowed`   | boolean                                                            | false    |              |             |
 | `metadata`          | [codersdk.ProvisionerJobMetadata](#codersdkprovisionerjobmetadata) | false    |              |             |
@@ -8111,6 +8268,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     "error_code": "REQUIRED_TEMPLATE_VARIABLES",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "input": {
       "error": "string",
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
@@ -9379,6 +9537,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "error_code": "REQUIRED_TEMPLATE_VARIABLES",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
       "input": {
         "error": "string",
         "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
@@ -10546,6 +10705,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "error_code": "REQUIRED_TEMPLATE_VARIABLES",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "input": {
       "error": "string",
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
@@ -11382,6 +11542,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "error_code": "REQUIRED_TEMPLATE_VARIABLES",
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
           "input": {
             "error": "string",
             "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",

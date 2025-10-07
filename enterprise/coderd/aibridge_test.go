@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"net/http"
 	"testing"
 	"time"
 
@@ -15,11 +16,36 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
+	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/testutil"
 )
 
 func TestAIBridgeListInterceptions(t *testing.T) {
 	t.Parallel()
+
+	t.Run("RequiresLicenseFeature", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.Experiments = []string{string(codersdk.ExperimentAIBridge)}
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				// No aibridge feature
+				Features: license.Features{},
+			},
+		})
+		experimentalClient := codersdk.NewExperimentalClient(client)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, err := experimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+		require.Equal(t, "AI Bridge is a Premium feature. Contact sales!", sdkErr.Message)
+	})
 
 	t.Run("EmptyDB", func(t *testing.T) {
 		t.Parallel()
@@ -28,6 +54,11 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAIBridge: 1,
+				},
 			},
 		})
 		experimentalClient := codersdk.NewExperimentalClient(client)
@@ -44,6 +75,11 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		client, db, _ := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAIBridge: 1,
+				},
 			},
 		})
 		experimentalClient := codersdk.NewExperimentalClient(client)
@@ -125,6 +161,11 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		client, db, _ := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAIBridge: 1,
+				},
 			},
 		})
 		experimentalClient := codersdk.NewExperimentalClient(client)
@@ -210,6 +251,11 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
 			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAIBridge: 1,
+				},
+			},
 		})
 		adminExperimentalClient := codersdk.NewExperimentalClient(adminClient)
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -248,6 +294,11 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAIBridge: 1,
+				},
 			},
 		})
 		experimentalClient := codersdk.NewExperimentalClient(client)
@@ -406,6 +457,11 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAIBridge: 1,
+				},
 			},
 		})
 		experimentalClient := codersdk.NewExperimentalClient(client)

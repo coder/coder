@@ -39,6 +39,18 @@ export const MockOrganization2: TypesGen.Organization = {
 	is_default: false,
 };
 
+export const MockOrganization3: TypesGen.Organization = {
+	id: "my-organization-3-id",
+	name: "my-organization-3",
+	display_name: "My Organization 3",
+	description:
+		"Yet another organization that will show up in OrganizationPills.",
+	icon: "/emojis/1f957.png",
+	created_at: "",
+	updated_at: "",
+	is_default: false,
+};
+
 export const MockTemplateDAUResponse: TypesGen.DAUsResponse = {
 	tz_hour_offset: 0,
 	entries: [
@@ -667,6 +679,7 @@ export const MockProvisionerJob: TypesGen.ProvisionerJob = {
 	status: "succeeded",
 	file_id: MockOrganization.id,
 	completed_at: "2022-05-17T17:39:01.382927298Z",
+	initiator_id: MockUserMember.id,
 	tags: {
 		scope: "organization",
 		owner: "",
@@ -2905,6 +2918,20 @@ export const MockGroupSyncSettings2: TypesGen.GroupSyncSettings = {
 	auto_create_missing_groups: false,
 };
 
+export const MockMultipleOverflowGroupSyncSettings: TypesGen.GroupSyncSettings =
+	{
+		field: "group-multiple-overflow-test",
+		mapping: {
+			"idp-group-1": [
+				"fbd2116a-8961-4954-87ae-e4575bd29ce0",
+				"13de3eb4-9b4f-49e7-b0f8-0c3728a0d2e2",
+				"d3562dc1-c120-43a9-ba02-88e43bbca192",
+			],
+		},
+		regex_filter: "@[a-zA-Z0-9_]+",
+		auto_create_missing_groups: false,
+	};
+
 export const MockRoleSyncSettings: TypesGen.RoleSyncSettings = {
 	field: "role-test",
 	mapping: {
@@ -2929,7 +2956,11 @@ export const MockOrganizationSyncSettings2: TypesGen.OrganizationSyncSettings =
 	{
 		field: "organization-test",
 		mapping: {
-			"idp-org-1": ["my-organization-id", "my-organization-2-id"],
+			"idp-org-1": [
+				"my-organization-id",
+				"my-organization-2-id",
+				"my-organization-3-id",
+			],
 			"idp-org-2": ["my-organization-id"],
 		},
 		organization_assign_default: true,
@@ -2959,6 +2990,20 @@ export const MockGroup: TypesGen.Group = {
 export const MockGroup2: TypesGen.Group = {
 	id: "13de3eb4-9b4f-49e7-b0f8-0c3728a0d2e2",
 	name: "developer",
+	display_name: "",
+	avatar_url: "https://example.com",
+	organization_id: MockOrganization.id,
+	organization_name: MockOrganization.name,
+	organization_display_name: MockOrganization.display_name,
+	members: [MockUserOwner, MockUserMember],
+	quota_allowance: 5,
+	source: "user",
+	total_member_count: 2,
+};
+
+export const MockGroup3: TypesGen.Group = {
+	id: "d3562dc1-c120-43a9-ba02-88e43bbca192",
+	name: "Back-End",
 	display_name: "",
 	avatar_url: "https://example.com",
 	organization_id: MockOrganization.id,
@@ -4655,6 +4700,31 @@ export const MockSystemNotificationTemplates: TypesGen.NotificationTemplate[] =
 				'[{"url": "{{ base_url }}/templates/{{.Labels.template_name}}", "label": "View template"}]',
 			group: "Template Events",
 			method: "webhook",
+			kind: "system",
+			enabled_by_default: true,
+		},
+		{
+			id: "d4a6271c-cced-4ed0-84ad-afd02a9c7799",
+			name: "Task Idle",
+			title_template: "Task '{{.Labels.workspace}}' is idle",
+			body_template: "The task '{{.Labels.task}}' is idle and ready for input.",
+			actions:
+				'[{"url": "{{base_url}}/tasks/{{.UserUsername}}/{{.Labels.workspace}}", "label": "View task"}, {"url": "{{base_url}}/@{{.UserUsername}}/{{.Labels.workspace}}", "label": "View workspace"}]',
+			group: "Task Events",
+			method: "",
+			kind: "system",
+			enabled_by_default: true,
+		},
+		{
+			id: "bd4b7168-d05e-4e19-ad0f-3593b77aa90f",
+			name: "Task Working",
+			title_template: "Task '{{.Labels.workspace}}' is working",
+			body_template:
+				"The task '{{.Labels.task}}' transitioned to a working state.",
+			actions:
+				'[{"url": "{{base_url}}/tasks/{{.UserUsername}}/{{.Labels.workspace}}", "label": "View task"}, {"url": "{{base_url}}/@{{.UserUsername}}/{{.Labels.workspace}}", "label": "View workspace"}]',
+			group: "Task Events",
+			method: "",
 			kind: "system",
 			enabled_by_default: true,
 		},
