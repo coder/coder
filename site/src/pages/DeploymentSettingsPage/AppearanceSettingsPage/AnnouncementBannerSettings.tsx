@@ -1,16 +1,17 @@
 import { type CSSObject, useTheme } from "@emotion/react";
 import Link from "@mui/material/Link";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
 import type { BannerConfig } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Stack } from "components/Stack/Stack";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableRow,
+} from "components/Table/Table";
 import { PlusIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { AnnouncementBannerDialog } from "./AnnouncementBannerDialog";
@@ -111,43 +112,41 @@ export const AnnouncementBannerSettings: FC<
 							{ paddingTop: 16, margin: "0 -32px" },
 						]}
 					>
-						<TableContainer css={{ borderRadius: 0, borderBottom: "none" }}>
-							<Table>
-								<TableHead>
-									<TableRow>
-										<TableCell width="1%">Enabled</TableCell>
-										<TableCell>Message</TableCell>
-										<TableCell width="2%">Color</TableCell>
-										<TableCell width="1%" />
-									</TableRow>
-								</TableHead>
-								<TableBody>
-									{!isEntitled || banners.length < 1 ? (
-										<TableCell colSpan={999}>
-											<EmptyState
-												className="min-h-[160px]"
-												message="No announcement banners"
-											/>
-										</TableCell>
-									) : (
-										banners.map((banner, i) => (
-											<AnnouncementBannerItem
-												key={banner.message}
-												enabled={banner.enabled && Boolean(banner.message)}
-												backgroundColor={banner.background_color}
-												message={banner.message}
-												onEdit={() => setEditingBannerId(i)}
-												onUpdate={async (banner) => {
-													const newBanners = updateBanner(i, banner);
-													await onSubmit(newBanners);
-												}}
-												onDelete={() => setDeletingBannerId(i)}
-											/>
-										))
-									)}
-								</TableBody>
-							</Table>
-						</TableContainer>
+						<Table>
+							<TableHead>
+								<TableRow>
+									<TableCell width="1%">Enabled</TableCell>
+									<TableCell>Message</TableCell>
+									<TableCell width="2%">Color</TableCell>
+									<TableCell width="1%" />
+								</TableRow>
+							</TableHead>
+							<TableBody>
+								{!isEntitled || banners.length < 1 ? (
+									<TableCell colSpan={999}>
+										<EmptyState
+											className="min-h-[160px]"
+											message="No announcement banners"
+										/>
+									</TableCell>
+								) : (
+									banners.map((banner, i) => (
+										<AnnouncementBannerItem
+											key={banner.message}
+											enabled={banner.enabled && Boolean(banner.message)}
+											backgroundColor={banner.background_color}
+											message={banner.message}
+											onEdit={() => setEditingBannerId(i)}
+											onUpdate={async (banner) => {
+												const newBanners = updateBanner(i, banner);
+												await onSubmit(newBanners);
+											}}
+											onDelete={() => setDeletingBannerId(i)}
+										/>
+									))
+								)}
+							</TableBody>
+						</Table>
 					</div>
 				</div>
 

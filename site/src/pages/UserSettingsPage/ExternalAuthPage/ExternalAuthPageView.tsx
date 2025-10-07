@@ -1,10 +1,4 @@
 import { useTheme } from "@emotion/react";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
 import Tooltip from "@mui/material/Tooltip";
 import visuallyHidden from "@mui/utils/visuallyHidden";
 import { externalAuthProvider } from "api/queries/externalAuth";
@@ -25,6 +19,13 @@ import {
 import { Loader } from "components/Loader/Loader";
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableRow,
+} from "components/Table/Table";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import type { ExternalAuthPollingState } from "hooks/useExternalAuth";
 import { EllipsisVertical, RefreshCcwIcon } from "lucide-react";
@@ -58,41 +59,39 @@ export const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 	}
 
 	return (
-		<TableContainer>
-			<Table>
-				<TableHead>
-					<TableRow>
-						<TableCell>Application</TableCell>
-						<TableCell>
-							<span aria-hidden css={{ ...visuallyHidden }}>
-								Link to connect
-							</span>
-						</TableCell>
-						<TableCell width="1%" />
-					</TableRow>
-				</TableHead>
-				<TableBody>
-					{auths.providers === null || auths.providers?.length === 0 ? (
-						<TableEmpty message="No providers have been configured" />
-					) : (
-						auths.providers?.map((app) => (
-							<ExternalAuthRow
-								key={app.id}
-								app={app}
-								unlinked={unlinked}
-								link={auths.links.find((l) => l.provider_id === app.id)}
-								onUnlinkExternalAuth={() => {
-									onUnlinkExternalAuth(app);
-								}}
-								onValidateExternalAuth={() => {
-									onValidateExternalAuth(app.id);
-								}}
-							/>
-						))
-					)}
-				</TableBody>
-			</Table>
-		</TableContainer>
+		<Table>
+			<TableHead>
+				<TableRow>
+					<TableCell>Application</TableCell>
+					<TableCell>
+						<span aria-hidden css={{ ...visuallyHidden }}>
+							Link to connect
+						</span>
+					</TableCell>
+					<TableCell width="1%" />
+				</TableRow>
+			</TableHead>
+			<TableBody>
+				{auths.providers === null || auths.providers?.length === 0 ? (
+					<TableEmpty message="No providers have been configured" />
+				) : (
+					auths.providers?.map((app) => (
+						<ExternalAuthRow
+							key={app.id}
+							app={app}
+							unlinked={unlinked}
+							link={auths.links.find((l) => l.provider_id === app.id)}
+							onUnlinkExternalAuth={() => {
+								onUnlinkExternalAuth(app);
+							}}
+							onValidateExternalAuth={() => {
+								onValidateExternalAuth(app.id);
+							}}
+						/>
+					))
+				)}
+			</TableBody>
+		</Table>
 	);
 };
 

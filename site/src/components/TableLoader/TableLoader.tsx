@@ -1,6 +1,11 @@
-import TableCell from "@mui/material/TableCell";
-import TableRow, { type TableRowProps } from "@mui/material/TableRow";
-import { cloneElement, type FC, isValidElement, type ReactNode } from "react";
+import { TableCell, TableRow } from "components/Table/Table";
+import {
+	type ComponentProps,
+	cloneElement,
+	type FC,
+	isValidElement,
+	type ReactNode,
+} from "react";
 import { Loader } from "../Loader/Loader";
 
 export const TableLoader: FC = () => {
@@ -36,7 +41,7 @@ export const TableLoaderSkeleton: FC<TableLoaderSkeletonProps> = ({
 	);
 };
 
-export const TableRowSkeleton: FC<TableRowProps> = ({
+export const TableRowSkeleton: FC<ComponentProps<typeof TableRow>> = ({
 	children,
 	...rowProps
 }) => {

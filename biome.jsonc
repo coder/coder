@@ -52,6 +52,7 @@
 							"@mui/material/Typography": "Use native HTML elements instead. Eg: <span>, <p>, <h1>, etc.",
 							"@mui/material/Box": "Use a <div> instead.",
 							"@mui/material/styles": "Import from @emotion/react instead.",
+							"@mui/material/Table*": "Import from components/Table/Table instead.",
 							"lodash": "Use lodash/<name> instead."
 						}
 					}

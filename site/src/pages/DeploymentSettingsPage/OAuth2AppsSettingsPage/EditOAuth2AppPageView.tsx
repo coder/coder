@@ -1,11 +1,5 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Divider from "@mui/material/Divider";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
 import type * as TypesGen from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
@@ -22,6 +16,13 @@ import {
 } from "components/SettingsHeader/SettingsHeader";
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableRow,
+} from "components/Table/Table";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import { ChevronLeftIcon, CopyIcon } from "lucide-react";
 import { type FC, useState } from "react";
@@ -233,38 +234,36 @@ const OAuth2AppSecretsTable: FC<OAuth2AppSecretsTableProps> = ({
 				</Button>
 			</Stack>
 
-			<TableContainer>
-				<Table>
-					<TableHead>
+			<Table>
+				<TableHead>
+					<TableRow>
+						<TableCell width="80%">Secret</TableCell>
+						<TableCell width="20%">Last Used</TableCell>
+						<TableCell width="1%" />
+					</TableRow>
+				</TableHead>
+				<TableBody>
+					{isLoadingSecrets && <TableLoader />}
+					{!isLoadingSecrets && (!secrets || secrets.length === 0) && (
 						<TableRow>
-							<TableCell width="80%">Secret</TableCell>
-							<TableCell width="20%">Last Used</TableCell>
-							<TableCell width="1%" />
+							<TableCell colSpan={999}>
+								<div css={{ textAlign: "center" }}>
+									No client secrets have been generated.
+								</div>
+							</TableCell>
 						</TableRow>
-					</TableHead>
-					<TableBody>
-						{isLoadingSecrets && <TableLoader />}
-						{!isLoadingSecrets && (!secrets || secrets.length === 0) && (
-							<TableRow>
-								<TableCell colSpan={999}>
-									<div css={{ textAlign: "center" }}>
-										No client secrets have been generated.
-									</div>
-								</TableCell>
-							</TableRow>
-						)}
-						{!isLoadingSecrets &&
-							secrets?.map((secret) => (
-								<OAuth2SecretRow
-									key={secret.id}
-									secret={secret}
-									mutatingResource={mutatingResource}
-									deleteAppSecret={deleteAppSecret}
-								/>
-							))}
-					</TableBody>
-				</Table>
-			</TableContainer>
+					)}
+					{!isLoadingSecrets &&
+						secrets?.map((secret) => (
+							<OAuth2SecretRow
+								key={secret.id}
+								secret={secret}
+								mutatingResource={mutatingResource}
+								deleteAppSecret={deleteAppSecret}
+							/>
+						))}
+				</TableBody>
+			</Table>
 		</>
 	);
 };

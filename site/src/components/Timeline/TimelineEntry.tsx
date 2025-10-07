@@ -1,8 +1,8 @@
-import TableRow, { type TableRowProps } from "@mui/material/TableRow";
-import { forwardRef } from "react";
+import { TableRow } from "components/Table/Table";
+import { type ComponentProps, forwardRef } from "react";
 import { cn } from "utils/cn";
 
-interface TimelineEntryProps extends TableRowProps {
+interface TimelineEntryProps extends ComponentProps<typeof TableRow> {
 	clickable?: boolean;
 }
 

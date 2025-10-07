@@ -1,11 +1,5 @@
 import { useTheme } from "@emotion/react";
 import Button from "@mui/material/Button";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
 import type * as TypesGen from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
@@ -15,6 +9,13 @@ import {
 	SettingsHeaderTitle,
 } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableRow,
+} from "components/Table/Table";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import { ChevronRightIcon, PlusIcon } from "lucide-react";
@@ -59,31 +60,29 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 
 			{error && <ErrorAlert error={error} />}
 
-			<TableContainer css={{ marginTop: 32 }}>
-				<Table>
-					<TableHead>
+			<Table className="mt-8">
+				<TableHead>
+					<TableRow>
+						<TableCell width="100%">Name</TableCell>
+						<TableCell width="1%" />
+					</TableRow>
+				</TableHead>
+				<TableBody>
+					{isLoading && <TableLoader />}
+					{apps?.map((app) => (
+						<OAuth2AppRow key={app.id} app={app} />
+					))}
+					{apps?.length === 0 && (
 						<TableRow>
-							<TableCell width="100%">Name</TableCell>
-							<TableCell width="1%" />
+							<TableCell colSpan={999}>
+								<div css={{ textAlign: "center" }}>
+									No OAuth2 applications have been configured.
+								</div>
+							</TableCell>
 						</TableRow>
-					</TableHead>
-					<TableBody>
-						{isLoading && <TableLoader />}
-						{apps?.map((app) => (
-							<OAuth2AppRow key={app.id} app={app} />
-						))}
-						{apps?.length === 0 && (
-							<TableRow>
-								<TableCell colSpan={999}>
-									<div css={{ textAlign: "center" }}>
-										No OAuth2 applications have been configured.
-									</div>
-								</TableCell>
-							</TableRow>
-						)}
-					</TableBody>
-				</Table>
-			</TableContainer>
+					)}
+				</TableBody>
+			</Table>
 		</>
 	);
 };
