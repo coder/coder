@@ -7,7 +7,7 @@ This guide shows how to configure Coder to authenticate users with Microsoft Ent
 - A Microsoft Azure Entra ID Tenant
 - Permission to create Applications in your Azure environment
 
-## Step 1: Create an OAuth client in Google Cloud
+## Step 1: Create an OAuth App Registration in Microsoft Azure
 
 1. Open Microsoft Azure Portal (https://portal.azure.com) → Microsoft Entra ID → App Registrations → New Registration.
 2. Name: Name your application appropriately
@@ -20,7 +20,7 @@ This guide shows how to configure Coder to authenticate users with Microsoft Ent
 9. Now, click on the tab labeled "Authentication" and click on "Add a platform", select "Web" and for the redirect URI enter your Coder callback URL, and then hit "Configure" at the bottom:
    - `https://coder.example.com/api/v2/users/oidc/callback`
 
-## Step 2: Configure Coder OIDC for Google
+## Step 2: Configure Coder OIDC for Microsoft Entra ID
 
 Set the following environment variables on your Coder deployment and restart Coder:
 
@@ -54,7 +54,7 @@ Learn more in [Configure OIDC refresh tokens](./refresh-tokens.md).
 
 - "invalid redirect_uri": ensure the redirect URI in Azure Entra ID matches `https://<your-coder-host>/api/v2/users/oidc/callback`.
 - Domain restriction: if users from unexpected domains can log in, verify `CODER_OIDC_EMAIL_DOMAIN`.
-- Claims: to inspect claims returned by Google, see guidance in the [OIDC overview](./index.md#oidc-claims).
+- Claims: to inspect claims returned by Microsoft, see guidance in the [OIDC overview](./index.md#oidc-claims).
 
 ## See also
 
