@@ -1,7 +1,8 @@
 import {
+	MockCustomNotificationTemplates,
 	MockNotificationMethodsResponse,
 	MockNotificationPreferences,
-	MockNotificationTemplates,
+	MockSystemNotificationTemplates,
 	MockUserOwner,
 } from "testHelpers/entities";
 import {
@@ -12,6 +13,7 @@ import {
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
 import {
+	customNotificationTemplatesKey,
 	notificationDispatchMethodsKey,
 	systemNotificationTemplatesKey,
 	userNotificationPreferencesKey,
@@ -32,7 +34,11 @@ const meta = {
 			},
 			{
 				key: systemNotificationTemplatesKey,
-				data: MockNotificationTemplates,
+				data: MockSystemNotificationTemplates,
+			},
+			{
+				key: customNotificationTemplatesKey,
+				data: MockCustomNotificationTemplates,
 			},
 			{
 				key: notificationDispatchMethodsKey,
@@ -48,7 +54,22 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof NotificationsPage>;
 
-export const Default: Story = {};
+export const Default: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await Promise.all([
+			// System notification templates
+			canvas.findByRole("checkbox", { name: "Task Events" }),
+			canvas.findByRole("checkbox", { name: "Template Events" }),
+			canvas.findByRole("checkbox", { name: "User Events" }),
+			canvas.findByRole("checkbox", { name: "Workspace Events" }),
+
+			// Custom notification template
+			canvas.findByRole("checkbox", { name: "Custom Events" }),
+		]);
+	},
+};
 
 export const ToggleGroup: Story = {
 	play: async ({ canvasElement }) => {
@@ -100,7 +121,7 @@ if (!enabledPreference) {
 		"No enabled notification preference available to test the disabling action.",
 	);
 }
-const templateToDisable = MockNotificationTemplates.find(
+const templateToDisable = MockSystemNotificationTemplates.find(
 	(tpl) => tpl.id === enabledPreference.id,
 );
 if (!templateToDisable) {

@@ -375,6 +375,151 @@
 | `enabled`   | boolean                                                              | false    |              |             |
 | `openai`    | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              |             |
 
+## codersdk.AIBridgeInterception
+
+```json
+{
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
+  "metadata": {
+    "property1": null,
+    "property2": null
+  },
+  "model": "string",
+  "provider": "string",
+  "started_at": "2019-08-24T14:15:22Z",
+  "token_usages": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "input_tokens": 0,
+      "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+      "metadata": {
+        "property1": null,
+        "property2": null
+      },
+      "output_tokens": 0,
+      "provider_response_id": "string"
+    }
+  ],
+  "tool_usages": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "injected": true,
+      "input": "string",
+      "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+      "invocation_error": "string",
+      "metadata": {
+        "property1": null,
+        "property2": null
+      },
+      "provider_response_id": "string",
+      "server_url": "string",
+      "tool": "string"
+    }
+  ],
+  "user_prompts": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+      "metadata": {
+        "property1": null,
+        "property2": null
+      },
+      "prompt": "string",
+      "provider_response_id": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name               | Type                                                                | Required | Restrictions | Description |
+|--------------------|---------------------------------------------------------------------|----------|--------------|-------------|
+| `id`               | string                                                              | false    |              |             |
+| `initiator_id`     | string                                                              | false    |              |             |
+| `metadata`         | object                                                              | false    |              |             |
+| » `[any property]` | any                                                                 | false    |              |             |
+| `model`            | string                                                              | false    |              |             |
+| `provider`         | string                                                              | false    |              |             |
+| `started_at`       | string                                                              | false    |              |             |
+| `token_usages`     | array of [codersdk.AIBridgeTokenUsage](#codersdkaibridgetokenusage) | false    |              |             |
+| `tool_usages`      | array of [codersdk.AIBridgeToolUsage](#codersdkaibridgetoolusage)   | false    |              |             |
+| `user_prompts`     | array of [codersdk.AIBridgeUserPrompt](#codersdkaibridgeuserprompt) | false    |              |             |
+
+## codersdk.AIBridgeListInterceptionsResponse
+
+```json
+{
+  "results": [
+    {
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
+      "metadata": {
+        "property1": null,
+        "property2": null
+      },
+      "model": "string",
+      "provider": "string",
+      "started_at": "2019-08-24T14:15:22Z",
+      "token_usages": [
+        {
+          "created_at": "2019-08-24T14:15:22Z",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "input_tokens": 0,
+          "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+          "metadata": {
+            "property1": null,
+            "property2": null
+          },
+          "output_tokens": 0,
+          "provider_response_id": "string"
+        }
+      ],
+      "tool_usages": [
+        {
+          "created_at": "2019-08-24T14:15:22Z",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "injected": true,
+          "input": "string",
+          "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+          "invocation_error": "string",
+          "metadata": {
+            "property1": null,
+            "property2": null
+          },
+          "provider_response_id": "string",
+          "server_url": "string",
+          "tool": "string"
+        }
+      ],
+      "user_prompts": [
+        {
+          "created_at": "2019-08-24T14:15:22Z",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+          "metadata": {
+            "property1": null,
+            "property2": null
+          },
+          "prompt": "string",
+          "provider_response_id": "string"
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type                                                                    | Required | Restrictions | Description |
+|-----------|-------------------------------------------------------------------------|----------|--------------|-------------|
+| `results` | array of [codersdk.AIBridgeInterception](#codersdkaibridgeinterception) | false    |              |             |
+
 ## codersdk.AIBridgeOpenAIConfig
 
 ```json
@@ -390,6 +535,100 @@
 |------------|--------|----------|--------------|-------------|
 | `base_url` | string | false    |              |             |
 | `key`      | string | false    |              |             |
+
+## codersdk.AIBridgeTokenUsage
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "input_tokens": 0,
+  "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+  "metadata": {
+    "property1": null,
+    "property2": null
+  },
+  "output_tokens": 0,
+  "provider_response_id": "string"
+}
+```
+
+### Properties
+
+| Name                   | Type    | Required | Restrictions | Description |
+|------------------------|---------|----------|--------------|-------------|
+| `created_at`           | string  | false    |              |             |
+| `id`                   | string  | false    |              |             |
+| `input_tokens`         | integer | false    |              |             |
+| `interception_id`      | string  | false    |              |             |
+| `metadata`             | object  | false    |              |             |
+| » `[any property]`     | any     | false    |              |             |
+| `output_tokens`        | integer | false    |              |             |
+| `provider_response_id` | string  | false    |              |             |
+
+## codersdk.AIBridgeToolUsage
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "injected": true,
+  "input": "string",
+  "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+  "invocation_error": "string",
+  "metadata": {
+    "property1": null,
+    "property2": null
+  },
+  "provider_response_id": "string",
+  "server_url": "string",
+  "tool": "string"
+}
+```
+
+### Properties
+
+| Name                   | Type    | Required | Restrictions | Description |
+|------------------------|---------|----------|--------------|-------------|
+| `created_at`           | string  | false    |              |             |
+| `id`                   | string  | false    |              |             |
+| `injected`             | boolean | false    |              |             |
+| `input`                | string  | false    |              |             |
+| `interception_id`      | string  | false    |              |             |
+| `invocation_error`     | string  | false    |              |             |
+| `metadata`             | object  | false    |              |             |
+| » `[any property]`     | any     | false    |              |             |
+| `provider_response_id` | string  | false    |              |             |
+| `server_url`           | string  | false    |              |             |
+| `tool`                 | string  | false    |              |             |
+
+## codersdk.AIBridgeUserPrompt
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
+  "metadata": {
+    "property1": null,
+    "property2": null
+  },
+  "prompt": "string",
+  "provider_response_id": "string"
+}
+```
+
+### Properties
+
+| Name                   | Type   | Required | Restrictions | Description |
+|------------------------|--------|----------|--------------|-------------|
+| `created_at`           | string | false    |              |             |
+| `id`                   | string | false    |              |             |
+| `interception_id`      | string | false    |              |             |
+| `metadata`             | object | false    |              |             |
+| » `[any property]`     | any    | false    |              |             |
+| `prompt`               | string | false    |              |             |
+| `provider_response_id` | string | false    |              |             |
 
 ## codersdk.AIConfig
 
@@ -426,6 +665,9 @@
   "lifetime_seconds": 0,
   "login_type": "password",
   "scope": "all",
+  "scopes": [
+    "all"
+  ],
   "token_name": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
@@ -434,18 +676,19 @@
 
 ### Properties
 
-| Name               | Type                                         | Required | Restrictions | Description |
-|--------------------|----------------------------------------------|----------|--------------|-------------|
-| `created_at`       | string                                       | true     |              |             |
-| `expires_at`       | string                                       | true     |              |             |
-| `id`               | string                                       | true     |              |             |
-| `last_used`        | string                                       | true     |              |             |
-| `lifetime_seconds` | integer                                      | true     |              |             |
-| `login_type`       | [codersdk.LoginType](#codersdklogintype)     | true     |              |             |
-| `scope`            | [codersdk.APIKeyScope](#codersdkapikeyscope) | true     |              |             |
-| `token_name`       | string                                       | true     |              |             |
-| `updated_at`       | string                                       | true     |              |             |
-| `user_id`          | string                                       | true     |              |             |
+| Name               | Type                                                  | Required | Restrictions | Description                     |
+|--------------------|-------------------------------------------------------|----------|--------------|---------------------------------|
+| `created_at`       | string                                                | true     |              |                                 |
+| `expires_at`       | string                                                | true     |              |                                 |
+| `id`               | string                                                | true     |              |                                 |
+| `last_used`        | string                                                | true     |              |                                 |
+| `lifetime_seconds` | integer                                               | true     |              |                                 |
+| `login_type`       | [codersdk.LoginType](#codersdklogintype)              | true     |              |                                 |
+| `scope`            | [codersdk.APIKeyScope](#codersdkapikeyscope)          | false    |              | Deprecated: use Scopes instead. |
+| `scopes`           | array of [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              |                                 |
+| `token_name`       | string                                                | true     |              |                                 |
+| `updated_at`       | string                                                | true     |              |                                 |
+| `user_id`          | string                                                | true     |              |                                 |
 
 #### Enumerated Values
 
@@ -468,10 +711,197 @@
 
 #### Enumerated Values
 
-| Value                 |
-|-----------------------|
-| `all`                 |
-| `application_connect` |
+| Value                                     |
+|-------------------------------------------|
+| `all`                                     |
+| `application_connect`                     |
+| `aibridge_interception:*`                 |
+| `aibridge_interception:create`            |
+| `aibridge_interception:read`              |
+| `aibridge_interception:update`            |
+| `api_key:*`                               |
+| `api_key:create`                          |
+| `api_key:delete`                          |
+| `api_key:read`                            |
+| `api_key:update`                          |
+| `assign_org_role:*`                       |
+| `assign_org_role:assign`                  |
+| `assign_org_role:create`                  |
+| `assign_org_role:delete`                  |
+| `assign_org_role:read`                    |
+| `assign_org_role:unassign`                |
+| `assign_org_role:update`                  |
+| `assign_role:*`                           |
+| `assign_role:assign`                      |
+| `assign_role:read`                        |
+| `assign_role:unassign`                    |
+| `audit_log:*`                             |
+| `audit_log:create`                        |
+| `audit_log:read`                          |
+| `coder:all`                               |
+| `coder:apikeys.manage_self`               |
+| `coder:application_connect`               |
+| `coder:templates.author`                  |
+| `coder:templates.build`                   |
+| `coder:workspaces.access`                 |
+| `coder:workspaces.create`                 |
+| `coder:workspaces.delete`                 |
+| `coder:workspaces.operate`                |
+| `connection_log:*`                        |
+| `connection_log:read`                     |
+| `connection_log:update`                   |
+| `crypto_key:*`                            |
+| `crypto_key:create`                       |
+| `crypto_key:delete`                       |
+| `crypto_key:read`                         |
+| `crypto_key:update`                       |
+| `debug_info:*`                            |
+| `debug_info:read`                         |
+| `deployment_config:*`                     |
+| `deployment_config:read`                  |
+| `deployment_config:update`                |
+| `deployment_stats:*`                      |
+| `deployment_stats:read`                   |
+| `file:*`                                  |
+| `file:create`                             |
+| `file:read`                               |
+| `group:*`                                 |
+| `group:create`                            |
+| `group:delete`                            |
+| `group:read`                              |
+| `group:update`                            |
+| `group_member:*`                          |
+| `group_member:read`                       |
+| `idpsync_settings:*`                      |
+| `idpsync_settings:read`                   |
+| `idpsync_settings:update`                 |
+| `inbox_notification:*`                    |
+| `inbox_notification:create`               |
+| `inbox_notification:read`                 |
+| `inbox_notification:update`               |
+| `license:*`                               |
+| `license:create`                          |
+| `license:delete`                          |
+| `license:read`                            |
+| `notification_message:*`                  |
+| `notification_message:create`             |
+| `notification_message:delete`             |
+| `notification_message:read`               |
+| `notification_message:update`             |
+| `notification_preference:*`               |
+| `notification_preference:read`            |
+| `notification_preference:update`          |
+| `notification_template:*`                 |
+| `notification_template:read`              |
+| `notification_template:update`            |
+| `oauth2_app:*`                            |
+| `oauth2_app:create`                       |
+| `oauth2_app:delete`                       |
+| `oauth2_app:read`                         |
+| `oauth2_app:update`                       |
+| `oauth2_app_code_token:*`                 |
+| `oauth2_app_code_token:create`            |
+| `oauth2_app_code_token:delete`            |
+| `oauth2_app_code_token:read`              |
+| `oauth2_app_secret:*`                     |
+| `oauth2_app_secret:create`                |
+| `oauth2_app_secret:delete`                |
+| `oauth2_app_secret:read`                  |
+| `oauth2_app_secret:update`                |
+| `organization:*`                          |
+| `organization:create`                     |
+| `organization:delete`                     |
+| `organization:read`                       |
+| `organization:update`                     |
+| `organization_member:*`                   |
+| `organization_member:create`              |
+| `organization_member:delete`              |
+| `organization_member:read`                |
+| `organization_member:update`              |
+| `prebuilt_workspace:*`                    |
+| `prebuilt_workspace:delete`               |
+| `prebuilt_workspace:update`               |
+| `provisioner_daemon:*`                    |
+| `provisioner_daemon:create`               |
+| `provisioner_daemon:delete`               |
+| `provisioner_daemon:read`                 |
+| `provisioner_daemon:update`               |
+| `provisioner_jobs:*`                      |
+| `provisioner_jobs:create`                 |
+| `provisioner_jobs:read`                   |
+| `provisioner_jobs:update`                 |
+| `replicas:*`                              |
+| `replicas:read`                           |
+| `system:*`                                |
+| `system:create`                           |
+| `system:delete`                           |
+| `system:read`                             |
+| `system:update`                           |
+| `tailnet_coordinator:*`                   |
+| `tailnet_coordinator:create`              |
+| `tailnet_coordinator:delete`              |
+| `tailnet_coordinator:read`                |
+| `tailnet_coordinator:update`              |
+| `template:*`                              |
+| `template:create`                         |
+| `template:delete`                         |
+| `template:read`                           |
+| `template:update`                         |
+| `template:use`                            |
+| `template:view_insights`                  |
+| `usage_event:*`                           |
+| `usage_event:create`                      |
+| `usage_event:read`                        |
+| `usage_event:update`                      |
+| `user:*`                                  |
+| `user:create`                             |
+| `user:delete`                             |
+| `user:read`                               |
+| `user:read_personal`                      |
+| `user:update`                             |
+| `user:update_personal`                    |
+| `user_secret:*`                           |
+| `user_secret:create`                      |
+| `user_secret:delete`                      |
+| `user_secret:read`                        |
+| `user_secret:update`                      |
+| `webpush_subscription:*`                  |
+| `webpush_subscription:create`             |
+| `webpush_subscription:delete`             |
+| `webpush_subscription:read`               |
+| `workspace:*`                             |
+| `workspace:application_connect`           |
+| `workspace:create`                        |
+| `workspace:create_agent`                  |
+| `workspace:delete`                        |
+| `workspace:delete_agent`                  |
+| `workspace:read`                          |
+| `workspace:ssh`                           |
+| `workspace:start`                         |
+| `workspace:stop`                          |
+| `workspace:update`                        |
+| `workspace_agent_devcontainers:*`         |
+| `workspace_agent_devcontainers:create`    |
+| `workspace_agent_resource_monitor:*`      |
+| `workspace_agent_resource_monitor:create` |
+| `workspace_agent_resource_monitor:read`   |
+| `workspace_agent_resource_monitor:update` |
+| `workspace_dormant:*`                     |
+| `workspace_dormant:application_connect`   |
+| `workspace_dormant:create`                |
+| `workspace_dormant:create_agent`          |
+| `workspace_dormant:delete`                |
+| `workspace_dormant:delete_agent`          |
+| `workspace_dormant:read`                  |
+| `workspace_dormant:ssh`                   |
+| `workspace_dormant:start`                 |
+| `workspace_dormant:stop`                  |
+| `workspace_dormant:update`                |
+| `workspace_proxy:*`                       |
+| `workspace_proxy:create`                  |
+| `workspace_proxy:delete`                  |
+| `workspace_proxy:read`                    |
+| `workspace_proxy:update`                  |
 
 ## codersdk.AddLicenseRequest
 
@@ -1752,24 +2182,21 @@ This is required on creation to enable a user-flow of validating a template work
 {
   "lifetime": 0,
   "scope": "all",
+  "scopes": [
+    "all"
+  ],
   "token_name": "string"
 }
 ```
 
 ### Properties
 
-| Name         | Type                                         | Required | Restrictions | Description |
-|--------------|----------------------------------------------|----------|--------------|-------------|
-| `lifetime`   | integer                                      | false    |              |             |
-| `scope`      | [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              |             |
-| `token_name` | string                                       | false    |              |             |
-
-#### Enumerated Values
-
-| Property | Value                 |
-|----------|-----------------------|
-| `scope`  | `all`                 |
-| `scope`  | `application_connect` |
+| Name         | Type                                                  | Required | Restrictions | Description                     |
+|--------------|-------------------------------------------------------|----------|--------------|---------------------------------|
+| `lifetime`   | integer                                               | false    |              |                                 |
+| `scope`      | [codersdk.APIKeyScope](#codersdkapikeyscope)          | false    |              | Deprecated: use Scopes instead. |
+| `scopes`     | array of [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              |                                 |
+| `token_name` | string                                                | false    |              |                                 |
 
 ## codersdk.CreateUserRequestWithOrgs
 
@@ -3504,6 +3931,22 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `mcp-server-http`      |
 | `workspace-sharing`    |
 | `aibridge`             |
+
+## codersdk.ExternalAPIKeyScopes
+
+```json
+{
+  "external": [
+    "all"
+  ]
+}
+```
+
+### Properties
+
+| Name       | Type                                                  | Required | Restrictions | Description |
+|------------|-------------------------------------------------------|----------|--------------|-------------|
+| `external` | array of [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              |             |
 
 ## codersdk.ExternalAgentCredentials
 
@@ -6111,6 +6554,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "error_code": "REQUIRED_TEMPLATE_VARIABLES",
   "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
   "input": {
     "error": "string",
     "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
@@ -6153,6 +6597,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `error_code`        | [codersdk.JobErrorCode](#codersdkjoberrorcode)                     | false    |              |             |
 | `file_id`           | string                                                             | false    |              |             |
 | `id`                | string                                                             | false    |              |             |
+| `initiator_id`      | string                                                             | false    |              |             |
 | `input`             | [codersdk.ProvisionerJobInput](#codersdkprovisionerjobinput)       | false    |              |             |
 | `logs_overflowed`   | boolean                                                            | false    |              |             |
 | `metadata`          | [codersdk.ProvisionerJobMetadata](#codersdkprovisionerjobmetadata) | false    |              |             |
@@ -7847,6 +8292,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     "error_code": "REQUIRED_TEMPLATE_VARIABLES",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "input": {
       "error": "string",
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
@@ -9115,6 +9561,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "error_code": "REQUIRED_TEMPLATE_VARIABLES",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
       "input": {
         "error": "string",
         "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
@@ -10282,6 +10729,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "error_code": "REQUIRED_TEMPLATE_VARIABLES",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "input": {
       "error": "string",
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
@@ -11118,6 +11566,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "error_code": "REQUIRED_TEMPLATE_VARIABLES",
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
           "input": {
             "error": "string",
             "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",

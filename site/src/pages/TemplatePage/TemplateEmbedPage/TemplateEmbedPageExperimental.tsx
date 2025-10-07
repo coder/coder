@@ -24,7 +24,6 @@ import {
 } from "modules/workspaces/DynamicParameter/DynamicParameter";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { type FC, useEffect, useMemo, useRef, useState } from "react";
-import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 
 type ButtonValues = Record<string, string>;
@@ -107,9 +106,8 @@ const TemplateEmbedPageExperimental: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle(template.name)}</title>
-			</Helmet>
+			<title>{pageTitle(template.name)}</title>
+
 			<TemplateEmbedPageView
 				template={template}
 				parameters={sortedParams}
@@ -291,14 +289,7 @@ interface ButtonPreviewProps {
 }
 
 const ButtonPreview: FC<ButtonPreviewProps> = ({ template, buttonValues }) => {
-	const clipboard = useClipboard({
-		textToCopy: getClipboardCopyContent(
-			template.name,
-			template.organization_name,
-			buttonValues,
-		),
-	});
-
+	const clipboard = useClipboard();
 	return (
 		<div
 			className="sticky top-10 flex gap-16 h-96 flex-1 flex-col items-center justify-center
@@ -307,8 +298,15 @@ const ButtonPreview: FC<ButtonPreviewProps> = ({ template, buttonValues }) => {
 			<img src="/open-in-coder.svg" alt="Open in Coder button" />
 			<Button
 				variant="default"
-				onClick={clipboard.copyToClipboard}
 				disabled={clipboard.showCopiedSuccess}
+				onClick={() => {
+					const textToCopy = getClipboardCopyContent(
+						template.name,
+						template.organization_name,
+						buttonValues,
+					);
+					clipboard.copyToClipboard(textToCopy);
+				}}
 			>
 				{clipboard.showCopiedSuccess ? <CheckOutlined /> : <FileCopyOutlined />}{" "}
 				Copy button code

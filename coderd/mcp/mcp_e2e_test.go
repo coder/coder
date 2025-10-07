@@ -34,7 +34,7 @@ func TestMCPHTTP_E2E_ClientIntegration(t *testing.T) {
 	_ = coderdtest.CreateFirstUser(t, coderClient)
 
 	// Create MCP client pointing to our endpoint
-	mcpURL := api.AccessURL.String() + "/api/experimental/mcp/http"
+	mcpURL := api.AccessURL.String() + mcpserver.MCPEndpoint
 
 	// Configure client with authentication headers using RFC 6750 Bearer token
 	mcpClient, err := mcpclient.NewStreamableHttpClient(mcpURL,
@@ -133,7 +133,7 @@ func TestMCPHTTP_E2E_UnauthenticatedAccess(t *testing.T) {
 	defer cancel()
 
 	// Test direct HTTP request to verify 401 status code
-	mcpURL := api.AccessURL.String() + "/api/experimental/mcp/http"
+	mcpURL := api.AccessURL.String() + mcpserver.MCPEndpoint
 
 	// Make a POST request without authentication (MCP over HTTP uses POST)
 	//nolint:gosec // Test code using controlled localhost URL
@@ -141,7 +141,8 @@ func TestMCPHTTP_E2E_UnauthenticatedAccess(t *testing.T) {
 	require.NoError(t, err, "Should be able to create HTTP request")
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	require.NoError(t, err, "Should be able to make HTTP request")
 	defer resp.Body.Close()
 
@@ -197,7 +198,7 @@ func TestMCPHTTP_E2E_ToolWithWorkspace(t *testing.T) {
 	workspace := coderdtest.CreateWorkspace(t, coderClient, template.ID)
 
 	// Create MCP client
-	mcpURL := api.AccessURL.String() + "/api/experimental/mcp/http"
+	mcpURL := api.AccessURL.String() + mcpserver.MCPEndpoint
 	mcpClient, err := mcpclient.NewStreamableHttpClient(mcpURL,
 		transport.WithHTTPHeaders(map[string]string{
 			"Authorization": "Bearer " + coderClient.SessionToken(),
@@ -280,7 +281,7 @@ func TestMCPHTTP_E2E_ErrorHandling(t *testing.T) {
 	_ = coderdtest.CreateFirstUser(t, coderClient)
 
 	// Create MCP client
-	mcpURL := api.AccessURL.String() + "/api/experimental/mcp/http"
+	mcpURL := api.AccessURL.String() + mcpserver.MCPEndpoint
 	mcpClient, err := mcpclient.NewStreamableHttpClient(mcpURL,
 		transport.WithHTTPHeaders(map[string]string{
 			"Authorization": "Bearer " + coderClient.SessionToken(),
@@ -339,7 +340,7 @@ func TestMCPHTTP_E2E_ConcurrentRequests(t *testing.T) {
 	_ = coderdtest.CreateFirstUser(t, coderClient)
 
 	// Create MCP client
-	mcpURL := api.AccessURL.String() + "/api/experimental/mcp/http"
+	mcpURL := api.AccessURL.String() + mcpserver.MCPEndpoint
 	mcpClient, err := mcpclient.NewStreamableHttpClient(mcpURL,
 		transport.WithHTTPHeaders(map[string]string{
 			"Authorization": "Bearer " + coderClient.SessionToken(),
@@ -410,7 +411,7 @@ func TestMCPHTTP_E2E_RFC6750_UnauthenticatedRequest(t *testing.T) {
 	// Make a request without any authentication headers
 	req := &http.Request{
 		Method: "POST",
-		URL:    mustParseURL(t, api.AccessURL.String()+"/api/experimental/mcp/http"),
+		URL:    mustParseURL(t, api.AccessURL.String()+mcpserver.MCPEndpoint),
 		Header: make(http.Header),
 	}
 
@@ -493,7 +494,7 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 		// In a real OAuth2 flow, this would be an OAuth2 access token
 		sessionToken := coderClient.SessionToken()
 
-		mcpURL := api.AccessURL.String() + "/api/experimental/mcp/http"
+		mcpURL := api.AccessURL.String() + mcpserver.MCPEndpoint
 		mcpClient, err := mcpclient.NewStreamableHttpClient(mcpURL,
 			transport.WithHTTPHeaders(map[string]string{
 				"Authorization": "Bearer " + sessionToken,
@@ -613,7 +614,7 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 		require.NoError(t, err)
 		tokenReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-		tokenResp, err := http.DefaultClient.Do(tokenReq)
+		tokenResp, err := client.Do(tokenReq)
 		require.NoError(t, err)
 		defer tokenResp.Body.Close()
 
@@ -640,7 +641,7 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 		t.Logf("Successfully obtained refresh token: %s...", refreshToken[:10])
 
 		// Step 3: Use access token to authenticate with MCP endpoint
-		mcpURL := api.AccessURL.String() + "/api/experimental/mcp/http"
+		mcpURL := api.AccessURL.String() + mcpserver.MCPEndpoint
 		mcpClient, err := mcpclient.NewStreamableHttpClient(mcpURL,
 			transport.WithHTTPHeaders(map[string]string{
 				"Authorization": "Bearer " + accessToken,
@@ -711,7 +712,7 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 		require.NoError(t, err)
 		refreshReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-		refreshResp, err := http.DefaultClient.Do(refreshReq)
+		refreshResp, err := client.Do(refreshReq)
 		require.NoError(t, err)
 		defer refreshResp.Body.Close()
 
@@ -776,7 +777,7 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 		t.Parallel()
 		req := &http.Request{
 			Method: "POST",
-			URL:    mustParseURL(t, api.AccessURL.String()+"/api/experimental/mcp/http"),
+			URL:    mustParseURL(t, api.AccessURL.String()+mcpserver.MCPEndpoint),
 			Header: map[string][]string{
 				"Authorization": {"Bearer invalid_token_value"},
 				"Content-Type":  {"application/json"},
@@ -805,7 +806,7 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 	t.Run("DynamicClientRegistrationWithMCPFlow", func(t *testing.T) {
 		t.Parallel()
 		// Step 1: Attempt unauthenticated MCP access
-		mcpURL := api.AccessURL.String() + "/api/experimental/mcp/http"
+		mcpURL := api.AccessURL.String() + mcpserver.MCPEndpoint
 		req := &http.Request{
 			Method: "POST",
 			URL:    mustParseURL(t, mcpURL),
@@ -846,7 +847,7 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 		regReq.Header.Set("Content-Type", "application/json")
 
 		// Dynamic client registration should not require authentication (public endpoint)
-		regResp, err := http.DefaultClient.Do(regReq)
+		regResp, err := client.Do(regReq)
 		require.NoError(t, err)
 		defer regResp.Body.Close()
 
@@ -936,7 +937,7 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 		require.NoError(t, err)
 		tokenReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-		tokenResp, err := http.DefaultClient.Do(tokenReq)
+		tokenResp, err := client.Do(tokenReq)
 		require.NoError(t, err)
 		defer tokenResp.Body.Close()
 
@@ -1037,7 +1038,7 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 		require.NoError(t, err)
 		refreshReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-		refreshResp, err := http.DefaultClient.Do(refreshReq)
+		refreshResp, err := client.Do(refreshReq)
 		require.NoError(t, err)
 		defer refreshResp.Body.Close()
 
@@ -1151,7 +1152,8 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 		require.NoError(t, err)
 		regReq1.Header.Set("Content-Type", "application/json")
 
-		regResp1, err := http.DefaultClient.Do(regReq1)
+		client := &http.Client{}
+		regResp1, err := client.Do(regReq1)
 		require.NoError(t, err)
 		defer regResp1.Body.Close()
 
@@ -1181,7 +1183,7 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 		require.NoError(t, err)
 		regReq2.Header.Set("Content-Type", "application/json")
 
-		regResp2, err := http.DefaultClient.Do(regReq2)
+		regResp2, err := client.Do(regReq2)
 		require.NoError(t, err)
 		defer regResp2.Body.Close()
 
@@ -1232,7 +1234,7 @@ func TestMCPHTTP_E2E_ChatGPTEndpoint(t *testing.T) {
 	template := coderdtest.CreateTemplate(t, coderClient, user.OrganizationID, version.ID)
 
 	// Create MCP client pointing to the ChatGPT endpoint
-	mcpURL := api.AccessURL.String() + "/api/experimental/mcp/http?toolset=chatgpt"
+	mcpURL := api.AccessURL.String() + mcpserver.MCPEndpoint + "?toolset=chatgpt"
 
 	// Configure client with authentication headers using RFC 6750 Bearer token
 	mcpClient, err := mcpclient.NewStreamableHttpClient(mcpURL,

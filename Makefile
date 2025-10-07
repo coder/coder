@@ -635,18 +635,23 @@ TAILNETTEST_MOCKS := \
 	tailnet/tailnettest/workspaceupdatesprovidermock.go \
 	tailnet/tailnettest/subscriptionmock.go
 
+AIBRIDGED_MOCKS := \
+	enterprise/x/aibridged/aibridgedmock/clientmock.go \
+	enterprise/x/aibridged/aibridgedmock/poolmock.go
+
 GEN_FILES := \
 	tailnet/proto/tailnet.pb.go \
 	agent/proto/agent.pb.go \
 	provisionersdk/proto/provisioner.pb.go \
 	provisionerd/proto/provisionerd.pb.go \
 	vpn/vpn.pb.go \
-	aibridged/proto/aibridged.pb.go \
+	enterprise/x/aibridged/proto/aibridged.pb.go \
 	$(DB_GEN_FILES) \
 	$(SITE_GEN_FILES) \
 	coderd/rbac/object_gen.go \
 	codersdk/rbacresources_gen.go \
 	coderd/rbac/scopes_constants_gen.go \
+	codersdk/apikey_scopes_gen.go \
 	docs/admin/integrations/prometheus.md \
 	docs/reference/cli/index.md \
 	docs/admin/security/audit-logs.md \
@@ -660,7 +665,8 @@ GEN_FILES := \
 	agent/agentcontainers/acmock/acmock.go \
 	agent/agentcontainers/dcspec/dcspec_gen.go \
 	coderd/httpmw/loggermw/loggermock/loggermock.go \
-	codersdk/workspacesdk/agentconnmock/agentconnmock.go
+	codersdk/workspacesdk/agentconnmock/agentconnmock.go \
+	$(AIBRIDGED_MOCKS)
 
 # all gen targets should be added here and to gen/mark-fresh
 gen: gen/db gen/golden-files $(GEN_FILES)
@@ -690,7 +696,7 @@ gen/mark-fresh:
 		provisionersdk/proto/provisioner.pb.go \
 		provisionerd/proto/provisionerd.pb.go \
 		vpn/vpn.pb.go \
-		aibridged/proto/aibridged.pb.go \
+		enterprise/x/aibridged/proto/aibridged.pb.go \
 		coderd/database/dump.sql \
 		$(DB_GEN_FILES) \
 		site/src/api/typesGenerated.ts \
@@ -713,6 +719,7 @@ gen/mark-fresh:
 		agent/agentcontainers/dcspec/dcspec_gen.go \
 		coderd/httpmw/loggermw/loggermock/loggermock.go \
 		codersdk/workspacesdk/agentconnmock/agentconnmock.go \
+		$(AIBRIDGED_MOCKS) \
 		"
 
 	for file in $$files; do
@@ -758,6 +765,10 @@ coderd/httpmw/loggermw/loggermock/loggermock.go: coderd/httpmw/loggermw/logger.g
 
 codersdk/workspacesdk/agentconnmock/agentconnmock.go: codersdk/workspacesdk/agentconn.go
 	go generate ./codersdk/workspacesdk/agentconnmock/
+	touch "$@"
+
+$(AIBRIDGED_MOCKS): enterprise/x/aibridged/client.go enterprise/x/aibridged/pool.go
+	go generate ./enterprise/x/aibridged/aibridgedmock/
 	touch "$@"
 
 agent/agentcontainers/dcspec/dcspec_gen.go: \
@@ -810,13 +821,13 @@ vpn/vpn.pb.go: vpn/vpn.proto
 		--go_opt=paths=source_relative \
 		./vpn/vpn.proto
 
-aibridged/proto/aibridged.pb.go: aibridged/proto/aibridged.proto
+enterprise/x/aibridged/proto/aibridged.pb.go: enterprise/x/aibridged/proto/aibridged.proto
 	protoc \
 		--go_out=. \
 		--go_opt=paths=source_relative \
 		--go-drpc_out=. \
 		--go-drpc_opt=paths=source_relative \
-		./aibridged/proto/aibridged.proto
+		./enterprise/x/aibridged/proto/aibridged.proto
 
 site/src/api/typesGenerated.ts: site/node_modules/.installed $(wildcard scripts/apitypings/*) $(shell find ./codersdk $(FIND_EXCLUSIONS) -type f -name '*.go')
 	# -C sets the directory for the go run command
@@ -858,6 +869,12 @@ codersdk/rbacresources_gen.go: scripts/typegen/codersdk.gotmpl scripts/typegen/m
  	# the `codersdk` package and any parallel build targets.
 	go run scripts/typegen/main.go rbac codersdk > /tmp/rbacresources_gen.go
 	mv /tmp/rbacresources_gen.go codersdk/rbacresources_gen.go
+	touch "$@"
+
+codersdk/apikey_scopes_gen.go: scripts/apikeyscopesgen/main.go coderd/rbac/scopes_catalog.go coderd/rbac/scopes.go
+	# Generate SDK constants for external API key scopes.
+	go run ./scripts/apikeyscopesgen > /tmp/apikey_scopes_gen.go
+	mv /tmp/apikey_scopes_gen.go codersdk/apikey_scopes_gen.go
 	touch "$@"
 
 site/src/api/rbacresourcesGenerated.ts: site/node_modules/.installed scripts/typegen/codersdk.gotmpl scripts/typegen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go
@@ -1003,11 +1020,19 @@ endif
 
 TEST_PACKAGES ?= ./...
 
-test:
+warm-go-cache-db-cleaner:
+	# ensure Go's build cache for the cleanercmd is fresh so that tests don't have to build from scratch. This
+	# could take some time and counts against the test's timeout, which can lead to flakes.
+	# c.f. https://github.com/coder/internal/issues/1026
+	mkdir -p build
+	$(GIT_FLAGS) go build -o ./build/cleaner github.com/coder/coder/v2/coderd/database/dbtestutil/cleanercmd
+.PHONY: warm-go-cache-db-cleaner
+
+test: warm-go-cache-db-cleaner
 	$(GIT_FLAGS) gotestsum --format standard-quiet $(GOTESTSUM_RETRY_FLAGS) --packages="$(TEST_PACKAGES)" -- $(GOTEST_FLAGS)
 .PHONY: test
 
-test-cli:
+test-cli: warm-go-cache-db-cleaner
 	$(MAKE) test TEST_PACKAGES="./cli..."
 .PHONY: test-cli
 

@@ -62,6 +62,19 @@ export const systemNotificationTemplates = () => {
 	};
 };
 
+export const customNotificationTemplatesKey = [
+	"notifications",
+	"templates",
+	"custom",
+];
+
+export const customNotificationTemplates = () => {
+	return {
+		queryKey: customNotificationTemplatesKey,
+		queryFn: () => API.getCustomNotificationTemplates(),
+	};
+};
+
 export function selectTemplatesByGroup(
 	data: NotificationTemplate[],
 ): Record<string, NotificationTemplate[]> {
@@ -106,23 +119,24 @@ export const updateNotificationTemplateMethod = (
 		mutationFn: (req: UpdateNotificationTemplateMethod) =>
 			API.updateNotificationTemplateMethod(templateId, req),
 		onMutate: (data) => {
-			const prevData = queryClient.getQueryData<NotificationTemplate[]>(
+			const keys = [
 				systemNotificationTemplatesKey,
-			);
-			if (!prevData) {
-				return;
+				customNotificationTemplatesKey,
+			];
+
+			for (const key of keys) {
+				const prev = queryClient.getQueryData<NotificationTemplate[]>(key);
+				if (!prev) {
+					continue;
+				}
+
+				queryClient.setQueryData(
+					key,
+					prev.map((tpl) =>
+						tpl.id === templateId ? { ...tpl, method: data.method } : tpl,
+					),
+				);
 			}
-			queryClient.setQueryData(
-				systemNotificationTemplatesKey,
-				prevData.map((tpl) =>
-					tpl.id === templateId
-						? {
-								...tpl,
-								method: data.method,
-							}
-						: tpl,
-				),
-			);
 		},
 	} satisfies UseMutationOptions<
 		void,

@@ -112,7 +112,12 @@ func (q *sqlQuerier) ActivityBumpWorkspace(ctx context.Context, arg ActivityBump
 }
 
 const getAIBridgeInterceptionByID = `-- name: GetAIBridgeInterceptionByID :one
-SELECT id, initiator_id, provider, model, started_at FROM aibridge_interceptions WHERE id = $1::uuid
+SELECT
+	id, initiator_id, provider, model, started_at, metadata
+FROM
+	aibridge_interceptions
+WHERE
+	id = $1::uuid
 `
 
 func (q *sqlQuerier) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UUID) (AIBridgeInterception, error) {
@@ -124,22 +129,193 @@ func (q *sqlQuerier) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UU
 		&i.Provider,
 		&i.Model,
 		&i.StartedAt,
+		&i.Metadata,
 	)
 	return i, err
 }
 
+const getAIBridgeInterceptions = `-- name: GetAIBridgeInterceptions :many
+SELECT
+	id, initiator_id, provider, model, started_at, metadata
+FROM
+	aibridge_interceptions
+`
+
+func (q *sqlQuerier) GetAIBridgeInterceptions(ctx context.Context) ([]AIBridgeInterception, error) {
+	rows, err := q.db.QueryContext(ctx, getAIBridgeInterceptions)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AIBridgeInterception
+	for rows.Next() {
+		var i AIBridgeInterception
+		if err := rows.Scan(
+			&i.ID,
+			&i.InitiatorID,
+			&i.Provider,
+			&i.Model,
+			&i.StartedAt,
+			&i.Metadata,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAIBridgeTokenUsagesByInterceptionID = `-- name: GetAIBridgeTokenUsagesByInterceptionID :many
+SELECT
+	id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at
+FROM
+	aibridge_token_usages WHERE interception_id = $1::uuid
+ORDER BY
+	created_at ASC,
+	id ASC
+`
+
+func (q *sqlQuerier) GetAIBridgeTokenUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]AIBridgeTokenUsage, error) {
+	rows, err := q.db.QueryContext(ctx, getAIBridgeTokenUsagesByInterceptionID, interceptionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AIBridgeTokenUsage
+	for rows.Next() {
+		var i AIBridgeTokenUsage
+		if err := rows.Scan(
+			&i.ID,
+			&i.InterceptionID,
+			&i.ProviderResponseID,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.Metadata,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAIBridgeToolUsagesByInterceptionID = `-- name: GetAIBridgeToolUsagesByInterceptionID :many
+SELECT
+	id, interception_id, provider_response_id, server_url, tool, input, injected, invocation_error, metadata, created_at
+FROM
+	aibridge_tool_usages
+WHERE
+	interception_id = $1::uuid
+ORDER BY
+	created_at ASC,
+	id ASC
+`
+
+func (q *sqlQuerier) GetAIBridgeToolUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]AIBridgeToolUsage, error) {
+	rows, err := q.db.QueryContext(ctx, getAIBridgeToolUsagesByInterceptionID, interceptionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AIBridgeToolUsage
+	for rows.Next() {
+		var i AIBridgeToolUsage
+		if err := rows.Scan(
+			&i.ID,
+			&i.InterceptionID,
+			&i.ProviderResponseID,
+			&i.ServerUrl,
+			&i.Tool,
+			&i.Input,
+			&i.Injected,
+			&i.InvocationError,
+			&i.Metadata,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAIBridgeUserPromptsByInterceptionID = `-- name: GetAIBridgeUserPromptsByInterceptionID :many
+SELECT
+	id, interception_id, provider_response_id, prompt, metadata, created_at
+FROM
+	aibridge_user_prompts
+WHERE
+	interception_id = $1::uuid
+ORDER BY
+	created_at ASC,
+	id ASC
+`
+
+func (q *sqlQuerier) GetAIBridgeUserPromptsByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]AIBridgeUserPrompt, error) {
+	rows, err := q.db.QueryContext(ctx, getAIBridgeUserPromptsByInterceptionID, interceptionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AIBridgeUserPrompt
+	for rows.Next() {
+		var i AIBridgeUserPrompt
+		if err := rows.Scan(
+			&i.ID,
+			&i.InterceptionID,
+			&i.ProviderResponseID,
+			&i.Prompt,
+			&i.Metadata,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertAIBridgeInterception = `-- name: InsertAIBridgeInterception :one
-INSERT INTO aibridge_interceptions (id, initiator_id, provider, model, started_at)
-VALUES ($1::uuid, $2::uuid, $3, $4, $5)
-RETURNING id, initiator_id, provider, model, started_at
+INSERT INTO aibridge_interceptions (
+	id, initiator_id, provider, model, metadata, started_at
+) VALUES (
+	$1, $2, $3, $4, COALESCE($5::jsonb, '{}'::jsonb), $6
+)
+RETURNING id, initiator_id, provider, model, started_at, metadata
 `
 
 type InsertAIBridgeInterceptionParams struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	InitiatorID uuid.UUID `db:"initiator_id" json:"initiator_id"`
-	Provider    string    `db:"provider" json:"provider"`
-	Model       string    `db:"model" json:"model"`
-	StartedAt   time.Time `db:"started_at" json:"started_at"`
+	ID          uuid.UUID       `db:"id" json:"id"`
+	InitiatorID uuid.UUID       `db:"initiator_id" json:"initiator_id"`
+	Provider    string          `db:"provider" json:"provider"`
+	Model       string          `db:"model" json:"model"`
+	Metadata    json.RawMessage `db:"metadata" json:"metadata"`
+	StartedAt   time.Time       `db:"started_at" json:"started_at"`
 }
 
 func (q *sqlQuerier) InsertAIBridgeInterception(ctx context.Context, arg InsertAIBridgeInterceptionParams) (AIBridgeInterception, error) {
@@ -148,6 +324,7 @@ func (q *sqlQuerier) InsertAIBridgeInterception(ctx context.Context, arg InsertA
 		arg.InitiatorID,
 		arg.Provider,
 		arg.Model,
+		arg.Metadata,
 		arg.StartedAt,
 	)
 	var i AIBridgeInterception
@@ -157,16 +334,18 @@ func (q *sqlQuerier) InsertAIBridgeInterception(ctx context.Context, arg InsertA
 		&i.Provider,
 		&i.Model,
 		&i.StartedAt,
+		&i.Metadata,
 	)
 	return i, err
 }
 
-const insertAIBridgeTokenUsage = `-- name: InsertAIBridgeTokenUsage :exec
+const insertAIBridgeTokenUsage = `-- name: InsertAIBridgeTokenUsage :one
 INSERT INTO aibridge_token_usages (
   id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at
 ) VALUES (
   $1, $2, $3, $4, $5, COALESCE($6::jsonb, '{}'::jsonb), $7
 )
+RETURNING id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at
 `
 
 type InsertAIBridgeTokenUsageParams struct {
@@ -179,8 +358,8 @@ type InsertAIBridgeTokenUsageParams struct {
 	CreatedAt          time.Time       `db:"created_at" json:"created_at"`
 }
 
-func (q *sqlQuerier) InsertAIBridgeTokenUsage(ctx context.Context, arg InsertAIBridgeTokenUsageParams) error {
-	_, err := q.db.ExecContext(ctx, insertAIBridgeTokenUsage,
+func (q *sqlQuerier) InsertAIBridgeTokenUsage(ctx context.Context, arg InsertAIBridgeTokenUsageParams) (AIBridgeTokenUsage, error) {
+	row := q.db.QueryRowContext(ctx, insertAIBridgeTokenUsage,
 		arg.ID,
 		arg.InterceptionID,
 		arg.ProviderResponseID,
@@ -189,15 +368,26 @@ func (q *sqlQuerier) InsertAIBridgeTokenUsage(ctx context.Context, arg InsertAIB
 		arg.Metadata,
 		arg.CreatedAt,
 	)
-	return err
+	var i AIBridgeTokenUsage
+	err := row.Scan(
+		&i.ID,
+		&i.InterceptionID,
+		&i.ProviderResponseID,
+		&i.InputTokens,
+		&i.OutputTokens,
+		&i.Metadata,
+		&i.CreatedAt,
+	)
+	return i, err
 }
 
-const insertAIBridgeToolUsage = `-- name: InsertAIBridgeToolUsage :exec
+const insertAIBridgeToolUsage = `-- name: InsertAIBridgeToolUsage :one
 INSERT INTO aibridge_tool_usages (
   id, interception_id, provider_response_id, tool, server_url, input, injected, invocation_error, metadata, created_at
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9::jsonb, '{}'::jsonb), $10
 )
+RETURNING id, interception_id, provider_response_id, server_url, tool, input, injected, invocation_error, metadata, created_at
 `
 
 type InsertAIBridgeToolUsageParams struct {
@@ -213,8 +403,8 @@ type InsertAIBridgeToolUsageParams struct {
 	CreatedAt          time.Time       `db:"created_at" json:"created_at"`
 }
 
-func (q *sqlQuerier) InsertAIBridgeToolUsage(ctx context.Context, arg InsertAIBridgeToolUsageParams) error {
-	_, err := q.db.ExecContext(ctx, insertAIBridgeToolUsage,
+func (q *sqlQuerier) InsertAIBridgeToolUsage(ctx context.Context, arg InsertAIBridgeToolUsageParams) (AIBridgeToolUsage, error) {
+	row := q.db.QueryRowContext(ctx, insertAIBridgeToolUsage,
 		arg.ID,
 		arg.InterceptionID,
 		arg.ProviderResponseID,
@@ -226,15 +416,29 @@ func (q *sqlQuerier) InsertAIBridgeToolUsage(ctx context.Context, arg InsertAIBr
 		arg.Metadata,
 		arg.CreatedAt,
 	)
-	return err
+	var i AIBridgeToolUsage
+	err := row.Scan(
+		&i.ID,
+		&i.InterceptionID,
+		&i.ProviderResponseID,
+		&i.ServerUrl,
+		&i.Tool,
+		&i.Input,
+		&i.Injected,
+		&i.InvocationError,
+		&i.Metadata,
+		&i.CreatedAt,
+	)
+	return i, err
 }
 
-const insertAIBridgeUserPrompt = `-- name: InsertAIBridgeUserPrompt :exec
+const insertAIBridgeUserPrompt = `-- name: InsertAIBridgeUserPrompt :one
 INSERT INTO aibridge_user_prompts (
   id, interception_id, provider_response_id, prompt, metadata, created_at
 ) VALUES (
   $1, $2, $3, $4, COALESCE($5::jsonb, '{}'::jsonb), $6
 )
+RETURNING id, interception_id, provider_response_id, prompt, metadata, created_at
 `
 
 type InsertAIBridgeUserPromptParams struct {
@@ -246,8 +450,8 @@ type InsertAIBridgeUserPromptParams struct {
 	CreatedAt          time.Time       `db:"created_at" json:"created_at"`
 }
 
-func (q *sqlQuerier) InsertAIBridgeUserPrompt(ctx context.Context, arg InsertAIBridgeUserPromptParams) error {
-	_, err := q.db.ExecContext(ctx, insertAIBridgeUserPrompt,
+func (q *sqlQuerier) InsertAIBridgeUserPrompt(ctx context.Context, arg InsertAIBridgeUserPromptParams) (AIBridgeUserPrompt, error) {
+	row := q.db.QueryRowContext(ctx, insertAIBridgeUserPrompt,
 		arg.ID,
 		arg.InterceptionID,
 		arg.ProviderResponseID,
@@ -255,7 +459,249 @@ func (q *sqlQuerier) InsertAIBridgeUserPrompt(ctx context.Context, arg InsertAIB
 		arg.Metadata,
 		arg.CreatedAt,
 	)
-	return err
+	var i AIBridgeUserPrompt
+	err := row.Scan(
+		&i.ID,
+		&i.InterceptionID,
+		&i.ProviderResponseID,
+		&i.Prompt,
+		&i.Metadata,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const listAIBridgeInterceptions = `-- name: ListAIBridgeInterceptions :many
+SELECT
+	id, initiator_id, provider, model, started_at, metadata
+FROM
+	aibridge_interceptions
+WHERE
+	-- Filter by time frame
+	CASE
+		WHEN $1::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN aibridge_interceptions.started_at >= $1::timestamptz
+		ELSE true
+	END
+	AND CASE
+		WHEN $2::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN aibridge_interceptions.started_at <= $2::timestamptz
+		ELSE true
+	END
+	-- Filter initiator_id
+	AND CASE
+		WHEN $3::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN aibridge_interceptions.initiator_id = $3::uuid
+		ELSE true
+	END
+	-- Filter provider
+	AND CASE
+		WHEN $4::text != '' THEN aibridge_interceptions.provider = $4::text
+		ELSE true
+	END
+	-- Filter model
+	AND CASE
+		WHEN $5::text != '' THEN aibridge_interceptions.model = $5::text
+		ELSE true
+	END
+	-- Cursor pagination
+	AND CASE
+		WHEN $6::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+			-- The pagination cursor is the last ID of the previous page.
+			-- The query is ordered by the started_at field, so select all
+			-- rows before the cursor and before the after_id UUID.
+			-- This uses a less than operator because we're sorting DESC. The
+			-- "after_id" terminology comes from our pagination parser in
+			-- coderd.
+			(aibridge_interceptions.started_at, aibridge_interceptions.id) < (
+				(SELECT started_at FROM aibridge_interceptions WHERE id = $6),
+				$6::uuid
+			)
+		)
+		ELSE true
+	END
+	-- Authorize Filter clause will be injected below in ListAuthorizedAIBridgeInterceptions
+	-- @authorize_filter
+ORDER BY
+	aibridge_interceptions.started_at DESC,
+	aibridge_interceptions.id DESC
+LIMIT COALESCE(NULLIF($7::integer, 0), 100)
+`
+
+type ListAIBridgeInterceptionsParams struct {
+	StartedAfter  time.Time `db:"started_after" json:"started_after"`
+	StartedBefore time.Time `db:"started_before" json:"started_before"`
+	InitiatorID   uuid.UUID `db:"initiator_id" json:"initiator_id"`
+	Provider      string    `db:"provider" json:"provider"`
+	Model         string    `db:"model" json:"model"`
+	AfterID       uuid.UUID `db:"after_id" json:"after_id"`
+	Limit         int32     `db:"limit_" json:"limit_"`
+}
+
+func (q *sqlQuerier) ListAIBridgeInterceptions(ctx context.Context, arg ListAIBridgeInterceptionsParams) ([]AIBridgeInterception, error) {
+	rows, err := q.db.QueryContext(ctx, listAIBridgeInterceptions,
+		arg.StartedAfter,
+		arg.StartedBefore,
+		arg.InitiatorID,
+		arg.Provider,
+		arg.Model,
+		arg.AfterID,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AIBridgeInterception
+	for rows.Next() {
+		var i AIBridgeInterception
+		if err := rows.Scan(
+			&i.ID,
+			&i.InitiatorID,
+			&i.Provider,
+			&i.Model,
+			&i.StartedAt,
+			&i.Metadata,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAIBridgeTokenUsagesByInterceptionIDs = `-- name: ListAIBridgeTokenUsagesByInterceptionIDs :many
+SELECT
+	id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at
+FROM
+	aibridge_token_usages
+WHERE
+	interception_id = ANY($1::uuid[])
+ORDER BY
+	created_at ASC,
+	id ASC
+`
+
+func (q *sqlQuerier) ListAIBridgeTokenUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeTokenUsage, error) {
+	rows, err := q.db.QueryContext(ctx, listAIBridgeTokenUsagesByInterceptionIDs, pq.Array(interceptionIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AIBridgeTokenUsage
+	for rows.Next() {
+		var i AIBridgeTokenUsage
+		if err := rows.Scan(
+			&i.ID,
+			&i.InterceptionID,
+			&i.ProviderResponseID,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.Metadata,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAIBridgeToolUsagesByInterceptionIDs = `-- name: ListAIBridgeToolUsagesByInterceptionIDs :many
+SELECT
+	id, interception_id, provider_response_id, server_url, tool, input, injected, invocation_error, metadata, created_at
+FROM
+	aibridge_tool_usages
+WHERE
+	interception_id = ANY($1::uuid[])
+ORDER BY
+	created_at ASC,
+	id ASC
+`
+
+func (q *sqlQuerier) ListAIBridgeToolUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeToolUsage, error) {
+	rows, err := q.db.QueryContext(ctx, listAIBridgeToolUsagesByInterceptionIDs, pq.Array(interceptionIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AIBridgeToolUsage
+	for rows.Next() {
+		var i AIBridgeToolUsage
+		if err := rows.Scan(
+			&i.ID,
+			&i.InterceptionID,
+			&i.ProviderResponseID,
+			&i.ServerUrl,
+			&i.Tool,
+			&i.Input,
+			&i.Injected,
+			&i.InvocationError,
+			&i.Metadata,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAIBridgeUserPromptsByInterceptionIDs = `-- name: ListAIBridgeUserPromptsByInterceptionIDs :many
+SELECT
+	id, interception_id, provider_response_id, prompt, metadata, created_at
+FROM
+	aibridge_user_prompts
+WHERE
+	interception_id = ANY($1::uuid[])
+ORDER BY
+	created_at ASC,
+	id ASC
+`
+
+func (q *sqlQuerier) ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeUserPrompt, error) {
+	rows, err := q.db.QueryContext(ctx, listAIBridgeUserPromptsByInterceptionIDs, pq.Array(interceptionIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AIBridgeUserPrompt
+	for rows.Next() {
+		var i AIBridgeUserPrompt
+		if err := rows.Scan(
+			&i.ID,
+			&i.InterceptionID,
+			&i.ProviderResponseID,
+			&i.Prompt,
+			&i.Metadata,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const deleteAPIKeyByID = `-- name: DeleteAPIKeyByID :exec
@@ -287,7 +733,7 @@ DELETE FROM
 	api_keys
 WHERE
 	user_id = $1 AND
-	'application_connect'::api_key_scope = ANY(scopes)
+	'coder:application_connect'::api_key_scope = ANY(scopes)
 `
 
 func (q *sqlQuerier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
@@ -6696,12 +7142,19 @@ WHERE
 		  ELSE
 			  is_system = false
 	END
+  -- Filter by github user ID. Note that this requires a join on the users table.
+  AND CASE
+    WHEN $4 :: bigint != 0 THEN
+      users.github_com_user_id = $4
+    ELSE true
+  END
 `
 
 type OrganizationMembersParams struct {
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 	UserID         uuid.UUID `db:"user_id" json:"user_id"`
 	IncludeSystem  bool      `db:"include_system" json:"include_system"`
+	GithubUserID   int64     `db:"github_user_id" json:"github_user_id"`
 }
 
 type OrganizationMembersRow struct {
@@ -6718,7 +7171,12 @@ type OrganizationMembersRow struct {
 //   - Use just 'user_id' to get all orgs a user is a member of
 //   - Use both to get a specific org member row
 func (q *sqlQuerier) OrganizationMembers(ctx context.Context, arg OrganizationMembersParams) ([]OrganizationMembersRow, error) {
-	rows, err := q.db.QueryContext(ctx, organizationMembers, arg.OrganizationID, arg.UserID, arg.IncludeSystem)
+	rows, err := q.db.QueryContext(ctx, organizationMembers,
+		arg.OrganizationID,
+		arg.UserID,
+		arg.IncludeSystem,
+		arg.GithubUserID,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -8508,7 +8966,7 @@ WHERE
 	-- Filter by max age if provided
 	AND (
 		$7::bigint IS NULL
-		OR pd.last_seen_at IS NULL 
+		OR pd.last_seen_at IS NULL
 		OR pd.last_seen_at >= (NOW() - ($7::bigint || ' ms')::interval)
 	)
 	AND (
@@ -8833,11 +9291,11 @@ func (q *sqlQuerier) InsertProvisionerJobLogs(ctx context.Context, arg InsertPro
 }
 
 const updateProvisionerJobLogsLength = `-- name: UpdateProvisionerJobLogsLength :exec
-UPDATE 
+UPDATE
 	provisioner_jobs
-SET 
+SET
 	logs_length = logs_length + $2
-WHERE 
+WHERE
 	id = $1
 `
 
@@ -8852,11 +9310,11 @@ func (q *sqlQuerier) UpdateProvisionerJobLogsLength(ctx context.Context, arg Upd
 }
 
 const updateProvisionerJobLogsOverflowed = `-- name: UpdateProvisionerJobLogsOverflowed :exec
-UPDATE 
+UPDATE
 	provisioner_jobs
-SET 
+SET
 	logs_overflowed = $2
-WHERE 
+WHERE
 	id = $1
 `
 
@@ -9376,6 +9834,7 @@ WHERE
 	AND (COALESCE(array_length($2::uuid[], 1), 0) = 0 OR pj.id = ANY($2::uuid[]))
 	AND (COALESCE(array_length($3::provisioner_job_status[], 1), 0) = 0 OR pj.job_status = ANY($3::provisioner_job_status[]))
 	AND ($4::tagset = 'null'::tagset OR provisioner_tagset_contains(pj.tags::tagset, $4::tagset))
+	AND ($5::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR pj.initiator_id = $5::uuid)
 GROUP BY
 	pj.id,
 	qp.queue_position,
@@ -9391,7 +9850,7 @@ GROUP BY
 ORDER BY
 	pj.created_at DESC
 LIMIT
-	$5::int
+	$6::int
 `
 
 type GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams struct {
@@ -9399,6 +9858,7 @@ type GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerPar
 	IDs            []uuid.UUID            `db:"ids" json:"ids"`
 	Status         []ProvisionerJobStatus `db:"status" json:"status"`
 	Tags           StringMap              `db:"tags" json:"tags"`
+	InitiatorID    uuid.UUID              `db:"initiator_id" json:"initiator_id"`
 	Limit          sql.NullInt32          `db:"limit" json:"limit"`
 }
 
@@ -9423,6 +9883,7 @@ func (q *sqlQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionA
 		pq.Array(arg.IDs),
 		pq.Array(arg.Status),
 		arg.Tags,
+		arg.InitiatorID,
 		arg.Limit,
 	)
 	if err != nil {
@@ -9915,7 +10376,7 @@ FROM
     provisioner_keys
 WHERE
     organization_id = $1
-AND 
+AND
     lower(name) = lower($2)
 `
 
@@ -10031,10 +10492,10 @@ WHERE
 AND
     -- exclude reserved built-in key
     id != '00000000-0000-0000-0000-000000000001'::uuid
-AND 
+AND
     -- exclude reserved user-auth key
     id != '00000000-0000-0000-0000-000000000002'::uuid
-AND 
+AND
     -- exclude reserved psk key
     id != '00000000-0000-0000-0000-000000000003'::uuid
 `
@@ -13828,14 +14289,14 @@ DO $$
 DECLARE
     table_record record;
 BEGIN
-    FOR table_record IN 
-        SELECT table_schema, table_name 
-        FROM information_schema.tables 
+    FOR table_record IN
+        SELECT table_schema, table_name
+        FROM information_schema.tables
         WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
         AND table_type = 'BASE TABLE'
     LOOP
-        EXECUTE format('ALTER TABLE %I.%I DISABLE TRIGGER ALL', 
-                    table_record.table_schema, 
+        EXECUTE format('ALTER TABLE %I.%I DISABLE TRIGGER ALL',
+                    table_record.table_schema,
                     table_record.table_name);
     END LOOP;
 END;
@@ -17820,7 +18281,7 @@ WITH agent_stats AS (
 		coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_95
 	 FROM workspace_agent_stats
 	-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
-	WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0 
+	WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0
 	GROUP BY user_id, agent_id, workspace_id, template_id
 ), latest_agent_stats AS (
 	SELECT
@@ -18393,6 +18854,45 @@ func (q *sqlQuerier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg Ups
 	var new_or_stale bool
 	err := row.Scan(&new_or_stale)
 	return new_or_stale, err
+}
+
+const getLatestWorkspaceAppStatusesByAppID = `-- name: GetLatestWorkspaceAppStatusesByAppID :many
+SELECT id, created_at, agent_id, app_id, workspace_id, state, message, uri
+FROM workspace_app_statuses
+WHERE app_id = $1::uuid
+ORDER BY created_at DESC, id DESC
+`
+
+func (q *sqlQuerier) GetLatestWorkspaceAppStatusesByAppID(ctx context.Context, appID uuid.UUID) ([]WorkspaceAppStatus, error) {
+	rows, err := q.db.QueryContext(ctx, getLatestWorkspaceAppStatusesByAppID, appID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAppStatus
+	for rows.Next() {
+		var i WorkspaceAppStatus
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.AgentID,
+			&i.AppID,
+			&i.WorkspaceID,
+			&i.State,
+			&i.Message,
+			&i.Uri,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getLatestWorkspaceAppStatusesByWorkspaceIDs = `-- name: GetLatestWorkspaceAppStatusesByWorkspaceIDs :many

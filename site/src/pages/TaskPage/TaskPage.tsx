@@ -17,11 +17,21 @@ import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import { ArrowLeftIcon, RotateCcwIcon } from "lucide-react";
 import { AgentLogs } from "modules/resources/AgentLogs/AgentLogs";
 import { useAgentLogs } from "modules/resources/useAgentLogs";
-import { AI_PROMPT_PARAMETER_NAME, type Task } from "modules/tasks/tasks";
+import { TasksSidebar } from "modules/tasks/TasksSidebar/TasksSidebar";
+import {
+	AI_PROMPT_PARAMETER_NAME,
+	getTaskApps,
+	type Task,
+} from "modules/tasks/tasks";
 import { WorkspaceErrorDialog } from "modules/workspaces/ErrorDialog/WorkspaceErrorDialog";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
-import { type FC, type ReactNode, useLayoutEffect, useRef } from "react";
-import { Helmet } from "react-helmet-async";
+import {
+	type FC,
+	type PropsWithChildren,
+	type ReactNode,
+	useLayoutEffect,
+	useRef,
+} from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { Link as RouterLink, useParams } from "react-router";
@@ -31,9 +41,18 @@ import {
 	getActiveTransitionStats,
 	WorkspaceBuildProgress,
 } from "../WorkspacePage/WorkspaceBuildProgress";
+import { TaskAppIFrame } from "./TaskAppIframe";
 import { TaskApps } from "./TaskApps";
-import { TaskSidebar } from "./TaskSidebar";
 import { TaskTopbar } from "./TaskTopbar";
+
+const TaskPageLayout: FC<PropsWithChildren> = ({ children }) => {
+	return (
+		<div className="flex items-stretch h-full">
+			<TasksSidebar />
+			<div className="flex flex-col h-full flex-1">{children}</div>
+		</div>
+	);
+};
 
 const TaskPage = () => {
 	const { workspace: workspaceName, username } = useParams() as {
@@ -54,10 +73,8 @@ const TaskPage = () => {
 
 	if (error) {
 		return (
-			<>
-				<Helmet>
-					<title>{pageTitle("Error loading task")}</title>
-				</Helmet>
+			<TaskPageLayout>
+				<title>{pageTitle("Error loading task")}</title>
 
 				<div className="w-full min-h-80 flex items-center justify-center">
 					<div className="flex flex-col items-center">
@@ -81,18 +98,16 @@ const TaskPage = () => {
 						</div>
 					</div>
 				</div>
-			</>
+			</TaskPageLayout>
 		);
 	}
 
 	if (!task) {
 		return (
-			<>
-				<Helmet>
-					<title>{pageTitle("Loading task")}</title>
-				</Helmet>
-				<Loader fullscreen />
-			</>
+			<TaskPageLayout>
+				<title>{pageTitle("Loading task")}</title>
+				<Loader className="w-full h-full" />
+			</TaskPageLayout>
 		);
 	}
 
@@ -126,10 +141,27 @@ const TaskPage = () => {
 	} else if (agent && ["created", "starting"].includes(agent.lifecycle_state)) {
 		content = <TaskStartingAgent agent={agent} />;
 	} else {
+		const chatApp = getTaskApps(task).find(
+			(app) => app.id === task.workspace.latest_build.ai_task_sidebar_app_id,
+		);
 		content = (
 			<PanelGroup autoSaveId="task" direction="horizontal">
 				<Panel defaultSize={25} minSize={20}>
-					<TaskSidebar task={task} />
+					{chatApp ? (
+						<TaskAppIFrame active task={task} app={chatApp} />
+					) : (
+						<div className="h-full flex items-center justify-center p-6 text-center">
+							<div className="flex flex-col items-center">
+								<h3 className="m-0 font-medium text-content-primary text-base">
+									Chat app not found
+								</h3>
+								<span className="text-content-secondary text-sm">
+									Please, make sure your template has a chat sidebar app
+									configured.
+								</span>
+							</div>
+						</div>
+					)}
 				</Panel>
 				<PanelResizeHandle>
 					<div className="w-1 bg-border h-full hover:bg-border-hover transition-all relative" />
@@ -142,16 +174,12 @@ const TaskPage = () => {
 	}
 
 	return (
-		<>
-			<Helmet>
-				<title>{pageTitle(task.workspace.name)}</title>
-			</Helmet>
+		<TaskPageLayout>
+			<title>{pageTitle(task.workspace.name)}</title>
 
-			<div className="flex flex-col h-full">
-				<TaskTopbar task={task} />
-				{content}
-			</div>
-		</>
+			<TaskTopbar task={task} />
+			{content}
+		</TaskPageLayout>
 	);
 };
 

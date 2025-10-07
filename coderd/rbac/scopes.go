@@ -3,6 +3,7 @@ package rbac
 import (
 	"fmt"
 	"slices"
+	"sort"
 	"strings"
 
 	"github.com/google/uuid"
@@ -61,8 +62,8 @@ func WorkspaceAgentScope(params WorkspaceAgentScopeParams) Scope {
 }
 
 const (
-	ScopeAll                ScopeName = "all"
-	ScopeApplicationConnect ScopeName = "application_connect"
+	ScopeAll                ScopeName = "coder:all"
+	ScopeApplicationConnect ScopeName = "coder:application_connect"
 	ScopeNoUserData         ScopeName = "no_user_data"
 )
 
@@ -123,6 +124,56 @@ func BuiltinScopeNames() []ScopeName {
 	return names
 }
 
+// Composite coder:* scopes expand to multiple low-level resource:action permissions
+// at Site level. These names are persisted in the DB and expanded during
+// authorization.
+var compositePerms = map[ScopeName]map[string][]policy.Action{
+	"coder:workspaces.create": {
+		ResourceTemplate.Type:  {policy.ActionRead, policy.ActionUse},
+		ResourceWorkspace.Type: {policy.ActionCreate, policy.ActionUpdate, policy.ActionRead},
+	},
+	"coder:workspaces.operate": {
+		ResourceWorkspace.Type: {policy.ActionRead, policy.ActionUpdate},
+	},
+	"coder:workspaces.delete": {
+		ResourceWorkspace.Type: {policy.ActionRead, policy.ActionDelete},
+	},
+	"coder:workspaces.access": {
+		ResourceWorkspace.Type: {policy.ActionRead, policy.ActionSSH, policy.ActionApplicationConnect},
+	},
+	"coder:templates.build": {
+		ResourceTemplate.Type: {policy.ActionRead},
+		ResourceFile.Type:     {policy.ActionCreate, policy.ActionRead},
+		"provisioner_jobs":    {policy.ActionRead},
+	},
+	"coder:templates.author": {
+		ResourceTemplate.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete, policy.ActionViewInsights},
+		ResourceFile.Type:     {policy.ActionCreate, policy.ActionRead},
+	},
+	"coder:apikeys.manage_self": {
+		ResourceApiKey.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+	},
+}
+
+// CompositeSitePermissions returns the site-level Permission list for a coder:* scope.
+func CompositeSitePermissions(name ScopeName) ([]Permission, bool) {
+	perms, ok := compositePerms[name]
+	if !ok {
+		return nil, false
+	}
+	return Permissions(perms), true
+}
+
+// CompositeScopeNames lists all high-level coder:* names in sorted order.
+func CompositeScopeNames() []string {
+	out := make([]string, 0, len(compositePerms))
+	for k := range compositePerms {
+		out = append(out, string(k))
+	}
+	sort.Strings(out)
+	return out
+}
+
 type ExpandableScope interface {
 	Expand() (Scope, error)
 	// Name is for logging and tracing purposes, we want to know the human
@@ -178,6 +229,19 @@ func ExpandScope(scope ScopeName) (Scope, error) {
 	if role, ok := builtinScopes[scope]; ok {
 		return role, nil
 	}
+	if site, ok := CompositeSitePermissions(scope); ok {
+		return Scope{
+			Role: Role{
+				Identifier:  RoleIdentifier{Name: fmt.Sprintf("Scope_%s", scope)},
+				DisplayName: string(scope),
+				Site:        site,
+				Org:         map[string][]Permission{},
+				User:        []Permission{},
+			},
+			// Composites are site-level; allow-list empty by default
+			AllowIDList: []AllowListElement{},
+		}, nil
+	}
 	if res, act, ok := parseLowLevelScope(scope); ok {
 		return expandLowLevel(res, act), nil
 	}
@@ -208,6 +272,11 @@ func parseLowLevelScope(name ScopeName) (resource string, action policy.Action, 
 	if !exists {
 		return "", "", false
 	}
+
+	if act == policy.WildcardSymbol {
+		return res, policy.WildcardSymbol, true
+	}
+
 	if _, exists := def.Actions[policy.Action(act)]; !exists {
 		return "", "", false
 	}

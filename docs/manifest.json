@@ -286,7 +286,7 @@
 					"icon_path": "./images/icons/computer-code.svg",
 					"children": [
 						{
-							"title": "Coder Desktop connect and sync",
+							"title": "Coder Desktop Connect and Sync",
 							"description": "Use Coder Desktop to manage your workspace code and files locally",
 							"path": "./user-guides/desktop/desktop-connect-sync.md"
 						}
@@ -883,6 +883,12 @@
 					"path": "./ai-coder/tasks.md",
 					"state": ["beta"],
 					"children": [
+						{
+							"title": "Understanding Coder Tasks",
+							"description": "Core principles and concepts behind Coder Tasks",
+							"path": "./ai-coder/tasks-core-principles.md",
+							"state": ["beta"]
+						},
 						{
 							"title": "Custom Agents",
 							"description": "Run custom agents with Coder Tasks",

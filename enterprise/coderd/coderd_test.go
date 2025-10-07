@@ -595,6 +595,7 @@ func TestSCIMDisabled(t *testing.T) {
 		"/scim/v2/random/path/that/is/long.txt",
 	}
 
+	client := &http.Client{}
 	for _, p := range checkPaths {
 		t.Run(p, func(t *testing.T) {
 			t.Parallel()
@@ -605,7 +606,7 @@ func TestSCIMDisabled(t *testing.T) {
 			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, u.String(), nil)
 			require.NoError(t, err)
 
-			resp, err := http.DefaultClient.Do(req)
+			resp, err := client.Do(req)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			require.Equal(t, http.StatusNotFound, resp.StatusCode)

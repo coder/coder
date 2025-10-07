@@ -1,5 +1,3 @@
-import AppearanceIcon from "@mui/icons-material/Brush";
-import NotificationsIcon from "@mui/icons-material/NotificationsNoneOutlined";
 import type { User } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { GitIcon } from "components/Icons/GitIcon";
@@ -9,6 +7,8 @@ import {
 	SidebarNavItem,
 } from "components/Sidebar/Sidebar";
 import {
+	BellIcon,
+	BrushIcon,
 	CalendarCogIcon,
 	FingerprintIcon,
 	KeyIcon,
@@ -39,7 +39,7 @@ export const Sidebar: FC<SidebarProps> = ({ user }) => {
 			<SidebarNavItem href="account" icon={UserIcon}>
 				Account
 			</SidebarNavItem>
-			<SidebarNavItem href="appearance" icon={AppearanceIcon}>
+			<SidebarNavItem href="appearance" icon={BrushIcon}>
 				Appearance
 			</SidebarNavItem>
 			<SidebarNavItem href="external-auth" icon={GitIcon}>
@@ -64,7 +64,7 @@ export const Sidebar: FC<SidebarProps> = ({ user }) => {
 			<SidebarNavItem href="tokens" icon={KeyIcon}>
 				Tokens
 			</SidebarNavItem>
-			<SidebarNavItem href="notifications" icon={NotificationsIcon}>
+			<SidebarNavItem href="notifications" icon={BellIcon}>
 				Notifications
 			</SidebarNavItem>
 		</BaseSidebar>

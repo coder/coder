@@ -22,7 +22,7 @@ type TaskTopbarProps = { task: Task };
 
 export const TaskTopbar: FC<TaskTopbarProps> = ({ task }) => {
 	return (
-		<header className="flex flex-shrink-0 items-center px-3 py-4 border-solid border-border border-0 border-b">
+		<header className="flex flex-shrink-0 items-center p-3 border-solid border-border border-0 border-b">
 			<TooltipProvider>
 				<Tooltip>
 					<TooltipTrigger asChild>
@@ -81,14 +81,11 @@ export const TaskTopbar: FC<TaskTopbarProps> = ({ task }) => {
 type CopyPromptButtonProps = { prompt: string };
 
 const CopyPromptButton: FC<CopyPromptButtonProps> = ({ prompt }) => {
-	const { copyToClipboard, showCopiedSuccess } = useClipboard({
-		textToCopy: prompt,
-	});
-
+	const { copyToClipboard, showCopiedSuccess } = useClipboard();
 	return (
 		<Button
 			disabled={showCopiedSuccess}
-			onClick={copyToClipboard}
+			onClick={() => copyToClipboard(prompt)}
 			size="sm"
 			variant="subtle"
 			className="p-0 min-w-0"

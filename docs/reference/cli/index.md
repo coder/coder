@@ -62,11 +62,11 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | [<code>whoami</code>](./whoami.md)                           | Fetch authenticated user info for Coder deployment                                                                           |
 | [<code>support</code>](./support.md)                         | Commands for troubleshooting issues with a Coder deployment.                                                                 |
 | [<code>server</code>](./server.md)                           | Start a Coder server                                                                                                         |
+| [<code>provisioner</code>](./provisioner.md)                 | View and manage provisioner daemons and jobs                                                                                 |
 | [<code>features</code>](./features.md)                       | List Enterprise features                                                                                                     |
 | [<code>licenses</code>](./licenses.md)                       | Add, delete, and list licenses                                                                                               |
 | [<code>groups</code>](./groups.md)                           | Manage groups                                                                                                                |
 | [<code>prebuilds</code>](./prebuilds.md)                     | Manage Coder prebuilds                                                                                                       |
-| [<code>provisioner</code>](./provisioner.md)                 | View and manage provisioner daemons and jobs                                                                                 |
 | [<code>external-workspaces</code>](./external-workspaces.md) | Create or manage external workspaces                                                                                         |
 
 ## Options

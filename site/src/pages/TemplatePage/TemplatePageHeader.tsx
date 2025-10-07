@@ -1,4 +1,3 @@
-import EditIcon from "@mui/icons-material/EditOutlined";
 import Button from "@mui/material/Button";
 import { API } from "api/api";
 import { workspaces } from "api/queries/workspaces";
@@ -30,6 +29,7 @@ import { Stack } from "components/Stack/Stack";
 import {
 	CopyIcon,
 	DownloadIcon,
+	EditIcon,
 	EllipsisVertical,
 	PlusIcon,
 	SettingsIcon,

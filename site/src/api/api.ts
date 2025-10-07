@@ -2519,6 +2519,13 @@ class ApiMethods {
 		return res.data;
 	};
 
+	getCustomNotificationTemplates = async () => {
+		const res = await this.axios.get<TypesGen.NotificationTemplate[]>(
+			"/api/v2/notifications/templates/custom",
+		);
+		return res.data;
+	};
+
 	getNotificationDispatchMethods = async () => {
 		const res = await this.axios.get<TypesGen.NotificationMethodsResponse>(
 			"/api/v2/notifications/dispatch-methods",
@@ -2720,6 +2727,10 @@ class ExperimentalApiMethods {
 			workspace,
 			prompt: prompts.prompts[workspace.latest_build.id],
 		}));
+	};
+
+	deleteTask = async (user: string, id: string): Promise<void> => {
+		await this.axios.delete(`/api/experimental/tasks/${user}/${id}`);
 	};
 }
 

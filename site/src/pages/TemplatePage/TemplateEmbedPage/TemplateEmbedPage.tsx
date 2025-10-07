@@ -1,9 +1,9 @@
-import Button from "@mui/material/Button";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
 import { API } from "api/api";
 import type { Template, TemplateVersionParameter } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import { FormSection, VerticalForm } from "components/Form/Form";
 import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
@@ -14,7 +14,6 @@ import { useClipboard } from "hooks/useClipboard";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { type FC, useEffect, useId, useState } from "react";
-import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { nameValidator } from "utils/formUtils";
 import { pageTitle } from "utils/page";
@@ -34,9 +33,8 @@ const TemplateEmbedPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle(template.name)}</title>
-			</Helmet>
+			<title>{pageTitle(template.name)}</title>
+
 			<TemplateEmbedPageView
 				template={template}
 				templateParameters={templateParameters?.filter(
@@ -76,13 +74,7 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 	templateParameters,
 }) => {
 	const [buttonValues, setButtonValues] = useState<ButtonValues | undefined>();
-	const clipboard = useClipboard({
-		textToCopy: getClipboardCopyContent(
-			template.name,
-			template.organization_name,
-			buttonValues,
-		),
-	});
+	const clipboard = useClipboard();
 
 	// template parameters is async so we need to initialize the values after it
 	// is loaded
@@ -124,9 +116,8 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle(template.name)}</title>
-			</Helmet>
+			<title>{pageTitle(template.name)}</title>
+
 			{!buttonValues || !templateParameters ? (
 				<Loader />
 			) : (
@@ -239,18 +230,18 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 							}}
 						>
 							<Button
-								css={{ borderRadius: 999 }}
-								startIcon={
-									clipboard.showCopiedSuccess ? (
-										<CheckIcon className="size-icon-sm" />
-									) : (
-										<CopyIcon className="size-icon-sm" />
-									)
-								}
-								variant="contained"
-								onClick={clipboard.copyToClipboard}
+								className="rounded-full"
 								disabled={clipboard.showCopiedSuccess}
+								onClick={() => {
+									const textToCopy = getClipboardCopyContent(
+										template.name,
+										template.organization_name,
+										buttonValues,
+									);
+									clipboard.copyToClipboard(textToCopy);
+								}}
 							>
+								{clipboard.showCopiedSuccess ? <CheckIcon /> : <CopyIcon />}
 								Copy button code
 							</Button>
 						</div>
