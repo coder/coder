@@ -21,45 +21,16 @@ Boundaries extend Coder's trusted workspaces with a defense-in-depth model that 
 - _Network policy enforcement_: block domains, subnets, or HTTP verbs to prevent exfiltration
 - _Audit-ready_: centralize logs, exportable for compliance, with full visibility into agent actions
 
-## Architecture
 
-Agent Boundary runs in two locations:
-
-- Workspace: Boundary runs alongside your agent or tool, wrapping its process and enforcing outbound network policy at runtime
-- Control place (Premium): Module-level config toggles enforcement and routes audit logs to centralized governance
-
-[More detail to be added here]
 
 ## Getting Started with Boundary
 
-There are two ways to use Agent Boundaries in your project.
+For Early Access, users can use Agent Boundaries through its [open source CLI](https://github.com/coder/boundary), which can be run to wrap any process or invoked through rules in a YAML file.
 
-Users of Coder Premium can enable Agent Boundaries simply by updating to the latest versions of their preferred coding agent modules, which integrate with Coder with just a few lines of Terraform. Once configured by platform admins, developers get agent-ready environments automatically - no extra setup required.
+Eventually, users of Coder Premium can enable Agent Boundaries simply by updating to the latest versions of their preferred coding agent modules, which integrate with Coder with just a few lines of Terraform. Once configured by platform admins, developers get agent-ready environments automatically - no extra setup required.
 
-All other users can use Agent Boundaries through its [open source CLI](https://github.com/coder/boundary), which can be run to wrap any process or invoked through rules in a YAML file.
 
-### Option 1) Apply Boundary through Coder modules
 
-This option is available to Coder Premium users. It is the easiest way to use Agent Boundaries and offers centralized policy management with strong isolation.
-
-This integration offers:
-
-- A built-in `coder boundary` subcommand
-    - Module authors do not need to ship or manage a separate binary
-- A clean module interface
-    - Template admins toggle policy per template by using variables
-- Stronger isolation and centralized governance hooks
-    - Protection beyond what is offered by the CLI path
-
-To apply Agent Boundaries through Coder modules, follow the instructions below:
-
-1. Ensure that you have installed or updated to the latest version of the [Claude Code module](https://registry.coder.com/modules/coder/claude-code)
-1. In the template that calls the module, set `module.boundary_configuration.enabled = true`
-1. Choose a policy expression
-    - For simple rules, you can insert a variation of this example: `provide allow = ["domain=github.com path=/api/*", "method=GET,HEAD domain=github.com"]`
-    - For complexrules, you can package a YAML file into the workspace image or mount a path and set `config_path`
-
-[More detail to be added here]
 
 ### Option 2) Wrap the agent process with the Boundary CLI
 
