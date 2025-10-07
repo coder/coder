@@ -14,6 +14,13 @@ user(s) of the event.
 
 Coder supports the following list of events:
 
+### Task Events
+
+These notifications are sent to the owner of the workspace where the task is running:
+
+- Task Idle
+- Task Working
+
 ### Template Events
 
 These notifications are sent to users with **template admin** roles:
