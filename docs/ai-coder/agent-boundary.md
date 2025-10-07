@@ -2,7 +2,7 @@
 
 Agent Boundaries are process-level firewalls that restrict and audit what autonomous programs, such as AI agents, can access and use.
 
-![Screenshot of Agent Boundaries blocking a process](image.png)Example of Agent Boundaries blocking a process.
+![Screenshot of Agent Boundaries blocking a process](../images/guides/ai-agents/boundary.png)Example of Agent Boundaries blocking a process.
 
 The easiest way to use Agent Boundaries is through existing Coder modules, such as the [Claude Code module](https://registry.coder.com/modules/coder/claude-code). It can also be ran directly in the terminal by installing the [CLI](https://github.com/coder/boundary).
 
@@ -11,7 +11,7 @@ The easiest way to use Agent Boundaries is through existing Coder modules, such 
 
 ## Supported Agents
 
-Coder Boundary supports the securing of any terminal-based agent, including your own custom agents.
+Boundary supports the securing of any terminal-based agent, including your own custom agents.
 
 ## Features
 
@@ -21,24 +21,15 @@ Boundaries extend Coder's trusted workspaces with a defense-in-depth model that 
 - _Network policy enforcement_: block domains, subnets, or HTTP verbs to prevent exfiltration
 - _Audit-ready_: centralize logs, exportable for compliance, with full visibility into agent actions
 
-
-
 ## Getting Started with Boundary
 
 For Early Access, users can use Agent Boundaries through its [open source CLI](https://github.com/coder/boundary), which can be run to wrap any process or invoked through rules in a YAML file.
 
-Eventually, users of Coder Premium can enable Agent Boundaries simply by updating to the latest versions of their preferred coding agent modules, which integrate with Coder with just a few lines of Terraform. Once configured by platform admins, developers get agent-ready environments automatically - no extra setup required.
 
-
-
-
-### Option 2) Wrap the agent process with the Boundary CLI
+### Wrap the agent process with the Boundary CLI
 
 Users can also run Boundary directly in your workspace and configure it per template or per script. While free tier users won't get centralized policy management or the deeper, "strong isolation," they can still enforce per workspace network rules and log decisions locally.
 
-There are two ways to integrate the open source Boundary CLI into a workspace.
-
-#### Wrap a command inline with flags
 
 1. Install the [binary](https://github.com/coder/boundary) into the workspace image or at start-up. You can do so with the following command:
 
@@ -57,6 +48,10 @@ There are two ways to integrate the open source Boundary CLI into a workspace.
     make fmt            # Format code
     make lint           # Lint code
     ```
+
+From here, there are two ways to integrate the open source Boundary CLI into a workspace.
+
+#### Wrap a command inline with flags
 1. Wrap the tool you want to guard. Below are some examples of usage:
 
     ```hcl
@@ -78,23 +73,6 @@ There are two ways to integrate the open source Boundary CLI into a workspace.
 #### Use a config file (YAML) to set rules
 
 Another option is to define rules in a YAML file, which only needs to be invoked once as opposed to through flags with each command.
-
-1. Similarly to the previous method, install the [binary](https://github.com/coder/boundary) into the workspace image or at start-up. You can do so with the following command:
-
-    ```hcl
-    curl -fsSL https://raw.githubusercontent.com/coder/boundary/main/install.sh | bash
-    ```
-1. Use the included `Makefile` to build your project. Here are a few example commands:
-
-    ```hcl
-    make build          # Build for current platform
-    make build-all      # Build for all platforms
-    make test           # Run tests
-    make test-coverage  # Run tests with coverage
-    make clean          # Clean build artifacts
-    make fmt            # Format code
-    make lint           # Lint code
-    ```
 1. Create a YAML file to store rules that will be applied to all `boundary` commands run in the Workspace. In this example, we call it `boundary.yaml`.
 
     A config example can be seen below:
