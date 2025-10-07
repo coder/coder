@@ -2,7 +2,7 @@ import Tooltip from "@mui/material/Tooltip";
 import type * as TypesGen from "api/typesGenerated";
 import {
 	Building2Icon,
-	EarthIcon,
+	GlobeIcon,
 	SquareArrowOutUpRightIcon,
 	UsersIcon,
 } from "lucide-react";
@@ -36,7 +36,7 @@ export const ShareIcon = ({ app }: ShareIconProps) => {
 	if (app.sharing_level === "public") {
 		return (
 			<Tooltip title="Shared publicly">
-				<EarthIcon />
+				<GlobeIcon />
 			</Tooltip>
 		);
 	}
