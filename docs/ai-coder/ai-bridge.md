@@ -3,7 +3,7 @@
 > [!NOTE]
 > AI Bridge is currently an _experimental_ feature.
 
-![](https://i.imgur.com/wIQiLHv.png)
+![AI bridge diagram](https://i.imgur.com/wIQiLHv.png)
 
 AI Bridge is a smart proxy for AI. It acts as a man-in-the-middle between your users' coding agents / IDEs
 and AI providers like OpenAI and Anthropic. By intercepting all the AI traffic between these clients and
@@ -263,4 +263,4 @@ Where relevant, both streaming and non-streaming requests are supported.
 
 ## Troubleshooting
 
-To report a bug, file a feature request, or see a list of known issues please see our Github repository for Bridge. If you encounter issues with Bridge during early access, please contact our Support team or reach out via our Discord. 
+To report a bug, file a feature request, or see a list of known issues please see our Github repository for Bridge. If you encounter issues with Bridge during early access, please contact our Support team or reach out via our Discord.
