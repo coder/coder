@@ -25,7 +25,7 @@ This guide shows how to configure Coder to authenticate users with Microsoft Ent
 Set the following environment variables on your Coder deployment and restart Coder:
 
 ```env
-CODER_OIDC_ISSUER_URL=<WS-Federation sign-on endpoint (i.e: https://login.microsoftonline.com/)>
+CODER_OIDC_ISSUER_URL=https://login.microsoftonline.com/{tenant-id}/v2.0 # Replace {tenant-id} with your Azure tenant ID
 CODER_OIDC_CLIENT_ID=<client id, located in "Overview"> 
 CODER_OIDC_CLIENT_SECRET=<client secret, saved from step 6>
 # Restrict to one or more email domains (comma-separated)
