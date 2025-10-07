@@ -3,6 +3,8 @@
 > [!NOTE]
 > AI Bridge is currently an _experimental_ feature.
 
+![](https://i.imgur.com/wIQiLHv.png)
+
 AI Bridge is a smart proxy for AI. It acts as a man-in-the-middle between your users' coding agents / IDEs
 and AI providers like OpenAI and Anthropic. By intercepting all the AI traffic between these clients and
 the upstream APIs, AI Bridge can record user prompts, token usage, and tool invocations.
@@ -17,12 +19,27 @@ AI Bridge solves 3 key problems:
 3. **Centralized MCP administration**: define a set of approved MCP servers and tools which your users may
    use, and prevent users from using their own.
 
+### When to use AI Bridge
+
+As the library of LLMs and their associated tools grow, administrators are pressured to provide auditing, measure adoption, provide tools through MCP, and track token spend. Disparate SAAS platforms provide _some_ of these for _some_ tools, but there is no centralized, secure solution for these challenges.
+
+If you are administrator or devops leader looking to:
+- Measure AI tooling adoption across teams or projects
+- Provide an LLM audit trail to security administrators
+- Manage token spend in a central dashboard
+- Investigate opportunities for AI automation
+- Uncover the high-leverage use cases from experienced engineers
+
+We advise trying Bridge as self-hosted proxy to monitor LLM usage agnostically across AI powered IDEs like Cursor and headless agents like Claude Code.
+
 ## Setup
+
+AI Bridge runs inside the Coder control plane, requiring no separate compute to deploy or scale. Once enabled, `coderd` hosts the bridge in-memory and brokers traffic to your configured AI providers on behalf of authenticated users.
 
 **Required**:
 
-1. A **Premium** license
-1. Feature must be [enabled](#activation)
+1. A **premium** licensed Coder deployment
+1. Feature must be [enabled](#activation) using the server flag
 1. One or more [provider](#providers) API keys must be configured
 
 ### Activation
@@ -56,8 +73,7 @@ The API to which AI Bridge will relay requests.
 - `CODER_AIBRIDGE_OPENAI_BASE_URL` or `--aibridge-openai-base-url`, defaults to `https://api.openai.com/v1/`
 - `CODER_AIBRIDGE_ANTHROPIC_BASE_URL` or `--aibridge-anthropic-base-url`, defaults to `https://api.anthropic.com/`
 
-If you're using _[Google Vertex AI](https://cloud.google.com/vertex-ai?hl=en)_, _[AWS Bedrock](https://aws.amazon.com/bedrock/)_, or others,
-you may specify the base URL(s) above to the appropriate API endpoint.
+AI bridge is compatible with _[Google Vertex AI](https://cloud.google.com/vertex-ai?hl=en)_, _[AWS Bedrock](https://aws.amazon.com/bedrock/)_, and other LLM brokers. You may specify the base URL(s) above to the appropriate API endpoint for your provider.
 
 ---
 
@@ -69,10 +85,19 @@ you may specify the base URL(s) above to the appropriate API endpoint.
 AI Bridge collects:
 
 - The last `user` prompt of each request
-- All token usage
-- All tool invocations
+- All token usage (associated with each prompt)
+- Every tool invocation
 
-All of these records are associated to an "interception" record, which maps 1:1 with requests received from clients but may involve several interactions with upstream providers.
+All of these records are associated to an "interception" record, which maps 1:1 with requests received from clients but may involve several interactions with upstream providers. Interceptions are associated with a Coder identity, allowing you to map consumption and cost with teams or individuals in your organization:
+
+![User Prompt logging](https://i.imgur.com/TZLgkLy.png)
+
+
+These logs can be used to determine usage patterns, track costs, and evaluate tooling adoption.
+
+This data is currently accessible through the API and CLI (experimental), which we advise administrators export to their observability platform of choice. We've configured a Grafana dashboard to display Claude Code usage internally which can be imported as a starting point for your tooling adoption metrics.
+
+![Grafana Dashboard](https://i.imgur.com/kyWqES5.png)
 
 ## Implementation Details
 
@@ -235,3 +260,7 @@ Where relevant, both streaming and non-streaming requests are supported.
 **Passthrough**:
 
 - [`/v1/models(/*)`](https://docs.claude.com/en/api/models-list)
+
+## Troubleshooting
+
+To report a bug, file a feature request, or see a list of known issues please see our Github repository for Bridge. If you encounter issues with Bridge during early access, please contact our Support team or reach out via our Discord. 
