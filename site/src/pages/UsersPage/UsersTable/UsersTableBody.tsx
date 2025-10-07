@@ -28,9 +28,9 @@ import {
 	BanIcon,
 	EllipsisVertical,
 	KeyIcon,
-	RectangleEllipsisIcon,
 	ShieldIcon,
 	TrashIcon,
+	UserLockIcon,
 } from "lucide-react";
 import type { FC } from "react";
 import { UserRoleCell } from "../../OrganizationSettingsPage/UserTable/UserRoleCell";
@@ -263,7 +263,7 @@ const LoginType: FC<LoginTypeProps> = ({ authMethods, value }) => {
 
 	if (value === "password") {
 		displayName = "Password";
-		icon = <RectangleEllipsisIcon css={styles.icon} />;
+		icon = <UserLockIcon css={styles.icon} />;
 	} else if (value === "none") {
 		displayName = "None";
 		icon = <BanIcon css={styles.icon} />;

@@ -1,7 +1,7 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import { SyntaxHighlighter } from "components/SyntaxHighlighter/SyntaxHighlighter";
 import set from "lodash/set";
-import { CircleCheckIcon, EditIcon } from "lucide-react";
+import { EditIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { type FC, useCallback, useMemo } from "react";
 import { Link } from "react-router";
@@ -93,10 +93,11 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 							return (
 								<div key={filename} css={styles.filePanel} id={filename}>
 									<header css={styles.fileHeader}>
-										{filename}
-										{info.hasDiff && (
-											<CircleCheckIcon className="size-icon-sm text-content-warning" />
-										)}
+										<span
+											className={`${info.hasDiff && "text-content-warning"}`}
+										>
+											{filename}
+										</span>
 
 										<div css={{ marginLeft: "auto" }}>
 											<Link
@@ -114,7 +115,7 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 													},
 												}}
 											>
-												<EditIcon className="text-inherit" />
+												<EditIcon className="text-inherit size-icon-xs" />
 												Edit
 											</Link>
 										</div>

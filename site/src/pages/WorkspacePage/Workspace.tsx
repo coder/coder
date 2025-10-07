@@ -130,7 +130,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 								setSidebarOption("resources");
 							}}
 						>
-							<BlocksIcon />
+							<BlocksIcon className="size-icon-sm" />
 							<span className="sr-only">Resources</span>
 						</SidebarIconButton>
 						<SidebarIconButton
@@ -139,7 +139,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 								setSidebarOption("history");
 							}}
 						>
-							<HistoryIcon />
+							<HistoryIcon className="size-icon-sm" />
 							<span className="sr-only">History</span>
 						</SidebarIconButton>
 					</div>
