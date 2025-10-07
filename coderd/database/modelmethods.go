@@ -170,9 +170,8 @@ func (s APIKeyScopes) Expand() (rbac.Scope, error) {
 		// Identifier is informational; not used in policy evaluation.
 		Identifier: rbac.RoleIdentifier{Name: "Scope_Multiple"},
 		Site:       nil,
-		Org:        map[string][]rbac.Permission{},
 		User:       nil,
-		OrgMember:  nil,
+		ByOrgID:    map[string]rbac.OrgPermissions{},
 	}
 
 	// Track allow list union, collapsing to wildcard if any child is wildcard.
@@ -187,8 +186,10 @@ func (s APIKeyScopes) Expand() (rbac.Scope, error) {
 
 		// Merge role permissions: union by simple concatenation.
 		merged.Site = append(merged.Site, expanded.Site...)
-		for orgID, perms := range expanded.Org {
-			merged.Org[orgID] = append(merged.Org[orgID], perms...)
+		for orgID, perms := range expanded.ByOrgID {
+			orgPerms := merged.ByOrgID[orgID]
+			orgPerms.Org = append(orgPerms.Org, perms.Org...)
+			merged.ByOrgID[orgID] = orgPerms
 		}
 		merged.User = append(merged.User, expanded.User...)
 
@@ -206,10 +207,11 @@ func (s APIKeyScopes) Expand() (rbac.Scope, error) {
 
 	// De-duplicate permissions across Site/Org/User
 	merged.Site = rbac.DeduplicatePermissions(merged.Site)
-	for orgID, perms := range merged.Org {
-		merged.Org[orgID] = rbac.DeduplicatePermissions(perms)
-	}
 	merged.User = rbac.DeduplicatePermissions(merged.User)
+	for orgID, perms := range merged.ByOrgID {
+		perms.Org = rbac.DeduplicatePermissions(perms.Org)
+		merged.ByOrgID[orgID] = perms
+	}
 
 	if allowAll || len(allowSet) == 0 {
 		merged.AllowIDList = []rbac.AllowListElement{rbac.AllowListAll()}

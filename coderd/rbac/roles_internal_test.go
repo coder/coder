@@ -271,18 +271,25 @@ func TestDeduplicatePermissions(t *testing.T) {
 	require.Equal(t, want, got)
 }
 
-// SameAs compares 2 roles for equality.
+// equalRoles compares 2 roles for equality.
 func equalRoles(t *testing.T, a, b Role) {
 	require.Equal(t, a.Identifier, b.Identifier, "role names")
 	require.Equal(t, a.DisplayName, b.DisplayName, "role display names")
 	require.ElementsMatch(t, a.Site, b.Site, "site permissions")
 	require.ElementsMatch(t, a.User, b.User, "user permissions")
+<<<<<<< HEAD
 
 	require.Equal(t, len(a.Org), len(b.Org), "same number of org roles")
 	for ak, av := range a.Org {
 		bv, ok := b.Org[ak]
+=======
+	require.Equal(t, len(a.ByOrgID), len(b.ByOrgID), "same number of org roles")
+
+	for ak, av := range a.ByOrgID {
+		bv, ok := b.ByOrgID[ak]
+>>>>>>> lilac/by-org-id
 		require.True(t, ok, "org permissions missing: %s", ak)
-		require.ElementsMatchf(t, av, bv, "org %s permissions", ak)
+		require.ElementsMatchf(t, av.Org, bv.Org, "org %s permissions", ak)
 	}
 
 	require.Equal(t, len(a.OrgMember), len(b.OrgMember), "same number of org member roles")
