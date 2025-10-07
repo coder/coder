@@ -1,6 +1,12 @@
-{{/* This template is used by application handlers to render friendly error
-pages when there is a proxy error (for example, when the target app isn't
-running). */}}
+{{/*
+  This template is used by application handlers to render friendly error pages
+  when there is a proxy error (for example, when the target app isn't running).
+
+  Since it is served from subdomains, both on proxies and the primary, it MUST
+  NOT access any external resources. It must be entirely self-contained. This
+  includes anything in `/static` or `/icon`, as these are not served from
+  subdomains.
+*/}}
 <!doctype html>
 <html lang="en">
   <head>
@@ -119,7 +125,18 @@ running). */}}
   </head>
   <body>
     <div class="container">
-      <img class="coder-svg" src="/icon/coder.svg" alt="Coder" />
+      {{/*
+        DO NOT LOAD AN EXTERNAL IMAGE HERE. See the comment at the top of
+        this file for more details.
+      */}}
+      <svg
+        class="coder-svg"
+        viewBox="0 0 66 48"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <path d="M18.996 7C29.9934 7.00003 36.1588 12.5745 36.3671 20.7799L26.8691 21.0919C26.6191 16.5433 22.8492 13.5554 18.996 13.6445C13.7055 13.756 9.78938 17.5243 9.78934 23.5C9.78934 29.4757 13.7054 33.1773 18.996 33.1773C22.8492 33.177 26.5357 30.323 26.9524 25.7743L36.4503 25.9974C36.2004 34.3365 29.6602 40 18.996 40C8.33164 40 0 33.5338 0 23.5C3.90577e-05 13.4216 7.9984 7 18.996 7ZM66 7.97504V39.1914H41.0058V7.97504H66Z" fill="white" />
+      </svg>
 
       <h1>
         {{- if not .Error.HideStatus }}{{ .Error.Status }} - {{end}}{{
