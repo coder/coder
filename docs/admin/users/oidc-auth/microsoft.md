@@ -11,7 +11,7 @@ This guide shows how to configure Coder to authenticate users with Microsoft Ent
 
 1. Open Microsoft Azure Portal (https://portal.azure.com) → Microsoft Entra ID → App Registrations → New Registration.
 2. Name: Name your application appropriately
-3. Supported Account Types: Choose the appropriate radio button according to your needs. Most organizaitons will want to use the first one labeled "Accounts in this organizational directory only"
+3. Supported Account Types: Choose the appropriate radio button according to your needs. Most organizations will want to use the first one labeled "Accounts in this organizational directory only"
 4. Click on "Register"
 5. On the next screen, select: "Certificates and Secrets"
 6. Click on "New Client Secret" and under description, enter an appropriate description. Then set an expiry and hit "Add" once it's created, copy the value and save it somewhere secure for the next step.
