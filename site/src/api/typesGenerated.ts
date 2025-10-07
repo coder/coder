@@ -112,6 +112,10 @@ export interface APIKey {
 
 // From codersdk/apikey.go
 export type APIKeyScope =
+	| "aibridge_interception:*"
+	| "aibridge_interception:create"
+	| "aibridge_interception:read"
+	| "aibridge_interception:update"
 	| "all"
 	| "api_key:*"
 	| "api_key:create"
@@ -119,6 +123,20 @@ export type APIKeyScope =
 	| "api_key:read"
 	| "api_key:update"
 	| "application_connect"
+	| "assign_org_role:*"
+	| "assign_org_role:assign"
+	| "assign_org_role:create"
+	| "assign_org_role:delete"
+	| "assign_org_role:read"
+	| "assign_org_role:unassign"
+	| "assign_org_role:update"
+	| "assign_role:*"
+	| "assign_role:assign"
+	| "assign_role:read"
+	| "assign_role:unassign"
+	| "audit_log:*"
+	| "audit_log:create"
+	| "audit_log:read"
 	| "coder:all"
 	| "coder:apikeys.manage_self"
 	| "coder:application_connect"
@@ -128,26 +146,156 @@ export type APIKeyScope =
 	| "coder:workspaces.create"
 	| "coder:workspaces.delete"
 	| "coder:workspaces.operate"
+	| "connection_log:*"
+	| "connection_log:read"
+	| "connection_log:update"
+	| "crypto_key:*"
+	| "crypto_key:create"
+	| "crypto_key:delete"
+	| "crypto_key:read"
+	| "crypto_key:update"
+	| "debug_info:*"
+	| "debug_info:read"
+	| "deployment_config:*"
+	| "deployment_config:read"
+	| "deployment_config:update"
+	| "deployment_stats:*"
+	| "deployment_stats:read"
 	| "file:*"
 	| "file:create"
 	| "file:read"
+	| "group:*"
+	| "group:create"
+	| "group:delete"
+	| "group_member:*"
+	| "group_member:read"
+	| "group:read"
+	| "group:update"
+	| "idpsync_settings:*"
+	| "idpsync_settings:read"
+	| "idpsync_settings:update"
+	| "inbox_notification:*"
+	| "inbox_notification:create"
+	| "inbox_notification:read"
+	| "inbox_notification:update"
+	| "license:*"
+	| "license:create"
+	| "license:delete"
+	| "license:read"
+	| "notification_message:*"
+	| "notification_message:create"
+	| "notification_message:delete"
+	| "notification_message:read"
+	| "notification_message:update"
+	| "notification_preference:*"
+	| "notification_preference:read"
+	| "notification_preference:update"
+	| "notification_template:*"
+	| "notification_template:read"
+	| "notification_template:update"
+	| "oauth2_app:*"
+	| "oauth2_app_code_token:*"
+	| "oauth2_app_code_token:create"
+	| "oauth2_app_code_token:delete"
+	| "oauth2_app_code_token:read"
+	| "oauth2_app:create"
+	| "oauth2_app:delete"
+	| "oauth2_app:read"
+	| "oauth2_app_secret:*"
+	| "oauth2_app_secret:create"
+	| "oauth2_app_secret:delete"
+	| "oauth2_app_secret:read"
+	| "oauth2_app_secret:update"
+	| "oauth2_app:update"
+	| "organization:*"
+	| "organization:create"
+	| "organization:delete"
+	| "organization_member:*"
+	| "organization_member:create"
+	| "organization_member:delete"
+	| "organization_member:read"
+	| "organization_member:update"
+	| "organization:read"
+	| "organization:update"
+	| "prebuilt_workspace:*"
+	| "prebuilt_workspace:delete"
+	| "prebuilt_workspace:update"
+	| "provisioner_daemon:*"
+	| "provisioner_daemon:create"
+	| "provisioner_daemon:delete"
+	| "provisioner_daemon:read"
+	| "provisioner_daemon:update"
+	| "provisioner_jobs:*"
+	| "provisioner_jobs:create"
+	| "provisioner_jobs:read"
+	| "provisioner_jobs:update"
+	| "replicas:*"
+	| "replicas:read"
+	| "system:*"
+	| "system:create"
+	| "system:delete"
+	| "system:read"
+	| "system:update"
+	| "tailnet_coordinator:*"
+	| "tailnet_coordinator:create"
+	| "tailnet_coordinator:delete"
+	| "tailnet_coordinator:read"
+	| "tailnet_coordinator:update"
 	| "template:*"
 	| "template:create"
 	| "template:delete"
 	| "template:read"
 	| "template:update"
 	| "template:use"
+	| "template:view_insights"
+	| "usage_event:*"
+	| "usage_event:create"
+	| "usage_event:read"
+	| "usage_event:update"
+	| "user:*"
+	| "user:create"
+	| "user:delete"
+	| "user:read"
 	| "user:read_personal"
 	| "user_secret:*"
 	| "user_secret:create"
 	| "user_secret:delete"
 	| "user_secret:read"
 	| "user_secret:update"
+	| "user:update"
 	| "user:update_personal"
+	| "webpush_subscription:*"
+	| "webpush_subscription:create"
+	| "webpush_subscription:delete"
+	| "webpush_subscription:read"
+	| "workspace_agent_devcontainers:*"
+	| "workspace_agent_devcontainers:create"
+	| "workspace_agent_resource_monitor:*"
+	| "workspace_agent_resource_monitor:create"
+	| "workspace_agent_resource_monitor:read"
+	| "workspace_agent_resource_monitor:update"
 	| "workspace:*"
 	| "workspace:application_connect"
 	| "workspace:create"
+	| "workspace:create_agent"
 	| "workspace:delete"
+	| "workspace:delete_agent"
+	| "workspace_dormant:*"
+	| "workspace_dormant:application_connect"
+	| "workspace_dormant:create"
+	| "workspace_dormant:create_agent"
+	| "workspace_dormant:delete"
+	| "workspace_dormant:delete_agent"
+	| "workspace_dormant:read"
+	| "workspace_dormant:ssh"
+	| "workspace_dormant:start"
+	| "workspace_dormant:stop"
+	| "workspace_dormant:update"
+	| "workspace_proxy:*"
+	| "workspace_proxy:create"
+	| "workspace_proxy:delete"
+	| "workspace_proxy:read"
+	| "workspace_proxy:update"
 	| "workspace:read"
 	| "workspace:ssh"
 	| "workspace:start"
@@ -155,6 +303,10 @@ export type APIKeyScope =
 	| "workspace:update";
 
 export const APIKeyScopes: APIKeyScope[] = [
+	"aibridge_interception:*",
+	"aibridge_interception:create",
+	"aibridge_interception:read",
+	"aibridge_interception:update",
 	"all",
 	"api_key:*",
 	"api_key:create",
@@ -162,6 +314,20 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"api_key:read",
 	"api_key:update",
 	"application_connect",
+	"assign_org_role:*",
+	"assign_org_role:assign",
+	"assign_org_role:create",
+	"assign_org_role:delete",
+	"assign_org_role:read",
+	"assign_org_role:unassign",
+	"assign_org_role:update",
+	"assign_role:*",
+	"assign_role:assign",
+	"assign_role:read",
+	"assign_role:unassign",
+	"audit_log:*",
+	"audit_log:create",
+	"audit_log:read",
 	"coder:all",
 	"coder:apikeys.manage_self",
 	"coder:application_connect",
@@ -171,26 +337,156 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"coder:workspaces.create",
 	"coder:workspaces.delete",
 	"coder:workspaces.operate",
+	"connection_log:*",
+	"connection_log:read",
+	"connection_log:update",
+	"crypto_key:*",
+	"crypto_key:create",
+	"crypto_key:delete",
+	"crypto_key:read",
+	"crypto_key:update",
+	"debug_info:*",
+	"debug_info:read",
+	"deployment_config:*",
+	"deployment_config:read",
+	"deployment_config:update",
+	"deployment_stats:*",
+	"deployment_stats:read",
 	"file:*",
 	"file:create",
 	"file:read",
+	"group:*",
+	"group:create",
+	"group:delete",
+	"group_member:*",
+	"group_member:read",
+	"group:read",
+	"group:update",
+	"idpsync_settings:*",
+	"idpsync_settings:read",
+	"idpsync_settings:update",
+	"inbox_notification:*",
+	"inbox_notification:create",
+	"inbox_notification:read",
+	"inbox_notification:update",
+	"license:*",
+	"license:create",
+	"license:delete",
+	"license:read",
+	"notification_message:*",
+	"notification_message:create",
+	"notification_message:delete",
+	"notification_message:read",
+	"notification_message:update",
+	"notification_preference:*",
+	"notification_preference:read",
+	"notification_preference:update",
+	"notification_template:*",
+	"notification_template:read",
+	"notification_template:update",
+	"oauth2_app:*",
+	"oauth2_app_code_token:*",
+	"oauth2_app_code_token:create",
+	"oauth2_app_code_token:delete",
+	"oauth2_app_code_token:read",
+	"oauth2_app:create",
+	"oauth2_app:delete",
+	"oauth2_app:read",
+	"oauth2_app_secret:*",
+	"oauth2_app_secret:create",
+	"oauth2_app_secret:delete",
+	"oauth2_app_secret:read",
+	"oauth2_app_secret:update",
+	"oauth2_app:update",
+	"organization:*",
+	"organization:create",
+	"organization:delete",
+	"organization_member:*",
+	"organization_member:create",
+	"organization_member:delete",
+	"organization_member:read",
+	"organization_member:update",
+	"organization:read",
+	"organization:update",
+	"prebuilt_workspace:*",
+	"prebuilt_workspace:delete",
+	"prebuilt_workspace:update",
+	"provisioner_daemon:*",
+	"provisioner_daemon:create",
+	"provisioner_daemon:delete",
+	"provisioner_daemon:read",
+	"provisioner_daemon:update",
+	"provisioner_jobs:*",
+	"provisioner_jobs:create",
+	"provisioner_jobs:read",
+	"provisioner_jobs:update",
+	"replicas:*",
+	"replicas:read",
+	"system:*",
+	"system:create",
+	"system:delete",
+	"system:read",
+	"system:update",
+	"tailnet_coordinator:*",
+	"tailnet_coordinator:create",
+	"tailnet_coordinator:delete",
+	"tailnet_coordinator:read",
+	"tailnet_coordinator:update",
 	"template:*",
 	"template:create",
 	"template:delete",
 	"template:read",
 	"template:update",
 	"template:use",
+	"template:view_insights",
+	"usage_event:*",
+	"usage_event:create",
+	"usage_event:read",
+	"usage_event:update",
+	"user:*",
+	"user:create",
+	"user:delete",
+	"user:read",
 	"user:read_personal",
 	"user_secret:*",
 	"user_secret:create",
 	"user_secret:delete",
 	"user_secret:read",
 	"user_secret:update",
+	"user:update",
 	"user:update_personal",
+	"webpush_subscription:*",
+	"webpush_subscription:create",
+	"webpush_subscription:delete",
+	"webpush_subscription:read",
+	"workspace_agent_devcontainers:*",
+	"workspace_agent_devcontainers:create",
+	"workspace_agent_resource_monitor:*",
+	"workspace_agent_resource_monitor:create",
+	"workspace_agent_resource_monitor:read",
+	"workspace_agent_resource_monitor:update",
 	"workspace:*",
 	"workspace:application_connect",
 	"workspace:create",
+	"workspace:create_agent",
 	"workspace:delete",
+	"workspace:delete_agent",
+	"workspace_dormant:*",
+	"workspace_dormant:application_connect",
+	"workspace_dormant:create",
+	"workspace_dormant:create_agent",
+	"workspace_dormant:delete",
+	"workspace_dormant:delete_agent",
+	"workspace_dormant:read",
+	"workspace_dormant:ssh",
+	"workspace_dormant:start",
+	"workspace_dormant:stop",
+	"workspace_dormant:update",
+	"workspace_proxy:*",
+	"workspace_proxy:create",
+	"workspace_proxy:delete",
+	"workspace_proxy:read",
+	"workspace_proxy:update",
 	"workspace:read",
 	"workspace:ssh",
 	"workspace:start",
@@ -2037,6 +2333,13 @@ export interface OrganizationMemberWithUserData extends OrganizationMember {
 	readonly global_roles: readonly SlimRole[];
 }
 
+// From codersdk/users.go
+export interface OrganizationMembersQuery {
+	readonly UserID: string;
+	readonly IncludeSystem: boolean;
+	readonly GithubUserID: number;
+}
+
 // From codersdk/organizations.go
 export interface OrganizationProvisionerDaemonsOptions {
 	readonly Limit: number;
@@ -2053,6 +2356,7 @@ export interface OrganizationProvisionerJobsOptions {
 	readonly IDs: readonly string[];
 	readonly Status: readonly ProvisionerJobStatus[];
 	readonly Tags: Record<string, string>;
+	readonly Initiator: string;
 }
 
 // From codersdk/idpsync.go
@@ -2372,6 +2676,7 @@ export interface ProvisionerJob {
 	readonly queue_position: number;
 	readonly queue_size: number;
 	readonly organization_id: string;
+	readonly initiator_id: string;
 	readonly input: ProvisionerJobInput;
 	readonly type: ProvisionerJobType;
 	readonly available_workers?: readonly string[];
