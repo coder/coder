@@ -3,7 +3,7 @@
 > [!NOTE]
 > AI Bridge is currently an _experimental_ feature.
 
-![AI bridge diagram](https://i.imgur.com/wIQiLHv.png)
+![AI bridge diagram](../images/aibridge/aibridge_diagram.png)
 
 AI Bridge is a smart proxy for AI. It acts as a man-in-the-middle between your users' coding agents / IDEs
 and AI providers like OpenAI and Anthropic. By intercepting all the AI traffic between these clients and
@@ -90,14 +90,14 @@ AI Bridge collects:
 
 All of these records are associated to an "interception" record, which maps 1:1 with requests received from clients but may involve several interactions with upstream providers. Interceptions are associated with a Coder identity, allowing you to map consumption and cost with teams or individuals in your organization:
 
-![User Prompt logging](https://i.imgur.com/TZLgkLy.png)
+![User Prompt logging](../images/aibridge/grafana_user_prompts_logging.png)
 
 
 These logs can be used to determine usage patterns, track costs, and evaluate tooling adoption.
 
 This data is currently accessible through the API and CLI (experimental), which we advise administrators export to their observability platform of choice. We've configured a Grafana dashboard to display Claude Code usage internally which can be imported as a starting point for your tooling adoption metrics.
 
-![Grafana Dashboard](https://i.imgur.com/kyWqES5.png)
+![User Leaderboard](../images/aibridge/grafana_user_leaderboard.png)
 
 We provide an example Grafana dashboard that you can import as a starting point for your tooling adoption metrics. See [here](../examples/monitoring/dashboards/grafana/aibridge/README.md).
 
