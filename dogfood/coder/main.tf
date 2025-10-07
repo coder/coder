@@ -832,13 +832,6 @@ locals {
     - Stays running? → desktop-commander
     - Finishes immediately? → built-in tools
 
-    In your summary:
-    - Be specific about what you're doing
-    - Clearly indicate what information you need from the user when in
-    "failure" state
-    - Keep it under 160 characters
-    - Make it actionable
-
     -- Context --
     There is an existing application in the current directory.
     Be sure to read CLAUDE.md before making any changes.
@@ -850,7 +843,7 @@ locals {
 module "claude-code" {
   count               = local.has_ai_prompt ? data.coder_workspace.me.start_count : 0
   source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = "3.0.2"
+  version             = "3.0.3"
   agent_id            = coder_agent.dev.id
   workdir             = local.repo_dir
   claude_code_version = "latest"
