@@ -7,7 +7,7 @@ Agent Boundaries are process-level firewalls that restrict and audit what autono
 The easiest way to use Agent Boundaries is through existing Coder modules, such as the [Claude Code module](https://registry.coder.com/modules/coder/claude-code). It can also be ran directly in the terminal by installing the [CLI](https://github.com/coder/boundary).
 
 > [!NOTE]
-> The Coder Boundary CLI is free and open source. Integrations with the core product, such as through modules, offers strong isolation and is available to Coder Premium customers.
+> The Coder Boundary CLI is free and open source. Integrations with the core product, such as with modules offering stronger isolation, are available to Coder Premium customers.
 
 ## Supported Agents
 
