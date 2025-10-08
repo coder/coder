@@ -5,6 +5,10 @@ USAGE:
 
   Authenticate with Coder deployment
 
+  By default, the session token is stored in a plain text file. Use the
+  --use-keyring flag or set CODER_USE_KEYRING=true to store the token in the
+  operating system keyring instead.
+
 OPTIONS:
       --first-user-email string, $CODER_FIRST_USER_EMAIL
           Specifies an email address to use if creating the first user for the

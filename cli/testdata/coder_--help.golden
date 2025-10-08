@@ -108,6 +108,11 @@ variables or flags.
       --url url, $CODER_URL
           URL to a deployment.
 
+      --use-keyring bool, $CODER_USE_KEYRING
+          Store and retrieve session tokens using the operating system keyring.
+          Currently only supported on Windows. By default, tokens are stored in
+          plain text files.
+
   -v, --verbose bool, $CODER_VERBOSE
           Enable verbose output.
 
