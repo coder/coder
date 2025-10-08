@@ -5,6 +5,7 @@ import { EditIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { type FC, useCallback, useMemo } from "react";
 import { Link } from "react-router";
+import { cn } from "utils/cn";
 import type { FileTree } from "utils/filetree";
 import type { TemplateVersionFiles } from "utils/templateVersion";
 import { TemplateFileTree } from "./TemplateFileTree";
@@ -94,7 +95,9 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 								<div key={filename} css={styles.filePanel} id={filename}>
 									<header css={styles.fileHeader}>
 										<span
-											className={`${info.hasDiff && "text-content-warning"}`}
+											className={cn({
+												"text-content-warning": info.hasDiff,
+											})}
 										>
 											{filename}
 										</span>
