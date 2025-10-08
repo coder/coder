@@ -21,6 +21,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/config"
+	"github.com/coder/coder/v2/cli/sessionstore"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/testutil"
@@ -31,6 +32,10 @@ import (
 // temporary testing directory.
 func New(t testing.TB, args ...string) (*serpent.Invocation, config.Root) {
 	var root cli.RootCmd
+
+	// Always store the session token in a file to simplify tests that aren't
+	// explicitly exercising or need to depend on the operating system keyring.
+	root.WithSessionStorageBackend(sessionstore.File{})
 
 	cmd, err := root.Command(root.AGPL())
 	require.NoError(t, err)

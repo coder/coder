@@ -132,6 +132,8 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 	apt-transport-https \
 	apt-utils \
 	asciinema \
+	dbus \
+	dbus-x11 \
 	bash \
 	bash-completion \
 	bat \
@@ -153,6 +155,7 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 	fish \
 	gettext-base \
 	git \
+	gnome-keyring \
 	gnupg \
 	google-cloud-sdk \
 	google-cloud-sdk-datastore-emulator \
@@ -276,6 +279,7 @@ RUN systemctl disable \
 
 # Configure systemd services for CVMs
 RUN systemctl enable \
+	dbus \
 	docker \
 	ssh && \
 	# Workaround for envbuilder cache probing not working unless the filesystem is modified.

@@ -1,0 +1,30 @@
+name: Setup Linux Keyring
+description: |
+  Install and initialize Linux keyring dependencies for go-keyring backed tests
+  that use the operating system keyring. Linux is special because it requires
+  D-Bus and GNOME Keyring to be installed. Windows and macOS use native keyring
+  implementations.
+inputs: {}
+outputs:
+  xdg-runtime-dir:
+    description: "Where gnome-keyring stores files"
+    value: ${{ steps.compute-xdg-runtime-dir.outputs.xdg-runtime-dir }}
+runs:
+  using: composite
+  steps:
+    - name: Install Linux keyring dependencies
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y dbus dbus-x11 gnome-keyring
+
+    - name: Compute XDG_RUNTIME_DIR
+      id: compute-xdg-runtime-dir
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        dir="$RUNNER_TEMP/xdg-runtime"
+        mkdir -p "$dir"
+        chmod 700 "$dir"
+        echo "xdg-runtime-dir=$dir" >> "$GITHUB_OUTPUT"

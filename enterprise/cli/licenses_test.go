@@ -189,7 +189,10 @@ func TestLicensesListReal(t *testing.T) {
 		}()
 		require.NoError(t, <-errC)
 		assert.Equal(t, "[]\n", stdout.String())
-		assert.Contains(t, testWarning, stderr.String())
+		// This warning message appears because SetupConfig writes the session token to
+		// disk, and the real CLI created by newCLI nominally expects the token to be
+		// from the keychain.
+		assert.Contains(t, stderr.String(), "⚠️ Token read from PLAIN TEXT. Consider logging in again to use keyring storage.")
 	})
 }
 
