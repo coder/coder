@@ -6,8 +6,6 @@ import {
 	BODY_FONT_FAMILY,
 	BUTTON_LG_HEIGHT,
 	BUTTON_MD_HEIGHT,
-	BUTTON_SM_HEIGHT,
-	BUTTON_XL_HEIGHT,
 	borderRadius,
 } from "./constants";
 import tw from "./tailwindColors";
@@ -59,112 +57,6 @@ export const components = {
 			colorDefault: ({ theme }) => ({
 				backgroundColor: theme.palette.primary.light,
 			}),
-		},
-	},
-	// Button styles are based on
-	// https://tailwindui.com/components/application-ui/elements/buttons
-	MuiButtonBase: {
-		defaultProps: {
-			disableRipple: true,
-		},
-	},
-	MuiButton: {
-		defaultProps: {
-			variant: "outlined",
-			color: "neutral",
-		},
-		styleOverrides: {
-			root: ({ theme }) => ({
-				textTransform: "none",
-				letterSpacing: "normal",
-				fontWeight: 500,
-				height: BUTTON_MD_HEIGHT,
-				padding: "8px 16px",
-				borderRadius: "6px",
-				fontSize: 14,
-
-				whiteSpace: "nowrap",
-				":focus-visible": {
-					outline: `2px solid ${theme.palette.primary.main}`,
-				},
-
-				"& .MuiLoadingButton-loadingIndicator": {
-					width: 14,
-					height: 14,
-				},
-
-				"& .MuiLoadingButton-loadingIndicator .MuiCircularProgress-root": {
-					width: "inherit !important",
-					height: "inherit !important",
-				},
-			}),
-			sizeSmall: {
-				height: BUTTON_SM_HEIGHT,
-			},
-			sizeLarge: {
-				height: BUTTON_LG_HEIGHT,
-			},
-			["sizeXlarge" as MuiStyle]: {
-				height: BUTTON_XL_HEIGHT,
-
-				// With higher size we need to increase icon spacing.
-				"& .MuiButton-startIcon": {
-					marginRight: 12,
-				},
-				"& .MuiButton-endIcon": {
-					marginLeft: 12,
-				},
-			},
-			outlined: ({ theme }) => ({
-				":hover": {
-					border: `1px solid ${theme.palette.secondary.main}`,
-				},
-			}),
-			["outlinedNeutral" as MuiStyle]: {
-				borderColor: tw.zinc[600],
-
-				"&.Mui-disabled": {
-					borderColor: tw.zinc[700],
-					color: tw.zinc[500],
-
-					"& > .MuiLoadingButton-loadingIndicator": {
-						color: tw.zinc[500],
-					},
-				},
-			},
-			["containedNeutral" as MuiStyle]: {
-				backgroundColor: tw.zinc[800],
-
-				"&:hover": {
-					backgroundColor: tw.zinc[700],
-				},
-			},
-			iconSizeMedium: {
-				"& > .MuiSvgIcon-root": {
-					fontSize: 14,
-				},
-			},
-			iconSizeSmall: {
-				"& > .MuiSvgIcon-root": {
-					fontSize: 13,
-				},
-			},
-		},
-	},
-	MuiButtonGroup: {
-		styleOverrides: {
-			root: ({ theme }) => ({
-				">button:hover+button": {
-					// The !important is unfortunate, but necessary for the border.
-					borderLeftColor: `${theme.palette.secondary.main} !important`,
-				},
-			}),
-		},
-	},
-	["MuiLoadingButton" as MuiStyle]: {
-		defaultProps: {
-			variant: "outlined",
-			color: "neutral",
 		},
 	},
 	MuiTableContainer: {
