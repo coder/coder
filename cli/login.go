@@ -19,6 +19,7 @@ import (
 	"github.com/coder/pretty"
 
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/cli/sessionstore"
 	"github.com/coder/coder/v2/coderd/userpassword"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
@@ -114,9 +115,11 @@ func (r *RootCmd) loginWithPassword(
 	}
 
 	sessionToken := resp.SessionToken
-	config := r.createConfig()
-	err = config.Session().Write(sessionToken)
+	err = r.ensureTokenBackend().Write(client.URL, sessionToken)
 	if err != nil {
+		if xerrors.Is(err, sessionstore.ErrNotImplemented) {
+			return errKeyringNotSupported
+		}
 		return xerrors.Errorf("write session token: %w", err)
 	}
 
@@ -149,8 +152,11 @@ func (r *RootCmd) login() *serpent.Command {
 		useTokenForSession bool
 	)
 	cmd := &serpent.Command{
-		Use:        "login [<url>]",
-		Short:      "Authenticate with Coder deployment",
+		Use:   "login [<url>]",
+		Short: "Authenticate with Coder deployment",
+		Long: "By default, the session token is stored in a plain text file. Use the " +
+			"--use-keyring flag or set CODER_USE_KEYRING=true to store the token in " +
+			"the operating system keyring instead.",
 		Middleware: serpent.RequireRangeArgs(0, 1),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
@@ -394,8 +400,11 @@ func (r *RootCmd) login() *serpent.Command {
 			}
 
 			config := r.createConfig()
-			err = config.Session().Write(sessionToken)
+			err = r.ensureTokenBackend().Write(client.URL, sessionToken)
 			if err != nil {
+				if xerrors.Is(err, sessionstore.ErrNotImplemented) {
+					return errKeyringNotSupported
+				}
 				return xerrors.Errorf("write session token: %w", err)
 			}
 			err = config.URL().Write(serverURL.String())
