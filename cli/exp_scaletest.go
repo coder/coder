@@ -1929,6 +1929,7 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 		notificationTimeout time.Duration
 		dialTimeout         time.Duration
 		noCleanup           bool
+		smtpApiUrl          string
 
 		tracingFlags = &scaletestTracingFlags{}
 
@@ -1973,6 +1974,12 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 
 			if ownerUserPercentage < 0 || ownerUserPercentage > 100 {
 				return xerrors.Errorf("--owner-user-percentage must be between 0 and 100")
+			}
+
+			if smtpApiUrl != "" {
+				if !strings.HasPrefix(smtpApiUrl, "http://") && !strings.HasPrefix(smtpApiUrl, "https://") {
+					return xerrors.Errorf("smtp_api_url must start with http:// or https://")
+				}
 			}
 
 			ownerUserCount := int64(float64(userCount) * ownerUserPercentage / 100)
@@ -2039,6 +2046,7 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 					ReceivingWatchBarrier: ownerWatchBarrier,
 					ExpectedNotifications: expectedNotifications,
 					Metrics:               metrics,
+					SMTPApiUrl:            smtpApiUrl,
 				}
 				if err := config.Validate(); err != nil {
 					return xerrors.Errorf("validate config: %w", err)
@@ -2056,6 +2064,7 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 					DialBarrier:           dialBarrier,
 					ReceivingWatchBarrier: ownerWatchBarrier,
 					Metrics:               metrics,
+					SMTPApiUrl:            smtpApiUrl,
 				}
 				if err := config.Validate(); err != nil {
 					return xerrors.Errorf("validate config: %w", err)
@@ -2164,6 +2173,12 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 			Env:         "CODER_SCALETEST_NO_CLEANUP",
 			Description: "Do not clean up resources after the test completes.",
 			Value:       serpent.BoolOf(&noCleanup),
+		},
+		{
+			Flag:        "smtp-api-url",
+			Env:         "CODER_SCALETEST_SMTP_API_URL",
+			Description: "SMTP mock HTTP API address.",
+			Value:       serpent.StringOf(&smtpApiUrl),
 		},
 	}
 

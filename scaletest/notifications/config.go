@@ -35,6 +35,9 @@ type Config struct {
 
 	// ReceivingWatchBarrier is the barrier for receiving users. Regular users wait on this to disconnect after receiving users complete.
 	ReceivingWatchBarrier *sync.WaitGroup `json:"-"`
+
+	// SMTPApiUrl is the URL of the SMTP mock HTTP API
+	SMTPApiUrl string `json:"smtp_api_url"`
 }
 
 func (c Config) Validate() error {
