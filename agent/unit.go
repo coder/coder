@@ -9,17 +9,21 @@ import (
 )
 
 // A Unit (named to represent its resemblance to the systemd concept) is a kind of lock that encodes metadata
-// about the state of a resource. Units are primarilymeant to be sections of processes such as coder scripts
+// about the state of a resource. Units are primarily meant to be sections of processes such as coder scripts
 // that encapsulate a contended resource, such as a database lock or a socket.
 //
-// In most cases, `coder_script` resources will create and manage units by invocation of `coder agent lock <unit>`.
-// Locks may be acquired with no intention of releasing them as a signal to other scripts that
+// In most cases, `coder_script` resources will create and manage units by invocations of
+// * `coder agent unit start <unit> [--wants <unit>]`
+// * `coder agent unit complete <unit>`
+// * `coder agent unit fail <unit>`
+// Units may be acquired with no intention of releasing them as a signal to other scripts that
 // a contended resource has been provided and is available. For example, a script that installs curl
-// might acquire a lock called "curl-install" to signal to other scripts that curl has been installed
-// and is available. In this case, the lock will be released when the agent is stopped.
+// might acquire a unit called "curl-install" to signal to other scripts that curl has been installed
+// and is available. In this case, the unit will be completed when the agent is stopped.
 type Unit struct {
 	Name    string
 	history []Event
+	Wants   []*Unit
 }
 
 type Event struct {
@@ -134,14 +138,9 @@ func (s *memoryUnitCoordinator) acquireUnitInternal(unitName string, ttl *time.D
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Check if lock is already held and not expired
-	if s.hasUnitHeld(unitName) && !s.isUnitExpired(unitName) {
+	// Check if unit is already held
+	if s.hasUnitHeld(unitName) {
 		return false
-	}
-
-	// Clean up expired lock if it exists
-	if s.hasUnitHeld(unitName) && s.isUnitExpired(unitName) {
-		s.expireUnitInternal(unitName)
 	}
 
 	if _, exists := s.units[unitName]; !exists {
@@ -210,11 +209,6 @@ func (s *memoryUnitCoordinator) IsUnitHeld(unitName string) bool {
 		return false
 	}
 
-	// Check if unit has expired
-	if s.isUnitExpired(unitName) {
-		return false
-	}
-
 	return true
 }
 
@@ -234,84 +228,12 @@ func (s *memoryUnitCoordinator) hasUnitHeld(unitName string) bool {
 	return lastEvent.Type == UnitEventTypeAcquired
 }
 
-// isLockExpired checks if a lock has expired based on its TTL (must be called with lock held)
-func (s *memoryUnitCoordinator) isUnitExpired(unitName string) bool {
-	unit, exists := s.units[unitName]
-	if !exists {
-		return false
-	}
-
-	// No TTL means no expiration
-	if unit.ttl == nil || unit.acquiredAt == nil {
-		return false
-	}
-
-	// Check if TTL has passed
-	return time.Since(*unit.acquiredAt) > *unit.ttl
-}
-
-// expireLockInternal marks a lock as expired (must be called with write lock held)
-func (s *memoryUnitCoordinator) expireUnitInternal(unitName string) {
-	unit, exists := s.units[unitName]
-	if !exists {
-		return
-	}
-
-	// Cancel timer if it exists
-	if unit.timer != nil {
-		unit.timer.Stop()
-		unit.timer = nil
-	}
-
-	// Add expiration event to history
-	unit.history = append(unit.history, Event{
-		Type:      UnitEventTypeExpired,
-		Timestamp: time.Now(),
-	})
-	// Clear TTL and acquiredAt to prevent further expiration checks
-	unit.ttl = nil
-	unit.acquiredAt = nil
-	s.units[unitName] = unit
-
-	// Notify listeners of expiration
-	if listeners, exists := s.listeners[unitName]; exists {
-		for _, listener := range listeners {
-			go listener(context.Background(), UnitEventTypeExpired)
-		}
-	}
-}
-
-// expireUnitWithTimer is called by the TTL timer to expire a unit
-func (s *memoryUnitCoordinator) expireUnitWithTimer(unitName string) {
-	if atomic.LoadInt32(&s.closed) == 1 {
-		return
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	// Double-check the unit still exists and hasn't been released
-	if !s.hasUnitHeld(unitName) {
-		return
-	}
-
-	// Expire the unit
-	s.expireUnitInternal(unitName)
-}
-
 // Close shuts down the state coordinator
 func (s *memoryUnitCoordinator) Close() error {
 	atomic.StoreInt32(&s.closed, 1)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
-	// Stop all TTL timers before clearing locks
-	for _, unit := range s.units {
-		if unit.timer != nil {
-			unit.timer.Stop()
-		}
-	}
 
 	// Clear all listeners and events
 	s.listeners = make(map[string]map[uint64]Listener)
