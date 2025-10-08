@@ -376,7 +376,6 @@ export interface AITaskSidebarApp {
 export interface AITask {
   id: string;
   sidebarApp?: AITaskSidebarApp | undefined;
-  prompt: string;
   appId: string;
 }
 
@@ -1221,11 +1220,8 @@ export const AITask = {
     if (message.sidebarApp !== undefined) {
       AITaskSidebarApp.encode(message.sidebarApp, writer.uint32(18).fork()).ldelim();
     }
-    if (message.prompt !== "") {
-      writer.uint32(26).string(message.prompt);
-    }
     if (message.appId !== "") {
-      writer.uint32(34).string(message.appId);
+      writer.uint32(26).string(message.appId);
     }
     return writer;
   },

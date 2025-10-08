@@ -336,8 +336,7 @@ message AITaskSidebarApp {
 message AITask {
   string id = 1;
   optional AITaskSidebarApp sidebar_app = 2;
-  string prompt = 3;
-  string app_id = 4;
+  string app_id = 3;
 }
 
 // Metadata is information about a workspace used in the execution of a build

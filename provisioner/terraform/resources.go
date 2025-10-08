@@ -1023,9 +1023,8 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		}
 
 		aiTasks = append(aiTasks, &proto.AITask{
-			Id:     task.ID,
-			AppId:  task.AppID,
-			Prompt: task.Prompt,
+			Id:    task.ID,
+			AppId: task.AppID,
 			SidebarApp: &proto.AITaskSidebarApp{
 				Id: task.AppID,
 			},
