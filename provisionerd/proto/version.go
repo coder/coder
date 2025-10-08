@@ -56,6 +56,7 @@ import "github.com/coder/coder/v2/apiversion"
 //
 // API v1.11:
 //   - Added new fields `task_id` and `task_prompt` to `Manifest`.
+//   - Added new field `app_id` to `AITask`
 const (
 	CurrentMajor = 1
 	CurrentMinor = 11
