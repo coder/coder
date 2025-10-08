@@ -53,9 +53,12 @@ import "github.com/coder/coder/v2/apiversion"
 //
 // API v1.10:
 //   - Added new field `tooltip` in `App`
+//
+// API v1.11:
+//   - Added new fields `task_id` and `task_prompt` to `Manifest`.
 const (
 	CurrentMajor = 1
-	CurrentMinor = 10
+	CurrentMinor = 11
 )
 
 // CurrentVersion is the current provisionerd API version.
