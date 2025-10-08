@@ -910,7 +910,7 @@
 				},
 				{
 					"title": "AI Bridge",
-					"description": "Learn about the smart proxy for AI",
+					"description": "Centralized LLM and MCP proxy for platform teams",
 					"path": "./ai-coder/ai-bridge.md",
 					"icon_path": "./images/icons/api.svg",
 					"state": ["premium", "early access"]

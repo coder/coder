@@ -24,6 +24,7 @@ Bridge solves 3 key problems:
 As the library of LLMs and their associated tools grow, administrators are pressured to provide auditing, measure adoption, provide tools through MCP, and track token spend. Disparate SAAS platforms provide _some_ of these for _some_ tools, but there is no centralized, secure solution for these challenges.
 
 If you are administrator or devops leader looking to:
+
 - Measure AI tooling adoption across teams or projects
 - Provide an LLM audit trail to security administrators
 - Manage token spend in a central dashboard
@@ -91,7 +92,6 @@ Bridge collects:
 All of these records are associated to an "interception" record, which maps 1:1 with requests received from clients but may involve several interactions with upstream providers. Interceptions are associated with a Coder identity, allowing you to map consumption and cost with teams or individuals in your organization:
 
 ![User Prompt logging](../images/aibridge/grafana_user_prompts_logging.png)
-
 
 These logs can be used to determine usage patterns, track costs, and evaluate tooling adoption.
 
