@@ -144,6 +144,7 @@ func (r *RootCmd) AGPLExperimental() []*serpent.Command {
 		r.mcpCommand(),
 		r.promptExample(),
 		r.rptyCommand(),
+		r.stdioHTTPCommand(),
 		r.tasksCommand(),
 		r.boundary(),
 	}
