@@ -77,7 +77,7 @@ func (s *Server) Start(ctx context.Context) error {
 }
 
 func (s *Server) Stop() error {
-	var httpErr, listenerErr, smtpErr error
+	var httpErr, smtpErr error
 
 	if s.httpServer != nil {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -87,19 +87,13 @@ func (s *Server) Stop() error {
 		}
 	}
 
-	if s.listener != nil {
-		if err := s.listener.Close(); err != nil {
-			listenerErr = xerrors.Errorf("close listener: %w", err)
-		}
-	}
-
 	if s.smtpServer != nil {
 		if err := s.smtpServer.Stop(); err != nil {
 			smtpErr = xerrors.Errorf("stop SMTP server: %w", err)
 		}
 	}
 
-	return errors.Join(httpErr, listenerErr, smtpErr)
+	return errors.Join(httpErr, smtpErr)
 }
 
 func (s *Server) SMTPAddress() string {
