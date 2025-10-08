@@ -67,6 +67,7 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 					</div>
 				}
 				layout="fluid"
+				className="mb-12"
 			>
 				<div className="flex flex-row flex-wrap gap-4">
 					<AutoThemePreviewButton
@@ -89,11 +90,10 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 					/>
 				</div>
 			</Section>
-			<div className="mb-12" />
 			<Section
 				title={
 					<div className="flex flex-row items-center gap-2">
-						<span>Terminal Font</span>
+						<span id="fonts-radio-buttons-group-label">Terminal Font</span>
 						<Spinner loading={isUpdating} size="sm" />
 					</div>
 				}
