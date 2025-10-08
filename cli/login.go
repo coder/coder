@@ -19,6 +19,7 @@ import (
 	"github.com/coder/pretty"
 
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/cli/sessionstore"
 	"github.com/coder/coder/v2/coderd/userpassword"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
@@ -115,9 +116,12 @@ func (r *RootCmd) loginWithPassword(
 
 	sessionToken := resp.SessionToken
 	config := r.createConfig()
-	err = config.Session().Write(sessionToken)
-	if err != nil {
-		return xerrors.Errorf("write session token: %w", err)
+	location, werr := r.tokenBackend.Write(config, client.URL, sessionToken)
+	if werr != nil {
+		return xerrors.Errorf("write session token: %w", werr)
+	}
+	if r.tokenBackend.PreferredLocation() == sessionstore.LocationKeyring && location == sessionstore.LocationFile {
+		cliui.Warn(inv.Stderr, "⚠️ Token stored in PLAIN TEXT because keyring access failed.")
 	}
 
 	client.SetSessionToken(sessionToken)
@@ -149,8 +153,12 @@ func (r *RootCmd) login() *serpent.Command {
 		useTokenForSession bool
 	)
 	cmd := &serpent.Command{
-		Use:        "login [<url>]",
-		Short:      "Authenticate with Coder deployment",
+		Use:   "login [<url>]",
+		Short: "Authenticate with Coder deployment",
+		Long: "Stores the session token in the operating system keyring, with a fallback " +
+			"to plain text if the keyring is not available. The security command is used " +
+			"on macOS. Windows Credential Manager API is used on Windows. The session " +
+			"is only stored in plain text on Linux.",
 		Middleware: serpent.RequireRangeArgs(0, 1),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
@@ -394,9 +402,12 @@ func (r *RootCmd) login() *serpent.Command {
 			}
 
 			config := r.createConfig()
-			err = config.Session().Write(sessionToken)
+			location, err := r.tokenBackend.Write(config, client.URL, sessionToken)
 			if err != nil {
 				return xerrors.Errorf("write session token: %w", err)
+			}
+			if r.tokenBackend.PreferredLocation() == sessionstore.LocationKeyring && location == sessionstore.LocationFile {
+				cliui.Warn(inv.Stderr, "⚠️ Token stored in PLAIN TEXT because keyring access failed.")
 			}
 			err = config.URL().Write(serverURL.String())
 			if err != nil {
