@@ -89,7 +89,7 @@ Another option is to define rules in a YAML file, which only needs to be invoked
     ```
     
 1. Run a `boundary` command. For example:
-    
+
     ```hcl
     boundary run --config ./boundary.yaml -- claude
     ```
