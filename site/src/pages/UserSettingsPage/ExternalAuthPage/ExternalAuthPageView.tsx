@@ -1,6 +1,5 @@
 import { useTheme } from "@emotion/react";
 import Tooltip from "@mui/material/Tooltip";
-import visuallyHidden from "@mui/utils/visuallyHidden";
 import { externalAuthProvider } from "api/queries/externalAuth";
 import type {
 	ExternalAuthLink,
@@ -24,6 +23,7 @@ import {
 	TableBody,
 	TableCell,
 	TableHead,
+	TableHeader,
 	TableRow,
 } from "components/Table/Table";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
@@ -60,17 +60,17 @@ export const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 
 	return (
 		<Table>
-			<TableHead>
+			<TableHeader>
 				<TableRow>
-					<TableCell>Application</TableCell>
-					<TableCell>
-						<span aria-hidden css={{ ...visuallyHidden }}>
+					<TableHead>Application</TableHead>
+					<TableHead>
+						<span aria-hidden className="sr-only">
 							Link to connect
 						</span>
-					</TableCell>
-					<TableCell width="1%" />
+					</TableHead>
+					<TableHead className="w-[1%]" />
 				</TableRow>
-			</TableHead>
+			</TableHeader>
 			<TableBody>
 				{auths.providers === null || auths.providers?.length === 0 ? (
 					<TableEmpty message="No providers have been configured" />

@@ -5,6 +5,7 @@ import {
 	TableBody,
 	TableCell,
 	TableHead,
+	TableHeader,
 	TableRow,
 } from "components/Table/Table";
 import type { FC } from "react";
@@ -42,12 +43,12 @@ const OptionsTable: FC<OptionsTableProps> = ({ options, additionalValues }) => {
           }
         `}
 		>
-			<TableHead>
+			<TableHeader>
 				<TableRow>
-					<TableCell width="50%">Option</TableCell>
-					<TableCell width="50%">Value</TableCell>
+					<TableHead className="w-1/2">Option</TableHead>
+					<TableHead className="w-1/2">Value</TableHead>
 				</TableRow>
-			</TableHead>
+			</TableHeader>
 			<TableBody>
 				{Object.values(options).map((option) => {
 					return (

@@ -28,6 +28,7 @@ import {
 	TableCell,
 	TableFooter,
 	TableHead,
+	TableHeader,
 	TableRow,
 } from "components/Table/Table";
 import { useFormik } from "formik";
@@ -257,17 +258,17 @@ const ActionCheckboxes: FC<ActionCheckboxesProps> = ({
 
 	return (
 		<Table>
-			<TableHead>
+			<TableHeader>
 				<TableRow>
-					<TableCell>Permission</TableCell>
-					<TableCell align="right" className="py-1">
+					<TableHead>Permission</TableHead>
+					<TableHead className="py-1 text-right">
 						<ShowAllResourcesCheckbox
 							showAllResources={showAllResources}
 							setShowAllResources={setShowAllResources}
 						/>
-					</TableCell>
+					</TableHead>
 				</TableRow>
-			</TableHead>
+			</TableHeader>
 			<TableBody>
 				{Object.entries(resourceActions).map(([resourceKey, value]) => {
 					return (
