@@ -6712,13 +6712,6 @@ func TestTasksWithStatusView(t *testing.T) {
 	) database.TaskTable {
 		t.Helper()
 
-		var (
-			workspaceID      uuid.NullUUID
-			workspaceAgentID uuid.UUID
-			workspaceBuildID uuid.UUID
-			apps             []database.WorkspaceApp
-		)
-
 		template := dbgen.Template(t, db, database.Template{
 			OrganizationID: org.ID,
 			CreatedBy:      user.ID,
@@ -6729,53 +6722,24 @@ func TestTasksWithStatusView(t *testing.T) {
 			CreatedBy:      user.ID,
 		})
 
-		if buildStatus != "" {
-			job := createProvisionerJob(t, db, org, user, buildStatus)
-
-			workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
-				OrganizationID: org.ID,
-				TemplateID:     template.ID,
-				OwnerID:        user.ID,
-			})
-			workspaceID = uuid.NullUUID{Valid: true, UUID: workspace.ID}
-
-			workspaceBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-				WorkspaceID:       workspace.ID,
+		if buildStatus == "" {
+			return dbgen.Task(t, db, database.TaskTable{
+				OrganizationID:    org.ID,
+				OwnerID:           user.ID,
+				Name:              "test-task",
 				TemplateVersionID: templateVersion.ID,
-				BuildNumber:       1,
-				Transition:        buildTransition,
-				InitiatorID:       user.ID,
-				JobID:             job.ID,
+				Prompt:            "Test prompt",
 			})
-			workspaceBuildID = workspaceBuild.ID
-
-			resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
-				JobID: job.ID,
-			})
-
-			if agentState != "" {
-				agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-					ResourceID: resource.ID,
-				})
-				workspaceAgentID = agent.ID
-
-				err := db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
-					ID:             agent.ID,
-					LifecycleState: agentState,
-				})
-				require.NoError(t, err)
-
-				for i, health := range appHealths {
-					app := dbgen.WorkspaceApp(t, db, database.WorkspaceApp{
-						AgentID:     workspaceAgentID,
-						Slug:        fmt.Sprintf("test-app-%d", i),
-						DisplayName: fmt.Sprintf("Test App %d", i+1),
-						Health:      health,
-					})
-					apps = append(apps, app)
-				}
-			}
 		}
+
+		job := createProvisionerJob(t, db, org, user, buildStatus)
+
+		workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+			OrganizationID: org.ID,
+			TemplateID:     template.ID,
+			OwnerID:        user.ID,
+		})
+		workspaceID := uuid.NullUUID{Valid: true, UUID: workspace.ID}
 
 		task := dbgen.Task(t, db, database.TaskTable{
 			OrganizationID:    org.ID,
@@ -6786,15 +6750,62 @@ func TestTasksWithStatusView(t *testing.T) {
 			Prompt:            "Test prompt",
 		})
 
-		if workspaceAgentID != uuid.Nil {
-			for _, app := range apps {
-				_, err := db.InsertTaskWorkspaceApp(ctx, database.InsertTaskWorkspaceAppParams{
-					TaskID:           task.ID,
-					WorkspaceBuildID: workspaceBuildID,
-					WorkspaceAgentID: workspaceAgentID,
-					WorkspaceAppID:   app.ID,
+		workspaceBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			WorkspaceID:       workspace.ID,
+			TemplateVersionID: templateVersion.ID,
+			BuildNumber:       1,
+			Transition:        buildTransition,
+			InitiatorID:       user.ID,
+			JobID:             job.ID,
+		})
+		workspaceBuildNumber := workspaceBuild.BuildNumber
+
+		_, err := db.UpsertTaskWorkspaceApp(ctx, database.UpsertTaskWorkspaceAppParams{
+			TaskID:               task.ID,
+			WorkspaceBuildNumber: workspaceBuildNumber,
+		})
+		require.NoError(t, err)
+
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: job.ID,
+		})
+
+		if agentState != "" {
+			agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+				ResourceID: resource.ID,
+			})
+			workspaceAgentID := agent.ID
+
+			_, err := db.UpsertTaskWorkspaceApp(ctx, database.UpsertTaskWorkspaceAppParams{
+				TaskID:               task.ID,
+				WorkspaceBuildNumber: workspaceBuildNumber,
+				WorkspaceAgentID:     uuid.NullUUID{UUID: workspaceAgentID, Valid: true},
+			})
+			require.NoError(t, err)
+
+			err = db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+				ID:             agent.ID,
+				LifecycleState: agentState,
+			})
+			require.NoError(t, err)
+
+			for i, health := range appHealths {
+				app := dbgen.WorkspaceApp(t, db, database.WorkspaceApp{
+					AgentID:     workspaceAgentID,
+					Slug:        fmt.Sprintf("test-app-%d", i),
+					DisplayName: fmt.Sprintf("Test App %d", i+1),
+					Health:      health,
 				})
-				require.NoError(t, err)
+				if i == 0 {
+					// Assume the first app is the tasks app.
+					_, err := db.UpsertTaskWorkspaceApp(ctx, database.UpsertTaskWorkspaceAppParams{
+						TaskID:               task.ID,
+						WorkspaceBuildNumber: workspaceBuildNumber,
+						WorkspaceAgentID:     uuid.NullUUID{UUID: workspaceAgentID, Valid: true},
+						WorkspaceAppID:       uuid.NullUUID{UUID: app.ID, Valid: true},
+					})
+					require.NoError(t, err)
+				}
 			}
 		}
 
@@ -6937,60 +6948,6 @@ func TestTasksWithStatusView(t *testing.T) {
 			description:     "Agent is off",
 		},
 		{
-			name:            "MultipleAppsAllHealthy",
-			buildStatus:     database.ProvisionerJobStatusSucceeded,
-			buildTransition: database.WorkspaceTransitionStart,
-			agentState:      database.WorkspaceAgentLifecycleStateReady,
-			appHealths:      []database.WorkspaceAppHealth{database.WorkspaceAppHealthHealthy, database.WorkspaceAppHealthHealthy, database.WorkspaceAppHealthHealthy},
-			expectedStatus:  database.TaskStatusActive,
-			description:     "Agent is ready and all apps are healthy",
-		},
-		{
-			name:            "MultipleAppsOneUnhealthy",
-			buildStatus:     database.ProvisionerJobStatusSucceeded,
-			buildTransition: database.WorkspaceTransitionStart,
-			agentState:      database.WorkspaceAgentLifecycleStateReady,
-			appHealths:      []database.WorkspaceAppHealth{database.WorkspaceAppHealthHealthy, database.WorkspaceAppHealthUnhealthy, database.WorkspaceAppHealthHealthy},
-			expectedStatus:  database.TaskStatusError,
-			description:     "Agent is ready but one app is unhealthy",
-		},
-		{
-			name:            "MultipleAppsOneInitializing",
-			buildStatus:     database.ProvisionerJobStatusSucceeded,
-			buildTransition: database.WorkspaceTransitionStart,
-			agentState:      database.WorkspaceAgentLifecycleStateReady,
-			appHealths:      []database.WorkspaceAppHealth{database.WorkspaceAppHealthHealthy, database.WorkspaceAppHealthInitializing, database.WorkspaceAppHealthHealthy},
-			expectedStatus:  database.TaskStatusInitializing,
-			description:     "Agent is ready but one app is initializing",
-		},
-		{
-			name:            "MultipleAppsHealthyAndDisabled",
-			buildStatus:     database.ProvisionerJobStatusSucceeded,
-			buildTransition: database.WorkspaceTransitionStart,
-			agentState:      database.WorkspaceAgentLifecycleStateReady,
-			appHealths:      []database.WorkspaceAppHealth{database.WorkspaceAppHealthHealthy, database.WorkspaceAppHealthDisabled, database.WorkspaceAppHealthHealthy},
-			expectedStatus:  database.TaskStatusActive,
-			description:     "Agent is ready with mix of healthy and disabled apps",
-		},
-		{
-			name:            "MultipleAppsAllDisabled",
-			buildStatus:     database.ProvisionerJobStatusSucceeded,
-			buildTransition: database.WorkspaceTransitionStart,
-			agentState:      database.WorkspaceAgentLifecycleStateReady,
-			appHealths:      []database.WorkspaceAppHealth{database.WorkspaceAppHealthDisabled, database.WorkspaceAppHealthDisabled},
-			expectedStatus:  database.TaskStatusActive,
-			description:     "Agent is ready with all apps disabled",
-		},
-		{
-			name:            "MultipleAppsInitializingAndUnhealthy",
-			buildStatus:     database.ProvisionerJobStatusSucceeded,
-			buildTransition: database.WorkspaceTransitionStart,
-			agentState:      database.WorkspaceAgentLifecycleStateReady,
-			appHealths:      []database.WorkspaceAppHealth{database.WorkspaceAppHealthInitializing, database.WorkspaceAppHealthUnhealthy},
-			expectedStatus:  database.TaskStatusError,
-			description:     "Agent is ready but has initializing and unhealthy apps - unhealthy takes precedence",
-		},
-		{
 			name:            "RunningJobReadyAgentHealthyApp",
 			buildStatus:     database.ProvisionerJobStatusRunning,
 			buildTransition: database.WorkspaceTransitionStart,
@@ -7064,6 +7021,91 @@ func TestTasksWithStatusView(t *testing.T) {
 			require.Equal(t, tt.expectedStatus, got.Status, "unexpected status for test case: %s", tt.description)
 		})
 	}
+}
+
+func TestTaskNameUniqueness(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+
+	taskName := "my-task"
+
+	task1 := dbgen.Task(t, db, database.TaskTable{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		Name:              taskName,
+		TemplateVersionID: tv.ID,
+		Prompt:            "Test prompt",
+	})
+	require.NotEqual(t, uuid.Nil, task1.ID)
+
+	_, err := db.InsertTask(ctx, database.InsertTaskParams{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		Name:               taskName,
+		TemplateVersionID:  tv.ID,
+		TemplateParameters: json.RawMessage("{}"),
+		Prompt:             "Another prompt",
+		CreatedAt:          dbtime.Now(),
+	})
+	require.Error(t, err, "duplicate task name should fail")
+
+	_, err = db.InsertTask(ctx, database.InsertTaskParams{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		Name:               "MY-TASK",
+		TemplateVersionID:  tv.ID,
+		TemplateParameters: json.RawMessage("{}"),
+		Prompt:             "Yet another prompt",
+		CreatedAt:          dbtime.Now(),
+	})
+	require.Error(t, err, "duplicate task name with different case should also fail")
+
+	user2 := dbgen.User(t, db, database.User{})
+	task2 := dbgen.Task(t, db, database.TaskTable{
+		OrganizationID:    org.ID,
+		OwnerID:           user2.ID,
+		Name:              taskName,
+		TemplateVersionID: tv.ID,
+		Prompt:            "Different user's task",
+	})
+	require.NotEqual(t, uuid.Nil, task2.ID)
+	require.NotEqual(t, task1.ID, task2.ID)
+}
+
+func TestTaskGetByWorkspaceIDNotFound(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		TemplateID:     template.ID,
+	})
+
+	_, err := db.GetTaskByWorkspaceID(ctx, workspace.ID)
+	require.Error(t, err)
 }
 
 func TestUsageEventsTrigger(t *testing.T) {

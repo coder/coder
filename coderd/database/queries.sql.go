@@ -12508,11 +12508,34 @@ func (q *sqlQuerier) UpsertTailnetTunnel(ctx context.Context, arg UpsertTailnetT
 }
 
 const getTaskByID = `-- name: GetTaskByID :one
-SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, status FROM tasks_with_status WHERE id = $1
+SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, status FROM tasks_with_status WHERE id = $1::uuid
 `
 
 func (q *sqlQuerier) GetTaskByID(ctx context.Context, id uuid.UUID) (Task, error) {
 	row := q.db.QueryRowContext(ctx, getTaskByID, id)
+	var i Task
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.Name,
+		&i.WorkspaceID,
+		&i.TemplateVersionID,
+		&i.TemplateParameters,
+		&i.Prompt,
+		&i.CreatedAt,
+		&i.DeletedAt,
+		&i.Status,
+	)
+	return i, err
+}
+
+const getTaskByWorkspaceID = `-- name: GetTaskByWorkspaceID :one
+SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, status FROM tasks_with_status WHERE workspace_id = $1::uuid
+`
+
+func (q *sqlQuerier) GetTaskByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (Task, error) {
+	row := q.db.QueryRowContext(ctx, getTaskByWorkspaceID, workspaceID)
 	var i Task
 	err := row.Scan(
 		&i.ID,
@@ -12576,34 +12599,38 @@ func (q *sqlQuerier) InsertTask(ctx context.Context, arg InsertTaskParams) (Task
 	return i, err
 }
 
-const insertTaskWorkspaceApp = `-- name: InsertTaskWorkspaceApp :one
+const upsertTaskWorkspaceApp = `-- name: UpsertTaskWorkspaceApp :one
 INSERT INTO task_workspace_apps
-	(task_id, workspace_build_id, workspace_agent_id, workspace_app_id)
+	(task_id, workspace_build_number, workspace_agent_id, workspace_app_id)
 VALUES
 	($1, $2, $3, $4)
-RETURNING task_id, workspace_build_id, workspace_agent_id, workspace_app_id
+ON CONFLICT (task_id, workspace_build_number)
+DO UPDATE SET
+	workspace_agent_id = EXCLUDED.workspace_agent_id,
+	workspace_app_id = EXCLUDED.workspace_app_id
+RETURNING task_id, workspace_agent_id, workspace_app_id, workspace_build_number
 `
 
-type InsertTaskWorkspaceAppParams struct {
-	TaskID           uuid.UUID `db:"task_id" json:"task_id"`
-	WorkspaceBuildID uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
-	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
-	WorkspaceAppID   uuid.UUID `db:"workspace_app_id" json:"workspace_app_id"`
+type UpsertTaskWorkspaceAppParams struct {
+	TaskID               uuid.UUID     `db:"task_id" json:"task_id"`
+	WorkspaceBuildNumber int32         `db:"workspace_build_number" json:"workspace_build_number"`
+	WorkspaceAgentID     uuid.NullUUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	WorkspaceAppID       uuid.NullUUID `db:"workspace_app_id" json:"workspace_app_id"`
 }
 
-func (q *sqlQuerier) InsertTaskWorkspaceApp(ctx context.Context, arg InsertTaskWorkspaceAppParams) (TaskWorkspaceApp, error) {
-	row := q.db.QueryRowContext(ctx, insertTaskWorkspaceApp,
+func (q *sqlQuerier) UpsertTaskWorkspaceApp(ctx context.Context, arg UpsertTaskWorkspaceAppParams) (TaskWorkspaceApp, error) {
+	row := q.db.QueryRowContext(ctx, upsertTaskWorkspaceApp,
 		arg.TaskID,
-		arg.WorkspaceBuildID,
+		arg.WorkspaceBuildNumber,
 		arg.WorkspaceAgentID,
 		arg.WorkspaceAppID,
 	)
 	var i TaskWorkspaceApp
 	err := row.Scan(
 		&i.TaskID,
-		&i.WorkspaceBuildID,
 		&i.WorkspaceAgentID,
 		&i.WorkspaceAppID,
+		&i.WorkspaceBuildNumber,
 	)
 	return i, err
 }

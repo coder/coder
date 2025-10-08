@@ -206,6 +206,11 @@ const (
 	ApiKeyScopeWorkspaceAgentResourceMonitor       APIKeyScope = "workspace_agent_resource_monitor:*"
 	ApiKeyScopeWorkspaceDormant                    APIKeyScope = "workspace_dormant:*"
 	ApiKeyScopeWorkspaceProxy                      APIKeyScope = "workspace_proxy:*"
+	ApiKeyScopeTask                                APIKeyScope = "task:*"
+	ApiKeyScopeTaskCreate                          APIKeyScope = "task:create"
+	ApiKeyScopeTaskDelete                          APIKeyScope = "task:delete"
+	ApiKeyScopeTaskRead                            APIKeyScope = "task:read"
+	ApiKeyScopeTaskUpdate                          APIKeyScope = "task:update"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -431,7 +436,12 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeWorkspaceAgentDevcontainers,
 		ApiKeyScopeWorkspaceAgentResourceMonitor,
 		ApiKeyScopeWorkspaceDormant,
-		ApiKeyScopeWorkspaceProxy:
+		ApiKeyScopeWorkspaceProxy,
+		ApiKeyScopeTask,
+		ApiKeyScopeTaskCreate,
+		ApiKeyScopeTaskDelete,
+		ApiKeyScopeTaskRead,
+		ApiKeyScopeTaskUpdate:
 		return true
 	}
 	return false
@@ -626,6 +636,11 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeWorkspaceAgentResourceMonitor,
 		ApiKeyScopeWorkspaceDormant,
 		ApiKeyScopeWorkspaceProxy,
+		ApiKeyScopeTask,
+		ApiKeyScopeTaskCreate,
+		ApiKeyScopeTaskDelete,
+		ApiKeyScopeTaskRead,
+		ApiKeyScopeTaskUpdate,
 	}
 }
 
@@ -4209,10 +4224,10 @@ type TaskTable struct {
 }
 
 type TaskWorkspaceApp struct {
-	TaskID           uuid.UUID `db:"task_id" json:"task_id"`
-	WorkspaceBuildID uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
-	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
-	WorkspaceAppID   uuid.UUID `db:"workspace_app_id" json:"workspace_app_id"`
+	TaskID               uuid.UUID     `db:"task_id" json:"task_id"`
+	WorkspaceAgentID     uuid.NullUUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	WorkspaceAppID       uuid.NullUUID `db:"workspace_app_id" json:"workspace_app_id"`
+	WorkspaceBuildNumber int32         `db:"workspace_build_number" json:"workspace_build_number"`
 }
 
 type TelemetryItem struct {

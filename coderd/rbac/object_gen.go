@@ -286,6 +286,16 @@ var (
 		Type: "tailnet_coordinator",
 	}
 
+	// ResourceTask
+	// Valid Actions
+	//  - "ActionCreate" :: create a new task
+	//  - "ActionDelete" :: delete task
+	//  - "ActionRead" :: read task data to view on the UI
+	//  - "ActionUpdate" :: edit task settings
+	ResourceTask = Object{
+		Type: "task",
+	}
+
 	// ResourceTemplate
 	// Valid Actions
 	//  - "ActionCreate" :: create a template
@@ -430,6 +440,7 @@ func AllResources() []Objecter {
 		ResourceReplicas,
 		ResourceSystem,
 		ResourceTailnetCoordinator,
+		ResourceTask,
 		ResourceTemplate,
 		ResourceUsageEvent,
 		ResourceUser,

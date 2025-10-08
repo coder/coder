@@ -1954,14 +1954,27 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		}
 
 		appIDs := make([]string, 0)
+		agentIDByAppID := make(map[string]uuid.UUID)
 		agentTimeouts := make(map[time.Duration]bool) // A set of agent timeouts.
 		// This could be a bulk insert to improve performance.
 		for _, protoResource := range jobType.WorkspaceBuild.Resources {
-			for _, protoAgent := range protoResource.Agents {
+			for ai, protoAgent := range protoResource.Agents {
+				if protoAgent == nil {
+					continue
+				}
+				// Always set the agent ID. Previously this ID was generated
+				// in InsertWorkspaceResource, but it's required for linking
+				// the agent to a task. For now we overwrite the
+				// protoAgent.Id because that matches old behavior.
+				agentID := uuid.New()
+				protoAgent.Id = agentID.String()
+				protoResource.Agents[ai] = protoAgent
+
 				dur := time.Duration(protoAgent.GetConnectionTimeoutSeconds()) * time.Second
 				agentTimeouts[dur] = true
 				for _, app := range protoAgent.GetApps() {
 					appIDs = append(appIDs, app.GetId())
+					agentIDByAppID[app.GetId()] = agentID
 				}
 			}
 
@@ -1976,10 +1989,12 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			}
 		}
 
+		var taskAgentID uuid.NullUUID
 		var sidebarAppID uuid.NullUUID
 		var hasAITask bool
 		var warnUnknownSidebarAppID bool
 		if tasks := jobType.WorkspaceBuild.GetAiTasks(); len(tasks) > 0 {
+			// TODO(mafredri): Use task.GetAppID() when available.
 			hasAITask = true
 			task := tasks[0]
 			if task == nil || task.GetSidebarApp() == nil || len(task.GetSidebarApp().GetId()) == 0 {
@@ -1997,6 +2012,9 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			}
 
 			sidebarAppID = uuid.NullUUID{UUID: id, Valid: true}
+
+			agentID, ok := agentIDByAppID[sidebarTaskID]
+			taskAgentID = uuid.NullUUID{UUID: agentID, Valid: ok}
 		}
 
 		// This is a hacky workaround for the issue with tasks 'disappearing' on stop:
@@ -2089,6 +2107,27 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 				hasExternalAgent = true
 				break
 			}
+		}
+
+		if task, err := db.GetTaskByWorkspaceID(ctx, workspace.ID); err == nil {
+			// Irrespective of whether the agent or sidebar app is present,
+			// perform the upsert to ensure a link between the task and
+			// workspace build. Linking the task to the build is typically
+			// already established by wsbuilder.
+			_, err = db.UpsertTaskWorkspaceApp(
+				ctx,
+				database.UpsertTaskWorkspaceAppParams{
+					TaskID:               task.ID,
+					WorkspaceBuildNumber: workspaceBuild.BuildNumber,
+					WorkspaceAgentID:     taskAgentID,
+					WorkspaceAppID:       sidebarAppID,
+				},
+			)
+			if err != nil {
+				return xerrors.Errorf("upsert task workspace app: %w", err)
+			}
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("get task by workspace id: %w", err)
 		}
 
 		// Regardless of whether there is an AI task or not, update the field to indicate one way or the other since it
@@ -2657,7 +2696,15 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			apiKeyScope = database.AgentKeyScopeEnumNoUserData
 		}
 
-		agentID := uuid.New()
+		var agentID uuid.UUID
+		if prAgent.GetId() == "" {
+			agentID = uuid.New()
+		} else {
+			agentID, err = uuid.Parse(prAgent.GetId())
+			if err != nil {
+				return xerrors.Errorf("invalid agent ID format; must be uuid: %w", err)
+			}
+		}
 		dbAgent, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
 			ID:                       agentID,
 			ParentID:                 uuid.NullUUID{},
@@ -2930,6 +2977,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			if err != nil {
 				return xerrors.Errorf("upsert app: %w", err)
 			}
+
 			snapshot.WorkspaceApps = append(snapshot.WorkspaceApps, telemetry.ConvertWorkspaceApp(dbApp))
 		}
 	}

@@ -197,7 +197,12 @@ CREATE TYPE api_key_scope AS ENUM (
     'workspace_agent_devcontainers:*',
     'workspace_agent_resource_monitor:*',
     'workspace_dormant:*',
-    'workspace_proxy:*'
+    'workspace_proxy:*',
+    'task:*',
+    'task:create',
+    'task:delete',
+    'task:read',
+    'task:update'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -1800,9 +1805,9 @@ CREATE TABLE tailnet_tunnels (
 
 CREATE TABLE task_workspace_apps (
     task_id uuid NOT NULL,
-    workspace_build_id uuid NOT NULL,
-    workspace_agent_id uuid NOT NULL,
-    workspace_app_id uuid NOT NULL
+    workspace_agent_id uuid,
+    workspace_app_id uuid,
+    workspace_build_number integer NOT NULL
 );
 
 CREATE TABLE tasks (
@@ -1953,38 +1958,43 @@ CREATE VIEW tasks_with_status AS
             WHEN ((latest_build.transition = 'start'::workspace_transition) AND (latest_build.job_status = 'pending'::provisioner_job_status)) THEN 'initializing'::task_status
             WHEN ((latest_build.transition = 'start'::workspace_transition) AND (latest_build.job_status = ANY (ARRAY['running'::provisioner_job_status, 'succeeded'::provisioner_job_status]))) THEN
             CASE
-                WHEN agents_status."none" THEN 'initializing'::task_status
-                WHEN agents_status.connecting THEN 'initializing'::task_status
-                WHEN agents_status.connected THEN
+                WHEN agent_status."none" THEN 'initializing'::task_status
+                WHEN agent_status.connecting THEN 'initializing'::task_status
+                WHEN agent_status.connected THEN
                 CASE
-                    WHEN apps_status.any_unhealthy THEN 'error'::task_status
-                    WHEN apps_status.any_initializing THEN 'initializing'::task_status
-                    WHEN apps_status.all_healthy_or_disabled THEN 'active'::task_status
+                    WHEN app_status.any_unhealthy THEN 'error'::task_status
+                    WHEN app_status.any_initializing THEN 'initializing'::task_status
+                    WHEN app_status.all_healthy_or_disabled THEN 'active'::task_status
                     ELSE 'unknown'::task_status
                 END
                 ELSE 'unknown'::task_status
             END
             ELSE 'unknown'::task_status
         END AS status
-   FROM (((tasks
-     LEFT JOIN ( SELECT DISTINCT ON (workspace_build.workspace_id) workspace_build.workspace_id,
-            workspace_build.transition,
-            provisioner_job.job_status
+   FROM ((((tasks
+     LEFT JOIN LATERAL ( SELECT task_app_1.workspace_build_number,
+            task_app_1.workspace_agent_id,
+            task_app_1.workspace_app_id
+           FROM task_workspace_apps task_app_1
+          WHERE (task_app_1.task_id = tasks.id)
+          ORDER BY task_app_1.workspace_build_number DESC
+         LIMIT 1) task_app ON (true))
+     LEFT JOIN LATERAL ( SELECT workspace_build.transition,
+            provisioner_job.job_status,
+            workspace_build.job_id
            FROM (workspace_builds workspace_build
              JOIN provisioner_jobs provisioner_job ON ((provisioner_job.id = workspace_build.job_id)))
-          ORDER BY workspace_build.workspace_id, workspace_build.build_number DESC) latest_build ON ((latest_build.workspace_id = tasks.workspace_id)))
+          WHERE ((workspace_build.workspace_id = tasks.workspace_id) AND (workspace_build.build_number = task_app.workspace_build_number))) latest_build ON (true))
      CROSS JOIN LATERAL ( SELECT (count(*) = 0) AS "none",
             bool_or((workspace_agent.lifecycle_state = ANY (ARRAY['created'::workspace_agent_lifecycle_state, 'starting'::workspace_agent_lifecycle_state]))) AS connecting,
             bool_and((workspace_agent.lifecycle_state = 'ready'::workspace_agent_lifecycle_state)) AS connected
-           FROM (task_workspace_apps task_app
-             JOIN workspace_agents workspace_agent ON ((workspace_agent.id = task_app.workspace_agent_id)))
-          WHERE ((task_app.task_id = tasks.id) AND (workspace_agent.deleted = false))) agents_status)
+           FROM workspace_agents workspace_agent
+          WHERE (workspace_agent.id = task_app.workspace_agent_id)) agent_status)
      CROSS JOIN LATERAL ( SELECT bool_or((workspace_app.health = 'unhealthy'::workspace_app_health)) AS any_unhealthy,
             bool_or((workspace_app.health = 'initializing'::workspace_app_health)) AS any_initializing,
             bool_and((workspace_app.health = ANY (ARRAY['healthy'::workspace_app_health, 'disabled'::workspace_app_health]))) AS all_healthy_or_disabled
-           FROM (task_workspace_apps task_app
-             JOIN workspace_apps workspace_app ON ((workspace_app.id = task_app.workspace_app_id)))
-          WHERE (task_app.task_id = tasks.id)) apps_status)
+           FROM workspace_apps workspace_app
+          WHERE (workspace_app.id = task_app.workspace_app_id)) app_status)
   WHERE (tasks.deleted_at IS NULL);
 
 CREATE TABLE telemetry_items (
@@ -3063,6 +3073,9 @@ ALTER TABLE ONLY tailnet_peers
 ALTER TABLE ONLY tailnet_tunnels
     ADD CONSTRAINT tailnet_tunnels_pkey PRIMARY KEY (coordinator_id, src_id, dst_id);
 
+ALTER TABLE ONLY task_workspace_apps
+    ADD CONSTRAINT task_workspace_apps_pkey PRIMARY KEY (task_id, workspace_build_number);
+
 ALTER TABLE ONLY tasks
     ADD CONSTRAINT tasks_pkey PRIMARY KEY (id);
 
@@ -3327,6 +3340,16 @@ CREATE INDEX provisioner_jobs_worker_id_organization_id_completed_at_idx ON prov
 COMMENT ON INDEX provisioner_jobs_worker_id_organization_id_completed_at_idx IS 'Support index for finding the latest completed jobs for a worker (and organization), nulls first so that active jobs have priority; targets: GetProvisionerDaemonsWithStatusByOrganization';
 
 CREATE UNIQUE INDEX provisioner_keys_organization_id_name_idx ON provisioner_keys USING btree (organization_id, lower((name)::text));
+
+CREATE INDEX tasks_organization_id_idx ON tasks USING btree (organization_id);
+
+CREATE INDEX tasks_owner_id_idx ON tasks USING btree (owner_id);
+
+CREATE UNIQUE INDEX tasks_owner_id_name_unique_idx ON tasks USING btree (owner_id, lower(name)) WHERE (deleted_at IS NULL);
+
+COMMENT ON INDEX tasks_owner_id_name_unique_idx IS 'Index to ensure uniqueness for task owner/name';
+
+CREATE INDEX tasks_workspace_id_idx ON tasks USING btree (workspace_id);
 
 CREATE INDEX template_usage_stats_start_time_idx ON template_usage_stats USING btree (start_time DESC);
 
@@ -3607,9 +3630,6 @@ ALTER TABLE ONLY task_workspace_apps
 
 ALTER TABLE ONLY task_workspace_apps
     ADD CONSTRAINT task_workspace_apps_workspace_app_id_fkey FOREIGN KEY (workspace_app_id) REFERENCES workspace_apps(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY task_workspace_apps
-    ADD CONSTRAINT task_workspace_apps_workspace_build_id_fkey FOREIGN KEY (workspace_build_id) REFERENCES workspace_builds(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY tasks
     ADD CONSTRAINT tasks_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;

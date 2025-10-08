@@ -1489,6 +1489,13 @@ func (m queryMetricsStore) GetTaskByID(ctx context.Context, id uuid.UUID) (datab
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetTaskByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.Task, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTaskByWorkspaceID(ctx, workspaceID)
+	m.queryLatencies.WithLabelValues("GetTaskByWorkspaceID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetTelemetryItem(ctx context.Context, key string) (database.TelemetryItem, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetTelemetryItem(ctx, key)
@@ -2466,13 +2473,6 @@ func (m queryMetricsStore) InsertTask(ctx context.Context, arg database.InsertTa
 	start := time.Now()
 	r0, r1 := m.s.InsertTask(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertTask").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
-func (m queryMetricsStore) InsertTaskWorkspaceApp(ctx context.Context, arg database.InsertTaskWorkspaceAppParams) (database.TaskWorkspaceApp, error) {
-	start := time.Now()
-	r0, r1 := m.s.InsertTaskWorkspaceApp(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertTaskWorkspaceApp").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -3551,6 +3551,13 @@ func (m queryMetricsStore) UpsertTailnetTunnel(ctx context.Context, arg database
 	start := time.Now()
 	r0, r1 := m.s.UpsertTailnetTunnel(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpsertTailnetTunnel").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpsertTaskWorkspaceApp(ctx context.Context, arg database.UpsertTaskWorkspaceAppParams) (database.TaskWorkspaceApp, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpsertTaskWorkspaceApp(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertTaskWorkspaceApp").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 

@@ -1578,8 +1578,13 @@ func Task(t testing.TB, db database.Store, orig database.TaskTable) database.Tas
 func TaskWorkspaceApp(t testing.TB, db database.Store, orig database.TaskWorkspaceApp) database.TaskWorkspaceApp {
 	t.Helper()
 
-	app, err := db.InsertTaskWorkspaceApp(genCtx, database.InsertTaskWorkspaceAppParams(orig))
-	require.NoError(t, err, "failed to insert task workspace app")
+	app, err := db.UpsertTaskWorkspaceApp(genCtx, database.UpsertTaskWorkspaceAppParams{
+		TaskID:               orig.TaskID,
+		WorkspaceBuildNumber: orig.WorkspaceBuildNumber,
+		WorkspaceAgentID:     orig.WorkspaceAgentID,
+		WorkspaceAppID:       orig.WorkspaceAppID,
+	})
+	require.NoError(t, err, "failed to upsert task workspace app")
 
 	return app
 }

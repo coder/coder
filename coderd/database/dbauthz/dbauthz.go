@@ -219,7 +219,9 @@ var (
 					rbac.ResourceUser.Type:             {policy.ActionRead, policy.ActionReadPersonal, policy.ActionUpdatePersonal},
 					rbac.ResourceWorkspaceDormant.Type: {policy.ActionDelete, policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceStop},
 					rbac.ResourceWorkspace.Type:        {policy.ActionDelete, policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceStart, policy.ActionWorkspaceStop, policy.ActionCreateAgent},
-					rbac.ResourceApiKey.Type:           {policy.WildcardSymbol},
+					// Provisionerd needs to read and update tasks associated with workspaces.
+					rbac.ResourceTask.Type:   {policy.ActionRead, policy.ActionUpdate},
+					rbac.ResourceApiKey.Type: {policy.WildcardSymbol},
 					// When org scoped provisioner credentials are implemented,
 					// this can be reduced to read a specific org.
 					rbac.ResourceOrganization.Type: {policy.ActionRead},
@@ -2882,8 +2884,12 @@ func (q *querier) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUID) 
 	return q.db.GetTailnetTunnelPeerIDs(ctx, srcID)
 }
 
-func (*querier) GetTaskByID(_ context.Context, _ uuid.UUID) (database.Task, error) {
-	panic("not implemented")
+func (q *querier) GetTaskByID(ctx context.Context, id uuid.UUID) (database.Task, error) {
+	return fetch(q.log, q.auth, q.db.GetTaskByID)(ctx, id)
+}
+
+func (q *querier) GetTaskByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.Task, error) {
+	return fetch(q.log, q.auth, q.db.GetTaskByWorkspaceID)(ctx, workspaceID)
 }
 
 func (q *querier) GetTelemetryItem(ctx context.Context, key string) (database.TelemetryItem, error) {
@@ -4111,12 +4117,15 @@ func (q *querier) InsertReplica(ctx context.Context, arg database.InsertReplicaP
 	return q.db.InsertReplica(ctx, arg)
 }
 
-func (*querier) InsertTask(_ context.Context, _ database.InsertTaskParams) (database.TaskTable, error) {
-	panic("not implemented")
-}
+func (q *querier) InsertTask(ctx context.Context, arg database.InsertTaskParams) (database.TaskTable, error) {
+	// Ensure the actor can access the specified template version (and thus its template).
+	if _, err := q.GetTemplateVersionByID(ctx, arg.TemplateVersionID); err != nil {
+		return database.TaskTable{}, err
+	}
 
-func (*querier) InsertTaskWorkspaceApp(_ context.Context, _ database.InsertTaskWorkspaceAppParams) (database.TaskWorkspaceApp, error) {
-	panic("not implemented")
+	obj := rbac.ResourceTask.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID)
+
+	return insert(q.log, q.auth, obj, q.db.InsertTask)(ctx, arg)
 }
 
 func (q *querier) InsertTelemetryItemIfNotExists(ctx context.Context, arg database.InsertTelemetryItemIfNotExistsParams) error {
@@ -5675,6 +5684,18 @@ func (q *querier) UpsertTailnetTunnel(ctx context.Context, arg database.UpsertTa
 		return database.TailnetTunnel{}, err
 	}
 	return q.db.UpsertTailnetTunnel(ctx, arg)
+}
+
+func (q *querier) UpsertTaskWorkspaceApp(ctx context.Context, arg database.UpsertTaskWorkspaceAppParams) (database.TaskWorkspaceApp, error) {
+	// Fetch the task to derive the RBAC object and authorize update on it.
+	task, err := q.db.GetTaskByID(ctx, arg.TaskID)
+	if err != nil {
+		return database.TaskWorkspaceApp{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, task); err != nil {
+		return database.TaskWorkspaceApp{}, err
+	}
+	return q.db.UpsertTaskWorkspaceApp(ctx, arg)
 }
 
 func (q *querier) UpsertTelemetryItem(ctx context.Context, arg database.UpsertTelemetryItemParams) error {
