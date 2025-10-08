@@ -107,7 +107,7 @@ func (s *Server) SMTPAddress() string {
 }
 
 func (s *Server) APIAddress() string {
-	return fmt.Sprintf("%s:%d", s.host, s.apiPort)
+	return fmt.Sprintf("http://%s:%d", s.host, s.apiPort)
 }
 
 func (s *Server) MessageCount() int {
