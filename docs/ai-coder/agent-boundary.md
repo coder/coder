@@ -25,7 +25,6 @@ Boundaries extend Coder's trusted workspaces with a defense-in-depth model that 
 
 For Early Access, users can use Agent Boundaries through its [open source CLI](https://github.com/coder/boundary), which can be run to wrap any process or invoked through rules in a YAML file.
 
-
 ### Wrap the agent process with the Boundary CLI
 
 Users can also run Boundary directly in your workspace and configure it per template or per script. While free tier users won't get centralized policy management or the deeper, "strong isolation," they can still enforce per workspace network rules and log decisions locally.
@@ -73,6 +72,7 @@ From here, there are two ways to integrate the open source Boundary CLI into a w
 #### Use a config file (YAML) to set rules
 
 Another option is to define rules in a YAML file, which only needs to be invoked once as opposed to through flags with each command.
+
 1. Create a YAML file to store rules that will be applied to all `boundary` commands run in the Workspace. In this example, we call it `boundary.yaml`.
 
     A config example can be seen below:
@@ -106,16 +106,16 @@ In this case, a specific agent process or tool (for example, Claude Code or a CL
 
 Agents are prevented from reaching restricted domains or exfiltrating data, without blocking the rest of the dev's environment.  
 
-This is the fastest way to add real guardrails, but a determined user could still operate a tool outside of Boundary restrictions because the broader environment allows it. This mode relies on tools respecting certain settings, like HTTP proxies, and can lead to silent failures if a tool bypasses them.   
+This is the fastest way to add real guardrails, but a determined user could still operate a tool outside of Boundary restrictions because the broader environment allows it. This mode relies on tools respecting certain settings, like HTTP proxies, and can lead to silent failures if a tool bypasses them.
 
 #### Privileged Mode
 
 In this case, boundaries are enforced at the level of the environment that the agent lives in. These are workspace- or session-level controls, including how the developer connects to it.  
 
-Currently, this must be turned on with a flag and ran with higher-level permissions such as root access or `CapNetAdmin`.  
+Currently, this must be turned on with a flag and ran with higher-level permissions such as root access or `CapNetAdmin`.
 
-In addition to process-level egress rules, privileged mode locks down all pathways that could bypass policy, such as restricting or disabling SSH tunnels or parallel unbound IDEs. This delivers deterministic, policy-as-code enforcement and offers the highest assurance for regulated environments, but results in slightly more friction for mixed human-and-agent workflows.  
+In addition to process-level egress rules, privileged mode locks down all pathways that could bypass policy, such as restricting or disabling SSH tunnels or parallel unbound IDEs. This delivers deterministic, policy-as-code enforcement and offers the highest assurance for regulated environments, but results in slightly more friction for mixed human-and-agent workflows.
 
 ### Opting out of Boundary
 
-If you tried Boundary through a Coder module and decided you don't want to use it, you can turn it off by setting the flag to `boundary_enabled=false`.  
+If you tried Boundary through a Coder module and decided you don't want to use it, you can turn it off by setting the flag to `boundary_enabled=false`. 
