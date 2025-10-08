@@ -917,7 +917,7 @@
 				},
 				{
 					"title": "Tasks CLI",
-					"description": "Coder CLI for managing tasks programatically",
+					"description": "Coder CLI for managing tasks programmatically",
 					"path": "./ai-coder/cli.md",
 					"icon_path": "./images/icons/api.svg",
 					"state": ["beta"]
