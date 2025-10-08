@@ -9,23 +9,24 @@ import (
 )
 
 // A Unit (named to represent its resemblance to the systemd concept) is a kind of lock that encodes metadata
-// about the state of a resource. Units are primarily meant to be sections of processes such as coder scripts
-// that encapsulate a contended resource, such as a database lock or a socket.
+// about the state of a resource. Units are primarily meant to encapsulate sections of processes such as coder scripts
+// to coordinate access to a contended resource, such as a database lock or a socket that is used or provided by the script.
 //
-// In most cases, `coder_script` resources will create and manage units by invocations of
+// In most cases, `coder_script` resources will create and manage units by invocations of:
 // * `coder agent unit start <unit> [--wants <unit>]`
 // * `coder agent unit complete <unit>`
 // * `coder agent unit fail <unit>`
-// Units may be acquired with no intention of releasing them as a signal to other scripts that
-// a contended resource has been provided and is available. For example, a script that installs curl
-// might acquire a unit called "curl-install" to signal to other scripts that curl has been installed
-// and is available. In this case, the unit will be completed when the agent is stopped.
+// * `coder agent unit lock <unit>`
+//
+// Those CLI command examples are implemented elsewhere and are only shown here as a convenient example of the functionality
+// provided by Units. This file contains analogous methods to be used by the CLI implementations.
 type Unit struct {
 	Name    string
 	history []Event
 	Wants   []*Unit
 }
 
+// Events provide a coarse grained record of the lifecycle and history of a unit.
 type Event struct {
 	Type      UnitEventType
 	Timestamp time.Time
