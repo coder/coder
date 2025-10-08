@@ -1,11 +1,9 @@
-import { TableCell, TableRow } from "components/Table/Table";
 import {
-	type ComponentProps,
-	cloneElement,
-	type FC,
-	isValidElement,
-	type ReactNode,
-} from "react";
+	TableCell,
+	TableRow,
+	type TableRowProps,
+} from "components/Table/Table";
+import { cloneElement, type FC, isValidElement, type ReactNode } from "react";
 import { Loader } from "../Loader/Loader";
 
 export const TableLoader: FC = () => {
@@ -41,7 +39,7 @@ export const TableLoaderSkeleton: FC<TableLoaderSkeletonProps> = ({
 	);
 };
 
-export const TableRowSkeleton: FC<ComponentProps<typeof TableRow>> = ({
+export const TableRowSkeleton: FC<TableRowProps> = ({
 	children,
 	...rowProps
 }) => {
