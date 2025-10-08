@@ -28,6 +28,7 @@ import {
 	TableBody,
 	TableCell,
 	TableHead,
+	TableHeader,
 	TableRow,
 } from "components/Table/Table";
 import { TableLoader } from "components/TableLoader/TableLoader";
@@ -229,13 +230,13 @@ export const TemplatePermissionsPageView: FC<
 					/>
 				)}
 				<Table>
-					<TableHead>
+					<TableHeader>
 						<TableRow>
-							<TableCell width="60%">Member</TableCell>
-							<TableCell width="40%">Role</TableCell>
-							<TableCell width="1%" />
+							<TableHead className="w-[60%]">Member</TableHead>
+							<TableHead className="w-[40%]">Role</TableHead>
+							<TableHead className="w-[1%]" />
 						</TableRow>
-					</TableHead>
+					</TableHeader>
 					<TableBody>
 						<ChooseOne>
 							<Cond condition={!templateACL}>
