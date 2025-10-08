@@ -23,7 +23,7 @@ Bridge solves 3 key problems:
 
 As the library of LLMs and their associated tools grow, administrators are pressured to provide auditing, measure adoption, provide tools through MCP, and track token spend. Disparate SAAS platforms provide _some_ of these for _some_ tools, but there is no centralized, secure solution for these challenges.
 
-If you are administrator or devops leader looking to:
+If you are an administrator or devops leader looking to:
 
 - Measure AI tooling adoption across teams or projects
 - Provide an LLM audit trail to security administrators
