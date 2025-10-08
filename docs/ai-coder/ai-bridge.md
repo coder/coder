@@ -220,7 +220,7 @@ In contrast, tools which are defined by the client (i.e. the [`Bash` tool](https
 
 If you have the `oauth2` and `mcp-server-http` experiments enabled, Coder's own [internal MCP tools](mcp-server.md) will be injected automatically.
 
-## Troubleshooting
+### Troubleshooting
 
 - **Too many tools**: should you receive an error like `Invalid 'tools': array too long. Expected an array with maximum length 128, but got an array with length 132 instead`, you can reduce the number by filtering out tools using the allow/deny patterns documented in the [MCP](#mcp) section.
 
