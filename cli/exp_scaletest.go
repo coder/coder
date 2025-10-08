@@ -42,6 +42,7 @@ import (
 	"github.com/coder/coder/v2/scaletest/loadtestutil"
 	"github.com/coder/coder/v2/scaletest/notifications"
 	"github.com/coder/coder/v2/scaletest/reconnectingpty"
+	"github.com/coder/coder/v2/scaletest/smtpmock"
 	"github.com/coder/coder/v2/scaletest/workspacebuild"
 	"github.com/coder/coder/v2/scaletest/workspacetraffic"
 	"github.com/coder/coder/v2/scaletest/workspaceupdates"
@@ -66,6 +67,7 @@ func (r *RootCmd) scaletestCmd() *serpent.Command {
 			r.scaletestWorkspaceTraffic(),
 			r.scaletestAutostart(),
 			r.scaletestNotifications(),
+			r.scaletestSMTP(),
 		},
 	}
 
@@ -2171,6 +2173,106 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 	cleanupStrategy.attach(&cmd.Options)
 	output.attach(&cmd.Options)
 	prometheusFlags.attach(&cmd.Options)
+	return cmd
+}
+
+func (*RootCmd) scaletestSMTP() *serpent.Command {
+	var (
+		host         string
+		port         int64
+		apiPort      int64
+		purgeAtCount int64
+	)
+	cmd := &serpent.Command{
+		Use:   "smtp",
+		Short: "Start a mock SMTP server for testing",
+		Long: `Start a mock SMTP server with an HTTP API server that can be used to purge
+messages and get messages by email.
+
+Coder deployment values required:
+  - CODER_EMAIL_FROM=noreply@coder.com
+  - CODER_EMAIL_SMARTHOST=localhost:33199
+  - CODER_EMAIL_HELLO=localhost`,
+		Handler: func(inv *serpent.Invocation) error {
+			ctx := inv.Context()
+			notifyCtx, stop := signal.NotifyContext(ctx, StopSignals...)
+			defer stop()
+			ctx = notifyCtx
+
+			logger := slog.Make(sloghuman.Sink(inv.Stderr)).Leveled(slog.LevelInfo)
+			srv := smtpmock.New(smtpmock.Config{
+				Host:     host,
+				SMTPPort: int(port),
+				APIPort:  int(apiPort),
+				Logger:   logger,
+			})
+
+			if err := srv.Start(ctx); err != nil {
+				return xerrors.Errorf("start mock SMTP server: %w", err)
+			}
+			defer func() {
+				_ = srv.Stop()
+			}()
+
+			_, _ = fmt.Fprintf(inv.Stdout, "Mock SMTP server started on %s\n", srv.SMTPAddress())
+			_, _ = fmt.Fprintf(inv.Stdout, "HTTP API server started on %s\n", srv.APIAddress())
+			if purgeAtCount > 0 {
+				_, _ = fmt.Fprintf(inv.Stdout, "  Auto-purge when message count reaches %d\n", purgeAtCount)
+			}
+
+			ticker := time.NewTicker(10 * time.Second)
+			defer ticker.Stop()
+
+			for {
+				select {
+				case <-ctx.Done():
+					_, _ = fmt.Fprintf(inv.Stdout, "\nTotal messages received: %d\n", srv.MessageCount())
+					return nil
+				case <-ticker.C:
+					count := srv.MessageCount()
+					if count > 0 {
+						_, _ = fmt.Fprintf(inv.Stdout, "Messages received: %d\n", count)
+					}
+
+					if purgeAtCount > 0 && int64(count) >= purgeAtCount {
+						_, _ = fmt.Fprintf(inv.Stdout, "Message count (%d) reached threshold (%d). Purging...\n", count, purgeAtCount)
+						srv.Purge()
+						continue
+					}
+				}
+			}
+		},
+	}
+
+	cmd.Options = []serpent.Option{
+		{
+			Flag:        "host",
+			Env:         "CODER_SCALETEST_SMTP_HOST",
+			Default:     "localhost",
+			Description: "Host to bind the mock SMTP and API servers.",
+			Value:       serpent.StringOf(&host),
+		},
+		{
+			Flag:        "port",
+			Env:         "CODER_SCALETEST_SMTP_PORT",
+			Description: "Port for the mock SMTP server. Uses a random port if not specified.",
+			Value:       serpent.Int64Of(&port),
+		},
+		{
+			Flag:        "api-port",
+			Env:         "CODER_SCALETEST_SMTP_API_PORT",
+			Description: "Port for the HTTP API server. Uses a random port if not specified.",
+			Value:       serpent.Int64Of(&apiPort),
+		},
+		{
+			Flag:        "purge-at-count",
+			Env:         "CODER_SCALETEST_SMTP_PURGE_AT_COUNT",
+			Default:     "100000",
+			Description: "Maximum number of messages to keep before auto-purging. Set to 0 to disable.",
+			Value:       serpent.Int64Of(&purgeAtCount),
+		},
+	}
+
 	return cmd
 }
 
