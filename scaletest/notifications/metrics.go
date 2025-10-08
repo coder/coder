@@ -6,6 +6,13 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+type NotificationType string
+
+const (
+	NotificationTypeWebsocket NotificationType = "websocket"
+	NotificationTypeSMTP      NotificationType = "smtp"
+)
+
 type Metrics struct {
 	notificationLatency *prometheus.HistogramVec
 	notificationErrors  *prometheus.CounterVec
@@ -22,7 +29,7 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 		Subsystem: "scaletest",
 		Name:      "notification_delivery_latency_seconds",
 		Help:      "Time between notification-creating action and receipt of notification by client",
-	}, []string{"username", "notification_type"})
+	}, []string{"username", "notification_id", "notification_type"})
 	errors := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "coderd",
 		Subsystem: "scaletest",
@@ -45,8 +52,8 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 	}
 }
 
-func (m *Metrics) RecordLatency(latency time.Duration, username, notificationType string) {
-	m.notificationLatency.WithLabelValues(username, notificationType).Observe(latency.Seconds())
+func (m *Metrics) RecordLatency(latency time.Duration, username, notificationID string, notificationType NotificationType) {
+	m.notificationLatency.WithLabelValues(username, notificationID, string(notificationType)).Observe(latency.Seconds())
 }
 
 func (m *Metrics) AddError(username, action string) {
