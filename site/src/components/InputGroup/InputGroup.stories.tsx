@@ -1,6 +1,6 @@
-import Button from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { Button } from "components/Button/Button";
 import { InputGroup } from "./InputGroup";
 
 const meta: Meta<typeof InputGroup> = {
@@ -15,7 +15,9 @@ export const Default: Story = {
 	args: {
 		children: (
 			<>
-				<Button>Menu</Button>
+				<Button variant="outline" className="h-9">
+					Menu
+				</Button>
 				<TextField size="small" placeholder="Search..." />
 			</>
 		),

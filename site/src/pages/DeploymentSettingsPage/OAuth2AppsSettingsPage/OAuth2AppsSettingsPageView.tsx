@@ -1,5 +1,4 @@
 import { useTheme } from "@emotion/react";
-import Button from "@mui/material/Button";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
@@ -9,6 +8,7 @@ import TableRow from "@mui/material/TableRow";
 import type * as TypesGen from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
+import { Button } from "components/Button/Button";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -48,12 +48,11 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 					</SettingsHeader>
 				</div>
 
-				<Button
-					component={Link}
-					to="/deployment/oauth2-provider/apps/add"
-					startIcon={<PlusIcon className="size-icon-sm" />}
-				>
-					Add application
+				<Button variant="outline" asChild>
+					<Link to="/deployment/oauth2-provider/apps/add">
+						<PlusIcon />
+						Add application
+					</Link>
 				</Button>
 			</Stack>
 
