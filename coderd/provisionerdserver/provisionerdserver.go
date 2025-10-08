@@ -1958,7 +1958,7 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		agentTimeouts := make(map[time.Duration]bool) // A set of agent timeouts.
 		// This could be a bulk insert to improve performance.
 		for _, protoResource := range jobType.WorkspaceBuild.Resources {
-			for ai, protoAgent := range protoResource.Agents {
+			for _, protoAgent := range protoResource.GetAgents() {
 				if protoAgent == nil {
 					continue
 				}
@@ -1967,8 +1967,7 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 				// the agent to a task. For now we overwrite the
 				// protoAgent.Id because that matches old behavior.
 				agentID := uuid.New()
-				protoAgent.Id = agentID.String()
-				protoResource.Agents[ai] = protoAgent
+				protoAgent.Id = makePredeterminedAgentID(agentID)
 
 				dur := time.Duration(protoAgent.GetConnectionTimeoutSeconds()) * time.Second
 				agentTimeouts[dur] = true
@@ -2697,13 +2696,13 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		}
 
 		var agentID uuid.UUID
-		if prAgent.GetId() == "" {
-			agentID = uuid.New()
-		} else {
-			agentID, err = uuid.Parse(prAgent.GetId())
+		if id, ok := predeterminedAgentID(prAgent.GetId()); ok {
+			agentID, err = uuid.Parse(id)
 			if err != nil {
 				return xerrors.Errorf("invalid agent ID format; must be uuid: %w", err)
 			}
+		} else {
+			agentID = uuid.New()
 		}
 		dbAgent, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
 			ID:                       agentID,
@@ -3279,4 +3278,15 @@ func convertDisplayApps(apps *sdkproto.DisplayApps) []database.DisplayApp {
 		dapps = append(dapps, database.DisplayAppWebTerminal)
 	}
 	return dapps
+}
+
+func makePredeterminedAgentID(id uuid.UUID) string {
+	return "keep:" + id.String()
+}
+
+func predeterminedAgentID(agentID string) (string, bool) {
+	if !strings.HasPrefix(agentID, "keep:") {
+		return "", false
+	}
+	return strings.TrimPrefix(agentID, "keep:"), true
 }
