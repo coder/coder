@@ -22,12 +22,8 @@ type Runner struct {
 var _ harness.Runnable = &Runner{}
 
 func NewRunner(client *codersdk.Client, cfg Config) *Runner {
-	clone := codersdk.New(client.URL)
-	clone.HTTPClient = client.HTTPClient
-	clone.SetLogger(client.Logger())
-	clone.SetSessionToken(cfg.SessionToken)
 	return &Runner{
-		client: clone,
+		client: client,
 		cfg:    cfg,
 	}
 }

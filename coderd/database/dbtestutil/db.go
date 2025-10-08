@@ -242,10 +242,11 @@ func PGDump(dbURL string) ([]byte, error) {
 		"PGCLIENTENCODING=UTF8",
 		"PGDATABASE=", // we should always specify the database name in the connection string
 	}
-	var stdout bytes.Buffer
+	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		return nil, xerrors.Errorf("exec pg_dump: %w", err)
+		return nil, xerrors.Errorf("exec pg_dump: %w\n%s", err, stderr.String())
 	}
 	return stdout.Bytes(), nil
 }
