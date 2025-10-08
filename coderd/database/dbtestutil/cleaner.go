@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"os/signal"
 	"time"
 
@@ -39,8 +38,8 @@ func init() {
 
 // startCleaner starts the cleaner in a subprocess. holdThis is an opaque reference that needs to be kept from being
 // garbage collected until we are done with all test databases (e.g. the end of the process).
-func startCleaner(ctx context.Context, parentUUID uuid.UUID, dsn string) (holdThis any, err error) {
-	cmd := exec.Command("go", "run", "github.com/coder/coder/v2/coderd/database/dbtestutil/cleanercmd")
+func startCleaner(ctx context.Context, t TBSubset, parentUUID uuid.UUID, dsn string) (holdThis any, err error) {
+	cmd := cleanerCmd(t)
 	cmd.Env = append(os.Environ(),
 		fmt.Sprintf("%s=%s", envCleanerParentUUID, parentUUID.String()),
 		fmt.Sprintf("%s=%s", envCleanerDSN, dsn),
