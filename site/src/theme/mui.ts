@@ -59,16 +59,6 @@ export const components = {
 			}),
 		},
 	},
-	MuiButtonGroup: {
-		styleOverrides: {
-			root: ({ theme }) => ({
-				">button:hover+button": {
-					// The !important is unfortunate, but necessary for the border.
-					borderLeftColor: `${theme.palette.secondary.main} !important`,
-				},
-			}),
-		},
-	},
 	MuiTableContainer: {
 		styleOverrides: {
 			root: ({ theme }) => ({

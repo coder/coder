@@ -108,16 +108,6 @@ const muiTheme = createTheme({
 				},
 			},
 		},
-		MuiButtonGroup: {
-			styleOverrides: {
-				root: {
-					">button:hover+button": {
-						// The !important is unfortunate, but necessary for the border.
-						borderLeftColor: `${tw.zinc[300]} !important`,
-					},
-				},
-			},
-		},
 		MuiChip: {
 			styleOverrides: {
 				root: {
