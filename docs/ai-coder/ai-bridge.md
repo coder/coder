@@ -5,11 +5,11 @@
 
 ![AI bridge diagram](../images/aibridge/aibridge_diagram.png)
 
-AI Bridge is a smart proxy for AI. It acts as a man-in-the-middle between your users' coding agents / IDEs
-and AI providers like OpenAI and Anthropic. By intercepting all the AI traffic between these clients and
-the upstream APIs, AI Bridge can record user prompts, token usage, and tool invocations.
+Bridge is a smart proxy for AI. It acts as a man-in-the-middle between your users' coding agents / IDEs
+and providers like OpenAI and Anthropic. By intercepting all the AI traffic between these clients and
+the upstream APIs, Bridge can record user prompts, token usage, and tool invocations.
 
-AI Bridge solves 3 key problems:
+Bridge solves 3 key problems:
 
 1. **Centralized authn/z management**: no more issuing & managing API tokens for OpenAI/Anthropic usage.
    Users use their Coder session or API tokens to authenticate with `coderd` (Coder control plane), and
@@ -19,7 +19,7 @@ AI Bridge solves 3 key problems:
 3. **Centralized MCP administration**: define a set of approved MCP servers and tools which your users may
    use, and prevent users from using their own.
 
-### When to use AI Bridge
+## When to use AI Bridge
 
 As the library of LLMs and their associated tools grow, administrators are pressured to provide auditing, measure adoption, provide tools through MCP, and track token spend. Disparate SAAS platforms provide _some_ of these for _some_ tools, but there is no centralized, secure solution for these challenges.
 
@@ -34,7 +34,7 @@ We advise trying Bridge as self-hosted proxy to monitor LLM usage agnostically a
 
 ## Setup
 
-AI Bridge runs inside the Coder control plane, requiring no separate compute to deploy or scale. Once enabled, `coderd` hosts the bridge in-memory and brokers traffic to your configured AI providers on behalf of authenticated users.
+Bridge runs inside the Coder control plane, requiring no separate compute to deploy or scale. Once enabled, `coderd` hosts the bridge in-memory and brokers traffic to your configured AI providers on behalf of authenticated users.
 
 **Required**:
 
@@ -45,7 +45,7 @@ AI Bridge runs inside the Coder control plane, requiring no separate compute to 
 ### Activation
 
 To enable this feature, activate the `aibridge` experiment using an environment variable or a CLI flag.
-Additionally, you will need to enable AI Bridge explicitly:
+Additionally, you will need to enable Bridge explicitly:
 
 ```sh
 CODER_EXPERIMENTS="aibridge" CODER_AIBRIDGE_ENABLED=true coder server
@@ -57,23 +57,23 @@ _If you have other experiments enabled, separate them by commas._
 
 ### Providers
 
-AI Bridge currently supports OpenAI and Anthropic APIs.
+Bridge currently supports OpenAI and Anthropic APIs.
 
 **API Key**:
 
-The single key used to authenticate all requests from AI Bridge to OpenAI/Anthropic APIs.
+The single key used to authenticate all requests from Bridge to OpenAI/Anthropic APIs.
 
 - `CODER_AIBRIDGE_OPENAI_KEY` or `--aibridge-openai-key`
 - `CODER_AIBRIDGE_ANTHROPIC_KEY` or `--aibridge-anthropic-key`
 
 **Base URL**:
 
-The API to which AI Bridge will relay requests.
+The API to which Bridge will relay requests.
 
 - `CODER_AIBRIDGE_OPENAI_BASE_URL` or `--aibridge-openai-base-url`, defaults to `https://api.openai.com/v1/`
 - `CODER_AIBRIDGE_ANTHROPIC_BASE_URL` or `--aibridge-anthropic-base-url`, defaults to `https://api.anthropic.com/`
 
-AI bridge is compatible with _[Google Vertex AI](https://cloud.google.com/vertex-ai?hl=en)_, _[AWS Bedrock](https://aws.amazon.com/bedrock/)_, and other LLM brokers. You may specify the base URL(s) above to the appropriate API endpoint for your provider.
+Bridge is compatible with _[Google Vertex AI](https://cloud.google.com/vertex-ai?hl=en)_, _[AWS Bedrock](https://aws.amazon.com/bedrock/)_, and other LLM brokers. You may specify the base URL(s) above to the appropriate API endpoint for your provider.
 
 ---
 
@@ -82,7 +82,7 @@ AI bridge is compatible with _[Google Vertex AI](https://cloud.google.com/vertex
 
 ## Collected Data
 
-AI Bridge collects:
+Bridge collects:
 
 - The last `user` prompt of each request
 - All token usage (associated with each prompt)
@@ -106,7 +106,7 @@ We provide an example Grafana dashboard that you can import as a starting point 
 `coderd` runs an in-memory instance of `aibridged`, whose logic is mostly contained in https://github.com/coder/aibridge. In future releases we will support running external instances for higher throughput and complete memory isolation from `coderd`.
 
 <details>
-<summary>See a diagram of how AI Bridge interception works</summary>
+<summary>See a diagram of how Bridge interception works</summary>
 
 ```mermaid
 
@@ -167,14 +167,14 @@ sequenceDiagram
 
 [Model Context Protocol (MCP)](https://modelcontextprotocol.io/docs/getting-started/intro) is a mechanism for connecting AI applications to external systems.
 
-AI Bridge can connect to MCP servers and inject tools automatically, enabling you to centrally manage the list of tools you wish to grant your users.
+Bridge can connect to MCP servers and inject tools automatically, enabling you to centrally manage the list of tools you wish to grant your users.
 
 > [!NOTE]
 > Only MCP servers which support OAuth2 Authorization are supported currently. In future releases we will support [optional authorization](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization#protocol-requirements).
 >
 > [_Streamable HTTP_](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#streamable-http) is the only supported transport currently. In future releases we will support the (now deprecated) [_Server-Sent Events_](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#backwards-compatibility) transport.
 
-AI Bridge makes use of [External Auth](../admin/external-auth/index.md) applications, as they define OAuth2 connections to upstream services. If your External Auth application hosts a remote MCP server, you can configure AI Bridge to connect to it, retrieve its tools and inject them into requests automatically - all while using each individual user's access token.
+Bridge makes use of [External Auth](../admin/external-auth/index.md) applications, as they define OAuth2 connections to upstream services. If your External Auth application hosts a remote MCP server, you can configure Bridge to connect to it, retrieve its tools and inject them into requests automatically - all while using each individual user's access token.
 
 For example, GitHub has a [remote MCP server](https://github.com/github/github-mcp-server?tab=readme-ov-file#remote-github-mcp-server) and we can use it as follows.
 
@@ -182,7 +182,7 @@ For example, GitHub has a [remote MCP server](https://github.com/github/github-m
 CODER_EXTERNAL_AUTH_0_TYPE=github
 CODER_EXTERNAL_AUTH_0_CLIENT_ID=...
 CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=...
-# Tell AI Bridge where it can find this service's remote MCP server.
+# Tell Bridge where it can find this service's remote MCP server.
 CODER_EXTERNAL_AUTH_0_MCP_URL=https://api.githubcopilot.com/mcp/
 ```
 
@@ -210,13 +210,13 @@ In the above example, if you prompted your AI model with "list your available gi
 > 1. `bmcp_github_update_gist`
 > 2. `bmcp_github_list_gists`
 
-AI Bridge marks automatically injected tools with a prefix `bmcp_` ("bridged MCP"). It also namespaces all tool names by the ID of their associated External Auth application (in this case `github`).
+Bridge marks automatically injected tools with a prefix `bmcp_` ("bridged MCP"). It also namespaces all tool names by the ID of their associated External Auth application (in this case `github`).
 
 ## Tool Injection
 
-If a model decides to invoke a tool and it has a `bmcp_` suffix and AI Bridge has a connection with the related MCP server, it will invoke the tool. The tool result will be passed back to the upstream AI provider, and this will loop until the model has all of its required data. These inner loops are not relayed back to the client; all it seems is the result of this loop. See [Implementation Details](#implementation-details).
+If a model decides to invoke a tool and it has a `bmcp_` suffix and Bridge has a connection with the related MCP server, it will invoke the tool. The tool result will be passed back to the upstream AI provider, and this will loop until the model has all of its required data. These inner loops are not relayed back to the client; all it seems is the result of this loop. See [Implementation Details](#implementation-details).
 
-In contrast, tools which are defined by the client (i.e. the [`Bash` tool](https://docs.claude.com/en/docs/claude-code/settings#tools-available-to-claude) defined by _Claude Code_) cannot be invoked by AI Bridge, and the tool call from the model will be relayed to the client, after which it will invoke the tool.
+In contrast, tools which are defined by the client (i.e. the [`Bash` tool](https://docs.claude.com/en/docs/claude-code/settings#tools-available-to-claude) defined by _Claude Code_) cannot be invoked by Bridge, and the tool call from the model will be relayed to the client, after which it will invoke the tool.
 
 If you have the `oauth2` and `mcp-server-http` experiments enabled, Coder's own [internal MCP tools](mcp-server.md) will be injected automatically.
 
@@ -230,14 +230,14 @@ If you have the `oauth2` and `mcp-server-http` experiments enabled, Coder's own 
 
 ## Known Issues / Limitations
 
-- Codex CLI currently does not work with AI Bridge due to a JSON marshaling issue: https://github.com/coder/aibridge/issues/19
+- Codex CLI currently does not work with Bridge due to a JSON marshaling issue: https://github.com/coder/aibridge/issues/19
 - Claude Code web searches do not report correctly: https://github.com/coder/aibridge/issues/11
 
 ## Supported APIs
 
 API support is broken down into two categories:
 
-- **Intercepted**: requests are intercepted, audited, and augmented - full AI Bridge functionality
+- **Intercepted**: requests are intercepted, audited, and augmented - full Bridge functionality
 - **Passthrough**: requests are proxied directly to the upstream, no auditing or augmentation takes place
 
 Where relevant, both streaming and non-streaming requests are supported.
