@@ -60,7 +60,7 @@ func TestServer_SendAndReceiveEmail(t *testing.T) {
 		return srv.MessageCount() == 1
 	}, testutil.WaitShort, testutil.IntervalMedium)
 
-	url := fmt.Sprintf("http://%s/messages", srv.APIAddress())
+	url := fmt.Sprintf("%s/messages", srv.APIAddress())
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	require.NoError(t, err)
 
@@ -102,7 +102,7 @@ func TestServer_FilterByEmail(t *testing.T) {
 		return srv.MessageCount() == 2
 	}, testutil.WaitShort, testutil.IntervalMedium)
 
-	url := fmt.Sprintf("http://%s/messages?email=admin@coder.com", srv.APIAddress())
+	url := fmt.Sprintf("%s/messages?email=admin@coder.com", srv.APIAddress())
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	require.NoError(t, err)
 
@@ -142,7 +142,7 @@ func TestServer_NotificationID(t *testing.T) {
 		return srv.MessageCount() == 1
 	}, testutil.WaitShort, testutil.IntervalMedium)
 
-	url := fmt.Sprintf("http://%s/messages", srv.APIAddress())
+	url := fmt.Sprintf("%s/messages", srv.APIAddress())
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	require.NoError(t, err)
 
@@ -179,7 +179,7 @@ func TestServer_Purge(t *testing.T) {
 		return srv.MessageCount() == 1
 	}, testutil.WaitShort, testutil.IntervalMedium)
 
-	url := fmt.Sprintf("http://%s/purge", srv.APIAddress())
+	url := fmt.Sprintf("%s/purge", srv.APIAddress())
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
 	require.NoError(t, err)
 
