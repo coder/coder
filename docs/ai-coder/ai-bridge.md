@@ -265,4 +265,4 @@ Where relevant, both streaming and non-streaming requests are supported.
 
 ## Troubleshooting
 
-To report a bug, file a feature request, or see a list of known issues please see our Github repository for Bridge. If you encounter issues with Bridge during early access, please contact our Support team or reach out via our Discord.
+To report a bug, file a feature request, or view a list of known issues, please visit our [GitHub repository for Bridge](https://github.com/coder/aibridge). If you encounter issues with Bridge during early access, please reach out to us via [Discord](https://discord.gg/coder).
