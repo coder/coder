@@ -37,7 +37,7 @@ type Config struct {
 	ReceivingWatchBarrier *sync.WaitGroup `json:"-"`
 
 	// SMTPApiUrl is the URL of the SMTP mock HTTP API
-	SMTPApiUrl string `json:"smtp_api_url"`
+	SMTPApiURL string `json:"smtp_api_url"`
 }
 
 func (c Config) Validate() error {

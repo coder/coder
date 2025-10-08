@@ -255,7 +255,7 @@ func TestRunWithSMTP(t *testing.T) {
 			DialBarrier:           dialBarrier,
 			ReceivingWatchBarrier: receivingWatchBarrier,
 			ExpectedNotifications: expectedNotifications,
-			SMTPApiAddr:           smtpSrv.APIAddress(),
+			SMTPApiURL:            smtpSrv.APIAddress(),
 		}
 		err := runnerCfg.Validate()
 		require.NoError(t, err)

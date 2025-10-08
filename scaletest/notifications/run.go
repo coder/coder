@@ -151,7 +151,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 		return r.watchNotifications(egCtx, conn, newUser, logger, r.cfg.ExpectedNotifications)
 	})
 
-	if r.cfg.SMTPApiUrl != "" {
+	if r.cfg.SMTPApiURL != "" {
 		logger.Info(ctx, "running SMTP notification watcher")
 		eg.Go(func() error {
 			return r.watchNotificationsSMTP(egCtx, newUser, logger, r.cfg.ExpectedNotifications)
@@ -305,7 +305,7 @@ func (r *Runner) watchNotificationsSMTP(ctx context.Context, user codersdk.User,
 	ticker := time.NewTicker(smtpPollInterval)
 	defer ticker.Stop()
 
-	apiURL := fmt.Sprintf("%s/messages?email=%s", r.cfg.SMTPApiUrl, user.Email)
+	apiURL := fmt.Sprintf("%s/messages?email=%s", r.cfg.SMTPApiURL, user.Email)
 	httpClient := &http.Client{
 		Timeout: 10 * time.Second,
 	}
@@ -335,7 +335,7 @@ func (r *Runner) watchNotificationsSMTP(ctx context.Context, user codersdk.User,
 			}
 
 			if resp.StatusCode != http.StatusOK {
-				resp.Body.Close()
+				_ = resp.Body.Close()
 				logger.Error(ctx, "smtp api returned non-200 status", slog.F("status", resp.StatusCode))
 				r.cfg.Metrics.AddError(user.Username, "smtp_bad_status")
 				return xerrors.Errorf("smtp api returned status %d", resp.StatusCode)
@@ -343,12 +343,12 @@ func (r *Runner) watchNotificationsSMTP(ctx context.Context, user codersdk.User,
 
 			var summaries []smtpmock.EmailSummary
 			if err := json.NewDecoder(resp.Body).Decode(&summaries); err != nil {
-				resp.Body.Close()
+				_ = resp.Body.Close()
 				logger.Error(ctx, "decode smtp api response", slog.Error(err))
 				r.cfg.Metrics.AddError(user.Username, "smtp_decode")
 				return xerrors.Errorf("decode smtp api response: %w", err)
 			}
-			resp.Body.Close()
+			_ = resp.Body.Close()
 
 			// Process each email summary
 			for _, summary := range summaries {
