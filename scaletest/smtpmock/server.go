@@ -141,7 +141,10 @@ func (s *Server) startAPIServer(ctx context.Context) error {
 
 	tcpAddr, valid := listener.Addr().(*net.TCPAddr)
 	if !valid {
-		listener.Close()
+		err := listener.Close()
+		if err != nil {
+			s.logger.Error(ctx, "failed to close listener", slog.Error(err))
+		}
 		return xerrors.Errorf("listener returned invalid address: %T", listener.Addr())
 	}
 	s.apiPort = tcpAddr.Port

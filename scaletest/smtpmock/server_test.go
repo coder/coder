@@ -196,13 +196,13 @@ func sendTestEmail(smtpAddr, to, subject, body string) error {
 	now := time.Now().Format(time.RFC1123Z)
 
 	msg := strings.Builder{}
-	msg.WriteString(fmt.Sprintf("From: %s\r\n", from))
-	msg.WriteString(fmt.Sprintf("To: %s\r\n", to))
-	msg.WriteString(fmt.Sprintf("Subject: %s\r\n", subject))
-	msg.WriteString(fmt.Sprintf("Date: %s\r\n", now))
-	msg.WriteString("Content-Type: text/html; charset=UTF-8\r\n")
-	msg.WriteString("\r\n")
-	msg.WriteString(body)
+	_, _ = msg.WriteString(fmt.Sprintf("From: %s\r\n", from))
+	_, _ = msg.WriteString(fmt.Sprintf("To: %s\r\n", to))
+	_, _ = msg.WriteString(fmt.Sprintf("Subject: %s\r\n", subject))
+	_, _ = msg.WriteString(fmt.Sprintf("Date: %s\r\n", now))
+	_, _ = msg.WriteString("Content-Type: text/html; charset=UTF-8\r\n")
+	_, _ = msg.WriteString("\r\n")
+	_, _ = msg.WriteString(body)
 
 	return smtp.SendMail(smtpAddr, nil, from, []string{to}, []byte(msg.String()))
 }
