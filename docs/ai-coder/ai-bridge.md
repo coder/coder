@@ -99,7 +99,7 @@ This data is currently accessible through the API and CLI (experimental), which 
 
 ![User Leaderboard](../images/aibridge/grafana_user_leaderboard.png)
 
-We provide an example Grafana dashboard that you can import as a starting point for your tooling adoption metrics. See [here](../examples/monitoring/dashboards/grafana/aibridge/README.md).
+We provide an example Grafana dashboard that you can import as a starting point for your tooling adoption metrics. See [here](https://github.com/coder/coder/blob/main/examples/monitoring/dashboards/grafana/aibridge/README.md).
 
 ## Implementation Details
 
