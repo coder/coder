@@ -29,7 +29,6 @@ For Early Access, users can use Agent Boundaries through its [open source CLI](h
 
 Users can also run Boundary directly in your workspace and configure it per template or per script. While free tier users won't get centralized policy management or the deeper, "strong isolation," they can still enforce per workspace network rules and log decisions locally.
 
-
 1. Install the [binary](https://github.com/coder/boundary) into the workspace image or at start-up. You can do so with the following command:
 
     ```hcl
@@ -90,7 +89,7 @@ Another option is to define rules in a YAML file, which only needs to be invoked
         methods: [GET, HEAD]
     ```
 
-1. Run a `boundary` command. For example: 
+1. Run a `boundary` command. For example:
     
     ```hcl
     boundary run --config ./boundary.yaml -- claude
