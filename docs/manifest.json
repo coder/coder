@@ -913,7 +913,7 @@
 					"description": "Understanding Agent Boundaries in Coder Tasks",
 					"path": "./ai-coder/agent-boundary.md",
 					"state": ["beta"]
-        },
+        		},
 				{
 					"title": "AI Bridge",
 					"description": "Centralized LLM and MCP proxy for platform teams",

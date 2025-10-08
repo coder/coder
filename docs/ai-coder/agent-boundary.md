@@ -74,7 +74,6 @@ From here, there are two ways to integrate the open source Boundary CLI into a w
 
 Another option is to define rules in a YAML file, which only needs to be invoked once as opposed to through flags with each command.
 1. Create a YAML file to store rules that will be applied to all `boundary` commands run in the Workspace. In this example, we call it `boundary.yaml`.
-
     A config example can be seen below:
 
     ```hcl
@@ -88,7 +87,7 @@ Another option is to define rules in a YAML file, which only needs to be invoked
         
         methods: [GET, HEAD]
     ```
-1. Run a `boundary` command. For example: 
+1. Run a `boundary` command. For example:
     
     ```hcl
     boundary run --config ./boundary.yaml -- claude
