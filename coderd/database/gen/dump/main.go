@@ -35,6 +35,10 @@ func (*mockTB) Logf(format string, args ...any) {
 	_, _ = fmt.Printf(format, args...)
 }
 
+func (*mockTB) TempDir() string {
+	panic("not implemented")
+}
+
 func main() {
 	t := &mockTB{}
 	defer func() {

@@ -60,6 +60,7 @@ func (r *RootCmd) scaletestCmd() *serpent.Command {
 		Children: []*serpent.Command{
 			r.scaletestCleanup(),
 			r.scaletestDashboard(),
+			r.scaletestDynamicParameters(),
 			r.scaletestCreateWorkspaces(),
 			r.scaletestWorkspaceUpdates(),
 			r.scaletestWorkspaceTraffic(),

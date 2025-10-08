@@ -86,10 +86,6 @@ func (m *storeSpy) ClaimPrebuiltWorkspace(ctx context.Context, arg database.Clai
 func TestClaimPrebuild(t *testing.T) {
 	t.Parallel()
 
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres")
-	}
-
 	const (
 		desiredInstances = 1
 		presetCount      = 2
@@ -260,13 +256,15 @@ func TestClaimPrebuild(t *testing.T) {
 				switch {
 				case tc.claimingErr != nil && (isNoPrebuiltWorkspaces || isUnsupported):
 					require.NoError(t, err)
-					build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, userWorkspace.LatestBuild.ID)
-					_ = build
+					coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, userWorkspace.LatestBuild.ID)
 
 					// Then: the number of running prebuilds hasn't changed because claiming prebuild is failed and we fallback to creating new workspace.
 					currentPrebuilds, err := spy.GetRunningPrebuiltWorkspaces(ctx)
 					require.NoError(t, err)
 					require.Equal(t, expectedPrebuildsCount, len(currentPrebuilds))
+					// If there are no prebuilt workspaces to claim, a new workspace is created from scratch
+					// and the initiator is set as usual.
+					require.Equal(t, user.ID, userWorkspace.LatestBuild.Job.InitiatorID)
 					return
 
 				case tc.claimingErr != nil && errors.Is(tc.claimingErr, unexpectedClaimingError):
@@ -278,6 +276,9 @@ func TestClaimPrebuild(t *testing.T) {
 					currentPrebuilds, err := spy.GetRunningPrebuiltWorkspaces(ctx)
 					require.NoError(t, err)
 					require.Equal(t, expectedPrebuildsCount, len(currentPrebuilds))
+					// If a prebuilt workspace claim fails for an unanticipated, erroneous reason,
+					// no workspace is created and therefore the initiator is not set.
+					require.Equal(t, uuid.Nil, userWorkspace.LatestBuild.Job.InitiatorID)
 					return
 
 				default:
@@ -285,6 +286,8 @@ func TestClaimPrebuild(t *testing.T) {
 					require.NoError(t, err)
 					build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, userWorkspace.LatestBuild.ID)
 					require.Equal(t, build.Job.Status, codersdk.ProvisionerJobSucceeded)
+					// Prebuild claims are initiated by the user who requested to create a workspace.
+					require.Equal(t, user.ID, userWorkspace.LatestBuild.Job.InitiatorID)
 				}
 
 				// at this point we know that tc.claimingErr is nil
