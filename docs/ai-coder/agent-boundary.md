@@ -87,7 +87,7 @@ Another option is to define rules in a YAML file, which only needs to be invoked
         
         methods: [GET, HEAD]
     ```
-    
+
 1. Run a `boundary` command. For example:
 
     ```hcl
