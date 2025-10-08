@@ -55,8 +55,8 @@ func TestLockCoordinator(t *testing.T) {
 
 		coordinator := agent.NewMemoryLockCoordinator()
 
-		received := make(chan agent.LockEventType, 10)
-		cancel, err := coordinator.SubscribeToLock("test.lock", func(ctx context.Context, event agent.LockEventType) {
+		received := make(chan agent.UnitEventType, 10)
+		cancel, err := coordinator.SubscribeToLock("test.lock", func(ctx context.Context, event agent.UnitEventType) {
 			received <- event
 		})
 		require.NoError(t, err)
@@ -84,8 +84,8 @@ func TestLockCoordinator(t *testing.T) {
 		coordinator.AcquireLock("test.lock")
 
 		// Subscribe after acquisition - should receive historical event
-		received := make(chan agent.LockEventType, 10)
-		cancel, err := coordinator.SubscribeToLock("test.lock", func(ctx context.Context, event agent.LockEventType) {
+		received := make(chan agent.UnitEventType, 10)
+		cancel, err := coordinator.SubscribeToLock("test.lock", func(ctx context.Context, event agent.UnitEventType) {
 			received <- event
 		})
 		require.NoError(t, err)
@@ -190,7 +190,7 @@ func TestLockCoordinator(t *testing.T) {
 		assert.False(t, acquired)
 
 		// Should not be able to subscribe after close
-		_, err = coordinator.SubscribeToLock("test.lock", func(ctx context.Context, event agent.LockEventType) {})
+		_, err = coordinator.SubscribeToLock("test.lock", func(ctx context.Context, event agent.UnitEventType) {})
 		assert.Error(t, err)
 	})
 }
