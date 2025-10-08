@@ -912,6 +912,20 @@
 					"description": "Connect to agents Coder with a MCP server",
 					"path": "./ai-coder/mcp-server.md",
 					"state": ["beta"]
+				},
+				{
+					"title": "AI Bridge",
+					"description": "Centralized LLM and MCP proxy for platform teams",
+					"path": "./ai-coder/ai-bridge.md",
+					"icon_path": "./images/icons/api.svg",
+					"state": ["premium", "early access"]
+				},
+				{
+					"title": "Tasks CLI",
+					"description": "Coder CLI for managing tasks programmatically",
+					"path": "./ai-coder/cli.md",
+					"icon_path": "./images/icons/api.svg",
+					"state": ["beta"]
 				}
 			]
 		},
