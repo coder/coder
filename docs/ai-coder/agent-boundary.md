@@ -51,6 +51,7 @@ Users can also run Boundary directly in your workspace and configure it per temp
 From here, there are two ways to integrate the open source Boundary CLI into a workspace.
 
 #### Wrap a command inline with flags
+
 1. Wrap the tool you want to guard. Below are some examples of usage:
 
     ```hcl
@@ -88,6 +89,7 @@ Another option is to define rules in a YAML file, which only needs to be invoked
         
         methods: [GET, HEAD]
     ```
+
 1. Run a `boundary` command. For example: 
     
     ```hcl
@@ -118,4 +120,4 @@ In addition to process-level egress rules, privileged mode locks down all pathwa
 
 ### Opting out of Boundary
 
-If you tried Boundary through a Coder module and decided you don't want to use it, you can turn it off by setting the flag to `boundary_enabled=false`. 
+If you tried Boundary through a Coder module and decided you don't want to use it, you can turn it off by setting the flag to `boundary_enabled=false`.
