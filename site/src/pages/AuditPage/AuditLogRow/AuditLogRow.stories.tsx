@@ -9,13 +9,7 @@ import {
 	MockUserOwner,
 } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableRow,
-} from "components/Table/Table";
+import { Table, TableBody } from "components/Table/Table";
 import { AuditLogRow } from "./AuditLogRow";
 
 const meta: Meta<typeof AuditLogRow> = {
@@ -24,11 +18,6 @@ const meta: Meta<typeof AuditLogRow> = {
 	decorators: [
 		(Story) => (
 			<Table>
-				<TableHead>
-					<TableRow>
-						<TableCell style={{ paddingLeft: 32 }}>Logs</TableCell>
-					</TableRow>
-				</TableHead>
 				<TableBody>
 					<Story />
 				</TableBody>

@@ -9,6 +9,7 @@ import {
 	TableBody,
 	TableCell,
 	TableHead,
+	TableHeader,
 	TableRow,
 } from "components/Table/Table";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
@@ -52,16 +53,16 @@ export const TokensPageView: FC<TokensPageViewProps> = ({
 			{Boolean(deleteTokenError) && <ErrorAlert error={deleteTokenError} />}
 
 			<Table>
-				<TableHead>
+				<TableHeader>
 					<TableRow>
-						<TableCell width="20%">ID</TableCell>
-						<TableCell width="20%">Name</TableCell>
-						<TableCell width="20%">Last Used</TableCell>
-						<TableCell width="20%">Expires At</TableCell>
-						<TableCell width="20%">Created At</TableCell>
-						<TableCell width="0%" />
+						<TableHead className="w-1/5">ID</TableHead>
+						<TableHead className="w-1/5">Name</TableHead>
+						<TableHead className="w-1/5">Last Used</TableHead>
+						<TableHead className="w-1/5">Expires At</TableHead>
+						<TableHead className="w-1/5">Created At</TableHead>
+						<TableHead className="w-[1%]" />
 					</TableRow>
-				</TableHead>
+				</TableHeader>
 				<TableBody>
 					<ChooseOne>
 						<Cond condition={isLoading}>

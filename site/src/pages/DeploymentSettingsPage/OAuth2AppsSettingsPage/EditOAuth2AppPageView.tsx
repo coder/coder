@@ -21,6 +21,7 @@ import {
 	TableBody,
 	TableCell,
 	TableHead,
+	TableHeader,
 	TableRow,
 } from "components/Table/Table";
 import { TableLoader } from "components/TableLoader/TableLoader";
@@ -235,13 +236,13 @@ const OAuth2AppSecretsTable: FC<OAuth2AppSecretsTableProps> = ({
 			</Stack>
 
 			<Table>
-				<TableHead>
+				<TableHeader>
 					<TableRow>
-						<TableCell width="80%">Secret</TableCell>
-						<TableCell width="20%">Last Used</TableCell>
-						<TableCell width="1%" />
+						<TableHead className="w-[80%]">Secret</TableHead>
+						<TableHead className="w-[20%]">Last Used</TableHead>
+						<TableHead className="w-[1%]" />
 					</TableRow>
-				</TableHead>
+				</TableHeader>
 				<TableBody>
 					{isLoadingSecrets && <TableLoader />}
 					{!isLoadingSecrets && (!secrets || secrets.length === 0) && (

@@ -10,6 +10,7 @@ import {
 	TableBody,
 	TableCell,
 	TableHead,
+	TableHeader,
 	TableRow,
 } from "components/Table/Table";
 import { PlusIcon } from "lucide-react";
@@ -72,7 +73,7 @@ export const AnnouncementBannerSettings: FC<
 					overflow: "hidden",
 				}}
 			>
-				<div css={{ padding: "24px 24px 0" }}>
+				<div className="p-6">
 					<Stack
 						direction="row"
 						justifyContent="space-between"
@@ -106,21 +107,16 @@ export const AnnouncementBannerSettings: FC<
 						Display message banners to all users.
 					</div>
 
-					<div
-						css={[
-							theme.typography.body2 as CSSObject,
-							{ paddingTop: 16, margin: "0 -32px" },
-						]}
-					>
+					<div css={[theme.typography.body2 as CSSObject, { paddingTop: 16 }]}>
 						<Table>
-							<TableHead>
+							<TableHeader>
 								<TableRow>
-									<TableCell width="1%">Enabled</TableCell>
-									<TableCell>Message</TableCell>
-									<TableCell width="2%">Color</TableCell>
-									<TableCell width="1%" />
+									<TableHead className="w-[1%]">Enabled</TableHead>
+									<TableHead>Message</TableHead>
+									<TableHead className="w-[2%]">Color</TableHead>
+									<TableHead className="w-[1%]" />
 								</TableRow>
-							</TableHead>
+							</TableHeader>
 							<TableBody>
 								{!isEntitled || banners.length < 1 ? (
 									<TableCell colSpan={999}>

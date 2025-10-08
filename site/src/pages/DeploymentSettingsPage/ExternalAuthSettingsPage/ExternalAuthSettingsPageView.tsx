@@ -13,6 +13,7 @@ import {
 	TableBody,
 	TableCell,
 	TableHead,
+	TableHeader,
 	TableRow,
 } from "components/Table/Table";
 import type { FC } from "react";
@@ -74,13 +75,13 @@ export const ExternalAuthSettingsPageView: FC<
             }
           `}
 			>
-				<TableHead>
+				<TableHeader>
 					<TableRow>
-						<TableCell width="25%">ID</TableCell>
-						<TableCell width="25%">Client ID</TableCell>
-						<TableCell width="25%">Match</TableCell>
+						<TableHead className="w-1/3">ID</TableHead>
+						<TableHead className="w-1/3">Client ID</TableHead>
+						<TableHead className="w-1/3">Match</TableHead>
 					</TableRow>
-				</TableHead>
+				</TableHeader>
 				<TableBody>
 					{((config.external_auth === null ||
 						config.external_auth?.length === 0) && (

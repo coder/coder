@@ -14,6 +14,7 @@ import {
 	TableBody,
 	TableCell,
 	TableHead,
+	TableHeader,
 	TableRow,
 } from "components/Table/Table";
 import { TableLoader } from "components/TableLoader/TableLoader";
@@ -60,12 +61,12 @@ const OAuth2AppsSettingsPageView: FC<OAuth2AppsSettingsProps> = ({
 			{error && <ErrorAlert error={error} />}
 
 			<Table className="mt-8">
-				<TableHead>
+				<TableHeader>
 					<TableRow>
-						<TableCell width="100%">Name</TableCell>
-						<TableCell width="1%" />
+						<TableHead>Name</TableHead>
+						<TableHead className="w-[1%]" />
 					</TableRow>
-				</TableHead>
+				</TableHeader>
 				<TableBody>
 					{isLoading && <TableLoader />}
 					{apps?.map((app) => (

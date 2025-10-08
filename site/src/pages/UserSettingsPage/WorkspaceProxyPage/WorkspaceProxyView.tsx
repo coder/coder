@@ -10,8 +10,8 @@ import { Stack } from "components/Stack/Stack";
 import {
 	Table,
 	TableBody,
-	TableCell,
 	TableHead,
+	TableHeader,
 	TableRow,
 } from "components/Table/Table";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
@@ -54,17 +54,13 @@ export const WorkspaceProxyView: FC<WorkspaceProxyViewProps> = ({
 			{Boolean(selectProxyError) && <ErrorAlert error={selectProxyError} />}
 
 			<Table>
-				<TableHead>
+				<TableHeader>
 					<TableRow>
-						<TableCell width="70%">Proxy</TableCell>
-						<TableCell width="10%" css={{ textAlign: "right" }}>
-							Status
-						</TableCell>
-						<TableCell width="20%" css={{ textAlign: "right" }}>
-							Latency
-						</TableCell>
+						<TableHead className="w-[70%]">Proxy</TableHead>
+						<TableHead className="w-[10%] text-right">Status</TableHead>
+						<TableHead className="w-[20%] text-right">Latency</TableHead>
 					</TableRow>
-				</TableHead>
+				</TableHeader>
 				<TableBody>
 					<ChooseOne>
 						<Cond condition={isLoading}>
