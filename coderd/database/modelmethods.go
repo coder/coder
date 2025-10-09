@@ -194,6 +194,7 @@ func (s APIKeyScopes) expandRBACScope() (rbac.Scope, error) {
 		for orgID, perms := range expanded.ByOrgID {
 			orgPerms := merged.ByOrgID[orgID]
 			orgPerms.Org = append(orgPerms.Org, perms.Org...)
+			orgPerms.Member = append(orgPerms.Member, perms.Member...)
 			merged.ByOrgID[orgID] = orgPerms
 		}
 		merged.User = append(merged.User, expanded.User...)

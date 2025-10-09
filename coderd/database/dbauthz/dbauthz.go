@@ -1277,7 +1277,13 @@ func (q *querier) customRoleCheck(ctx context.Context, role database.CustomRole)
 		for _, orgPerm := range perms.Org {
 			err := q.customRoleEscalationCheck(ctx, act, orgPerm, rbac.Object{OrgID: orgID, Type: orgPerm.ResourceType})
 			if err != nil {
-				return xerrors.Errorf("org=%q: %w", orgID, err)
+				return xerrors.Errorf("org=%q: org: %w", orgID, err)
+			}
+		}
+		for _, memberPerm := range perms.Member {
+			err := q.customRoleEscalationCheck(ctx, act, memberPerm, rbac.Object{OrgID: orgID, Type: memberPerm.ResourceType})
+			if err != nil {
+				return xerrors.Errorf("org=%q: member: %w", orgID, err)
 			}
 		}
 	}
