@@ -15,9 +15,14 @@ type MiniTooltipProps = Omit<TooltipContentProps, "title"> & {
 	open?: boolean;
 };
 
-const MiniTooltip: FC<MiniTooltipProps> = (props) => {
-	const { title, children, arrow, open, ...contentProps } = props;
-	const [isOpen, setIsOpen] = useState(false);
+const MiniTooltip: FC<MiniTooltipProps> = ({
+	title,
+	children,
+	arrow,
+	open = false,
+	...contentProps
+}) => {
+	const [isOpen, setIsOpen] = useState(open);
 
 	return (
 		<TooltipProvider>
