@@ -131,4 +131,9 @@ export default defineConfig({
 			utils: path.resolve(__dirname, "./src/utils"),
 		},
 	},
+	test: {
+		include: ["src/**/*.test.?(m)ts?(x)"],
+		globals: true,
+		environment: "jsdom",
+	},
 });
