@@ -238,7 +238,7 @@ func TestGitSSH(t *testing.T) {
 
 func TestGitSign(t *testing.T) {
 	t.Parallel()
-	
+
 	t.Run("Basic", func(t *testing.T) {
 		t.Parallel()
 
@@ -263,7 +263,7 @@ func TestGitSign(t *testing.T) {
 		// Since we don't have real ssh-keygen in the test environment,
 		// we expect this to fail but the key handling should work correctly
 		pty.ExpectMatch("ssh-keygen")
-		
+
 		// Cancel to avoid hanging
 		cancel()
 		err := <-cmdDone
@@ -284,7 +284,7 @@ func TestGitSign(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEmpty(t, key.PrivateKey)
 		require.NotEmpty(t, key.PublicKey)
-		
+
 		// Verify the key format
 		require.Contains(t, key.PublicKey, "ssh-")
 		require.Contains(t, key.PrivateKey, "-----BEGIN")

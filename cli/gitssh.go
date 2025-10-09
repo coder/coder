@@ -132,7 +132,7 @@ func gitsign() *serpent.Command {
 			if err != nil {
 				return xerrors.Errorf("create agent client: %w", err)
 			}
-			
+
 			key, err := client.GitSSHKey(ctx)
 			if err != nil {
 				return xerrors.Errorf("get agent git ssh key: %w", err)
@@ -189,12 +189,12 @@ func performSSHSigning(ctx context.Context, key agentsdk.GitSSHKey, args []strin
 	// The SSH signing protocol expects 'ssh-keygen -Y sign' for signing operations
 	cmdArgs := []string{"-Y", "sign", "-f", privateKeyFile.Name(), "-n", "git"}
 	cmdArgs = append(cmdArgs, args...)
-	
+
 	cmd := exec.CommandContext(ctx, "ssh-keygen", cmdArgs...)
 	cmd.Stdin = stdin
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
-	
+
 	return cmd.Run()
 }
 

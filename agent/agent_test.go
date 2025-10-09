@@ -463,7 +463,7 @@ func TestAgent_GitConfig(t *testing.T) {
 	output, err := session.Output(command)
 	require.NoError(t, err)
 	outputStr := strings.TrimSpace(string(output))
-	
+
 	// Verify SSH signing is configured
 	require.Contains(t, outputStr, "gpg.format=ssh")
 	require.Contains(t, outputStr, "gitsign")
