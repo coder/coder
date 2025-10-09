@@ -1549,6 +1549,60 @@ func TestAITasks(t *testing.T) {
 		// This is validated once all parameters are resolved etc as part of the workspace build, but for now we can allow it.
 		require.Len(t, state.AITasks, 2)
 	})
+
+	t.Run("Can use sidebar app ID", func(t *testing.T) {
+		t.Parallel()
+
+		// nolint:dogsled
+		_, filename, _, _ := runtime.Caller(0)
+
+		dir := filepath.Join(filepath.Dir(filename), "testdata", "resources", "ai-tasks-sidebar")
+		tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "ai-tasks-sidebar.tfplan.json"))
+		require.NoError(t, err)
+		var tfPlan tfjson.Plan
+		err = json.Unmarshal(tfPlanRaw, &tfPlan)
+		require.NoError(t, err)
+		tfPlanGraph, err := os.ReadFile(filepath.Join(dir, "ai-tasks-sidebar.tfplan.dot"))
+		require.NoError(t, err)
+
+		state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfPlan.PlannedValues.RootModule, tfPlan.PriorState.Values.RootModule}, string(tfPlanGraph), logger)
+		require.NotNil(t, state)
+		require.NoError(t, err)
+		require.True(t, state.HasAITasks)
+		require.Len(t, state.AITasks, 1)
+
+		sidebarApp := state.AITasks[0].GetSidebarApp()
+		require.NotNil(t, sidebarApp)
+		require.Equal(t, "5ece4674-dd35-4f16-88c8-82e40e72e2fd", sidebarApp.GetId())
+		require.Equal(t, "5ece4674-dd35-4f16-88c8-82e40e72e2fd", state.AITasks[0].AppId)
+	})
+
+	t.Run("Can use app ID", func(t *testing.T) {
+		t.Parallel()
+
+		// nolint:dogsled
+		_, filename, _, _ := runtime.Caller(0)
+
+		dir := filepath.Join(filepath.Dir(filename), "testdata", "resources", "ai-tasks-app")
+		tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "ai-tasks-app.tfplan.json"))
+		require.NoError(t, err)
+		var tfPlan tfjson.Plan
+		err = json.Unmarshal(tfPlanRaw, &tfPlan)
+		require.NoError(t, err)
+		tfPlanGraph, err := os.ReadFile(filepath.Join(dir, "ai-tasks-app.tfplan.dot"))
+		require.NoError(t, err)
+
+		state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfPlan.PlannedValues.RootModule, tfPlan.PriorState.Values.RootModule}, string(tfPlanGraph), logger)
+		require.NotNil(t, state)
+		require.NoError(t, err)
+		require.True(t, state.HasAITasks)
+		require.Len(t, state.AITasks, 1)
+
+		sidebarApp := state.AITasks[0].GetSidebarApp()
+		require.NotNil(t, sidebarApp)
+		require.Equal(t, "5ece4674-dd35-4f16-88c8-82e40e72e2fd", sidebarApp.GetId())
+		require.Equal(t, "5ece4674-dd35-4f16-88c8-82e40e72e2fd", state.AITasks[0].AppId)
+	})
 }
 
 func TestExternalAgents(t *testing.T) {

@@ -1022,11 +1022,16 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			return nil, xerrors.Errorf("decode coder_ai_task attributes: %w", err)
 		}
 
+		appID := task.AppID
+		if appID == "" && len(task.SidebarApp) > 0 {
+			appID = task.SidebarApp[0].ID
+		}
+
 		aiTasks = append(aiTasks, &proto.AITask{
 			Id:    task.ID,
-			AppId: task.AppID,
+			AppId: appID,
 			SidebarApp: &proto.AITaskSidebarApp{
-				Id: task.AppID,
+				Id: appID,
 			},
 		})
 	}
