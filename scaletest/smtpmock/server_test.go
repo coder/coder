@@ -23,10 +23,10 @@ func TestServer_StartStop(t *testing.T) {
 
 	ctx := context.Background()
 	srv := smtpmock.New(smtpmock.Config{
-		Host:     "127.0.0.1",
-		SMTPPort: 0,
-		APIPort:  0,
-		Logger:   slogtest.Make(t, nil),
+		HostAddress: "127.0.0.1",
+		SMTPPort:    0,
+		APIPort:     0,
+		Logger:      slogtest.Make(t, nil),
 	})
 
 	err := srv.Start(ctx)
@@ -43,10 +43,10 @@ func TestServer_SendAndReceiveEmail(t *testing.T) {
 
 	ctx := context.Background()
 	srv := smtpmock.New(smtpmock.Config{
-		Host:     "127.0.0.1",
-		SMTPPort: 0,
-		APIPort:  0,
-		Logger:   slogtest.Make(t, nil),
+		HostAddress: "127.0.0.1",
+		SMTPPort:    0,
+		APIPort:     0,
+		Logger:      slogtest.Make(t, nil),
 	})
 
 	err := srv.Start(ctx)
@@ -82,10 +82,10 @@ func TestServer_FilterByEmail(t *testing.T) {
 
 	ctx := context.Background()
 	srv := smtpmock.New(smtpmock.Config{
-		Host:     "127.0.0.1",
-		SMTPPort: 0,
-		APIPort:  0,
-		Logger:   slogtest.Make(t, nil),
+		HostAddress: "127.0.0.1",
+		SMTPPort:    0,
+		APIPort:     0,
+		Logger:      slogtest.Make(t, nil),
 	})
 
 	err := srv.Start(ctx)
@@ -117,15 +117,15 @@ func TestServer_FilterByEmail(t *testing.T) {
 	require.Equal(t, "Email for admin", summaries[0].Subject)
 }
 
-func TestServer_NotificationID(t *testing.T) {
+func TestServer_NotificationTemplateID(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
 	srv := smtpmock.New(smtpmock.Config{
-		Host:     "127.0.0.1",
-		SMTPPort: 0,
-		APIPort:  0,
-		Logger:   slogtest.Make(t, nil),
+		HostAddress: "127.0.0.1",
+		SMTPPort:    0,
+		APIPort:     0,
+		Logger:      slogtest.Make(t, nil),
 	})
 
 	err := srv.Start(ctx)
@@ -154,7 +154,7 @@ func TestServer_NotificationID(t *testing.T) {
 	err = json.NewDecoder(resp.Body).Decode(&summaries)
 	require.NoError(t, err)
 	require.Len(t, summaries, 1)
-	require.Equal(t, notificationID, summaries[0].NotificationID)
+	require.Equal(t, notificationID, summaries[0].NotificationTemplateID)
 }
 
 func TestServer_Purge(t *testing.T) {
@@ -162,10 +162,10 @@ func TestServer_Purge(t *testing.T) {
 
 	ctx := context.Background()
 	srv := smtpmock.New(smtpmock.Config{
-		Host:     "127.0.0.1",
-		SMTPPort: 0,
-		APIPort:  0,
-		Logger:   slogtest.Make(t, nil),
+		HostAddress: "127.0.0.1",
+		SMTPPort:    0,
+		APIPort:     0,
+		Logger:      slogtest.Make(t, nil),
 	})
 
 	err := srv.Start(ctx)

@@ -2178,8 +2178,8 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 
 func (*RootCmd) scaletestSMTP() *serpent.Command {
 	var (
-		host         string
-		port         int64
+		hostAddress  string
+		smtpPort     int64
 		apiPort      int64
 		purgeAtCount int64
 	)
@@ -2187,12 +2187,7 @@ func (*RootCmd) scaletestSMTP() *serpent.Command {
 		Use:   "smtp",
 		Short: "Start a mock SMTP server for testing",
 		Long: `Start a mock SMTP server with an HTTP API server that can be used to purge
-messages and get messages by email.
-
-Coder deployment values required:
-  - CODER_EMAIL_FROM=noreply@coder.com
-  - CODER_EMAIL_SMARTHOST=localhost:33199
-  - CODER_EMAIL_HELLO=localhost`,
+messages and get messages by email.`,
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
 			notifyCtx, stop := signal.NotifyContext(ctx, StopSignals...)
@@ -2201,10 +2196,10 @@ Coder deployment values required:
 
 			logger := slog.Make(sloghuman.Sink(inv.Stderr)).Leveled(slog.LevelInfo)
 			srv := smtpmock.New(smtpmock.Config{
-				Host:     host,
-				SMTPPort: int(port),
-				APIPort:  int(apiPort),
-				Logger:   logger,
+				HostAddress: hostAddress,
+				SMTPPort:    int(smtpPort),
+				APIPort:     int(apiPort),
+				Logger:      logger,
 			})
 
 			if err := srv.Start(ctx); err != nil {
@@ -2226,7 +2221,7 @@ Coder deployment values required:
 			for {
 				select {
 				case <-ctx.Done():
-					_, _ = fmt.Fprintf(inv.Stdout, "\nTotal messages received: %d\n", srv.MessageCount())
+					_, _ = fmt.Fprintf(inv.Stdout, "\nTotal messages received since last purge: %d\n", srv.MessageCount())
 					return nil
 				case <-ticker.C:
 					count := srv.MessageCount()
@@ -2246,17 +2241,17 @@ Coder deployment values required:
 
 	cmd.Options = []serpent.Option{
 		{
-			Flag:        "host",
+			Flag:        "host-address",
 			Env:         "CODER_SCALETEST_SMTP_HOST",
 			Default:     "localhost",
 			Description: "Host to bind the mock SMTP and API servers.",
-			Value:       serpent.StringOf(&host),
+			Value:       serpent.StringOf(&hostAddress),
 		},
 		{
-			Flag:        "port",
+			Flag:        "smtp-port",
 			Env:         "CODER_SCALETEST_SMTP_PORT",
 			Description: "Port for the mock SMTP server. Uses a random port if not specified.",
-			Value:       serpent.Int64Of(&port),
+			Value:       serpent.Int64Of(&smtpPort),
 		},
 		{
 			Flag:        "api-port",
