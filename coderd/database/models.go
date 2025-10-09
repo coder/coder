@@ -206,6 +206,11 @@ const (
 	ApiKeyScopeWorkspaceAgentResourceMonitor       APIKeyScope = "workspace_agent_resource_monitor:*"
 	ApiKeyScopeWorkspaceDormant                    APIKeyScope = "workspace_dormant:*"
 	ApiKeyScopeWorkspaceProxy                      APIKeyScope = "workspace_proxy:*"
+	ApiKeyScopeTaskCreate                          APIKeyScope = "task:create"
+	ApiKeyScopeTaskRead                            APIKeyScope = "task:read"
+	ApiKeyScopeTaskUpdate                          APIKeyScope = "task:update"
+	ApiKeyScopeTaskDelete                          APIKeyScope = "task:delete"
+	ApiKeyScopeTask                                APIKeyScope = "task:*"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -431,7 +436,12 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeWorkspaceAgentDevcontainers,
 		ApiKeyScopeWorkspaceAgentResourceMonitor,
 		ApiKeyScopeWorkspaceDormant,
-		ApiKeyScopeWorkspaceProxy:
+		ApiKeyScopeWorkspaceProxy,
+		ApiKeyScopeTaskCreate,
+		ApiKeyScopeTaskRead,
+		ApiKeyScopeTaskUpdate,
+		ApiKeyScopeTaskDelete,
+		ApiKeyScopeTask:
 		return true
 	}
 	return false
@@ -626,6 +636,11 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeWorkspaceAgentResourceMonitor,
 		ApiKeyScopeWorkspaceDormant,
 		ApiKeyScopeWorkspaceProxy,
+		ApiKeyScopeTaskCreate,
+		ApiKeyScopeTaskRead,
+		ApiKeyScopeTaskUpdate,
+		ApiKeyScopeTaskDelete,
+		ApiKeyScopeTask,
 	}
 }
 
