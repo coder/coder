@@ -430,12 +430,6 @@ func (m *expects) Errors(err error) *expects {
 	return m
 }
 
-// ErrorsWithPG is optional. If it is never called, it will not be asserted.
-// Since we removed the in-memory database, this is now equivalent to Errors.
-func (m *expects) ErrorsWithPG(err error) *expects {
-	return m.Errors(err)
-}
-
 func (m *expects) FailSystemObjectChecks() *expects {
 	return m.WithSuccessAuthorizer(func(ctx context.Context, subject rbac.Subject, action policy.Action, obj rbac.Object) error {
 		if obj.Type == rbac.ResourceSystem.Type {
