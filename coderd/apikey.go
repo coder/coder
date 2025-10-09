@@ -215,7 +215,10 @@ func (api *API) apiKeyByID(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertAPIKey(key))
+	sdkKey := convertAPIKey(key)
+	api.populateAllowListDisplayNames(ctx, sdkKey.AllowList)
+
+	httpapi.Write(ctx, rw, http.StatusOK, sdkKey)
 }
 
 // @Summary Get API key by token name
@@ -250,7 +253,10 @@ func (api *API) apiKeyByName(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertAPIKey(token))
+	sdkKey := convertAPIKey(token)
+	api.populateAllowListDisplayNames(ctx, sdkKey.AllowList)
+
+	httpapi.Write(ctx, rw, http.StatusOK, sdkKey)
 }
 
 // @Summary Update token API key
