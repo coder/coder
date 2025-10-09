@@ -6993,11 +6993,11 @@ func TestTasksWithStatusView(t *testing.T) {
 			description:     "Running job with ready agent and disabled app health checking should be active",
 		},
 		{
-			name:            "RunningJobReadyAgentMultipleHealthyApps",
+			name:            "RunningJobReadyAgentHealthyTaskAppUnhealthyOtherAppIsOK",
 			buildStatus:     database.ProvisionerJobStatusRunning,
 			buildTransition: database.WorkspaceTransitionStart,
 			agentState:      database.WorkspaceAgentLifecycleStateReady,
-			appHealths:      []database.WorkspaceAppHealth{database.WorkspaceAppHealthHealthy, database.WorkspaceAppHealthHealthy},
+			appHealths:      []database.WorkspaceAppHealth{database.WorkspaceAppHealthHealthy, database.WorkspaceAppHealthUnhealthy},
 			expectedStatus:  database.TaskStatusActive,
 			description:     "Running job with ready agent and multiple healthy apps should be active",
 		},
