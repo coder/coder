@@ -29,7 +29,7 @@ alternate installation methods (e.g. standalone binaries, system packages).
 
 **Warning**
 
-If you're using an Apple Silicon Mac with ARM64 archiecture, so M1/M2/M3/M4, you'll need to use an external PostgreSQL Database
+If you're using an Apple Silicon Mac with ARM64 architecture, so M1/M2/M3/M4, you'll need to use an external PostgreSQL Database
 using the following commands:
 
 ``` bash
