@@ -29,10 +29,13 @@ jobs:
 
       - name: Get changed docs files
         id: changed-files
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
         run: |
           # Get the list of changed files in docs/
-          git fetch origin ${{ github.event.pull_request.base.ref }}
-          CHANGED_DOCS=$(git diff --name-only origin/${{ github.event.pull_request.base.ref }}...HEAD | grep '^docs/' | grep '\.md$' || true)
+          git fetch origin "$BASE_REF"
+          CHANGED_DOCS=$(git diff --name-only "origin/$BASE_REF...HEAD" | grep '^docs/' | grep '\.md$' || true)
 
           if [ -z "$CHANGED_DOCS" ]; then
             echo "No markdown files changed in docs/"
@@ -43,8 +46,7 @@ jobs:
           echo "has_changes=true" >> $GITHUB_OUTPUT
 
           # URI-encode the branch name
-          BRANCH_NAME="${{ github.event.pull_request.head.ref }}"
-          ENCODED_BRANCH=$(echo -n "$BRANCH_NAME" | jq -sRr @uri)
+          ENCODED_BRANCH=$(echo -n "$HEAD_REF" | jq -sRr @uri)
 
           # Build the comment with preview links
           COMMENT="## 📚 Documentation Preview Links\n\n"
@@ -63,7 +65,7 @@ jobs:
           done <<< "$CHANGED_DOCS"
 
           COMMENT+="\n---\n"
-          COMMENT+="_Preview links are generated for branch: \`${BRANCH_NAME}\`_"
+          COMMENT+="_Preview links are generated for branch: \`${HEAD_REF}\`_"
 
           # Save comment to file for next step
           echo -e "$COMMENT" > comment.txt
