@@ -739,8 +739,8 @@ func testDBAuthzRole(ctx context.Context) context.Context {
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceWildcard.Type: {policy.WildcardSymbol},
 				}),
-				Org:  map[string][]rbac.Permission{},
-				User: []rbac.Permission{},
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
 			},
 		}),
 		Scope: rbac.ScopeAll,
