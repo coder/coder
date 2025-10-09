@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"cdr.dev/slog"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
@@ -71,12 +72,13 @@ func (r *RootCmd) stdioHTTPCommand() *serpent.Command {
 }
 
 type stdioHTTPServer struct {
+	log    slog.Logger
 	cmd    *exec.Cmd
 	stdin  io.WriteCloser
 	stdout io.ReadCloser
 	stderr io.ReadCloser
 
-	// Channels to distribute stdout/stderr to multiple SSE connections
+	// stdinCh  chan []byte
 	stdoutCh chan []byte
 	stderrCh chan []byte
 
@@ -89,6 +91,23 @@ type stdioHTTPServer struct {
 	cancel context.CancelFunc
 }
 
+func (s *stdioHTTPServer) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.cmd == nil {
+		return nil
+	}
+
+	s.cancel()
+
+	if err := s.cmd.Wait(); err != nil {
+		return xerrors.Errorf("wait command error: %w", err)
+	}
+
+	return nil
+}
+
 func handleStdioHTTP(inv *serpent.Invocation, cmdName string, cmdArgs []string, host, port string, timeout time.Duration) error {
 	ctx, cancel := context.WithCancel(inv.Context())
 	defer cancel()
@@ -98,6 +117,7 @@ func handleStdioHTTP(inv *serpent.Invocation, cmdName string, cmdArgs []string, 
 		defer cancel()
 	}
 
+	log := inv.Logger.Named("stdio-http")
 	server := &stdioHTTPServer{
 		stdoutCh:          make(chan []byte, 100),
 		stderrCh:          make(chan []byte, 100),
@@ -105,11 +125,10 @@ func handleStdioHTTP(inv *serpent.Invocation, cmdName string, cmdArgs []string, 
 		stderrSubscribers: make(map[chan []byte]bool),
 		ctx:               ctx,
 		cancel:            cancel,
+		log:               log,
 	}
 
 	// Start the command
-	cmdCtx, cmdCancel := context.WithCancel(ctx)
-	defer cmdCancel()
 	if err := server.startCommand(cmdName, cmdArgs); err != nil {
 		return xerrors.Errorf("failed to start command: %w", err)
 	}
@@ -162,17 +181,11 @@ func handleStdioHTTP(inv *serpent.Invocation, cmdName string, cmdArgs []string, 
 	}
 
 	// Wait for command to finish
-	if server.cmd.Process != nil {
-		if err := server.cmd.(); err != nil {
-			return xerrors.Errorf("kill command error: %w", err)
-		}
-	}
-
-	return nil
+	return server.Close()
 }
 
-func (s *stdioHTTPServer) startCommand(ctx context.Context, cmdName string, cmdArgs []string) error {
-	s.cmd = exec.CommandContext(ctx, cmdName, cmdArgs...)
+func (s *stdioHTTPServer) startCommand(cmdName string, cmdArgs []string) error {
+	s.cmd = exec.CommandContext(s.ctx, cmdName, cmdArgs...)
 
 	var err error
 	s.stdin, err = s.cmd.StdinPipe()
@@ -296,6 +309,8 @@ func (s *stdioHTTPServer) handleRoot(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Command stdin not available", http.StatusServiceUnavailable)
 			return
 		}
+
+		s.log.Info(s.ctx, "Received stdin data", slog.F("data", string(body)))
 
 		// Write to stdin
 		_, err = s.stdin.Write(body)
