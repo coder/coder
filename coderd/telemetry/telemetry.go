@@ -355,7 +355,7 @@ func (r *remoteReporter) deployment() error {
 		return xerrors.Errorf("create deployment request: %w", err)
 	}
 	req.Header.Set(VersionHeader, buildinfo.Version())
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := r.client.Do(req)
 	if err != nil {
 		return xerrors.Errorf("perform request: %w", err)
 	}

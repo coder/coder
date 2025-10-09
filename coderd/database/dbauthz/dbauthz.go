@@ -232,8 +232,8 @@ var (
 					// Provisionerd creates usage events
 					rbac.ResourceUsageEvent.Type: {policy.ActionCreate},
 				}),
-				Org:  map[string][]rbac.Permission{},
-				User: []rbac.Permission{},
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
 			},
 		}),
 		Scope: rbac.ScopeAll,
@@ -257,8 +257,8 @@ var (
 					rbac.ResourceWorkspace.Type:           {policy.ActionDelete, policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceStart, policy.ActionWorkspaceStop},
 					rbac.ResourceWorkspaceDormant.Type:    {policy.ActionDelete, policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceStop},
 				}),
-				Org:  map[string][]rbac.Permission{},
-				User: []rbac.Permission{},
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
 			},
 		}),
 		Scope: rbac.ScopeAll,
@@ -280,8 +280,8 @@ var (
 					rbac.ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionUpdate},
 					rbac.ResourceProvisionerJobs.Type:  {policy.ActionRead, policy.ActionUpdate},
 				}),
-				Org:  map[string][]rbac.Permission{},
-				User: []rbac.Permission{},
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
 			},
 		}),
 		Scope: rbac.ScopeAll,
@@ -299,8 +299,8 @@ var (
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceCryptoKey.Type: {policy.WildcardSymbol},
 				}),
-				Org:  map[string][]rbac.Permission{},
-				User: []rbac.Permission{},
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
 			},
 		}),
 		Scope: rbac.ScopeAll,
@@ -318,8 +318,8 @@ var (
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceCryptoKey.Type: {policy.WildcardSymbol},
 				}),
-				Org:  map[string][]rbac.Permission{},
-				User: []rbac.Permission{},
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
 			},
 		}),
 		Scope: rbac.ScopeAll,
@@ -336,8 +336,8 @@ var (
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceConnectionLog.Type: {policy.ActionUpdate, policy.ActionRead},
 				}),
-				Org:  map[string][]rbac.Permission{},
-				User: []rbac.Permission{},
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
 			},
 		}),
 		Scope: rbac.ScopeAll,
@@ -357,8 +357,8 @@ var (
 					rbac.ResourceWebpushSubscription.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceDeploymentConfig.Type:    {policy.ActionRead, policy.ActionUpdate}, // To read and upsert VAPID keys
 				}),
-				Org:  map[string][]rbac.Permission{},
-				User: []rbac.Permission{},
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
 			},
 		}),
 		Scope: rbac.ScopeAll,
@@ -376,8 +376,8 @@ var (
 					// The workspace monitor needs to be able to update monitors
 					rbac.ResourceWorkspaceAgentResourceMonitor.Type: {policy.ActionUpdate},
 				}),
-				Org:  map[string][]rbac.Permission{},
-				User: []rbac.Permission{},
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
 			},
 		}),
 		Scope: rbac.ScopeAll,
@@ -393,12 +393,12 @@ var (
 					Identifier:  rbac.RoleIdentifier{Name: "subagentapi"},
 					DisplayName: "Sub Agent API",
 					Site:        []rbac.Permission{},
-					Org: map[string][]rbac.Permission{
-						orgID.String(): {},
-					},
 					User: rbac.Permissions(map[string][]policy.Action{
 						rbac.ResourceWorkspace.Type: {policy.ActionRead, policy.ActionUpdate, policy.ActionCreateAgent, policy.ActionDeleteAgent},
 					}),
+					ByOrgID: map[string]rbac.OrgPermissions{
+						orgID.String(): {},
+					},
 				},
 			}),
 			Scope: rbac.ScopeAll,
@@ -437,8 +437,8 @@ var (
 					rbac.ResourceOauth2App.Type:              {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceOauth2AppSecret.Type:        {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 				}),
-				Org:  map[string][]rbac.Permission{},
-				User: []rbac.Permission{},
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
 			},
 		}),
 		Scope: rbac.ScopeAll,
@@ -455,8 +455,8 @@ var (
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceProvisionerDaemon.Type: {policy.ActionRead},
 				}),
-				Org:  map[string][]rbac.Permission{},
-				User: []rbac.Permission{},
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
 			},
 		}),
 		Scope: rbac.ScopeAll,
@@ -532,8 +532,8 @@ var (
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceFile.Type: {policy.ActionRead},
 				}),
-				Org:  map[string][]rbac.Permission{},
-				User: []rbac.Permission{},
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
 			},
 		}),
 		Scope: rbac.ScopeAll,
@@ -553,8 +553,8 @@ var (
 					// reads/processes them.
 					rbac.ResourceUsageEvent.Type: {policy.ActionRead, policy.ActionUpdate},
 				}),
-				Org:  map[string][]rbac.Permission{},
-				User: []rbac.Permission{},
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
 			},
 		}),
 		Scope: rbac.ScopeAll,
@@ -577,8 +577,8 @@ var (
 					rbac.ResourceApiKey.Type:               {policy.ActionRead}, // Validate API keys.
 					rbac.ResourceAibridgeInterception.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
 				}),
-				Org:  map[string][]rbac.Permission{},
-				User: []rbac.Permission{},
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
 			},
 		}),
 		Scope: rbac.ScopeAll,
@@ -1254,13 +1254,13 @@ func (q *querier) customRoleCheck(ctx context.Context, role database.CustomRole)
 		return xerrors.Errorf("invalid role: %w", err)
 	}
 
-	if len(rbacRole.Org) > 0 && len(rbacRole.Site) > 0 {
+	if len(rbacRole.ByOrgID) > 0 && len(rbacRole.Site) > 0 {
 		// This is a choice to keep roles simple. If we allow mixing site and org scoped perms, then knowing who can
 		// do what gets more complicated.
 		return xerrors.Errorf("invalid custom role, cannot assign both org and site permissions at the same time")
 	}
 
-	if len(rbacRole.Org) > 1 {
+	if len(rbacRole.ByOrgID) > 1 {
 		// Again to avoid more complexity in our roles
 		return xerrors.Errorf("invalid custom role, cannot assign permissions to more than 1 org at a time")
 	}
@@ -1273,8 +1273,8 @@ func (q *querier) customRoleCheck(ctx context.Context, role database.CustomRole)
 		}
 	}
 
-	for orgID, perms := range rbacRole.Org {
-		for _, orgPerm := range perms {
+	for orgID, perms := range rbacRole.ByOrgID {
+		for _, orgPerm := range perms.Org {
 			err := q.customRoleEscalationCheck(ctx, act, orgPerm, rbac.Object{OrgID: orgID, Type: orgPerm.ResourceType})
 			if err != nil {
 				return xerrors.Errorf("org=%q: %w", orgID, err)
