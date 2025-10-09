@@ -420,6 +420,14 @@ func Workspace(t testing.TB, db database.Store, orig database.WorkspaceTable) da
 		require.NoError(t, err, "set workspace as deleted")
 		workspace.Deleted = true
 	}
+	if orig.DormantAt.Valid {
+		_, err = db.UpdateWorkspaceDormantDeletingAt(genCtx, database.UpdateWorkspaceDormantDeletingAtParams{
+			ID:        workspace.ID,
+			DormantAt: orig.DormantAt,
+		})
+		require.NoError(t, err, "set workspace as dormant")
+		workspace.DormantAt = orig.DormantAt
+	}
 	return workspace
 }
 
