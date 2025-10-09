@@ -2885,6 +2885,14 @@ func (q *querier) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUID) 
 	return q.db.GetTailnetTunnelPeerIDs(ctx, srcID)
 }
 
+func (q *querier) GetTaskByID(ctx context.Context, id uuid.UUID) (database.Task, error) {
+	return fetch(q.log, q.auth, q.db.GetTaskByID)(ctx, id)
+}
+
+func (q *querier) GetTaskByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.Task, error) {
+	return fetch(q.log, q.auth, q.db.GetTaskByWorkspaceID)(ctx, workspaceID)
+}
+
 func (q *querier) GetTelemetryItem(ctx context.Context, key string) (database.TelemetryItem, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return database.TelemetryItem{}, err
@@ -4108,6 +4116,17 @@ func (q *querier) InsertReplica(ctx context.Context, arg database.InsertReplicaP
 		return database.Replica{}, err
 	}
 	return q.db.InsertReplica(ctx, arg)
+}
+
+func (q *querier) InsertTask(ctx context.Context, arg database.InsertTaskParams) (database.TaskTable, error) {
+	// Ensure the actor can access the specified template version (and thus its template).
+	if _, err := q.GetTemplateVersionByID(ctx, arg.TemplateVersionID); err != nil {
+		return database.TaskTable{}, err
+	}
+
+	obj := rbac.ResourceTask.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID)
+
+	return insert(q.log, q.auth, obj, q.db.InsertTask)(ctx, arg)
 }
 
 func (q *querier) InsertTelemetryItemIfNotExists(ctx context.Context, arg database.InsertTelemetryItemIfNotExistsParams) error {
@@ -5666,6 +5685,18 @@ func (q *querier) UpsertTailnetTunnel(ctx context.Context, arg database.UpsertTa
 		return database.TailnetTunnel{}, err
 	}
 	return q.db.UpsertTailnetTunnel(ctx, arg)
+}
+
+func (q *querier) UpsertTaskWorkspaceApp(ctx context.Context, arg database.UpsertTaskWorkspaceAppParams) (database.TaskWorkspaceApp, error) {
+	// Fetch the task to derive the RBAC object and authorize update on it.
+	task, err := q.db.GetTaskByID(ctx, arg.TaskID)
+	if err != nil {
+		return database.TaskWorkspaceApp{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, task); err != nil {
+		return database.TaskWorkspaceApp{}, err
+	}
+	return q.db.UpsertTaskWorkspaceApp(ctx, arg)
 }
 
 func (q *querier) UpsertTelemetryItem(ctx context.Context, arg database.UpsertTelemetryItemParams) error {
