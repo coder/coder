@@ -200,10 +200,10 @@ func TestRunWithSMTP(t *testing.T) {
 
 	// Start SMTP mock server
 	smtpSrv := smtpmock.New(smtpmock.Config{
-		Host:     "127.0.0.1",
-		SMTPPort: 0,
-		APIPort:  0,
-		Logger:   logger.Named("smtp"),
+		HostAddress: "127.0.0.1",
+		SMTPPort:    0,
+		APIPort:     0,
+		Logger:      logger.Named("smtp"),
 	})
 	err := smtpSrv.Start(ctx)
 	require.NoError(t, err)

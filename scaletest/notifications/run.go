@@ -352,7 +352,7 @@ func (r *Runner) watchNotificationsSMTP(ctx context.Context, user codersdk.User,
 
 			// Process each email summary
 			for _, summary := range summaries {
-				notificationID := summary.NotificationID
+				notificationID := summary.NotificationTemplateID
 				if notificationID == uuid.Nil {
 					continue
 				}
