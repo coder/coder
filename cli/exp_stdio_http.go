@@ -3,7 +3,6 @@ package cli
 import (
 	"bufio"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -30,9 +29,8 @@ func (r *RootCmd) stdioHTTPCommand() *serpent.Command {
 		Use:   "stdio-http <command> [args...]",
 		Short: "Run command and expose stdin/stdout/stderr over HTTP",
 		Long: `Start an HTTP server that runs a command and exposes its stdio streams:
-- POST requests to /stdin send data to the command's stdin
-- GET requests to /stdout stream the command's stdout as Server-Sent Events
-- GET requests to /stderr stream the command's stderr as Server-Sent Events`,
+- POST requests to / send data to the command's stdin
+- GET requests to / receive Server-Sent Events with stdout and stderr output`,
 		Handler: func(inv *serpent.Invocation) error {
 			if len(inv.Args) == 0 {
 				return xerrors.Errorf("command is required")
@@ -110,6 +108,8 @@ func handleStdioHTTP(inv *serpent.Invocation, cmdName string, cmdArgs []string, 
 	}
 
 	// Start the command
+	cmdCtx, cmdCancel := context.WithCancel(ctx)
+	defer cmdCancel()
 	if err := server.startCommand(cmdName, cmdArgs); err != nil {
 		return xerrors.Errorf("failed to start command: %w", err)
 	}
@@ -123,9 +123,7 @@ func handleStdioHTTP(inv *serpent.Invocation, cmdName string, cmdArgs []string, 
 
 	// Setup HTTP server
 	mux := http.NewServeMux()
-	mux.HandleFunc("/stdin", server.handleStdin)
-	mux.HandleFunc("/stdout", server.handleStdout)
-	mux.HandleFunc("/stderr", server.handleStderr)
+	mux.HandleFunc("/", server.handleRoot)
 
 	addr := net.JoinHostPort(host, port)
 	httpServer := &http.Server{
@@ -136,9 +134,8 @@ func handleStdioHTTP(inv *serpent.Invocation, cmdName string, cmdArgs []string, 
 	cliui.Infof(inv.Stderr, "Starting HTTP server on http://%s", addr)
 	cliui.Infof(inv.Stderr, "Command: %s %s", cmdName, strings.Join(cmdArgs, " "))
 	cliui.Infof(inv.Stderr, "Endpoints:")
-	cliui.Infof(inv.Stderr, "  POST /stdin - Send data to command stdin")
-	cliui.Infof(inv.Stderr, "  GET /stdout - Stream command stdout (SSE)")
-	cliui.Infof(inv.Stderr, "  GET /stderr - Stream command stderr (SSE)")
+	cliui.Infof(inv.Stderr, "  POST / - Send data to command stdin")
+	cliui.Infof(inv.Stderr, "  GET / - Stream command output (SSE with stdout/stderr events)")
 
 	// Start HTTP server in goroutine
 	errCh := make(chan error, 1)
@@ -166,16 +163,16 @@ func handleStdioHTTP(inv *serpent.Invocation, cmdName string, cmdArgs []string, 
 
 	// Wait for command to finish
 	if server.cmd.Process != nil {
-		if err := server.cmd.Wait(); err != nil {
-			cliui.Warnf(inv.Stderr, "Command finished with error: %v", err)
+		if err := server.cmd.(); err != nil {
+			return xerrors.Errorf("kill command error: %w", err)
 		}
 	}
 
 	return nil
 }
 
-func (s *stdioHTTPServer) startCommand(cmdName string, cmdArgs []string) error {
-	s.cmd = exec.CommandContext(s.ctx, cmdName, cmdArgs...)
+func (s *stdioHTTPServer) startCommand(ctx context.Context, cmdName string, cmdArgs []string) error {
+	s.cmd = exec.CommandContext(ctx, cmdName, cmdArgs...)
 
 	var err error
 	s.stdin, err = s.cmd.StdinPipe()
@@ -285,94 +282,55 @@ func (s *stdioHTTPServer) distributeStderr() {
 	}
 }
 
-func (s *stdioHTTPServer) handleStdin(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		http.Error(w, "Failed to read body", http.StatusBadRequest)
-		return
-	}
-
-	if s.stdin == nil {
-		http.Error(w, "Command stdin not available", http.StatusServiceUnavailable)
-		return
-	}
-
-	_, err = s.stdin.Write(body)
-	if err != nil {
-		http.Error(w, "Failed to write to command stdin", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"status":        "ok",
-		"bytes_written": len(body),
-	})
-}
-
-func (s *stdioHTTPServer) handleStdout(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	s.setupSSE(w)
-
-	ch := make(chan []byte, 10)
-	s.mu.Lock()
-	s.stdoutSubscribers[ch] = true
-	s.mu.Unlock()
-
-	defer func() {
-		s.mu.Lock()
-		delete(s.stdoutSubscribers, ch)
-		s.mu.Unlock()
-		close(ch)
-	}()
-
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
-		return
-	}
-
-	for {
-		select {
-		case data := <-ch:
-			fmt.Fprintf(w, "data: %s\n\n", string(data))
-			flusher.Flush()
-		case <-r.Context().Done():
-			return
-		case <-s.ctx.Done():
+func (s *stdioHTTPServer) handleRoot(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodPost:
+		// Read stdin data first
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "Failed to read body", http.StatusBadRequest)
 			return
 		}
+
+		if s.stdin == nil {
+			http.Error(w, "Command stdin not available", http.StatusServiceUnavailable)
+			return
+		}
+
+		// Write to stdin
+		_, err = s.stdin.Write(body)
+		if err != nil {
+			http.Error(w, "Failed to write to command stdin", http.StatusInternalServerError)
+			return
+		}
+
+		// Start streaming SSE
+		s.handleStream(w, r)
+	case http.MethodGet:
+		s.handleStream(w, r)
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
 }
 
-func (s *stdioHTTPServer) handleStderr(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
+func (s *stdioHTTPServer) handleStream(w http.ResponseWriter, r *http.Request) {
 	s.setupSSE(w)
 
-	ch := make(chan []byte, 10)
+	stdoutCh := make(chan []byte, 10)
+	stderrCh := make(chan []byte, 10)
+
 	s.mu.Lock()
-	s.stderrSubscribers[ch] = true
+	s.stdoutSubscribers[stdoutCh] = true
+	s.stderrSubscribers[stderrCh] = true
 	s.mu.Unlock()
 
 	defer func() {
 		s.mu.Lock()
-		delete(s.stderrSubscribers, ch)
+		delete(s.stdoutSubscribers, stdoutCh)
+		delete(s.stderrSubscribers, stderrCh)
 		s.mu.Unlock()
-		close(ch)
+		close(stdoutCh)
+		close(stderrCh)
 	}()
 
 	flusher, ok := w.(http.Flusher)
@@ -383,8 +341,11 @@ func (s *stdioHTTPServer) handleStderr(w http.ResponseWriter, r *http.Request) {
 
 	for {
 		select {
-		case data := <-ch:
-			fmt.Fprintf(w, "data: %s\n\n", string(data))
+		case data := <-stdoutCh:
+			fmt.Fprintf(w, "event: stdout\ndata: %s\n\n", string(data))
+			flusher.Flush()
+		case data := <-stderrCh:
+			fmt.Fprintf(w, "event: stderr\ndata: %s\n\n", string(data))
 			flusher.Flush()
 		case <-r.Context().Done():
 			return
