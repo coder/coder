@@ -3345,6 +3345,10 @@ CREATE INDEX tasks_organization_id_idx ON tasks USING btree (organization_id);
 
 CREATE INDEX tasks_owner_id_idx ON tasks USING btree (owner_id);
 
+CREATE UNIQUE INDEX tasks_owner_id_name_unique_idx ON tasks USING btree (owner_id, lower(name)) WHERE (deleted_at IS NULL);
+
+COMMENT ON INDEX tasks_owner_id_name_unique_idx IS 'Index to ensure uniqueness for task owner/name';
+
 CREATE INDEX tasks_workspace_id_idx ON tasks USING btree (workspace_id);
 
 CREATE INDEX template_usage_stats_start_time_idx ON template_usage_stats USING btree (start_time DESC);
