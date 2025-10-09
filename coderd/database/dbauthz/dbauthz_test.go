@@ -1639,10 +1639,43 @@ func (s *MethodTestSuite) TestUser() {
 }
 
 func (s *MethodTestSuite) TestWorkspace() {
+	// The Workspace object differs it's type based on whether it's dormant or
+	// not, which is why we have two tests for it. To ensure we are actually
+	// testing the correct RBAC objects, we also explicitly create the expected
+	// object here rather than passing in the model.
 	s.Run("GetWorkspaceByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		ws := testutil.Fake(s.T(), faker, database.Workspace{})
+		ws.DormantAt = sql.NullTime{
+			Time:  time.Time{},
+			Valid: false,
+		}
+		// Ensure the RBAC is not the dormant type.
+		require.Equal(s.T(), rbac.ResourceWorkspace.Type, ws.RBACObject().Type)
 		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), ws.ID).Return(ws, nil).AnyTimes()
-		check.Args(ws.ID).Asserts(ws, policy.ActionRead).Returns(ws)
+		// Explicitly create the expected object.
+		expected := rbac.ResourceWorkspace.WithID(ws.ID).
+			InOrg(ws.OrganizationID).
+			WithOwner(ws.OwnerID.String()).
+			WithGroupACL(ws.GroupACL.RBACACL()).
+			WithACLUserList(ws.UserACL.RBACACL())
+		check.Args(ws.ID).Asserts(expected, policy.ActionRead).Returns(ws)
+	}))
+	s.Run("DormantWorkspace/GetWorkspaceByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		ws := testutil.Fake(s.T(), faker, database.Workspace{
+			DormantAt: sql.NullTime{
+				Time:  time.Now().Add(-time.Hour),
+				Valid: true,
+			},
+		})
+		// Ensure the RBAC changed automatically.
+		require.Equal(s.T(), rbac.ResourceWorkspaceDormant.Type, ws.RBACObject().Type)
+		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), ws.ID).Return(ws, nil).AnyTimes()
+		// Explicitly create the expected object.
+		expected := rbac.ResourceWorkspaceDormant.
+			WithID(ws.ID).
+			InOrg(ws.OrganizationID).
+			WithOwner(ws.OwnerID.String())
+		check.Args(ws.ID).Asserts(expected, policy.ActionRead).Returns(ws)
 	}))
 	s.Run("GetWorkspaceByResourceID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		ws := testutil.Fake(s.T(), faker, database.Workspace{})

@@ -236,7 +236,7 @@ func ExpandScope(scope ScopeName) (Scope, error) {
 				User:        []Permission{},
 			},
 			// Composites are site-level; allow-list empty by default
-			AllowIDList: []AllowListElement{},
+			AllowIDList: []AllowListElement{{Type: policy.WildcardSymbol, ID: policy.WildcardSymbol}},
 		}, nil
 	}
 	if res, act, ok := parseLowLevelScope(scope); ok {
@@ -292,7 +292,7 @@ func expandLowLevel(resource string, action policy.Action) Scope {
 			Org:         map[string][]Permission{},
 			User:        []Permission{},
 		},
-		// Low-level scopes intentionally return an empty allow list.
-		AllowIDList: []AllowListElement{},
+		// Low-level scopes intentionally return a wildcard allow list.
+		AllowIDList: []AllowListElement{{Type: policy.WildcardSymbol, ID: policy.WildcardSymbol}},
 	}
 }

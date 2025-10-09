@@ -17,8 +17,3 @@ resource "coder_ai_task" "a" {
     id = "5ece4674-dd35-4f16-88c8-82e40e72e2fd" # fake ID to satisfy requirement, irrelevant otherwise
   }
 }
-
-resource "coder_ai_task" "b" {
-  count  = 1
-  app_id = "5ece4674-dd35-4f16-88c8-82e40e72e2fd" # fake ID to satisfy requirement, irrelevant otherwise
-}

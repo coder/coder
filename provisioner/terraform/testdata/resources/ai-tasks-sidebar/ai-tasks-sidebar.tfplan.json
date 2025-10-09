@@ -24,22 +24,6 @@
               {}
             ]
           }
-        },
-        {
-          "address": "coder_ai_task.b[0]",
-          "mode": "managed",
-          "type": "coder_ai_task",
-          "name": "b",
-          "index": 0,
-          "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 1,
-          "values": {
-            "app_id": "5ece4674-dd35-4f16-88c8-82e40e72e2fd",
-            "sidebar_app": []
-          },
-          "sensitive_values": {
-            "sidebar_app": []
-          }
         }
       ]
     }
@@ -77,33 +61,6 @@
           "sidebar_app": [
             {}
           ]
-        }
-      }
-    },
-    {
-      "address": "coder_ai_task.b[0]",
-      "mode": "managed",
-      "type": "coder_ai_task",
-      "name": "b",
-      "index": 0,
-      "provider_name": "registry.terraform.io/coder/coder",
-      "change": {
-        "actions": [
-          "create"
-        ],
-        "before": null,
-        "after": {
-          "app_id": "5ece4674-dd35-4f16-88c8-82e40e72e2fd",
-          "sidebar_app": []
-        },
-        "after_unknown": {
-          "id": true,
-          "prompt": true,
-          "sidebar_app": []
-        },
-        "before_sensitive": false,
-        "after_sensitive": {
-          "sidebar_app": []
         }
       }
     }
@@ -205,22 +162,6 @@
                 }
               }
             ]
-          },
-          "schema_version": 1,
-          "count_expression": {
-            "constant_value": 1
-          }
-        },
-        {
-          "address": "coder_ai_task.b",
-          "mode": "managed",
-          "type": "coder_ai_task",
-          "name": "b",
-          "provider_config_key": "coder",
-          "expressions": {
-            "app_id": {
-              "constant_value": "5ece4674-dd35-4f16-88c8-82e40e72e2fd"
-            }
           },
           "schema_version": 1,
           "count_expression": {

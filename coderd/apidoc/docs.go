@@ -11713,6 +11713,17 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.APIAllowListTarget": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/codersdk.RBACResource"
+                }
+            }
+        },
         "codersdk.APIKey": {
             "type": "object",
             "required": [
@@ -13256,6 +13267,12 @@ const docTemplate = `{
         "codersdk.CreateTokenRequest": {
             "type": "object",
             "properties": {
+                "allow_list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.APIAllowListTarget"
+                    }
+                },
                 "lifetime": {
                     "type": "integer"
                 },

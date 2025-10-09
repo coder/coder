@@ -53,6 +53,7 @@
 							"@mui/material/Box": "Use a <div> instead.",
 							"@mui/material/Button": "Use a components/Button/Button instead.",
 							"@mui/material/styles": "Import from @emotion/react instead.",
+							"@mui/material/Table*": "Import from components/Table/Table instead.",
 							"lodash": "Use lodash/<name> instead."
 						}
 					}

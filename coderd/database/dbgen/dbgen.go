@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/provisionerd/proto"
@@ -186,7 +187,7 @@ func APIKey(t testing.TB, db database.Store, seed database.APIKey, munge ...func
 		UpdatedAt:       takeFirst(seed.UpdatedAt, dbtime.Now()),
 		LoginType:       takeFirst(seed.LoginType, database.LoginTypePassword),
 		Scopes:          takeFirstSlice([]database.APIKeyScope(seed.Scopes), []database.APIKeyScope{database.ApiKeyScopeCoderAll}),
-		AllowList:       takeFirstSlice(seed.AllowList, database.AllowList{database.AllowListWildcard()}),
+		AllowList:       takeFirstSlice(seed.AllowList, database.AllowList{{Type: policy.WildcardSymbol, ID: policy.WildcardSymbol}}),
 		TokenName:       takeFirst(seed.TokenName),
 	}
 	for _, fn := range munge {
@@ -419,6 +420,14 @@ func Workspace(t testing.TB, db database.Store, orig database.WorkspaceTable) da
 		})
 		require.NoError(t, err, "set workspace as deleted")
 		workspace.Deleted = true
+	}
+	if orig.DormantAt.Valid {
+		_, err = db.UpdateWorkspaceDormantDeletingAt(genCtx, database.UpdateWorkspaceDormantDeletingAtParams{
+			ID:        workspace.ID,
+			DormantAt: orig.DormantAt,
+		})
+		require.NoError(t, err, "set workspace as dormant")
+		workspace.DormantAt = orig.DormantAt
 	}
 	return workspace
 }

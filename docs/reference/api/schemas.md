@@ -705,6 +705,22 @@
 |----------|----------------------------------------------------|----------|--------------|-------------|
 | `bridge` | [codersdk.AIBridgeConfig](#codersdkaibridgeconfig) | false    |              |             |
 
+## codersdk.APIAllowListTarget
+
+```json
+{
+  "id": "string",
+  "type": "*"
+}
+```
+
+### Properties
+
+| Name   | Type                                           | Required | Restrictions | Description |
+|--------|------------------------------------------------|----------|--------------|-------------|
+| `id`   | string                                         | false    |              |             |
+| `type` | [codersdk.RBACResource](#codersdkrbacresource) | false    |              |             |
+
 ## codersdk.APIKey
 
 ```json
@@ -2243,6 +2259,12 @@ This is required on creation to enable a user-flow of validating a template work
 
 ```json
 {
+  "allow_list": [
+    {
+      "id": "string",
+      "type": "*"
+    }
+  ],
   "lifetime": 0,
   "scope": "all",
   "scopes": [
@@ -2254,12 +2276,13 @@ This is required on creation to enable a user-flow of validating a template work
 
 ### Properties
 
-| Name         | Type                                                  | Required | Restrictions | Description                     |
-|--------------|-------------------------------------------------------|----------|--------------|---------------------------------|
-| `lifetime`   | integer                                               | false    |              |                                 |
-| `scope`      | [codersdk.APIKeyScope](#codersdkapikeyscope)          | false    |              | Deprecated: use Scopes instead. |
-| `scopes`     | array of [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              |                                 |
-| `token_name` | string                                                | false    |              |                                 |
+| Name         | Type                                                                | Required | Restrictions | Description                     |
+|--------------|---------------------------------------------------------------------|----------|--------------|---------------------------------|
+| `allow_list` | array of [codersdk.APIAllowListTarget](#codersdkapiallowlisttarget) | false    |              |                                 |
+| `lifetime`   | integer                                                             | false    |              |                                 |
+| `scope`      | [codersdk.APIKeyScope](#codersdkapikeyscope)                        | false    |              | Deprecated: use Scopes instead. |
+| `scopes`     | array of [codersdk.APIKeyScope](#codersdkapikeyscope)               | false    |              |                                 |
+| `token_name` | string                                                              | false    |              |                                 |
 
 ## codersdk.CreateUserRequestWithOrgs
 
