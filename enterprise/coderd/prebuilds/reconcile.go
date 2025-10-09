@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -300,6 +299,16 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) error {
 			return xerrors.Errorf("reconcile prebuild membership: %w", err)
 		}
 
+		// If the number of pending prebuilds is greater than the number allowed, skip reconciliation
+		sched, err := NewJobsScheduler(c.logger, snapshot.TotalPendingCount(), c.executeReconciliationAction)
+		if err != nil {
+			logger.Info(ctx, "number of pending prebuilds is greater than the number allowed, skipping reconciliation")
+			return nil
+		}
+
+		// Collect preset actions
+		resultsCh := make(chan PresetActions, len(snapshot.Presets))
+
 		var eg errgroup.Group
 		// Reconcile presets in parallel. Each preset in its own goroutine.
 		for _, preset := range snapshot.Presets {
@@ -311,7 +320,7 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) error {
 
 			eg.Go(func() error {
 				// Pass outer context.
-				err = c.ReconcilePreset(ctx, *ps)
+				actions, err := c.ReconcilePreset(ctx, *ps)
 				if err != nil {
 					logger.Error(
 						ctx,
@@ -321,12 +330,31 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) error {
 					)
 				}
 				// DO NOT return error otherwise the tx will end.
-				return nil
+				select {
+				case <-ctx.Done():
+					return nil
+				case resultsCh <- PresetActions{Preset: *ps, Actions: actions}:
+					return nil
+				}
 			})
 		}
 
-		// Release lock only when all preset reconciliation goroutines are finished.
-		return eg.Wait()
+		// Wait for all goroutines to finish
+		_ = eg.Wait()
+		close(resultsCh)
+
+		results := make([]PresetActions, 0, len(snapshot.Presets))
+		for r := range resultsCh {
+			results = append(results, r)
+		}
+
+		// Scheduler executes reconciliation actions
+		if err := sched.Run(ctx, results); err != nil {
+			logger.Error(ctx, "scheduler returned errors", slog.Error(err))
+			return err
+		}
+
+		return nil
 	})
 	if err != nil {
 		logger.Error(ctx, "failed to reconcile", slog.Error(err))
@@ -442,7 +470,7 @@ func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Stor
 	return &state, err
 }
 
-func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.PresetSnapshot) error {
+func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.PresetSnapshot) ([]*prebuilds.ReconciliationActions, error) {
 	logger := c.logger.With(
 		slog.F("template_id", ps.Preset.TemplateID.String()),
 		slog.F("template_name", ps.Preset.TemplateName),
@@ -463,36 +491,37 @@ func (c *StoreReconciler) ReconcilePreset(ctx context.Context, ps prebuilds.Pres
 			PresetID: ps.Preset.ID,
 		})
 		if err != nil {
-			return xerrors.Errorf("failed to update preset prebuild status: %w", err)
+			return nil, xerrors.Errorf("failed to update preset prebuild status: %w", err)
 		}
 	}
 
 	state := ps.CalculateState()
+	logger.Debug(ctx, "calculated reconciliation state for preset",
+		slog.F("desired", state.Desired),
+		slog.F("actual", state.Actual),
+		slog.F("extraneous", state.Extraneous),
+		slog.F("starting", state.Starting),
+		slog.F("stopping", state.Stopping),
+		slog.F("deleting", state.Deleting),
+		slog.F("eligible", state.Eligible))
+
 	actions, err := c.CalculateActions(ctx, ps)
 	if err != nil {
 		logger.Error(ctx, "failed to calculate actions for preset", slog.Error(err))
-		return err
+		return nil, err
 	}
 
-	fields := []any{
-		slog.F("desired", state.Desired), slog.F("actual", state.Actual),
-		slog.F("extraneous", state.Extraneous), slog.F("starting", state.Starting),
-		slog.F("stopping", state.Stopping), slog.F("deleting", state.Deleting),
-		slog.F("eligible", state.Eligible),
-	}
+	return actions, nil
 
-	levelFn := logger.Debug
-	levelFn(ctx, "calculated reconciliation state for preset", fields...)
-
-	var multiErr multierror.Error
-	for _, action := range actions {
-		err = c.executeReconciliationAction(ctx, logger, ps, action)
-		if err != nil {
-			logger.Error(ctx, "failed to execute action", "type", action.ActionType, slog.Error(err))
-			multiErr.Errors = append(multiErr.Errors, err)
-		}
-	}
-	return multiErr.ErrorOrNil()
+	//var multiErr multierror.Error
+	//for _, action := range actions {
+	//	err = c.executeReconciliationAction(ctx, logger, ps, action)
+	//	if err != nil {
+	//		logger.Error(ctx, "failed to execute action", "type", action.ActionType, slog.Error(err))
+	//		multiErr.Errors = append(multiErr.Errors, err)
+	//	}
+	//}
+	//return multiErr.ErrorOrNil()
 }
 
 func (c *StoreReconciler) CalculateActions(ctx context.Context, snapshot prebuilds.PresetSnapshot) ([]*prebuilds.ReconciliationActions, error) {
@@ -574,8 +603,6 @@ func (c *StoreReconciler) executeReconciliationAction(ctx context.Context, logge
 	levelFn(ctx, "calculated reconciliation action for preset", fields...)
 
 	switch {
-	case action.ActionType == prebuilds.ActionTypeBackoff:
-		levelFn = logger.Warn
 	// Log at info level when there's a change to be effected.
 	case action.ActionType == prebuilds.ActionTypeCreate && action.Create > 0:
 		levelFn = logger.Info
@@ -584,16 +611,6 @@ func (c *StoreReconciler) executeReconciliationAction(ctx context.Context, logge
 	}
 
 	switch action.ActionType {
-	case prebuilds.ActionTypeBackoff:
-		// If there is anything to backoff for (usually a cycle of failed prebuilds), then log and bail out.
-		levelFn(ctx, "template prebuild state retrieved, backing off",
-			append(fields,
-				slog.F("backoff_until", action.BackoffUntil.Format(time.RFC3339)),
-				slog.F("backoff_secs", math.Round(action.BackoffUntil.Sub(c.clock.Now()).Seconds())),
-			)...)
-
-		return nil
-
 	case prebuilds.ActionTypeCreate:
 		// Unexpected things happen (i.e. bugs or bitflips); let's defend against disastrous outcomes.
 		// See https://blog.robertelder.org/causes-of-bit-flips-in-computer-memory/.
@@ -662,7 +679,7 @@ func (c *StoreReconciler) createPrebuiltWorkspace(ctx context.Context, prebuiltW
 			OrganizationID:    template.OrganizationID,
 			TemplateID:        template.ID,
 			Name:              name,
-			LastUsedAt:        c.clock.Now(),
+			LastUsedAt:        now,
 			AutomaticUpdates:  database.AutomaticUpdatesNever,
 			AutostartSchedule: sql.NullString{},
 			Ttl:               sql.NullInt64{},

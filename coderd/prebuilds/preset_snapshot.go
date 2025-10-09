@@ -3,6 +3,7 @@ package prebuilds
 import (
 	"context"
 	"fmt"
+	"math"
 	"slices"
 	"time"
 
@@ -31,9 +32,6 @@ const (
 
 	// ActionTypeDelete indicates that existing prebuilds should be deleted.
 	ActionTypeDelete
-
-	// ActionTypeBackoff indicates that prebuild creation should be delayed.
-	ActionTypeBackoff
 )
 
 // PresetSnapshot is a filtered view of GlobalSnapshot focused on a single preset.
@@ -306,17 +304,29 @@ func (p PresetSnapshot) isActive() bool {
 func (p PresetSnapshot) handleActiveTemplateVersion() (actions []*ReconciliationActions, err error) {
 	state := p.CalculateState()
 
+	// If preset has pending prebuilds in the provisioner queue do not add new actions
+	if state.Starting > 0 || state.Stopping > 0 || state.Deleting > 0 {
+		p.logger.Warn(context.Background(), "skipping preset with pending prebuilds",
+			slog.F("preset_id", p.Preset.ID),
+			slog.F("starting", state.Starting),
+			slog.F("stopping", state.Stopping),
+			slog.F("deleting", state.Deleting))
+		return nil, nil
+	}
+
 	// If we have expired prebuilds, delete them
 	if state.Expired > 0 {
 		var deleteIDs []uuid.UUID
 		for _, expired := range p.Expired {
 			deleteIDs = append(deleteIDs, expired.ID)
 		}
-		actions = append(actions,
-			&ReconciliationActions{
-				ActionType: ActionTypeDelete,
-				DeleteIDs:  deleteIDs,
-			})
+		if len(deleteIDs) > 0 {
+			actions = append(actions,
+				&ReconciliationActions{
+					ActionType: ActionTypeDelete,
+					DeleteIDs:  deleteIDs,
+				})
+		}
 	}
 
 	// If we still have more prebuilds than desired, delete the oldest ones
@@ -326,6 +336,14 @@ func (p PresetSnapshot) handleActiveTemplateVersion() (actions []*Reconciliation
 				ActionType: ActionTypeDelete,
 				DeleteIDs:  p.getOldestPrebuildIDs(int(state.Extraneous)),
 			})
+	}
+
+	// If preset is hard-limited, and it's a create operation, log it and exit early.
+	// Creation operation is disallowed for hard-limited preset.
+	if p.IsHardLimited {
+		p.logger.Warn(context.Background(), "skipping hard limited preset for creation action",
+			slog.F("preset_id", p.Preset.ID))
+		return actions, nil
 	}
 
 	// Number of running prebuilds excluding the recently deleted Expired
@@ -350,13 +368,16 @@ func (p PresetSnapshot) handleActiveTemplateVersion() (actions []*Reconciliation
 func (p PresetSnapshot) handleInactiveTemplateVersion() ([]*ReconciliationActions, error) {
 	prebuildsToDelete := len(p.Running)
 	deleteIDs := p.getOldestPrebuildIDs(prebuildsToDelete)
+	if len(deleteIDs) > 0 {
+		return []*ReconciliationActions{
+			{
+				ActionType: ActionTypeDelete,
+				DeleteIDs:  deleteIDs,
+			},
+		}, nil
+	}
 
-	return []*ReconciliationActions{
-		{
-			ActionType: ActionTypeDelete,
-			DeleteIDs:  deleteIDs,
-		},
-	}, nil
+	return nil, nil
 }
 
 // needsBackoffPeriod checks if we should delay prebuild creation due to recent failures.
@@ -371,12 +392,13 @@ func (p PresetSnapshot) needsBackoffPeriod(clock quartz.Clock, backoffInterval t
 		return nil, false
 	}
 
-	return []*ReconciliationActions{
-		{
-			ActionType:   ActionTypeBackoff,
-			BackoffUntil: backoffUntil,
-		},
-	}, true
+	// If there is anything to backoff for (usually a cycle of failed prebuilds), then log and bail out.
+	p.logger.Warn(context.Background(), "template prebuild state retrieved, backing off",
+		slog.F("preset_id", p.Preset.ID),
+		slog.F("backoff_until", backoffUntil.Format(time.RFC3339)),
+		slog.F("backoff_secs", math.Round(backoffUntil.Sub(p.clock.Now()).Seconds())))
+
+	return nil, true
 }
 
 // countEligible returns the number of prebuilds that are ready to be claimed.
