@@ -679,6 +679,7 @@ export const MockProvisionerJob: TypesGen.ProvisionerJob = {
 	status: "succeeded",
 	file_id: MockOrganization.id,
 	completed_at: "2022-05-17T17:39:01.382927298Z",
+	initiator_id: MockUserMember.id,
 	tags: {
 		scope: "organization",
 		owner: "",
@@ -4702,6 +4703,31 @@ export const MockSystemNotificationTemplates: TypesGen.NotificationTemplate[] =
 			kind: "system",
 			enabled_by_default: true,
 		},
+		{
+			id: "d4a6271c-cced-4ed0-84ad-afd02a9c7799",
+			name: "Task Idle",
+			title_template: "Task '{{.Labels.workspace}}' is idle",
+			body_template: "The task '{{.Labels.task}}' is idle and ready for input.",
+			actions:
+				'[{"url": "{{base_url}}/tasks/{{.UserUsername}}/{{.Labels.workspace}}", "label": "View task"}, {"url": "{{base_url}}/@{{.UserUsername}}/{{.Labels.workspace}}", "label": "View workspace"}]',
+			group: "Task Events",
+			method: "",
+			kind: "system",
+			enabled_by_default: true,
+		},
+		{
+			id: "bd4b7168-d05e-4e19-ad0f-3593b77aa90f",
+			name: "Task Working",
+			title_template: "Task '{{.Labels.workspace}}' is working",
+			body_template:
+				"The task '{{.Labels.task}}' transitioned to a working state.",
+			actions:
+				'[{"url": "{{base_url}}/tasks/{{.UserUsername}}/{{.Labels.workspace}}", "label": "View task"}, {"url": "{{base_url}}/@{{.UserUsername}}/{{.Labels.workspace}}", "label": "View workspace"}]',
+			group: "Task Events",
+			method: "",
+			kind: "system",
+			enabled_by_default: true,
+		},
 	];
 
 export const MockCustomNotificationTemplates: TypesGen.NotificationTemplate[] =
@@ -4921,6 +4947,34 @@ export const MockPresets: TypesGen.Preset[] = [
 		Parameters: [
 			{ Name: "cpu", Value: "8" },
 			{ Name: "memory", Value: "16GB" },
+		],
+		Default: false,
+		DesiredPrebuildInstances: 0,
+	},
+];
+
+export const MockAIPromptPresets: TypesGen.Preset[] = [
+	{
+		ID: "ai-preset-1",
+		Name: "Code Review",
+		Description: "",
+		Icon: "",
+		Parameters: [
+			{ Name: "AI Prompt", Value: "Review the code for best practices" },
+			{ Name: "cpu", Value: "4" },
+			{ Name: "memory", Value: "8GB" },
+		],
+		Default: true,
+		DesiredPrebuildInstances: 0,
+	},
+	{
+		ID: "ai-preset-2",
+		Name: "Custom Prompt",
+		Description: "",
+		Icon: "",
+		Parameters: [
+			{ Name: "cpu", Value: "4" },
+			{ Name: "memory", Value: "8GB" },
 		],
 		Default: false,
 		DesiredPrebuildInstances: 0,

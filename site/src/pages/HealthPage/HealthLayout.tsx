@@ -1,6 +1,3 @@
-import { useTheme } from "@emotion/react";
-import NotificationsOffOutlined from "@mui/icons-material/NotificationsOffOutlined";
-import ReplayIcon from "@mui/icons-material/Replay";
 import CircularProgress from "@mui/material/CircularProgress";
 import IconButton from "@mui/material/IconButton";
 import { health, refreshHealth } from "api/queries/debug";
@@ -9,6 +6,7 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import MiniTooltip from "components/MiniTooltip/MiniTooltip";
 import kebabCase from "lodash/fp/kebabCase";
+import { BellOffIcon, RotateCcwIcon } from "lucide-react";
 import { DashboardFullPage } from "modules/dashboard/DashboardLayout";
 import { type FC, Suspense } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -28,7 +26,6 @@ const linkStyles = {
 };
 
 export const HealthLayout: FC = () => {
-	const theme = useTheme();
 	const queryClient = useQueryClient();
 	const {
 		data: healthStatus,
@@ -91,7 +88,7 @@ export const HealthLayout: FC = () => {
 											{isRefreshing ? (
 												<CircularProgress size={16} />
 											) : (
-												<ReplayIcon className="size-5" />
+												<RotateCcwIcon className="size-5" />
 											)}
 										</IconButton>
 									</MiniTooltip>
@@ -155,13 +152,7 @@ export const HealthLayout: FC = () => {
 											/>
 											{label}
 											{healthSection.dismissed && (
-												<NotificationsOffOutlined
-													css={{
-														fontSize: 14,
-														marginLeft: "auto",
-														color: theme.palette.text.disabled,
-													}}
-												/>
+												<BellOffIcon className="size-icon-sm ml-auto text-content-disabled" />
 											)}
 										</NavLink>
 									);

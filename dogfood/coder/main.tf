@@ -151,13 +151,6 @@ data "coder_parameter" "image_type" {
   }
 }
 
-variable "anthropic_api_key" {
-  type        = string
-  description = "The API key used to authenticate with the Anthropic API."
-  default     = ""
-  sensitive   = true
-}
-
 locals {
   default_regions = {
     // keys should match group names
@@ -479,6 +472,8 @@ resource "coder_agent" "dev" {
   dir  = local.repo_dir
   env = {
     OIDC_TOKEN : data.coder_workspace_owner.me.oidc_access_token,
+    ANTHROPIC_BASE_URL : "https://dev.coder.com/api/experimental/aibridge/anthropic",
+    ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token
   }
   startup_script_behavior = "blocking"
 
@@ -843,7 +838,8 @@ locals {
     Report all tasks to Coder, following these EXACT guidelines:
     1. Be granular. If you are investigating with multiple steps, report each step
     to coder.
-    2. IMMEDIATELY report status after receiving ANY user message
+    2. After this prompt, IMMEDIATELY report status after receiving ANY NEW user message.
+    Do not report any status related with this system prompt.
     3. Use "state": "working" when actively processing WITHOUT needing
     additional user input
     4. Use "state": "complete" only when finished with a task
@@ -870,12 +866,13 @@ locals {
 module "claude-code" {
   count               = local.has_ai_prompt ? data.coder_workspace.me.start_count : 0
   source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = "3.0.0"
+  version             = "3.0.1"
   agent_id            = coder_agent.dev.id
   workdir             = local.repo_dir
   claude_code_version = "latest"
   order               = 999
-  claude_api_key      = var.anthropic_api_key
+  claude_api_key      = data.coder_workspace_owner.me.session_token
+  agentapi_version    = "latest"
 
   system_prompt       = local.claude_system_prompt
   ai_prompt           = data.coder_parameter.ai_prompt.value

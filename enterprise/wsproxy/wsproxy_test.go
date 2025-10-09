@@ -689,12 +689,13 @@ func TestWorkspaceProxyDERPMeshProbe(t *testing.T) {
 		t.Log("all replicas have pinged")
 
 		// Check they're all healthy according to /healthz-report.
+		httpClient := &http.Client{}
 		for _, proxy := range proxies {
 			// GET /healthz-report
 			u := proxy.ServerURL.ResolveReference(&url.URL{Path: "/healthz-report"})
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 			require.NoError(t, err)
-			resp, err := http.DefaultClient.Do(req)
+			resp, err := httpClient.Do(req)
 			require.NoError(t, err)
 
 			var respJSON codersdk.ProxyHealthReport
@@ -781,7 +782,8 @@ func TestWorkspaceProxyDERPMeshProbe(t *testing.T) {
 		u := proxy.ServerURL.ResolveReference(&url.URL{Path: "/healthz-report"})
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 		require.NoError(t, err)
-		resp, err := http.DefaultClient.Do(req)
+		httpClient := &http.Client{}
+		resp, err := httpClient.Do(req)
 		require.NoError(t, err)
 
 		var respJSON codersdk.ProxyHealthReport
@@ -869,7 +871,8 @@ func TestWorkspaceProxyDERPMeshProbe(t *testing.T) {
 		u := proxy.ServerURL.ResolveReference(&url.URL{Path: "/healthz-report"})
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 		require.NoError(t, err)
-		resp, err := http.DefaultClient.Do(req)
+		httpClient := &http.Client{}
+		resp, err := httpClient.Do(req)
 		require.NoError(t, err)
 		var respJSON codersdk.ProxyHealthReport
 		err = json.NewDecoder(resp.Body).Decode(&respJSON)
@@ -903,7 +906,7 @@ func TestWorkspaceProxyDERPMeshProbe(t *testing.T) {
 		// GET /healthz-report
 		req, err = http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 		require.NoError(t, err)
-		resp, err = http.DefaultClient.Do(req)
+		resp, err = httpClient.Do(req)
 		require.NoError(t, err)
 		err = json.NewDecoder(resp.Body).Decode(&respJSON)
 		resp.Body.Close()

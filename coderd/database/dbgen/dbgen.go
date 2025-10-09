@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/provisionerd/proto"
@@ -186,7 +187,7 @@ func APIKey(t testing.TB, db database.Store, seed database.APIKey, munge ...func
 		UpdatedAt:       takeFirst(seed.UpdatedAt, dbtime.Now()),
 		LoginType:       takeFirst(seed.LoginType, database.LoginTypePassword),
 		Scopes:          takeFirstSlice([]database.APIKeyScope(seed.Scopes), []database.APIKeyScope{database.ApiKeyScopeCoderAll}),
-		AllowList:       takeFirstSlice(seed.AllowList, database.AllowList{database.AllowListWildcard()}),
+		AllowList:       takeFirstSlice(seed.AllowList, database.AllowList{{Type: policy.WildcardSymbol, ID: policy.WildcardSymbol}}),
 		TokenName:       takeFirst(seed.TokenName),
 	}
 	for _, fn := range munge {
@@ -419,6 +420,14 @@ func Workspace(t testing.TB, db database.Store, orig database.WorkspaceTable) da
 		})
 		require.NoError(t, err, "set workspace as deleted")
 		workspace.Deleted = true
+	}
+	if orig.DormantAt.Valid {
+		_, err = db.UpdateWorkspaceDormantDeletingAt(genCtx, database.UpdateWorkspaceDormantDeletingAtParams{
+			ID:        workspace.ID,
+			DormantAt: orig.DormantAt,
+		})
+		require.NoError(t, err, "set workspace as dormant")
+		workspace.DormantAt = orig.DormantAt
 	}
 	return workspace
 }
@@ -903,6 +912,21 @@ func WorkspaceAppStat(t testing.TB, db database.Store, orig database.WorkspaceAp
 	})
 	require.NoError(t, err, "insert workspace agent stat")
 	return scheme
+}
+
+func WorkspaceAppStatus(t testing.TB, db database.Store, orig database.WorkspaceAppStatus) database.WorkspaceAppStatus {
+	appStatus, err := db.InsertWorkspaceAppStatus(genCtx, database.InsertWorkspaceAppStatusParams{
+		ID:          takeFirst(orig.ID, uuid.New()),
+		CreatedAt:   takeFirst(orig.CreatedAt, dbtime.Now()),
+		WorkspaceID: takeFirst(orig.WorkspaceID, uuid.New()),
+		AgentID:     takeFirst(orig.AgentID, uuid.New()),
+		AppID:       takeFirst(orig.AppID, uuid.New()),
+		State:       takeFirst(orig.State, database.WorkspaceAppStatusStateWorking),
+		Message:     takeFirst(orig.Message, ""),
+		Uri:         takeFirst(orig.Uri, sql.NullString{}),
+	})
+	require.NoError(t, err, "insert workspace agent status")
+	return appStatus
 }
 
 func WorkspaceResource(t testing.TB, db database.Store, orig database.WorkspaceResource) database.WorkspaceResource {

@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import MuiButton from "@mui/material/Button";
 import { getErrorMessage } from "api/errors";
 import {
 	addMember,
@@ -120,23 +119,22 @@ const GroupPage: FC = () => {
 
 				{canUpdateGroup && (
 					<Stack direction="row" spacing={2}>
-						<MuiButton
-							component={RouterLink}
-							startIcon={<SettingsIcon className="size-icon-sm" />}
-							to="settings"
-						>
-							Settings
-						</MuiButton>
-						<MuiButton
+						<Button variant="outline" asChild>
+							<RouterLink to="settings">
+								<SettingsIcon />
+								Settings
+							</RouterLink>
+						</Button>
+						<Button
+							variant="destructive"
 							disabled={groupData?.id === groupData?.organization_id}
 							onClick={() => {
 								setIsDeletingGroup(true);
 							}}
-							startIcon={<TrashIcon className="size-icon-xs" />}
-							css={styles.removeButton}
 						>
+							<TrashIcon />
 							Delete&hellip;
-						</MuiButton>
+						</Button>
 					</Stack>
 				)}
 			</Stack>
@@ -353,12 +351,6 @@ const styles = {
 	autoComplete: {
 		width: 300,
 	},
-	removeButton: (theme) => ({
-		color: theme.palette.error.main,
-		"&:hover": {
-			backgroundColor: "transparent",
-		},
-	}),
 	status: {
 		textTransform: "capitalize",
 	},

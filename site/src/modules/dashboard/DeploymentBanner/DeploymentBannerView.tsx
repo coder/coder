@@ -1,11 +1,11 @@
 import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
-import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import type {
 	DeploymentStats,
 	HealthcheckReport,
 	WorkspaceStatus,
 } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import { HelpTooltipTitle } from "components/HelpTooltip/HelpTooltip";
 import { JetBrainsIcon } from "components/Icons/JetBrainsIcon";
 import { RocketIcon } from "components/Icons/RocketIcon";
@@ -321,9 +321,9 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 								fetchStats();
 							}
 						}}
-						variant="text"
+						variant="subtle"
 					>
-						<RotateCwIcon className="size-icon-xs" />
+						<RotateCwIcon />
 						{timeUntilRefresh}s
 					</Button>
 				</MiniTooltip>

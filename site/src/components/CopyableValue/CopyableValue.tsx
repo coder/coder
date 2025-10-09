@@ -15,10 +15,10 @@ export const CopyableValue: FC<CopyableValueProps> = ({
 	children,
 	...attrs
 }) => {
-	const { showCopiedSuccess, copyToClipboard } = useClipboard({
-		textToCopy: value,
+	const { showCopiedSuccess, copyToClipboard } = useClipboard();
+	const clickableProps = useClickable<HTMLSpanElement>(() => {
+		copyToClipboard(value);
 	});
-	const clickableProps = useClickable<HTMLSpanElement>(copyToClipboard);
 
 	return (
 		<MiniTooltip

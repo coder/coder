@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -554,9 +555,65 @@ func (c *Client) DeleteOrganizationMember(ctx context.Context, organizationID uu
 	return nil
 }
 
+type OrganizationMembersQuery struct {
+	UserID        uuid.UUID
+	IncludeSystem bool
+	GithubUserID  int64
+}
+
+func (omq OrganizationMembersQuery) AsRequestOption() RequestOption {
+	return func(r *http.Request) {
+		q := r.URL.Query()
+		var sb strings.Builder
+		if omq.UserID != uuid.Nil {
+			_, _ = sb.WriteString("user_id:")
+			_, _ = sb.WriteString(omq.UserID.String())
+			_, _ = sb.WriteString(" ")
+		}
+		if omq.IncludeSystem {
+			_, _ = sb.WriteString("include_system:true")
+		}
+		if omq.GithubUserID != 0 {
+			_, _ = sb.WriteString("github_user_id:")
+			_, _ = sb.WriteString(strconv.FormatInt(omq.GithubUserID, 10))
+			_, _ = sb.WriteString(" ")
+		}
+		qs := strings.TrimSpace(sb.String())
+		if len(qs) == 0 {
+			return
+		}
+		q.Set("q", qs)
+		r.URL.RawQuery = q.Encode()
+	}
+}
+
+type OrganizationMembersQueryOption func(*OrganizationMembersQuery)
+
+func OrganizationMembersQueryOptionUserID(userID uuid.UUID) OrganizationMembersQueryOption {
+	return func(query *OrganizationMembersQuery) {
+		query.UserID = userID
+	}
+}
+
+func OrganizationMembersQueryOptionIncludeSystem() OrganizationMembersQueryOption {
+	return func(query *OrganizationMembersQuery) {
+		query.IncludeSystem = true
+	}
+}
+
+func OrganizationMembersQueryOptionGithubUserID(githubUserID int64) OrganizationMembersQueryOption {
+	return func(query *OrganizationMembersQuery) {
+		query.GithubUserID = githubUserID
+	}
+}
+
 // OrganizationMembers lists all members in an organization
-func (c *Client) OrganizationMembers(ctx context.Context, organizationID uuid.UUID) ([]OrganizationMemberWithUserData, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/members/", organizationID), nil)
+func (c *Client) OrganizationMembers(ctx context.Context, organizationID uuid.UUID, opts ...OrganizationMembersQueryOption) ([]OrganizationMemberWithUserData, error) {
+	var query OrganizationMembersQuery
+	for _, opt := range opts {
+		opt(&query)
+	}
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/members/", organizationID), nil, query.AsRequestOption())
 	if err != nil {
 		return nil, err
 	}

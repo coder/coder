@@ -87,6 +87,7 @@ func New(options Options) (Reporter, error) {
 		deploymentURL: deploymentURL,
 		snapshotURL:   snapshotURL,
 		startedAt:     dbtime.Now(),
+		client:        &http.Client{},
 	}
 	go reporter.runSnapshotter()
 	return reporter, nil
@@ -119,6 +120,7 @@ type remoteReporter struct {
 	snapshotURL *url.URL
 	startedAt  time.Time
 	shutdownAt *time.Time
+	client     *http.Client
 }
 
 func (r *remoteReporter) Enabled() bool {
@@ -142,7 +144,7 @@ func (r *remoteReporter) reportSync(snapshot *Snapshot) {
 		return
 	}
 	req.Header.Set(VersionHeader, buildinfo.Version())
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := r.client.Do(req)
 	if err != nil {
 		// If the request fails it's not necessarily an error.
 		// In an airgapped environment, it's fine if this fails!
@@ -353,7 +355,7 @@ func (r *remoteReporter) deployment() error {
 		return xerrors.Errorf("create deployment request: %w", err)
 	}
 	req.Header.Set(VersionHeader, buildinfo.Version())
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := r.client.Do(req)
 	if err != nil {
 		return xerrors.Errorf("perform request: %w", err)
 	}

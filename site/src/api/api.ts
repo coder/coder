@@ -426,7 +426,7 @@ export type GetProvisionerDaemonsParams = {
 	offline?: boolean;
 };
 
-type TasksFilter = {
+export type TasksFilter = {
 	username?: string;
 };
 
@@ -2727,6 +2727,10 @@ class ExperimentalApiMethods {
 			workspace,
 			prompt: prompts.prompts[workspace.latest_build.id],
 		}));
+	};
+
+	deleteTask = async (user: string, id: string): Promise<void> => {
+		await this.axios.delete(`/api/experimental/tasks/${user}/${id}`);
 	};
 }
 

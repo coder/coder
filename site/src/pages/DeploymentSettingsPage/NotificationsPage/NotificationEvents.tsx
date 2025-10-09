@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import Divider from "@mui/material/Divider";
 import List from "@mui/material/List";
@@ -14,6 +13,7 @@ import {
 } from "api/queries/notifications";
 import type { DeploymentValues } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
+import { Button } from "components/Button/Button";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import MiniTooltip from "components/MiniTooltip/MiniTooltip";
 import { Stack } from "components/Stack/Stack";
@@ -66,15 +66,14 @@ export const NotificationEvents: FC<NotificationEventsProps> = ({
 				<Alert
 					severity="warning"
 					actions={
-						<Button
-							variant="text"
-							size="small"
-							component="a"
-							target="_blank"
-							rel="noreferrer"
-							href={docs("/admin/monitoring/notifications#webhook")}
-						>
-							Read the docs
+						<Button variant="subtle" size="sm" asChild>
+							<a
+								target="_blank"
+								rel="noreferrer"
+								href={docs("/admin/monitoring/notifications#webhook")}
+							>
+								Read the docs
+							</a>
 						</Button>
 					}
 				>
@@ -86,15 +85,14 @@ export const NotificationEvents: FC<NotificationEventsProps> = ({
 				<Alert
 					severity="warning"
 					actions={
-						<Button
-							variant="text"
-							size="small"
-							component="a"
-							target="_blank"
-							rel="noreferrer"
-							href={docs("/admin/monitoring/notifications#smtp-email")}
-						>
-							Read the docs
+						<Button variant="subtle" size="sm" asChild>
+							<a
+								target="_blank"
+								rel="noreferrer"
+								href={docs("/admin/monitoring/notifications#smtp-email")}
+							>
+								Read the docs
+							</a>
 						</Button>
 					}
 				>

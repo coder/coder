@@ -2,7 +2,7 @@ import { useTheme } from "@emotion/react";
 import type { HealthcheckReport } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import MiniTooltip from "components/MiniTooltip/MiniTooltip";
-import { EarthIcon, HashIcon } from "lucide-react";
+import { GlobeIcon, HashIcon } from "lucide-react";
 import type { FC } from "react";
 import { useOutletContext } from "react-router";
 import { createDayString } from "utils/createDayString";
@@ -107,7 +107,7 @@ const WorkspaceProxyPage: FC = () => {
 								<div css={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
 									{region.wildcard_hostname && (
 										<MiniTooltip title="Wildcard Hostname">
-											<Pill icon={<EarthIcon />}>
+											<Pill icon={<GlobeIcon />}>
 												{region.wildcard_hostname}
 											</Pill>
 										</MiniTooltip>

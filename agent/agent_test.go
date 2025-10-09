@@ -1807,11 +1807,12 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 
 			//nolint:dogsled
 			conn, agentClient, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+			idConnectionReport := uuid.New()
 			id := uuid.New()
 
 			// Test that the connection is reported. This must be tested in the
 			// first connection because we care about verifying all of these.
-			netConn0, err := conn.ReconnectingPTY(ctx, id, 80, 80, "bash --norc")
+			netConn0, err := conn.ReconnectingPTY(ctx, idConnectionReport, 80, 80, "bash --norc")
 			require.NoError(t, err)
 			_ = netConn0.Close()
 			assertConnectionReport(t, agentClient, proto.Connection_RECONNECTING_PTY, 0, "")
@@ -2027,7 +2028,8 @@ func runSubAgentMain() int {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	req = req.WithContext(ctx)
-	resp, err := http.DefaultClient.Do(req)
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "agent connection failed: %v\n", err)
 		return 11

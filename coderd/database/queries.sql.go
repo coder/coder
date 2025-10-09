@@ -7142,12 +7142,19 @@ WHERE
 		  ELSE
 			  is_system = false
 	END
+  -- Filter by github user ID. Note that this requires a join on the users table.
+  AND CASE
+    WHEN $4 :: bigint != 0 THEN
+      users.github_com_user_id = $4
+    ELSE true
+  END
 `
 
 type OrganizationMembersParams struct {
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 	UserID         uuid.UUID `db:"user_id" json:"user_id"`
 	IncludeSystem  bool      `db:"include_system" json:"include_system"`
+	GithubUserID   int64     `db:"github_user_id" json:"github_user_id"`
 }
 
 type OrganizationMembersRow struct {
@@ -7164,7 +7171,12 @@ type OrganizationMembersRow struct {
 //   - Use just 'user_id' to get all orgs a user is a member of
 //   - Use both to get a specific org member row
 func (q *sqlQuerier) OrganizationMembers(ctx context.Context, arg OrganizationMembersParams) ([]OrganizationMembersRow, error) {
-	rows, err := q.db.QueryContext(ctx, organizationMembers, arg.OrganizationID, arg.UserID, arg.IncludeSystem)
+	rows, err := q.db.QueryContext(ctx, organizationMembers,
+		arg.OrganizationID,
+		arg.UserID,
+		arg.IncludeSystem,
+		arg.GithubUserID,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -8954,7 +8966,7 @@ WHERE
 	-- Filter by max age if provided
 	AND (
 		$7::bigint IS NULL
-		OR pd.last_seen_at IS NULL 
+		OR pd.last_seen_at IS NULL
 		OR pd.last_seen_at >= (NOW() - ($7::bigint || ' ms')::interval)
 	)
 	AND (
@@ -9279,11 +9291,11 @@ func (q *sqlQuerier) InsertProvisionerJobLogs(ctx context.Context, arg InsertPro
 }
 
 const updateProvisionerJobLogsLength = `-- name: UpdateProvisionerJobLogsLength :exec
-UPDATE 
+UPDATE
 	provisioner_jobs
-SET 
+SET
 	logs_length = logs_length + $2
-WHERE 
+WHERE
 	id = $1
 `
 
@@ -9298,11 +9310,11 @@ func (q *sqlQuerier) UpdateProvisionerJobLogsLength(ctx context.Context, arg Upd
 }
 
 const updateProvisionerJobLogsOverflowed = `-- name: UpdateProvisionerJobLogsOverflowed :exec
-UPDATE 
+UPDATE
 	provisioner_jobs
-SET 
+SET
 	logs_overflowed = $2
-WHERE 
+WHERE
 	id = $1
 `
 
@@ -9822,6 +9834,7 @@ WHERE
 	AND (COALESCE(array_length($2::uuid[], 1), 0) = 0 OR pj.id = ANY($2::uuid[]))
 	AND (COALESCE(array_length($3::provisioner_job_status[], 1), 0) = 0 OR pj.job_status = ANY($3::provisioner_job_status[]))
 	AND ($4::tagset = 'null'::tagset OR provisioner_tagset_contains(pj.tags::tagset, $4::tagset))
+	AND ($5::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR pj.initiator_id = $5::uuid)
 GROUP BY
 	pj.id,
 	qp.queue_position,
@@ -9837,7 +9850,7 @@ GROUP BY
 ORDER BY
 	pj.created_at DESC
 LIMIT
-	$5::int
+	$6::int
 `
 
 type GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams struct {
@@ -9845,6 +9858,7 @@ type GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerPar
 	IDs            []uuid.UUID            `db:"ids" json:"ids"`
 	Status         []ProvisionerJobStatus `db:"status" json:"status"`
 	Tags           StringMap              `db:"tags" json:"tags"`
+	InitiatorID    uuid.UUID              `db:"initiator_id" json:"initiator_id"`
 	Limit          sql.NullInt32          `db:"limit" json:"limit"`
 }
 
@@ -9869,6 +9883,7 @@ func (q *sqlQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionA
 		pq.Array(arg.IDs),
 		pq.Array(arg.Status),
 		arg.Tags,
+		arg.InitiatorID,
 		arg.Limit,
 	)
 	if err != nil {
@@ -10361,7 +10376,7 @@ FROM
     provisioner_keys
 WHERE
     organization_id = $1
-AND 
+AND
     lower(name) = lower($2)
 `
 
@@ -10477,10 +10492,10 @@ WHERE
 AND
     -- exclude reserved built-in key
     id != '00000000-0000-0000-0000-000000000001'::uuid
-AND 
+AND
     -- exclude reserved user-auth key
     id != '00000000-0000-0000-0000-000000000002'::uuid
-AND 
+AND
     -- exclude reserved psk key
     id != '00000000-0000-0000-0000-000000000003'::uuid
 `
@@ -14274,14 +14289,14 @@ DO $$
 DECLARE
     table_record record;
 BEGIN
-    FOR table_record IN 
-        SELECT table_schema, table_name 
-        FROM information_schema.tables 
+    FOR table_record IN
+        SELECT table_schema, table_name
+        FROM information_schema.tables
         WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
         AND table_type = 'BASE TABLE'
     LOOP
-        EXECUTE format('ALTER TABLE %I.%I DISABLE TRIGGER ALL', 
-                    table_record.table_schema, 
+        EXECUTE format('ALTER TABLE %I.%I DISABLE TRIGGER ALL',
+                    table_record.table_schema,
                     table_record.table_name);
     END LOOP;
 END;
@@ -18266,7 +18281,7 @@ WITH agent_stats AS (
 		coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_95
 	 FROM workspace_agent_stats
 	-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
-	WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0 
+	WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0
 	GROUP BY user_id, agent_id, workspace_id, template_id
 ), latest_agent_stats AS (
 	SELECT
@@ -18839,6 +18854,45 @@ func (q *sqlQuerier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg Ups
 	var new_or_stale bool
 	err := row.Scan(&new_or_stale)
 	return new_or_stale, err
+}
+
+const getLatestWorkspaceAppStatusesByAppID = `-- name: GetLatestWorkspaceAppStatusesByAppID :many
+SELECT id, created_at, agent_id, app_id, workspace_id, state, message, uri
+FROM workspace_app_statuses
+WHERE app_id = $1::uuid
+ORDER BY created_at DESC, id DESC
+`
+
+func (q *sqlQuerier) GetLatestWorkspaceAppStatusesByAppID(ctx context.Context, appID uuid.UUID) ([]WorkspaceAppStatus, error) {
+	rows, err := q.db.QueryContext(ctx, getLatestWorkspaceAppStatusesByAppID, appID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAppStatus
+	for rows.Next() {
+		var i WorkspaceAppStatus
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.AgentID,
+			&i.AppID,
+			&i.WorkspaceID,
+			&i.State,
+			&i.Message,
+			&i.Uri,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getLatestWorkspaceAppStatusesByWorkspaceIDs = `-- name: GetLatestWorkspaceAppStatusesByWorkspaceIDs :many

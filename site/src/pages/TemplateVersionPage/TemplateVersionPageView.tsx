@@ -1,6 +1,6 @@
-import Button from "@mui/material/Button";
 import type { TemplateVersion } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Button } from "components/Button/Button";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import {
@@ -49,21 +49,18 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
 				actions={
 					<>
 						{createWorkspaceUrl && (
-							<Button
-								variant="contained"
-								startIcon={<PlusIcon />}
-								component={RouterLink}
-								to={createWorkspaceUrl}
-							>
-								Create workspace
+							<Button asChild>
+								<RouterLink to={createWorkspaceUrl}>
+									<PlusIcon />
+									Create workspace
+								</RouterLink>
 							</Button>
 						)}
-						<Button
-							startIcon={<EditIcon className="size-icon-xs" />}
-							component={RouterLink}
-							to={`${templateLink}/versions/${versionName}/edit`}
-						>
-							Edit
+						<Button variant="outline" asChild>
+							<RouterLink to={`${templateLink}/versions/${versionName}/edit`}>
+								<EditIcon className="!size-icon-sm" />
+								Edit
+							</RouterLink>
 						</Button>
 					</>
 				}

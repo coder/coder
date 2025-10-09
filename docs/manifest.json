@@ -884,6 +884,12 @@
 					"state": ["beta"],
 					"children": [
 						{
+							"title": "Understanding Coder Tasks",
+							"description": "Core principles and concepts behind Coder Tasks",
+							"path": "./ai-coder/tasks-core-principles.md",
+							"state": ["beta"]
+						},
+						{
 							"title": "Custom Agents",
 							"description": "Run custom agents with Coder Tasks",
 							"path": "./ai-coder/custom-agents.md",
@@ -900,6 +906,26 @@
 					"title": "MCP Server",
 					"description": "Connect to agents Coder with a MCP server",
 					"path": "./ai-coder/mcp-server.md",
+					"state": ["beta"]
+				},
+				{
+					"title": "Agent Boundaries",
+					"description": "Understanding Agent Boundaries in Coder Tasks",
+					"path": "./ai-coder/agent-boundary.md",
+					"state": ["beta"]
+				},
+				{
+					"title": "AI Bridge",
+					"description": "Centralized LLM and MCP proxy for platform teams",
+					"path": "./ai-coder/ai-bridge.md",
+					"icon_path": "./images/icons/api.svg",
+					"state": ["premium", "early access"]
+				},
+				{
+					"title": "Tasks CLI",
+					"description": "Coder CLI for managing tasks programmatically",
+					"path": "./ai-coder/cli.md",
+					"icon_path": "./images/icons/api.svg",
 					"state": ["beta"]
 				}
 			]
