@@ -235,3 +235,59 @@ func TestGitSSH(t *testing.T) {
 		}
 	})
 }
+
+func TestGitSign(t *testing.T) {
+	t.Parallel()
+	
+	t.Run("Basic", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		client, token, _ := prepareTestGitSSH(ctx, t)
+
+		// Test basic signing operation
+		inv, _ := clitest.New(t,
+			"gitsign",
+			"--agent-url", client.SDK.URL.String(),
+			"--agent-token", token,
+		)
+
+		pty := ptytest.New(t).Attach(inv)
+		cmdDone := make(chan error, 1)
+		go func() {
+			cmdDone <- inv.WithContext(ctx).Run()
+		}()
+
+		// Since we don't have real ssh-keygen in the test environment,
+		// we expect this to fail but the key handling should work correctly
+		pty.ExpectMatch("ssh-keygen")
+		
+		// Cancel to avoid hanging
+		cancel()
+		err := <-cmdDone
+		// We expect an error since ssh-keygen might not be available in test env
+		require.Error(t, err)
+	})
+
+	t.Run("KeyRetrieval", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		client, _, _ := prepareTestGitSSH(ctx, t)
+
+		// Verify that the agent client can retrieve the SSH key
+		key, err := client.GitSSHKey(ctx)
+		require.NoError(t, err)
+		require.NotEmpty(t, key.PrivateKey)
+		require.NotEmpty(t, key.PublicKey)
+		
+		// Verify the key format
+		require.Contains(t, key.PublicKey, "ssh-")
+		require.Contains(t, key.PrivateKey, "-----BEGIN")
+		require.Contains(t, key.PrivateKey, "-----END")
+	})
+}

@@ -453,6 +453,23 @@ func TestAgent_GitSSH(t *testing.T) {
 	require.True(t, strings.HasSuffix(strings.TrimSpace(string(output)), "gitssh --"))
 }
 
+func TestAgent_GitConfig(t *testing.T) {
+	t.Parallel()
+	session := setupSSHSession(t, agentsdk.Manifest{}, codersdk.ServiceBannerConfig{}, nil)
+	command := "sh -c 'echo $GIT_CONFIG_GLOBAL'"
+	if runtime.GOOS == "windows" {
+		command = "cmd.exe /c echo %GIT_CONFIG_GLOBAL%"
+	}
+	output, err := session.Output(command)
+	require.NoError(t, err)
+	outputStr := strings.TrimSpace(string(output))
+	
+	// Verify SSH signing is configured
+	require.Contains(t, outputStr, "gpg.format=ssh")
+	require.Contains(t, outputStr, "gitsign")
+	require.Contains(t, outputStr, "commit.gpgsign=false")
+}
+
 func TestAgent_SessionTTYShell(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS == "windows" {

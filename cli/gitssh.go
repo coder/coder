@@ -14,6 +14,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
 )
@@ -111,6 +112,90 @@ func gitssh() *serpent.Command {
 	}
 	agentAuth.AttachOptions(cmd, false)
 	return cmd
+}
+
+func gitsign() *serpent.Command {
+	agentAuth := &AgentAuth{}
+	cmd := &serpent.Command{
+		Use:    "gitsign",
+		Hidden: true,
+		Short:  "Signs git commits using the coder SSH key",
+		Handler: func(inv *serpent.Invocation) error {
+			ctx := inv.Context()
+
+			// Catch interrupt signals to ensure the temporary key files
+			// are cleaned up in most cases.
+			ctx, stop := inv.SignalNotifyContext(ctx, StopSignals...)
+			defer stop()
+
+			client, err := agentAuth.CreateClient()
+			if err != nil {
+				return xerrors.Errorf("create agent client: %w", err)
+			}
+			
+			key, err := client.GitSSHKey(ctx)
+			if err != nil {
+				return xerrors.Errorf("get agent git ssh key: %w", err)
+			}
+
+			// Handle SSH signing operation
+			return performSSHSigning(ctx, key, inv.Args, inv.Stdin, inv.Stdout, inv.Stderr)
+		},
+	}
+	agentAuth.AttachOptions(cmd, false)
+	return cmd
+}
+
+// performSSHSigning handles SSH-based signing operations for git commits
+func performSSHSigning(ctx context.Context, key agentsdk.GitSSHKey, args []string, stdin io.Reader, stdout, stderr io.Writer) error {
+	// Create temporary files for both private and public keys
+	privateKeyFile, err := os.CreateTemp("", "coder-signing-key-*")
+	if err != nil {
+		return xerrors.Errorf("create temp private key file: %w", err)
+	}
+	defer func() {
+		_ = privateKeyFile.Close()
+		_ = os.Remove(privateKeyFile.Name())
+	}()
+
+	publicKeyFile, err := os.CreateTemp("", "coder-signing-pubkey-*.pub")
+	if err != nil {
+		return xerrors.Errorf("create temp public key file: %w", err)
+	}
+	defer func() {
+		_ = publicKeyFile.Close()
+		_ = os.Remove(publicKeyFile.Name())
+	}()
+
+	// Write private key to file
+	_, err = privateKeyFile.WriteString(key.PrivateKey)
+	if err != nil {
+		return xerrors.Errorf("write private key to temp file: %w", err)
+	}
+	if err = privateKeyFile.Close(); err != nil {
+		return xerrors.Errorf("close private key file: %w", err)
+	}
+
+	// Write public key to file
+	_, err = publicKeyFile.WriteString(key.PublicKey)
+	if err != nil {
+		return xerrors.Errorf("write public key to temp file: %w", err)
+	}
+	if err = publicKeyFile.Close(); err != nil {
+		return xerrors.Errorf("close public key file: %w", err)
+	}
+
+	// Execute SSH signing command
+	// The SSH signing protocol expects 'ssh-keygen -Y sign' for signing operations
+	cmdArgs := []string{"-Y", "sign", "-f", privateKeyFile.Name(), "-n", "git"}
+	cmdArgs = append(cmdArgs, args...)
+	
+	cmd := exec.CommandContext(ctx, "ssh-keygen", cmdArgs...)
+	cmd.Stdin = stdin
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
+	
+	return cmd.Run()
 }
 
 // fallbackIdentityFiles is the list of identity files SSH tries when
