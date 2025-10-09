@@ -11,11 +11,22 @@ import { useMutation, useQuery } from "react-query";
 import { useNavigate } from "react-router";
 import { pageTitle } from "utils/page";
 import { CreateTokenForm } from "./CreateTokenForm";
-import { type CreateTokenData, NANO_HOUR } from "./utils";
+import {
+	type CreateTokenData,
+	NANO_HOUR,
+	buildRequestScopes,
+	serializeAllowList,
+} from "./utils";
+import type { CreateTokenRequest } from "api/typesGenerated";
+import { useAllowListResolver } from "./useAllowListResolver";
 
 const initialValues: CreateTokenData = {
 	name: "",
 	lifetime: 30,
+	scopeMode: "composite",
+	compositeScopes: [],
+	lowLevelScopes: [],
+	allowList: [],
 };
 
 const CreateTokenPage: FC = () => {
@@ -37,8 +48,20 @@ const CreateTokenPage: FC = () => {
 		queryKey: ["tokenconfig"],
 		queryFn: API.getTokenConfig,
 	});
+	const {
+		data: scopeCatalog,
+		isLoading: fetchingScopeCatalog,
+		isError: scopeCatalogFailed,
+		error: scopeCatalogError,
+	} = useQuery({
+		queryKey: ["scopecatalog"],
+		queryFn: API.getScopeCatalog,
+	});
 
 	const [formError, setFormError] = useState<unknown>(undefined);
+
+	const resolveAllowListOptions = useAllowListResolver();
+
 
 	const onCreateSuccess = () => {
 		displaySuccess("Token has been created");
@@ -53,18 +76,28 @@ const CreateTokenPage: FC = () => {
 	const form = useFormik<CreateTokenData>({
 		initialValues,
 		onSubmit: (values) => {
-			saveToken(
-				{
-					lifetime: values.lifetime * 24 * NANO_HOUR,
-					token_name: values.name,
-					scope: "all", // tokens are currently unscoped
-				},
-				{
-					onError: onCreateError,
-				},
+			const scopes = buildRequestScopes(
+				values.compositeScopes,
+				values.lowLevelScopes,
 			);
+			const allowList = serializeAllowList(values.allowList);
+
+			const payload: CreateTokenRequest = {
+				lifetime: values.lifetime * 24 * NANO_HOUR,
+				token_name: values.name,
+				...(scopes.length > 0 ? { scopes } : {}),
+				...(allowList && allowList.length > 0 ? { allow_list: allowList } : {}),
+			};
+
+			saveToken(payload, {
+				onError: onCreateError,
+			});
 		},
 	});
+
+	if (fetchingTokenConfig || fetchingScopeCatalog) {
+		return <Loader />;
+	}
 
 	const tokenDescription = (
 		<>
@@ -82,26 +115,25 @@ const CreateTokenPage: FC = () => {
 		</>
 	);
 
-	if (fetchingTokenConfig) {
-		return <Loader />;
-	}
-
 	return (
 		<>
 			<title>{pageTitle("Create Token")}</title>
 
 			{tokenFetchFailed && <ErrorAlert error={tokenFetchError} />}
+			{scopeCatalogFailed && <ErrorAlert error={scopeCatalogError} />}
 			<FullPageHorizontalForm
 				title="Create Token"
-				detail="All tokens are unscoped and therefore have full resource access."
+				detail="Choose the minimum set of scopes and optional resource allow-list before generating your token."
 			>
 				<CreateTokenForm
 					form={form}
 					maxTokenLifetime={tokenConfig?.max_token_lifetime}
 					formError={formError}
 					setFormError={setFormError}
-					isCreating={isCreating}
-					creationFailed={creationFailed}
+					isSubmitting={isCreating}
+					submitFailed={creationFailed}
+					scopeCatalog={scopeCatalog}
+					resolveAllowListOptions={resolveAllowListOptions}
 				/>
 
 				<ConfirmDialog
