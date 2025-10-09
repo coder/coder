@@ -51,6 +51,7 @@
 							"@mui/material/Popover": "Use components/Popover/Popover instead.",
 							"@mui/material/Typography": "Use native HTML elements instead. Eg: <span>, <p>, <h1>, etc.",
 							"@mui/material/Box": "Use a <div> instead.",
+							"@mui/material/Button": "Use a components/Button/Button instead.",
 							"@mui/material/styles": "Import from @emotion/react instead.",
 							"lodash": "Use lodash/<name> instead."
 						}
