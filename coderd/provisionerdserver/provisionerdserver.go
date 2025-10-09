@@ -1972,12 +1972,13 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 				if protoAgent == nil {
 					continue
 				}
-				// Always set the agent ID. Previously this ID was generated
-				// in InsertWorkspaceResource, but it's required for linking
-				// the agent to a task. As per previous behavior, this is OK
-				// because we always overwrite the given protoAgent.Id.
+				// By default InsertWorkspaceResource ignores the protoAgent.Id
+				// and generates a new one, but we will insert these using the
+				// InsertWorkspaceResourceWithAgentIDsFromProto option so that
+				// we can properly map agent IDs to app IDs. This is needed for
+				// task linking.
 				agentID := uuid.New()
-				protoAgent.Id = makeStaticID(agentID)
+				protoAgent.Id = agentID.String()
 
 				dur := time.Duration(protoAgent.GetConnectionTimeoutSeconds()) * time.Second
 				agentTimeouts[dur] = true
@@ -1987,7 +1988,17 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 				}
 			}
 
-			err = InsertWorkspaceResource(ctx, db, job.ID, workspaceBuild.Transition, protoResource, telemetrySnapshot)
+			err = InsertWorkspaceResource(
+				ctx,
+				db,
+				job.ID,
+				workspaceBuild.Transition,
+				protoResource,
+				telemetrySnapshot,
+				// Ensure that the agent IDs we set previously
+				// are written to the database.
+				InsertWorkspaceResourceWithAgentIDsFromProto(),
+			)
 			if err != nil {
 				return xerrors.Errorf("insert provisioner job: %w", err)
 			}
@@ -2615,7 +2626,28 @@ func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, 
 	return nil
 }
 
-func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.UUID, transition database.WorkspaceTransition, protoResource *sdkproto.Resource, snapshot *telemetry.Snapshot) error {
+type insertWorkspaceResourceOptions struct {
+	useAgentIDsFromProto bool
+}
+
+// InsertWorkspaceResourceOption represents a functional option for
+// InsertWorkspaceResource.
+type InsertWorkspaceResourceOption func(*insertWorkspaceResourceOptions)
+
+// InsertWorkspaceResourceWithAgentIDsFromProto allows inserting agents into the
+// database using the agent IDs defined in the proto resource.
+func InsertWorkspaceResourceWithAgentIDsFromProto() InsertWorkspaceResourceOption {
+	return func(opts *insertWorkspaceResourceOptions) {
+		opts.useAgentIDsFromProto = true
+	}
+}
+
+func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.UUID, transition database.WorkspaceTransition, protoResource *sdkproto.Resource, snapshot *telemetry.Snapshot, opt ...InsertWorkspaceResourceOption) error {
+	opts := &insertWorkspaceResourceOptions{}
+	for _, o := range opt {
+		o(opts)
+	}
+
 	resource, err := db.InsertWorkspaceResource(ctx, database.InsertWorkspaceResourceParams{
 		ID:         uuid.New(),
 		CreatedAt:  dbtime.Now(),
@@ -2711,14 +2743,12 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			apiKeyScope = database.AgentKeyScopeEnumNoUserData
 		}
 
-		var agentID uuid.UUID
-		if id, ok := staticID(prAgent.GetId()); ok {
-			agentID, err = uuid.Parse(id)
+		agentID := uuid.New()
+		if opts.useAgentIDsFromProto {
+			agentID, err = uuid.Parse(prAgent.Id)
 			if err != nil {
 				return xerrors.Errorf("invalid agent ID format; must be uuid: %w", err)
 			}
-		} else {
-			agentID = uuid.New()
 		}
 		dbAgent, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
 			ID:                       agentID,
@@ -3293,23 +3323,4 @@ func convertDisplayApps(apps *sdkproto.DisplayApps) []database.DisplayApp {
 		dapps = append(dapps, database.DisplayAppWebTerminal)
 	}
 	return dapps
-}
-
-const staticIDPrefix = "static:"
-
-// makeStaticID encodes the UUID into a magic string that can be identified in
-// InsertWorkspaceResource and used as-is. Typically the provided ID is always
-// replaced for the agent ID but this is not practical when the agent ID needs
-// to be known after-the-fact and we want to avoid additional database lookups.
-func makeStaticID(id uuid.UUID) string {
-	return staticIDPrefix + id.String()
-}
-
-// staticID extracts the static ID from a string and returns true if this is a
-// static ID.
-func staticID(agentID string) (string, bool) {
-	if !strings.HasPrefix(agentID, staticIDPrefix) {
-		return "", false
-	}
-	return strings.TrimPrefix(agentID, staticIDPrefix), true
 }
