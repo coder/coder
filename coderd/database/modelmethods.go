@@ -139,6 +139,13 @@ func (t Task) RBACObject() rbac.Object {
 		InOrg(t.OrganizationID)
 }
 
+func (t TaskTable) RBACObject() rbac.Object {
+	return rbac.ResourceTask.
+		WithID(t.ID).
+		WithOwner(t.OwnerID.String()).
+		InOrg(t.OrganizationID)
+}
+
 func (s APIKeyScope) ToRBAC() rbac.ScopeName {
 	switch s {
 	case ApiKeyScopeCoderAll:
