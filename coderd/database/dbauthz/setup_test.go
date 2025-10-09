@@ -436,12 +436,6 @@ func (m *expects) ErrorsWithPG(err error) *expects {
 	return m.Errors(err)
 }
 
-// ErrorsWithInMemDB is deprecated. The in-memory database has been removed.
-// This method is kept for backwards compatibility but does nothing.
-func (m *expects) ErrorsWithInMemDB(err error) *expects {
-	return m
-}
-
 func (m *expects) FailSystemObjectChecks() *expects {
 	return m.WithSuccessAuthorizer(func(ctx context.Context, subject rbac.Subject, action policy.Action, obj rbac.Object) error {
 		if obj.Type == rbac.ResourceSystem.Type {
