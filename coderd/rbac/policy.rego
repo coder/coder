@@ -257,9 +257,29 @@ scope_allow_list if {
 	input.subject.scope.allow_list[_] == {"type": input.object.type, "id": "*"}
 }
 
+# Allow create operations when the allow_list grants the resource type (or global wildcard)
+# even if the object ID is not yet known.
+scope_allow_list if {
+	input.action == "create"
+	not {"type": "*", "id": "*"} in input.subject.scope.allow_list
+	not {"type": input.object.type, "id": "*"} in input.subject.scope.allow_list
+
+	input.object.id == ""
+
+	allowed_ids := {allowed_id |
+		# Iterate over all allow list elements matching the object type
+		ele := input.subject.scope.allow_list[_]
+		ele.type in [input.object.type, "*"]
+		allowed_id := ele.id
+	}
+
+	allowed_ids[_]
+}
+
 # A comprehension that iterates over the allow_list and checks if the
 # (object.type, object.id) is in the allowed ids.
 scope_allow_list if {
+	input.action != "create"
 	# If the wildcard is listed in the allow_list, we do not care about the
 	# object.id. This line is included to prevent partial compilations from
 	# ever needing to include the object.id.
