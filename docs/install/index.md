@@ -27,9 +27,10 @@ curl -L https://coder.com/install.sh | sh
 Refer to [GitHub releases](https://github.com/coder/coder/releases) for
 alternate installation methods (e.g. standalone binaries, system packages).
 
-> [!WARNING]
-> If you're using an Appl eSilicon Mac with ARM64 archiecture, so M1/M2/M3/M4, you'll need to use an external Postgres SQL Database
-> using the following commands:
+**Warning**
+
+If you're using an Appl eSilicon Mac with ARM64 archiecture, so M1/M2/M3/M4, you'll need to use an external Postgres SQL Database
+using the following commands:
 
 ``` bash
 # Install PostgreSQL
