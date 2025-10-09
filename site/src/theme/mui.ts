@@ -6,7 +6,6 @@ import {
 	BODY_FONT_FAMILY,
 	BUTTON_LG_HEIGHT,
 	BUTTON_MD_HEIGHT,
-	borderRadius,
 } from "./constants";
 import tw from "./tailwindColors";
 
@@ -56,73 +55,6 @@ export const components = {
 			},
 			colorDefault: ({ theme }) => ({
 				backgroundColor: theme.palette.primary.light,
-			}),
-		},
-	},
-	MuiTableContainer: {
-		styleOverrides: {
-			root: ({ theme }) => ({
-				borderRadius,
-				border: `1px solid ${theme.palette.divider}`,
-			}),
-		},
-	},
-	MuiTable: {
-		styleOverrides: {
-			root: ({ theme }) => ({
-				borderCollapse: "unset",
-				border: "none",
-				boxShadow: `0 0 0 1px ${theme.palette.background.default} inset`,
-				overflow: "hidden",
-
-				"& td": {
-					paddingTop: 16,
-					paddingBottom: 16,
-					background: "transparent",
-				},
-
-				[theme.breakpoints.down("md")]: {
-					minWidth: 1000,
-				},
-			}),
-		},
-	},
-	MuiTableCell: {
-		styleOverrides: {
-			head: ({ theme }) => ({
-				fontSize: 14,
-				color: theme.palette.text.secondary,
-				fontWeight: 500,
-				background: theme.palette.background.paper,
-				borderWidth: 2,
-			}),
-			root: ({ theme }) => ({
-				fontSize: 14,
-				background: theme.palette.background.paper,
-				borderBottom: `1px solid ${theme.palette.divider}`,
-				padding: "12px 8px",
-				// This targets the first+last td elements, and also the first+last elements
-				// of a TableCellLink.
-				"&:not(:only-child):first-of-type, &:not(:only-child):first-of-type > a":
-					{
-						paddingLeft: 32,
-					},
-				"&:not(:only-child):last-child, &:not(:only-child):last-child > a": {
-					paddingRight: 32,
-				},
-			}),
-		},
-	},
-	MuiTableRow: {
-		styleOverrides: {
-			root: ({ theme }) => ({
-				"&:last-child .MuiTableCell-body": {
-					borderBottom: 0,
-				},
-
-				"&.MuiTableRow-hover:hover": {
-					backgroundColor: theme.palette.background.paper,
-				},
 			}),
 		},
 	},
