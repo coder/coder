@@ -1482,6 +1482,20 @@ func (m queryMetricsStore) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uu
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetTaskByID(ctx context.Context, id uuid.UUID) (database.Task, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTaskByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetTaskByID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetTaskByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.Task, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTaskByWorkspaceID(ctx, workspaceID)
+	m.queryLatencies.WithLabelValues("GetTaskByWorkspaceID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetTelemetryItem(ctx context.Context, key string) (database.TelemetryItem, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetTelemetryItem(ctx, key)
@@ -2453,6 +2467,13 @@ func (m queryMetricsStore) InsertReplica(ctx context.Context, arg database.Inser
 	replica, err := m.s.InsertReplica(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertReplica").Observe(time.Since(start).Seconds())
 	return replica, err
+}
+
+func (m queryMetricsStore) InsertTask(ctx context.Context, arg database.InsertTaskParams) (database.TaskTable, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertTask(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertTask").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m queryMetricsStore) InsertTelemetryItemIfNotExists(ctx context.Context, arg database.InsertTelemetryItemIfNotExistsParams) error {
@@ -3530,6 +3551,13 @@ func (m queryMetricsStore) UpsertTailnetTunnel(ctx context.Context, arg database
 	start := time.Now()
 	r0, r1 := m.s.UpsertTailnetTunnel(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpsertTailnetTunnel").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpsertTaskWorkspaceApp(ctx context.Context, arg database.UpsertTaskWorkspaceAppParams) (database.TaskWorkspaceApp, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpsertTaskWorkspaceApp(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertTaskWorkspaceApp").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
