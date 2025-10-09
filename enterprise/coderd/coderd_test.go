@@ -80,9 +80,7 @@ func TestEntitlements(t *testing.T) {
 	})
 	t.Run("FullLicense", func(t *testing.T) {
 		// PGCoordinator requires a real postgres
-		if !dbtestutil.WillUsePostgres() {
-			t.Skip("test only with postgres")
-		}
+
 		t.Parallel()
 		adminClient, _ := coderdenttest.New(t, &coderdenttest.Options{
 			AuditLogging:   true,
@@ -881,10 +879,6 @@ func (s *restartableTestServer) startWithFirstUser(t *testing.T) (client *coders
 // This test uses a real server and real clients.
 func TestConn_CoordinatorRollingRestart(t *testing.T) {
 	t.Parallel()
-
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("test only with postgres")
-	}
 
 	// Although DERP will have connection issues until the connection is
 	// reestablished, any open connections should be maintained.

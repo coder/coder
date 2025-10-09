@@ -36,9 +36,7 @@ func TestMain(m *testing.M) {
 
 func TestPGCoordinatorSingle_ClientWithoutAgent(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("test only with postgres")
-	}
+
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
@@ -71,9 +69,7 @@ func TestPGCoordinatorSingle_ClientWithoutAgent(t *testing.T) {
 
 func TestPGCoordinatorSingle_AgentWithoutClients(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("test only with postgres")
-	}
+
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
@@ -105,9 +101,7 @@ func TestPGCoordinatorSingle_AgentWithoutClients(t *testing.T) {
 
 func TestPGCoordinatorSingle_AgentInvalidIP(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("test only with postgres")
-	}
+
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
@@ -132,9 +126,7 @@ func TestPGCoordinatorSingle_AgentInvalidIP(t *testing.T) {
 
 func TestPGCoordinatorSingle_AgentInvalidIPBits(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("test only with postgres")
-	}
+
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
@@ -160,9 +152,7 @@ func TestPGCoordinatorSingle_AgentInvalidIPBits(t *testing.T) {
 
 func TestPGCoordinatorSingle_AgentValidIP(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("test only with postgres")
-	}
+
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
@@ -199,9 +189,7 @@ func TestPGCoordinatorSingle_AgentValidIP(t *testing.T) {
 
 func TestPGCoordinatorSingle_AgentWithClient(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("test only with postgres")
-	}
+
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
@@ -248,9 +236,7 @@ func TestPGCoordinatorSingle_AgentWithClient(t *testing.T) {
 
 func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("test only with postgres")
-	}
+
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
@@ -333,9 +319,7 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 
 func TestPGCoordinatorSingle_MissedHeartbeats_NoDrop(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("test only with postgres")
-	}
+
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
@@ -379,9 +363,7 @@ func TestPGCoordinatorSingle_MissedHeartbeats_NoDrop(t *testing.T) {
 
 func TestPGCoordinatorSingle_SendsHeartbeats(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("test only with postgres")
-	}
+
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
@@ -429,9 +411,7 @@ func TestPGCoordinatorSingle_SendsHeartbeats(t *testing.T) {
 //	            +---------+
 func TestPGCoordinatorDual_Mainline(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("test only with postgres")
-	}
+
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
@@ -527,9 +507,7 @@ func TestPGCoordinatorDual_Mainline(t *testing.T) {
 //	            +---------+
 func TestPGCoordinator_MultiCoordinatorAgent(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("test only with postgres")
-	}
+
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
@@ -695,9 +673,7 @@ func TestPGCoordinator_Node_Empty(t *testing.T) {
 // do this now, but it's schematically possible, so we should make sure it doesn't break anything.
 func TestPGCoordinator_BidirectionalTunnels(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("test only with postgres")
-	}
+
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
@@ -710,9 +686,7 @@ func TestPGCoordinator_BidirectionalTunnels(t *testing.T) {
 
 func TestPGCoordinator_GracefulDisconnect(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("test only with postgres")
-	}
+
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
@@ -725,9 +699,7 @@ func TestPGCoordinator_GracefulDisconnect(t *testing.T) {
 
 func TestPGCoordinator_Lost(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("test only with postgres")
-	}
+
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
@@ -740,9 +712,7 @@ func TestPGCoordinator_Lost(t *testing.T) {
 
 func TestPGCoordinator_NoDeleteOnClose(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("test only with postgres")
-	}
+
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
@@ -794,10 +764,6 @@ func TestPGCoordinator_NoDeleteOnClose(t *testing.T) {
 // a new coordinator and reestablish their tunnels.
 func TestPGCoordinatorDual_FailedHeartbeat(t *testing.T) {
 	t.Parallel()
-
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("test only with postgres")
-	}
 
 	dburl, err := dbtestutil.Open(t)
 	require.NoError(t, err)
@@ -861,10 +827,6 @@ func TestPGCoordinatorDual_FailedHeartbeat(t *testing.T) {
 func TestPGCoordinatorDual_PeerReconnect(t *testing.T) {
 	t.Parallel()
 
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("test only with postgres")
-	}
-
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
@@ -917,10 +879,6 @@ func TestPGCoordinatorDual_PeerReconnect(t *testing.T) {
 // is propogated through to the `Authorize` method of the coordinatee auth
 func TestPGCoordinatorPropogatedPeerContext(t *testing.T) {
 	t.Parallel()
-
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("test only with postgres")
-	}
 
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	store, ps := dbtestutil.NewDB(t)

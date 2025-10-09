@@ -30,10 +30,6 @@ import (
 func TestMetricsCollector(t *testing.T) {
 	t.Parallel()
 
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("this test requires postgres")
-	}
-
 	type metricCheck struct {
 		name      string
 		value     *float64
@@ -298,10 +294,6 @@ func TestMetricsCollector(t *testing.T) {
 func TestMetricsCollector_DuplicateTemplateNames(t *testing.T) {
 	t.Parallel()
 
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("this test requires postgres")
-	}
-
 	type metricCheck struct {
 		name      string
 		value     *float64
@@ -477,10 +469,6 @@ func findAllMetricSeries(metricsFamilies []*prometheus_client.MetricFamily, labe
 
 func TestMetricsCollector_ReconciliationPausedMetric(t *testing.T) {
 	t.Parallel()
-
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("this test requires postgres")
-	}
 
 	t.Run("reconciliation_not_paused", func(t *testing.T) {
 		t.Parallel()

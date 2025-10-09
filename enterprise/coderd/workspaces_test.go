@@ -534,10 +534,6 @@ func TestCreateUserWorkspace(t *testing.T) {
 	t.Run("ClaimPrebuild", func(t *testing.T) {
 		t.Parallel()
 
-		if !dbtestutil.WillUsePostgres() {
-			t.Skip("dbmem cannot currently claim a workspace")
-		}
-
 		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: coderdtest.DeploymentValues(t),
@@ -844,10 +840,6 @@ func TestWorkspaceAutobuild(t *testing.T) {
 	// cause a deadlock.
 	t.Run("NoDeadlock", func(t *testing.T) {
 		t.Parallel()
-
-		if !dbtestutil.WillUsePostgres() {
-			t.Skipf("Skipping non-postgres run")
-		}
 
 		var (
 			ticker      = make(chan time.Time)
@@ -1654,10 +1646,6 @@ func TestWorkspaceAutobuild(t *testing.T) {
 	t.Run("NextStartAtIsNullifiedOnScheduleChange", func(t *testing.T) {
 		t.Parallel()
 
-		if !dbtestutil.WillUsePostgres() {
-			t.Skip("this test uses triggers so does not work with dbmem.go")
-		}
-
 		var (
 			tickCh  = make(chan time.Time)
 			statsCh = make(chan autobuild.Stats)
@@ -1780,10 +1768,6 @@ func TestTemplateDoesNotAllowUserAutostop(t *testing.T) {
 
 func TestPrebuildsAutobuild(t *testing.T) {
 	t.Parallel()
-
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("this test requires postgres")
-	}
 
 	getRunningPrebuilds := func(
 		t *testing.T,

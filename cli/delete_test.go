@@ -185,9 +185,6 @@ func TestDelete(t *testing.T) {
 
 	t.Run("WarnNoProvisioners", func(t *testing.T) {
 		t.Parallel()
-		if !dbtestutil.WillUsePostgres() {
-			t.Skip("this test requires postgres")
-		}
 
 		store, ps, db := dbtestutil.NewDBWithSQLDB(t)
 		client, closeDaemon := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{
@@ -228,9 +225,6 @@ func TestDelete(t *testing.T) {
 
 	t.Run("Prebuilt workspace delete permissions", func(t *testing.T) {
 		t.Parallel()
-		if !dbtestutil.WillUsePostgres() {
-			t.Skip("this test requires postgres")
-		}
 
 		// Setup
 		db, pb := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())

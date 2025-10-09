@@ -14,9 +14,7 @@ import (
 
 func TestPGCoordinator_ReadyForHandshake_OK(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("test only with postgres")
-	}
+
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
@@ -30,9 +28,7 @@ func TestPGCoordinator_ReadyForHandshake_OK(t *testing.T) {
 
 func TestPGCoordinator_ReadyForHandshake_NoPermission(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("test only with postgres")
-	}
+
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()

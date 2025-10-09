@@ -54,10 +54,6 @@ func TestAITasksPrompts(t *testing.T) {
 	t.Run("MultipleBuilds", func(t *testing.T) {
 		t.Parallel()
 
-		if !dbtestutil.WillUsePostgres() {
-			t.Skip("This test checks RBAC, which is not supported in the in-memory database")
-		}
-
 		adminClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		first := coderdtest.CreateFirstUser(t, adminClient)
 		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, first.OrganizationID)

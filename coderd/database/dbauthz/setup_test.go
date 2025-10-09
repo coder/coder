@@ -431,20 +431,14 @@ func (m *expects) Errors(err error) *expects {
 }
 
 // ErrorsWithPG is optional. If it is never called, it will not be asserted.
-// It will only be asserted if the test is running with a Postgres database.
+// Since we removed the in-memory database, this is now equivalent to Errors.
 func (m *expects) ErrorsWithPG(err error) *expects {
-	if dbtestutil.WillUsePostgres() {
-		return m.Errors(err)
-	}
-	return m
+	return m.Errors(err)
 }
 
-// ErrorsWithInMemDB is optional. If it is never called, it will not be asserted.
-// It will only be asserted if the test is running with an in-memory database.
+// ErrorsWithInMemDB is deprecated. The in-memory database has been removed.
+// This method is kept for backwards compatibility but does nothing.
 func (m *expects) ErrorsWithInMemDB(err error) *expects {
-	if !dbtestutil.WillUsePostgres() {
-		return m.Errors(err)
-	}
 	return m
 }
 

@@ -1422,9 +1422,6 @@ func TestTemplateVersionDryRun(t *testing.T) {
 
 	t.Run("Pending", func(t *testing.T) {
 		t.Parallel()
-		if !dbtestutil.WillUsePostgres() {
-			t.Skip("this test requires postgres")
-		}
 
 		store, ps, db := dbtestutil.NewDBWithSQLDB(t)
 		client, closer := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{

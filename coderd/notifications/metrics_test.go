@@ -33,9 +33,6 @@ func TestMetrics(t *testing.T) {
 	t.Parallel()
 
 	// SETUP
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
-	}
 
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	store, pubsub := dbtestutil.NewDB(t)
@@ -392,10 +389,8 @@ func TestCustomMethodMetricCollection(t *testing.T) {
 	t.Parallel()
 
 	// SETUP
-	if !dbtestutil.WillUsePostgres() {
-		// UpdateNotificationTemplateMethodByID only makes sense with a real database.
-		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
-	}
+
+	// UpdateNotificationTemplateMethodByID only makes sense with a real database.
 
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	store, pubsub := dbtestutil.NewDB(t)
