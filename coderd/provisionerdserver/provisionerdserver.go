@@ -1964,14 +1964,26 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		}
 
 		appIDs := make([]string, 0)
+		agentIDByAppID := make(map[string]uuid.UUID)
 		agentTimeouts := make(map[time.Duration]bool) // A set of agent timeouts.
 		// This could be a bulk insert to improve performance.
 		for _, protoResource := range jobType.WorkspaceBuild.Resources {
-			for _, protoAgent := range protoResource.Agents {
+			for _, protoAgent := range protoResource.GetAgents() {
+				if protoAgent == nil {
+					continue
+				}
+				// Always set the agent ID. Previously this ID was generated
+				// in InsertWorkspaceResource, but it's required for linking
+				// the agent to a task. As per previous behavior, this is OK
+				// because we always overwrite the given protoAgent.Id.
+				agentID := uuid.New()
+				protoAgent.Id = makeStaticID(agentID)
+
 				dur := time.Duration(protoAgent.GetConnectionTimeoutSeconds()) * time.Second
 				agentTimeouts[dur] = true
 				for _, app := range protoAgent.GetApps() {
 					appIDs = append(appIDs, app.GetId())
+					agentIDByAppID[app.GetId()] = agentID
 				}
 			}
 
@@ -1987,6 +1999,7 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		}
 
 		var taskAppID uuid.NullUUID
+		var taskAgentID uuid.NullUUID
 		var hasAITask bool
 		var warnUnknownTaskAppID bool
 		if tasks := jobType.WorkspaceBuild.GetAiTasks(); len(tasks) > 0 {
@@ -2014,6 +2027,9 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			}
 
 			taskAppID = uuid.NullUUID{UUID: id, Valid: true}
+
+			agentID, ok := agentIDByAppID[appID]
+			taskAgentID = uuid.NullUUID{UUID: agentID, Valid: ok}
 		}
 
 		// This is a hacky workaround for the issue with tasks 'disappearing' on stop:
@@ -2106,6 +2122,27 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 				hasExternalAgent = true
 				break
 			}
+		}
+
+		if task, err := db.GetTaskByWorkspaceID(ctx, workspace.ID); err == nil {
+			// Irrespective of whether the agent or sidebar app is present,
+			// perform the upsert to ensure a link between the task and
+			// workspace build. Linking the task to the build is typically
+			// already established by wsbuilder.
+			_, err = db.UpsertTaskWorkspaceApp(
+				ctx,
+				database.UpsertTaskWorkspaceAppParams{
+					TaskID:               task.ID,
+					WorkspaceBuildNumber: workspaceBuild.BuildNumber,
+					WorkspaceAgentID:     taskAgentID,
+					WorkspaceAppID:       taskAppID,
+				},
+			)
+			if err != nil {
+				return xerrors.Errorf("upsert task workspace app: %w", err)
+			}
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("get task by workspace id: %w", err)
 		}
 
 		// Regardless of whether there is an AI task or not, update the field to indicate one way or the other since it
@@ -2674,7 +2711,15 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			apiKeyScope = database.AgentKeyScopeEnumNoUserData
 		}
 
-		agentID := uuid.New()
+		var agentID uuid.UUID
+		if id, ok := staticID(prAgent.GetId()); ok {
+			agentID, err = uuid.Parse(id)
+			if err != nil {
+				return xerrors.Errorf("invalid agent ID format; must be uuid: %w", err)
+			}
+		} else {
+			agentID = uuid.New()
+		}
 		dbAgent, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
 			ID:                       agentID,
 			ParentID:                 uuid.NullUUID{},
@@ -3248,4 +3293,23 @@ func convertDisplayApps(apps *sdkproto.DisplayApps) []database.DisplayApp {
 		dapps = append(dapps, database.DisplayAppWebTerminal)
 	}
 	return dapps
+}
+
+const staticIDPrefix = "static:"
+
+// makeStaticID encodes the UUID into a magic string that can be identified in
+// InsertWorkspaceResource and used as-is. Typically the provided ID is always
+// replaced for the agent ID but this is not practical when the agent ID needs
+// to be known after-the-fact and we want to avoid additional database lookups.
+func makeStaticID(id uuid.UUID) string {
+	return staticIDPrefix + id.String()
+}
+
+// staticID extracts the static ID from a string and returns true if this is a
+// static ID.
+func staticID(agentID string) (string, bool) {
+	if !strings.HasPrefix(agentID, staticIDPrefix) {
+		return "", false
+	}
+	return strings.TrimPrefix(agentID, staticIDPrefix), true
 }
