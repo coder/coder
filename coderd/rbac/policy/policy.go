@@ -66,7 +66,7 @@ var workspaceActions = map[Action]ActionDefinition{
 var taskActions = map[Action]ActionDefinition{
 	ActionCreate: "create a new task",
 	ActionRead:   "read task data or output to view on the UI or CLI",
-	ActionUpdate: "edit task settings",
+	ActionUpdate: "edit task settings or send input to an existing task",
 	ActionDelete: "delete task",
 }
 
