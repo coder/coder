@@ -729,12 +729,12 @@ func (role Role) Valid() error {
 	for orgID, orgPermissions := range role.ByOrgID {
 		for _, perm := range orgPermissions.Org {
 			if err := perm.Valid(); err != nil {
-				errs = append(errs, xerrors.Errorf("org=%q: %w", orgID, err))
+				errs = append(errs, xerrors.Errorf("org=%q: org %w", orgID, err))
 			}
 		}
 		for _, perm := range orgPermissions.Member {
 			if err := perm.Valid(); err != nil {
-				errs = append(errs, xerrors.Errorf("org=%q: %w", orgID, err))
+				errs = append(errs, xerrors.Errorf("org=%q: member: %w", orgID, err))
 			}
 		}
 	}

@@ -1,7 +1,7 @@
 import type { CSSObject, Interpolation, Theme } from "@emotion/react";
-import Button from "@mui/material/Button";
 import Paper from "@mui/material/Paper";
 import type { GetLicensesResponse } from "api/api";
+import { Button } from "components/Button/Button";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
@@ -106,9 +106,8 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 					</Stack>
 					<Stack spacing={2}>
 						<Button
-							css={styles.removeButton}
-							variant="contained"
-							size="small"
+							variant="destructive"
+							size="sm"
 							onClick={() => setLicenseIDMarkedForRemoval(license.id)}
 							className="remove-button"
 						>
@@ -149,11 +148,5 @@ const styles = {
 	},
 	secondaryMaincolor: (theme) => ({
 		color: theme.palette.text.secondary,
-	}),
-	removeButton: (theme) => ({
-		color: theme.palette.error.main,
-		"&:hover": {
-			backgroundColor: "transparent",
-		},
 	}),
 } satisfies Record<string, Interpolation<Theme>>;

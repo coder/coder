@@ -1,58 +1,23 @@
 {
   "format_version": "1.2",
-  "terraform_version": "1.12.2",
+  "terraform_version": "1.13.0",
   "planned_values": {
     "root_module": {
       "resources": [
         {
-          "address": "coder_agent.main",
-          "mode": "managed",
-          "type": "coder_agent",
-          "name": "main",
-          "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 1,
-          "values": {
-            "api_key_scope": "all",
-            "arch": "amd64",
-            "auth": "token",
-            "connection_timeout": 120,
-            "dir": null,
-            "env": null,
-            "metadata": [],
-            "motd_file": null,
-            "order": null,
-            "os": "linux",
-            "resources_monitoring": [],
-            "shutdown_script": null,
-            "startup_script": null,
-            "startup_script_behavior": "non-blocking",
-            "troubleshooting_url": null
-          },
-          "sensitive_values": {
-            "display_apps": [],
-            "metadata": [],
-            "resources_monitoring": [],
-            "token": true
-          }
-        },
-        {
-          "address": "coder_ai_task.a",
+          "address": "coder_ai_task.a[0]",
           "mode": "managed",
           "type": "coder_ai_task",
           "name": "a",
+          "index": 0,
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 1,
           "values": {
-            "sidebar_app": [
-              {
-                "id": "5ece4674-dd35-4f16-88c8-82e40e72e2fd"
-              }
-            ]
+            "app_id": "5ece4674-dd35-4f16-88c8-82e40e72e2fd",
+            "sidebar_app": []
           },
           "sensitive_values": {
-            "sidebar_app": [
-              {}
-            ]
+            "sidebar_app": []
           }
         }
       ]
@@ -60,55 +25,11 @@
   },
   "resource_changes": [
     {
-      "address": "coder_agent.main",
-      "mode": "managed",
-      "type": "coder_agent",
-      "name": "main",
-      "provider_name": "registry.terraform.io/coder/coder",
-      "change": {
-        "actions": [
-          "create"
-        ],
-        "before": null,
-        "after": {
-          "api_key_scope": "all",
-          "arch": "amd64",
-          "auth": "token",
-          "connection_timeout": 120,
-          "dir": null,
-          "env": null,
-          "metadata": [],
-          "motd_file": null,
-          "order": null,
-          "os": "linux",
-          "resources_monitoring": [],
-          "shutdown_script": null,
-          "startup_script": null,
-          "startup_script_behavior": "non-blocking",
-          "troubleshooting_url": null
-        },
-        "after_unknown": {
-          "display_apps": true,
-          "id": true,
-          "init_script": true,
-          "metadata": [],
-          "resources_monitoring": [],
-          "token": true
-        },
-        "before_sensitive": false,
-        "after_sensitive": {
-          "display_apps": [],
-          "metadata": [],
-          "resources_monitoring": [],
-          "token": true
-        }
-      }
-    },
-    {
-      "address": "coder_ai_task.a",
+      "address": "coder_ai_task.a[0]",
       "mode": "managed",
       "type": "coder_ai_task",
       "name": "a",
+      "index": 0,
       "provider_name": "registry.terraform.io/coder/coder",
       "change": {
         "actions": [
@@ -116,30 +37,24 @@
         ],
         "before": null,
         "after": {
-          "sidebar_app": [
-            {
-              "id": "5ece4674-dd35-4f16-88c8-82e40e72e2fd"
-            }
-          ]
+          "app_id": "5ece4674-dd35-4f16-88c8-82e40e72e2fd",
+          "sidebar_app": []
         },
         "after_unknown": {
           "id": true,
-          "sidebar_app": [
-            {}
-          ]
+          "prompt": true,
+          "sidebar_app": []
         },
         "before_sensitive": false,
         "after_sensitive": {
-          "sidebar_app": [
-            {}
-          ]
+          "sidebar_app": []
         }
       }
     }
   ],
   "prior_state": {
     "format_version": "1.0",
-    "terraform_version": "1.12.2",
+    "terraform_version": "1.13.0",
     "values": {
       "root_module": {
         "resources": [
@@ -152,7 +67,7 @@
             "schema_version": 1,
             "values": {
               "arch": "amd64",
-              "id": "5a6ecb8b-fd26-4cfc-91b1-651d06bee98c",
+              "id": "6e0bee77-2319-4094-a29e-6d14412399d2",
               "os": "linux"
             },
             "sensitive_values": {}
@@ -167,10 +82,10 @@
             "values": {
               "access_port": 443,
               "access_url": "https://dev.coder.com/",
-              "id": "bf9ee323-4f3a-4d45-9841-2dcd6265e830",
+              "id": "5c06d6ea-101b-4069-8d14-7179df66ebcc",
               "is_prebuild": false,
               "is_prebuild_claim": false,
-              "name": "sebenza-nonix",
+              "name": "coder",
               "prebuild_count": 0,
               "start_count": 1,
               "template_id": "",
@@ -189,9 +104,9 @@
             "schema_version": 0,
             "values": {
               "email": "default@example.com",
-              "full_name": "default",
+              "full_name": "coder",
               "groups": [],
-              "id": "0b8cbfb8-3925-41fe-9f21-21b76d21edc7",
+              "id": "8796d8d7-88f1-445a-bea7-65f5cf530b95",
               "login_type": null,
               "name": "default",
               "oidc_access_token": "",
@@ -202,7 +117,9 @@
             },
             "sensitive_values": {
               "groups": [],
+              "oidc_access_token": true,
               "rbac_roles": [],
+              "session_token": true,
               "ssh_private_key": true
             }
           }
@@ -221,43 +138,20 @@
     "root_module": {
       "resources": [
         {
-          "address": "coder_agent.main",
-          "mode": "managed",
-          "type": "coder_agent",
-          "name": "main",
-          "provider_config_key": "coder",
-          "expressions": {
-            "arch": {
-              "references": [
-                "data.coder_provisioner.me.arch",
-                "data.coder_provisioner.me"
-              ]
-            },
-            "os": {
-              "references": [
-                "data.coder_provisioner.me.os",
-                "data.coder_provisioner.me"
-              ]
-            }
-          },
-          "schema_version": 1
-        },
-        {
           "address": "coder_ai_task.a",
           "mode": "managed",
           "type": "coder_ai_task",
           "name": "a",
           "provider_config_key": "coder",
           "expressions": {
-            "sidebar_app": [
-              {
-                "id": {
-                  "constant_value": "5ece4674-dd35-4f16-88c8-82e40e72e2fd"
-                }
-              }
-            ]
+            "app_id": {
+              "constant_value": "5ece4674-dd35-4f16-88c8-82e40e72e2fd"
+            }
           },
-          "schema_version": 1
+          "schema_version": 1,
+          "count_expression": {
+            "constant_value": 1
+          }
         },
         {
           "address": "data.coder_provisioner.me",
@@ -286,21 +180,7 @@
       ]
     }
   },
-  "relevant_attributes": [
-    {
-      "resource": "data.coder_provisioner.me",
-      "attribute": [
-        "arch"
-      ]
-    },
-    {
-      "resource": "data.coder_provisioner.me",
-      "attribute": [
-        "os"
-      ]
-    }
-  ],
-  "timestamp": "2025-06-19T14:30:00Z",
+  "timestamp": "2025-10-09T14:27:27Z",
   "applyable": true,
   "complete": true,
   "errored": false

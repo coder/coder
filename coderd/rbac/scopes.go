@@ -78,14 +78,8 @@ var builtinScopes = map[ScopeName]Scope{
 			Site: Permissions(map[string][]policy.Action{
 				ResourceWildcard.Type: {policy.WildcardSymbol},
 			}),
-<<<<<<< HEAD
-			Org:       map[string][]Permission{},
-			User:      []Permission{},
-			OrgMember: map[string][]Permission{},
-=======
 			User:    []Permission{},
 			ByOrgID: map[string]OrgPermissions{},
->>>>>>> lilac/by-org-id
 		},
 		AllowIDList: []AllowListElement{AllowListAll()},
 	},
@@ -97,14 +91,8 @@ var builtinScopes = map[ScopeName]Scope{
 			Site: Permissions(map[string][]policy.Action{
 				ResourceWorkspace.Type: {policy.ActionApplicationConnect},
 			}),
-<<<<<<< HEAD
-			Org:       map[string][]Permission{},
-			User:      []Permission{},
-			OrgMember: map[string][]Permission{},
-=======
 			User:    []Permission{},
 			ByOrgID: map[string]OrgPermissions{},
->>>>>>> lilac/by-org-id
 		},
 		AllowIDList: []AllowListElement{AllowListAll()},
 	},
@@ -115,11 +103,7 @@ var builtinScopes = map[ScopeName]Scope{
 			DisplayName: "Scope without access to user data",
 			Site:        allPermsExcept(ResourceUser),
 			User:        []Permission{},
-<<<<<<< HEAD
-			OrgMember:   map[string][]Permission{},
-=======
 			ByOrgID:     map[string]OrgPermissions{},
->>>>>>> lilac/by-org-id
 		},
 		AllowIDList: []AllowListElement{AllowListAll()},
 	},
@@ -252,7 +236,7 @@ func ExpandScope(scope ScopeName) (Scope, error) {
 				ByOrgID:     map[string]OrgPermissions{},
 			},
 			// Composites are site-level; allow-list empty by default
-			AllowIDList: []AllowListElement{},
+			AllowIDList: []AllowListElement{{Type: policy.WildcardSymbol, ID: policy.WildcardSymbol}},
 		}, nil
 	}
 	if res, act, ok := parseLowLevelScope(scope); ok {
@@ -306,13 +290,9 @@ func expandLowLevel(resource string, action policy.Action) Scope {
 			DisplayName: fmt.Sprintf("%s:%s", resource, action),
 			Site:        []Permission{{ResourceType: resource, Action: action}},
 			User:        []Permission{},
-<<<<<<< HEAD
-			OrgMember:   map[string][]Permission{},
-=======
 			ByOrgID:     map[string]OrgPermissions{},
->>>>>>> lilac/by-org-id
 		},
-		// Low-level scopes intentionally return an empty allow list.
-		AllowIDList: []AllowListElement{},
+		// Low-level scopes intentionally return a wildcard allow list.
+		AllowIDList: []AllowListElement{{Type: policy.WildcardSymbol, ID: policy.WildcardSymbol}},
 	}
 }
