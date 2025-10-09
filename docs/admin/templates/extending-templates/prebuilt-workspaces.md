@@ -258,11 +258,11 @@ In the second case, it can be difficult to fix the situation because you cannot 
 
 The troubleshooting steps below will help you resolve this situation:
 
-* Pause prebuilt workspace reconciliation to stop the problem from getting worse
-* Check how many prebuild jobs are clogging your provisioner queue
-* Cancel excess prebuild jobs to free up provisioners for human users
-* Fix any problematic templates that are causing the issue
-* Resume prebuilt reconciliation once everything is back to normal
+- Pause prebuilt workspace reconciliation to stop the problem from getting worse
+- Check how many prebuild jobs are clogging your provisioner queue
+- Cancel excess prebuild jobs to free up provisioners for human users
+- Fix any problematic templates that are causing the issue
+- Resume prebuilt reconciliation once everything is back to normal
 
 If your Coder deployment is exhibiting the above symptoms, follow these instructions to verify and then rectify the situation:
 
