@@ -6,8 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"mime/quotedprintable"
 	"net"
 	"net/http"
+	"net/mail"
 	"regexp"
 	"slices"
 	"strings"
@@ -22,37 +25,37 @@ import (
 
 // Server wraps the SMTP mock server and provides an HTTP API to retrieve emails.
 type Server struct {
-	smtpServer *smtpmocklib.Server
-	httpServer *http.Server
-	listener   net.Listener
-	logger     slog.Logger
+	smtpServer   *smtpmocklib.Server
+	httpServer   *http.Server
+	httpListener net.Listener
+	logger       slog.Logger
 
-	host     string
-	smtpPort int
-	apiPort  int
+	hostAddress string
+	smtpPort    int
+	apiPort     int
 }
 
 type Config struct {
-	Host     string
-	SMTPPort int
-	APIPort  int
-	Logger   slog.Logger
+	HostAddress string
+	SMTPPort    int
+	APIPort     int
+	Logger      slog.Logger
 }
 
 type EmailSummary struct {
-	Subject        string    `json:"subject"`
-	Date           time.Time `json:"date"`
-	NotificationID uuid.UUID `json:"notification_id,omitempty"`
+	Subject                string    `json:"subject"`
+	Date                   time.Time `json:"date"`
+	NotificationTemplateID uuid.UUID `json:"notification_template_id,omitempty"`
 }
 
-var notificationIDRegex = regexp.MustCompile(`notifications\?disabled=3D([a-f0-9-]+)`)
+var notificationTemplateIDRegex = regexp.MustCompile(`notifications\?disabled=([a-f0-9-]+)`)
 
 func New(cfg Config) *Server {
 	return &Server{
-		host:     cfg.Host,
-		smtpPort: cfg.SMTPPort,
-		apiPort:  cfg.APIPort,
-		logger:   cfg.Logger,
+		hostAddress: cfg.HostAddress,
+		smtpPort:    cfg.SMTPPort,
+		apiPort:     cfg.APIPort,
+		logger:      cfg.Logger,
 	}
 }
 
@@ -60,7 +63,7 @@ func (s *Server) Start(ctx context.Context) error {
 	s.smtpServer = smtpmocklib.New(smtpmocklib.ConfigurationAttr{
 		LogToStdout:       false,
 		LogServerActivity: true,
-		HostAddress:       s.host,
+		HostAddress:       s.hostAddress,
 		PortNumber:        s.smtpPort,
 	})
 	if err := s.smtpServer.Start(); err != nil {
@@ -97,11 +100,11 @@ func (s *Server) Stop() error {
 }
 
 func (s *Server) SMTPAddress() string {
-	return fmt.Sprintf("%s:%d", s.host, s.smtpPort)
+	return fmt.Sprintf("%s:%d", s.hostAddress, s.smtpPort)
 }
 
 func (s *Server) APIAddress() string {
-	return fmt.Sprintf("http://%s:%d", s.host, s.apiPort)
+	return fmt.Sprintf("http://%s:%d", s.hostAddress, s.apiPort)
 }
 
 func (s *Server) MessageCount() int {
@@ -127,11 +130,11 @@ func (s *Server) startAPIServer(ctx context.Context) error {
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
-	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", s.host, s.apiPort))
+	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", s.hostAddress, s.apiPort))
 	if err != nil {
-		return xerrors.Errorf("listen on %s:%d: %w", s.host, s.apiPort, err)
+		return xerrors.Errorf("listen on %s:%d: %w", s.hostAddress, s.apiPort, err)
 	}
-	s.listener = listener
+	s.httpListener = listener
 
 	tcpAddr, valid := listener.Addr().(*net.TCPAddr)
 	if !valid {
@@ -187,13 +190,36 @@ func matchesRecipient(recipients [][]string, email string) bool {
 		return true
 	}
 	return slices.ContainsFunc(recipients, func(rcptPair []string) bool {
-		return len(rcptPair) > 0 && strings.Contains(rcptPair[0], email)
+		if len(rcptPair) == 0 {
+			return false
+		}
+
+		addrPart, ok := strings.CutPrefix(rcptPair[0], "RCPT TO:")
+		if !ok {
+			return false
+		}
+
+		addr, err := mail.ParseAddress(addrPart)
+		if err != nil {
+			return false
+		}
+
+		return strings.EqualFold(addr.Address, email)
 	})
 }
 
-func parseEmailSummary(content string) (EmailSummary, error) {
+func parseEmailSummary(message string) (EmailSummary, error) {
 	var summary EmailSummary
-	scanner := bufio.NewScanner(strings.NewReader(content))
+
+	// Decode quoted-printable message
+	reader := quotedprintable.NewReader(strings.NewReader(message))
+	content, err := io.ReadAll(reader)
+	if err != nil {
+		return summary, xerrors.Errorf("decode email content: %w", err)
+	}
+
+	contentStr := string(content)
+	scanner := bufio.NewScanner(strings.NewReader(contentStr))
 
 	// Extract Subject and Date from headers.
 	// Date is used to measure latency.
@@ -211,18 +237,15 @@ func parseEmailSummary(content string) (EmailSummary, error) {
 		}
 	}
 
-	// Extract notification ID from email content
+	// Extract notification ID from decoded email content
 	// Notification ID is present in the email footer like this
 	// <p><a href=3D"http://127.0.0.1:3000/settings/notifications?disabled=3D
 	// =3D4e19c0ac-94e1-4532-9515-d1801aa283b2" style=3D"color: #2563eb; text-deco=
 	// ration: none;">Stop receiving emails like this</a></p>
-	replacer := strings.NewReplacer("=\n", "", "=\r\n", "")
-	contentNormalized := replacer.Replace(content)
-	if matches := notificationIDRegex.FindStringSubmatch(contentNormalized); len(matches) > 1 {
-		var err error
-		summary.NotificationID, err = uuid.Parse(matches[1])
+	if matches := notificationTemplateIDRegex.FindStringSubmatch(contentStr); len(matches) > 1 {
+		summary.NotificationTemplateID, err = uuid.Parse(matches[1])
 		if err != nil {
-			return summary, xerrors.Errorf("failed to parse notification ID: %w", err)
+			return summary, xerrors.Errorf("parse notification ID: %w", err)
 		}
 	}
 
