@@ -26,6 +26,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Get changed docs files
         id: changed-files
@@ -39,11 +40,11 @@ jobs:
 
           if [ -z "$CHANGED_DOCS" ]; then
             echo "No markdown files changed in docs/"
-            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          echo "has_changes=true" >> $GITHUB_OUTPUT
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
 
           # URI-encode the branch name
           ENCODED_BRANCH=$(echo -n "$HEAD_REF" | jq -sRr @uri)
