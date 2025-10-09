@@ -63,6 +63,13 @@ var workspaceActions = map[Action]ActionDefinition{
 	ActionDeleteAgent: "delete an existing workspace agent",
 }
 
+var taskActions = map[Action]ActionDefinition{
+	ActionCreate: "create a new task",
+	ActionRead:   "read task data or output to view on the UI or CLI",
+	ActionUpdate: "edit task settings or send input to an existing task",
+	ActionDelete: "delete task",
+}
+
 // RBACPermissions is indexed by the type
 var RBACPermissions = map[string]PermissionDefinition{
 	// Wildcard is every object, and the action "*" provides all actions.
@@ -85,6 +92,9 @@ var RBACPermissions = map[string]PermissionDefinition{
 	},
 	"workspace": {
 		Actions: workspaceActions,
+	},
+	"task": {
+		Actions: taskActions,
 	},
 	// Dormant workspaces have the same perms as workspaces.
 	"workspace_dormant": {

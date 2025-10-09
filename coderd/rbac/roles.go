@@ -272,8 +272,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			// Workspace dormancy and workspace are omitted.
 			// Workspace is specifically handled based on the opts.NoOwnerWorkspaceExec.
 			// Owners cannot access other users' secrets.
-			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUserSecret, ResourceUsageEvent),
-			// This adds back in the Workspace permissions.
+			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceTask, ResourceUserSecret, ResourceUsageEvent),
+			// This adds back in the Workspace and Task permissions.
 			Permissions(map[string][]policy.Action{
 				ResourceWorkspace.Type:        ownerWorkspaceActions,
 				ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent},
@@ -281,6 +281,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				// Explicitly setting PrebuiltWorkspace permissions for clarity.
 				// Note: even without PrebuiltWorkspace permissions, access is still granted via Workspace permissions.
 				ResourcePrebuiltWorkspace.Type: {policy.ActionUpdate, policy.ActionDelete},
+				// Tasks have similar permissions to workspaces.
+				ResourceTask.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 			})...),
 		Org:  map[string][]Permission{},
 		User: []Permission{},
@@ -296,10 +298,12 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			ResourceWorkspaceProxy.Type: {policy.ActionRead},
 		}),
 		Org: map[string][]Permission{},
-		User: append(allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceUser, ResourceOrganizationMember),
+		User: append(allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceTask, ResourceUser, ResourceOrganizationMember),
 			Permissions(map[string][]policy.Action{
 				// Reduced permission set on dormant workspaces. No build, ssh, or exec
 				ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent},
+				// Users can perform all actions on their own tasks.
+				ResourceTask.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 				// Users cannot do create/update/delete on themselves, but they
 				// can read their own details.
 				ResourceUser.Type: {policy.ActionRead, policy.ActionReadPersonal, policy.ActionUpdatePersonal},
@@ -421,13 +425,15 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				}),
 				Org: map[string][]Permission{
 					// Org admins should not have workspace exec perms.
-					organizationID.String(): append(allPermsExcept(ResourceWorkspace, ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceAssignRole, ResourceUserSecret), Permissions(map[string][]policy.Action{
+					organizationID.String(): append(allPermsExcept(ResourceWorkspace, ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceTask, ResourceAssignRole, ResourceUserSecret), Permissions(map[string][]policy.Action{
 						ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent},
 						ResourceWorkspace.Type:        slice.Omit(ResourceWorkspace.AvailableActions(), policy.ActionApplicationConnect, policy.ActionSSH),
 						// PrebuiltWorkspaces are a subset of Workspaces.
 						// Explicitly setting PrebuiltWorkspace permissions for clarity.
 						// Note: even without PrebuiltWorkspace permissions, access is still granted via Workspace permissions.
 						ResourcePrebuiltWorkspace.Type: {policy.ActionUpdate, policy.ActionDelete},
+						// Org admins can manage all tasks in their organization.
+						ResourceTask.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 					})...),
 				},
 				User: []Permission{},
