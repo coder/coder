@@ -2347,6 +2347,53 @@ func (s *MethodTestSuite) TestWorkspacePortSharing() {
 	}))
 }
 
+func (s *MethodTestSuite) TestTasks() {
+	s.Run("GetTaskByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		task := testutil.Fake(s.T(), faker, database.Task{})
+		dbm.EXPECT().GetTaskByID(gomock.Any(), task.ID).Return(task, nil).AnyTimes()
+		check.Args(task.ID).Asserts(task, policy.ActionRead).Returns(task)
+	}))
+	s.Run("InsertTask", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		tpl := testutil.Fake(s.T(), faker, database.Template{})
+		tv := testutil.Fake(s.T(), faker, database.TemplateVersion{
+			TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
+			OrganizationID: tpl.OrganizationID,
+		})
+
+		arg := testutil.Fake(s.T(), faker, database.InsertTaskParams{
+			OrganizationID:    tpl.OrganizationID,
+			TemplateVersionID: tv.ID,
+		})
+
+		dbm.EXPECT().GetTemplateVersionByID(gomock.Any(), tv.ID).Return(tv, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), tpl.ID).Return(tpl, nil).AnyTimes()
+		dbm.EXPECT().InsertTask(gomock.Any(), arg).Return(database.TaskTable{}, nil).AnyTimes()
+
+		check.Args(arg).Asserts(
+			tpl, policy.ActionRead,
+			rbac.ResourceTask.InOrg(arg.OrganizationID).WithOwner(arg.OwnerID.String()), policy.ActionCreate,
+		).Returns(database.TaskTable{})
+	}))
+	s.Run("UpsertTaskWorkspaceApp", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		task := testutil.Fake(s.T(), faker, database.Task{})
+		arg := database.UpsertTaskWorkspaceAppParams{
+			TaskID:               task.ID,
+			WorkspaceBuildNumber: 1,
+		}
+
+		dbm.EXPECT().GetTaskByID(gomock.Any(), task.ID).Return(task, nil).AnyTimes()
+		dbm.EXPECT().UpsertTaskWorkspaceApp(gomock.Any(), arg).Return(database.TaskWorkspaceApp{}, nil).AnyTimes()
+
+		check.Args(arg).Asserts(task, policy.ActionUpdate).Returns(database.TaskWorkspaceApp{})
+	}))
+	s.Run("GetTaskByWorkspaceID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		task := testutil.Fake(s.T(), faker, database.Task{})
+		task.WorkspaceID = uuid.NullUUID{UUID: uuid.New(), Valid: true}
+		dbm.EXPECT().GetTaskByWorkspaceID(gomock.Any(), task.WorkspaceID.UUID).Return(task, nil).AnyTimes()
+		check.Args(task.WorkspaceID.UUID).Asserts(task, policy.ActionRead).Returns(task)
+	}))
+}
+
 func (s *MethodTestSuite) TestProvisionerKeys() {
 	s.Run("InsertProvisionerKey", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		org := testutil.Fake(s.T(), faker, database.Organization{})
