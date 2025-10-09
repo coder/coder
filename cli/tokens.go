@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"sort"
 	"strings"
 	"time"
 
@@ -28,6 +29,10 @@ func (r *RootCmd) tokens() *serpent.Command {
 				Command:     "coder tokens ls",
 			},
 			Example{
+				Description: "Create a scoped token",
+				Command:     "coder tokens create --scope workspace:read --allow workspace:<uuid>",
+			},
+			Example{
 				Description: "Remove a token by ID",
 				Command:     "coder tokens rm WuoWs4ZsMX",
 			},
@@ -39,6 +44,7 @@ func (r *RootCmd) tokens() *serpent.Command {
 		Children: []*serpent.Command{
 			r.createToken(),
 			r.listTokens(),
+			r.viewToken(),
 			r.removeToken(),
 		},
 	}
@@ -50,6 +56,8 @@ func (r *RootCmd) createToken() *serpent.Command {
 		tokenLifetime string
 		name          string
 		user          string
+		scopes        []codersdk.APIKeyScope
+		allowList     []codersdk.APIAllowListTarget
 	)
 	cmd := &serpent.Command{
 		Use:   "create",
@@ -88,10 +96,18 @@ func (r *RootCmd) createToken() *serpent.Command {
 				}
 			}
 
-			res, err := client.CreateToken(inv.Context(), userID, codersdk.CreateTokenRequest{
+			req := codersdk.CreateTokenRequest{
 				Lifetime:  parsedLifetime,
 				TokenName: name,
-			})
+			}
+			if len(scopes) > 0 {
+				req.Scopes = append([]codersdk.APIKeyScope(nil), scopes...)
+			}
+			if len(allowList) > 0 {
+				req.AllowList = append([]codersdk.APIAllowListTarget(nil), allowList...)
+			}
+
+			res, err := client.CreateToken(inv.Context(), userID, req)
 			if err != nil {
 				return xerrors.Errorf("create tokens: %w", err)
 			}
@@ -123,6 +139,16 @@ func (r *RootCmd) createToken() *serpent.Command {
 			Description:   "Specify the user to create the token for (Only works if logged in user is admin).",
 			Value:         serpent.StringOf(&user),
 		},
+		{
+			Flag:        "scope",
+			Description: "Repeatable scope to attach to the token (e.g. workspace:read).",
+			Value:       newScopeFlag(&scopes),
+		},
+		{
+			Flag:        "allow",
+			Description: "Repeatable allow-list entry (<type>:<uuid>, e.g. workspace:1234-...).",
+			Value:       newAllowListFlag(&allowList),
+		},
 	}
 
 	return cmd
@@ -136,6 +162,8 @@ type tokenListRow struct {
 	// For table format:
 	ID        string    `json:"-" table:"id,default_sort"`
 	TokenName string    `json:"token_name" table:"name"`
+	Scopes    string    `json:"-" table:"scopes"`
+	Allow     string    `json:"-" table:"allow list"`
 	LastUsed  time.Time `json:"-" table:"last used"`
 	ExpiresAt time.Time `json:"-" table:"expires at"`
 	CreatedAt time.Time `json:"-" table:"created at"`
@@ -143,20 +171,50 @@ type tokenListRow struct {
 }
 
 func tokenListRowFromToken(token codersdk.APIKeyWithOwner) tokenListRow {
+	return tokenListRowFromKey(token.APIKey, token.Username)
+}
+
+func tokenListRowFromKey(token codersdk.APIKey, owner string) tokenListRow {
 	return tokenListRow{
-		APIKey:    token.APIKey,
+		APIKey:    token,
 		ID:        token.ID,
 		TokenName: token.TokenName,
+		Scopes:    joinScopes(token.Scopes),
+		Allow:     joinAllowList(token.AllowList),
 		LastUsed:  token.LastUsed,
 		ExpiresAt: token.ExpiresAt,
 		CreatedAt: token.CreatedAt,
-		Owner:     token.Username,
+		Owner:     owner,
 	}
+}
+
+func joinScopes(scopes []codersdk.APIKeyScope) string {
+	if len(scopes) == 0 {
+		return ""
+	}
+	vals := make([]string, len(scopes))
+	for i, scope := range scopes {
+		vals[i] = string(scope)
+	}
+	sort.Strings(vals)
+	return strings.Join(vals, ", ")
+}
+
+func joinAllowList(entries []codersdk.APIAllowListTarget) string {
+	if len(entries) == 0 {
+		return ""
+	}
+	vals := make([]string, len(entries))
+	for i, entry := range entries {
+		vals[i] = entry.String()
+	}
+	sort.Strings(vals)
+	return strings.Join(vals, ", ")
 }
 
 func (r *RootCmd) listTokens() *serpent.Command {
 	// we only display the 'owner' column if the --all argument is passed in
-	defaultCols := []string{"id", "name", "last used", "expires at", "created at"}
+	defaultCols := []string{"id", "name", "scopes", "allow list", "last used", "expires at", "created at"}
 	if slices.Contains(os.Args, "-a") || slices.Contains(os.Args, "--all") {
 		defaultCols = append(defaultCols, "owner")
 	}
@@ -219,6 +277,48 @@ func (r *RootCmd) listTokens() *serpent.Command {
 			FlagShorthand: "a",
 			Description:   "Specifies whether all users' tokens will be listed or not (must have Owner role to see all tokens).",
 			Value:         serpent.BoolOf(&all),
+		},
+	}
+
+	formatter.AttachOptions(&cmd.Options)
+	return cmd
+}
+
+func (r *RootCmd) viewToken() *serpent.Command {
+	formatter := cliui.NewOutputFormatter(
+		cliui.TableFormat([]tokenListRow{}, []string{"id", "name", "scopes", "allow list", "last used", "expires at", "created at", "owner"}),
+		cliui.JSONFormat(),
+	)
+
+	cmd := &serpent.Command{
+		Use:   "view <name|id>",
+		Short: "Display detailed information about a token",
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(1),
+		),
+		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
+			tokenName := inv.Args[0]
+			token, err := client.APIKeyByName(inv.Context(), codersdk.Me, tokenName)
+			if err != nil {
+				maybeID := strings.Split(tokenName, "-")[0]
+				token, err = client.APIKeyByID(inv.Context(), codersdk.Me, maybeID)
+				if err != nil {
+					return xerrors.Errorf("fetch api key by name or id: %w", err)
+				}
+			}
+
+			row := tokenListRowFromKey(*token, "")
+			out, err := formatter.Format(inv.Context(), []tokenListRow{row})
+			if err != nil {
+				return err
+			}
+			_, err = fmt.Fprintln(inv.Stdout, out)
+			return err
 		},
 	}
 
