@@ -132,6 +132,13 @@ func (w ConnectionLog) RBACObject() rbac.Object {
 	return obj
 }
 
+func (t Task) RBACObject() rbac.Object {
+	return rbac.ResourceTask.
+		WithID(t.ID).
+		WithOwner(t.OwnerID.String()).
+		InOrg(t.OrganizationID)
+}
+
 func (s APIKeyScope) ToRBAC() rbac.ScopeName {
 	switch s {
 	case ApiKeyScopeCoderAll:

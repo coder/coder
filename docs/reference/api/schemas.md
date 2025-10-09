@@ -909,6 +909,11 @@
 | `tailnet_coordinator:delete`              |
 | `tailnet_coordinator:read`                |
 | `tailnet_coordinator:update`              |
+| `task:*`                                  |
+| `task:create`                             |
+| `task:delete`                             |
+| `task:read`                               |
+| `task:update`                             |
 | `template:*`                              |
 | `template:create`                         |
 | `template:delete`                         |
@@ -7110,6 +7115,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `replicas`                         |
 | `system`                           |
 | `tailnet_coordinator`              |
+| `task`                             |
 | `template`                         |
 | `usage_event`                      |
 | `user`                             |

@@ -50,6 +50,13 @@ var externalLowLevel = map[ScopeName]struct{}{
 	"user_secret:update": {},
 	"user_secret:delete": {},
 	"user_secret:*":      {},
+
+	// Tasks
+	"task:create": {},
+	"task:read":   {},
+	"task:update": {},
+	"task:delete": {},
+	"task:*":      {},
 }
 
 // Public composite coder:* scopes exposed to users.
