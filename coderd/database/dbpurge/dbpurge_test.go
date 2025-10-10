@@ -639,7 +639,6 @@ func TestDeleteOldAuditLogConnectionEventsLimit(t *testing.T) {
 
 	require.Len(t, logs, 0)
 }
-
 func TestExpireOldAPIKeys(t *testing.T) {
 	t.Parallel()
 
@@ -703,4 +702,217 @@ func TestExpireOldAPIKeys(t *testing.T) {
 	assertKeyExpired(prebuildsWorkspaceAPIKey2.ID)
 	// Out of an abundance of caution, we do not expire explicitly named prebuilds API keys.
 	assertKeyActive(namedPrebuildsAPIKey.ID)
+}
+
+//nolint:paralleltest // It uses LockIDDBPurge.
+func TestDeleteExpiredOAuth2ProviderAppCodes(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+
+	clk := quartz.NewMock(t)
+	db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	now := dbtime.Now()
+	clk.Set(now).MustWait(ctx)
+
+	// Create test data
+	user := dbgen.User(t, db, database.User{})
+	app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{
+		Name: fmt.Sprintf("test-codes-%d", time.Now().UnixNano()),
+	})
+
+	// Create expired authorization code (should be deleted)
+	expiredCode := dbgen.OAuth2ProviderAppCode(t, db, database.OAuth2ProviderAppCode{
+		ExpiresAt:    now.Add(-1 * time.Hour), // Expired 1 hour ago
+		AppID:        app.ID,
+		UserID:       user.ID,
+		SecretPrefix: []byte(fmt.Sprintf("expired-%d", time.Now().UnixNano())),
+	})
+
+	// Create non-expired authorization code (should be retained)
+	validCode := dbgen.OAuth2ProviderAppCode(t, db, database.OAuth2ProviderAppCode{
+		ExpiresAt:    now.Add(1 * time.Hour), // Expires in 1 hour
+		AppID:        app.ID,
+		UserID:       user.ID,
+		SecretPrefix: []byte(fmt.Sprintf("valid-%d", time.Now().UnixNano())),
+	})
+
+	// Verify codes exist initially
+	_, err := db.GetOAuth2ProviderAppCodeByID(ctx, expiredCode.ID)
+	require.NoError(t, err)
+	_, err = db.GetOAuth2ProviderAppCodeByID(ctx, validCode.ID)
+	require.NoError(t, err)
+
+	// Run cleanup
+	done := awaitDoTick(ctx, t, clk)
+	closer := dbpurge.New(ctx, logger, db, clk)
+	defer closer.Close()
+	<-done
+
+	// Verify expired code is deleted
+	_, err = db.GetOAuth2ProviderAppCodeByID(ctx, expiredCode.ID)
+	require.Error(t, err)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	// Verify non-expired code is retained
+	_, err = db.GetOAuth2ProviderAppCodeByID(ctx, validCode.ID)
+	require.NoError(t, err)
+}
+
+//nolint:paralleltest // It uses LockIDDBPurge.
+func TestDeleteExpiredOAuth2ProviderAppTokens(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+
+	clk := quartz.NewMock(t)
+	db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	now := dbtime.Now()
+	clk.Set(now).MustWait(ctx)
+
+	// Create test data
+	user := dbgen.User(t, db, database.User{})
+	app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{
+		Name: fmt.Sprintf("test-tokens-%d", time.Now().UnixNano()),
+	})
+	appSecret := dbgen.OAuth2ProviderAppSecret(t, db, database.OAuth2ProviderAppSecret{
+		AppID: app.ID,
+	})
+
+	// Create API keys for the tokens
+	expiredAPIKey, _ := dbgen.APIKey(t, db, database.APIKey{
+		UserID:    user.ID,
+		ExpiresAt: now.Add(-1 * time.Hour),
+	})
+	validAPIKey, _ := dbgen.APIKey(t, db, database.APIKey{
+		UserID:    user.ID,
+		ExpiresAt: now.Add(24 * time.Hour), // Valid for 24 hours
+	})
+
+	// Create expired access token (should be deleted)
+	expiredToken := dbgen.OAuth2ProviderAppToken(t, db, database.OAuth2ProviderAppToken{
+		ExpiresAt:   now.Add(-1 * time.Hour), // Expired 1 hour ago
+		AppSecretID: appSecret.ID,
+		APIKeyID:    expiredAPIKey.ID,
+		UserID:      user.ID,
+		HashPrefix:  []byte(fmt.Sprintf("expired-%d", time.Now().UnixNano())),
+	})
+
+	// Create non-expired access token (should be retained)
+	validToken := dbgen.OAuth2ProviderAppToken(t, db, database.OAuth2ProviderAppToken{
+		ExpiresAt:   now.Add(1 * time.Hour), // Expires in 1 hour
+		AppSecretID: appSecret.ID,
+		APIKeyID:    validAPIKey.ID,
+		UserID:      user.ID,
+		HashPrefix:  []byte(fmt.Sprintf("valid-%d", time.Now().UnixNano())),
+	})
+
+	// Verify tokens exist initially
+	_, err := db.GetOAuth2ProviderAppTokenByPrefix(ctx, expiredToken.HashPrefix)
+	require.NoError(t, err)
+	_, err = db.GetOAuth2ProviderAppTokenByPrefix(ctx, validToken.HashPrefix)
+	require.NoError(t, err)
+
+	// Run cleanup
+	done := awaitDoTick(ctx, t, clk)
+	closer := dbpurge.New(ctx, logger, db, clk)
+	defer closer.Close()
+	<-done
+
+	// Verify expired token is deleted
+	_, err = db.GetOAuth2ProviderAppTokenByPrefix(ctx, expiredToken.HashPrefix)
+	require.Error(t, err)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	// Verify non-expired token is retained
+	_, err = db.GetOAuth2ProviderAppTokenByPrefix(ctx, validToken.HashPrefix)
+	require.NoError(t, err)
+}
+
+//nolint:paralleltest // It uses LockIDDBPurge.
+func TestDeleteExpiredOAuth2ProviderDeviceCodes(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+
+	clk := quartz.NewMock(t)
+	db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	now := dbtime.Now()
+	clk.Set(now).MustWait(ctx)
+
+	// Create test data
+	app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{
+		Name: fmt.Sprintf("test-device-%d", time.Now().UnixNano()),
+	})
+
+	nanoTime := time.Now().UnixNano()
+
+	// Create expired device code with pending status (should be deleted)
+	expiredPendingCode := dbgen.OAuth2ProviderDeviceCode(t, db, database.OAuth2ProviderDeviceCode{
+		ExpiresAt:        now.Add(-1 * time.Hour), // Expired 1 hour ago
+		ClientID:         app.ID,
+		Status:           database.OAuth2DeviceStatusPending,
+		DeviceCodePrefix: fmt.Sprintf("EP%06d", nanoTime%1000000),
+		UserCode:         fmt.Sprintf("EP%06d", nanoTime%1000000),
+		DeviceCodeHash:   fmt.Appendf(nil, "hash-exp-pending-%d", nanoTime),
+	})
+
+	// Create non-expired device code with pending status (should be retained)
+	validPendingCode := dbgen.OAuth2ProviderDeviceCode(t, db, database.OAuth2ProviderDeviceCode{
+		ExpiresAt:        now.Add(1 * time.Hour), // Expires in 1 hour
+		ClientID:         app.ID,
+		Status:           database.OAuth2DeviceStatusPending,
+		DeviceCodePrefix: fmt.Sprintf("VP%06d", (nanoTime+1)%1000000),
+		UserCode:         fmt.Sprintf("VP%06d", (nanoTime+1)%1000000),
+		DeviceCodeHash:   fmt.Appendf(nil, "hash-val-pending-%d", nanoTime+1),
+	})
+
+	// Create expired device code with authorized status (should be deleted - all expired codes are deleted)
+	expiredAuthorizedCode := dbgen.OAuth2ProviderDeviceCode(t, db, database.OAuth2ProviderDeviceCode{
+		ExpiresAt:        now.Add(-1 * time.Hour), // Expired 1 hour ago
+		ClientID:         app.ID,
+		DeviceCodePrefix: fmt.Sprintf("EA%06d", (nanoTime+2)%1000000),
+		UserCode:         fmt.Sprintf("EA%06d", (nanoTime+2)%1000000),
+		DeviceCodeHash:   fmt.Appendf(nil, "hash-exp-auth-%d", nanoTime+2),
+	})
+
+	// Create a user and authorize the device code
+	user := dbgen.User(t, db, database.User{})
+	expiredAuthorizedCode, err := db.UpdateOAuth2ProviderDeviceCodeAuthorization(ctx, database.UpdateOAuth2ProviderDeviceCodeAuthorizationParams{
+		ID:     expiredAuthorizedCode.ID,
+		UserID: uuid.NullUUID{UUID: user.ID, Valid: true},
+		Status: database.OAuth2DeviceStatusAuthorized,
+	})
+	require.NoError(t, err)
+
+	// Verify device codes exist initially
+	_, err = db.GetOAuth2ProviderDeviceCodeByID(ctx, expiredPendingCode.ID)
+	require.NoError(t, err)
+	_, err = db.GetOAuth2ProviderDeviceCodeByID(ctx, validPendingCode.ID)
+	require.NoError(t, err)
+	_, err = db.GetOAuth2ProviderDeviceCodeByID(ctx, expiredAuthorizedCode.ID)
+	require.NoError(t, err)
+
+	// Run cleanup
+	done := awaitDoTick(ctx, t, clk)
+	closer := dbpurge.New(ctx, logger, db, clk)
+	defer closer.Close()
+	<-done
+
+	// Verify expired pending device code is deleted
+	_, err = db.GetOAuth2ProviderDeviceCodeByID(ctx, expiredPendingCode.ID)
+	require.Error(t, err)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	// Verify non-expired pending device code is retained
+	_, err = db.GetOAuth2ProviderDeviceCodeByID(ctx, validPendingCode.ID)
+	require.NoError(t, err)
+
+	// Verify expired authorized device code is deleted (all expired codes are deleted)
+	_, err = db.GetOAuth2ProviderDeviceCodeByID(ctx, expiredAuthorizedCode.ID)
+	require.Error(t, err)
+	require.ErrorIs(t, err, sql.ErrNoRows)
 }
