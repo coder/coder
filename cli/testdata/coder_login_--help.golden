@@ -5,6 +5,11 @@ USAGE:
 
   Authenticate with Coder deployment
 
+  Stores the session token in the OS keyring, with a fallback to plain text if
+  the keyring is not available. The security command is used on macOS. Windows
+  Credential Manager API is used on Windows. Linux depends on GNOME keyring and
+  Secret Service API (via D-Bus).
+
 OPTIONS:
       --first-user-email string, $CODER_FIRST_USER_EMAIL
           Specifies an email address to use if creating the first user for the

@@ -114,6 +114,8 @@
             cairo
             curl
             cosign
+            # Linux keyring dependency for CLI
+            (lib.optionalDrvAttr stdenv.isLinux dbus)
             delve
             dive
             drpc.defaultPackage.${system}
@@ -127,6 +129,8 @@
             git
             git-lfs
             (lib.optionalDrvAttr stdenv.isLinux glibcLocales)
+            # Linux keyring dependency for CLI
+            (lib.optionalDrvAttr stdenv.isLinux gnome-keyring)
             gnumake
             gnused
             gnugrep
