@@ -197,7 +197,9 @@ CREATE TYPE api_key_scope AS ENUM (
     'workspace_agent_devcontainers:*',
     'workspace_agent_resource_monitor:*',
     'workspace_dormant:*',
-    'workspace_proxy:*'
+    'workspace_proxy:*',
+    'workspace:share',
+    'workspace_dormant:share'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
