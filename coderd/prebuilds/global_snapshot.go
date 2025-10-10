@@ -53,6 +53,15 @@ func NewGlobalSnapshot(
 	}
 }
 
+// TotalPendingCount get total number of prebuild-related jobs in the queue and currently in progress
+func (s GlobalSnapshot) TotalPendingCount() int {
+	var total int
+	for _, row := range s.PrebuildsInProgress {
+		total += int(row.Count)
+	}
+	return total
+}
+
 func (s GlobalSnapshot) FilterByPreset(presetID uuid.UUID) (*PresetSnapshot, error) {
 	preset, found := slice.Find(s.Presets, func(preset database.GetTemplatePresetsWithPrebuildsRow) bool {
 		return preset.ID == presetID
