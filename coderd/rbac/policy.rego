@@ -232,6 +232,9 @@ scope_user := user_allow([input.subject.scope])
 
 user_allow(roles) := num if {
 	input.object.owner != ""
+	 # if there is an org, use org_member permissions instead
+	input.object.org_owner == ""
+  not input.object.any_org
 	input.subject.id = input.object.owner
 
 	allow := {is_allowed |
@@ -244,6 +247,28 @@ user_allow(roles) := num if {
 		is_allowed := bool_flip(perm.negate)
 	}
 	num := number(allow)
+}
+
+# -------------------
+# Organization Member Owner Rules
+# -------------------
+
+# 'org_member' applies if the object is owned by both the user and an organization.
+# It replaces the `user` permissions in this case.
+default org_member := 0
+org_member := num if {
+	# Object must be jointly owned by the user
+	input.object.owner != ""
+	input.subject.id = input.object.owner
+	num := org_allow(input.subject.roles, "member")
+}
+
+default scope_org_member := 0
+scope_org_member := num if {
+	# Object must be jointly owned by the user
+	input.object.owner != ""
+	input.subject.id = input.object.owner
+	num := org_allow([input.subject.scope], "member")
 }
 
 # Scope allow_list is a list of resource (Type, ID) tuples explicitly allowed by the scope.
@@ -285,16 +310,16 @@ scope_allow_list if {
 # Role-Specific Rules
 # -------------------
 
-role_allow if {
+role_allow if { # site level authed
 	site = 1
 }
 
-role_allow if {
+role_allow if { # org level authed
 	not site = -1
 	org = 1
 }
 
-role_allow if {
+role_allow if { # user level authed
 	not site = -1
 	not org = -1
 
@@ -304,22 +329,30 @@ role_allow if {
 	user = 1
 }
 
+role_allow if { # org member auth
+	not site = -1
+	not org = -1
+
+	# Organization member owner permissions require both ownership and org membership
+	org_member = 1
+}
+
 # -------------------
 # Scope-Specific Rules
 # -------------------
 
-scope_allow if {
+scope_allow if { # scope site level authed
 	scope_allow_list
 	scope_site = 1
 }
 
-scope_allow if {
+scope_allow if { # scope org level authed
 	scope_allow_list
 	not scope_site = -1
 	scope_org = 1
 }
 
-scope_allow if {
+scope_allow if { # scope user level authed
 	scope_allow_list
 	not scope_site = -1
 	not scope_org = -1
@@ -328,6 +361,15 @@ scope_allow if {
 	# not authorized. This is an "implied -1" for not being in the org.
 	org_ok
 	scope_user = 1
+}
+
+scope_allow if { # scope org member auth
+	scope_allow_list
+	not scope_site = -1
+	not scope_org = -1
+
+	# Organization member owner permissions require both ownership and org membership
+	scope_org_member = 1
 }
 
 # -------------------
