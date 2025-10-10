@@ -23,14 +23,13 @@ const selectTags = (starterTemplatesByTag: StarterTemplatesByTag) => {
 };
 
 const sortVisibleTemplates = (templates: TemplateExample[]) => {
-	// The docker template should be the first template in the list,
-	// as it's the easiest way to get started with Coder.
-	const dockerTemplateId = "docker";
+	// The tasks-docker template should be the first template.
+	const tasksOnDockerTemplateId = "tasks-docker";
 	return [...templates].sort((a, b) => {
-		if (a.id === dockerTemplateId) {
+		if (a.id === tasksOnDockerTemplateId) {
 			return -1;
 		}
-		if (b.id === dockerTemplateId) {
+		if (b.id === tasksOnDockerTemplateId) {
 			return 1;
 		}
 		return a.name.localeCompare(b.name);
