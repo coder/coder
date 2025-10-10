@@ -1354,6 +1354,13 @@ func (a *agent) updateCommandEnv(current []string) (updated []string, err error)
 		// Git on Windows resolves with UNIX-style paths.
 		// If using backslashes, it's unable to find the executable.
 		"GIT_SSH_COMMAND": fmt.Sprintf("%s gitssh --", unixExecutablePath),
+		// Enable SSH signing for git commits. This allows users to sign commits
+		// using their Coder SSH key as an alternative to GPG.
+		"GIT_CONFIG_GLOBAL": fmt.Sprintf("%s=%s,%s=%s,%s=%s",
+			"gpg.format", "ssh",
+			"gpg.ssh.program", fmt.Sprintf("%s gitsign", unixExecutablePath),
+			"commit.gpgsign", "false", // Default to false, users can enable if desired
+		),
 		// Hide Coder message on code-server's "Getting Started" page
 		"CS_DISABLE_GETTING_STARTED_OVERRIDE": "true",
 	}
