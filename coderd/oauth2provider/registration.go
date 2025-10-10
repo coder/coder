@@ -90,6 +90,7 @@ func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, audi
 			RedirectUris:            req.RedirectURIs,
 			ClientType:              sql.NullString{String: req.DetermineClientType(), Valid: true},
 			DynamicallyRegistered:   sql.NullBool{Bool: true, Valid: true},
+			UserID:                  uuid.NullUUID{Valid: false}, // Dynamic registration creates system-level clients
 			ClientIDIssuedAt:        sql.NullTime{Time: now, Valid: true},
 			ClientSecretExpiresAt:   sql.NullTime{}, // No expiration for now
 			GrantTypes:              req.GrantTypes,

@@ -14,13 +14,18 @@ func GetAuthorizationServerMetadata(accessURL *url.URL) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		metadata := codersdk.OAuth2AuthorizationServerMetadata{
-			Issuer:                            accessURL.String(),
-			AuthorizationEndpoint:             accessURL.JoinPath("/oauth2/authorize").String(),
-			TokenEndpoint:                     accessURL.JoinPath("/oauth2/token").String(),
-			DeviceAuthorizationEndpoint:       accessURL.JoinPath("/oauth2/device").String(),   // RFC 8628
-			RegistrationEndpoint:              accessURL.JoinPath("/oauth2/register").String(), // RFC 7591
-			ResponseTypesSupported:            []string{"code"},
-			GrantTypesSupported:               []string{"authorization_code", "refresh_token", string(codersdk.OAuth2ProviderGrantTypeDeviceCode)},
+			Issuer:                      accessURL.String(),
+			AuthorizationEndpoint:       accessURL.JoinPath("/oauth2/authorize").String(),
+			TokenEndpoint:               accessURL.JoinPath("/oauth2/token").String(),
+			DeviceAuthorizationEndpoint: accessURL.JoinPath("/oauth2/device").String(),   // RFC 8628
+			RegistrationEndpoint:        accessURL.JoinPath("/oauth2/register").String(), // RFC 7591
+			ResponseTypesSupported:      []codersdk.OAuth2ProviderResponseType{codersdk.OAuth2ProviderResponseTypeCode},
+			GrantTypesSupported: []codersdk.OAuth2ProviderGrantType{
+				codersdk.OAuth2ProviderGrantTypeAuthorizationCode,
+				codersdk.OAuth2ProviderGrantTypeRefreshToken,
+				codersdk.OAuth2ProviderGrantTypeDeviceCode,
+				codersdk.OAuth2ProviderGrantTypeClientCredentials,
+			},
 			CodeChallengeMethodsSupported:     []string{"S256"},
 			ScopesSupported:                   rbac.ExternalScopeNames(),
 			TokenEndpointAuthMethodsSupported: []string{"client_secret_post"},

@@ -2103,8 +2103,8 @@ export interface OAuth2AuthorizationServerMetadata {
 	readonly token_endpoint: string;
 	readonly device_authorization_endpoint?: string;
 	readonly registration_endpoint?: string;
-	readonly response_types_supported: readonly string[];
-	readonly grant_types_supported: readonly string[];
+	readonly response_types_supported: readonly OAuth2ProviderResponseType[];
+	readonly grant_types_supported: readonly OAuth2ProviderGrantType[];
 	readonly code_challenge_methods_supported: readonly string[];
 	readonly scopes_supported?: readonly string[];
 	readonly token_endpoint_auth_methods_supported?: readonly string[];
@@ -2262,11 +2262,13 @@ export interface OAuth2ProviderAppSecretFull {
 // From codersdk/oauth2.go
 export type OAuth2ProviderGrantType =
 	| "authorization_code"
+	| "client_credentials"
 	| "urn:ietf:params:oauth:grant-type:device_code"
 	| "refresh_token";
 
 export const OAuth2ProviderGrantTypes: OAuth2ProviderGrantType[] = [
 	"authorization_code",
+	"client_credentials",
 	"urn:ietf:params:oauth:grant-type:device_code",
 	"refresh_token",
 ];
@@ -2524,6 +2526,7 @@ export interface PostOAuth2ProviderAppRequest {
 	readonly name: string;
 	readonly redirect_uris: readonly string[];
 	readonly icon: string;
+	readonly grant_types?: readonly OAuth2ProviderGrantType[];
 }
 
 // From codersdk/workspaces.go
@@ -2871,6 +2874,7 @@ export interface PutOAuth2ProviderAppRequest {
 	readonly name: string;
 	readonly redirect_uris: readonly string[];
 	readonly icon: string;
+	readonly grant_types?: readonly OAuth2ProviderGrantType[];
 }
 
 // From codersdk/rbacresources_gen.go

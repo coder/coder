@@ -2125,7 +2125,7 @@ func TestOAuth2DeviceAuthorization(t *testing.T) {
 			require.NoError(t, err)
 
 			// Check that device authorization grant is included
-			require.Contains(t, metadata.GrantTypesSupported, string(codersdk.OAuth2ProviderGrantTypeDeviceCode))
+			require.Contains(t, metadata.GrantTypesSupported, codersdk.OAuth2ProviderGrantTypeDeviceCode)
 			require.NotEmpty(t, metadata.DeviceAuthorizationEndpoint)
 			require.Contains(t, metadata.DeviceAuthorizationEndpoint, "/oauth2/device")
 		})

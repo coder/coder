@@ -30,7 +30,8 @@ INSERT INTO oauth2_provider_apps (
     software_id,
     software_version,
     registration_access_token,
-    registration_client_uri
+    registration_client_uri,
+    user_id
 ) VALUES(
     $1,
     $2,
@@ -56,7 +57,8 @@ INSERT INTO oauth2_provider_apps (
     $22,
     $23,
     $24,
-    $25
+    $25,
+    $26
 ) RETURNING *;
 
 -- name: UpdateOAuth2ProviderAppByID :one
