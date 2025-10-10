@@ -1,6 +1,5 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Link from "@mui/material/Link";
-import Tooltip from "@mui/material/Tooltip";
 import { workspaceQuota } from "api/queries/workspaceQuota";
 import type * as TypesGen from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
@@ -19,6 +18,7 @@ import {
 	HelpTooltipContent,
 	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
+import MiniTooltip from "components/MiniTooltip/MiniTooltip";
 import { ChevronLeftIcon, CircleDollarSign, TrashIcon } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { linkToTemplate, useLinks } from "modules/navigation";
@@ -108,11 +108,11 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 
 	return (
 		<Topbar css={{ gridArea: "topbar" }}>
-			<Tooltip title="Back to workspaces">
+			<MiniTooltip title="Back to workspaces">
 				<TopbarIconButton component={RouterLink} to="/workspaces">
 					<ChevronLeftIcon className="size-icon-sm" />
 				</TopbarIconButton>
-			</Tooltip>
+			</MiniTooltip>
 
 			<div css={styles.topbarLeft}>
 				<TopbarData>
