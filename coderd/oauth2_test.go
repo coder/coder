@@ -61,6 +61,166 @@ func TestOAuth2ProviderApps(t *testing.T) {
 	})
 }
 
+func TestOAuth2ProviderAppBulkRevoke(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ClientCredentialsAppRevocation", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := t.Context()
+
+		// Create an OAuth2 app with client credentials grant type
+		app, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+			Name:         fmt.Sprintf("test-revoke-app-%d", time.Now().UnixNano()),
+			RedirectURIs: []string{"http://localhost:3000"},
+			GrantTypes:   []codersdk.OAuth2ProviderGrantType{codersdk.OAuth2ProviderGrantTypeClientCredentials},
+		})
+		require.NoError(t, err)
+
+		// Create a client secret for the app
+		secret, err := client.PostOAuth2ProviderAppSecret(ctx, app.ID)
+		require.NoError(t, err)
+
+		// Request a token using client credentials flow with plain HTTP client
+		httpClient := &http.Client{}
+		tokenReq, err := http.NewRequestWithContext(ctx, http.MethodPost, client.URL.String()+"/oauth2/token", strings.NewReader(url.Values{
+			"grant_type":    []string{"client_credentials"},
+			"client_id":     []string{app.ID.String()},
+			"client_secret": []string{secret.ClientSecretFull},
+		}.Encode()))
+		require.NoError(t, err)
+		tokenReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		tokenResp, err := httpClient.Do(tokenReq)
+		require.NoError(t, err)
+		defer tokenResp.Body.Close()
+		require.Equal(t, http.StatusOK, tokenResp.StatusCode)
+
+		var tokenData struct {
+			AccessToken string `json:"access_token"`
+			TokenType   string `json:"token_type"`
+		}
+		err = json.NewDecoder(tokenResp.Body).Decode(&tokenData)
+		require.NoError(t, err)
+		require.NotEmpty(t, tokenData.AccessToken)
+		require.Equal(t, "Bearer", tokenData.TokenType)
+
+		// Verify the token works by making an authenticated request
+		authReq, err := http.NewRequestWithContext(ctx, http.MethodGet, client.URL.String()+"/api/v2/users/me", nil)
+		require.NoError(t, err)
+		authReq.Header.Set("Authorization", "Bearer "+tokenData.AccessToken)
+		authResp, err := httpClient.Do(authReq)
+		require.NoError(t, err)
+		defer authResp.Body.Close()
+		require.Equal(t, http.StatusOK, authResp.StatusCode) // Token should work
+
+		// Now revoke all tokens for this app using the new bulk revoke endpoint
+		revokeResp, err := client.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/oauth2-provider/apps/%s/revoke", app.ID), nil)
+		require.NoError(t, err)
+		defer revokeResp.Body.Close()
+		require.Equal(t, http.StatusNoContent, revokeResp.StatusCode)
+
+		// Verify the token no longer works
+		authReq2, err := http.NewRequestWithContext(ctx, http.MethodGet, client.URL.String()+"/api/v2/users/me", nil)
+		require.NoError(t, err)
+		authReq2.Header.Set("Authorization", "Bearer "+tokenData.AccessToken)
+
+		authResp2, err := httpClient.Do(authReq2)
+		require.NoError(t, err)
+		defer authResp2.Body.Close()
+		require.Equal(t, http.StatusUnauthorized, authResp2.StatusCode) // Token should be revoked
+	})
+
+	t.Run("MultipleTokensRevocation", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := t.Context()
+
+		// Create an OAuth2 app
+		app, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+			Name:         fmt.Sprintf("test-multi-revoke-app-%d", time.Now().UnixNano()),
+			RedirectURIs: []string{"http://localhost:3000"},
+			GrantTypes:   []codersdk.OAuth2ProviderGrantType{codersdk.OAuth2ProviderGrantTypeClientCredentials},
+		})
+		require.NoError(t, err)
+
+		// Create multiple secrets for the app
+		secret1, err := client.PostOAuth2ProviderAppSecret(ctx, app.ID)
+		require.NoError(t, err)
+		secret2, err := client.PostOAuth2ProviderAppSecret(ctx, app.ID)
+		require.NoError(t, err)
+
+		// Request multiple tokens using different secrets with plain HTTP client
+		httpClient := &http.Client{}
+		var tokens []string
+		for _, secret := range []codersdk.OAuth2ProviderAppSecretFull{secret1, secret2} {
+			tokenReq, err := http.NewRequestWithContext(ctx, http.MethodPost, client.URL.String()+"/oauth2/token", strings.NewReader(url.Values{
+				"grant_type":    []string{"client_credentials"},
+				"client_id":     []string{app.ID.String()},
+				"client_secret": []string{secret.ClientSecretFull},
+			}.Encode()))
+			require.NoError(t, err)
+			tokenReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			tokenResp, err := httpClient.Do(tokenReq)
+			require.NoError(t, err)
+			defer tokenResp.Body.Close()
+			require.Equal(t, http.StatusOK, tokenResp.StatusCode)
+
+			var tokenData struct {
+				AccessToken string `json:"access_token"`
+			}
+			err = json.NewDecoder(tokenResp.Body).Decode(&tokenData)
+			require.NoError(t, err)
+			tokens = append(tokens, tokenData.AccessToken)
+		}
+
+		// Verify all tokens work
+		for _, token := range tokens {
+			authReq, err := http.NewRequestWithContext(ctx, http.MethodGet, client.URL.String()+"/api/v2/users/me", nil)
+			require.NoError(t, err)
+			authReq.Header.Set("Authorization", "Bearer "+token)
+
+			authResp, err := httpClient.Do(authReq)
+			require.NoError(t, err)
+			defer authResp.Body.Close()
+			require.Equal(t, http.StatusOK, authResp.StatusCode)
+		}
+
+		// Revoke all tokens for this app using bulk revoke
+		revokeResp, err := client.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/oauth2-provider/apps/%s/revoke", app.ID), nil)
+		require.NoError(t, err)
+		defer revokeResp.Body.Close()
+		require.Equal(t, http.StatusNoContent, revokeResp.StatusCode)
+
+		// Verify all tokens are now revoked
+		for _, token := range tokens {
+			authReq, err := http.NewRequestWithContext(ctx, http.MethodGet, client.URL.String()+"/api/v2/users/me", nil)
+			require.NoError(t, err)
+			authReq.Header.Set("Authorization", "Bearer "+token)
+
+			authResp, err := httpClient.Do(authReq)
+			require.NoError(t, err)
+			defer authResp.Body.Close()
+			require.Equal(t, http.StatusUnauthorized, authResp.StatusCode)
+		}
+	})
+
+	t.Run("AppNotFound", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+		ctx := t.Context()
+
+		// Try to revoke tokens for non-existent app
+		fakeAppID := uuid.New()
+		revokeResp, err := client.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/oauth2-provider/apps/%s/revoke", fakeAppID), nil)
+		require.NoError(t, err)
+		defer revokeResp.Body.Close()
+		require.Equal(t, http.StatusNotFound, revokeResp.StatusCode)
+	})
+}
+
 func TestOAuth2ProviderAppSecrets(t *testing.T) {
 	t.Parallel()
 
