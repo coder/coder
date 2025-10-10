@@ -1,4 +1,5 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import Collapse from "@mui/material/Collapse";
+import DialogActions from "@mui/material/DialogActions";
 import Divider from "@mui/material/Divider";
 import type * as TypesGen from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
@@ -8,6 +9,8 @@ import { CodeExample } from "components/CodeExample/CodeExample";
 import { CopyableValue } from "components/CopyableValue/CopyableValue";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
+import { Dialog, DialogActionButtons } from "components/Dialogs/Dialog";
+import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Loader } from "components/Loader/Loader";
 import {
 	SettingsHeader,
@@ -25,6 +28,7 @@ import {
 	TableRow,
 } from "components/Table/Table";
 import { TableLoader } from "components/TableLoader/TableLoader";
+import dayjs from "dayjs";
 import { ChevronLeftIcon, CopyIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Link as RouterLink, useSearchParams } from "react-router";
@@ -69,9 +73,14 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
 	ackFullNewSecret,
 	error,
 }) => {
-	const theme = useTheme();
 	const [searchParams] = useSearchParams();
 	const [showDelete, setShowDelete] = useState<boolean>(false);
+	const [showCodeExample, setShowCodeExample] = useState(false);
+
+	const owner =
+		app?.user_id && app.user_id !== "00000000-0000-0000-0000-000000000000"
+			? { id: app.user_id, username: app.username, email: app.email }
+			: null;
 
 	return (
 		<>
@@ -95,32 +104,74 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
 				</Button>
 			</Stack>
 
-			{fullNewSecret && (
-				<ConfirmDialog
-					hideCancel
+			{fullNewSecret && app && (
+				<Dialog
 					open={Boolean(fullNewSecret)}
-					onConfirm={ackFullNewSecret}
-					onClose={ackFullNewSecret}
-					title="OAuth2 client secret"
-					confirmText="OK"
-					description={
-						<>
-							<p>
+					onClose={() => {
+						ackFullNewSecret();
+						setShowCodeExample(false);
+					}}
+					data-testid="dialog"
+				>
+					<div className="p-10 pb-5 text-content-secondary">
+						<h3 className="m-0 mb-4 text-content-primary font-normal text-xl">
+							OAuth2 client secret
+						</h3>
+						<div className="text-content-secondary leading-relaxed text-base">
+							<p className="my-2">
 								Your new client secret is displayed below. Make sure to copy it
 								now; you will not be able to see it again.
 							</p>
 							<CodeExample
 								code={fullNewSecret.client_secret_full}
-								css={{
-									minHeight: "auto",
-									userSelect: "all",
-									width: "100%",
-									marginTop: 24,
-								}}
+								secret={false}
+								className="mt-6 min-h-auto select-all w-full"
 							/>
-						</>
-					}
-				/>
+							{app.grant_types?.includes("client_credentials") && (
+								<div className="mt-6">
+									<Button
+										variant="subtle"
+										onClick={() => setShowCodeExample(!showCodeExample)}
+										className="flex items-center p-0 text-content-secondary text-sm"
+									>
+										Code Example
+										<DropdownArrow margin={false} close={showCodeExample} />
+									</Button>
+									<Collapse in={showCodeExample} timeout={300}>
+										<div className="mt-4">
+											<p className="mb-4 text-sm text-content-secondary">
+												Use this curl command to exchange your client
+												credentials for an access token:
+											</p>
+											<CodeExample
+												code={`curl -X POST "${app.endpoints.token}" \\
+  -H "Content-Type: application/x-www-form-urlencoded" \\
+  -d "grant_type=client_credentials" \\
+  -d "client_id=${app.id}" \\
+  -d "client_secret=${fullNewSecret.client_secret_full}"`}
+												secret={false}
+												className="min-h-auto select-all w-full whitespace-pre overflow-x-auto"
+											/>
+										</div>
+									</Collapse>
+								</div>
+							)}
+						</div>
+					</div>
+
+					<DialogActions className="p-10 pt-0">
+						<DialogActionButtons
+							confirmLoading={false}
+							confirmText="OK"
+							disabled={false}
+							onCancel={undefined}
+							onConfirm={() => {
+								ackFullNewSecret();
+								setShowCodeExample(false);
+							}}
+						/>
+					</DialogActions>
+				</Dialog>
 			)}
 
 			<Stack>
@@ -147,29 +198,39 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
 							onCancel={() => setShowDelete(false)}
 						/>
 
-						<dl css={styles.dataList}>
-							<dt>Client ID</dt>
+						<dl className="grid grid-cols-[max-content_auto] gap-x-2.5 gap-y-2">
+							<dt className="font-bold">Client ID</dt>
 							<dd>
 								<CopyableValue value={app.id}>
 									{app.id} <CopyIcon className="size-icon-xs" />
 								</CopyableValue>
 							</dd>
-							<dt>Authorization URL</dt>
+							<dt className="font-bold">Authorization URL</dt>
 							<dd>
 								<CopyableValue value={app.endpoints.authorization}>
 									{app.endpoints.authorization}{" "}
 									<CopyIcon className="size-icon-xs" />
 								</CopyableValue>
 							</dd>
-							<dt>Token URL</dt>
+							<dt className="font-bold">Token URL</dt>
 							<dd>
 								<CopyableValue value={app.endpoints.token}>
 									{app.endpoints.token} <CopyIcon className="size-icon-xs" />
 								</CopyableValue>
 							</dd>
+							<dt className="font-bold">Grant Types</dt>
+							<dd>{app.grant_types?.join(", ") || "None"}</dd>
+							<dt className="font-bold">Created</dt>
+							<dd>{dayjs(app.created_at).format("MMM D, YYYY [at] h:mm A")}</dd>
+							{owner && (
+								<>
+									<dt className="font-bold">Owner</dt>
+									<dd>{owner.username || owner.email || owner.id}</dd>
+								</>
+							)}
 						</dl>
 
-						<Divider css={{ borderColor: theme.palette.divider }} />
+						<Divider className="border-border-default" />
 
 						<OAuth2AppForm
 							app={app}
@@ -186,7 +247,7 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
 							}
 						/>
 
-						<Divider css={{ borderColor: theme.palette.divider }} />
+						<Divider className="border-border-default" />
 
 						<OAuth2AppSecretsTable
 							secrets={secrets}
@@ -224,14 +285,14 @@ const OAuth2AppSecretsTable: FC<OAuth2AppSecretsTableProps> = ({
 				direction="row"
 				justifyContent="space-between"
 			>
-				<h2>Client secrets</h2>
+				<h2>Client Secrets</h2>
 				<Button
 					disabled={mutatingResource.createSecret}
 					type="submit"
 					onClick={generateAppSecret}
 				>
 					<Spinner loading={mutatingResource.createSecret} />
-					Generate secret
+					Create Secret
 				</Button>
 			</Stack>
 
@@ -248,7 +309,7 @@ const OAuth2AppSecretsTable: FC<OAuth2AppSecretsTableProps> = ({
 					{!isLoadingSecrets && (!secrets || secrets.length === 0) && (
 						<TableRow>
 							<TableCell colSpan={999}>
-								<div css={{ textAlign: "center" }}>
+								<div className="text-center">
 									No client secrets have been generated.
 								</div>
 							</TableCell>
@@ -313,16 +374,3 @@ const OAuth2SecretRow: FC<OAuth2SecretRowProps> = ({
 		</TableRow>
 	);
 };
-
-const styles = {
-	dataList: {
-		display: "grid",
-		gridTemplateColumns: "max-content auto",
-		"& > dt": {
-			fontWeight: "bold",
-		},
-		"& > dd": {
-			marginLeft: 10,
-		},
-	},
-} satisfies Record<string, Interpolation<Theme>>;

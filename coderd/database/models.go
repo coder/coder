@@ -3887,7 +3887,7 @@ type OAuth2ProviderApp struct {
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 	Name      string    `db:"name" json:"name"`
 	Icon      string    `db:"icon" json:"icon"`
-	// RFC 6749 compliant list of valid redirect URIs for the application
+	// RFC 6749 compliant list of valid redirect URIs for the application. May be empty for client credentials applications.
 	RedirectUris []string `db:"redirect_uris" json:"redirect_uris"`
 	// OAuth2 client type: confidential or public
 	ClientType sql.NullString `db:"client_type" json:"client_type"`
@@ -3956,6 +3956,8 @@ type OAuth2ProviderAppSecret struct {
 	DisplaySecret string    `db:"display_secret" json:"display_secret"`
 	AppID         uuid.UUID `db:"app_id" json:"app_id"`
 	SecretPrefix  []byte    `db:"secret_prefix" json:"secret_prefix"`
+	// Denormalized owner user ID from parent app for efficient authorization without N+1 queries
+	AppOwnerUserID uuid.NullUUID `db:"app_owner_user_id" json:"app_owner_user_id"`
 }
 
 type OAuth2ProviderAppToken struct {

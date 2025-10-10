@@ -12,10 +12,11 @@ import (
 // @Produce json
 // @Tags Enterprise
 // @Param user_id query string false "Filter by applications authorized for a user"
+// @Param owner_id query string false "Filter by applications owned by a user"
 // @Success 200 {array} codersdk.OAuth2ProviderApp
 // @Router /oauth2-provider/apps [get]
 func (api *API) oAuth2ProviderApps() http.HandlerFunc {
-	return oauth2provider.ListApps(api.Database, api.AccessURL)
+	return oauth2provider.ListApps(api.Database, api.AccessURL, api.Logger)
 }
 
 // @Summary Get OAuth2 application.
@@ -77,7 +78,7 @@ func (api *API) deleteOAuth2ProviderApp() http.HandlerFunc {
 // @Success 200 {array} codersdk.OAuth2ProviderAppSecret
 // @Router /oauth2-provider/apps/{app}/secrets [get]
 func (api *API) oAuth2ProviderAppSecrets() http.HandlerFunc {
-	return oauth2provider.GetAppSecrets(api.Database)
+	return oauth2provider.GetAppSecrets(api.Database, api.Logger)
 }
 
 // @Summary Create OAuth2 application secret.

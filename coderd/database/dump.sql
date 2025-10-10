@@ -1478,10 +1478,13 @@ CREATE TABLE oauth2_provider_app_secrets (
     hashed_secret bytea NOT NULL,
     display_secret text NOT NULL,
     app_id uuid NOT NULL,
-    secret_prefix bytea NOT NULL
+    secret_prefix bytea NOT NULL,
+    app_owner_user_id uuid
 );
 
 COMMENT ON COLUMN oauth2_provider_app_secrets.display_secret IS 'The tail end of the original secret so secrets can be differentiated.';
+
+COMMENT ON COLUMN oauth2_provider_app_secrets.app_owner_user_id IS 'Denormalized owner user ID from parent app for efficient authorization without N+1 queries';
 
 CREATE TABLE oauth2_provider_app_tokens (
     id uuid NOT NULL,
@@ -1528,12 +1531,12 @@ CREATE TABLE oauth2_provider_apps (
     registration_access_token text,
     registration_client_uri text,
     user_id uuid,
-    CONSTRAINT redirect_uris_not_empty CHECK ((cardinality(redirect_uris) > 0))
+    CONSTRAINT redirect_uris_not_empty_unless_client_credentials CHECK ((((grant_types = ARRAY['client_credentials'::text]) AND (cardinality(redirect_uris) >= 0)) OR ((grant_types <> ARRAY['client_credentials'::text]) AND (cardinality(redirect_uris) > 0))))
 );
 
 COMMENT ON TABLE oauth2_provider_apps IS 'A table used to configure apps that can use Coder as an OAuth2 provider, the reverse of what we are calling external authentication.';
 
-COMMENT ON COLUMN oauth2_provider_apps.redirect_uris IS 'RFC 6749 compliant list of valid redirect URIs for the application';
+COMMENT ON COLUMN oauth2_provider_apps.redirect_uris IS 'RFC 6749 compliant list of valid redirect URIs for the application. May be empty for client credentials applications.';
 
 COMMENT ON COLUMN oauth2_provider_apps.client_type IS 'OAuth2 client type: confidential or public';
 
@@ -3264,6 +3267,8 @@ CREATE INDEX idx_inbox_notifications_user_id_read_at ON inbox_notifications USIN
 CREATE INDEX idx_inbox_notifications_user_id_template_id_targets ON inbox_notifications USING btree (user_id, template_id, targets);
 
 CREATE INDEX idx_notification_messages_status ON notification_messages USING btree (status);
+
+CREATE INDEX idx_oauth2_provider_app_secrets_app_owner_user_id ON oauth2_provider_app_secrets USING btree (app_owner_user_id);
 
 CREATE INDEX idx_oauth2_provider_device_codes_cleanup ON oauth2_provider_device_codes USING btree (expires_at);
 

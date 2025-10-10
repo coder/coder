@@ -1021,7 +1021,7 @@ endif
 TEST_PACKAGES ?= ./...
 
 test:
-	$(GIT_FLAGS) gotestsum --format standard-quiet $(GOTESTSUM_RETRY_FLAGS) --packages="$(TEST_PACKAGES)" -- $(GOTEST_FLAGS)
+	$(GIT_FLAGS) gotestsum --format standard-quiet $(GOTESTSUM_RETRY_FLAGS) --packages="$(if $(PACKAGE),$(PACKAGE),$(TEST_PACKAGES))" -- $(GOTEST_FLAGS)
 .PHONY: test
 
 test-cli:

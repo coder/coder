@@ -2351,10 +2351,10 @@ func (mr *MockStoreMockRecorder) GetOAuth2ProviderAppByClientID(ctx, id any) *go
 }
 
 // GetOAuth2ProviderAppByID mocks base method.
-func (m *MockStore) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderApp, error) {
+func (m *MockStore) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (database.GetOAuth2ProviderAppByIDRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetOAuth2ProviderAppByID", ctx, id)
-	ret0, _ := ret[0].(database.OAuth2ProviderApp)
+	ret0, _ := ret[0].(database.GetOAuth2ProviderAppByIDRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -2486,10 +2486,10 @@ func (mr *MockStoreMockRecorder) GetOAuth2ProviderAppTokenByPrefix(ctx, hashPref
 }
 
 // GetOAuth2ProviderApps mocks base method.
-func (m *MockStore) GetOAuth2ProviderApps(ctx context.Context) ([]database.OAuth2ProviderApp, error) {
+func (m *MockStore) GetOAuth2ProviderApps(ctx context.Context) ([]database.GetOAuth2ProviderAppsRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetOAuth2ProviderApps", ctx)
-	ret0, _ := ret[0].([]database.OAuth2ProviderApp)
+	ret0, _ := ret[0].([]database.GetOAuth2ProviderAppsRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -2498,6 +2498,21 @@ func (m *MockStore) GetOAuth2ProviderApps(ctx context.Context) ([]database.OAuth
 func (mr *MockStoreMockRecorder) GetOAuth2ProviderApps(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOAuth2ProviderApps", reflect.TypeOf((*MockStore)(nil).GetOAuth2ProviderApps), ctx)
+}
+
+// GetOAuth2ProviderAppsByOwnerID mocks base method.
+func (m *MockStore) GetOAuth2ProviderAppsByOwnerID(ctx context.Context, userID uuid.NullUUID) ([]database.GetOAuth2ProviderAppsByOwnerIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOAuth2ProviderAppsByOwnerID", ctx, userID)
+	ret0, _ := ret[0].([]database.GetOAuth2ProviderAppsByOwnerIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOAuth2ProviderAppsByOwnerID indicates an expected call of GetOAuth2ProviderAppsByOwnerID.
+func (mr *MockStoreMockRecorder) GetOAuth2ProviderAppsByOwnerID(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOAuth2ProviderAppsByOwnerID", reflect.TypeOf((*MockStore)(nil).GetOAuth2ProviderAppsByOwnerID), ctx, userID)
 }
 
 // GetOAuth2ProviderAppsByUserID mocks base method.
