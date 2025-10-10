@@ -26,8 +26,8 @@ export const WithError: Story = {
 					detail: "name error",
 				},
 				{
-					field: "callback_url",
-					detail: "url error",
+					field: "redirect_uris",
+					detail: "redirect URI error",
 				},
 				{
 					field: "icon",

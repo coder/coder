@@ -4522,7 +4522,7 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
 	{
 		id: "1",
 		name: "foo",
-		callback_url: "http://localhost:3001",
+		redirect_uris: ["http://localhost:3001", "http://localhost:3002"],
 		icon: "/icon/github.svg",
 		endpoints: {
 			authorization: "http://localhost:3001/oauth2/authorize",

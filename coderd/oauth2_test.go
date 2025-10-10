@@ -46,36 +46,33 @@ func TestOAuth2ProviderApps(t *testing.T) {
 
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := t.Context()
 
 		// Test basic app creation and management in integration context
 		//nolint:gocritic // OAuth2 app management requires owner permission.
 		app, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
-			Name:        fmt.Sprintf("integration-test-%d", time.Now().UnixNano()%1000000),
-			CallbackURL: "http://localhost:3000",
+			Name:         fmt.Sprintf("integration-test-%d", time.Now().UnixNano()%1000000),
+			RedirectURIs: []string{"http://localhost:3000"},
 		})
 		require.NoError(t, err)
 		require.NotEmpty(t, app.ID)
 		require.NotEmpty(t, app.Name)
-		require.Equal(t, "http://localhost:3000", app.CallbackURL)
+		require.Equal(t, []string{"http://localhost:3000"}, app.RedirectURIs)
 	})
 }
 
 func TestOAuth2ProviderAppSecrets(t *testing.T) {
 	t.Parallel()
 
-	client := coderdtest.New(t, nil)
-	coderdtest.CreateFirstUser(t, client)
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-
-	// Make some apps.
-	apps := generateApps(ctx, t, client, "app-secrets")
-
 	t.Run("DeleteNonExisting", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := t.Context()
 
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+
+		// Make some apps.
+		apps := generateApps(ctx, t, client, "app-secrets")
 		// Should not be able to create secrets for a non-existent app.
 		//nolint:gocritic // OAauth2 app management requires owner permission.
 		_, err := client.OAuth2ProviderAppSecrets(ctx, uuid.New())
@@ -103,7 +100,12 @@ func TestOAuth2ProviderAppSecrets(t *testing.T) {
 
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := t.Context()
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+
+		// Make some apps.
+		apps := generateApps(ctx, t, client, "app-secrets")
 
 		// No secrets yet.
 		//nolint:gocritic // OAauth2 app management requires owner permission.
@@ -112,7 +114,7 @@ func TestOAuth2ProviderAppSecrets(t *testing.T) {
 		require.Len(t, secrets, 0)
 
 		// Should be able to create secrets.
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			//nolint:gocritic // OAauth2 app management requires owner permission.
 			secret, err := client.PostOAuth2ProviderAppSecret(ctx, apps.Default.ID)
 			require.NoError(t, err)
@@ -161,30 +163,13 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 		Pubsub:   pubsub,
 	})
 	owner := coderdtest.CreateFirstUser(t, ownerClient)
-	ctx := testutil.Context(t, testutil.WaitLong)
+	ctx := t.Context()
 	apps := generateApps(ctx, t, ownerClient, "token-exchange")
 
 	//nolint:gocritic // OAauth2 app management requires owner permission.
 	secret, err := ownerClient.PostOAuth2ProviderAppSecret(ctx, apps.Default.ID)
 	require.NoError(t, err)
 
-	// The typical oauth2 flow from this point is:
-	// Create an oauth2.Config using the id, secret, endpoints, and redirect:
-	//	cfg := oauth2.Config{ ... }
-	// Display url for the user to click:
-	//	userClickURL := cfg.AuthCodeURL("random_state")
-	//	userClickURL looks like: https://idp url/authorize?
-	//								client_id=...
-	//								response_type=code
-	//								redirect_uri=.. (back to backstage url) ..
-	//								scope=...
-	//								state=...
-	// *1* User clicks "Allow" on provided page above
-	// The redirect_uri is followed which sends back to backstage with the code and state
-	// Now backstage has the info to do a cfg.Exchange() in the back to get an access token.
-	//
-	// ---NOTE---: If the user has already approved this oauth app, then *1* is optional.
-	//             Coder can just immediately redirect back to backstage without user intervention.
 	tests := []struct {
 		name string
 		app  codersdk.OAuth2ProviderApp
@@ -237,7 +222,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 			name: "WrongAppHost",
 			app:  apps.Default,
 			preAuth: func(valid *oauth2.Config) {
-				valid.RedirectURL = apps.NoPort.CallbackURL
+				valid.RedirectURL = apps.NoPort.RedirectURIs[0]
 			},
 			authError: "Invalid query params:",
 		},
@@ -292,7 +277,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 			authError: "Invalid query params:",
 		},
 		{
-			// TODO: This is valid for now, but should it be?
+			// RFC 6749 requires exact URI matching, different protocols should fail
 			name: "DifferentProtocol",
 			app:  apps.Default,
 			preAuth: func(valid *oauth2.Config) {
@@ -300,8 +285,10 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 				newURL.Scheme = "https"
 				valid.RedirectURL = newURL.String()
 			},
+			authError: "Invalid query params:",
 		},
 		{
+			// RFC 6749 requires exact URI matching, nested paths should fail
 			name: "NestedPath",
 			app:  apps.Default,
 			preAuth: func(valid *oauth2.Config) {
@@ -309,6 +296,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 				newURL.Path = path.Join(newURL.Path, "nested")
 				valid.RedirectURL = newURL.String()
 			},
+			authError: "Invalid query params:",
 		},
 		{
 			// Some oauth implementations allow this, but our users can host
@@ -453,7 +441,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			ctx := testutil.Context(t, testutil.WaitLong)
+			ctx := t.Context()
 
 			// Each test gets its own user, since we allow only one code per user and
 			// app at a time and running tests in parallel could clobber each other.
@@ -475,7 +463,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 					// TODO: @emyrk we should support both types.
 					AuthStyle: oauth2.AuthStyleInParams,
 				},
-				RedirectURL: test.app.CallbackURL,
+				RedirectURL: test.app.RedirectURIs[0],
 				Scopes:      []string{},
 			}
 
@@ -527,25 +515,11 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 
 func TestOAuth2ProviderTokenRefresh(t *testing.T) {
 	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitLong)
-
-	db, pubsub := dbtestutil.NewDB(t)
-	ownerClient := coderdtest.New(t, &coderdtest.Options{
-		Database: db,
-		Pubsub:   pubsub,
-	})
-	owner := coderdtest.CreateFirstUser(t, ownerClient)
-	apps := generateApps(ctx, t, ownerClient, "token-refresh")
-
-	//nolint:gocritic // OAauth2 app management requires owner permission.
-	secret, err := ownerClient.PostOAuth2ProviderAppSecret(ctx, apps.Default.ID)
-	require.NoError(t, err)
 
 	// One path not tested here is when the token is empty, because Go's OAuth2
 	// client library will not even try to make the request.
 	tests := []struct {
 		name string
-		app  codersdk.OAuth2ProviderApp
 		// If null, assume the token should be valid.
 		defaultToken *string
 		error        string
@@ -553,49 +527,55 @@ func TestOAuth2ProviderTokenRefresh(t *testing.T) {
 	}{
 		{
 			name:         "NoTokenScheme",
-			app:          apps.Default,
 			defaultToken: ptr.Ref("1234_4321"),
 			error:        "The refresh token is invalid or expired",
 		},
 		{
 			name:         "InvalidTokenScheme",
-			app:          apps.Default,
 			defaultToken: ptr.Ref("notcoder_1234_4321"),
 			error:        "The refresh token is invalid or expired",
 		},
 		{
 			name:         "MissingTokenSecret",
-			app:          apps.Default,
 			defaultToken: ptr.Ref("coder_1234"),
 			error:        "The refresh token is invalid or expired",
 		},
 		{
 			name:         "MissingTokenPrefix",
-			app:          apps.Default,
 			defaultToken: ptr.Ref("coder__1234"),
 			error:        "The refresh token is invalid or expired",
 		},
 		{
 			name:         "InvalidTokenPrefix",
-			app:          apps.Default,
 			defaultToken: ptr.Ref("coder_1234_4321"),
 			error:        "The refresh token is invalid or expired",
 		},
 		{
 			name:    "Expired",
-			app:     apps.Default,
 			expires: time.Now().Add(time.Minute * -1),
 			error:   "The refresh token is invalid or expired",
 		},
 		{
 			name: "OK",
-			app:  apps.Default,
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			ctx := testutil.Context(t, testutil.WaitLong)
+			ctx := t.Context()
+
+			db, pubsub := dbtestutil.NewDB(t)
+			ownerClient := coderdtest.New(t, &coderdtest.Options{
+				Database: db,
+				Pubsub:   pubsub,
+			})
+			owner := coderdtest.CreateFirstUser(t, ownerClient)
+			apps := generateApps(ctx, t, ownerClient, "token-refresh")
+			app := apps.Default
+
+			//nolint:gocritic // OAauth2 app management requires owner permission.
+			secret, err := ownerClient.PostOAuth2ProviderAppSecret(ctx, apps.Default.ID)
+			require.NoError(t, err)
 
 			userClient, user := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 
@@ -638,15 +618,15 @@ func TestOAuth2ProviderTokenRefresh(t *testing.T) {
 			require.Equal(t, user.ID, gotUser.ID)
 
 			cfg := &oauth2.Config{
-				ClientID:     test.app.ID.String(),
+				ClientID:     app.ID.String(),
 				ClientSecret: secret.ClientSecretFull,
 				Endpoint: oauth2.Endpoint{
-					AuthURL:       test.app.Endpoints.Authorization,
-					DeviceAuthURL: test.app.Endpoints.DeviceAuth,
-					TokenURL:      test.app.Endpoints.Token,
+					AuthURL:       app.Endpoints.Authorization,
+					DeviceAuthURL: app.Endpoints.DeviceAuth,
+					TokenURL:      app.Endpoints.Token,
 					AuthStyle:     oauth2.AuthStyleInParams,
 				},
-				RedirectURL: test.app.CallbackURL,
+				RedirectURL: app.RedirectURIs[0],
 				Scopes:      []string{},
 			}
 
@@ -768,8 +748,8 @@ func TestOAuth2ProviderRevoke(t *testing.T) {
 		// app and user at the moment and because the test might delete the app.
 		//nolint:gocritic // OAauth2 app management requires owner permission.
 		app, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
-			Name:        name,
-			CallbackURL: "http://localhost",
+			Name:         name,
+			RedirectURIs: []string{"http://localhost"},
 		})
 		require.NoError(t, err)
 
@@ -787,7 +767,7 @@ func TestOAuth2ProviderRevoke(t *testing.T) {
 				TokenURL:      app.Endpoints.Token,
 				AuthStyle:     oauth2.AuthStyleInParams,
 			},
-			RedirectURL: app.CallbackURL,
+			RedirectURL: app.RedirectURIs[0],
 			Scopes:      []string{},
 		}
 
@@ -882,13 +862,13 @@ func generateApps(ctx context.Context, t *testing.T, client *codersdk.Client, su
 		name = fmt.Sprintf("%s-%s", name, suffix)
 		//nolint:gocritic // OAauth2 app management requires owner permission.
 		app, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
-			Name:        name,
-			CallbackURL: callback,
-			Icon:        "",
+			Name:         name,
+			RedirectURIs: []string{callback},
+			Icon:         "",
 		})
 		require.NoError(t, err)
 		require.Equal(t, name, app.Name)
-		require.Equal(t, callback, app.CallbackURL)
+		require.Equal(t, callback, app.RedirectURIs[0])
 		return app
 	}
 
@@ -942,7 +922,7 @@ func TestOAuth2ProviderResourceIndicators(t *testing.T) {
 		Pubsub:   pubsub,
 	})
 	owner := coderdtest.CreateFirstUser(t, ownerClient)
-	ctx := testutil.Context(t, testutil.WaitLong)
+	ctx := t.Context()
 	apps := generateApps(ctx, t, ownerClient, "resource-indicators")
 
 	//nolint:gocritic // OAauth2 app management requires owner permission.
@@ -1012,7 +992,7 @@ func TestOAuth2ProviderResourceIndicators(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			ctx := testutil.Context(t, testutil.WaitLong)
+			ctx := t.Context()
 
 			userClient, user := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 
@@ -1024,7 +1004,7 @@ func TestOAuth2ProviderResourceIndicators(t *testing.T) {
 					TokenURL:  apps.Default.Endpoints.Token,
 					AuthStyle: oauth2.AuthStyleInParams,
 				},
-				RedirectURL: apps.Default.CallbackURL,
+				RedirectURL: apps.Default.RedirectURIs[0],
 				Scopes:      []string{},
 			}
 
@@ -1061,7 +1041,7 @@ func TestOAuth2ProviderResourceIndicators(t *testing.T) {
 
 			// Step 2: Token exchange with resource parameter
 			// Use custom token exchange since golang.org/x/oauth2 doesn't support resource parameter in token requests
-			token, err := customTokenExchange(ctx, ownerClient.URL.String(), apps.Default.ID.String(), secret.ClientSecretFull, code, apps.Default.CallbackURL, test.tokenResource)
+			token, err := customTokenExchange(ctx, ownerClient.URL.String(), apps.Default.ID.String(), secret.ClientSecretFull, code, apps.Default.RedirectURIs[0], test.tokenResource)
 			if test.expectTokenError {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), "invalid_target")
@@ -1134,7 +1114,7 @@ func TestOAuth2ProviderCrossResourceAudienceValidation(t *testing.T) {
 		Pubsub:   pubsub,
 	})
 
-	ctx := testutil.Context(t, testutil.WaitLong)
+	ctx := t.Context()
 
 	// Create OAuth2 app
 	apps := generateApps(ctx, t, server1, "cross-resource")
@@ -1154,7 +1134,7 @@ func TestOAuth2ProviderCrossResourceAudienceValidation(t *testing.T) {
 			TokenURL:  apps.Default.Endpoints.Token,
 			AuthStyle: oauth2.AuthStyleInParams,
 		},
-		RedirectURL: apps.Default.CallbackURL,
+		RedirectURL: apps.Default.RedirectURIs[0],
 		Scopes:      []string{},
 	}
 
@@ -1334,7 +1314,7 @@ func TestOAuth2DynamicClientRegistration(t *testing.T) {
 
 	t.Run("BasicRegistration", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := t.Context()
 
 		clientName := fmt.Sprintf("test-client-basic-%d", time.Now().UnixNano())
 		req := codersdk.OAuth2ClientRegistrationRequest{
@@ -1377,7 +1357,7 @@ func TestOAuth2DynamicClientRegistration(t *testing.T) {
 
 	t.Run("MinimalRegistration", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := t.Context()
 
 		req := codersdk.OAuth2ClientRegistrationRequest{
 			RedirectURIs: []string{"https://minimal.com/callback"},
@@ -1401,7 +1381,7 @@ func TestOAuth2DynamicClientRegistration(t *testing.T) {
 
 	t.Run("InvalidRedirectURI", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := t.Context()
 
 		req := codersdk.OAuth2ClientRegistrationRequest{
 			RedirectURIs: []string{"not-a-url"},
@@ -1414,7 +1394,7 @@ func TestOAuth2DynamicClientRegistration(t *testing.T) {
 
 	t.Run("NoRedirectURIs", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := t.Context()
 
 		req := codersdk.OAuth2ClientRegistrationRequest{
 			ClientName: fmt.Sprintf("no-uris-client-%d", time.Now().UnixNano()),
@@ -1435,7 +1415,7 @@ func TestOAuth2ClientConfiguration(t *testing.T) {
 
 	// Helper to register a client
 	registerClient := func(t *testing.T) (string, string, string) {
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := t.Context()
 		// Use shorter client name to avoid database varchar(64) constraint
 		clientName := fmt.Sprintf("client-%d", time.Now().UnixNano())
 		req := codersdk.OAuth2ClientRegistrationRequest{
@@ -1452,7 +1432,7 @@ func TestOAuth2ClientConfiguration(t *testing.T) {
 	t.Run("GetConfiguration", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := t.Context()
 		clientID, token, clientName := registerClient(t)
 
 		// Get client configuration
@@ -1472,7 +1452,7 @@ func TestOAuth2ClientConfiguration(t *testing.T) {
 
 	t.Run("UpdateConfiguration", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := t.Context()
 
 		clientID, token, _ := registerClient(t)
 
@@ -1498,7 +1478,7 @@ func TestOAuth2ClientConfiguration(t *testing.T) {
 
 	t.Run("DeleteConfiguration", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := t.Context()
 
 		clientID, token, _ := registerClient(t)
 
@@ -1514,7 +1494,7 @@ func TestOAuth2ClientConfiguration(t *testing.T) {
 
 	t.Run("InvalidToken", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := t.Context()
 
 		clientID, _, _ := registerClient(t)
 		invalidToken := "invalid-token"
@@ -1527,7 +1507,7 @@ func TestOAuth2ClientConfiguration(t *testing.T) {
 
 	t.Run("NonexistentClient", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := t.Context()
 
 		fakeClientID := uuid.NewString()
 		fakeToken := "fake-token"
@@ -1539,7 +1519,7 @@ func TestOAuth2ClientConfiguration(t *testing.T) {
 
 	t.Run("MissingAuthHeader", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := t.Context()
 
 		clientID, _, _ := registerClient(t)
 
@@ -1559,7 +1539,7 @@ func TestOAuth2RegistrationAccessToken(t *testing.T) {
 
 	t.Run("ValidToken", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := t.Context()
 
 		// Register a client
 		req := codersdk.OAuth2ClientRegistrationRequest{
@@ -1578,12 +1558,12 @@ func TestOAuth2RegistrationAccessToken(t *testing.T) {
 
 	t.Run("ManuallyCreatedClient", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := t.Context()
 
 		// Create a client through the normal API (not dynamic registration)
 		appReq := codersdk.PostOAuth2ProviderAppRequest{
-			Name:        fmt.Sprintf("manual-%d", time.Now().UnixNano()%1000000),
-			CallbackURL: "https://manual.com/callback",
+			Name:         fmt.Sprintf("manual-%d", time.Now().UnixNano()%1000000),
+			RedirectURIs: []string{"https://manual.com/callback"},
 		}
 
 		app, err := client.PostOAuth2ProviderApp(ctx, appReq)
@@ -1597,7 +1577,7 @@ func TestOAuth2RegistrationAccessToken(t *testing.T) {
 
 	t.Run("TokenPasswordComparison", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := t.Context()
 
 		// Register two clients to ensure tokens are unique
 		timestamp := time.Now().UnixNano()
@@ -1647,8 +1627,8 @@ func TestOAuth2DeviceAuthorizationSimple(t *testing.T) {
 
 	// Create an OAuth2 app for testing
 	app, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
-		Name:        fmt.Sprintf("device-test-%d", time.Now().UnixNano()%1000000),
-		CallbackURL: "http://localhost:3000",
+		Name:         fmt.Sprintf("device-test-%d", time.Now().UnixNano()%1000000),
+		RedirectURIs: []string{"http://localhost:3000"},
 	})
 	require.NoError(t, err)
 
@@ -1701,8 +1681,8 @@ func TestOAuth2DeviceAuthorization(t *testing.T) {
 
 	// Create an OAuth2 app for testing
 	app, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
-		Name:        fmt.Sprintf("device-test-%d", time.Now().UnixNano()%1000000),
-		CallbackURL: "http://localhost:3000",
+		Name:         fmt.Sprintf("device-test-%d", time.Now().UnixNano()%1000000),
+		RedirectURIs: []string{"http://localhost:3000"},
 	})
 	require.NoError(t, err)
 
@@ -2178,31 +2158,31 @@ func TestOAuth2DeviceAuthorization(t *testing.T) {
 			"client_id":   {app.ID.String()},
 		}
 
-		var successCount int32
-		var errorCount int32
+		var successCount int64
+		var errorCount int64
 		done := make(chan bool, 3)
 
 		// Launch 3 concurrent token exchange requests
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			go func() {
 				_, err := client.PostOAuth2TokenExchange(ctx, tokenReq)
 				if err == nil {
-					atomic.AddInt32(&successCount, 1)
+					atomic.AddInt64(&successCount, 1)
 				} else {
-					atomic.AddInt32(&errorCount, 1)
+					atomic.AddInt64(&errorCount, 1)
 				}
 				done <- true
 			}()
 		}
 
 		// Wait for all requests to complete
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			<-done
 		}
 
 		// Only one should succeed (device codes are single-use)
-		require.Equal(t, int32(1), atomic.LoadInt32(&successCount))
-		require.Equal(t, int32(2), atomic.LoadInt32(&errorCount))
+		require.Equal(t, int64(1), atomic.LoadInt64(&successCount))
+		require.Equal(t, int64(2), atomic.LoadInt64(&errorCount))
 	})
 }
 
@@ -2609,8 +2589,8 @@ func createOAuth2App(t *testing.T, client *codersdk.Client) codersdk.OAuth2Provi
 	ctx := context.Background()
 	//nolint:gocritic // OAuth2 app management requires owner permission.
 	app, err := client.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
-		Name:        fmt.Sprintf("test-app-%d", time.Now().UnixNano()),
-		CallbackURL: "http://localhost:3000",
+		Name:         fmt.Sprintf("test-app-%d", time.Now().UnixNano()),
+		RedirectURIs: []string{"http://localhost:3000"},
 	})
 	require.NoError(t, err)
 	return app

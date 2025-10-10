@@ -1507,8 +1507,7 @@ CREATE TABLE oauth2_provider_apps (
     updated_at timestamp with time zone NOT NULL,
     name character varying(64) NOT NULL,
     icon character varying(256) NOT NULL,
-    callback_url text NOT NULL,
-    redirect_uris text[],
+    redirect_uris text[] NOT NULL,
     client_type text DEFAULT 'confidential'::text,
     dynamically_registered boolean DEFAULT false,
     client_id_issued_at timestamp with time zone DEFAULT now(),
@@ -1527,12 +1526,13 @@ CREATE TABLE oauth2_provider_apps (
     software_id text,
     software_version text,
     registration_access_token text,
-    registration_client_uri text
+    registration_client_uri text,
+    CONSTRAINT redirect_uris_not_empty CHECK ((cardinality(redirect_uris) > 0))
 );
 
 COMMENT ON TABLE oauth2_provider_apps IS 'A table used to configure apps that can use Coder as an OAuth2 provider, the reverse of what we are calling external authentication.';
 
-COMMENT ON COLUMN oauth2_provider_apps.redirect_uris IS 'List of valid redirect URIs for the application';
+COMMENT ON COLUMN oauth2_provider_apps.redirect_uris IS 'RFC 6749 compliant list of valid redirect URIs for the application';
 
 COMMENT ON COLUMN oauth2_provider_apps.client_type IS 'OAuth2 client type: confidential or public';
 

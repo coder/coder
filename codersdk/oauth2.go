@@ -21,10 +21,10 @@ const (
 )
 
 type OAuth2ProviderApp struct {
-	ID          uuid.UUID `json:"id" format:"uuid"`
-	Name        string    `json:"name"`
-	CallbackURL string    `json:"callback_url"`
-	Icon        string    `json:"icon"`
+	ID           uuid.UUID `json:"id" format:"uuid"`
+	Name         string    `json:"name"`
+	RedirectURIs []string  `json:"redirect_uris"`
+	Icon         string    `json:"icon"`
 
 	// Endpoints are included in the app response for easier discovery. The OAuth2
 	// spec does not have a defined place to find these (for comparison, OIDC has
@@ -82,9 +82,9 @@ func (c *Client) OAuth2ProviderApp(ctx context.Context, id uuid.UUID) (OAuth2Pro
 }
 
 type PostOAuth2ProviderAppRequest struct {
-	Name        string `json:"name" validate:"required,oauth2_app_display_name"`
-	CallbackURL string `json:"callback_url" validate:"required,http_url"`
-	Icon        string `json:"icon" validate:"omitempty"`
+	Name         string   `json:"name" validate:"required,oauth2_app_display_name"`
+	RedirectURIs []string `json:"redirect_uris" validate:"required,min=1,dive,http_url"`
+	Icon         string   `json:"icon" validate:"omitempty"`
 }
 
 // PostOAuth2ProviderApp adds an application that can authenticate using Coder
@@ -103,9 +103,9 @@ func (c *Client) PostOAuth2ProviderApp(ctx context.Context, app PostOAuth2Provid
 }
 
 type PutOAuth2ProviderAppRequest struct {
-	Name        string `json:"name" validate:"required,oauth2_app_display_name"`
-	CallbackURL string `json:"callback_url" validate:"required,http_url"`
-	Icon        string `json:"icon" validate:"omitempty"`
+	Name         string   `json:"name" validate:"required,oauth2_app_display_name"`
+	RedirectURIs []string `json:"redirect_uris" validate:"required,min=1,dive,http_url"`
+	Icon         string   `json:"icon" validate:"omitempty"`
 }
 
 // PutOAuth2ProviderApp updates an application that can authenticate using Coder
