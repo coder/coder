@@ -537,6 +537,16 @@ func (a GetOAuth2ProviderAppsByUserIDRow) RBACObject() rbac.Object {
 	return a.OAuth2ProviderApp.RBACObject()
 }
 
+func (d OAuth2ProviderDeviceCode) RBACObject() rbac.Object {
+	// Device codes are similar to OAuth2 app code tokens
+	if d.UserID.Valid {
+		// If authorized by a user, it belongs to that user
+		return rbac.ResourceOauth2AppCodeToken.WithOwner(d.UserID.UUID.String()).WithID(d.ID)
+	}
+	// If not yet authorized, treat as system resource (no specific owner)
+	return rbac.ResourceOauth2AppCodeToken.WithID(d.ID)
+}
+
 type WorkspaceAgentConnectionStatus struct {
 	Status           WorkspaceAgentStatus `json:"status"`
 	FirstConnectedAt *time.Time           `json:"first_connected_at"`

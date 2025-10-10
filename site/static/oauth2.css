@@ -1,0 +1,264 @@
+/* Shared styles for OAuth2 device authorization pages */
+
+/* Reset and base styles */
+* {
+	padding: 0;
+	margin: 0;
+	box-sizing: border-box;
+}
+
+html,
+body {
+	background-color: #05060b;
+	color: #f7f9fd;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-family: sans-serif;
+	font-size: 16px;
+	height: 100%;
+}
+
+/* Layout */
+.container {
+	--side-padding: 24px;
+	width: 100%;
+	max-width: calc(400px + var(--side-padding) * 2);
+	padding: 0 var(--side-padding);
+	text-align: center;
+}
+
+.container.narrow {
+	max-width: calc(320px + var(--side-padding) * 2);
+}
+
+.icons-container {
+	align-items: center;
+	display: flex;
+	justify-content: center;
+	margin-bottom: 24px;
+}
+
+.coder-svg,
+.app-icon {
+	width: 80px;
+}
+
+.connect-symbol {
+	font-size: 40px;
+	font-weight: bold;
+	margin: 0 10px;
+}
+
+/* Typography */
+h1 {
+	font-weight: 700;
+	font-size: 32px;
+	margin-bottom: 16px;
+}
+
+h1.large {
+	font-size: 36px;
+	margin-bottom: 8px;
+}
+
+p {
+	color: #b2bfd7;
+	line-height: 150%;
+	margin-bottom: 16px;
+	font-size: 18px;
+}
+
+p.compact {
+	line-height: 140%;
+	margin-bottom: 0;
+	font-size: 16px;
+}
+
+.app-name {
+	font-weight: 600;
+	color: #f7f9fd;
+}
+
+.user-name {
+	font-weight: bold;
+}
+
+.instruction {
+	color: #94a3b8;
+	font-size: 14px;
+	margin-top: 16px;
+}
+
+/* Success styles */
+.success-icon {
+	color: #22c55e;
+	font-size: 48px;
+	margin-bottom: 16px;
+}
+
+.success-message {
+	background-color: #0d1f0d;
+	border: 1px solid #22c55e;
+	border-radius: 8px;
+	padding: 20px;
+	margin-bottom: 24px;
+}
+
+.success-title {
+	color: #22c55e;
+}
+
+/* Denied styles */
+.denied-icon {
+	color: #ef4444;
+	font-size: 48px;
+	margin-bottom: 16px;
+}
+
+.denied-message {
+	background-color: #1f0d0d;
+	border: 1px solid #ef4444;
+	border-radius: 8px;
+	padding: 20px;
+	margin-bottom: 24px;
+}
+
+.denied-title {
+	color: #ef4444;
+}
+
+/* Form styles */
+.alert {
+	padding: 16px;
+	border-radius: 8px;
+	margin-bottom: 24px;
+	background-color: #1a2332;
+	border: 1px solid #2c3854;
+}
+
+.alert-info {
+	background-color: #0d1929;
+	color: #7dd3fc;
+	border-color: #0369a1;
+}
+
+.form-group {
+	margin-bottom: 20px;
+	text-align: left;
+}
+
+label {
+	display: block;
+	margin-bottom: 8px;
+	font-weight: 500;
+	color: #f7f9fd;
+}
+
+input[type="text"] {
+	width: 100%;
+	padding: 12px;
+	font-size: 16px;
+	border: 1px solid #2c3854;
+	border-radius: 6px;
+	background-color: #0d1117;
+	color: #f7f9fd;
+	outline: none;
+	transition: border-color 0.2s;
+}
+
+input[type="text"]:focus {
+	border-color: #58a6ff;
+}
+
+input[type="text"]::placeholder {
+	color: #6e7681;
+}
+
+/* Button styles */
+.button-group {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 12px;
+	margin-top: 24px;
+}
+
+.button-group button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 12px 24px;
+	border-radius: 6px;
+	border: 1px solid #2c3854;
+	text-decoration: none;
+	background: none;
+	font-size: 16px;
+	color: inherit;
+	min-width: 120px;
+	height: 44px;
+	cursor: pointer;
+	transition: all 0.2s;
+}
+
+.button-group button:hover {
+	border-color: hsl(222, 31%, 40%);
+	background-color: rgba(44, 56, 84, 0.3);
+}
+
+.button-group a:hover,
+.button-group button:hover {
+	border-color: hsl(222, 31%, 40%);
+}
+
+.button-group .btn-primary,
+.button-group .primary-button {
+	background-color: #2c3854;
+	border-color: #2c3854;
+}
+
+.button-group .btn-primary:hover {
+	background-color: #3d4f6b;
+	border-color: #3d4f6b;
+}
+
+.button-group .btn-secondary {
+	color: #b2bfd7;
+}
+
+.button-group .btn-secondary:hover {
+	color: #f7f9fd;
+}
+
+/* OAuth2 Allow page specific styles */
+.button-group a,
+.button-group button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 6px;
+	border: 1px solid #2c3854;
+	text-decoration: none;
+	background: none;
+	font-size: 16px;
+	color: inherit;
+	cursor: pointer;
+	transition: all 0.2s;
+}
+
+/* Device pages use different button sizing */
+.device-page .button-group button {
+	padding: 12px 24px;
+	min-width: 120px;
+	height: 44px;
+}
+
+/* Allow page uses different button sizing */
+.allow-page .button-group a,
+.allow-page .button-group button {
+	padding: 6px 16px;
+	border-radius: 4px;
+	font-size: inherit;
+	width: 200px;
+	height: 42px;
+}

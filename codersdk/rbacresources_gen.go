@@ -92,7 +92,7 @@ var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceNotificationPreference:        {ActionRead, ActionUpdate},
 	ResourceNotificationTemplate:          {ActionRead, ActionUpdate},
 	ResourceOauth2App:                     {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
-	ResourceOauth2AppCodeToken:            {ActionCreate, ActionDelete, ActionRead},
+	ResourceOauth2AppCodeToken:            {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceOauth2AppSecret:               {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceOrganization:                  {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceOrganizationMember:            {ActionCreate, ActionDelete, ActionRead, ActionUpdate},

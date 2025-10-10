@@ -117,6 +117,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.Name
 	case database.OAuth2ProviderAppSecret:
 		return typed.DisplaySecret
+	case database.OAuth2ProviderDeviceCode:
+		return typed.UserCode
 	case database.CustomRole:
 		return typed.Name
 	case database.AuditableOrganizationMember:
@@ -179,6 +181,8 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.ID
 	case database.OAuth2ProviderAppSecret:
 		return typed.ID
+	case database.OAuth2ProviderDeviceCode:
+		return typed.ID
 	case database.CustomRole:
 		return typed.ID
 	case database.AuditableOrganizationMember:
@@ -232,6 +236,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeOauth2ProviderApp
 	case database.OAuth2ProviderAppSecret:
 		return database.ResourceTypeOauth2ProviderAppSecret
+	case database.OAuth2ProviderDeviceCode:
+		return database.ResourceTypeOauth2ProviderDeviceCode
 	case database.CustomRole:
 		return database.ResourceTypeCustomRole
 	case database.AuditableOrganizationMember:
@@ -287,6 +293,8 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 	case database.OAuth2ProviderApp:
 		return false
 	case database.OAuth2ProviderAppSecret:
+		return false
+	case database.OAuth2ProviderDeviceCode:
 		return false
 	case database.CustomRole:
 		return true
