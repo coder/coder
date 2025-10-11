@@ -1,26 +1,28 @@
-import Checkbox from "@mui/material/Checkbox";
-import FormControl from "@mui/material/FormControl";
-import FormControlLabel from "@mui/material/FormControlLabel";
-import FormGroup from "@mui/material/FormGroup";
-import FormHelperText from "@mui/material/FormHelperText";
-import FormLabel from "@mui/material/FormLabel";
-import MenuItem from "@mui/material/MenuItem";
-import Switch from "@mui/material/Switch";
-import TextField from "@mui/material/TextField";
 import type { Template } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
+import { Checkbox } from "components/Checkbox/Checkbox";
 import {
 	FormFields,
 	FormFooter,
 	FormSection,
 	HorizontalForm,
 } from "components/Form/Form";
+import { Input } from "components/Input/Input";
+import { Label } from "components/Label/Label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "components/Select/Select";
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import {
 	StackLabel,
 	StackLabelHelperText,
 } from "components/StackLabel/StackLabel";
+import { Switch } from "components/Switch/Switch";
 import dayjs from "dayjs";
 import timezone from "dayjs/plugin/timezone";
 import { type FormikTouched, useFormik } from "formik";
@@ -28,8 +30,8 @@ import {
 	defaultSchedule,
 	emptySchedule,
 } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
-import type { ChangeEvent, FC } from "react";
-import { getFormHelpers } from "utils/formUtils";
+import type { FC } from "react";
+import { cn } from "utils/cn";
 import { humanDuration } from "utils/time";
 import { timeZones } from "utils/timeZones";
 import * as Yup from "yup";
@@ -195,7 +197,6 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
 		initialTouched,
 		enableReinitialize: true,
 	});
-	const formHelpers = getFormHelpers<WorkspaceScheduleFormValues>(form, error);
 
 	const checkboxes: Array<{ value: boolean; name: string; label: string }> = [
 		{
@@ -235,38 +236,36 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
 		},
 	];
 
-	const handleToggleAutostart = async (e: ChangeEvent) => {
-		form.handleChange(e);
-		if (form.values.autostartEnabled) {
+	const handleToggleAutostart = async (checked: boolean) => {
+		if (!checked) {
 			// disable autostart, clear values
 			await form.setValues({
 				...form.values,
 				autostartEnabled: false,
 				...emptySchedule,
 			});
-		} else {
-			// enable autostart, fill with defaults
-			await form.setValues({
-				...form.values,
-				autostartEnabled: true,
-				...defaultSchedule(),
-			});
+			return;
 		}
+		// enable autostart, fill with defaults
+		await form.setValues({
+			...form.values,
+			autostartEnabled: true,
+			...defaultSchedule(),
+		});
 	};
 
-	const handleToggleAutostop = async (e: ChangeEvent) => {
-		form.handleChange(e);
-		if (form.values.autostopEnabled) {
+	const handleToggleAutostop = async (checked: boolean) => {
+		if (!checked) {
 			// disable autostop, set TTL 0
 			await form.setValues({ ...form.values, autostopEnabled: false, ttl: 0 });
-		} else {
-			// enable autostop, fill with default TTL
-			await form.setValues({
-				...form.values,
-				autostopEnabled: true,
-				ttl: defaultTTL,
-			});
+			return;
 		}
+		// enable autostop, fill with default TTL
+		await form.setValues({
+			...form.values,
+			autostopEnabled: true,
+			ttl: defaultTTL,
+		});
 	};
 
 	return (
@@ -276,107 +275,145 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
 				description="Select the time and days of week on which you want the workspace starting automatically."
 			>
 				<FormFields spacing={FIELDS_SPACING}>
-					<FormControlLabel
-						control={
-							<Switch
-								disabled={!template.allow_user_autostart}
-								name="autostartEnabled"
-								checked={form.values.autostartEnabled}
-								onChange={handleToggleAutostart}
-								size="small"
-							/>
-						}
-						label={
-							<StackLabel>
-								{Language.startSwitch}
-								{!template.allow_user_autostart && (
-									<StackLabelHelperText>
-										The template for this workspace does not allow modification
-										of autostart.
-									</StackLabelHelperText>
-								)}
-							</StackLabel>
-						}
-					/>
-					<Stack direction="row">
-						<TextField
-							{...formHelpers("startTime")}
-							// disabled if template does not allow autostart
-							// or if primary feature is toggled off via the switch above
-							disabled={
-								isLoading ||
-								!template.allow_user_autostart ||
-								!form.values.autostartEnabled
-							}
-							label={Language.startTimeLabel}
-							type="time"
-							fullWidth
+					<div className="flex items-center gap-2">
+						<Switch
+							id="autostartEnabled"
+							disabled={!template.allow_user_autostart}
+							name="autostartEnabled"
+							checked={form.values.autostartEnabled}
+							onCheckedChange={(checked) => {
+								handleToggleAutostart(checked);
+							}}
 						/>
-						<TextField
-							{...formHelpers("timezone")}
-							// disabled if template does not allow autostart
-							// or if primary feature is toggled off via the switch above
-							disabled={
-								isLoading ||
-								!template.allow_user_autostart ||
-								!form.values.autostartEnabled
-							}
-							label={Language.timezoneLabel}
-							select
-							fullWidth
-						>
-							{timeZones.map((zone) => (
-								<MenuItem key={zone} value={zone}>
-									{zone}
-								</MenuItem>
-							))}
-						</TextField>
+						<StackLabel>
+							<Label htmlFor="autostartEnabled" className="cursor-pointer">
+								{Language.startSwitch}
+							</Label>
+							{!template.allow_user_autostart && (
+								<StackLabelHelperText>
+									The template for this workspace does not allow modification of
+									autostart.
+								</StackLabelHelperText>
+							)}
+						</StackLabel>
+					</div>
+					<Stack direction="row">
+						<div className="flex flex-col gap-2 w-full">
+							<Label htmlFor="startTime">{Language.startTimeLabel}</Label>
+							<Input
+								id="startTime"
+								name="startTime"
+								type="time"
+								value={form.values.startTime}
+								onChange={form.handleChange}
+								onBlur={form.handleBlur}
+								// disabled if template does not allow autostart
+								// or if primary feature is toggled off via the switch above
+								disabled={
+									isLoading ||
+									!template.allow_user_autostart ||
+									!form.values.autostartEnabled
+								}
+								aria-invalid={Boolean(
+									form.errors.startTime && form.touched.startTime,
+								)}
+							/>
+							{form.errors.startTime && form.touched.startTime && (
+								<p className="text-sm text-content-danger">
+									{form.errors.startTime}
+								</p>
+							)}
+						</div>
+						<div className="flex flex-col gap-2 w-full">
+							<Label htmlFor="timezone">{Language.timezoneLabel}</Label>
+							<Select
+								name="timezone"
+								value={form.values.timezone}
+								onValueChange={(value) => {
+									form.setFieldValue("timezone", value);
+								}}
+								disabled={
+									isLoading ||
+									!template.allow_user_autostart ||
+									!form.values.autostartEnabled
+								}
+							>
+								<SelectTrigger
+									id="timezone"
+									aria-label={Language.timezoneLabel}
+								>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{timeZones.map((zone) => (
+										<SelectItem key={zone} value={zone}>
+											{zone}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+							{form.errors.timezone && form.touched.timezone && (
+								<p className="text-sm text-content-danger">
+									{form.errors.timezone}
+								</p>
+							)}
+						</div>
 					</Stack>
 
-					<FormControl component="fieldset" error={Boolean(form.errors.monday)}>
-						<FormLabel css={{ fontSize: 12 }} component="legend">
+					<fieldset
+						className={cn(
+							"border-none p-0",
+							form.errors.monday && "text-content-danger",
+						)}
+					>
+						<legend className="text-xs font-medium mb-1 text-content-secondary">
 							{Language.daysOfWeekLabel}
-						</FormLabel>
+						</legend>
 
-						<FormGroup
-							css={{
-								display: "flex",
-								flexDirection: "row",
-								flexWrap: "wrap",
-								paddingTop: 4,
-							}}
-						>
-							{checkboxes.map((checkbox) => (
-								<FormControlLabel
-									control={
+						<div className="flex flex-row flex-wrap gap-4 pt-1">
+							{checkboxes.map((checkbox) => {
+								const isAutostartDayDisabled =
+									isLoading ||
+									!template.allow_user_autostart ||
+									!template.autostart_requirement.days_of_week.includes(
+										checkbox.name,
+									) ||
+									!form.values.autostartEnabled;
+
+								return (
+									<div key={checkbox.name} className="flex items-center gap-2">
 										<Checkbox
+											id={checkbox.name}
+											name={checkbox.name}
 											checked={checkbox.value}
 											// template admins can disable the autostart feature in general,
 											// or they can disallow autostart on specific days of the week.
 											// also disabled if primary feature switch (above) is toggled off
-											disabled={
-												isLoading ||
-												!template.allow_user_autostart ||
-												!template.autostart_requirement.days_of_week.includes(
-													checkbox.name,
-												) ||
-												!form.values.autostartEnabled
-											}
-											onChange={form.handleChange}
-											name={checkbox.name}
-											size="small"
+											disabled={isAutostartDayDisabled}
+											onCheckedChange={(checked) => {
+												form.setFieldValue(checkbox.name, checked);
+											}}
 										/>
-									}
-									key={checkbox.name}
-									label={checkbox.label}
-								/>
-							))}
-						</FormGroup>
+										<Label
+											htmlFor={checkbox.name}
+											className={cn(
+												"cursor-pointer text-sm",
+												isAutostartDayDisabled && "text-content-disabled",
+											)}
+										>
+											{checkbox.label}
+										</Label>
+									</div>
+								);
+							})}
+						</div>
 
 						{form.errors.monday && (
-							<FormHelperText>{Language.errorNoDayOfWeek}</FormHelperText>
+							<p className="text-sm text-content-danger mt-2">
+								{Language.errorNoDayOfWeek}
+							</p>
 						)}
-					</FormControl>
+					</fieldset>
 				</FormFields>
 			</FormSection>
 
@@ -392,45 +429,76 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
 				}
 			>
 				<FormFields spacing={FIELDS_SPACING}>
-					<FormControlLabel
-						control={
-							<Switch
-								size="small"
-								name="autostopEnabled"
-								checked={form.values.autostopEnabled}
-								onChange={handleToggleAutostop}
-								disabled={!template.allow_user_autostop}
-							/>
-						}
-						label={
-							<StackLabel>
+					<div className="flex items-center gap-2">
+						<Switch
+							id="autostopEnabled"
+							name="autostopEnabled"
+							checked={form.values.autostopEnabled}
+							onCheckedChange={(checked) => {
+								handleToggleAutostop(checked);
+							}}
+							disabled={!template.allow_user_autostop}
+						/>
+						<StackLabel>
+							<Label htmlFor="autostopEnabled" className="cursor-pointer">
 								{Language.stopSwitch}
-								{!template.allow_user_autostop && (
-									<StackLabelHelperText>
-										The template for this workspace does not allow modification
-										of autostop.
-									</StackLabelHelperText>
-								)}
-							</StackLabel>
-						}
-					/>
-					<TextField
-						{...formHelpers("ttl", {
-							helperText: ttlShutdownAt(form.values.ttl),
-							backendFieldName: "ttl_ms",
-						})}
-						// disabled if autostop disabled at template level or
-						// if autostop feature is toggled off via the switch above
-						disabled={
-							isLoading ||
-							!template.allow_user_autostop ||
-							!form.values.autostopEnabled
-						}
-						inputProps={{ min: 0, step: "any", maxLength: 5 }}
-						label={Language.ttlLabel}
-						type="number"
-						fullWidth
-					/>
+							</Label>
+							{!template.allow_user_autostop && (
+								<StackLabelHelperText>
+									The template for this workspace does not allow modification of
+									autostop.
+								</StackLabelHelperText>
+							)}
+						</StackLabel>
+					</div>
+					<div className="flex flex-col gap-2 w-full">
+						<Label htmlFor="ttl">{Language.ttlLabel}</Label>
+						<Input
+							id="ttl"
+							name="ttl"
+							type="number"
+							value={form.values.ttl}
+							onChange={form.handleChange}
+							onBlur={form.handleBlur}
+							// disabled if autostop disabled at template level or
+							// if autostop feature is toggled off via the switch above
+							disabled={
+								isLoading ||
+								!template.allow_user_autostop ||
+								!form.values.autostopEnabled
+							}
+							min={0}
+							step="any"
+							maxLength={5}
+							aria-invalid={Boolean(form.errors.ttl && form.touched.ttl)}
+						/>
+						<p className="text-xs text-content-secondary m-0">
+							{ttlShutdownAt(form.values.ttl)}
+						</p>
+						{form.errors.ttl && form.touched.ttl && (
+							<p className="text-sm text-content-danger">
+								{typeof form.errors.ttl === "string" ? form.errors.ttl : ""}
+							</p>
+						)}
+						{error &&
+						typeof error === "object" &&
+						"validations" in error &&
+						Array.isArray((error as { validations?: unknown }).validations)
+							? (
+									(
+										error as {
+											validations: Array<{ field: string; detail: string }>;
+										}
+									).validations as Array<{ field: string; detail: string }>
+								)
+									.filter((v) => v.field === "ttl_ms")
+									.map((v, i) => (
+										<p key={i} className="text-sm text-content-danger">
+											{v.detail}
+										</p>
+									))
+							: null}
+					</div>
 				</FormFields>
 			</FormSection>
 
