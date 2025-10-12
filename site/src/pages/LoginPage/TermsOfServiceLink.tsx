@@ -2,16 +2,12 @@ import { Link } from "components/Link/Link";
 import type { FC } from "react";
 
 interface TermsOfServiceLinkProps {
-	className?: string;
 	url?: string;
 }
 
-export const TermsOfServiceLink: FC<TermsOfServiceLinkProps> = ({
-	className,
-	url,
-}) => {
+export const TermsOfServiceLink: FC<TermsOfServiceLinkProps> = ({ url }) => {
 	return (
-		<div className={`pt-3 text-base ${className || ""}`}>
+		<div className={"pt-3 text-base"}>
 			By continuing, you agree to the{" "}
 			<Link
 				className="font-medium whitespace-nowrap"
