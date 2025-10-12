@@ -37,7 +37,7 @@ export const CopyableValue: FC<CopyableValueProps> = ({
 	});
 
 	return (
-		<TooltipProvider delayDuration={100}>
+		<TooltipProvider>
 			<Tooltip
 				open={tooltipOpen}
 				onOpenChange={(shouldBeOpen) => {
