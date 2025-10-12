@@ -12,7 +12,6 @@ import {
 	PageHeaderSubtitle,
 	PageHeaderTitle,
 } from "components/PageHeader/PageHeader";
-import { Stack } from "components/Stack/Stack";
 import { SearchIcon, XIcon } from "lucide-react";
 import { type FC, type ReactNode, useMemo, useState } from "react";
 import {
@@ -147,19 +146,19 @@ const IconsPage: FC = () => {
 					}}
 				/>
 
-				<Stack
-					direction="row"
-					wrap="wrap"
-					spacing={1}
-					justifyContent="center"
+				<div
 					css={{ marginTop: 32 }}
+					className="flex flex-row gap-2 justify-center flex-wrap max-w-full"
 				>
 					{searchedIcons.length === 0 && (
 						<EmptyState message="No results matched your search" />
 					)}
 					{searchedIcons.map((icon) => (
-						<CopyableValue key={icon.url} value={icon.url} placement="bottom">
-							<Stack alignItems="center" css={{ margin: 12 }}>
+						<CopyableValue key={icon.url} value={icon.url} side="bottom">
+							<div
+								css={{ margin: 12 }}
+								className="flex flex-col gap-4 items-center max-w-full"
+							>
 								<img
 									alt={icon.url}
 									src={icon.url}
@@ -189,10 +188,10 @@ const IconsPage: FC = () => {
 								>
 									{icon.description}
 								</figcaption>
-							</Stack>
+							</div>
 						</CopyableValue>
 					))}
-				</Stack>
+				</div>
 			</Margins>
 		</>
 	);

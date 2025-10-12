@@ -1,19 +1,25 @@
-import Tooltip, { type TooltipProps } from "@mui/material/Tooltip";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { useClickable } from "hooks/useClickable";
 import { useClipboard } from "hooks/useClipboard";
 import type { FC, HTMLAttributes } from "react";
 
+type TooltipSide = "top" | "right" | "bottom" | "left";
+
 interface CopyableValueProps extends HTMLAttributes<HTMLSpanElement> {
 	value: string;
-	placement?: TooltipProps["placement"];
-	PopperProps?: TooltipProps["PopperProps"];
+	side?: TooltipSide;
 }
 
 export const CopyableValue: FC<CopyableValueProps> = ({
 	value,
-	placement = "bottom-start",
-	PopperProps,
+	side = "bottom",
 	children,
+	className,
 	...attrs
 }) => {
 	const { showCopiedSuccess, copyToClipboard } = useClipboard();
@@ -22,14 +28,21 @@ export const CopyableValue: FC<CopyableValueProps> = ({
 	});
 
 	return (
-		<Tooltip
-			title={showCopiedSuccess ? "Copied!" : "Click to copy"}
-			placement={placement}
-			PopperProps={PopperProps}
-		>
-			<span {...attrs} {...clickableProps} css={{ cursor: "pointer" }}>
-				{children}
-			</span>
-		</Tooltip>
+		<TooltipProvider>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<span
+						{...attrs}
+						{...clickableProps}
+						className={`cursor-pointer ${className || ""}`}
+					>
+						{children}
+					</span>
+				</TooltipTrigger>
+				<TooltipContent side={side}>
+					{showCopiedSuccess ? "Copied!" : "Click to copy"}
+				</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
 	);
 };
