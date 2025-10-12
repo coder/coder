@@ -7,6 +7,7 @@ import {
 import { useClickable } from "hooks/useClickable";
 import { useClipboard } from "hooks/useClipboard";
 import type { FC, HTMLAttributes } from "react";
+import { cn } from "utils/cn";
 
 type TooltipSide = "top" | "right" | "bottom" | "left";
 
@@ -34,7 +35,7 @@ export const CopyableValue: FC<CopyableValueProps> = ({
 					<span
 						{...attrs}
 						{...clickableProps}
-						className={`cursor-pointer ${className || ""}`}
+						className={cn("cursor-pointer", className)}
 					>
 						{children}
 					</span>
