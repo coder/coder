@@ -346,6 +346,7 @@ var (
 	//  - "ActionDelete" :: delete workspace
 	//  - "ActionDeleteAgent" :: delete an existing workspace agent
 	//  - "ActionRead" :: read workspace data to view on the UI
+	//  - "ActionShare" :: share a workspace with other users or groups
 	//  - "ActionSSH" :: ssh into a given workspace
 	//  - "ActionWorkspaceStart" :: allows starting a workspace
 	//  - "ActionWorkspaceStop" :: allows stopping a workspace
@@ -378,6 +379,7 @@ var (
 	//  - "ActionDelete" :: delete workspace
 	//  - "ActionDeleteAgent" :: delete an existing workspace agent
 	//  - "ActionRead" :: read workspace data to view on the UI
+	//  - "ActionShare" :: share a workspace with other users or groups
 	//  - "ActionSSH" :: ssh into a given workspace
 	//  - "ActionWorkspaceStart" :: allows starting a workspace
 	//  - "ActionWorkspaceStop" :: allows stopping a workspace
@@ -454,6 +456,7 @@ func AllActions() []policy.Action {
 		policy.ActionRead,
 		policy.ActionReadPersonal,
 		policy.ActionSSH,
+		policy.ActionShare,
 		policy.ActionUnassign,
 		policy.ActionUpdate,
 		policy.ActionUpdatePersonal,
