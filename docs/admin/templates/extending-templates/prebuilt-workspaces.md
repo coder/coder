@@ -355,7 +355,7 @@ resource "docker_container" "workspace" {
 Limit the scope of `ignore_changes` to include only the fields specified in the notification.
 If you include too many fields, Terraform might ignore changes that wouldn't otherwise cause drift.
 
-Learn more about `ignore_changes` in the [Terraform documentation](https://developer.hashicorp.com/terraform/language/meta-arguments/lifecycle#ignore_changes).
+Learn more about `ignore_changes` in the [Terraform documentation](https://developer.hashicorp.com/terraform/language/v1.13.x/meta-arguments#lifecycle).
 
 _A note on "immutable" attributes: Terraform providers may specify `ForceNew` on their resources' attributes. Any change
 to these attributes require the replacement (destruction and recreation) of the managed resource instance, rather than an in-place update.
