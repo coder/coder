@@ -37,7 +37,6 @@ import {
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { XIcon } from "lucide-react";
@@ -122,23 +121,21 @@ const OrganizationProvisionerJobsPageView: FC<
 								{filter.ids}
 							</Badge>
 							<div className="size-10 flex items-center justify-center absolute top-0 right-0">
-								<TooltipProvider>
-									<Tooltip>
-										<TooltipTrigger asChild>
-											<Button
-												size="icon"
-												variant="subtle"
-												onClick={() => {
-													onFilterChange({ ...filter, ids: "" });
-												}}
-											>
-												<span className="sr-only">Clear ID</span>
-												<XIcon />
-											</Button>
-										</TooltipTrigger>
-										<TooltipContent>Clear ID</TooltipContent>
-									</Tooltip>
-								</TooltipProvider>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Button
+											size="icon"
+											variant="subtle"
+											onClick={() => {
+												onFilterChange({ ...filter, ids: "" });
+											}}
+										>
+											<span className="sr-only">Clear ID</span>
+											<XIcon />
+										</Button>
+									</TooltipTrigger>
+									<TooltipContent>Clear ID</TooltipContent>
+								</Tooltip>
 							</div>
 						</div>
 					)}

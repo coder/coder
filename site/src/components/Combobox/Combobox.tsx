@@ -15,7 +15,6 @@ import {
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { Check, ChevronDown, CornerDownLeft, Info } from "lucide-react";
@@ -138,21 +137,19 @@ export const Combobox: FC<ComboboxProps> = ({
 											<Check className="size-icon-sm" />
 										)}
 										{option.description && (
-											<TooltipProvider delayDuration={100}>
-												<Tooltip>
-													<TooltipTrigger asChild>
-														<span
-															className="flex"
-															onMouseEnter={(e) => e.stopPropagation()}
-														>
-															<Info className="w-3.5 h-3.5 text-content-secondary" />
-														</span>
-													</TooltipTrigger>
-													<TooltipContent side="right" sideOffset={10}>
-														{option.description}
-													</TooltipContent>
-												</Tooltip>
-											</TooltipProvider>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<span
+														className="flex"
+														onMouseEnter={(e) => e.stopPropagation()}
+													>
+														<Info className="w-3.5 h-3.5 text-content-secondary" />
+													</span>
+												</TooltipTrigger>
+												<TooltipContent side="right" sideOffset={10}>
+													{option.description}
+												</TooltipContent>
+											</Tooltip>
 										)}
 									</div>
 								</CommandItem>

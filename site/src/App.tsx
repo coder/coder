@@ -1,5 +1,6 @@
 import "./theme/globalFonts";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
+import { TooltipProvider } from "components/Tooltip/Tooltip";
 import {
 	type FC,
 	type ReactNode,
@@ -53,8 +54,10 @@ export const AppProviders: FC<AppProvidersProps> = ({
 		<QueryClientProvider client={queryClient}>
 			<AuthProvider>
 				<ThemeProvider>
-					{children}
-					<GlobalSnackbar />
+					<TooltipProvider delayDuration={100}>
+						{children}
+						<GlobalSnackbar />
+					</TooltipProvider>
 				</ThemeProvider>
 			</AuthProvider>
 			{showDevtools && <ReactQueryDevtools initialIsOpen={showDevtools} />}

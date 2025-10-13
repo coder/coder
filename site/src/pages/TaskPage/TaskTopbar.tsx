@@ -2,7 +2,6 @@ import { Button } from "components/Button/Button";
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { useClipboard } from "hooks";
@@ -23,19 +22,17 @@ type TaskTopbarProps = { task: Task };
 export const TaskTopbar: FC<TaskTopbarProps> = ({ task }) => {
 	return (
 		<header className="flex flex-shrink-0 items-center p-3 border-solid border-border border-0 border-b">
-			<TooltipProvider>
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<Button size="icon" variant="subtle" asChild>
-							<RouterLink to="/tasks">
-								<ArrowLeftIcon />
-								<span className="sr-only">Back to tasks</span>
-							</RouterLink>
-						</Button>
-					</TooltipTrigger>
-					<TooltipContent>Back to tasks</TooltipContent>
-				</Tooltip>
-			</TooltipProvider>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<Button size="icon" variant="subtle" asChild>
+						<RouterLink to="/tasks">
+							<ArrowLeftIcon />
+							<span className="sr-only">Back to tasks</span>
+						</RouterLink>
+					</Button>
+				</TooltipTrigger>
+				<TooltipContent>Back to tasks</TooltipContent>
+			</Tooltip>
 
 			<h1 className="m-0 pl-2 text-base font-medium truncate">
 				{task.workspace.name}
@@ -48,22 +45,20 @@ export const TaskTopbar: FC<TaskTopbarProps> = ({ task }) => {
 			)}
 
 			<div className="ml-auto gap-2 flex items-center">
-				<TooltipProvider delayDuration={250}>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Button variant="outline" size="sm">
-								<TerminalIcon />
-								Prompt
-							</Button>
-						</TooltipTrigger>
-						<TooltipContent className="max-w-xs bg-surface-secondary p-4">
-							<p className="m-0 mb-2 select-all text-sm font-normal text-content-primary leading-snug">
-								{task.prompt}
-							</p>
-							<CopyPromptButton prompt={task.prompt} />
-						</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button variant="outline" size="sm">
+							<TerminalIcon />
+							Prompt
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent className="max-w-xs bg-surface-secondary p-4">
+						<p className="m-0 mb-2 select-all text-sm font-normal text-content-primary leading-snug">
+							{task.prompt}
+						</p>
+						<CopyPromptButton prompt={task.prompt} />
+					</TooltipContent>
+				</Tooltip>
 
 				<Button asChild variant="outline" size="sm">
 					<RouterLink

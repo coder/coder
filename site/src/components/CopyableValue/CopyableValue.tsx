@@ -1,7 +1,6 @@
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { useClickable } from "hooks/useClickable";
@@ -51,21 +50,19 @@ export const CopyableValue: FC<CopyableValueProps> = ({
 	}
 
 	return (
-		<TooltipProvider delayDuration={100}>
-			<Tooltip open={tooltipOpen} onOpenChange={setTooltipOpen}>
-				<TooltipTrigger asChild>
-					<span
-						{...attrs}
-						{...clickableProps}
-						className={cn("cursor-pointer", className)}
-					>
-						{children}
-					</span>
-				</TooltipTrigger>
-				<TooltipContent side={side}>
-					{showCopiedText ? "Copied!" : "Click to copy"}
-				</TooltipContent>
-			</Tooltip>
-		</TooltipProvider>
+		<Tooltip open={tooltipOpen} onOpenChange={setTooltipOpen}>
+			<TooltipTrigger asChild>
+				<span
+					{...attrs}
+					{...clickableProps}
+					className={cn("cursor-pointer", className)}
+				>
+					{children}
+				</span>
+			</TooltipTrigger>
+			<TooltipContent side={side}>
+				{showCopiedText ? "Copied!" : "Click to copy"}
+			</TooltipContent>
+		</Tooltip>
 	);
 };

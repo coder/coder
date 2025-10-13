@@ -11,7 +11,6 @@ import {
 	TooltipContent,
 	type TooltipContentProps,
 	type TooltipProps,
-	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { CircleHelpIcon, ExternalLinkIcon } from "lucide-react";
@@ -33,11 +32,7 @@ export const HelpTooltipTrigger = TooltipTrigger;
 export const HelpTooltipIcon = CircleHelpIcon;
 
 export const HelpTooltip: FC<TooltipProps> = (props) => {
-	return (
-		<TooltipProvider>
-			<Tooltip delayDuration={0} {...props} />
-		</TooltipProvider>
-	);
+	return <Tooltip {...props} />;
 };
 
 export const HelpTooltipContent: FC<TooltipContentProps> = ({

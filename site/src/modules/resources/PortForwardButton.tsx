@@ -36,7 +36,6 @@ import { Spinner } from "components/Spinner/Spinner";
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { useFormik } from "formik";
@@ -218,40 +217,36 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 			: "authenticated";
 
 	const disabledPublicMenuItem = (
-		<TooltipProvider>
-			<Tooltip>
-				<TooltipTrigger asChild>
-					{/* Tooltips don't work directly on disabled MenuItem components so you must wrap in div. */}
-					<div>
-						<MenuItem value="public" disabled>
-							Public
-						</MenuItem>
-					</div>
-				</TooltipTrigger>
-				<TooltipContent disablePortal>
-					This workspace template does not allow sharing ports publicly.
-				</TooltipContent>
-			</Tooltip>
-		</TooltipProvider>
+		<Tooltip>
+			<TooltipTrigger asChild>
+				{/* Tooltips don't work directly on disabled MenuItem components so you must wrap in div. */}
+				<div>
+					<MenuItem value="public" disabled>
+						Public
+					</MenuItem>
+				</div>
+			</TooltipTrigger>
+			<TooltipContent disablePortal>
+				This workspace template does not allow sharing ports publicly.
+			</TooltipContent>
+		</Tooltip>
 	);
 
 	const disabledAuthenticatedMenuItem = (
-		<TooltipProvider>
-			<Tooltip>
-				<TooltipTrigger asChild>
-					{/* Tooltips don't work directly on disabled MenuItem components so you must wrap in div. */}
-					<div>
-						<MenuItem value="authenticated" disabled>
-							Authenticated
-						</MenuItem>
-					</div>
-				</TooltipTrigger>
-				<TooltipContent disablePortal>
-					This workspace template does not allow sharing ports outside of its
-					organization.
-				</TooltipContent>
-			</Tooltip>
-		</TooltipProvider>
+		<Tooltip>
+			<TooltipTrigger asChild>
+				{/* Tooltips don't work directly on disabled MenuItem components so you must wrap in div. */}
+				<div>
+					<MenuItem value="authenticated" disabled>
+						Authenticated
+					</MenuItem>
+				</div>
+			</TooltipTrigger>
+			<TooltipContent disablePortal>
+				This workspace template does not allow sharing ports outside of its
+				organization.
+			</TooltipContent>
+		</Tooltip>
 	);
 
 	return (
@@ -338,19 +333,15 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 									required
 									css={styles.newPortInput}
 								/>
-								<TooltipProvider>
-									<Tooltip>
-										<TooltipTrigger asChild>
-											<Button type="submit" size="icon" variant="subtle">
-												<ExternalLinkIcon />
-												<span className="sr-only">Connect to port</span>
-											</Button>
-										</TooltipTrigger>
-										<TooltipContent disablePortal>
-											Connect to port
-										</TooltipContent>
-									</Tooltip>
-								</TooltipProvider>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Button type="submit" size="icon" variant="subtle">
+											<ExternalLinkIcon />
+											<span className="sr-only">Connect to port</span>
+										</Button>
+									</TooltipTrigger>
+									<TooltipContent disablePortal>Connect to port</TooltipContent>
+								</Tooltip>
 							</form>
 						</Stack>
 					</Stack>
@@ -405,30 +396,28 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 									alignItems="center"
 								>
 									{canSharePorts && (
-										<TooltipProvider>
-											<Tooltip>
-												<TooltipTrigger asChild>
-													<Button
-														size="icon"
-														variant="subtle"
-														onClick={async () => {
-															await upsertSharedPortMutation.mutateAsync({
-																agent_name: agent.name,
-																port: port.port,
-																protocol: listeningPortProtocol,
-																share_level: defaultShareLevel,
-															});
-														}}
-													>
-														<ShareIcon />
-														<span className="sr-only">Share</span>
-													</Button>
-												</TooltipTrigger>
-												<TooltipContent disablePortal>
-													Share this port
-												</TooltipContent>
-											</Tooltip>
-										</TooltipProvider>
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<Button
+													size="icon"
+													variant="subtle"
+													onClick={async () => {
+														await upsertSharedPortMutation.mutateAsync({
+															agent_name: agent.name,
+															port: port.port,
+															protocol: listeningPortProtocol,
+															share_level: defaultShareLevel,
+														});
+													}}
+												>
+													<ShareIcon />
+													<span className="sr-only">Share</span>
+												</Button>
+											</TooltipTrigger>
+											<TooltipContent disablePortal>
+												Share this port
+											</TooltipContent>
+										</Tooltip>
 									)}
 								</Stack>
 							</Stack>

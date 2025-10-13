@@ -28,7 +28,6 @@ import { Spinner } from "components/Spinner/Spinner";
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { useAuthenticated } from "hooks/useAuthenticated";
@@ -443,23 +442,21 @@ const ExternalAuthButtons: FC<ExternalAuthButtonProps> = ({
 				</Button>
 
 				{shouldRetry && !auth.authenticated && (
-					<TooltipProvider>
-						<Tooltip delayDuration={100}>
-							<TooltipTrigger asChild>
-								<Button
-									variant="outline"
-									size="icon"
-									onClick={startPollingExternalAuth}
-								>
-									<RedoIcon />
-									<span className="sr-only">Refresh external auth</span>
-								</Button>
-							</TooltipTrigger>
-							<TooltipContent>
-								Retry connecting to {auth.display_name}
-							</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant="outline"
+								size="icon"
+								onClick={startPollingExternalAuth}
+							>
+								<RedoIcon />
+								<span className="sr-only">Refresh external auth</span>
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>
+							Retry connecting to {auth.display_name}
+						</TooltipContent>
+					</Tooltip>
 				)}
 			</div>
 		);

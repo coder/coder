@@ -12,7 +12,6 @@ import { Spinner } from "components/Spinner/Spinner";
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { useFormik } from "formik";
@@ -82,29 +81,27 @@ export const CreateOrganizationPageView: FC<
 					)}
 
 					<Badges>
-						<TooltipProvider>
-							<Tooltip delayDuration={0}>
-								{isEntitled && (
-									<TooltipTrigger asChild>
-										<span>
-											<PremiumBadge />
-										</span>
-									</TooltipTrigger>
-								)}
+						<Tooltip>
+							{isEntitled && (
+								<TooltipTrigger asChild>
+									<span>
+										<PremiumBadge />
+									</span>
+								</TooltipTrigger>
+							)}
 
-								<TooltipContent
-									sideOffset={-28}
-									collisionPadding={16}
-									className="p-0"
-								>
-									<PopoverPaywall
-										message="Organizations"
-										description="Create multiple organizations within a single Coder deployment, allowing several platform teams to operate with isolated users, templates, and distinct underlying infrastructure."
-										documentationLink={docs("/admin/users/organizations")}
-									/>
-								</TooltipContent>
-							</Tooltip>
-						</TooltipProvider>
+							<TooltipContent
+								sideOffset={-28}
+								collisionPadding={16}
+								className="p-0"
+							>
+								<PopoverPaywall
+									message="Organizations"
+									description="Create multiple organizations within a single Coder deployment, allowing several platform teams to operate with isolated users, templates, and distinct underlying infrastructure."
+									documentationLink={docs("/admin/users/organizations")}
+								/>
+							</TooltipContent>
+						</Tooltip>
 					</Badges>
 
 					<header className="flex flex-col items-center">
