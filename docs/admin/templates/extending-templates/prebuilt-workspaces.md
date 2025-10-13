@@ -310,7 +310,7 @@ If you need to expedite the processing of human-related jobs at the cost of some
 coder provisioner jobs list --status=running --initiator=prebuilds | jq -r '.[].id' | xargs -n1 -P2 -I{} coder provisioner jobs cancel {}
 ```
 
-This will cancel running prebuild jobs (orphaning any resources that have already been deployed) and immediately make room for human-initiated jobs.
+This should be done as a last resort. It will cancel running prebuild jobs (orphaning any resources that have already been deployed) and immediately make room for human-initiated jobs. Orphaned infrastructure will need to be manually cleaned up by a human operator. The process to identify and clear these orphaned resources will likely require administrative access to the infrastructure that hosts Coder workspaces. Furthermore, the ability to identify such orphaned resources will depend on metadata that should be included in the workspace template.
 
 Once the provisioner queue has been cleared and all templates have been fixed, resume prebuild reconciliation by running:
 
