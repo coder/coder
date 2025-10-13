@@ -2,7 +2,6 @@ import { Link } from "components/Link/Link";
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import type { FC, HTMLAttributes, ReactNode } from "react";
@@ -47,40 +46,38 @@ export const FeatureStageBadge: FC<FeatureStageBadgeProps> = ({
 	const sizeClasses = badgeSizeClasses[size];
 
 	return (
-		<TooltipProvider delayDuration={100}>
-			<Tooltip>
-				<TooltipTrigger asChild>
-					<span
-						className={cn(
-							"block max-w-fit cursor-default flex-shrink-0 leading-none whitespace-nowrap border rounded-md transition-colors duration-200 ease-in-out bg-transparent border-solid border-transparent",
-							sizeClasses,
-							colorClasses,
-							className,
-						)}
-						{...delegatedProps}
-					>
-						<span className="sr-only"> (This is a</span>
-						<span className="first-letter:uppercase">
-							{labelText && `${labelText} `}
-							{featureStageBadgeTypes[contentType]}
-						</span>
-						<span className="sr-only"> feature)</span>
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<span
+					className={cn(
+						"block max-w-fit cursor-default flex-shrink-0 leading-none whitespace-nowrap border rounded-md transition-colors duration-200 ease-in-out bg-transparent border-solid border-transparent",
+						sizeClasses,
+						colorClasses,
+						className,
+					)}
+					{...delegatedProps}
+				>
+					<span className="sr-only"> (This is a</span>
+					<span className="first-letter:uppercase">
+						{labelText && `${labelText} `}
+						{featureStageBadgeTypes[contentType]}
 					</span>
-				</TooltipTrigger>
-				<TooltipContent align="start" className="max-w-xs text-sm">
-					<p className="m-0">
-						This feature has not yet reached general availability (GA).
-					</p>
+					<span className="sr-only"> feature)</span>
+				</span>
+			</TooltipTrigger>
+			<TooltipContent align="start" className="max-w-xs text-sm">
+				<p className="m-0">
+					This feature has not yet reached general availability (GA).
+				</p>
 
-					<Link
-						href={docs("/install/releases/feature-stages")}
-						className="font-semibold"
-					>
-						Learn about feature stages
-						<span className="sr-only"> (link opens in new tab)</span>
-					</Link>
-				</TooltipContent>
-			</Tooltip>
-		</TooltipProvider>
+				<Link
+					href={docs("/install/releases/feature-stages")}
+					className="font-semibold"
+				>
+					Learn about feature stages
+					<span className="sr-only"> (link opens in new tab)</span>
+				</Link>
+			</TooltipContent>
+		</Tooltip>
 	);
 };

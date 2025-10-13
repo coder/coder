@@ -2,7 +2,6 @@ import { Pill } from "components/Pill/Pill";
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import type { FC } from "react";
@@ -33,11 +32,9 @@ export const StatusPill: FC<StatusPillProps> = ({
 		return pill;
 	}
 	return (
-		<TooltipProvider>
-			<Tooltip delayDuration={150}>
-				<TooltipTrigger asChild>{pill}</TooltipTrigger>
-				<TooltipContent>{label}</TooltipContent>
-			</Tooltip>
-		</TooltipProvider>
+		<Tooltip>
+			<TooltipTrigger asChild>{pill}</TooltipTrigger>
+			<TooltipContent>{label}</TooltipContent>
+		</Tooltip>
 	);
 };

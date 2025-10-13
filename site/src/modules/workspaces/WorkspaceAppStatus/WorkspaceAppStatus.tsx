@@ -2,7 +2,6 @@ import type { WorkspaceAppStatus as APIWorkspaceAppStatus } from "api/typesGener
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import capitalize from "lodash/capitalize";
@@ -28,23 +27,21 @@ export const WorkspaceAppStatus = ({
 	const message = status.message || capitalize(status.state);
 	return (
 		<div className="flex flex-col text-content-secondary">
-			<TooltipProvider>
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<div className="flex items-center gap-2">
-							<AppStatusStateIcon
-								latest
-								disabled={disabled}
-								state={status.state}
-							/>
-							<span className="whitespace-nowrap max-w-72 overflow-hidden text-ellipsis text-sm text-content-primary font-medium">
-								{message}
-							</span>
-						</div>
-					</TooltipTrigger>
-					<TooltipContent>{message}</TooltipContent>
-				</Tooltip>
-			</TooltipProvider>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<div className="flex items-center gap-2">
+						<AppStatusStateIcon
+							latest
+							disabled={disabled}
+							state={status.state}
+						/>
+						<span className="whitespace-nowrap max-w-72 overflow-hidden text-ellipsis text-sm text-content-primary font-medium">
+							{message}
+						</span>
+					</div>
+				</TooltipTrigger>
+				<TooltipContent>{message}</TooltipContent>
+			</Tooltip>
 			<span className="text-xs first-letter:uppercase block pl-6">
 				{status.state}
 			</span>

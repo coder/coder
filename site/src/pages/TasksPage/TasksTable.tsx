@@ -19,7 +19,6 @@ import {
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { RotateCcwIcon, TrashIcon } from "lucide-react";
@@ -170,22 +169,20 @@ const TaskRow: FC<TaskRowProps> = ({ task }) => {
 					/>
 				</TableCell>
 				<TableCell className="text-right">
-					<TooltipProvider>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<Button
-									size="icon"
-									variant="outline"
-									className="relative z-50"
-									onClick={() => setIsDeleteDialogOpen(true)}
-								>
-									<span className="sr-only">Delete task</span>
-									<TrashIcon />
-								</Button>
-							</TooltipTrigger>
-							<TooltipContent>Delete task</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								size="icon"
+								variant="outline"
+								className="relative z-50"
+								onClick={() => setIsDeleteDialogOpen(true)}
+							>
+								<span className="sr-only">Delete task</span>
+								<TrashIcon />
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>Delete task</TooltipContent>
+					</Tooltip>
 				</TableCell>
 			</TableRow>
 

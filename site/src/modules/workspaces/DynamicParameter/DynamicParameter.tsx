@@ -25,7 +25,6 @@ import { Textarea } from "components/Textarea/Textarea";
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { useDebouncedValue } from "hooks/debounce";
@@ -145,90 +144,80 @@ const ParameterLabel: FC<ParameterLabelProps> = ({
 						)}
 					</span>
 					{!parameter.mutable && (
-						<TooltipProvider delayDuration={100}>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<span className="flex items-center">
-										<Badge size="sm" variant="warning" border="none">
-											<TriangleAlert />
-											Immutable
-										</Badge>
-									</span>
-								</TooltipTrigger>
-								<TooltipContent className="max-w-xs">
-									This value cannot be modified after the workspace has been
-									created.
-								</TooltipContent>
-							</Tooltip>
-						</TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<span className="flex items-center">
+									<Badge size="sm" variant="warning" border="none">
+										<TriangleAlert />
+										Immutable
+									</Badge>
+								</span>
+							</TooltipTrigger>
+							<TooltipContent className="max-w-xs">
+								This value cannot be modified after the workspace has been
+								created.
+							</TooltipContent>
+						</Tooltip>
 					)}
 					{parameter.ephemeral && (
-						<TooltipProvider delayDuration={100}>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<span className="flex items-center">
-										<Badge size="sm" variant="green" border="none">
-											<Hourglass />
-											Ephemeral
-										</Badge>
-									</span>
-								</TooltipTrigger>
-								<TooltipContent className="max-w-xs">
-									This parameter is ephemeral and will reset to the template
-									default on workspace restart.
-								</TooltipContent>
-							</Tooltip>
-						</TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<span className="flex items-center">
+									<Badge size="sm" variant="green" border="none">
+										<Hourglass />
+										Ephemeral
+									</Badge>
+								</span>
+							</TooltipTrigger>
+							<TooltipContent className="max-w-xs">
+								This parameter is ephemeral and will reset to the template
+								default on workspace restart.
+							</TooltipContent>
+						</Tooltip>
 					)}
 					{isPreset && (
-						<TooltipProvider delayDuration={100}>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<span className="flex items-center">
-										<Badge size="sm">
-											<Settings />
-											Preset
-										</Badge>
-									</span>
-								</TooltipTrigger>
-								<TooltipContent className="max-w-xs">
-									Preset parameters cannot be modified.
-								</TooltipContent>
-							</Tooltip>
-						</TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<span className="flex items-center">
+									<Badge size="sm">
+										<Settings />
+										Preset
+									</Badge>
+								</span>
+							</TooltipTrigger>
+							<TooltipContent className="max-w-xs">
+								Preset parameters cannot be modified.
+							</TooltipContent>
+						</Tooltip>
 					)}
 					{autofill && (
-						<TooltipProvider delayDuration={100}>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<span className="flex items-center">
-										<Badge size="sm">
-											<LinkIcon />
-											URL Autofill
-										</Badge>
-									</span>
-								</TooltipTrigger>
-								<TooltipContent className="max-w-xs">
-									Autofilled from the URL.
-								</TooltipContent>
-							</Tooltip>
-						</TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<span className="flex items-center">
+									<Badge size="sm">
+										<LinkIcon />
+										URL Autofill
+									</Badge>
+								</span>
+							</TooltipTrigger>
+							<TooltipContent className="max-w-xs">
+								Autofilled from the URL.
+							</TooltipContent>
+						</Tooltip>
 					)}
 					{hasRequiredDiagnostic && (
-						<TooltipProvider delayDuration={100}>
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<span className="flex items-center">
-										<Badge size="sm" variant="destructive" border="none">
-											Required
-										</Badge>
-									</span>
-								</TooltipTrigger>
-								<TooltipContent className="max-w-xs">
-									{hasRequiredDiagnostic.summary || "Required parameter"}
-								</TooltipContent>
-							</Tooltip>
-						</TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<span className="flex items-center">
+									<Badge size="sm" variant="destructive" border="none">
+										Required
+									</Badge>
+								</span>
+							</TooltipTrigger>
+							<TooltipContent className="max-w-xs">
+								{hasRequiredDiagnostic.summary || "Required parameter"}
+							</TooltipContent>
+						</Tooltip>
 					)}
 				</Label>
 
@@ -637,16 +626,14 @@ const OptionDisplay: FC<OptionDisplayProps> = ({ option }) => {
 			)}
 			<span>{option.name}</span>
 			{option.description && (
-				<TooltipProvider delayDuration={100}>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Info className="w-3.5 h-3.5 text-content-secondary" />
-						</TooltipTrigger>
-						<TooltipContent side="right" sideOffset={10}>
-							{option.description}
-						</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Info className="w-3.5 h-3.5 text-content-secondary" />
+					</TooltipTrigger>
+					<TooltipContent side="right" sideOffset={10}>
+						{option.description}
+					</TooltipContent>
+				</Tooltip>
 			)}
 		</div>
 	);
