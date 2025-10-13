@@ -249,32 +249,34 @@ If a quota is exceeded, the prebuilt workspace will fail provisioning the same w
 
 ### Managing prebuild provisioning queues
 
-Prebuilt workspaces can overwhelm a Coder deployment, causing significant delays when users and template administrators attempt to create new workspaces or manage their templates. This can happen in two scenarios:
+Prebuilt workspaces can overwhelm a Coder deployment, causing significant delays when users and template administrators attempt to create new workspaces or manage their templates. A few factors can work together to contribute to this scenario:
 
 1. **Organic overload**: Not enough provisioners to meet the deployment's needs
-2. **Broken template**: A template that mistakenly requests too many prebuilt workspaces
+2. **Broken templates**: A template that mistakenly requests too many prebuilt workspaces
 
 In the second case, it can be difficult to fix the situation because you cannot upload a corrected template version while the provisioners are overloaded.
 
 The troubleshooting steps below will help you resolve this situation:
 
-- Pause prebuilt workspace reconciliation to stop the problem from getting worse
-- Check how many prebuild jobs are clogging your provisioner queue
-- Cancel excess prebuild jobs to free up provisioners for human users
-- Fix any problematic templates that are causing the issue
-- Resume prebuilt reconciliation once everything is back to normal
+1) Pause prebuilt workspace reconciliation to stop the problem from getting worse
+2) Check how many prebuild jobs are clogging your provisioner queue
+3) Cancel excess prebuild jobs to free up provisioners for human users
+4) Fix any problematic templates that are causing the issue
+5) Resume prebuilt reconciliation once everything is back to normal
 
-If your Coder deployment is exhibiting the above symptoms, follow these instructions to verify and then rectify the situation:
+#### Pause prebuilds to limit potential impact
 
-First, run:
+Run:
 
 ```bash
 coder prebuilds pause
 ```
 
-This prevents further pollution of your provisioner queues by stopping the prebuilt workspaces feature from scheduling new creation jobs. Jobs that have already been enqueued will still be processed.
+This prevents further pollution of your provisioner queues by stopping the prebuilt workspaces feature from scheduling new creation jobs. While the pause is in effect, no new prebuilt workspaces will be scheduled for any templates in any organizations across the entire Coder deployment.  Therefore, the command must be executed by a user with Owner level access. Existing prebuilt workspaces will remain in place.
 
 **Important**: Remember to run `coder prebuilds resume` once all impact has been mitigated (see the last step in this section).
+
+#### Assess prebuild queue impact
 
 Next, run:
 
@@ -286,7 +288,11 @@ This will show a list of all pending jobs that have been enqueued by the prebuil
 
 Human-initiated jobs have priority over pending prebuild jobs, but running prebuild jobs cannot be preempted. A long list of pending prebuild jobs increases the likelihood that all provisioners are already occupied when a user wants to create a workspace. This increases the likelihood that users will experience delays waiting for the next available provisioner.
 
-To ensure that the next available provisioner will be given to a human-initiated job, run:
+#### Cancel pending prebuild jobs
+
+Human-initiated jobs are prioritized above prebuild jobs in the provisioner queue. However, if no human-initiated jobs are queued when a provisioner becomes available, a prebuild job will occupy the provisioner. This can delay human-initiated jobs that arrive later, forcing them to wait for the next available provisioner.
+
+To expedite fixing a broken template by ensuring maximum provisioner availability, cancel all pending prebuild jobs:
 
 ```bash
 coder provisioner jobs list --status=pending --initiator=prebuilds | jq -r '.[].id' | xargs -n1 -P2 -I{} coder provisioner jobs cancel {}
@@ -295,6 +301,8 @@ coder provisioner jobs list --status=pending --initiator=prebuilds | jq -r '.[].
 This will clear the provisioner queue of all jobs that were not initiated by a human being, which increases the probability that a provisioner will be available when the next human operator needs it. It does not cancel running provisioner jobs, so there may still be some delay in processing new provisioner jobs until a provisioner completes its current job.
 
 At this stage, most prebuild related impact will have been mitigated. There may still be a bugged template version, but it will no longer pollute provisioner queues with prebuilt workspace jobs. If the latest version of a template is also broken for reasons unrelated to prebuilds, then users are able to create workspaces using a previous template version. Some running jobs may have been initiated by the prebuild system, but these cannot be cancelled without potentially orphaning resources that have already been deployed by Terraform. Depending on your deployment and template provisioning times, it might be best to upload a new template version and wait for it to be processed organically.
+
+#### Cancel running prebuild provisioning jobs (Optional)
 
 If you need to expedite the processing of human-related jobs at the cost of some infrastructure housekeeping, you can run:
 
@@ -305,6 +313,8 @@ coder provisioner jobs list --status=running --initiator=prebuilds | jq -r '.[].
 This will cancel running prebuild jobs (orphaning any resources that have already been deployed) and immediately make room for human-initiated jobs.
 
 Once the provisioner queue has been cleared and all templates have been fixed, resume prebuild reconciliation by running:
+
+#### Resume prebuild reconciliation
 
 ```bash
 coder prebuilds resume
