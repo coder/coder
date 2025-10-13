@@ -154,7 +154,7 @@ const IconsPage: FC = () => {
 						<EmptyState message="No results matched your search" />
 					)}
 					{searchedIcons.map((icon) => (
-						<CopyableValue key={icon.url} value={icon.url} side="bottom">
+						<CopyableValue key={icon.url} value={icon.url}>
 							<div
 								css={{ margin: 12 }}
 								className="flex flex-col gap-4 items-center max-w-full"

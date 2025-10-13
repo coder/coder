@@ -6,7 +6,7 @@ import {
 } from "components/Tooltip/Tooltip";
 import { useClickable } from "hooks/useClickable";
 import { useClipboard } from "hooks/useClipboard";
-import type { FC, HTMLAttributes } from "react";
+import { type FC, type HTMLAttributes, useRef, useState } from "react";
 import { cn } from "utils/cn";
 
 type TooltipSide = "top" | "right" | "bottom" | "left";
@@ -24,13 +24,35 @@ export const CopyableValue: FC<CopyableValueProps> = ({
 	...attrs
 }) => {
 	const { showCopiedSuccess, copyToClipboard } = useClipboard();
+	const [tooltipOpen, setTooltipOpen] = useState(false);
+	const [showCopiedText, setShowCopiedText] = useState(false);
+	const prevCopiedRef = useRef(false);
+	const timeoutRef = useRef<number | undefined>(undefined);
+
 	const clickableProps = useClickable<HTMLSpanElement>(() => {
 		copyToClipboard(value);
+		setTooltipOpen(true);
 	});
 
+	if (showCopiedSuccess !== prevCopiedRef.current) {
+		prevCopiedRef.current = showCopiedSuccess;
+
+		if (showCopiedSuccess) {
+			setShowCopiedText(true);
+		} else {
+			setTooltipOpen(false);
+			clearTimeout(timeoutRef.current);
+			// showCopiedText should reset after tooltip is closed to avoid a flash of the text
+			timeoutRef.current = window.setTimeout(
+				() => setShowCopiedText(false),
+				100,
+			);
+		}
+	}
+
 	return (
-		<TooltipProvider>
-			<Tooltip>
+		<TooltipProvider delayDuration={100}>
+			<Tooltip open={tooltipOpen} onOpenChange={setTooltipOpen}>
 				<TooltipTrigger asChild>
 					<span
 						{...attrs}
@@ -41,7 +63,7 @@ export const CopyableValue: FC<CopyableValueProps> = ({
 					</span>
 				</TooltipTrigger>
 				<TooltipContent side={side}>
-					{showCopiedSuccess ? "Copied!" : "Click to copy"}
+					{showCopiedText ? "Copied!" : "Click to copy"}
 				</TooltipContent>
 			</Tooltip>
 		</TooltipProvider>
