@@ -7105,6 +7105,88 @@ func TestGetTaskByWorkspaceID(t *testing.T) {
 	}
 }
 
+func TestTaskNameUniqueness(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	user1 := dbgen.User(t, db, database.User{})
+	user2 := dbgen.User(t, db, database.User{})
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user1.ID,
+	})
+	tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+		OrganizationID: org.ID,
+		CreatedBy:      user1.ID,
+	})
+
+	taskName := "my-task"
+
+	// Create initial task for user1.
+	task1 := dbgen.Task(t, db, database.TaskTable{
+		OrganizationID:    org.ID,
+		OwnerID:           user1.ID,
+		Name:              taskName,
+		TemplateVersionID: tv.ID,
+		Prompt:            "Test prompt",
+	})
+	require.NotEqual(t, uuid.Nil, task1.ID)
+
+	tests := []struct {
+		name     string
+		ownerID  uuid.UUID
+		taskName string
+		wantErr  bool
+	}{
+		{
+			name:     "duplicate task name same user",
+			ownerID:  user1.ID,
+			taskName: taskName,
+			wantErr:  true,
+		},
+		{
+			name:     "duplicate task name different case same user",
+			ownerID:  user1.ID,
+			taskName: "MY-TASK",
+			wantErr:  true,
+		},
+		{
+			name:     "same task name different user",
+			ownerID:  user2.ID,
+			taskName: taskName,
+			wantErr:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			task, err := db.InsertTask(ctx, database.InsertTaskParams{
+				OrganizationID:     org.ID,
+				OwnerID:            tt.ownerID,
+				Name:               tt.taskName,
+				TemplateVersionID:  tv.ID,
+				TemplateParameters: json.RawMessage("{}"),
+				Prompt:             "Test prompt",
+				CreatedAt:          dbtime.Now(),
+			})
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.NotEqual(t, uuid.Nil, task.ID)
+				require.NotEqual(t, task1.ID, task.ID)
+			}
+		})
+	}
+}
+
 func TestUsageEventsTrigger(t *testing.T) {
 	t.Parallel()
 
