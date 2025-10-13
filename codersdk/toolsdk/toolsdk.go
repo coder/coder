@@ -1938,8 +1938,8 @@ var DeleteTask = Tool[DeleteTaskArgs, codersdk.Response]{
 }
 
 type ListTasksArgs struct {
-	Status string `json:"status"`
-	User   string `json:"user"`
+	WorkspaceStatus string `json:"status"`
+	User            string `json:"user"`
 }
 
 type ListTasksResponse struct {
@@ -1972,8 +1972,8 @@ var ListTasks = Tool[ListTasksArgs, ListTasksResponse]{
 
 		expClient := codersdk.NewExperimentalClient(deps.coderClient)
 		tasks, err := expClient.Tasks(ctx, &codersdk.TasksFilter{
-			Owner:  args.User,
-			Status: args.Status,
+			Owner:           args.User,
+			WorkspaceStatus: args.WorkspaceStatus,
 		})
 		if err != nil {
 			return ListTasksResponse{}, xerrors.Errorf("list tasks: %w", err)
@@ -2031,7 +2031,7 @@ var GetTaskStatus = Tool[GetTaskStatusArgs, GetTaskStatusResponse]{
 		}
 
 		return GetTaskStatusResponse{
-			Status: task.Status,
+			Status: task.WorkspaceStatus,
 			State:  task.CurrentState,
 		}, nil
 	},

@@ -5,6 +5,25 @@ VALUES
 	(gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING *;
 
+-- name: UpdateTaskWorkspaceID :one
+UPDATE
+	tasks
+SET
+	workspace_id = $2
+FROM
+	workspaces w
+JOIN
+	template_versions tv
+ON
+	tv.template_id = w.template_id
+WHERE
+	tasks.id = $1
+	AND tasks.workspace_id IS NULL
+	AND w.id = $2
+	AND tv.id = tasks.template_version_id
+RETURNING
+	tasks.*;
+
 -- name: UpsertTaskWorkspaceApp :one
 INSERT INTO task_workspace_apps
 	(task_id, workspace_build_number, workspace_agent_id, workspace_app_id)
