@@ -17,13 +17,19 @@ AUTH_HEADER="Coder-Session-Token: $SESSION_TOKEN"
 
 # Create OAuth2 App
 APP_NAME="test-mcp-$(date +%s)"
-APP_RESPONSE=$(curl -s -X POST "$BASE_URL/api/v2/oauth2-provider/apps" \
-	-H "$AUTH_HEADER" \
-	-H "Content-Type: application/json" \
-	-d "{
-    \"name\": \"$APP_NAME\",
-    \"callback_url\": \"http://localhost:9876/callback\"
-  }")
+APP_RESPONSE=$(
+	curl -s -X POST "$BASE_URL/api/v2/oauth2-provider/apps" \
+		-H "$AUTH_HEADER" \
+		-H "Content-Type: application/json" \
+		--data-binary @- \
+		<<-EOF
+			{
+				"name": "$APP_NAME",
+				"callback_url": "http://localhost:9876/callback",
+				"redirect_uris": ["http://localhost:9876/callback"]
+			}
+		EOF
+)
 
 CLIENT_ID=$(echo "$APP_RESPONSE" | jq -r '.id')
 if [ "$CLIENT_ID" = "null" ] || [ -z "$CLIENT_ID" ]; then

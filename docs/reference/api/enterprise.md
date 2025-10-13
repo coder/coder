@@ -22,6 +22,7 @@ curl -X GET http://coder-server:8080/api/v2/.well-known/oauth-authorization-serv
   "code_challenge_methods_supported": [
     "string"
   ],
+  "device_authorization_endpoint": "string",
   "grant_types_supported": [
     "string"
   ],
@@ -808,6 +809,7 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps \
     "endpoints": {
       "authorization": "string",
       "device_authorization": "string",
+      "revocation": "string",
       "token": "string"
     },
     "icon": "string",
@@ -833,7 +835,8 @@ Status Code **200**
 | `» callback_url`          | string                                                               | false    |              |                                                                                                                                                                                                         |
 | `» endpoints`             | [codersdk.OAuth2AppEndpoints](schemas.md#codersdkoauth2appendpoints) | false    |              | Endpoints are included in the app response for easier discovery. The OAuth2 spec does not have a defined place to find these (for comparison, OIDC has a '/.well-known/openid-configuration' endpoint). |
 | `»» authorization`        | string                                                               | false    |              |                                                                                                                                                                                                         |
-| `»» device_authorization` | string                                                               | false    |              | Device authorization is optional.                                                                                                                                                                       |
+| `»» device_authorization` | string                                                               | false    |              | Device authorization is the device authorization endpoint for RFC 8628.                                                                                                                                 |
+| `»» revocation`           | string                                                               | false    |              |                                                                                                                                                                                                         |
 | `»» token`                | string                                                               | false    |              |                                                                                                                                                                                                         |
 | `» icon`                  | string                                                               | false    |              |                                                                                                                                                                                                         |
 | `» id`                    | string(uuid)                                                         | false    |              |                                                                                                                                                                                                         |
@@ -881,6 +884,7 @@ curl -X POST http://coder-server:8080/api/v2/oauth2-provider/apps \
   "endpoints": {
     "authorization": "string",
     "device_authorization": "string",
+    "revocation": "string",
     "token": "string"
   },
   "icon": "string",
@@ -926,6 +930,7 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
   "endpoints": {
     "authorization": "string",
     "device_authorization": "string",
+    "revocation": "string",
     "token": "string"
   },
   "icon": "string",
@@ -983,6 +988,7 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
   "endpoints": {
     "authorization": "string",
     "device_authorization": "string",
+    "revocation": "string",
     "token": "string"
   },
   "icon": "string",
@@ -1405,6 +1411,118 @@ curl -X DELETE http://coder-server:8080/api/v2/oauth2/clients/{client_id}
 |--------|-----------------------------------------------------------------|-------------|--------|
 | 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
 
+## OAuth2 device authorization request (RFC 8628)
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/oauth2/device \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json'
+```
+
+`POST /oauth2/device`
+
+> Body parameter
+
+```json
+{
+  "client_id": "string",
+  "resource": "string",
+  "scope": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                             | Required | Description                  |
+|--------|------|--------------------------------------------------------------------------------------------------|----------|------------------------------|
+| `body` | body | [codersdk.OAuth2DeviceAuthorizationRequest](schemas.md#codersdkoauth2deviceauthorizationrequest) | true     | Device authorization request |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "device_code": "string",
+  "expires_in": 0,
+  "interval": 0,
+  "user_code": "string",
+  "verification_uri": "string",
+  "verification_uri_complete": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                             |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OAuth2DeviceAuthorizationResponse](schemas.md#codersdkoauth2deviceauthorizationresponse) |
+
+## OAuth2 device verification page (GET - show verification form)
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/oauth2/device/verify \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /oauth2/device/verify`
+
+### Parameters
+
+| Name        | In    | Type   | Required | Description          |
+|-------------|-------|--------|----------|----------------------|
+| `user_code` | query | string | false    | Pre-filled user code |
+
+### Responses
+
+| Status | Meaning                                                 | Description                           | Schema |
+|--------|---------------------------------------------------------|---------------------------------------|--------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | Returns HTML device verification page |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## OAuth2 device verification request (POST - process verification)
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/oauth2/device/verify \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /oauth2/device/verify`
+
+> Body parameter
+
+```yaml
+user_code: string
+action: string
+
+```
+
+### Parameters
+
+| Name          | In   | Type   | Required | Description                       |
+|---------------|------|--------|----------|-----------------------------------|
+| `body`        | body | object | true     |                                   |
+| `» user_code` | body | string | true     | Device verification code          |
+| `» action`    | body | string | true     | Action to take: authorize or deny |
+
+### Responses
+
+| Status | Meaning                                                 | Description                      | Schema |
+|--------|---------------------------------------------------------|----------------------------------|--------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | Returns HTML success/denial page |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## OAuth2 dynamic client registration (RFC 7591)
 
 ### Code samples
@@ -1499,17 +1617,53 @@ curl -X POST http://coder-server:8080/api/v2/oauth2/register \
 |--------|--------------------------------------------------------------|-------------|--------------------------------------------------------------------------------------------------|
 | 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.OAuth2ClientRegistrationResponse](schemas.md#codersdkoauth2clientregistrationresponse) |
 
+## Revoke OAuth2 tokens (RFC 7009)
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/oauth2/revoke \
+
+```
+
+`POST /oauth2/revoke`
+
+> Body parameter
+
+```yaml
+client_id: string
+token: string
+token_type_hint: string
+
+```
+
+### Parameters
+
+| Name                | In   | Type   | Required | Description                                           |
+|---------------------|------|--------|----------|-------------------------------------------------------|
+| `body`              | body | object | true     |                                                       |
+| `» client_id`       | body | string | true     | Client ID for authentication                          |
+| `» token`           | body | string | true     | The token to revoke                                   |
+| `» token_type_hint` | body | string | false    | Hint about token type (access_token or refresh_token) |
+
+### Responses
+
+| Status | Meaning                                                 | Description                | Schema |
+|--------|---------------------------------------------------------|----------------------------|--------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | Token successfully revoked |        |
+
 ## OAuth2 token exchange
 
 ### Code samples
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/api/v2/oauth2/tokens \
+curl -X POST http://coder-server:8080/api/v2/oauth2/token \
   -H 'Accept: application/json'
 ```
 
-`POST /oauth2/tokens`
+`POST /oauth2/token`
 
 > Body parameter
 
@@ -1535,10 +1689,11 @@ grant_type: authorization_code
 
 #### Enumerated Values
 
-| Parameter      | Value                |
-|----------------|----------------------|
-| `» grant_type` | `authorization_code` |
-| `» grant_type` | `refresh_token`      |
+| Parameter      | Value                                          |
+|----------------|------------------------------------------------|
+| `» grant_type` | `authorization_code`                           |
+| `» grant_type` | `refresh_token`                                |
+| `» grant_type` | `urn:ietf:params:oauth:grant-type:device_code` |
 
 ### Example responses
 
@@ -1559,32 +1714,6 @@ grant_type: authorization_code
 | Status | Meaning                                                 | Description | Schema                                 |
 |--------|---------------------------------------------------------|-------------|----------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [oauth2.Token](schemas.md#oauth2token) |
-
-## Delete OAuth2 application tokens
-
-### Code samples
-
-```shell
-# Example request using curl
-curl -X DELETE http://coder-server:8080/api/v2/oauth2/tokens?client_id=string \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`DELETE /oauth2/tokens`
-
-### Parameters
-
-| Name        | In    | Type   | Required | Description |
-|-------------|-------|--------|----------|-------------|
-| `client_id` | query | string | true     | Client ID   |
-
-### Responses
-
-| Status | Meaning                                                         | Description | Schema |
-|--------|-----------------------------------------------------------------|-------------|--------|
-| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
 ## Get groups by organization
 

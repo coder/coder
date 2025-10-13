@@ -195,6 +195,7 @@ var (
 	//  - "ActionCreate" :: create an OAuth2 app code token
 	//  - "ActionDelete" :: delete an OAuth2 app code token
 	//  - "ActionRead" :: read an OAuth2 app code token
+	//  - "ActionUpdate" :: update an OAuth2 app code token
 	ResourceOauth2AppCodeToken = Object{
 		Type: "oauth2_app_code_token",
 	}

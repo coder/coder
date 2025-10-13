@@ -103,6 +103,9 @@ sql:
           - column: "user_links.claims"
             go_type:
               type: "UserLinkClaims"
+          # Sensitive field overrides - prevent JSON serialization
+          - column: "oauth2_provider_device_codes.device_code_hash"
+            go_struct_tag: 'json:"-"'
         rename:
           group_member: GroupMemberTable
           group_members_expanded: GroupMember
@@ -159,6 +162,11 @@ sql:
           oauth2_provider_app_secret: OAuth2ProviderAppSecret
           oauth2_provider_app_code: OAuth2ProviderAppCode
           oauth2_provider_app_token: OAuth2ProviderAppToken
+          oauth2_provider_device_code: OAuth2ProviderDeviceCode
+          oauth2_device_status: OAuth2DeviceStatus
+          oauth2_device_status_pending: OAuth2DeviceStatusPending
+          oauth2_device_status_authorized: OAuth2DeviceStatusAuthorized
+          oauth2_device_status_denied: OAuth2DeviceStatusDenied
           api_key_id: APIKeyID
           callback_url: CallbackURL
           login_type_oauth2_provider_app: LoginTypeOAuth2ProviderApp
