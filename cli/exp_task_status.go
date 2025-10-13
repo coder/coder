@@ -152,33 +152,28 @@ func (r *RootCmd) taskStatus() *serpent.Command {
 }
 
 func taskWatchIsEnded(task codersdk.Task) bool {
-	if task.Status == codersdk.WorkspaceStatusStopped {
+	switch task.Status {
+	case codersdk.TaskStatusPending, codersdk.TaskStatusInitializing, codersdk.TaskStatusActive:
+		if task.CurrentState != nil || task.CurrentState.State != codersdk.TaskStateWorking {
+			return true
+		}
+		return false
+	default:
 		return true
 	}
-	if task.WorkspaceAgentHealth == nil || !task.WorkspaceAgentHealth.Healthy {
-		return false
-	}
-	if task.WorkspaceAgentLifecycle == nil || task.WorkspaceAgentLifecycle.Starting() || task.WorkspaceAgentLifecycle.ShuttingDown() {
-		return false
-	}
-	if task.CurrentState == nil || task.CurrentState.State == codersdk.TaskStateWorking {
-		return false
-	}
-	return true
 }
 
 type taskStatusRow struct {
 	codersdk.Task `table:"-"`
 	ChangedAgo    string    `json:"-" table:"state changed,default_sort"`
 	Timestamp     time.Time `json:"-" table:"-"`
-	TaskStatus    string    `json:"-" table:"status"`
 	Healthy       bool      `json:"-" table:"healthy"`
 	TaskState     string    `json:"-" table:"state"`
 	Message       string    `json:"-" table:"message"`
 }
 
 func taskStatusRowEqual(r1, r2 taskStatusRow) bool {
-	return r1.TaskStatus == r2.TaskStatus &&
+	return r1.Status == r2.Status &&
 		r1.Healthy == r2.Healthy &&
 		r1.TaskState == r2.TaskState &&
 		r1.Message == r2.Message
@@ -189,7 +184,6 @@ func toStatusRow(task codersdk.Task) taskStatusRow {
 		Task:       task,
 		ChangedAgo: time.Since(task.UpdatedAt).Truncate(time.Second).String() + " ago",
 		Timestamp:  task.UpdatedAt,
-		TaskStatus: string(task.Status),
 	}
 	tsr.Healthy = task.WorkspaceAgentHealth != nil &&
 		task.WorkspaceAgentHealth.Healthy &&

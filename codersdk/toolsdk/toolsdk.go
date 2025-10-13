@@ -1972,8 +1972,8 @@ var ListTasks = Tool[ListTasksArgs, ListTasksResponse]{
 
 		expClient := codersdk.NewExperimentalClient(deps.coderClient)
 		tasks, err := expClient.Tasks(ctx, &codersdk.TasksFilter{
-			Owner:  args.User,
-			Status: args.Status,
+			Owner:           args.User,
+			WorkspaceStatus: args.Status,
 		})
 		if err != nil {
 			return ListTasksResponse{}, xerrors.Errorf("list tasks: %w", err)
@@ -1990,7 +1990,7 @@ type GetTaskStatusArgs struct {
 }
 
 type GetTaskStatusResponse struct {
-	Status codersdk.WorkspaceStatus `json:"status"`
+	Status codersdk.TaskStatus      `json:"status"`
 	State  *codersdk.TaskStateEntry `json:"state"`
 }
 
