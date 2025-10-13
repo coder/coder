@@ -151,6 +151,12 @@ func TestTelemetry(t *testing.T) {
 			HasAITask:          sql.NullBool{Valid: true, Bool: true},
 			AITaskSidebarAppID: uuid.NullUUID{Valid: true, UUID: taskWsApp.ID},
 		})
+		task := dbgen.Task(t, db, database.TaskTable{
+			OwnerID:           user.ID,
+			OrganizationID:    org.ID,
+			WorkspaceID:       uuid.NullUUID{Valid: true, UUID: taskWs.ID},
+			TemplateVersionID: taskTV.ID,
+		})
 
 		group := dbgen.Group(t, db, database.Group{
 			OrganizationID: org.ID,
@@ -220,6 +226,21 @@ func TestTelemetry(t *testing.T) {
 		require.Len(t, wsa.Subsystems, 2)
 		require.Equal(t, string(database.WorkspaceAgentSubsystemEnvbox), wsa.Subsystems[0])
 		require.Equal(t, string(database.WorkspaceAgentSubsystemExectrace), wsa.Subsystems[1])
+		require.Len(t, snapshot.Tasks, 1)
+		for _, snapTask := range snapshot.Tasks {
+			assert.Equal(t, task.ID, snapTask.ID)
+			assert.Equal(t, task.OrganizationID, snapTask.OrganizationID)
+			assert.Equal(t, task.OwnerID, snapTask.OwnerID)
+			assert.Equal(t, task.Name, snapTask.Name)
+			assert.Equal(t, task.WorkspaceID, snapTask.WorkspaceID)
+			assert.Equal(t, task.WorkspaceBuildNumber, snapTask.WorkspaceBuildNumber)
+			assert.Equal(t, task.WorkspaceAgentID, snapTask.WorkspaceAgentID)
+			assert.Equal(t, task.WorkspaceAppID, snapTask.WorkspaceAppID)
+			assert.Equal(t, task.TemplateVersionID, snapTask.TemplateVersionID)
+			assert.NotEmpty(t, snapTask.TemplateParametersHash)
+			assert.NotEmpty(t, snapTask.PromptHash)
+			assert.Equal(t, task.CreatedAt.UTC(), snapTask.CreatedAt.UTC())
+		}
 
 		require.True(t, slices.ContainsFunc(snapshot.TemplateVersions, func(ttv telemetry.TemplateVersion) bool {
 			if ttv.ID != taskTV.ID {
