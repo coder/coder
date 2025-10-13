@@ -16,7 +16,6 @@ import { StatusIndicatorDot } from "components/StatusIndicator/StatusIndicator";
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { useAuthenticated } from "hooks";
@@ -63,50 +62,46 @@ export const TasksSidebar: FC = () => {
 						</Button>
 					)}
 
-					<TooltipProvider>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<Button
-									size="icon"
-									variant="subtle"
-									onClick={() => setIsCollapsed((v) => !v)}
-									className="[&_svg]:p-0"
-								>
-									<PanelLeftIcon />
-									<span className="sr-only">
-										{isCollapsed ? "Open" : "Close"} Sidebar
-									</span>
-								</Button>
-							</TooltipTrigger>
-							<TooltipContent side="right" align="center">
-								{isCollapsed ? "Open" : "Close"} Sidebar
-							</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
-				</div>
-
-				<TooltipProvider>
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<Button
-								variant={isCollapsed ? "subtle" : "default"}
-								size={isCollapsed ? "icon" : "sm"}
-								asChild={true}
-								className={cn({
-									"[&_svg]:p-0": isCollapsed,
-								})}
+								size="icon"
+								variant="subtle"
+								onClick={() => setIsCollapsed((v) => !v)}
+								className="[&_svg]:p-0"
 							>
-								<RouterLink to="/tasks">
-									<span className={isCollapsed ? "hidden" : ""}>New Task</span>{" "}
-									<EditIcon />
-								</RouterLink>
+								<PanelLeftIcon />
+								<span className="sr-only">
+									{isCollapsed ? "Open" : "Close"} Sidebar
+								</span>
 							</Button>
 						</TooltipTrigger>
 						<TooltipContent side="right" align="center">
-							New task
+							{isCollapsed ? "Open" : "Close"} Sidebar
 						</TooltipContent>
 					</Tooltip>
-				</TooltipProvider>
+				</div>
+
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button
+							variant={isCollapsed ? "subtle" : "default"}
+							size={isCollapsed ? "icon" : "sm"}
+							asChild={true}
+							className={cn({
+								"[&_svg]:p-0": isCollapsed,
+							})}
+						>
+							<RouterLink to="/tasks">
+								<span className={isCollapsed ? "hidden" : ""}>New Task</span>{" "}
+								<EditIcon />
+							</RouterLink>
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent side="right" align="center">
+						New task
+					</TooltipContent>
+				</Tooltip>
 
 				{!isCollapsed && permissions.viewAllUsers && (
 					<UserCombobox
@@ -259,18 +254,19 @@ const TaskSidebarMenuItem: FC<TaskSidebarMenuItemProps> = ({ task }) => {
 
 const TaskSidebarMenuItemStatus: FC<{ task: Task }> = ({ task }) => {
 	return (
-		<TooltipProvider>
-			<Tooltip>
-				<TooltipTrigger asChild>
-					<StatusIndicatorDot
-						variant={taskStatusToStatusIndicatorVariant[task.status]}
-						aria-label={task.status}
-					/>
-				</TooltipTrigger>
-				<TooltipContent className="first-letter:capitalize">
-					{task.status}
-				</TooltipContent>
-			</Tooltip>
-		</TooltipProvider>
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<div
+					className={taskStatusVariants({
+						state: task.workspace.latest_app_status?.state ?? "default",
+					})}
+				>
+					<span className="sr-only">{statusText}</span>
+				</div>
+			</TooltipTrigger>
+			<TooltipContent className="first-letter:capitalize">
+				{statusText}
+			</TooltipContent>
+		</Tooltip>
 	);
 };

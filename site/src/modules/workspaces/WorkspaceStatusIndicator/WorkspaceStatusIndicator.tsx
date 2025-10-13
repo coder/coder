@@ -7,7 +7,6 @@ import {
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import type React from "react";
@@ -60,19 +59,17 @@ export const WorkspaceStatusIndicator: FC<WorkspaceStatusIndicatorProps> = ({
 	}
 
 	return (
-		<TooltipProvider>
-			<Tooltip>
-				<TooltipTrigger asChild>
-					<StatusIndicator variant={variantByStatusType[type]}>
-						<StatusIndicatorDot />
-						<span className="sr-only">Workspace status:</span> {text}
-						{children}
-					</StatusIndicator>
-				</TooltipTrigger>
-				<TooltipContent>
-					Your workspace is running but some agents are unhealthy.
-				</TooltipContent>
-			</Tooltip>
-		</TooltipProvider>
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<StatusIndicator variant={variantByStatusType[type]}>
+					<StatusIndicatorDot />
+					<span className="sr-only">Workspace status:</span> {text}
+					{children}
+				</StatusIndicator>
+			</TooltipTrigger>
+			<TooltipContent>
+				Your workspace is running but some agents are unhealthy.
+			</TooltipContent>
+		</Tooltip>
 	);
 };

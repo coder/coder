@@ -1,7 +1,6 @@
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { useClickable } from "hooks/useClickable";

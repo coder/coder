@@ -5,7 +5,6 @@ import { Pill } from "components/Pill/Pill";
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { type FC, type ReactNode, useState } from "react";
@@ -33,35 +32,33 @@ export const Notifications: FC<NotificationsProps> = ({
 	const theme = useTheme();
 
 	return (
-		<TooltipProvider>
-			<Tooltip open={isOpen} onOpenChange={setIsOpen} delayDuration={0}>
-				<TooltipTrigger asChild>
-					<div
-						css={styles.pillContainer}
-						data-testid={`${severity}-notifications`}
-					>
-						<NotificationPill
-							items={items}
-							severity={severity}
-							icon={icon}
-							isTooltipOpen={isOpen}
-						/>
-					</div>
-				</TooltipTrigger>
-				<TooltipContent
-					align="end"
-					collisionPadding={16}
-					className="max-w-[400px] p-0 bg-surface-secondary border-surface-quaternary text-sm  text-white"
-					style={{
-						borderColor: theme.roles[severity].outline,
-					}}
+		<Tooltip open={isOpen} onOpenChange={setIsOpen}>
+			<TooltipTrigger asChild>
+				<div
+					css={styles.pillContainer}
+					data-testid={`${severity}-notifications`}
 				>
-					{items.map((n) => (
-						<NotificationItem notification={n} key={n.title} />
-					))}
-				</TooltipContent>
-			</Tooltip>
-		</TooltipProvider>
+					<NotificationPill
+						items={items}
+						severity={severity}
+						icon={icon}
+						isTooltipOpen={isOpen}
+					/>
+				</div>
+			</TooltipTrigger>
+			<TooltipContent
+				align="end"
+				collisionPadding={16}
+				className="max-w-[400px] p-0 bg-surface-secondary border-surface-quaternary text-sm  text-white"
+				style={{
+					borderColor: theme.roles[severity].outline,
+				}}
+			>
+				{items.map((n) => (
+					<NotificationItem notification={n} key={n.title} />
+				))}
+			</TooltipContent>
+		</Tooltip>
 	);
 };
 

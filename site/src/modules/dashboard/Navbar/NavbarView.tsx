@@ -7,7 +7,6 @@ import { CoderIcon } from "components/Icons/CoderIcon";
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import type { ProxyContextValue } from "contexts/ProxyContext";
@@ -230,21 +229,19 @@ const TasksNavItem: FC<TasksNavItemProps> = ({ user }) => {
 		>
 			Tasks
 			{idleCount > 0 && (
-				<TooltipProvider>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Badge
-								variant="info"
-								size="xs"
-								className="ml-2"
-								aria-label={idleTasksLabel(idleCount)}
-							>
-								{idleCount}
-							</Badge>
-						</TooltipTrigger>
-						<TooltipContent>{idleTasksLabel(idleCount)}</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Badge
+							variant="info"
+							size="xs"
+							className="ml-2"
+							aria-label={idleTasksLabel(idleCount)}
+						>
+							{idleCount}
+						</Badge>
+					</TooltipTrigger>
+					<TooltipContent>{idleTasksLabel(idleCount)}</TooltipContent>
+				</Tooltip>
 			)}
 		</NavLink>
 	);
