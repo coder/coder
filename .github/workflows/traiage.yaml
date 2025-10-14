@@ -189,7 +189,9 @@ jobs:
           TEMPLATE_PRESET: ${{ steps.determine-inputs.outputs.template_preset }}
         run: |
           # Fetch issue description using `gh` CLI
-          issue_description=$(gh issue view "${ISSUE_URL}")
+          issue_description=$(gh issue view "${ISSUE_URL}" \
+            --json 'title,body,comments' \
+            --template '{{printf "%s\n" .title}}{{printf "%s\n\nComments:\n" .body}}{{range $k, $v := .comments}}  - {{index $v.author "login"}}: {{printf "%s\n" $v.body}}{{end}}')
 
           # Write a prompt to PROMPT_FILE
           PROMPT=$(cat <<EOF
