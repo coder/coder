@@ -34,14 +34,15 @@ messages and get messages by email.`,
 			ctx = notifyCtx
 
 			logger := slog.Make(sloghuman.Sink(inv.Stderr)).Leveled(slog.LevelInfo)
-			srv := smtpmock.New(smtpmock.Config{
+			config := smtpmock.Config{
 				HostAddress: hostAddress,
 				SMTPPort:    int(smtpPort),
 				APIPort:     int(apiPort),
 				Logger:      logger,
-			})
+			}
+			srv := new(smtpmock.Server)
 
-			if err := srv.Start(ctx); err != nil {
+			if err := srv.Start(ctx, config); err != nil {
 				return xerrors.Errorf("start mock SMTP server: %w", err)
 			}
 			defer func() {
