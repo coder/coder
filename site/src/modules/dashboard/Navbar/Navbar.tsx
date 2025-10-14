@@ -24,6 +24,7 @@ export const Navbar: FC = () => {
 		featureVisibility.audit_log && permissions.viewAnyAuditLog;
 	const canViewConnectionLog =
 		featureVisibility.connection_log && permissions.viewAnyConnectionLog;
+	const canViewAIGovernance = true;
 
 	return (
 		<NavbarView
@@ -37,6 +38,7 @@ export const Navbar: FC = () => {
 			canViewHealth={canViewHealth}
 			canViewAuditLog={canViewAuditLog}
 			canViewConnectionLog={canViewConnectionLog}
+			canViewAIGovernance={canViewAIGovernance}
 			proxyContextValue={proxyContextValue}
 		/>
 	);
