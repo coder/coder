@@ -12599,6 +12599,54 @@ func (q *sqlQuerier) InsertTask(ctx context.Context, arg InsertTaskParams) (Task
 	return i, err
 }
 
+const listTasks = `-- name: ListTasks :many
+SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, status FROM tasks_with_status tws
+WHERE tws.deleted_at IS NULL
+AND CASE WHEN $1::UUID != '00000000-0000-0000-0000-000000000000' THEN tws.owner_id = $1::UUID ELSE TRUE END
+AND CASE WHEN $2::UUID != '00000000-0000-0000-0000-000000000000' THEN tws.organization_id = $2::UUID ELSE TRUE END
+ORDER BY tws.created_at DESC
+`
+
+type ListTasksParams struct {
+	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *sqlQuerier) ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, error) {
+	rows, err := q.db.QueryContext(ctx, listTasks, arg.OwnerID, arg.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Task
+	for rows.Next() {
+		var i Task
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.OwnerID,
+			&i.Name,
+			&i.WorkspaceID,
+			&i.TemplateVersionID,
+			&i.TemplateParameters,
+			&i.Prompt,
+			&i.CreatedAt,
+			&i.DeletedAt,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const upsertTaskWorkspaceApp = `-- name: UpsertTaskWorkspaceApp :one
 INSERT INTO task_workspace_apps
 	(task_id, workspace_build_number, workspace_agent_id, workspace_app_id)
