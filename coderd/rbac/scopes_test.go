@@ -3,6 +3,7 @@ package rbac_test
 import (
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -60,4 +61,27 @@ func TestExpandScope(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestWorkspaceAgentScopeAllowList(t *testing.T) {
+	t.Parallel()
+
+	workspaceID := uuid.New()
+	ownerID := uuid.New()
+	templateID := uuid.New()
+	versionID := uuid.New()
+
+	scope := rbac.WorkspaceAgentScope(rbac.WorkspaceAgentScopeParams{
+		WorkspaceID: workspaceID,
+		OwnerID:     ownerID,
+		TemplateID:  templateID,
+		VersionID:   versionID,
+	})
+
+	require.ElementsMatch(t, []rbac.AllowListElement{
+		{Type: rbac.ResourceWorkspace.Type, ID: workspaceID.String()},
+		{Type: rbac.ResourceTemplate.Type, ID: templateID.String()},
+		{Type: rbac.ResourceTemplate.Type, ID: versionID.String()},
+		{Type: rbac.ResourceUser.Type, ID: ownerID.String()},
+	}, scope.AllowIDList)
 }
