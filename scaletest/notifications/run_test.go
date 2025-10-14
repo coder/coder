@@ -56,8 +56,8 @@ func TestRun(t *testing.T) {
 	eg, runCtx := errgroup.WithContext(ctx)
 
 	expectedNotificationsIDs := map[uuid.UUID]struct{}{
-		notificationsLib.TemplateUserAccountCreated: struct{}{},
-		notificationsLib.TemplateUserAccountDeleted: struct{}{},
+		notificationsLib.TemplateUserAccountCreated: {},
+		notificationsLib.TemplateUserAccountDeleted: {},
 	}
 
 	// Start receiving runners who will receive notifications
@@ -187,7 +187,7 @@ func TestRunWithSMTP(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(summaries)
+		_ = json.NewEncoder(w).Encode(summaries)
 	})
 
 	smtpAPIServer := httptest.NewServer(smtpAPIMux)
@@ -204,8 +204,8 @@ func TestRunWithSMTP(t *testing.T) {
 	eg, runCtx := errgroup.WithContext(ctx)
 
 	expectedNotificationsIDs := map[uuid.UUID]struct{}{
-		notificationsLib.TemplateUserAccountCreated: struct{}{},
-		notificationsLib.TemplateUserAccountDeleted: struct{}{},
+		notificationsLib.TemplateUserAccountCreated: {},
+		notificationsLib.TemplateUserAccountDeleted: {},
 	}
 
 	mClock := quartz.NewMock(t)
