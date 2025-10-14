@@ -4486,7 +4486,7 @@ func (q *querier) ListProvisionerKeysByOrganizationExcludeReserved(ctx context.C
 }
 
 func (q *querier) ListTasks(ctx context.Context, arg database.ListTasksParams) ([]database.Task, error) {
-	// TODO(Cian): replace this with a sql filter for improved performance.
+	// TODO(Cian): replace this with a sql filter for improved performance. https://github.com/coder/internal/issues/1061
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.ListTasks)(ctx, arg)
 }
 
