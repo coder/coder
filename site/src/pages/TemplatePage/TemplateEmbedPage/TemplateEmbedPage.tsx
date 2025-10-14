@@ -74,13 +74,7 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 	templateParameters,
 }) => {
 	const [buttonValues, setButtonValues] = useState<ButtonValues | undefined>();
-	const clipboard = useClipboard({
-		textToCopy: getClipboardCopyContent(
-			template.name,
-			template.organization_name,
-			buttonValues,
-		),
-	});
+	const clipboard = useClipboard();
 
 	// template parameters is async so we need to initialize the values after it
 	// is loaded
@@ -237,8 +231,15 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 						>
 							<Button
 								className="rounded-full"
-								onClick={clipboard.copyToClipboard}
 								disabled={clipboard.showCopiedSuccess}
+								onClick={() => {
+									const textToCopy = getClipboardCopyContent(
+										template.name,
+										template.organization_name,
+										buttonValues,
+									);
+									clipboard.copyToClipboard(textToCopy);
+								}}
 							>
 								{clipboard.showCopiedSuccess ? <CheckIcon /> : <CopyIcon />}
 								Copy button code

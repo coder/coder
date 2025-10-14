@@ -355,21 +355,20 @@ func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *rbac.Subj
 			return true, []string{}, nil
 		}
 	case database.AppSharingLevelOrganization:
-		// Check if the user is a member of the same organization as the workspace
 		// First check if they have permission to connect to their own workspace (enforces scopes)
 		err := p.Authorizer.Authorize(ctx, *roles, rbacAction, rbacResourceOwned)
 		if err != nil {
 			return false, warnings, nil
 		}
 
-		// Check if the user is a member of the workspace's organization
+		// Check if the user is a member of the same organization as the workspace
 		workspaceOrgID := dbReq.Workspace.OrganizationID
 		expandedRoles, err := roles.Roles.Expand()
 		if err != nil {
 			return false, warnings, xerrors.Errorf("expand roles: %w", err)
 		}
 		for _, role := range expandedRoles {
-			if _, ok := role.Org[workspaceOrgID.String()]; ok {
+			if _, ok := role.ByOrgID[workspaceOrgID.String()]; ok {
 				return true, []string{}, nil
 			}
 		}

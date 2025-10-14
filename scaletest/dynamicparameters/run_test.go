@@ -37,7 +37,6 @@ func TestRun(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	cfg := dynamicparameters.Config{
 		TemplateVersion:   version.ID,
-		SessionToken:      userClient.SessionToken(),
 		Metrics:           dynamicparameters.NewMetrics(reg, "template", "test_label_name"),
 		MetricLabelValues: []string{template.Name, "test_label_value"},
 	}
