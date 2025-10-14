@@ -7381,19 +7381,20 @@ func TestListTasks(t *testing.T) {
 			WorkspaceAgentID: uuid.NullUUID{Valid: true, UUID: agt.ID},
 			WorkspaceAppID:   uuid.NullUUID{Valid: true, UUID: wa.ID},
 		})
+		t.Logf("task_id:%s owner_id:%s org_id:%s", tsk.ID, ownerID, orgID)
 		return tsk
 	}
 
 	// Given: user1 has one task, user2 has one task, user3 has two tasks (one in each org)
-	_ = createTask(org1.ID, user1.ID)
-	_ = createTask(org1.ID, user2.ID)
-	_ = createTask(org2.ID, user2.ID)
+	task1 := createTask(org1.ID, user1.ID)
+	task2 := createTask(org1.ID, user2.ID)
+	task3 := createTask(org2.ID, user2.ID)
 
 	// Then: run various filters and assert expected results
 	for _, tc := range []struct {
 		name      string
 		filter    database.ListTasksParams
-		expectLen int
+		expectIDs []uuid.UUID
 	}{
 		{
 			name: "no filter",
@@ -7401,7 +7402,7 @@ func TestListTasks(t *testing.T) {
 				OwnerID:        uuid.Nil,
 				OrganizationID: uuid.Nil,
 			},
-			expectLen: 3,
+			expectIDs: []uuid.UUID{task3.ID, task2.ID, task1.ID},
 		},
 		{
 			name: "filter by user ID",
@@ -7409,7 +7410,7 @@ func TestListTasks(t *testing.T) {
 				OwnerID:        user1.ID,
 				OrganizationID: uuid.Nil,
 			},
-			expectLen: 1,
+			expectIDs: []uuid.UUID{task1.ID},
 		},
 		{
 			name: "filter by organization ID",
@@ -7417,7 +7418,7 @@ func TestListTasks(t *testing.T) {
 				OwnerID:        uuid.Nil,
 				OrganizationID: org1.ID,
 			},
-			expectLen: 2,
+			expectIDs: []uuid.UUID{task2.ID, task1.ID},
 		},
 		{
 			name: "filter by user and organization ID",
@@ -7425,7 +7426,7 @@ func TestListTasks(t *testing.T) {
 				OwnerID:        user2.ID,
 				OrganizationID: org2.ID,
 			},
-			expectLen: 1,
+			expectIDs: []uuid.UUID{task3.ID},
 		},
 		{
 			name: "no results",
@@ -7433,7 +7434,7 @@ func TestListTasks(t *testing.T) {
 				OwnerID:        user1.ID,
 				OrganizationID: org2.ID,
 			},
-			expectLen: 0,
+			expectIDs: nil,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -7441,14 +7442,9 @@ func TestListTasks(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 			tasks, err := db.ListTasks(ctx, tc.filter)
 			if assert.NoError(t, err) {
-				assert.Len(t, tasks, tc.expectLen)
-			}
-			for _, task := range tasks {
-				if tc.filter.OrganizationID != uuid.Nil {
-					assert.Equal(t, tc.filter.OrganizationID, task.OrganizationID)
-				}
-				if tc.filter.OwnerID != uuid.Nil {
-					assert.Equal(t, tc.filter.OwnerID, task.OwnerID)
+				require.Len(t, tasks, len(tc.expectIDs))
+				for idx, eid := range tc.expectIDs {
+					assert.Equal(t, eid.String(), tasks[idx].ID.String())
 				}
 			}
 		})
