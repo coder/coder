@@ -252,7 +252,8 @@ If a quota is exceeded, the prebuilt workspace will fail provisioning the same w
 Prebuilt workspaces can overwhelm a Coder deployment, causing significant delays when users and template administrators create new workspaces or manage their templates. Fundamentally, this happens when provisioners are not able to meet the demand for provisioner jobs. Prebuilds contribute to provisioner demand by scheduling many jobs in bursts whenever templates are updated. The solution is to either increase the number of provisioners or decrease the number of requested prebuilt workspaces across the entire system.
 
 To identify if prebuilt workspaces have overwhelmed the available provisioners in your Coder deployment, look for:
-- Large or growing queue of prebuild‑related jobs
+
+- Large or growing queue of prebuild-related jobs
 - User workspace creation is slow
 - Publishing a new template version is not reflected in the UI because the associated template import job has not yet finished
 
