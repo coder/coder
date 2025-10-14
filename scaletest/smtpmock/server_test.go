@@ -22,14 +22,13 @@ func TestServer_StartStop(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	srv := smtpmock.New(smtpmock.Config{
+	srv := new(smtpmock.Server)
+	err := srv.Start(ctx, smtpmock.Config{
 		HostAddress: "127.0.0.1",
 		SMTPPort:    0,
 		APIPort:     0,
 		Logger:      slogtest.Make(t, nil),
 	})
-
-	err := srv.Start(ctx)
 	require.NoError(t, err)
 	require.NotEmpty(t, srv.SMTPAddress())
 	require.NotEmpty(t, srv.APIAddress())
@@ -42,14 +41,13 @@ func TestServer_SendAndReceiveEmail(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	srv := smtpmock.New(smtpmock.Config{
+	srv := new(smtpmock.Server)
+	err := srv.Start(ctx, smtpmock.Config{
 		HostAddress: "127.0.0.1",
 		SMTPPort:    0,
 		APIPort:     0,
 		Logger:      slogtest.Make(t, nil),
 	})
-
-	err := srv.Start(ctx)
 	require.NoError(t, err)
 	defer srv.Stop()
 
@@ -81,14 +79,13 @@ func TestServer_FilterByEmail(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	srv := smtpmock.New(smtpmock.Config{
+	srv := new(smtpmock.Server)
+	err := srv.Start(ctx, smtpmock.Config{
 		HostAddress: "127.0.0.1",
 		SMTPPort:    0,
 		APIPort:     0,
 		Logger:      slogtest.Make(t, nil),
 	})
-
-	err := srv.Start(ctx)
 	require.NoError(t, err)
 	defer srv.Stop()
 
@@ -121,14 +118,13 @@ func TestServer_NotificationTemplateID(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	srv := smtpmock.New(smtpmock.Config{
+	srv := new(smtpmock.Server)
+	err := srv.Start(ctx, smtpmock.Config{
 		HostAddress: "127.0.0.1",
 		SMTPPort:    0,
 		APIPort:     0,
 		Logger:      slogtest.Make(t, nil),
 	})
-
-	err := srv.Start(ctx)
 	require.NoError(t, err)
 	defer srv.Stop()
 
@@ -161,14 +157,13 @@ func TestServer_Purge(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	srv := smtpmock.New(smtpmock.Config{
+	srv := new(smtpmock.Server)
+	err := srv.Start(ctx, smtpmock.Config{
 		HostAddress: "127.0.0.1",
 		SMTPPort:    0,
 		APIPort:     0,
 		Logger:      slogtest.Make(t, nil),
 	})
-
-	err := srv.Start(ctx)
 	require.NoError(t, err)
 	defer srv.Stop()
 

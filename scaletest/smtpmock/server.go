@@ -50,16 +50,12 @@ type EmailSummary struct {
 
 var notificationTemplateIDRegex = regexp.MustCompile(`notifications\?disabled=([a-f0-9-]+)`)
 
-func New(cfg Config) *Server {
-	return &Server{
-		hostAddress: cfg.HostAddress,
-		smtpPort:    cfg.SMTPPort,
-		apiPort:     cfg.APIPort,
-		logger:      cfg.Logger,
-	}
-}
+func (s *Server) Start(ctx context.Context, cfg Config) error {
+	s.hostAddress = cfg.HostAddress
+	s.smtpPort = cfg.SMTPPort
+	s.apiPort = cfg.APIPort
+	s.logger = cfg.Logger
 
-func (s *Server) Start(ctx context.Context) error {
 	s.smtpServer = smtpmocklib.New(smtpmocklib.ConfigurationAttr{
 		LogToStdout:       false,
 		LogServerActivity: true,
