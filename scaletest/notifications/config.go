@@ -24,9 +24,8 @@ type Config struct {
 	// DialTimeout is how long to wait for websocket connection.
 	DialTimeout time.Duration `json:"dial_timeout"`
 
-	// ExpectedNotifications maps notification template IDs to channels
-	// that receive the trigger time for each notification.
-	ExpectedNotifications map[uuid.UUID]chan time.Time `json:"-"`
+	// ExpectedNotificationsIDs is the list of notification template IDs to expect.
+	ExpectedNotificationsIDs map[uuid.UUID]struct{} `json:"-"`
 
 	Metrics *Metrics `json:"-"`
 

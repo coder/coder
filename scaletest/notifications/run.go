@@ -41,7 +41,8 @@ type Runner struct {
 	smtpReceiptTimes   map[uuid.UUID]time.Time
 	smtpReceiptTimesMu sync.RWMutex
 
-	clock quartz.Clock
+	clock    quartz.Clock
+	username string
 }
 
 func NewRunner(client *codersdk.Client, cfg Config) *Runner {
@@ -78,7 +79,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 
 	reachedReceivingWatchBarrier := false
 	defer func() {
-		if len(r.cfg.ExpectedNotifications) > 0 && !reachedReceivingWatchBarrier {
+		if len(r.cfg.ExpectedNotificationsIDs) > 0 && !reachedReceivingWatchBarrier {
 			r.cfg.ReceivingWatchBarrier.Done()
 		}
 	}()
@@ -95,6 +96,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 		return xerrors.Errorf("create user: %w", err)
 	}
 	newUser := newUserAndToken.User
+	r.username = newUser.Username
 	newUserClient := codersdk.New(r.client.URL,
 		codersdk.WithSessionToken(newUserAndToken.SessionToken),
 		codersdk.WithLogger(logger),
@@ -131,7 +133,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	r.cfg.DialBarrier.Done()
 	r.cfg.DialBarrier.Wait()
 
-	if len(r.cfg.ExpectedNotifications) == 0 {
+	if len(r.cfg.ExpectedNotificationsIDs) == 0 {
 		logger.Info(ctx, "maintaining websocket connection, waiting for receiving users to complete")
 
 		// Wait for receiving users to complete
@@ -158,13 +160,13 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	eg, egCtx := errgroup.WithContext(watchCtx)
 
 	eg.Go(func() error {
-		return r.watchNotifications(egCtx, conn, newUser, logger, r.cfg.ExpectedNotifications)
+		return r.watchNotifications(egCtx, conn, newUser, logger, r.cfg.ExpectedNotificationsIDs)
 	})
 
 	if r.cfg.SMTPApiURL != "" {
 		logger.Info(ctx, "running SMTP notification watcher")
 		eg.Go(func() error {
-			return r.watchNotificationsSMTP(egCtx, newUser, logger, r.cfg.ExpectedNotifications)
+			return r.watchNotificationsSMTP(egCtx, newUser, logger, r.cfg.ExpectedNotificationsIDs)
 		})
 	}
 
@@ -192,6 +194,7 @@ func (r *Runner) Cleanup(ctx context.Context, id string, logs io.Writer) error {
 const (
 	WebsocketNotificationReceiptTimeMetric = "notification_websocket_receipt_time"
 	SMTPNotificationReceiptTimeMetric      = "notification_smtp_receipt_time"
+	RunnerUsernameMetric                   = "notification_runner_username"
 )
 
 func (r *Runner) GetMetrics() map[string]any {
@@ -212,6 +215,7 @@ func (r *Runner) GetMetrics() map[string]any {
 	return map[string]any{
 		WebsocketNotificationReceiptTimeMetric: websocketReceiptTimes,
 		SMTPNotificationReceiptTimeMetric:      smtpReceiptTimes,
+		RunnerUsernameMetric:                   r.username,
 	}
 }
 
@@ -245,7 +249,7 @@ func (r *Runner) dialNotificationWebsocket(ctx context.Context, client *codersdk
 
 // watchNotifications reads notifications from the websocket and returns error or nil
 // once all expected notifications are received.
-func (r *Runner) watchNotifications(ctx context.Context, conn *websocket.Conn, user codersdk.User, logger slog.Logger, expectedNotifications map[uuid.UUID]chan time.Time) error {
+func (r *Runner) watchNotifications(ctx context.Context, conn *websocket.Conn, user codersdk.User, logger slog.Logger, expectedNotifications map[uuid.UUID]struct{}) error {
 	logger.Info(ctx, "waiting for notifications",
 		slog.F("username", user.Username),
 		slog.F("expected_count", len(expectedNotifications)))
@@ -295,7 +299,7 @@ func (r *Runner) watchNotifications(ctx context.Context, conn *websocket.Conn, u
 
 // watchNotificationsSMTP polls the SMTP HTTP API for notifications and returns error or nil
 // once all expected notifications are received.
-func (r *Runner) watchNotificationsSMTP(ctx context.Context, user codersdk.User, logger slog.Logger, expectedNotifications map[uuid.UUID]chan time.Time) error {
+func (r *Runner) watchNotificationsSMTP(ctx context.Context, user codersdk.User, logger slog.Logger, expectedNotifications map[uuid.UUID]struct{}) error {
 	logger.Info(ctx, "polling SMTP API for notifications",
 		slog.F("username", user.Username),
 		slog.F("email", user.Email),

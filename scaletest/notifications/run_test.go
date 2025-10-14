@@ -55,9 +55,9 @@ func TestRun(t *testing.T) {
 
 	eg, runCtx := errgroup.WithContext(ctx)
 
-	expectedNotifications := map[uuid.UUID]chan time.Time{
-		notificationsLib.TemplateUserAccountCreated: make(chan time.Time, 1),
-		notificationsLib.TemplateUserAccountDeleted: make(chan time.Time, 1),
+	expectedNotificationsIDs := map[uuid.UUID]struct{}{
+		notificationsLib.TemplateUserAccountCreated: struct{}{},
+		notificationsLib.TemplateUserAccountDeleted: struct{}{},
 	}
 
 	// Start receiving runners who will receive notifications
@@ -68,13 +68,13 @@ func TestRun(t *testing.T) {
 				OrganizationID: firstUser.OrganizationID,
 				Username:       "receiving-user-" + strconv.Itoa(i),
 			},
-			Roles:                 []string{codersdk.RoleOwner},
-			NotificationTimeout:   testutil.WaitLong,
-			DialTimeout:           testutil.WaitLong,
-			Metrics:               metrics,
-			DialBarrier:           dialBarrier,
-			ReceivingWatchBarrier: receivingWatchBarrier,
-			ExpectedNotifications: expectedNotifications,
+			Roles:                    []string{codersdk.RoleOwner},
+			NotificationTimeout:      testutil.WaitLong,
+			DialTimeout:              testutil.WaitLong,
+			Metrics:                  metrics,
+			DialBarrier:              dialBarrier,
+			ReceivingWatchBarrier:    receivingWatchBarrier,
+			ExpectedNotificationsIDs: expectedNotificationsIDs,
 		}
 		err := runnerCfg.Validate()
 		require.NoError(t, err)
@@ -115,18 +115,12 @@ func TestRun(t *testing.T) {
 		// Wait for all runners to connect
 		dialBarrier.Wait()
 
-		notificationTime := time.Now()
 		for i := 0; i < numReceivingUsers; i++ {
 			err := sendInboxNotification(runCtx, t, db, inboxHandler, "receiving-user-"+strconv.Itoa(i), notificationsLib.TemplateUserAccountCreated)
 			require.NoError(t, err)
 			err = sendInboxNotification(runCtx, t, db, inboxHandler, "receiving-user-"+strconv.Itoa(i), notificationsLib.TemplateUserAccountDeleted)
 			require.NoError(t, err)
 		}
-		expectedNotifications[notificationsLib.TemplateUserAccountCreated] <- notificationTime
-		expectedNotifications[notificationsLib.TemplateUserAccountDeleted] <- notificationTime
-
-		close(expectedNotifications[notificationsLib.TemplateUserAccountCreated])
-		close(expectedNotifications[notificationsLib.TemplateUserAccountDeleted])
 
 		return nil
 	})
@@ -209,9 +203,9 @@ func TestRunWithSMTP(t *testing.T) {
 
 	eg, runCtx := errgroup.WithContext(ctx)
 
-	expectedNotifications := map[uuid.UUID]chan time.Time{
-		notificationsLib.TemplateUserAccountCreated: make(chan time.Time, 1),
-		notificationsLib.TemplateUserAccountDeleted: make(chan time.Time, 1),
+	expectedNotificationsIDs := map[uuid.UUID]struct{}{
+		notificationsLib.TemplateUserAccountCreated: struct{}{},
+		notificationsLib.TemplateUserAccountDeleted: struct{}{},
 	}
 
 	mClock := quartz.NewMock(t)
@@ -226,14 +220,14 @@ func TestRunWithSMTP(t *testing.T) {
 				OrganizationID: firstUser.OrganizationID,
 				Username:       "receiving-user-" + strconv.Itoa(i),
 			},
-			Roles:                 []string{codersdk.RoleOwner},
-			NotificationTimeout:   testutil.WaitLong,
-			DialTimeout:           testutil.WaitLong,
-			Metrics:               metrics,
-			DialBarrier:           dialBarrier,
-			ReceivingWatchBarrier: receivingWatchBarrier,
-			ExpectedNotifications: expectedNotifications,
-			SMTPApiURL:            smtpAPIServer.URL,
+			Roles:                    []string{codersdk.RoleOwner},
+			NotificationTimeout:      testutil.WaitLong,
+			DialTimeout:              testutil.WaitLong,
+			Metrics:                  metrics,
+			DialBarrier:              dialBarrier,
+			ReceivingWatchBarrier:    receivingWatchBarrier,
+			ExpectedNotificationsIDs: expectedNotificationsIDs,
+			SMTPApiURL:               smtpAPIServer.URL,
 		}
 		err := runnerCfg.Validate()
 		require.NoError(t, err)
@@ -278,23 +272,17 @@ func TestRunWithSMTP(t *testing.T) {
 			smtpTrap.MustWait(runCtx).MustRelease(runCtx)
 		}
 
-		notificationTime := time.Now()
 		for i := 0; i < numReceivingUsers; i++ {
 			err := sendInboxNotification(runCtx, t, db, inboxHandler, "receiving-user-"+strconv.Itoa(i), notificationsLib.TemplateUserAccountCreated)
 			require.NoError(t, err)
 			err = sendInboxNotification(runCtx, t, db, inboxHandler, "receiving-user-"+strconv.Itoa(i), notificationsLib.TemplateUserAccountDeleted)
 			require.NoError(t, err)
 		}
-		expectedNotifications[notificationsLib.TemplateUserAccountCreated] <- notificationTime
-		expectedNotifications[notificationsLib.TemplateUserAccountDeleted] <- notificationTime
 
 		for i := 0; i < numReceivingUsers; i++ {
 			_, w := mClock.AdvanceNext()
 			w.MustWait(runCtx)
 		}
-
-		close(expectedNotifications[notificationsLib.TemplateUserAccountCreated])
-		close(expectedNotifications[notificationsLib.TemplateUserAccountDeleted])
 
 		return nil
 	})
