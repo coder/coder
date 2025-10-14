@@ -121,34 +121,87 @@ func BuiltinScopeNames() []ScopeName {
 	return names
 }
 
+// CompositeScope defines the configuration for high-level composite scopes
+// (e.g., "coder:workspaces.create") that expand into multiple low-level
+// resource:action permissions. Composite scopes provide a convenient way to
+// grant related permissions as a single unit rather than listing each
+// individual resource:action pair.
+//
+// For example, "coder:workspaces.create" expands to permissions on both
+// workspace (create, update, read) and template (read, use) resources, since
+// creating a workspace requires interacting with both resource types.
+type CompositeScope struct {
+	// Permissions maps resource types (e.g., "workspace", "template") to the
+	// list of actions (e.g., "read", "create", "update") that this composite
+	// scope grants on those resources. This defines the expanded set of
+	// permissions that users receive when granted this composite scope.
+	Permissions map[string][]policy.Action
+
+	// DefaultAllowIDList specifies the default resource allow list entries
+	// that are applied after scope expansion and intersection. These defaults
+	// ensure that specific resource types remain accessible even if not
+	// explicitly included in a user-provided allow list, enabling the composite
+	// scope to function correctly. For example, "coder:workspaces.create" needs
+	// access to all templates, so it includes a wildcard template entry here.
+	DefaultAllowIDList []AllowListElement
+}
+
 // Composite coder:* scopes expand to multiple low-level resource:action permissions
 // at Site level. These names are persisted in the DB and expanded during
 // authorization.
-var compositePerms = map[ScopeName]map[string][]policy.Action{
+var compositePerms = map[ScopeName]CompositeScope{
 	"coder:workspaces.create": {
-		ResourceTemplate.Type:  {policy.ActionRead, policy.ActionUse},
-		ResourceWorkspace.Type: {policy.ActionCreate, policy.ActionUpdate, policy.ActionRead},
+		Permissions: map[string][]policy.Action{
+			ResourceTemplate.Type:  {policy.ActionRead, policy.ActionUse},
+			ResourceWorkspace.Type: {policy.ActionCreate, policy.ActionUpdate, policy.ActionRead},
+		},
+		DefaultAllowIDList: []AllowListElement{
+			{ID: "", Type: ResourceWorkspace.Type},
+			{ID: policy.WildcardSymbol, Type: ResourceTemplate.Type},
+		},
 	},
 	"coder:workspaces.operate": {
-		ResourceWorkspace.Type: {policy.ActionRead, policy.ActionUpdate},
+		Permissions: map[string][]policy.Action{
+			ResourceTemplate.Type:  {policy.ActionRead, policy.ActionUse},
+			ResourceWorkspace.Type: {policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceStart, policy.ActionWorkspaceStop},
+			ResourceUser.Type:      {policy.ActionRead},
+		},
+		DefaultAllowIDList: []AllowListElement{
+			{ID: policy.WildcardSymbol, Type: ResourceTemplate.Type},
+			{ID: policy.WildcardSymbol, Type: ResourceUser.Type},
+		},
 	},
 	"coder:workspaces.delete": {
-		ResourceWorkspace.Type: {policy.ActionRead, policy.ActionDelete},
+		Permissions: map[string][]policy.Action{
+			ResourceWorkspace.Type: {policy.ActionRead, policy.ActionDelete},
+			ResourceTemplate.Type:  {policy.ActionRead, policy.ActionUse},
+		},
+		DefaultAllowIDList: []AllowListElement{
+			{ID: policy.WildcardSymbol, Type: ResourceTemplate.Type},
+		},
 	},
 	"coder:workspaces.access": {
-		ResourceWorkspace.Type: {policy.ActionRead, policy.ActionSSH, policy.ActionApplicationConnect},
+		Permissions: map[string][]policy.Action{
+			ResourceWorkspace.Type: {policy.ActionRead, policy.ActionSSH, policy.ActionApplicationConnect},
+		},
 	},
 	"coder:templates.build": {
-		ResourceTemplate.Type: {policy.ActionRead},
-		ResourceFile.Type:     {policy.ActionCreate, policy.ActionRead},
-		"provisioner_jobs":    {policy.ActionRead},
+		Permissions: map[string][]policy.Action{
+			ResourceTemplate.Type: {policy.ActionRead},
+			ResourceFile.Type:     {policy.ActionCreate, policy.ActionRead},
+			"provisioner_jobs":    {policy.ActionRead},
+		},
 	},
 	"coder:templates.author": {
-		ResourceTemplate.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete, policy.ActionViewInsights},
-		ResourceFile.Type:     {policy.ActionCreate, policy.ActionRead},
+		Permissions: map[string][]policy.Action{
+			ResourceTemplate.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete, policy.ActionViewInsights},
+			ResourceFile.Type:     {policy.ActionCreate, policy.ActionRead},
+		},
 	},
 	"coder:apikeys.manage_self": {
-		ResourceApiKey.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+		Permissions: map[string][]policy.Action{
+			ResourceApiKey.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+		},
 	},
 }
 
@@ -158,7 +211,19 @@ func CompositeSitePermissions(name ScopeName) ([]Permission, bool) {
 	if !ok {
 		return nil, false
 	}
-	return Permissions(perms), true
+	return Permissions(perms.Permissions), true
+}
+
+// CompositeDefaultAllowList returns the default allow list entries for a
+// composite coder:* scope. These defaults are applied after scope expansion
+// and intersection to ensure required resource types are accessible even if
+// not explicitly specified by the user.
+func CompositeDefaultAllowList(name ScopeName) ([]AllowListElement, bool) {
+	perms, ok := compositePerms[name]
+	if !ok {
+		return nil, false
+	}
+	return perms.DefaultAllowIDList, true
 }
 
 // CompositeScopeNames lists all high-level coder:* names in sorted order.
@@ -235,7 +300,8 @@ func ExpandScope(scope ScopeName) (Scope, error) {
 				User:        []Permission{},
 				ByOrgID:     map[string]OrgPermissions{},
 			},
-			// Composites are site-level; allow-list empty by default
+			// Composites are site-level; return wildcard during expansion.
+			// Defaults will be applied later via collectCompositeDefaults().
 			AllowIDList: []AllowListElement{{Type: policy.WildcardSymbol, ID: policy.WildcardSymbol}},
 		}, nil
 	}
