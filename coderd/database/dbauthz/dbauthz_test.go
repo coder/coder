@@ -2404,6 +2404,13 @@ func (s *MethodTestSuite) TestTasks() {
 		dbm.EXPECT().ListTasks(gomock.Any(), gomock.Any()).Return([]database.Task{t1, t2}, nil).AnyTimes()
 		check.Args(database.ListTasksParams{}).Asserts(t1, policy.ActionRead, t2, policy.ActionRead).Returns([]database.Task{t1, t2})
 	}))
+	s.Run("UpdateTaskFeedback", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		task := testutil.Fake(s.T(), faker, database.Task{})
+		arg := database.UpdateTaskFeedbackParams{TaskID: task.ID}
+		dbm.EXPECT().GetTaskByID(gomock.Any(), task.ID).Return(task, nil).AnyTimes()
+		dbm.EXPECT().UpdateTaskFeedback(gomock.Any(), arg).Return(database.TaskTable{ID: task.ID}, nil).AnyTimes()
+		check.Args(arg).Asserts(task, policy.ActionUpdate).Returns(database.TaskTable{ID: task.ID})
+	}))
 }
 
 func (s *MethodTestSuite) TestProvisionerKeys() {

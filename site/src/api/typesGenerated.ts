@@ -3354,6 +3354,14 @@ export interface Task {
 	readonly current_state: TaskStateEntry | null;
 	readonly created_at: string;
 	readonly updated_at: string;
+	readonly feedback_score?: number;
+	readonly feedback_comment?: string;
+}
+
+// From codersdk/aitasks.go
+export interface TaskFeedbackRequest {
+	readonly score: number;
+	readonly comment?: string;
 }
 
 // From codersdk/aitasks.go

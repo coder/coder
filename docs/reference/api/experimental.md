@@ -137,6 +137,44 @@ curl -X DELETE http://coder-server:8080/api/v2/api/experimental/tasks/{user}/{id
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Submit task feedback
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/api/experimental/tasks/{user}/{id}/feedback \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /api/experimental/tasks/{user}/{id}/feedback`
+
+> Body parameter
+
+```json
+{
+  "comment": "string",
+  "score": 0
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                   | Required | Description                                           |
+|--------|------|------------------------------------------------------------------------|----------|-------------------------------------------------------|
+| `user` | path | string                                                                 | true     | Username, user ID, or 'me' for the authenticated user |
+| `id`   | path | string(uuid)                                                           | true     | Task ID                                               |
+| `body` | body | [codersdk.TaskFeedbackRequest](schemas.md#codersdktaskfeedbackrequest) | true     | Task feedback                                         |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get AI task logs
 
 ### Code samples

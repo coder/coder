@@ -1820,7 +1820,10 @@ CREATE TABLE tasks (
     template_parameters jsonb DEFAULT '{}'::jsonb NOT NULL,
     prompt text NOT NULL,
     created_at timestamp with time zone NOT NULL,
-    deleted_at timestamp with time zone
+    deleted_at timestamp with time zone,
+    feedback_score real,
+    feedback_comment character varying(512),
+    CONSTRAINT tasks_feedback_score_range CHECK (((feedback_score IS NULL) OR ((feedback_score >= (0.0)::double precision) AND (feedback_score <= (1.0)::double precision))))
 );
 
 CREATE TABLE workspace_agents (
@@ -1951,6 +1954,8 @@ CREATE VIEW tasks_with_status AS
     tasks.prompt,
     tasks.created_at,
     tasks.deleted_at,
+    tasks.feedback_score,
+    tasks.feedback_comment,
         CASE
             WHEN ((tasks.workspace_id IS NULL) OR (latest_build.job_status IS NULL)) THEN 'pending'::task_status
             WHEN (latest_build.job_status = 'failed'::provisioner_job_status) THEN 'error'::task_status

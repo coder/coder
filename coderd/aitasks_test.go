@@ -1152,3 +1152,122 @@ func TestTasksNotification(t *testing.T) {
 		})
 	}
 }
+
+func TestTaskFeedback(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Post", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name          string
+			request       codersdk.TaskFeedbackRequest
+			expectError   string
+			expectScore   sql.NullFloat64
+			expectComment sql.NullString
+		}{
+			{
+				name: "ScoreTooLow",
+				request: codersdk.TaskFeedbackRequest{
+					Score: -0.01,
+				},
+				expectError: "Must be between 0.0 and 1.0",
+			},
+			{
+				name: "ScoreTooHigh",
+				request: codersdk.TaskFeedbackRequest{
+					Score: 1.01,
+				},
+				expectError: "Must be between 0.0 and 1.0",
+			},
+			{
+				name: "MinScore",
+				request: codersdk.TaskFeedbackRequest{
+					Score: 0.00,
+				},
+				expectScore: sql.NullFloat64{Valid: true, Float64: 0.00},
+			},
+			{
+				name: "MediumScore",
+				request: codersdk.TaskFeedbackRequest{
+					Score: 0.50,
+				},
+				expectScore: sql.NullFloat64{Valid: true, Float64: 0.50},
+			},
+			{
+				name: "MaxScore",
+				request: codersdk.TaskFeedbackRequest{
+					Score: 1.00,
+				},
+				expectScore: sql.NullFloat64{Valid: true, Float64: 1.00},
+			},
+			{
+				name: "MinComment",
+				request: codersdk.TaskFeedbackRequest{
+					Comment: "A",
+				},
+				expectComment: sql.NullString{Valid: true, String: "A"},
+				expectScore:   sql.NullFloat64{Valid: true, Float64: 0.00},
+			},
+			{
+				name: "MaxComment",
+				request: codersdk.TaskFeedbackRequest{
+					Comment: strings.Repeat("A", 512),
+				},
+				expectComment: sql.NullString{Valid: true, String: strings.Repeat("A", 512)},
+				expectScore:   sql.NullFloat64{Valid: true, Float64: 0.00},
+			},
+			{
+				name: "CommentTooLong",
+				request: codersdk.TaskFeedbackRequest{
+					Comment: strings.Repeat("A", 513),
+				},
+				expectError: "Must be 512 characters or less.",
+			},
+		}
+
+		var (
+			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			owner      = coderdtest.CreateFirstUser(t, client)
+
+			template = dbgen.Template(t, db, database.Template{
+				OrganizationID: owner.OrganizationID,
+				CreatedBy:      owner.UserID,
+			})
+			templateVersion = dbgen.TemplateVersion(t, db, database.TemplateVersion{
+				OrganizationID: owner.OrganizationID,
+				CreatedBy:      owner.UserID,
+				TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+			})
+		)
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				var (
+					ctx = testutil.Context(t, testutil.WaitShort)
+
+					task = dbgen.Task(t, db, database.TaskTable{
+						OrganizationID:    owner.OrganizationID,
+						OwnerID:           owner.UserID,
+						TemplateVersionID: templateVersion.ID,
+					})
+				)
+
+				exp := codersdk.NewExperimentalClient(client)
+				err := exp.PostTaskFeedback(ctx, "me", task.ID, tt.request)
+				if tt.expectError != "" {
+					require.ErrorContains(t, err, tt.expectError)
+				} else {
+					require.NoError(t, err)
+
+					updatedTask, err := db.GetTaskByID(dbauthz.AsSystemRestricted(ctx), task.ID)
+					require.NoError(t, err)
+					require.Equal(t, tt.expectScore, updatedTask.FeedbackScore)
+					require.Equal(t, tt.expectComment, updatedTask.FeedbackComment)
+				}
+			})
+		}
+	})
+}

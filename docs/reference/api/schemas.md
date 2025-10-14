@@ -291,6 +291,8 @@
         "timestamp": "2019-08-24T14:15:22Z",
         "uri": "string"
       },
+      "feedback_comment": "string",
+      "feedback_score": 0,
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "initial_prompt": "string",
       "name": "string",
@@ -7683,6 +7685,8 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
     "timestamp": "2019-08-24T14:15:22Z",
     "uri": "string"
   },
+  "feedback_comment": "string",
+  "feedback_score": 0,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "initial_prompt": "string",
   "name": "string",
@@ -7717,6 +7721,8 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 |-----------------------------|----------------------------------------------------------------------|----------|--------------|-------------|
 | `created_at`                | string                                                               | false    |              |             |
 | `current_state`             | [codersdk.TaskStateEntry](#codersdktaskstateentry)                   | false    |              |             |
+| `feedback_comment`          | string                                                               | false    |              |             |
+| `feedback_score`            | number                                                               | false    |              |             |
 | `id`                        | string                                                               | false    |              |             |
 | `initial_prompt`            | string                                                               | false    |              |             |
 | `name`                      | string                                                               | false    |              |             |
@@ -7748,6 +7754,22 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `status` | `canceled`  |
 | `status` | `deleting`  |
 | `status` | `deleted`   |
+
+## codersdk.TaskFeedbackRequest
+
+```json
+{
+  "comment": "string",
+  "score": 0
+}
+```
+
+### Properties
+
+| Name      | Type   | Required | Restrictions | Description |
+|-----------|--------|----------|--------------|-------------|
+| `comment` | string | false    |              |             |
+| `score`   | number | false    |              |             |
 
 ## codersdk.TaskLogEntry
 

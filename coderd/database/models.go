@@ -4207,6 +4207,8 @@ type Task struct {
 	Prompt             string          `db:"prompt" json:"prompt"`
 	CreatedAt          time.Time       `db:"created_at" json:"created_at"`
 	DeletedAt          sql.NullTime    `db:"deleted_at" json:"deleted_at"`
+	FeedbackScore      sql.NullFloat64 `db:"feedback_score" json:"feedback_score"`
+	FeedbackComment    sql.NullString  `db:"feedback_comment" json:"feedback_comment"`
 	Status             TaskStatus      `db:"status" json:"status"`
 }
 
@@ -4221,6 +4223,8 @@ type TaskTable struct {
 	Prompt             string          `db:"prompt" json:"prompt"`
 	CreatedAt          time.Time       `db:"created_at" json:"created_at"`
 	DeletedAt          sql.NullTime    `db:"deleted_at" json:"deleted_at"`
+	FeedbackScore      sql.NullFloat64 `db:"feedback_score" json:"feedback_score"`
+	FeedbackComment    sql.NullString  `db:"feedback_comment" json:"feedback_comment"`
 }
 
 type TaskWorkspaceApp struct {
