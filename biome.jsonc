@@ -6,10 +6,7 @@
 		"defaultBranch": "main"
 	},
 	"files": {
-		"includes": [
-			"**",
-			"!**/pnpm-lock.yaml"
-		],
+		"includes": ["**", "!**/pnpm-lock.yaml"],
 		"ignoreUnknown": true
 	},
 	"linter": {
@@ -54,7 +51,9 @@
 							"@mui/material/Popover": "Use components/Popover/Popover instead.",
 							"@mui/material/Typography": "Use native HTML elements instead. Eg: <span>, <p>, <h1>, etc.",
 							"@mui/material/Box": "Use a <div> instead.",
+							"@mui/material/Button": "Use a components/Button/Button instead.",
 							"@mui/material/styles": "Import from @emotion/react instead.",
+							"@mui/material/Table*": "Import from components/Table/Table instead.",
 							"lodash": "Use lodash/<name> instead."
 						}
 					}
@@ -69,11 +68,7 @@
 				"noConsole": {
 					"level": "error",
 					"options": {
-						"allow": [
-							"error",
-							"info",
-							"warn"
-						]
+						"allow": ["error", "info", "warn"]
 					}
 				}
 			},
@@ -82,5 +77,5 @@
 			}
 		}
 	},
-	"$schema": "https://biomejs.dev/schemas/2.2.0/schema.json"
+	"$schema": "./node_modules/@biomejs/biome/configuration_schema.json"
 }

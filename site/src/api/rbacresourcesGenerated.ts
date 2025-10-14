@@ -156,6 +156,12 @@ export const RBACResourceActions: Partial<
 		read: "view info about a Tailnet coordinator",
 		update: "update a Tailnet coordinator",
 	},
+	task: {
+		create: "create a new task",
+		delete: "delete task",
+		read: "read task data or output to view on the UI or CLI",
+		update: "edit task settings or send input to an existing task",
+	},
 	template: {
 		create: "create a template",
 		delete: "delete a template",

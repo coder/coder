@@ -189,7 +189,7 @@ WITH agent_stats AS (
 		coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_95
 	 FROM workspace_agent_stats
 	-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
-	WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0 
+	WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0
 	GROUP BY user_id, agent_id, workspace_id, template_id
 ), latest_agent_stats AS (
 	SELECT

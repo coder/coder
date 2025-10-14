@@ -58,23 +58,37 @@ func main() {
 	os.Exit(1)
 }
 
-// expectedFromRBAC returns the set of <resource>:<action> pairs derived from RBACPermissions.
+// expectedFromRBAC returns the set of scope names the DB enum must support.
 func expectedFromRBAC() map[string]struct{} {
 	want := make(map[string]struct{})
-	// Low-level <resource>:<action>
+	add := func(name string) {
+		if name == "" {
+			return
+		}
+		want[name] = struct{}{}
+	}
+	// Low-level <resource>:<action> and synthesized <resource>:* wildcards
 	for resource, def := range policy.RBACPermissions {
 		if resource == policy.WildcardSymbol {
 			// Ignore wildcard entry; it has no concrete <resource>:<action> pairs.
 			continue
 		}
+		add(resource + ":" + policy.WildcardSymbol)
 		for action := range def.Actions {
-			key := resource + ":" + string(action)
-			want[key] = struct{}{}
+			add(resource + ":" + string(action))
 		}
 	}
 	// Composite coder:* names
 	for _, n := range rbac.CompositeScopeNames() {
-		want[n] = struct{}{}
+		add(n)
+	}
+	// Built-in coder-prefixed scopes such as coder:all
+	for _, n := range rbac.BuiltinScopeNames() {
+		s := string(n)
+		if !strings.Contains(s, ":") {
+			continue
+		}
+		add(s)
 	}
 	return want
 }

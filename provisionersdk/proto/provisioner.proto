@@ -335,7 +335,8 @@ message AITaskSidebarApp {
 
 message AITask {
   string id = 1;
-  AITaskSidebarApp sidebar_app = 2;
+  optional AITaskSidebarApp sidebar_app = 2;
+  string app_id = 3;
 }
 
 // Metadata is information about a workspace used in the execution of a build
@@ -361,6 +362,8 @@ message Metadata {
   repeated Role workspace_owner_rbac_roles = 19;
   PrebuiltWorkspaceBuildStage prebuilt_workspace_build_stage = 20; // Indicates that a prebuilt workspace is being built.
   repeated RunningAgentAuthToken running_agent_auth_tokens = 21;
+  string task_id = 22;
+  string task_prompt = 23;
 }
 
 // Config represents execution configuration shared by all subsequent requests in the Session

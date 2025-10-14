@@ -1,11 +1,11 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import EditOutlined from "@mui/icons-material/EditOutlined";
-import RadioButtonCheckedOutlined from "@mui/icons-material/RadioButtonCheckedOutlined";
 import { SyntaxHighlighter } from "components/SyntaxHighlighter/SyntaxHighlighter";
 import set from "lodash/set";
+import { EditIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { type FC, useCallback, useMemo } from "react";
 import { Link } from "react-router";
+import { cn } from "utils/cn";
 import type { FileTree } from "utils/filetree";
 import type { TemplateVersionFiles } from "utils/templateVersion";
 import { TemplateFileTree } from "./TemplateFileTree";
@@ -94,16 +94,13 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 							return (
 								<div key={filename} css={styles.filePanel} id={filename}>
 									<header css={styles.fileHeader}>
-										{filename}
-										{info.hasDiff && (
-											<RadioButtonCheckedOutlined
-												css={{
-													width: 14,
-													height: 14,
-													color: theme.roles.warning.fill.outline,
-												}}
-											/>
-										)}
+										<span
+											className={cn({
+												"text-content-warning": info.hasDiff,
+											})}
+										>
+											{filename}
+										</span>
 
 										<div css={{ marginLeft: "auto" }}>
 											<Link
@@ -121,7 +118,7 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 													},
 												}}
 											>
-												<EditOutlined css={{ fontSize: "inherit" }} />
+												<EditIcon className="text-inherit size-icon-xs" />
 												Edit
 											</Link>
 										</div>

@@ -366,6 +366,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 | `ids`          | query | array(uuid)  | false    | Filter results by job IDs                                                          |
 | `status`       | query | string       | false    | Filter results by status                                                           |
 | `tags`         | query | object       | false    | Provisioner tags to filter by (JSON of the form {'tag1':'value1','tag2':'value2'}) |
+| `initiator`    | query | string(uuid) | false    | Filter results by initiator                                                        |
 
 #### Enumerated Values
 
@@ -402,6 +403,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
     "error_code": "REQUIRED_TEMPLATE_VARIABLES",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "input": {
       "error": "string",
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
@@ -454,6 +456,7 @@ Status Code **200**
 | `» error_code`             | [codersdk.JobErrorCode](schemas.md#codersdkjoberrorcode)                     | false    |              |             |
 | `» file_id`                | string(uuid)                                                                 | false    |              |             |
 | `» id`                     | string(uuid)                                                                 | false    |              |             |
+| `» initiator_id`           | string(uuid)                                                                 | false    |              |             |
 | `» input`                  | [codersdk.ProvisionerJobInput](schemas.md#codersdkprovisionerjobinput)       | false    |              |             |
 | `»» error`                 | string                                                                       | false    |              |             |
 | `»» template_version_id`   | string(uuid)                                                                 | false    |              |             |
@@ -531,6 +534,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
   "error_code": "REQUIRED_TEMPLATE_VARIABLES",
   "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
   "input": {
     "error": "string",
     "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",

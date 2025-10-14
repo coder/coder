@@ -781,6 +781,9 @@ func applyDefaultsToConfig(config *codersdk.ExternalAuthConfig) {
 
 	// Dynamic defaults
 	switch codersdk.EnhancedExternalAuthProvider(config.Type) {
+	case codersdk.EnhancedExternalAuthProviderGitHub:
+		copyDefaultSettings(config, gitHubDefaults(config))
+		return
 	case codersdk.EnhancedExternalAuthProviderGitLab:
 		copyDefaultSettings(config, gitlabDefaults(config))
 		return
@@ -813,6 +816,9 @@ func copyDefaultSettings(config *codersdk.ExternalAuthConfig, defaults codersdk.
 	}
 	if config.ValidateURL == "" {
 		config.ValidateURL = defaults.ValidateURL
+	}
+	if config.RevokeURL == "" {
+		config.RevokeURL = defaults.RevokeURL
 	}
 	if config.AppInstallURL == "" {
 		config.AppInstallURL = defaults.AppInstallURL
@@ -850,6 +856,29 @@ func copyDefaultSettings(config *codersdk.ExternalAuthConfig, defaults codersdk.
 		// This is a key emoji.
 		config.DisplayIcon = "/emojis/1f511.png"
 	}
+}
+
+// gitHubDefaults returns default config values for GitHub.
+// The only dynamic value is the revocation URL which depends on client ID.
+func gitHubDefaults(config *codersdk.ExternalAuthConfig) codersdk.ExternalAuthConfig {
+	defaults := codersdk.ExternalAuthConfig{
+		AuthURL:     xgithub.Endpoint.AuthURL,
+		TokenURL:    xgithub.Endpoint.TokenURL,
+		ValidateURL: "https://api.github.com/user",
+		DisplayName: "GitHub",
+		DisplayIcon: "/icon/github.svg",
+		Regex:       `^(https?://)?github\.com(/.*)?$`,
+		// "workflow" is required for managing GitHub Actions in a repository.
+		Scopes:              []string{"repo", "workflow"},
+		DeviceCodeURL:       "https://github.com/login/device/code",
+		AppInstallationsURL: "https://api.github.com/user/installations",
+	}
+
+	if config.RevokeURL == "" && config.ClientID != "" {
+		defaults.RevokeURL = fmt.Sprintf("https://api.github.com/applications/%s/grant", config.ClientID)
+	}
+
+	return defaults
 }
 
 func bitbucketServerDefaults(config *codersdk.ExternalAuthConfig) codersdk.ExternalAuthConfig {
@@ -1049,18 +1078,6 @@ var staticDefaults = map[codersdk.EnhancedExternalAuthProvider]codersdk.External
 		DisplayIcon: "/icon/bitbucket.svg",
 		Regex:       `^(https?://)?bitbucket\.org(/.*)?$`,
 		Scopes:      []string{"account", "repository:write"},
-	},
-	codersdk.EnhancedExternalAuthProviderGitHub: {
-		AuthURL:     xgithub.Endpoint.AuthURL,
-		TokenURL:    xgithub.Endpoint.TokenURL,
-		ValidateURL: "https://api.github.com/user",
-		DisplayName: "GitHub",
-		DisplayIcon: "/icon/github.svg",
-		Regex:       `^(https?://)?github\.com(/.*)?$`,
-		// "workflow" is required for managing GitHub Actions in a repository.
-		Scopes:              []string{"repo", "workflow"},
-		DeviceCodeURL:       "https://github.com/login/device/code",
-		AppInstallationsURL: "https://api.github.com/user/installations",
 	},
 	codersdk.EnhancedExternalAuthProviderSlack: {
 		AuthURL:     "https://slack.com/oauth/v2/authorize",
