@@ -286,7 +286,7 @@ coder provisioner jobs list --status=pending --initiator=prebuilds
 
 This will show a list of all pending jobs that have been enqueued by the prebuilt workspace system. The length of this list indicates whether prebuilt workspaces have overwhelmed your Coder deployment.
 
-Human-initiated jobs have priority over pending prebuild jobs, but running prebuild jobs cannot be preempted. A long list of pending prebuild jobs increases the likelihood that all provisioners are already occupied when a user wants to create a workspace. This increases the likelihood that users will experience delays waiting for the next available provisioner.
+Human-initiated jobs have priority over pending prebuild jobs, but running prebuild jobs cannot be preempted. A long list of pending prebuild jobs increases the likelihood that all provisioners are already occupied when a user wants to create a workspace or import a new template version. This increases the likelihood that users will experience delays waiting for the next available provisioner.
 
 #### Cancel pending prebuild jobs
 
