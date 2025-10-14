@@ -95,6 +95,12 @@ export interface AITasksPromptsResponse {
 	readonly prompts: Record<string, string>;
 }
 
+// From codersdk/allowlist.go
+export interface APIAllowListTarget {
+	readonly type: RBACResource;
+	readonly id: string;
+}
+
 // From codersdk/apikey.go
 export interface APIKey {
 	readonly id: string;
@@ -241,6 +247,11 @@ export type APIKeyScope =
 	| "tailnet_coordinator:delete"
 	| "tailnet_coordinator:read"
 	| "tailnet_coordinator:update"
+	| "task:*"
+	| "task:create"
+	| "task:delete"
+	| "task:read"
+	| "task:update"
 	| "template:*"
 	| "template:create"
 	| "template:delete"
@@ -432,6 +443,11 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"tailnet_coordinator:delete",
 	"tailnet_coordinator:read",
 	"tailnet_coordinator:update",
+	"task:*",
+	"task:create",
+	"task:delete",
+	"task:read",
+	"task:update",
 	"template:*",
 	"template:create",
 	"template:delete",
@@ -1007,6 +1023,7 @@ export interface CreateTokenRequest {
 	readonly scope?: APIKeyScope;
 	readonly scopes?: readonly APIKeyScope[];
 	readonly token_name: string;
+	readonly allow_list?: readonly APIAllowListTarget[];
 }
 
 // From codersdk/users.go
@@ -2908,6 +2925,7 @@ export type RBACResource =
 	| "replicas"
 	| "system"
 	| "tailnet_coordinator"
+	| "task"
 	| "template"
 	| "usage_event"
 	| "user"
@@ -2951,6 +2969,7 @@ export const RBACResources: RBACResource[] = [
 	"replicas",
 	"system",
 	"tailnet_coordinator",
+	"task",
 	"template",
 	"usage_event",
 	"user",

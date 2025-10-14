@@ -206,6 +206,11 @@ const (
 	ApiKeyScopeWorkspaceAgentResourceMonitor       APIKeyScope = "workspace_agent_resource_monitor:*"
 	ApiKeyScopeWorkspaceDormant                    APIKeyScope = "workspace_dormant:*"
 	ApiKeyScopeWorkspaceProxy                      APIKeyScope = "workspace_proxy:*"
+	ApiKeyScopeTaskCreate                          APIKeyScope = "task:create"
+	ApiKeyScopeTaskRead                            APIKeyScope = "task:read"
+	ApiKeyScopeTaskUpdate                          APIKeyScope = "task:update"
+	ApiKeyScopeTaskDelete                          APIKeyScope = "task:delete"
+	ApiKeyScopeTask                                APIKeyScope = "task:*"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -431,7 +436,12 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeWorkspaceAgentDevcontainers,
 		ApiKeyScopeWorkspaceAgentResourceMonitor,
 		ApiKeyScopeWorkspaceDormant,
-		ApiKeyScopeWorkspaceProxy:
+		ApiKeyScopeWorkspaceProxy,
+		ApiKeyScopeTaskCreate,
+		ApiKeyScopeTaskRead,
+		ApiKeyScopeTaskUpdate,
+		ApiKeyScopeTaskDelete,
+		ApiKeyScopeTask:
 		return true
 	}
 	return false
@@ -626,6 +636,11 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeWorkspaceAgentResourceMonitor,
 		ApiKeyScopeWorkspaceDormant,
 		ApiKeyScopeWorkspaceProxy,
+		ApiKeyScopeTaskCreate,
+		ApiKeyScopeTaskRead,
+		ApiKeyScopeTaskUpdate,
+		ApiKeyScopeTaskDelete,
+		ApiKeyScopeTask,
 	}
 }
 
@@ -2870,6 +2885,76 @@ func AllTailnetStatusValues() []TailnetStatus {
 	}
 }
 
+type TaskStatus string
+
+const (
+	TaskStatusPending      TaskStatus = "pending"
+	TaskStatusInitializing TaskStatus = "initializing"
+	TaskStatusActive       TaskStatus = "active"
+	TaskStatusPaused       TaskStatus = "paused"
+	TaskStatusUnknown      TaskStatus = "unknown"
+	TaskStatusError        TaskStatus = "error"
+)
+
+func (e *TaskStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TaskStatus(s)
+	case string:
+		*e = TaskStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TaskStatus: %T", src)
+	}
+	return nil
+}
+
+type NullTaskStatus struct {
+	TaskStatus TaskStatus `json:"task_status"`
+	Valid      bool       `json:"valid"` // Valid is true if TaskStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTaskStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.TaskStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TaskStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTaskStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TaskStatus), nil
+}
+
+func (e TaskStatus) Valid() bool {
+	switch e {
+	case TaskStatusPending,
+		TaskStatusInitializing,
+		TaskStatusActive,
+		TaskStatusPaused,
+		TaskStatusUnknown,
+		TaskStatusError:
+		return true
+	}
+	return false
+}
+
+func AllTaskStatusValues() []TaskStatus {
+	return []TaskStatus{
+		TaskStatusPending,
+		TaskStatusInitializing,
+		TaskStatusActive,
+		TaskStatusPaused,
+		TaskStatusUnknown,
+		TaskStatusError,
+	}
+}
+
 // Defines the users status: active, dormant, or suspended.
 type UserStatus string
 
@@ -4122,13 +4207,27 @@ type Task struct {
 	Prompt             string          `db:"prompt" json:"prompt"`
 	CreatedAt          time.Time       `db:"created_at" json:"created_at"`
 	DeletedAt          sql.NullTime    `db:"deleted_at" json:"deleted_at"`
+	Status             TaskStatus      `db:"status" json:"status"`
+}
+
+type TaskTable struct {
+	ID                 uuid.UUID       `db:"id" json:"id"`
+	OrganizationID     uuid.UUID       `db:"organization_id" json:"organization_id"`
+	OwnerID            uuid.UUID       `db:"owner_id" json:"owner_id"`
+	Name               string          `db:"name" json:"name"`
+	WorkspaceID        uuid.NullUUID   `db:"workspace_id" json:"workspace_id"`
+	TemplateVersionID  uuid.UUID       `db:"template_version_id" json:"template_version_id"`
+	TemplateParameters json.RawMessage `db:"template_parameters" json:"template_parameters"`
+	Prompt             string          `db:"prompt" json:"prompt"`
+	CreatedAt          time.Time       `db:"created_at" json:"created_at"`
+	DeletedAt          sql.NullTime    `db:"deleted_at" json:"deleted_at"`
 }
 
 type TaskWorkspaceApp struct {
-	TaskID           uuid.UUID `db:"task_id" json:"task_id"`
-	WorkspaceBuildID uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
-	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
-	WorkspaceAppID   uuid.UUID `db:"workspace_app_id" json:"workspace_app_id"`
+	TaskID               uuid.UUID     `db:"task_id" json:"task_id"`
+	WorkspaceAgentID     uuid.NullUUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	WorkspaceAppID       uuid.NullUUID `db:"workspace_app_id" json:"workspace_app_id"`
+	WorkspaceBuildNumber int32         `db:"workspace_build_number" json:"workspace_build_number"`
 }
 
 type TelemetryItem struct {

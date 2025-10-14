@@ -66,5 +66,4 @@ type Claimer interface {
 		nextStartAt sql.NullTime,
 		ttl sql.NullInt64,
 	) (*uuid.UUID, error)
-	Initiator() uuid.UUID
 }

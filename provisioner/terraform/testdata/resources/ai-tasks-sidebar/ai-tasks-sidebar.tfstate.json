@@ -13,7 +13,7 @@
           "schema_version": 1,
           "values": {
             "arch": "amd64",
-            "id": "e838328b-8dc2-49d0-b16c-42d6375cfb34",
+            "id": "764f8b0b-d931-4356-b1a8-446fa95fbeb0",
             "os": "linux"
           },
           "sensitive_values": {}
@@ -28,7 +28,7 @@
           "values": {
             "access_port": 443,
             "access_url": "https://dev.coder.com/",
-            "id": "6a64b978-bd81-424a-92e5-d4004296f420",
+            "id": "b6713709-6736-4d2f-b3da-7b5b242df5f4",
             "is_prebuild": false,
             "is_prebuild_claim": false,
             "name": "sebenza-nonix",
@@ -52,7 +52,7 @@
             "email": "default@example.com",
             "full_name": "default",
             "groups": [],
-            "id": "ffb2e99a-efa7-4fb9-bb2c-aa282bb636c9",
+            "id": "0cc15fa2-24fc-4249-bdc7-56cf0af0f782",
             "login_type": null,
             "name": "default",
             "oidc_access_token": "",
@@ -68,62 +68,17 @@
           }
         },
         {
-          "address": "coder_agent.main",
-          "mode": "managed",
-          "type": "coder_agent",
-          "name": "main",
-          "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 1,
-          "values": {
-            "api_key_scope": "all",
-            "arch": "amd64",
-            "auth": "token",
-            "connection_timeout": 120,
-            "dir": null,
-            "display_apps": [
-              {
-                "port_forwarding_helper": true,
-                "ssh_helper": true,
-                "vscode": true,
-                "vscode_insiders": false,
-                "web_terminal": true
-              }
-            ],
-            "env": null,
-            "id": "0c95434c-9e4b-40aa-bd9b-2a0cc86f11af",
-            "init_script": "",
-            "metadata": [],
-            "motd_file": null,
-            "order": null,
-            "os": "linux",
-            "resources_monitoring": [],
-            "shutdown_script": null,
-            "startup_script": null,
-            "startup_script_behavior": "non-blocking",
-            "token": "ac32e23e-336a-4e63-a7a4-71ab85f16831",
-            "troubleshooting_url": null
-          },
-          "sensitive_values": {
-            "display_apps": [
-              {}
-            ],
-            "metadata": [],
-            "resources_monitoring": [],
-            "token": true
-          },
-          "depends_on": [
-            "data.coder_provisioner.me"
-          ]
-        },
-        {
-          "address": "coder_ai_task.a",
+          "address": "coder_ai_task.a[0]",
           "mode": "managed",
           "type": "coder_ai_task",
           "name": "a",
+          "index": 0,
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 1,
           "values": {
-            "id": "b83734ee-765f-45db-a37b-a1e89414be5f",
+            "app_id": "5ece4674-dd35-4f16-88c8-82e40e72e2fd",
+            "id": "89e6ab36-2e98-4d13-9b4c-69b7588b7e1d",
+            "prompt": "default",
             "sidebar_app": [
               {
                 "id": "5ece4674-dd35-4f16-88c8-82e40e72e2fd"

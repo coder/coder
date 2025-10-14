@@ -3119,6 +3119,36 @@ func (mr *MockStoreMockRecorder) GetTailnetTunnelPeerIDs(ctx, srcID any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTailnetTunnelPeerIDs", reflect.TypeOf((*MockStore)(nil).GetTailnetTunnelPeerIDs), ctx, srcID)
 }
 
+// GetTaskByID mocks base method.
+func (m *MockStore) GetTaskByID(ctx context.Context, id uuid.UUID) (database.Task, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTaskByID", ctx, id)
+	ret0, _ := ret[0].(database.Task)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTaskByID indicates an expected call of GetTaskByID.
+func (mr *MockStoreMockRecorder) GetTaskByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskByID", reflect.TypeOf((*MockStore)(nil).GetTaskByID), ctx, id)
+}
+
+// GetTaskByWorkspaceID mocks base method.
+func (m *MockStore) GetTaskByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.Task, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTaskByWorkspaceID", ctx, workspaceID)
+	ret0, _ := ret[0].(database.Task)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTaskByWorkspaceID indicates an expected call of GetTaskByWorkspaceID.
+func (mr *MockStoreMockRecorder) GetTaskByWorkspaceID(ctx, workspaceID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTaskByWorkspaceID", reflect.TypeOf((*MockStore)(nil).GetTaskByWorkspaceID), ctx, workspaceID)
+}
+
 // GetTelemetryItem mocks base method.
 func (m *MockStore) GetTelemetryItem(ctx context.Context, key string) (database.TelemetryItem, error) {
 	m.ctrl.T.Helper()
@@ -5242,6 +5272,21 @@ func (m *MockStore) InsertReplica(ctx context.Context, arg database.InsertReplic
 func (mr *MockStoreMockRecorder) InsertReplica(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertReplica", reflect.TypeOf((*MockStore)(nil).InsertReplica), ctx, arg)
+}
+
+// InsertTask mocks base method.
+func (m *MockStore) InsertTask(ctx context.Context, arg database.InsertTaskParams) (database.TaskTable, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertTask", ctx, arg)
+	ret0, _ := ret[0].(database.TaskTable)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertTask indicates an expected call of InsertTask.
+func (mr *MockStoreMockRecorder) InsertTask(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertTask", reflect.TypeOf((*MockStore)(nil).InsertTask), ctx, arg)
 }
 
 // InsertTelemetryItemIfNotExists mocks base method.
@@ -7515,6 +7560,21 @@ func (m *MockStore) UpsertTailnetTunnel(ctx context.Context, arg database.Upsert
 func (mr *MockStoreMockRecorder) UpsertTailnetTunnel(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTailnetTunnel", reflect.TypeOf((*MockStore)(nil).UpsertTailnetTunnel), ctx, arg)
+}
+
+// UpsertTaskWorkspaceApp mocks base method.
+func (m *MockStore) UpsertTaskWorkspaceApp(ctx context.Context, arg database.UpsertTaskWorkspaceAppParams) (database.TaskWorkspaceApp, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertTaskWorkspaceApp", ctx, arg)
+	ret0, _ := ret[0].(database.TaskWorkspaceApp)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpsertTaskWorkspaceApp indicates an expected call of UpsertTaskWorkspaceApp.
+func (mr *MockStoreMockRecorder) UpsertTaskWorkspaceApp(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTaskWorkspaceApp", reflect.TypeOf((*MockStore)(nil).UpsertTaskWorkspaceApp), ctx, arg)
 }
 
 // UpsertTelemetryItem mocks base method.
