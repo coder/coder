@@ -34,6 +34,7 @@ describe("NavbarView", () => {
 				canViewHealth
 				canViewAuditLog
 				canViewConnectionLog
+				canViewAIGovernance
 				supportLinks={[]}
 			/>,
 		);
@@ -53,6 +54,7 @@ describe("NavbarView", () => {
 				canViewHealth
 				canViewAuditLog
 				canViewConnectionLog
+				canViewAIGovernance
 				supportLinks={[]}
 			/>,
 		);
@@ -72,6 +74,7 @@ describe("NavbarView", () => {
 				canViewHealth
 				canViewAuditLog
 				canViewConnectionLog
+				canViewAIGovernance
 				supportLinks={[]}
 			/>,
 		);
@@ -92,6 +95,7 @@ describe("NavbarView", () => {
 				canViewHealth
 				canViewAuditLog
 				canViewConnectionLog
+				canViewAIGovernance
 				supportLinks={[]}
 			/>,
 		);
