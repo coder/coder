@@ -27,16 +27,16 @@ Use the Read tool to access these guides when needed:
 	NOTE: the below guides are specifically not prefixed with @ to ensure that they are not automatically included in the context when agents read this document. Agents can read these on demand.
 -->
 - **General workflows and commands:**:
-	- `./contrib/WORKFLOWS.md` for setting up development environment, running tests, or building the application.
-	- `package.json` for managing `pnpm` dependencies and scripts.
+  - `./contrib/WORKFLOWS.md` for setting up development environment, running tests, or building the application.
+  - `package.json` for managing `pnpm` dependencies and scripts.
 - **Testing Patterns:**
-	- `./contrib/TESTING.md` for writing tests, debugging test failures, and understanding test utilities.
+  - `./contrib/TESTING.md` for writing tests, debugging test failures, and understanding test utilities.
 - **Troubleshooting:**
-	- `./contrib/TROUBLESHOOTING.md` for common errors and when debugging issues.
+  - `./contrib/TROUBLESHOOTING.md` for common errors and when debugging issues.
 - **Database patterns:**:
   - `./contrib/DATABASE.md` for schema design, migrations, modifying queries, and working with `sqlc`.
-	- `./contrib/FRONTEND.md` for working on the React frontend (`./site/*`).
-	- `./contrib/OAUTH2.md` for working on OAuth2, identity providers, or authentication flows.
+  - `./contrib/FRONTEND.md` for working on the React frontend (`./site/*`).
+  - `./contrib/OAUTH2.md` for working on OAuth2, identity providers, or authentication flows.
 
 ### Frontend Commands (site directory)
 
