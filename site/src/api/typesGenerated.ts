@@ -1440,11 +1440,6 @@ export const Experiments: Experiment[] = [
 	"workspace-usage",
 ];
 
-// From codersdk/scopes_catalog.go
-export interface ExternalAPIKeyScopes {
-	readonly external: readonly APIKeyScope[];
-}
-
 // From codersdk/workspaces.go
 export interface ExternalAgentCredentials {
 	readonly command: string;
@@ -3174,6 +3169,26 @@ export interface STUNReport {
 	readonly Enabled: boolean;
 	readonly CanSTUN: boolean;
 	readonly Error: string | null;
+}
+
+// From codersdk/scope_catalog.go
+export interface ScopeCatalog {
+	readonly specials: readonly APIKeyScope[];
+	readonly low_level: readonly ScopeCatalogLowLevel[];
+	readonly composites: readonly ScopeCatalogComposite[];
+}
+
+// From codersdk/scope_catalog.go
+export interface ScopeCatalogComposite {
+	readonly name: APIKeyScope;
+	readonly expands_to: readonly APIKeyScope[];
+}
+
+// From codersdk/scope_catalog.go
+export interface ScopeCatalogLowLevel {
+	readonly name: APIKeyScope;
+	readonly resource: RBACResource;
+	readonly action: string;
 }
 
 // From serpent/serpent.go
