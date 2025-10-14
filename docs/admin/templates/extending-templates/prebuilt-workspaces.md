@@ -249,14 +249,14 @@ If a quota is exceeded, the prebuilt workspace will fail provisioning the same w
 
 ### Managing prebuild provisioning queues
 
-Prebuilt workspaces can overwhelm a Coder deployment, causing significant delays when users and template administrators attempt to create new workspaces or manage their templates. A few factors can work together to contribute to this scenario:
+Prebuilt workspaces can overwhelm a Coder deployment, causing significant delays when users and template administrators create new workspaces or manage their templates. Fundamentally, this happens when provisioners are not able to meet the demand for provisioner jobs. Prebuilds contribute to provisioner demand by scheduling many jobs in bursts whenever templates are updated. The solution is to either increase the number of provisioners or decrease the number of requested prebuilt workspaces across the entire system.
 
-1. **Organic overload**: Not enough provisioners to meet the deployment's needs
-2. **Broken templates**: A template that mistakenly requests too many prebuilt workspaces
+To identify if prebuilt workspaces have overwhelmed the available provisioners in your Coder deployment, look for:
+- Large or growing queue of prebuild‑related jobs
+- User workspace creation is slow
+- Publishing a new template version is not reflected in the UI because the associated template import job has not yet finished
 
-In the second case, it can be difficult to fix the situation because you cannot upload a corrected template version while the provisioners are overloaded.
-
-The troubleshooting steps below will help you resolve this situation:
+The troubleshooting steps below will help you assess and resolve this situation:
 
 1) Pause prebuilt workspace reconciliation to stop the problem from getting worse
 2) Check how many prebuild jobs are clogging your provisioner queue
@@ -355,7 +355,7 @@ resource "docker_container" "workspace" {
 Limit the scope of `ignore_changes` to include only the fields specified in the notification.
 If you include too many fields, Terraform might ignore changes that wouldn't otherwise cause drift.
 
-Learn more about `ignore_changes` in the [Terraform documentation](https://developer.hashicorp.com/terraform/language/v1.13.x/meta-arguments#lifecycle).
+Learn more about `ignore_changes` in the [Terraform documentation](https://developer.hashicorp.com/terraform/language/meta-arguments#lifecycle).
 
 _A note on "immutable" attributes: Terraform providers may specify `ForceNew` on their resources' attributes. Any change
 to these attributes require the replacement (destruction and recreation) of the managed resource instance, rather than an in-place update.
