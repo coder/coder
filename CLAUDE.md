@@ -1,9 +1,6 @@
 # Coder Development Guidelines
 
-@.claude/docs/WORKFLOWS.md
-@.cursorrules
-@README.md
-@package.json
+Reference `./README.md` for a high-level overview of the project.
 
 ## 🚀 Essential Commands
 
@@ -20,6 +17,26 @@
 | **Generate**      | `make gen`               | After database changes           |
 | **Format**        | `make fmt`               | Auto-format code                 |
 | **Clean**         | `make clean`             | Clean build artifacts            |
+
+## 📚 Detailed Development Guides
+
+This repository contains comprehensive development documentation.
+Use the Read tool to access these guides when needed:
+
+<!--
+	NOTE: the below guides are specifically not prefixed with @ to ensure that they are not automatically included in the context when agents read this document. Agents can read these on demand.
+-->
+- **General workflows and commands:**:
+	- `./contrib/WORKFLOWS.md` for setting up development environment, running tests, or building the application.
+	- `package.json` for managing `pnpm` dependencies and scripts.
+- **Testing Patterns:**
+	- `./contrib/TESTING.md` for writing tests, debugging test failures, and understanding test utilities.
+- **Troubleshooting:**
+	- `./contrib/TROUBLESHOOTING.md` for common errors and when debugging issues.
+- **Database patterns:**:
+  - `./contrib/DATABASE.md` for schema design, migrations, modifying queries, and working with `sqlc`.
+	- `./contrib/FRONTEND.md` for working on the React frontend (`./site/*`).
+	- `./contrib/OAUTH2.md` for working on OAuth2, identity providers, or authentication flows.
 
 ### Frontend Commands (site directory)
 
@@ -85,7 +102,7 @@ app, err := api.Database.GetOAuth2ProviderAppByClientID(ctx, clientID)
 ### New Feature Checklist
 
 - [ ] Run `git pull` to ensure latest code
-- [ ] Check if feature touches database - you'll need migrations
+- [ ] Check if feature touches database - you'll need migrations if the schema is modified.
 - [ ] Check if feature touches audit logs - update `enterprise/audit/table.go`
 
 ## 🏗️ Architecture
@@ -99,7 +116,7 @@ app, err := api.Database.GetOAuth2ProviderAppByClientID(ctx, clientID)
 
 ### Race Condition Prevention
 
-- Use unique identifiers: `fmt.Sprintf("test-client-%s-%d", t.Name(), time.Now().UnixNano())`
+- Use unique identifiers: `fmt.Sprintf("test-client-%s-%d", t.Name(), time.Now().UnixNano())` or `testutil.GetRandomname(t)`
 - Never use hardcoded names in concurrent tests
 
 ### OAuth2 Testing
@@ -118,13 +135,6 @@ seems like it should use `time.Sleep`, read through https://github.com/coder/qua
 
 - Follow [Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md)
 - Commit format: `type(scope): message`
-
-## 📚 Detailed Development Guides
-
-@.claude/docs/OAUTH2.md
-@.claude/docs/TESTING.md
-@.claude/docs/TROUBLESHOOTING.md
-@.claude/docs/DATABASE.md
 
 ## 🚨 Common Pitfalls
 
