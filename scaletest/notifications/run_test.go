@@ -199,13 +199,13 @@ func TestRunWithSMTP(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 
 	// Start SMTP mock server
-	smtpSrv := smtpmock.New(smtpmock.Config{
+	smtpSrv := new(smtpmock.Server)
+	err := smtpSrv.Start(ctx, smtpmock.Config{
 		HostAddress: "127.0.0.1",
 		SMTPPort:    0,
 		APIPort:     0,
 		Logger:      logger.Named("smtp"),
 	})
-	err := smtpSrv.Start(ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = smtpSrv.Stop()
