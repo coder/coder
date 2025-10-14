@@ -1,12 +1,15 @@
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "components/Table/Table";
-import { ChevronRight } from "lucide-react";
+import {
+	Table,
+	TableBody,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "components/Table/Table";
 import type { FC } from "react";
-import { cn } from "utils/cn";
+import { RequestLogsRow } from "./RequestLogsRow/RequestLogsRow";
 
 // biome-ignore lint/suspicious/noEmptyInterface: TODO
-interface RequestLogsPageViewProps {
-
-}
+interface RequestLogsPageViewProps {}
 
 export const RequestLogsPageView: FC<RequestLogsPageViewProps> = () => {
 	return (
@@ -24,24 +27,7 @@ export const RequestLogsPageView: FC<RequestLogsPageViewProps> = () => {
 			</TableHeader>
 			<TableBody>
 				{new Array(5).fill(0).map((_, x) => (
-					<>
-						<TableRow className={cn("cursor-pointer hover:bg-surface-secondary")} key={x}>
-							<TableCell>
-								<div css={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-									<ChevronRight size={16} />
-								</div>
-							</TableCell>
-							<TableCell>2025-01-01 00:00:00</TableCell>
-							<TableCell>John Doe</TableCell>
-							<TableCell>This is a prompt</TableCell>
-							<TableCell>100</TableCell>
-							<TableCell>1</TableCell>
-							<TableCell>Status</TableCell>
-						</TableRow>
-						<TableRow>
-							<TableCell colSpan={999}>Foo</TableCell>
-						</TableRow>
-					</>
+					<RequestLogsRow key={x} />
 				))}
 			</TableBody>
 		</Table>
