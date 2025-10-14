@@ -143,6 +143,159 @@ func TestAPIKeyScopesExpand(t *testing.T) {
 	})
 }
 
+func TestAPIKeyScopesCompositeDefaults(t *testing.T) {
+	t.Parallel()
+
+	workspaceID := uuid.NewString()
+	templateID := uuid.NewString()
+
+	t.Run("workspace_create_adds_template_default", func(t *testing.T) {
+		t.Parallel()
+		// User creates token with workspace.create scope and only specifies workspace in allow list
+		set := APIKeyScopes{"coder:workspaces.create"}.WithAllowList(AllowList{
+			{Type: rbac.ResourceWorkspace.Type, ID: workspaceID},
+		})
+
+		expanded, err := set.Expand()
+		require.NoError(t, err)
+
+		// Should have both workspace (user-specified) and template (default)
+		require.Len(t, expanded.AllowIDList, 2)
+		require.ElementsMatch(t, []rbac.AllowListElement{
+			{Type: rbac.ResourceTemplate.Type, ID: policy.WildcardSymbol},
+			{Type: rbac.ResourceWorkspace.Type, ID: workspaceID},
+		}, expanded.AllowIDList)
+	})
+
+	t.Run("workspace_create_empty_workspace_id", func(t *testing.T) {
+		t.Parallel()
+		// User creates token with empty workspace ID (for creation checks)
+		set := APIKeyScopes{"coder:workspaces.create"}.WithAllowList(AllowList{
+			{Type: rbac.ResourceWorkspace.Type, ID: ""},
+		})
+
+		expanded, err := set.Expand()
+		require.NoError(t, err)
+
+		// Should have both workspace with empty ID and template wildcard
+		require.Len(t, expanded.AllowIDList, 2)
+		require.ElementsMatch(t, []rbac.AllowListElement{
+			{Type: rbac.ResourceTemplate.Type, ID: policy.WildcardSymbol},
+			{Type: rbac.ResourceWorkspace.Type, ID: ""},
+		}, expanded.AllowIDList)
+	})
+
+	t.Run("workspace_create_both_types_present_no_defaults", func(t *testing.T) {
+		t.Parallel()
+		// User specifies both workspace and template - no defaults added
+		set := APIKeyScopes{"coder:workspaces.create"}.WithAllowList(AllowList{
+			{Type: rbac.ResourceWorkspace.Type, ID: workspaceID},
+			{Type: rbac.ResourceTemplate.Type, ID: templateID},
+		})
+
+		expanded, err := set.Expand()
+		require.NoError(t, err)
+
+		// Should keep user's specific template ID, not elevate to wildcard
+		require.Len(t, expanded.AllowIDList, 2)
+		require.ElementsMatch(t, []rbac.AllowListElement{
+			{Type: rbac.ResourceTemplate.Type, ID: templateID},
+			{Type: rbac.ResourceWorkspace.Type, ID: workspaceID},
+		}, expanded.AllowIDList)
+	})
+
+	t.Run("workspace_operate_multiple_defaults", func(t *testing.T) {
+		t.Parallel()
+		// workspace.operate has defaults for template and user
+		set := APIKeyScopes{"coder:workspaces.operate"}.WithAllowList(AllowList{
+			{Type: rbac.ResourceWorkspace.Type, ID: workspaceID},
+		})
+
+		expanded, err := set.Expand()
+		require.NoError(t, err)
+
+		// Should add both template and user defaults
+		require.Len(t, expanded.AllowIDList, 3)
+		require.ElementsMatch(t, []rbac.AllowListElement{
+			{Type: rbac.ResourceTemplate.Type, ID: policy.WildcardSymbol},
+			{Type: rbac.ResourceUser.Type, ID: policy.WildcardSymbol},
+			{Type: rbac.ResourceWorkspace.Type, ID: workspaceID},
+		}, expanded.AllowIDList)
+	})
+
+	t.Run("multiple_composite_scopes_merge_defaults", func(t *testing.T) {
+		t.Parallel()
+		// Multiple composite scopes should merge their defaults
+		set := APIKeyScopes{"coder:workspaces.create", "coder:workspaces.operate"}.WithAllowList(AllowList{
+			{Type: rbac.ResourceWorkspace.Type, ID: workspaceID},
+		})
+
+		expanded, err := set.Expand()
+		require.NoError(t, err)
+
+		// create has [workspace:, template:*]
+		// operate has [template:*, user:*]
+		// merged defaults: [workspace:, template:*, user:*]
+		// but workspace is already in allow list, so only add template and user
+		require.Len(t, expanded.AllowIDList, 3)
+		require.ElementsMatch(t, []rbac.AllowListElement{
+			{Type: rbac.ResourceTemplate.Type, ID: policy.WildcardSymbol},
+			{Type: rbac.ResourceUser.Type, ID: policy.WildcardSymbol},
+			{Type: rbac.ResourceWorkspace.Type, ID: workspaceID},
+		}, expanded.AllowIDList)
+	})
+
+	t.Run("wildcard_allow_list_skips_defaults", func(t *testing.T) {
+		t.Parallel()
+		// Global wildcard should not be modified by defaults
+		set := APIKeyScopes{"coder:workspaces.create"}.WithAllowList(AllowList{
+			{Type: policy.WildcardSymbol, ID: policy.WildcardSymbol},
+		})
+
+		expanded, err := set.Expand()
+		require.NoError(t, err)
+
+		// Should remain wildcard, no defaults added
+		requireAllowAll(t, expanded)
+	})
+
+	t.Run("low_level_scopes_no_defaults", func(t *testing.T) {
+		t.Parallel()
+		// Low-level scopes don't have composite defaults
+		set := APIKeyScopes{ApiKeyScopeWorkspaceRead}.WithAllowList(AllowList{
+			{Type: rbac.ResourceWorkspace.Type, ID: workspaceID},
+		})
+
+		expanded, err := set.Expand()
+		require.NoError(t, err)
+
+		// No defaults, just the user-specified allow list
+		require.Len(t, expanded.AllowIDList, 1)
+		require.Equal(t, rbac.AllowListElement{
+			Type: rbac.ResourceWorkspace.Type,
+			ID:   workspaceID,
+		}, expanded.AllowIDList[0])
+	})
+
+	t.Run("builtin_scopes_no_defaults", func(t *testing.T) {
+		t.Parallel()
+		// Built-in scopes like coder:all don't have specific defaults
+		set := APIKeyScopes{ApiKeyScopeCoderAll}.WithAllowList(AllowList{
+			{Type: rbac.ResourceWorkspace.Type, ID: workspaceID},
+		})
+
+		expanded, err := set.Expand()
+		require.NoError(t, err)
+
+		// No defaults, just the user-specified allow list
+		require.Len(t, expanded.AllowIDList, 1)
+		require.Equal(t, rbac.AllowListElement{
+			Type: rbac.ResourceWorkspace.Type,
+			ID:   workspaceID,
+		}, expanded.AllowIDList[0])
+	})
+}
+
 // Helpers
 func requirePermission(t *testing.T, s rbac.Scope, resource string, action policy.Action) {
 	t.Helper()

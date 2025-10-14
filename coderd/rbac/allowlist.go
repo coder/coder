@@ -302,3 +302,55 @@ func intersectID(scopeID, dbID string) string {
 		return scopeID
 	}
 }
+
+// MergeDefaultsForMissingTypes adds default allow list entries for resource
+// types that are not present in the current list. This is used to apply
+// composite scope defaults after scope expansion and intersection.
+//
+// The function returns the list unchanged if it contains a global wildcard
+// (*:*), since that already permits all resources.
+//
+// For each default entry, if no entry of that resource type exists in the
+// current list, the default is added. If an entry of that type already exists
+// (even with a specific ID), the default is not added to avoid elevating
+// permissions.
+//
+// Examples:
+//   - list=[workspace:uuid-A], defaults=[workspace:, template:*]
+//     → result=[workspace:uuid-A, template:*] (template added)
+//   - list=[*:*], defaults=[workspace:, template:*]
+//     → result=[*:*] (unchanged, wildcard allows all)
+//   - list=[workspace:uuid-A, template:uuid-B], defaults=[workspace:, template:*]
+//     → result=[workspace:uuid-A, template:uuid-B] (both types present, no defaults added)
+func MergeDefaultsForMissingTypes(list, defaults []AllowListElement) ([]AllowListElement, error) {
+	// If list is global wildcard, no need to add defaults.
+	if allowListContainsAll(list) {
+		return list, nil
+	}
+
+	// Build set of resource types present in the list.
+	typesPresent := make(map[string]struct{})
+	for _, elem := range list {
+		typesPresent[elem.Type] = struct{}{}
+	}
+
+	// Collect defaults for missing types.
+	result := make([]AllowListElement, 0, len(list)+len(defaults))
+	result = append(result, list...)
+
+	for _, defaultElem := range defaults {
+		// Skip global wildcard defaults (shouldn't happen but be defensive).
+		if defaultElem.Type == policy.WildcardSymbol && defaultElem.ID == policy.WildcardSymbol {
+			continue
+		}
+
+		// If this resource type is not present, add the default.
+		if _, present := typesPresent[defaultElem.Type]; !present {
+			result = append(result, defaultElem)
+			typesPresent[defaultElem.Type] = struct{}{}
+		}
+	}
+
+	// Normalize to deduplicate and sort.
+	return NormalizeAllowList(result)
+}
