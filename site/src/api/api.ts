@@ -2670,10 +2670,10 @@ class ApiMethods {
 // All methods must be defined with arrow function syntax. See the docstring
 // above the ApiMethods class for a full explanation.
 
-export type TaskFeedbackRate = "good" | "regular" | "bad";
+export type TaskFeedbackRating = "good" | "okay" | "bad";
 
 export type CreateTaskFeedbackRequest = {
-	rate: TaskFeedbackRate;
+	rate: TaskFeedbackRating;
 	comment?: string;
 };
 class ExperimentalApiMethods {

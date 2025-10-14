@@ -30,11 +30,13 @@ export const Submitting: Story = {
 
 		step("fill and submit the form", async () => {
 			const regularOption = body.getByLabelText(
-				"It sort-of worked, but struggled a lot",
+				"It sort of worked, but struggled a lot",
 			);
 			userEvent.click(regularOption);
 
-			const commentTextarea = body.getByLabelText("Additional comments");
+			const commentTextarea = body.getByRole("textbox", {
+				name: "Additional comments",
+			});
 			await userEvent.type(commentTextarea, "This is my comment");
 
 			const submitButton = body.getByRole("button", {
@@ -58,11 +60,13 @@ export const Success: Story = {
 
 		step("fill and submit the form", async () => {
 			const regularOption = body.getByLabelText(
-				"It sort-of worked, but struggled a lot",
+				"It sort of worked, but struggled a lot",
 			);
 			userEvent.click(regularOption);
 
-			const commentTextarea = body.getByLabelText("Additional comments");
+			const commentTextarea = body.getByRole("textbox", {
+				name: "Additional comments",
+			});
 			await userEvent.type(commentTextarea, "This is my comment");
 
 			const submitButton = body.getByRole("button", {
@@ -98,11 +102,13 @@ export const Failure: Story = {
 
 		step("fill and submit the form", async () => {
 			const regularOption = body.getByLabelText(
-				"It sort-of worked, but struggled a lot",
+				"It sort of worked, but struggled a lot",
 			);
 			userEvent.click(regularOption);
 
-			const commentTextarea = body.getByLabelText("Additional comments");
+			const commentTextarea = body.getByRole("textbox", {
+				name: "Additional comments",
+			});
 			await userEvent.type(commentTextarea, "This is my comment");
 
 			const submitButton = body.getByRole("button", {

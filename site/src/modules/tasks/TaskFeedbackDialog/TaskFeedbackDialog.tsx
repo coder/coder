@@ -1,8 +1,7 @@
-import type { DialogProps } from "@radix-ui/react-dialog";
 import {
 	API,
 	type CreateTaskFeedbackRequest,
-	type TaskFeedbackRate,
+	type TaskFeedbackRating,
 } from "api/api";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
@@ -15,6 +14,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "components/Dialog/Dialog";
+import type { DialogProps } from "components/Dialogs/Dialog";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Spinner } from "components/Spinner/Spinner";
 import { Textarea } from "components/Textarea/Textarea";
@@ -24,7 +24,7 @@ import type { FC, HTMLProps, ReactNode } from "react";
 import { useMutation } from "react-query";
 
 type TaskFeedbackFormValues = {
-	rate: TaskFeedbackRate | null;
+	rate: TaskFeedbackRating | null;
 	comment: string;
 };
 
@@ -54,7 +54,12 @@ export const TaskFeedbackDialog: FC<TaskFeedbackDialogProps> = ({
 			comment: "",
 		},
 		onSubmit: (values) => {
-			createFeedback(values as CreateTaskFeedbackRequest);
+			if (values.rate !== null) {
+				createFeedback({
+					rate: values.rate,
+					comment: values.comment,
+				});
+			}
 		},
 	});
 
@@ -78,23 +83,20 @@ export const TaskFeedbackDialog: FC<TaskFeedbackDialogProps> = ({
 				>
 					{error && <ErrorAlert error={error} />}
 
-					<div
-						className="flex flex-col gap-1"
-						role="radiogroup"
-						aria-label="Rate your experience"
-					>
+					<fieldset className="flex flex-col gap-1">
+						<legend className="sr-only">Rate your experience</legend>
 						<RateOption {...formik.getFieldProps("rate")} value="good">
 							<SmileIcon />I achieved my goal
 						</RateOption>
-						<RateOption {...formik.getFieldProps("rate")} value="regular">
+						<RateOption {...formik.getFieldProps("rate")} value="okay">
 							<MehIcon />
-							It sort-of worked, but struggled a lot
+							It sort of worked, but struggled a lot
 						</RateOption>
 						<RateOption {...formik.getFieldProps("rate")} value="bad">
 							<FrownIcon />
 							It was a flop
 						</RateOption>
-					</div>
+					</fieldset>
 
 					<label className="sr-only" htmlFor="comment">
 						Additional comments
