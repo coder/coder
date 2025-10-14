@@ -189,6 +189,7 @@ jobs:
           TEMPLATE_PRESET: ${{ steps.determine-inputs.outputs.template_preset }}
         run: |
           # Fetch issue description using `gh` CLI
+          #shellcheck disable=SC2016 # The template string should not be subject to shell expansion
           issue_description=$(gh issue view "${ISSUE_URL}" \
             --json 'title,body,comments' \
             --template '{{printf "%s\n" .title}}{{printf "%s\n\nComments:\n" .body}}{{range $k, $v := .comments}}  - {{index $v.author "login"}}: {{printf "%s\n" $v.body}}{{end}}')
