@@ -3,6 +3,7 @@ package notifications
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -22,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/scaletest/harness"
 	"github.com/coder/coder/v2/scaletest/loadtestutil"
 	"github.com/coder/coder/v2/scaletest/smtpmock"
+	"github.com/coder/quartz"
 	"github.com/coder/websocket"
 )
 
@@ -31,22 +33,30 @@ type Runner struct {
 
 	createUserRunner *createusers.Runner
 
-	// websocketLatencies stores the latency for websocket notifications
-	websocketLatencies   map[uuid.UUID]time.Duration
-	websocketLatenciesMu sync.RWMutex
+	// websocketReceiptTimes stores the receipt time for websocket notifications
+	websocketReceiptTimes   map[uuid.UUID]time.Time
+	websocketReceiptTimesMu sync.RWMutex
 
-	// smtpLatencies stores the latency for SMTP notifications
-	smtpLatencies   map[uuid.UUID]time.Duration
-	smtpLatenciesMu sync.RWMutex
+	// smtpReceiptTimes stores the receipt time for SMTP notifications
+	smtpReceiptTimes   map[uuid.UUID]time.Time
+	smtpReceiptTimesMu sync.RWMutex
+
+	clock quartz.Clock
 }
 
 func NewRunner(client *codersdk.Client, cfg Config) *Runner {
 	return &Runner{
-		client:             client,
-		cfg:                cfg,
-		websocketLatencies: make(map[uuid.UUID]time.Duration),
-		smtpLatencies:      make(map[uuid.UUID]time.Duration),
+		client:                client,
+		cfg:                   cfg,
+		websocketReceiptTimes: make(map[uuid.UUID]time.Time),
+		smtpReceiptTimes:      make(map[uuid.UUID]time.Time),
+		clock:                 quartz.NewReal(),
 	}
+}
+
+func (r *Runner) WithClock(clock quartz.Clock) *Runner {
+	r.clock = clock
+	return r
 }
 
 var (
@@ -180,28 +190,28 @@ func (r *Runner) Cleanup(ctx context.Context, id string, logs io.Writer) error {
 }
 
 const (
-	WebsocketNotificationLatencyMetric = "notification_websocket_latency_seconds"
-	SMTPNotificationLatencyMetric      = "notification_smtp_latency_seconds"
+	WebsocketNotificationReceiptTimeMetric = "notification_websocket_receipt_time"
+	SMTPNotificationReceiptTimeMetric      = "notification_smtp_receipt_time"
 )
 
 func (r *Runner) GetMetrics() map[string]any {
-	r.websocketLatenciesMu.RLock()
-	websocketLatencies := make(map[uuid.UUID]time.Duration, len(r.websocketLatencies))
-	for id, latency := range r.websocketLatencies {
-		websocketLatencies[id] = latency
+	r.websocketReceiptTimesMu.RLock()
+	websocketReceiptTimes := make(map[uuid.UUID]time.Time, len(r.websocketReceiptTimes))
+	for id, receiptTime := range r.websocketReceiptTimes {
+		websocketReceiptTimes[id] = receiptTime
 	}
-	r.websocketLatenciesMu.RUnlock()
+	r.websocketReceiptTimesMu.RUnlock()
 
-	r.smtpLatenciesMu.RLock()
-	smtpLatencies := make(map[uuid.UUID]time.Duration, len(r.smtpLatencies))
-	for id, latency := range r.smtpLatencies {
-		smtpLatencies[id] = latency
+	r.smtpReceiptTimesMu.RLock()
+	smtpReceiptTimes := make(map[uuid.UUID]time.Time, len(r.smtpReceiptTimes))
+	for id, receiptTime := range r.smtpReceiptTimes {
+		smtpReceiptTimes[id] = receiptTime
 	}
-	r.smtpLatenciesMu.RUnlock()
+	r.smtpReceiptTimesMu.RUnlock()
 
 	return map[string]any{
-		WebsocketNotificationLatencyMetric: websocketLatencies,
-		SMTPNotificationLatencyMetric:      smtpLatencies,
+		WebsocketNotificationReceiptTimeMetric: websocketReceiptTimes,
+		SMTPNotificationReceiptTimeMetric:      smtpReceiptTimes,
 	}
 }
 
@@ -262,25 +272,18 @@ func (r *Runner) watchNotifications(ctx context.Context, conn *websocket.Conn, u
 		}
 
 		templateID := notif.Notification.TemplateID
-		if triggerTimeChan, exists := expectedNotifications[templateID]; exists {
-			if _, exists := receivedNotifications[templateID]; !exists {
+		if _, exists := expectedNotifications[templateID]; exists {
+			if _, received := receivedNotifications[templateID]; !received {
 				receiptTime := time.Now()
-				select {
-				case triggerTime := <-triggerTimeChan:
-					latency := receiptTime.Sub(triggerTime)
-					r.websocketLatenciesMu.Lock()
-					r.websocketLatencies[templateID] = latency
-					r.websocketLatenciesMu.Unlock()
-					r.cfg.Metrics.RecordLatency(latency, user.Username, templateID.String(), NotificationTypeWebsocket)
-					receivedNotifications[templateID] = struct{}{}
+				r.websocketReceiptTimesMu.Lock()
+				r.websocketReceiptTimes[templateID] = receiptTime
+				r.websocketReceiptTimesMu.Unlock()
+				receivedNotifications[templateID] = struct{}{}
 
-					logger.Info(ctx, "received expected notification",
-						slog.F("template_id", templateID),
-						slog.F("title", notif.Notification.Title),
-						slog.F("latency", latency))
-				case <-ctx.Done():
-					return xerrors.Errorf("context canceled while waiting for trigger time: %w", ctx.Err())
-				}
+				logger.Info(ctx, "received expected notification",
+					slog.F("template_id", templateID),
+					slog.F("title", notif.Notification.Title),
+					slog.F("receipt_time", receiptTime))
 			}
 		} else {
 			logger.Debug(ctx, "received notification not being tested",
@@ -290,8 +293,6 @@ func (r *Runner) watchNotifications(ctx context.Context, conn *websocket.Conn, u
 	}
 }
 
-const smtpPollInterval = 2 * time.Second
-
 // watchNotificationsSMTP polls the SMTP HTTP API for notifications and returns error or nil
 // once all expected notifications are received.
 func (r *Runner) watchNotificationsSMTP(ctx context.Context, user codersdk.User, logger slog.Logger, expectedNotifications map[uuid.UUID]chan time.Time) error {
@@ -300,92 +301,88 @@ func (r *Runner) watchNotificationsSMTP(ctx context.Context, user codersdk.User,
 		slog.F("email", user.Email),
 		slog.F("expected_count", len(expectedNotifications)),
 	)
-
 	receivedNotifications := make(map[uuid.UUID]struct{})
-	ticker := time.NewTicker(smtpPollInterval)
-	defer ticker.Stop()
 
 	apiURL := fmt.Sprintf("%s/messages?email=%s", r.cfg.SMTPApiURL, user.Email)
 	httpClient := &http.Client{
 		Timeout: 10 * time.Second,
 	}
 
-	for {
-		select {
-		case <-ctx.Done():
-			return xerrors.Errorf("context canceled while waiting for notifications: %w", ctx.Err())
-		case <-ticker.C:
-			if len(receivedNotifications) == len(expectedNotifications) {
-				logger.Info(ctx, "received all expected notifications via SMTP")
-				return nil
-			}
+	const smtpPollInterval = 2 * time.Second
+	done := xerrors.New("done")
 
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
-			if err != nil {
-				logger.Error(ctx, "create SMTP API request", slog.Error(err))
-				r.cfg.Metrics.AddError(user.Username, "smtp_create_request")
-				return xerrors.Errorf("create SMTP API request: %w", err)
-			}
+	tkr := r.clock.TickerFunc(ctx, smtpPollInterval, func() error {
+		if len(receivedNotifications) == len(expectedNotifications) {
+			logger.Info(ctx, "received all expected notifications via SMTP")
+			return done
+		}
 
-			resp, err := httpClient.Do(req)
-			if err != nil {
-				logger.Error(ctx, "poll smtp api for notifications", slog.Error(err))
-				r.cfg.Metrics.AddError(user.Username, "smtp_poll")
-				return xerrors.Errorf("poll smtp api: %w", err)
-			}
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
+		if err != nil {
+			logger.Error(ctx, "create SMTP API request", slog.Error(err))
+			r.cfg.Metrics.AddError(user.Username, "smtp_create_request")
+			return xerrors.Errorf("create SMTP API request: %w", err)
+		}
 
-			if resp.StatusCode != http.StatusOK {
-				_ = resp.Body.Close()
-				logger.Error(ctx, "smtp api returned non-200 status", slog.F("status", resp.StatusCode))
-				r.cfg.Metrics.AddError(user.Username, "smtp_bad_status")
-				return xerrors.Errorf("smtp api returned status %d", resp.StatusCode)
-			}
+		resp, err := httpClient.Do(req)
+		if err != nil {
+			logger.Error(ctx, "poll smtp api for notifications", slog.Error(err))
+			r.cfg.Metrics.AddError(user.Username, "smtp_poll")
+			return xerrors.Errorf("poll smtp api: %w", err)
+		}
 
-			var summaries []smtpmock.EmailSummary
-			if err := json.NewDecoder(resp.Body).Decode(&summaries); err != nil {
-				_ = resp.Body.Close()
-				logger.Error(ctx, "decode smtp api response", slog.Error(err))
-				r.cfg.Metrics.AddError(user.Username, "smtp_decode")
-				return xerrors.Errorf("decode smtp api response: %w", err)
-			}
+		if resp.StatusCode != http.StatusOK {
 			_ = resp.Body.Close()
+			logger.Error(ctx, "smtp api returned non-200 status", slog.F("status", resp.StatusCode))
+			r.cfg.Metrics.AddError(user.Username, "smtp_bad_status")
+			return xerrors.Errorf("smtp api returned status %d", resp.StatusCode)
+		}
 
-			// Process each email summary
-			for _, summary := range summaries {
-				notificationID := summary.NotificationTemplateID
-				if notificationID == uuid.Nil {
-					continue
-				}
+		var summaries []smtpmock.EmailSummary
+		if err := json.NewDecoder(resp.Body).Decode(&summaries); err != nil {
+			_ = resp.Body.Close()
+			logger.Error(ctx, "decode smtp api response", slog.Error(err))
+			r.cfg.Metrics.AddError(user.Username, "smtp_decode")
+			return xerrors.Errorf("decode smtp api response: %w", err)
+		}
+		_ = resp.Body.Close()
 
-				if triggerTimeChan, exists := expectedNotifications[notificationID]; exists {
-					if _, received := receivedNotifications[notificationID]; !received {
-						receiptTime := summary.Date
-						if receiptTime.IsZero() {
-							receiptTime = time.Now()
-						}
+		// Process each email summary
+		for _, summary := range summaries {
+			notificationID := summary.NotificationTemplateID
+			if notificationID == uuid.Nil {
+				continue
+			}
 
-						select {
-						case triggerTime := <-triggerTimeChan:
-							latency := receiptTime.Sub(triggerTime)
-							r.smtpLatenciesMu.Lock()
-							r.smtpLatencies[notificationID] = latency
-							r.smtpLatenciesMu.Unlock()
-							r.cfg.Metrics.RecordLatency(latency, user.Username, notificationID.String(), NotificationTypeSMTP)
-							receivedNotifications[notificationID] = struct{}{}
-
-							logger.Info(ctx, "received expected notification via SMTP",
-								slog.F("notification_id", notificationID),
-								slog.F("subject", summary.Subject),
-								slog.F("latency", latency))
-						case <-ctx.Done():
-							return xerrors.Errorf("context canceled while waiting for trigger time: %w", ctx.Err())
-						default:
-						}
+			if _, exists := expectedNotifications[notificationID]; exists {
+				if _, received := receivedNotifications[notificationID]; !received {
+					receiptTime := summary.Date
+					if receiptTime.IsZero() {
+						receiptTime = time.Now()
 					}
+
+					r.smtpReceiptTimesMu.Lock()
+					r.smtpReceiptTimes[notificationID] = receiptTime
+					r.smtpReceiptTimesMu.Unlock()
+					receivedNotifications[notificationID] = struct{}{}
+
+					logger.Info(ctx, "received expected notification via SMTP",
+						slog.F("notification_id", notificationID),
+						slog.F("subject", summary.Subject),
+						slog.F("receipt_time", receiptTime))
 				}
 			}
 		}
+
+		return nil
+	}, "smtp")
+
+	err := tkr.Wait()
+	if errors.Is(err, done) {
+		return nil
 	}
+
+	return err
 }
 
 func readNotification(ctx context.Context, conn *websocket.Conn) (codersdk.GetInboxNotificationResponse, error) {

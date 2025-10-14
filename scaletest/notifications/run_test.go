@@ -2,7 +2,10 @@ package notifications_test
 
 import (
 	"context"
+	"encoding/json"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"strconv"
 	"sync"
 	"testing"
@@ -10,21 +13,15 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
-	"golang.org/x/xerrors"
-
-	"cdr.dev/slog"
-	"github.com/coder/serpent"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
-	"github.com/coder/coder/v2/coderd/database/pubsub"
 	notificationsLib "github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
+	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/scaletest/createusers"
 	"github.com/coder/coder/v2/scaletest/notifications"
@@ -40,13 +37,11 @@ func TestRun(t *testing.T) {
 	logger := testutil.Logger(t)
 	db, ps := dbtestutil.NewDB(t)
 
-	// Setup notifications manager with inbox handler
-	enqueuer := setupNotificationManager(ctx, t, logger, db, ps, nil)
+	inboxHandler := dispatch.NewInboxHandler(logger.Named("inbox"), db, ps)
 
 	client := coderdtest.New(t, &coderdtest.Options{
-		Database:              db,
-		Pubsub:                ps,
-		NotificationsEnqueuer: enqueuer,
+		Database: db,
+		Pubsub:   ps,
 	})
 	firstUser := coderdtest.CreateFirstUser(t, client)
 
@@ -71,6 +66,7 @@ func TestRun(t *testing.T) {
 		runnerCfg := notifications.Config{
 			User: createusers.Config{
 				OrganizationID: firstUser.OrganizationID,
+				Username:       "receiving-user-" + strconv.Itoa(i),
 			},
 			Roles:                 []string{codersdk.RoleOwner},
 			NotificationTimeout:   testutil.WaitLong,
@@ -119,23 +115,15 @@ func TestRun(t *testing.T) {
 		// Wait for all runners to connect
 		dialBarrier.Wait()
 
-		createTime := time.Now()
-		newUser, err := client.CreateUserWithOrgs(runCtx, codersdk.CreateUserRequestWithOrgs{
-			OrganizationIDs: []uuid.UUID{firstUser.OrganizationID},
-			Email:           "test-user@coder.com",
-			Username:        "test-user",
-			Password:        "SomeSecurePassword!",
-		})
-		if err != nil {
-			return xerrors.Errorf("create test user: %w", err)
+		notificationTime := time.Now()
+		for i := 0; i < numReceivingUsers; i++ {
+			err := sendInboxNotification(runCtx, t, db, inboxHandler, "receiving-user-"+strconv.Itoa(i), notificationsLib.TemplateUserAccountCreated)
+			require.NoError(t, err)
+			err = sendInboxNotification(runCtx, t, db, inboxHandler, "receiving-user-"+strconv.Itoa(i), notificationsLib.TemplateUserAccountDeleted)
+			require.NoError(t, err)
 		}
-		expectedNotifications[notificationsLib.TemplateUserAccountCreated] <- createTime
-
-		deleteTime := time.Now()
-		if err := client.DeleteUser(runCtx, newUser.ID); err != nil {
-			return xerrors.Errorf("delete test user: %w", err)
-		}
-		expectedNotifications[notificationsLib.TemplateUserAccountDeleted] <- deleteTime
+		expectedNotifications[notificationsLib.TemplateUserAccountCreated] <- notificationTime
+		expectedNotifications[notificationsLib.TemplateUserAccountDeleted] <- notificationTime
 
 		close(expectedNotifications[notificationsLib.TemplateUserAccountCreated])
 		close(expectedNotifications[notificationsLib.TemplateUserAccountDeleted])
@@ -167,27 +155,10 @@ func TestRun(t *testing.T) {
 
 	for _, runner := range receivingRunners {
 		metrics := runner.GetMetrics()
-		websocketLatencies := metrics[notifications.WebsocketNotificationLatencyMetric].(map[uuid.UUID]time.Duration)
+		websocketReceiptTimes := metrics[notifications.WebsocketNotificationReceiptTimeMetric].(map[uuid.UUID]time.Time)
 
-		require.Contains(t, websocketLatencies, notificationsLib.TemplateUserAccountCreated)
-		require.Contains(t, websocketLatencies, notificationsLib.TemplateUserAccountDeleted)
-	}
-}
-
-func defaultNotificationsConfig(method database.NotificationMethod) codersdk.NotificationsConfig {
-	return codersdk.NotificationsConfig{
-		Method:              serpent.String(method),
-		MaxSendAttempts:     5,
-		FetchInterval:       serpent.Duration(time.Millisecond * 100),
-		StoreSyncInterval:   serpent.Duration(time.Millisecond * 200),
-		LeasePeriod:         serpent.Duration(time.Second * 10),
-		DispatchTimeout:     serpent.Duration(time.Second * 5),
-		RetryInterval:       serpent.Duration(time.Millisecond * 50),
-		LeaseCount:          10,
-		StoreSyncBufferSize: 50,
-		Inbox: codersdk.NotificationsInboxConfig{
-			Enabled: serpent.Bool(true),
-		},
+		require.Contains(t, websocketReceiptTimes, notificationsLib.TemplateUserAccountCreated)
+		require.Contains(t, websocketReceiptTimes, notificationsLib.TemplateUserAccountDeleted)
 	}
 }
 
@@ -198,33 +169,35 @@ func TestRunWithSMTP(t *testing.T) {
 	logger := testutil.Logger(t)
 	db, ps := dbtestutil.NewDB(t)
 
-	// Start SMTP mock server
-	smtpSrv := new(smtpmock.Server)
-	err := smtpSrv.Start(ctx, smtpmock.Config{
-		HostAddress: "127.0.0.1",
-		SMTPPort:    0,
-		APIPort:     0,
-		Logger:      logger.Named("smtp"),
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = smtpSrv.Stop()
-	})
-
-	// Setup notifications manager with inbox and SMTP handler
-	smtpConfig := &codersdk.NotificationsEmailConfig{
-		From:      "noreply@coder.com",
-		Smarthost: serpent.String(smtpSrv.SMTPAddress()),
-		Hello:     "localhost",
-	}
-	enqueuer := setupNotificationManager(ctx, t, logger, db, ps, smtpConfig)
+	inboxHandler := dispatch.NewInboxHandler(logger.Named("inbox"), db, ps)
 
 	client := coderdtest.New(t, &coderdtest.Options{
-		Database:              db,
-		Pubsub:                ps,
-		NotificationsEnqueuer: enqueuer,
+		Database: db,
+		Pubsub:   ps,
 	})
 	firstUser := coderdtest.CreateFirstUser(t, client)
+
+	smtpAPIMux := http.NewServeMux()
+	smtpAPIMux.HandleFunc("/messages", func(w http.ResponseWriter, r *http.Request) {
+		summaries := []smtpmock.EmailSummary{
+			{
+				Subject:                "TemplateUserAccountCreated",
+				Date:                   time.Now(),
+				NotificationTemplateID: notificationsLib.TemplateUserAccountCreated,
+			},
+			{
+				Subject:                "TemplateUserAccountDeleted",
+				Date:                   time.Now(),
+				NotificationTemplateID: notificationsLib.TemplateUserAccountDeleted,
+			},
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(summaries)
+	})
+
+	smtpAPIServer := httptest.NewServer(smtpAPIMux)
+	defer smtpAPIServer.Close()
 
 	const numReceivingUsers = 2
 	const numRegularUsers = 2
@@ -241,12 +214,17 @@ func TestRunWithSMTP(t *testing.T) {
 		notificationsLib.TemplateUserAccountDeleted: make(chan time.Time, 1),
 	}
 
+	mClock := quartz.NewMock(t)
+	smtpTrap := mClock.Trap().TickerFunc("smtp")
+	defer smtpTrap.Close()
+
 	// Start receiving runners who will receive notifications
 	receivingRunners := make([]*notifications.Runner, 0, numReceivingUsers)
 	for i := range numReceivingUsers {
 		runnerCfg := notifications.Config{
 			User: createusers.Config{
 				OrganizationID: firstUser.OrganizationID,
+				Username:       "receiving-user-" + strconv.Itoa(i),
 			},
 			Roles:                 []string{codersdk.RoleOwner},
 			NotificationTimeout:   testutil.WaitLong,
@@ -255,12 +233,12 @@ func TestRunWithSMTP(t *testing.T) {
 			DialBarrier:           dialBarrier,
 			ReceivingWatchBarrier: receivingWatchBarrier,
 			ExpectedNotifications: expectedNotifications,
-			SMTPApiURL:            smtpSrv.APIAddress(),
+			SMTPApiURL:            smtpAPIServer.URL,
 		}
 		err := runnerCfg.Validate()
 		require.NoError(t, err)
 
-		runner := notifications.NewRunner(client, runnerCfg)
+		runner := notifications.NewRunner(client, runnerCfg).WithClock(mClock)
 		receivingRunners = append(receivingRunners, runner)
 		eg.Go(func() error {
 			return runner.Run(runCtx, "receiving-"+strconv.Itoa(i), io.Discard)
@@ -296,23 +274,24 @@ func TestRunWithSMTP(t *testing.T) {
 		// Wait for all runners to connect
 		dialBarrier.Wait()
 
-		createTime := time.Now()
-		newUser, err := client.CreateUserWithOrgs(runCtx, codersdk.CreateUserRequestWithOrgs{
-			OrganizationIDs: []uuid.UUID{firstUser.OrganizationID},
-			Email:           "test-smtp-user@coder.com",
-			Username:        "test-smtp-user",
-			Password:        "SomeSecurePassword!",
-		})
-		if err != nil {
-			return xerrors.Errorf("create test user: %w", err)
+		for i := 0; i < numReceivingUsers; i++ {
+			smtpTrap.MustWait(runCtx).MustRelease(runCtx)
 		}
-		expectedNotifications[notificationsLib.TemplateUserAccountCreated] <- createTime
 
-		deleteTime := time.Now()
-		if err := client.DeleteUser(runCtx, newUser.ID); err != nil {
-			return xerrors.Errorf("delete test user: %w", err)
+		notificationTime := time.Now()
+		for i := 0; i < numReceivingUsers; i++ {
+			err := sendInboxNotification(runCtx, t, db, inboxHandler, "receiving-user-"+strconv.Itoa(i), notificationsLib.TemplateUserAccountCreated)
+			require.NoError(t, err)
+			err = sendInboxNotification(runCtx, t, db, inboxHandler, "receiving-user-"+strconv.Itoa(i), notificationsLib.TemplateUserAccountDeleted)
+			require.NoError(t, err)
 		}
-		expectedNotifications[notificationsLib.TemplateUserAccountDeleted] <- deleteTime
+		expectedNotifications[notificationsLib.TemplateUserAccountCreated] <- notificationTime
+		expectedNotifications[notificationsLib.TemplateUserAccountDeleted] <- notificationTime
+
+		for i := 0; i < numReceivingUsers; i++ {
+			_, w := mClock.AdvanceNext()
+			w.MustWait(runCtx)
+		}
 
 		close(expectedNotifications[notificationsLib.TemplateUserAccountCreated])
 		close(expectedNotifications[notificationsLib.TemplateUserAccountDeleted])
@@ -320,7 +299,7 @@ func TestRunWithSMTP(t *testing.T) {
 		return nil
 	})
 
-	err = eg.Wait()
+	err := eg.Wait()
 	require.NoError(t, err, "runner execution with SMTP should complete successfully")
 
 	cleanupEg, cleanupCtx := errgroup.WithContext(ctx)
@@ -345,69 +324,34 @@ func TestRunWithSMTP(t *testing.T) {
 	// Verify that notifications were received via both websocket and SMTP
 	for _, runner := range receivingRunners {
 		metrics := runner.GetMetrics()
-		websocketLatencies := metrics[notifications.WebsocketNotificationLatencyMetric].(map[uuid.UUID]time.Duration)
-		smtpLatencies := metrics[notifications.SMTPNotificationLatencyMetric].(map[uuid.UUID]time.Duration)
+		websocketReceiptTimes := metrics[notifications.WebsocketNotificationReceiptTimeMetric].(map[uuid.UUID]time.Time)
+		smtpReceiptTimes := metrics[notifications.SMTPNotificationReceiptTimeMetric].(map[uuid.UUID]time.Time)
 
-		require.Contains(t, websocketLatencies, notificationsLib.TemplateUserAccountCreated)
-		require.Contains(t, websocketLatencies, notificationsLib.TemplateUserAccountDeleted)
-		require.Contains(t, smtpLatencies, notificationsLib.TemplateUserAccountCreated)
-		require.Contains(t, smtpLatencies, notificationsLib.TemplateUserAccountDeleted)
+		require.Contains(t, websocketReceiptTimes, notificationsLib.TemplateUserAccountCreated)
+		require.Contains(t, websocketReceiptTimes, notificationsLib.TemplateUserAccountDeleted)
+		require.Contains(t, smtpReceiptTimes, notificationsLib.TemplateUserAccountCreated)
+		require.Contains(t, smtpReceiptTimes, notificationsLib.TemplateUserAccountDeleted)
 	}
 }
 
-func setupNotificationManager(
-	ctx context.Context,
-	t *testing.T,
-	logger slog.Logger,
-	db database.Store,
-	ps pubsub.Pubsub,
-	smtpConfig *codersdk.NotificationsEmailConfig,
-) *notificationsLib.StoreEnqueuer {
-	cfg := defaultNotificationsConfig(database.NotificationMethodSmtp)
-	if smtpConfig != nil {
-		cfg.SMTP = *smtpConfig
-	}
-
-	mgr, err := notificationsLib.NewManager(
-		cfg,
-		db,
-		ps,
-		defaultHelpers(),
-		notificationsLib.NewMetrics(prometheus.NewRegistry()),
-		logger.Named("manager"),
-	)
-	require.NoError(t, err)
-
-	handlers := map[database.NotificationMethod]notificationsLib.Handler{
-		database.NotificationMethodInbox: dispatch.NewInboxHandler(logger.Named("inbox"), db, ps),
-	}
-	if smtpConfig != nil {
-		handlers[database.NotificationMethodSmtp] = dispatch.NewSMTPHandler(cfg.SMTP, logger.Named("smtp"))
-	}
-	mgr.WithHandlers(handlers)
-
-	t.Cleanup(func() {
-		assert.NoError(t, mgr.Stop(dbauthz.AsNotifier(ctx)))
+func sendInboxNotification(ctx context.Context, t *testing.T, db database.Store, inboxHandler *dispatch.InboxHandler, username string, templateID uuid.UUID) error {
+	user, err := db.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
+		Username: username,
 	})
-	mgr.Run(dbauthz.AsNotifier(ctx))
-
-	enqueuer, err := notificationsLib.NewStoreEnqueuer(
-		cfg,
-		db,
-		defaultHelpers(),
-		logger.Named("enqueuer"),
-		quartz.NewReal(),
-	)
 	require.NoError(t, err)
 
-	return enqueuer
-}
-
-func defaultHelpers() map[string]any {
-	return map[string]any{
-		"base_url":     func() string { return "http://test.com" },
-		"current_year": func() string { return "2024" },
-		"logo_url":     func() string { return "https://coder.com/coder-logo-horizontal.png" },
-		"app_name":     func() string { return "Coder" },
+	dispatchFunc, err := inboxHandler.Dispatcher(types.MessagePayload{
+		UserID:                 user.ID.String(),
+		NotificationTemplateID: templateID.String(),
+	}, "", "", nil)
+	if err != nil {
+		return err
 	}
+
+	_, err = dispatchFunc(ctx, uuid.New())
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

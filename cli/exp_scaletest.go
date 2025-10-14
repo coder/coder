@@ -1976,10 +1976,8 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 				return xerrors.Errorf("--owner-user-percentage must be between 0 and 100")
 			}
 
-			if smtpAPIURL != "" {
-				if !strings.HasPrefix(smtpAPIURL, "http://") && !strings.HasPrefix(smtpAPIURL, "https://") {
-					return xerrors.Errorf("smtp_api_url must start with http:// or https://")
-				}
+			if smtpAPIURL != "" && !strings.HasPrefix(smtpAPIURL, "http://") && !strings.HasPrefix(smtpAPIURL, "https://") {
+				return xerrors.Errorf("--smtp-api-url must start with http:// or https://")
 			}
 
 			ownerUserCount := int64(float64(userCount) * ownerUserPercentage / 100)
