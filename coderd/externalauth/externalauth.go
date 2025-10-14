@@ -814,6 +814,9 @@ func copyDefaultSettings(config *codersdk.ExternalAuthConfig, defaults codersdk.
 	if config.ValidateURL == "" {
 		config.ValidateURL = defaults.ValidateURL
 	}
+	if config.RevokeURL == "" {
+		config.RevokeURL = defaults.RevokeURL
+	}
 	if config.AppInstallURL == "" {
 		config.AppInstallURL = defaults.AppInstallURL
 	}

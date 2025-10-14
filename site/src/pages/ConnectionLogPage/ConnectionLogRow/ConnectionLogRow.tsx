@@ -1,11 +1,11 @@
 import type { CSSObject, Interpolation, Theme } from "@emotion/react";
 import Link from "@mui/material/Link";
-import TableCell from "@mui/material/TableCell";
 import Tooltip from "@mui/material/Tooltip";
 import type { ConnectionLog } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { Stack } from "components/Stack/Stack";
 import { StatusPill } from "components/StatusPill/StatusPill";
+import { TableCell } from "components/Table/Table";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
 import { InfoIcon, NetworkIcon } from "lucide-react";
 import type { FC } from "react";

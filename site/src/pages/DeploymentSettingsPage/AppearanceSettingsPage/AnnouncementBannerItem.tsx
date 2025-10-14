@@ -1,7 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Checkbox from "@mui/material/Checkbox";
-import TableCell from "@mui/material/TableCell";
-import TableRow from "@mui/material/TableRow";
 import type { BannerConfig } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
@@ -10,6 +8,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
+import { TableCell, TableRow } from "components/Table/Table";
 import { EllipsisVertical } from "lucide-react";
 import type { FC } from "react";
 

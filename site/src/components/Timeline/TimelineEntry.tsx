@@ -1,4 +1,4 @@
-import TableRow, { type TableRowProps } from "@mui/material/TableRow";
+import { TableRow, type TableRowProps } from "components/Table/Table";
 import { forwardRef } from "react";
 import { cn } from "utils/cn";
 

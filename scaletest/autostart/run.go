@@ -80,6 +80,7 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	workspaceBuildConfig.UserID = newUser.ID.String()
 	// We'll wait for the build ourselves to avoid multiple API requests
 	workspaceBuildConfig.NoWaitForBuild = true
+	workspaceBuildConfig.NoWaitForAgents = true
 
 	r.workspacebuildRunner = workspacebuild.NewRunner(newUserClient, workspaceBuildConfig)
 	workspace, err := r.workspacebuildRunner.RunReturningWorkspace(ctx, id, logs)

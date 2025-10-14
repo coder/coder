@@ -29,7 +29,8 @@ func TestOAuth2AuthorizationServerMetadata(t *testing.T) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	require.NoError(t, err)
 
-	resp, err := http.DefaultClient.Do(req)
+	httpClient := &http.Client{}
+	resp, err := httpClient.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
@@ -65,7 +66,8 @@ func TestOAuth2ProtectedResourceMetadata(t *testing.T) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	require.NoError(t, err)
 
-	resp, err := http.DefaultClient.Do(req)
+	httpClient := &http.Client{}
+	resp, err := httpClient.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 

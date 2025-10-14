@@ -8966,7 +8966,7 @@ WHERE
 	-- Filter by max age if provided
 	AND (
 		$7::bigint IS NULL
-		OR pd.last_seen_at IS NULL 
+		OR pd.last_seen_at IS NULL
 		OR pd.last_seen_at >= (NOW() - ($7::bigint || ' ms')::interval)
 	)
 	AND (
@@ -9291,11 +9291,11 @@ func (q *sqlQuerier) InsertProvisionerJobLogs(ctx context.Context, arg InsertPro
 }
 
 const updateProvisionerJobLogsLength = `-- name: UpdateProvisionerJobLogsLength :exec
-UPDATE 
+UPDATE
 	provisioner_jobs
-SET 
+SET
 	logs_length = logs_length + $2
-WHERE 
+WHERE
 	id = $1
 `
 
@@ -9310,11 +9310,11 @@ func (q *sqlQuerier) UpdateProvisionerJobLogsLength(ctx context.Context, arg Upd
 }
 
 const updateProvisionerJobLogsOverflowed = `-- name: UpdateProvisionerJobLogsOverflowed :exec
-UPDATE 
+UPDATE
 	provisioner_jobs
-SET 
+SET
 	logs_overflowed = $2
-WHERE 
+WHERE
 	id = $1
 `
 
@@ -9834,6 +9834,7 @@ WHERE
 	AND (COALESCE(array_length($2::uuid[], 1), 0) = 0 OR pj.id = ANY($2::uuid[]))
 	AND (COALESCE(array_length($3::provisioner_job_status[], 1), 0) = 0 OR pj.job_status = ANY($3::provisioner_job_status[]))
 	AND ($4::tagset = 'null'::tagset OR provisioner_tagset_contains(pj.tags::tagset, $4::tagset))
+	AND ($5::uuid = '00000000-0000-0000-0000-000000000000'::uuid OR pj.initiator_id = $5::uuid)
 GROUP BY
 	pj.id,
 	qp.queue_position,
@@ -9849,7 +9850,7 @@ GROUP BY
 ORDER BY
 	pj.created_at DESC
 LIMIT
-	$5::int
+	$6::int
 `
 
 type GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams struct {
@@ -9857,6 +9858,7 @@ type GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerPar
 	IDs            []uuid.UUID            `db:"ids" json:"ids"`
 	Status         []ProvisionerJobStatus `db:"status" json:"status"`
 	Tags           StringMap              `db:"tags" json:"tags"`
+	InitiatorID    uuid.UUID              `db:"initiator_id" json:"initiator_id"`
 	Limit          sql.NullInt32          `db:"limit" json:"limit"`
 }
 
@@ -9881,6 +9883,7 @@ func (q *sqlQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionA
 		pq.Array(arg.IDs),
 		pq.Array(arg.Status),
 		arg.Tags,
+		arg.InitiatorID,
 		arg.Limit,
 	)
 	if err != nil {
@@ -10373,7 +10376,7 @@ FROM
     provisioner_keys
 WHERE
     organization_id = $1
-AND 
+AND
     lower(name) = lower($2)
 `
 
@@ -10489,10 +10492,10 @@ WHERE
 AND
     -- exclude reserved built-in key
     id != '00000000-0000-0000-0000-000000000001'::uuid
-AND 
+AND
     -- exclude reserved user-auth key
     id != '00000000-0000-0000-0000-000000000002'::uuid
-AND 
+AND
     -- exclude reserved psk key
     id != '00000000-0000-0000-0000-000000000003'::uuid
 `
@@ -12504,6 +12507,134 @@ func (q *sqlQuerier) UpsertTailnetTunnel(ctx context.Context, arg UpsertTailnetT
 	return i, err
 }
 
+const getTaskByID = `-- name: GetTaskByID :one
+SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, status FROM tasks_with_status WHERE id = $1::uuid
+`
+
+func (q *sqlQuerier) GetTaskByID(ctx context.Context, id uuid.UUID) (Task, error) {
+	row := q.db.QueryRowContext(ctx, getTaskByID, id)
+	var i Task
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.Name,
+		&i.WorkspaceID,
+		&i.TemplateVersionID,
+		&i.TemplateParameters,
+		&i.Prompt,
+		&i.CreatedAt,
+		&i.DeletedAt,
+		&i.Status,
+	)
+	return i, err
+}
+
+const getTaskByWorkspaceID = `-- name: GetTaskByWorkspaceID :one
+SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, status FROM tasks_with_status WHERE workspace_id = $1::uuid
+`
+
+func (q *sqlQuerier) GetTaskByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (Task, error) {
+	row := q.db.QueryRowContext(ctx, getTaskByWorkspaceID, workspaceID)
+	var i Task
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.Name,
+		&i.WorkspaceID,
+		&i.TemplateVersionID,
+		&i.TemplateParameters,
+		&i.Prompt,
+		&i.CreatedAt,
+		&i.DeletedAt,
+		&i.Status,
+	)
+	return i, err
+}
+
+const insertTask = `-- name: InsertTask :one
+INSERT INTO tasks
+	(id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at)
+VALUES
+	(gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at
+`
+
+type InsertTaskParams struct {
+	OrganizationID     uuid.UUID       `db:"organization_id" json:"organization_id"`
+	OwnerID            uuid.UUID       `db:"owner_id" json:"owner_id"`
+	Name               string          `db:"name" json:"name"`
+	WorkspaceID        uuid.NullUUID   `db:"workspace_id" json:"workspace_id"`
+	TemplateVersionID  uuid.UUID       `db:"template_version_id" json:"template_version_id"`
+	TemplateParameters json.RawMessage `db:"template_parameters" json:"template_parameters"`
+	Prompt             string          `db:"prompt" json:"prompt"`
+	CreatedAt          time.Time       `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) InsertTask(ctx context.Context, arg InsertTaskParams) (TaskTable, error) {
+	row := q.db.QueryRowContext(ctx, insertTask,
+		arg.OrganizationID,
+		arg.OwnerID,
+		arg.Name,
+		arg.WorkspaceID,
+		arg.TemplateVersionID,
+		arg.TemplateParameters,
+		arg.Prompt,
+		arg.CreatedAt,
+	)
+	var i TaskTable
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.Name,
+		&i.WorkspaceID,
+		&i.TemplateVersionID,
+		&i.TemplateParameters,
+		&i.Prompt,
+		&i.CreatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const upsertTaskWorkspaceApp = `-- name: UpsertTaskWorkspaceApp :one
+INSERT INTO task_workspace_apps
+	(task_id, workspace_build_number, workspace_agent_id, workspace_app_id)
+VALUES
+	($1, $2, $3, $4)
+ON CONFLICT (task_id, workspace_build_number)
+DO UPDATE SET
+	workspace_agent_id = EXCLUDED.workspace_agent_id,
+	workspace_app_id = EXCLUDED.workspace_app_id
+RETURNING task_id, workspace_agent_id, workspace_app_id, workspace_build_number
+`
+
+type UpsertTaskWorkspaceAppParams struct {
+	TaskID               uuid.UUID     `db:"task_id" json:"task_id"`
+	WorkspaceBuildNumber int32         `db:"workspace_build_number" json:"workspace_build_number"`
+	WorkspaceAgentID     uuid.NullUUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	WorkspaceAppID       uuid.NullUUID `db:"workspace_app_id" json:"workspace_app_id"`
+}
+
+func (q *sqlQuerier) UpsertTaskWorkspaceApp(ctx context.Context, arg UpsertTaskWorkspaceAppParams) (TaskWorkspaceApp, error) {
+	row := q.db.QueryRowContext(ctx, upsertTaskWorkspaceApp,
+		arg.TaskID,
+		arg.WorkspaceBuildNumber,
+		arg.WorkspaceAgentID,
+		arg.WorkspaceAppID,
+	)
+	var i TaskWorkspaceApp
+	err := row.Scan(
+		&i.TaskID,
+		&i.WorkspaceAgentID,
+		&i.WorkspaceAppID,
+		&i.WorkspaceBuildNumber,
+	)
+	return i, err
+}
+
 const getTelemetryItem = `-- name: GetTelemetryItem :one
 SELECT key, value, created_at, updated_at FROM telemetry_items WHERE key = $1
 `
@@ -14286,14 +14417,14 @@ DO $$
 DECLARE
     table_record record;
 BEGIN
-    FOR table_record IN 
-        SELECT table_schema, table_name 
-        FROM information_schema.tables 
+    FOR table_record IN
+        SELECT table_schema, table_name
+        FROM information_schema.tables
         WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
         AND table_type = 'BASE TABLE'
     LOOP
-        EXECUTE format('ALTER TABLE %I.%I DISABLE TRIGGER ALL', 
-                    table_record.table_schema, 
+        EXECUTE format('ALTER TABLE %I.%I DISABLE TRIGGER ALL',
+                    table_record.table_schema,
                     table_record.table_name);
     END LOOP;
 END;
@@ -18278,7 +18409,7 @@ WITH agent_stats AS (
 		coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_95
 	 FROM workspace_agent_stats
 	-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
-	WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0 
+	WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0
 	GROUP BY user_id, agent_id, workspace_id, template_id
 ), latest_agent_stats AS (
 	SELECT

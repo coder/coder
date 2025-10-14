@@ -42,7 +42,8 @@ func TestStreamAgentReinitEvents(t *testing.T) {
 		requestCtx := testutil.Context(t, testutil.WaitShort)
 		req, err := http.NewRequestWithContext(requestCtx, "GET", srv.URL, nil)
 		require.NoError(t, err)
-		resp, err := http.DefaultClient.Do(req)
+		client := &http.Client{}
+		resp, err := client.Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
@@ -77,7 +78,8 @@ func TestStreamAgentReinitEvents(t *testing.T) {
 		requestCtx := testutil.Context(t, testutil.WaitShort)
 		req, err := http.NewRequestWithContext(requestCtx, "GET", srv.URL, nil)
 		require.NoError(t, err)
-		resp, err := http.DefaultClient.Do(req)
+		client := &http.Client{}
+		resp, err := client.Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
@@ -110,7 +112,8 @@ func TestStreamAgentReinitEvents(t *testing.T) {
 		requestCtx := testutil.Context(t, testutil.WaitShort)
 		req, err := http.NewRequestWithContext(requestCtx, "GET", srv.URL, nil)
 		require.NoError(t, err)
-		resp, err := http.DefaultClient.Do(req)
+		client := &http.Client{}
+		resp, err := client.Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
