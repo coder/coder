@@ -7314,3 +7314,139 @@ func TestUsageEventsTrigger(t *testing.T) {
 		require.Len(t, rows, 0)
 	})
 }
+
+func TestListTasks(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+
+	// Given: two organizations and two users, one of which is a member of both
+	org1 := dbgen.Organization(t, db, database.Organization{})
+	org2 := dbgen.Organization(t, db, database.Organization{})
+	user1 := dbgen.User(t, db, database.User{})
+	user2 := dbgen.User(t, db, database.User{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org1.ID,
+		UserID:         user1.ID,
+	})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org2.ID,
+		UserID:         user2.ID,
+	})
+
+	// Given: a template with an active version
+	tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		CreatedBy:      user1.ID,
+		OrganizationID: org1.ID,
+	})
+	tpl := dbgen.Template(t, db, database.Template{
+		CreatedBy:       user1.ID,
+		OrganizationID:  org1.ID,
+		ActiveVersionID: tv.ID,
+	})
+
+	// Helper function to create a task
+	createTask := func(orgID, ownerID uuid.UUID) database.TaskTable {
+		ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+			OrganizationID: orgID,
+			OwnerID:        ownerID,
+			TemplateID:     tpl.ID,
+		})
+		pj := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{})
+		sidebarAppID := uuid.New()
+		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			JobID:             pj.ID,
+			TemplateVersionID: tv.ID,
+			WorkspaceID:       ws.ID,
+		})
+		wr := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: pj.ID,
+		})
+		agt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: wr.ID,
+		})
+		wa := dbgen.WorkspaceApp(t, db, database.WorkspaceApp{
+			ID:      sidebarAppID,
+			AgentID: agt.ID,
+		})
+		tsk := dbgen.Task(t, db, database.TaskTable{
+			OrganizationID:    orgID,
+			OwnerID:           ownerID,
+			Prompt:            testutil.GetRandomName(t),
+			TemplateVersionID: tv.ID,
+			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
+		})
+		_ = dbgen.TaskWorkspaceApp(t, db, database.TaskWorkspaceApp{
+			TaskID:           tsk.ID,
+			WorkspaceAgentID: uuid.NullUUID{Valid: true, UUID: agt.ID},
+			WorkspaceAppID:   uuid.NullUUID{Valid: true, UUID: wa.ID},
+		})
+		t.Logf("task_id:%s owner_id:%s org_id:%s", tsk.ID, ownerID, orgID)
+		return tsk
+	}
+
+	// Given: user1 has one task, user2 has one task, user3 has two tasks (one in each org)
+	task1 := createTask(org1.ID, user1.ID)
+	task2 := createTask(org1.ID, user2.ID)
+	task3 := createTask(org2.ID, user2.ID)
+
+	// Then: run various filters and assert expected results
+	for _, tc := range []struct {
+		name      string
+		filter    database.ListTasksParams
+		expectIDs []uuid.UUID
+	}{
+		{
+			name: "no filter",
+			filter: database.ListTasksParams{
+				OwnerID:        uuid.Nil,
+				OrganizationID: uuid.Nil,
+			},
+			expectIDs: []uuid.UUID{task3.ID, task2.ID, task1.ID},
+		},
+		{
+			name: "filter by user ID",
+			filter: database.ListTasksParams{
+				OwnerID:        user1.ID,
+				OrganizationID: uuid.Nil,
+			},
+			expectIDs: []uuid.UUID{task1.ID},
+		},
+		{
+			name: "filter by organization ID",
+			filter: database.ListTasksParams{
+				OwnerID:        uuid.Nil,
+				OrganizationID: org1.ID,
+			},
+			expectIDs: []uuid.UUID{task2.ID, task1.ID},
+		},
+		{
+			name: "filter by user and organization ID",
+			filter: database.ListTasksParams{
+				OwnerID:        user2.ID,
+				OrganizationID: org2.ID,
+			},
+			expectIDs: []uuid.UUID{task3.ID},
+		},
+		{
+			name: "no results",
+			filter: database.ListTasksParams{
+				OwnerID:        user1.ID,
+				OrganizationID: org2.ID,
+			},
+			expectIDs: nil,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			tasks, err := db.ListTasks(ctx, tc.filter)
+			if assert.NoError(t, err) {
+				require.Len(t, tasks, len(tc.expectIDs))
+				for idx, eid := range tc.expectIDs {
+					assert.Equal(t, eid.String(), tasks[idx].ID.String())
+				}
+			}
+		})
+	}
+}
