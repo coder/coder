@@ -759,6 +759,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/tokens \
   {
     "allow_list": [
       {
+        "display_name": "string",
         "id": "string",
         "type": "*"
       }
@@ -794,6 +795,7 @@ Status Code **200**
 |----------------------|----------------------------------------------------------|----------|--------------|---------------------------------|
 | `[array item]`       | array                                                    | false    |              |                                 |
 | `» allow_list`       | array                                                    | false    |              |                                 |
+| `»» display_name`    | string                                                   | false    |              |                                 |
 | `»» id`              | string                                                   | false    |              |                                 |
 | `»» type`            | [codersdk.RBACResource](schemas.md#codersdkrbacresource) | false    |              |                                 |
 | `» created_at`       | string(date-time)                                        | true     |              |                                 |
@@ -883,6 +885,7 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/keys/tokens \
 {
   "allow_list": [
     {
+      "display_name": "string",
       "id": "string",
       "type": "*"
     }
@@ -949,6 +952,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/tokens/{keyname} \
 {
   "allow_list": [
     {
+      "display_name": "string",
       "id": "string",
       "type": "*"
     }
@@ -997,6 +1001,7 @@ curl -X PATCH http://coder-server:8080/api/v2/users/{user}/keys/tokens/{keyname}
 {
   "allow_list": [
     {
+      "display_name": "string",
       "id": "string",
       "type": "*"
     }
@@ -1025,6 +1030,7 @@ curl -X PATCH http://coder-server:8080/api/v2/users/{user}/keys/tokens/{keyname}
 {
   "allow_list": [
     {
+      "display_name": "string",
       "id": "string",
       "type": "*"
     }
@@ -1081,6 +1087,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/{keyid} \
 {
   "allow_list": [
     {
+      "display_name": "string",
       "id": "string",
       "type": "*"
     }
