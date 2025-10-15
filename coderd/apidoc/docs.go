@@ -11932,6 +11932,11 @@ const docTemplate = `{
                 "tailnet_coordinator:delete",
                 "tailnet_coordinator:read",
                 "tailnet_coordinator:update",
+                "task:*",
+                "task:create",
+                "task:delete",
+                "task:read",
+                "task:update",
                 "template:*",
                 "template:create",
                 "template:delete",
@@ -12123,6 +12128,11 @@ const docTemplate = `{
                 "APIKeyScopeTailnetCoordinatorDelete",
                 "APIKeyScopeTailnetCoordinatorRead",
                 "APIKeyScopeTailnetCoordinatorUpdate",
+                "APIKeyScopeTaskAll",
+                "APIKeyScopeTaskCreate",
+                "APIKeyScopeTaskDelete",
+                "APIKeyScopeTaskRead",
+                "APIKeyScopeTaskUpdate",
                 "APIKeyScopeTemplateAll",
                 "APIKeyScopeTemplateCreate",
                 "APIKeyScopeTemplateDelete",
@@ -16977,6 +16987,7 @@ const docTemplate = `{
                 "replicas",
                 "system",
                 "tailnet_coordinator",
+                "task",
                 "template",
                 "usage_event",
                 "user",
@@ -17020,6 +17031,7 @@ const docTemplate = `{
                 "ResourceReplicas",
                 "ResourceSystem",
                 "ResourceTailnetCoordinator",
+                "ResourceTask",
                 "ResourceTemplate",
                 "ResourceUsageEvent",
                 "ResourceUser",
@@ -17235,7 +17247,8 @@ const docTemplate = `{
                 "idp_sync_settings_group",
                 "idp_sync_settings_role",
                 "workspace_agent",
-                "workspace_app"
+                "workspace_app",
+                "task"
             ],
             "x-enum-varnames": [
                 "ResourceTypeTemplate",
@@ -17262,7 +17275,8 @@ const docTemplate = `{
                 "ResourceTypeIdpSyncSettingsGroup",
                 "ResourceTypeIdpSyncSettingsRole",
                 "ResourceTypeWorkspaceAgent",
-                "ResourceTypeWorkspaceApp"
+                "ResourceTypeWorkspaceApp",
+                "ResourceTypeTask"
             ]
         },
         "codersdk.Response": {
@@ -17598,6 +17612,17 @@ const docTemplate = `{
                 },
                 "workspace_agent_lifecycle": {
                     "$ref": "#/definitions/codersdk.WorkspaceAgentLifecycle"
+                },
+                "workspace_app_id": {
+                    "format": "uuid",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/uuid.NullUUID"
+                        }
+                    ]
+                },
+                "workspace_build_number": {
+                    "type": "integer"
                 },
                 "workspace_id": {
                     "format": "uuid",

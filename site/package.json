@@ -47,7 +47,6 @@
 		"@fontsource/jetbrains-mono": "5.2.5",
 		"@fontsource/source-code-pro": "5.2.5",
 		"@monaco-editor/react": "4.7.0",
-		"@mui/icons-material": "5.18.0",
 		"@mui/material": "5.18.0",
 		"@mui/system": "5.18.0",
 		"@mui/utils": "5.17.1",
