@@ -247,6 +247,82 @@ When prebuilt workspaces are configured for an organization, Coder creates a "pr
 
 If a quota is exceeded, the prebuilt workspace will fail provisioning the same way other workspaces do.
 
+### Managing prebuild provisioning queues
+
+Prebuilt workspaces can overwhelm a Coder deployment, causing significant delays when users and template administrators create new workspaces or manage their templates. Fundamentally, this happens when provisioners are not able to meet the demand for provisioner jobs. Prebuilds contribute to provisioner demand by scheduling many jobs in bursts whenever templates are updated. The solution is to either increase the number of provisioners or decrease the number of requested prebuilt workspaces across the entire system.
+
+To identify if prebuilt workspaces have overwhelmed the available provisioners in your Coder deployment, look for:
+
+- Large or growing queue of prebuild-related jobs
+- User workspace creation is slow
+- Publishing a new template version is not reflected in the UI because the associated template import job has not yet finished
+
+The troubleshooting steps below will help you assess and resolve this situation:
+
+1) Pause prebuilt workspace reconciliation to stop the problem from getting worse
+2) Check how many prebuild jobs are clogging your provisioner queue
+3) Cancel excess prebuild jobs to free up provisioners for human users
+4) Fix any problematic templates that are causing the issue
+5) Resume prebuilt reconciliation once everything is back to normal
+
+#### Pause prebuilds to limit potential impact
+
+Run:
+
+```bash
+coder prebuilds pause
+```
+
+This prevents further pollution of your provisioner queues by stopping the prebuilt workspaces feature from scheduling new creation jobs. While the pause is in effect, no new prebuilt workspaces will be scheduled for any templates in any organizations across the entire Coder deployment.  Therefore, the command must be executed by a user with Owner level access. Existing prebuilt workspaces will remain in place.
+
+**Important**: Remember to run `coder prebuilds resume` once all impact has been mitigated (see the last step in this section).
+
+#### Assess prebuild queue impact
+
+Next, run:
+
+```bash
+coder provisioner jobs list --status=pending --initiator=prebuilds
+```
+
+This will show a list of all pending jobs that have been enqueued by the prebuilt workspace system. The length of this list indicates whether prebuilt workspaces have overwhelmed your Coder deployment.
+
+Human-initiated jobs have priority over pending prebuild jobs, but running prebuild jobs cannot be preempted. A long list of pending prebuild jobs increases the likelihood that all provisioners are already occupied when a user wants to create a workspace or import a new template version. This increases the likelihood that users will experience delays waiting for the next available provisioner.
+
+#### Cancel pending prebuild jobs
+
+Human-initiated jobs are prioritized above prebuild jobs in the provisioner queue. However, if no human-initiated jobs are queued when a provisioner becomes available, a prebuild job will occupy the provisioner. This can delay human-initiated jobs that arrive later, forcing them to wait for the next available provisioner.
+
+To expedite fixing a broken template by ensuring maximum provisioner availability, cancel all pending prebuild jobs:
+
+```bash
+coder provisioner jobs list --status=pending --initiator=prebuilds | jq -r '.[].id' | xargs -n1 -P2 -I{} coder provisioner jobs cancel {}
+```
+
+This will clear the provisioner queue of all jobs that were not initiated by a human being, which increases the probability that a provisioner will be available when the next human operator needs it. It does not cancel running provisioner jobs, so there may still be some delay in processing new provisioner jobs until a provisioner completes its current job.
+
+At this stage, most prebuild related impact will have been mitigated. There may still be a bugged template version, but it will no longer pollute provisioner queues with prebuilt workspace jobs. If the latest version of a template is also broken for reasons unrelated to prebuilds, then users are able to create workspaces using a previous template version. Some running jobs may have been initiated by the prebuild system, but these cannot be cancelled without potentially orphaning resources that have already been deployed by Terraform. Depending on your deployment and template provisioning times, it might be best to upload a new template version and wait for it to be processed organically.
+
+#### Cancel running prebuild provisioning jobs (Optional)
+
+If you need to expedite the processing of human-related jobs at the cost of some infrastructure housekeeping, you can run:
+
+```bash
+coder provisioner jobs list --status=running --initiator=prebuilds | jq -r '.[].id' | xargs -n1 -P2 -I{} coder provisioner jobs cancel {}
+```
+
+This should be done as a last resort. It will cancel running prebuild jobs (orphaning any resources that have already been deployed) and immediately make room for human-initiated jobs. Orphaned infrastructure will need to be manually cleaned up by a human operator. The process to identify and clear these orphaned resources will likely require administrative access to the infrastructure that hosts Coder workspaces. Furthermore, the ability to identify such orphaned resources will depend on metadata that should be included in the workspace template.
+
+Once the provisioner queue has been cleared and all templates have been fixed, resume prebuild reconciliation by running:
+
+#### Resume prebuild reconciliation
+
+```bash
+coder prebuilds resume
+```
+
+This re-enables the prebuilt workspaces feature and allows the reconciliation loop to resume normal operation. The system will begin creating new prebuilt workspaces according to your template configurations.
+
 ### Template configuration best practices
 
 #### Preventing resource replacement
@@ -280,7 +356,7 @@ resource "docker_container" "workspace" {
 Limit the scope of `ignore_changes` to include only the fields specified in the notification.
 If you include too many fields, Terraform might ignore changes that wouldn't otherwise cause drift.
 
-Learn more about `ignore_changes` in the [Terraform documentation](https://developer.hashicorp.com/terraform/language/meta-arguments/lifecycle#ignore_changes).
+Learn more about `ignore_changes` in the [Terraform documentation](https://developer.hashicorp.com/terraform/language/meta-arguments#lifecycle).
 
 _A note on "immutable" attributes: Terraform providers may specify `ForceNew` on their resources' attributes. Any change
 to these attributes require the replacement (destruction and recreation) of the managed resource instance, rather than an in-place update.
