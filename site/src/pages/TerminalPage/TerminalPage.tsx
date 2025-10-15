@@ -12,7 +12,6 @@ import {
 	workspaceByOwnerAndName,
 	workspaceUsage,
 } from "api/queries/workspaces";
-import { displayError } from "components/GlobalSnackbar/utils";
 import { useProxy } from "contexts/ProxyContext";
 import { ThemeOverride } from "contexts/ThemeProvider";
 import { useClipboard } from "hooks/useClipboard";
