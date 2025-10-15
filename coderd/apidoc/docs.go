@@ -17611,6 +17611,17 @@ const docTemplate = `{
                 "workspace_agent_lifecycle": {
                     "$ref": "#/definitions/codersdk.WorkspaceAgentLifecycle"
                 },
+                "workspace_app_id": {
+                    "format": "uuid",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/uuid.NullUUID"
+                        }
+                    ]
+                },
+                "workspace_build_number": {
+                    "type": "integer"
+                },
                 "workspace_id": {
                     "format": "uuid",
                     "allOf": [
