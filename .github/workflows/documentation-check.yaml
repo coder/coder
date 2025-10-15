@@ -222,6 +222,33 @@ jobs:
           echo "TASK_NAME=${CODER_USERNAME}/${TASK_NAME}" >> "${GITHUB_OUTPUT}"
           echo "TASK_NAME=${CODER_USERNAME}/${TASK_NAME}" >> "${GITHUB_ENV}"
 
+      - name: Update comment with task link
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMENT_ID: ${{ steps.post-comment.outputs.comment_id }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          TASK_NAME: ${{ steps.create-task.outputs.TASK_NAME }}
+        run: |
+          # Fetch the original comment
+          ORIGINAL_COMMENT=$(gh api "/repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}" --jq '.body')
+
+          COMMENT_BODY=$(cat <<EOF
+          ${ORIGINAL_COMMENT}
+
+          ---
+
+          🔄 **Analysis in progress...**
+
+          📋 Task: https://dev.coder.com/tasks/${TASK_NAME}
+          EOF
+          )
+
+          # Update the comment with task link
+          gh api \
+            --method PATCH \
+            "/repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}" \
+            -f body="${COMMENT_BODY}"
+
       - name: Wait for task completion and get results
         id: get-results
         env:
