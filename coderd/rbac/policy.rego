@@ -319,22 +319,22 @@ role_allow if { # org level authed
 	org = 1
 }
 
-role_allow if { # user level authed
-	not site = -1
-	not org = -1
-
-	# If we are not a member of an org, and the object has an org, then we are
-	# not authorized. This is an "implied -1" for not being in the org.
-	org_ok
-	user = 1
-}
-
 role_allow if { # org member auth
 	not site = -1
 	not org = -1
 
 	# Organization member owner permissions require both ownership and org membership
 	org_member = 1
+}
+
+role_allow if { # user level authed
+	not site = -1
+
+	# If we are not a member of an org, and the object has an org, then we are
+	# not authorized. This is an "implied -1" for not being in the org.
+	org_ok
+
+	user = 1
 }
 
 # -------------------
@@ -352,6 +352,15 @@ scope_allow if { # scope org level authed
 	scope_org = 1
 }
 
+scope_allow if { # scope org member auth
+	scope_allow_list
+	not scope_site = -1
+	not scope_org = -1
+
+	# Organization member owner permissions require both ownership and org membership
+	scope_org_member = 1
+}
+
 scope_allow if { # scope user level authed
 	scope_allow_list
 	not scope_site = -1
@@ -361,15 +370,6 @@ scope_allow if { # scope user level authed
 	# not authorized. This is an "implied -1" for not being in the org.
 	org_ok
 	scope_user = 1
-}
-
-scope_allow if { # scope org member auth
-	scope_allow_list
-	not scope_site = -1
-	not scope_org = -1
-
-	# Organization member owner permissions require both ownership and org membership
-	scope_org_member = 1
 }
 
 # -------------------
