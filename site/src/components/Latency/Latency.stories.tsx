@@ -46,8 +46,6 @@ export const NoLatency: Story = {
 
 		// Need to await getting the tooltip because the tooltip doesn't open
 		// immediately on hover
-		expect(await screen.findByRole("tooltip")).toHaveTextContent(
-			/Latency not available/i,
-		);
+		await screen.findByRole("tooltip", { name: /Latency not available/i });
 	},
 };
