@@ -30,15 +30,6 @@ const meta: Meta<typeof TasksPage> = {
 	},
 	beforeEach: () => {
 		spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([]);
-		spyOn(API, "getTemplates").mockResolvedValue([
-			MockTemplate,
-			{
-				...MockTemplate,
-				id: "test-template-2",
-				name: "template 2",
-				display_name: "Template 2",
-			},
-		]);
 		spyOn(API, "getTemplateVersions").mockResolvedValue([
 			{
 				...MockTemplateVersion,
@@ -122,6 +113,70 @@ export const OnSuccess: Story = {
 			const body = within(canvasElement.ownerDocument.body);
 			const successMessage = await body.findByText(/task created/i);
 			expect(successMessage).toBeInTheDocument();
+		});
+	},
+};
+
+export const ChangeTemplate: Story = {
+	decorators: [withGlobalSnackbar],
+	args: {
+		templates: [
+			{
+				...MockTemplate,
+				id: "claude-code",
+				name: "claude-code",
+				display_name: "Claude Code",
+				active_version_id: "claude-code-version",
+			},
+			{
+				...MockTemplate,
+				id: "codex",
+				name: "codex",
+				display_name: "Codex",
+				active_version_id: "codex-version",
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API, "getTemplateVersions").mockImplementation((templateId) => {
+			if (templateId === "claude-code") {
+				return Promise.resolve([
+					{
+						...MockTemplateVersion,
+						id: "claude-code-version",
+						name: "claude-code-version",
+					},
+				]);
+			}
+			if (templateId === "codex") {
+				return Promise.resolve([
+					{
+						...MockTemplateVersion,
+						id: "codex-version",
+						name: "codex-version",
+					},
+				]);
+			}
+			return Promise.resolve([]);
+		});
+		spyOn(API.experimental, "createTask").mockResolvedValue(MockTask);
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+
+		await step("Change template", async () => {
+			const templateSelect = await canvas.findByLabelText(/select template/i);
+			await userEvent.click(templateSelect);
+			const templateOption = await body.findByRole("option", {
+				name: /codex/i,
+			});
+			await userEvent.click(templateOption);
+		});
+
+		await step("Default version is selected", async () => {
+			const versionSelect = await canvas.findByLabelText(/version/i);
+			expect(versionSelect).toHaveTextContent("codex-version");
 		});
 	},
 };
