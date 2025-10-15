@@ -1,7 +1,6 @@
 # Coder Development Guidelines
 
 @.claude/docs/WORKFLOWS.md
-@.cursorrules
 @README.md
 @package.json
 
