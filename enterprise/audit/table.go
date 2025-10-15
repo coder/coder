@@ -347,6 +347,18 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"field":   ActionTrack,
 		"mapping": ActionTrack,
 	},
+	&database.TaskTable{}: {
+		"id":                  ActionTrack,
+		"organization_id":     ActionIgnore, // Never changes.
+		"owner_id":            ActionTrack,
+		"name":                ActionTrack,
+		"workspace_id":        ActionTrack,
+		"template_version_id": ActionTrack,
+		"template_parameters": ActionTrack,
+		"prompt":              ActionTrack,
+		"created_at":          ActionIgnore, // Never changes.
+		"deleted_at":          ActionIgnore, // Changes, but is implicit when a delete event is fired.
+	},
 }
 
 // auditMap converts a map of struct pointers to a map of struct names as
