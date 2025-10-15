@@ -3,9 +3,11 @@ package agentapi
 import (
 	"context"
 	"database/sql"
+	"net"
 	"sync/atomic"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/emptypb"
 
@@ -61,6 +63,27 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 		return nil, xerrors.Errorf("get workspace by agent id: %w", err)
 	}
 
+	// Some older clients may incorrectly report "localhost" as the IP address.
+	// Related to https://github.com/coder/coder/issues/20194
+	logIPRaw := req.GetConnection().GetIp()
+	if logIPRaw == "localhost" {
+		logIPRaw = "127.0.0.1"
+	}
+
+	// TEMPORARY FIX for https://github.com/coder/coder/issues/20194
+	logIP := database.ParseIP(logIPRaw)
+	if !logIP.Valid {
+		// In older versions of Coder, NULL IPs are not permitted in the DB, so
+		// use 127.0.0.1 instead.
+		logIP = pqtype.Inet{
+			IPNet: net.IPNet{
+				IP:   net.IPv4(127, 0, 0, 1),
+				Mask: net.CIDRMask(32, 32),
+			},
+			Valid: true,
+		}
+	}
+
 	reason := req.GetConnection().GetReason()
 	connLogger := *a.ConnectionLogger.Load()
 	err = connLogger.Upsert(ctx, database.UpsertConnectionLogParams{
@@ -73,7 +96,7 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 		AgentName:        workspaceAgent.Name,
 		Type:             connectionType,
 		Code:             code,
-		Ip:               database.ParseIP(req.GetConnection().GetIp()),
+		Ip:               logIP,
 		ConnectionID: uuid.NullUUID{
 			UUID:  connectionID,
 			Valid: true,
