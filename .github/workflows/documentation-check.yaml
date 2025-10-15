@@ -91,12 +91,14 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           RUN_ID: ${{ github.run_id }}
         run: |
-          COMMENT_BODY="🤖 **Documentation Check Started**
+          COMMENT_BODY=$(cat <<EOF
+          🤖 **Documentation Check Started**
 
-Analyzing PR changes to determine if documentation updates are needed...
+          Analyzing PR changes to determine if documentation updates are needed...
 
-[View workflow run](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID})
-"
+          [View workflow run](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID})
+          EOF
+          )
           COMMENT_ID=$(gh pr comment "${PR_NUMBER}" --body "${COMMENT_BODY}" --repo "${GITHUB_REPOSITORY}" | grep -oP 'https://github.com/.*/pull/.*#issuecomment-\K\d+')
           echo "comment_id=${COMMENT_ID}" >> "${GITHUB_OUTPUT}"
 
@@ -163,58 +165,58 @@ Analyzing PR changes to determine if documentation updates are needed...
 
           # Build comprehensive prompt
           PROMPT=$(cat <<'EOF'
-Analyze PR ${pr_url} for documentation updates.
+          Analyze PR ${pr_url} for documentation updates.
 
-## Task Description
-You are tasked with analyzing code changes in a pull request and determining what documentation updates are needed. Please:
+          ## Task Description
+          You are tasked with analyzing code changes in a pull request and determining what documentation updates are needed. Please:
 
-1. Review the PR description and code changes to understand what was changed
-2. Examine the existing documentation in the docs/ directory
-3. Identify any of the following needs:
-   - Updates required to existing documentation
-   - Documentation that needs to be deprecated
-   - New documentation that should be added
-4. Provide a clear, actionable list of documentation changes needed
+          1. Review the PR description and code changes to understand what was changed
+          2. Examine the existing documentation in the docs/ directory
+          3. Identify any of the following needs:
+             - Updates required to existing documentation
+             - Documentation that needs to be deprecated
+             - New documentation that should be added
+          4. Provide a clear, actionable list of documentation changes needed
 
-## PR Details
-**Title**: ${pr_title}
+          ## PR Details
+          **Title**: ${pr_title}
 
-**Description**:
-${pr_body}
+          **Description**:
+          ${pr_body}
 
-**Files Changed**:
-${files_changed}
+          **Files Changed**:
+          ${files_changed}
 
-**Code Diff**:
-```diff
-${pr_diff}
-```
+          **Code Diff**:
+          ```diff
+          ${pr_diff}
+          ```
 
-## Output Format
-Please provide your analysis in the following format:
+          ## Output Format
+          Please provide your analysis in the following format:
 
-### Documentation Updates Required
+          ### Documentation Updates Required
 
-#### Updates to Existing Documentation
-- [List any existing docs that need updates with specific changes needed]
+          #### Updates to Existing Documentation
+          - [List any existing docs that need updates with specific changes needed]
 
-#### Documentation to Deprecate
-- [List any docs that should be marked as deprecated or removed]
+          #### Documentation to Deprecate
+          - [List any docs that should be marked as deprecated or removed]
 
-#### New Documentation Needed
-- [List any new documentation that should be created]
+          #### New Documentation Needed
+          - [List any new documentation that should be created]
 
-#### No Changes Needed
-- [If no documentation changes are required, explain why]
+          #### No Changes Needed
+          - [If no documentation changes are required, explain why]
 
-Be specific and provide file paths and section references where applicable.
-EOF
+          Be specific and provide file paths and section references where applicable.
+          EOF
           )
           # Expand variables in the prompt
           PROMPT=$(eval "cat <<EOF
-${PROMPT}
-EOF
-")
+          ${PROMPT}
+          EOF
+          ")
           export PROMPT
 
           export TASK_NAME="doccheck-pr-${PR_NUMBER}-${RUN_ID}"
@@ -253,14 +255,16 @@ EOF
         run: |
           TASK_OUTPUT=$(cat /tmp/task_output.txt)
 
-          COMMENT_BODY="🤖 **Documentation Check Complete**
+          COMMENT_BODY=$(cat <<EOF
+          🤖 **Documentation Check Complete**
 
-${TASK_OUTPUT}
+          ${TASK_OUTPUT}
 
----
-Task: https://dev.coder.com/tasks/${TASK_NAME}
-[View workflow run](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID})
-"
+          ---
+          Task: https://dev.coder.com/tasks/${TASK_NAME}
+          [View workflow run](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID})
+          EOF
+          )
 
           # Update the existing comment
           gh api \
