@@ -152,16 +152,8 @@ jobs:
           TEMPLATE_PRESET: "Default"
         run: |
           # Fetch PR details using `gh` CLI
-          pr_json=$(gh pr view "${PR_NUMBER}" --repo "${GITHUB_REPOSITORY}" --json 'title,body,url,files')
-          pr_title=$(echo "${pr_json}" | jq -r '.title')
-          pr_body=$(echo "${pr_json}" | jq -r '.body')
+          pr_json=$(gh pr view "${PR_NUMBER}" --repo "${GITHUB_REPOSITORY}" --json 'url')
           pr_url=$(echo "${pr_json}" | jq -r '.url')
-
-          # Get list of changed files
-          files_changed=$(echo "${pr_json}" | jq -r '.files[] | "  - \(.path) (\(.additions) additions, \(.deletions) deletions)"')
-
-          # Get the actual diff for code changes
-          pr_diff=$(gh pr diff "${PR_NUMBER}" --repo "${GITHUB_REPOSITORY}")
 
           # Build comprehensive prompt
           PROMPT=$(cat <<'EOF'
@@ -170,27 +162,20 @@ jobs:
           ## Task Description
           You are tasked with analyzing code changes in a pull request and determining what documentation updates are needed. Please:
 
-          1. Review the PR description and code changes to understand what was changed
-          2. Examine the existing documentation in the docs/ directory
-          3. Identify any of the following needs:
+          1. Use the GitHub CLI or API to fetch the PR details, including:
+             - PR title and description
+             - List of files changed
+             - The actual code diff
+          2. Review the PR description and code changes to understand what was changed
+          3. Examine the existing documentation in the docs/ directory
+          4. Identify any of the following needs:
              - Updates required to existing documentation
              - Documentation that needs to be deprecated
              - New documentation that should be added
-          4. Provide a clear, actionable list of documentation changes needed
+          5. Provide a clear, actionable list of documentation changes needed
 
-          ## PR Details
-          **Title**: ${pr_title}
-
-          **Description**:
-          ${pr_body}
-
-          **Files Changed**:
-          ${files_changed}
-
-          **Code Diff**:
-          ```diff
-          ${pr_diff}
-          ```
+          ## PR to Analyze
+          ${pr_url}
 
           ## Output Format
           Please provide your analysis in the following format:
