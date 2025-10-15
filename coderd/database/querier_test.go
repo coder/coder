@@ -6813,193 +6813,284 @@ func TestTasksWithStatusView(t *testing.T) {
 	}
 
 	tests := []struct {
-		name            string
-		buildStatus     database.ProvisionerJobStatus
-		buildTransition database.WorkspaceTransition
-		agentState      database.WorkspaceAgentLifecycleState
-		appHealths      []database.WorkspaceAppHealth
-		expectedStatus  database.TaskStatus
-		description     string
+		name                      string
+		buildStatus               database.ProvisionerJobStatus
+		buildTransition           database.WorkspaceTransition
+		agentState                database.WorkspaceAgentLifecycleState
+		appHealths                []database.WorkspaceAppHealth
+		expectedStatus            database.TaskStatus
+		description               string
+		expectBuildNumberValid    bool
+		expectBuildNumber         int32
+		expectWorkspaceAgentValid bool
+		expectWorkspaceAppValid   bool
 	}{
 		{
-			name:           "NoWorkspace",
-			expectedStatus: "pending",
-			description:    "Task with no workspace assigned",
+			name:                      "NoWorkspace",
+			expectedStatus:            "pending",
+			description:               "Task with no workspace assigned",
+			expectBuildNumberValid:    false,
+			expectWorkspaceAgentValid: false,
+			expectWorkspaceAppValid:   false,
 		},
 		{
-			name:            "FailedBuild",
-			buildStatus:     database.ProvisionerJobStatusFailed,
-			buildTransition: database.WorkspaceTransitionStart,
-			expectedStatus:  database.TaskStatusError,
-			description:     "Latest workspace build failed",
+			name:                      "FailedBuild",
+			buildStatus:               database.ProvisionerJobStatusFailed,
+			buildTransition:           database.WorkspaceTransitionStart,
+			expectedStatus:            database.TaskStatusError,
+			description:               "Latest workspace build failed",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: false,
+			expectWorkspaceAppValid:   false,
 		},
 		{
-			name:            "StoppedWorkspace",
-			buildStatus:     database.ProvisionerJobStatusSucceeded,
-			buildTransition: database.WorkspaceTransitionStop,
-			expectedStatus:  database.TaskStatusPaused,
-			description:     "Workspace is stopped",
+			name:                      "StoppedWorkspace",
+			buildStatus:               database.ProvisionerJobStatusSucceeded,
+			buildTransition:           database.WorkspaceTransitionStop,
+			expectedStatus:            database.TaskStatusPaused,
+			description:               "Workspace is stopped",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: false,
+			expectWorkspaceAppValid:   false,
 		},
 		{
-			name:            "DeletedWorkspace",
-			buildStatus:     database.ProvisionerJobStatusSucceeded,
-			buildTransition: database.WorkspaceTransitionDelete,
-			expectedStatus:  database.TaskStatusPaused,
-			description:     "Workspace is deleted",
+			name:                      "DeletedWorkspace",
+			buildStatus:               database.ProvisionerJobStatusSucceeded,
+			buildTransition:           database.WorkspaceTransitionDelete,
+			expectedStatus:            database.TaskStatusPaused,
+			description:               "Workspace is deleted",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: false,
+			expectWorkspaceAppValid:   false,
 		},
 		{
-			name:            "PendingStart",
-			buildStatus:     database.ProvisionerJobStatusPending,
-			buildTransition: database.WorkspaceTransitionStart,
-			expectedStatus:  database.TaskStatusInitializing,
-			description:     "Workspace build is starting (pending)",
+			name:                      "PendingStart",
+			buildStatus:               database.ProvisionerJobStatusPending,
+			buildTransition:           database.WorkspaceTransitionStart,
+			expectedStatus:            database.TaskStatusInitializing,
+			description:               "Workspace build is starting (pending)",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: false,
+			expectWorkspaceAppValid:   false,
 		},
 		{
-			name:            "RunningStart",
-			buildStatus:     database.ProvisionerJobStatusRunning,
-			buildTransition: database.WorkspaceTransitionStart,
-			expectedStatus:  database.TaskStatusInitializing,
-			description:     "Workspace build is starting (running)",
+			name:                      "RunningStart",
+			buildStatus:               database.ProvisionerJobStatusRunning,
+			buildTransition:           database.WorkspaceTransitionStart,
+			expectedStatus:            database.TaskStatusInitializing,
+			description:               "Workspace build is starting (running)",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: false,
+			expectWorkspaceAppValid:   false,
 		},
 		{
-			name:            "StartingAgent",
-			buildStatus:     database.ProvisionerJobStatusSucceeded,
-			buildTransition: database.WorkspaceTransitionStart,
-			agentState:      database.WorkspaceAgentLifecycleStateStarting,
-			appHealths:      []database.WorkspaceAppHealth{database.WorkspaceAppHealthInitializing},
-			expectedStatus:  database.TaskStatusInitializing,
-			description:     "Workspace is running but agent is starting",
+			name:                      "StartingAgent",
+			buildStatus:               database.ProvisionerJobStatusSucceeded,
+			buildTransition:           database.WorkspaceTransitionStart,
+			agentState:                database.WorkspaceAgentLifecycleStateStarting,
+			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthInitializing},
+			expectedStatus:            database.TaskStatusInitializing,
+			description:               "Workspace is running but agent is starting",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: true,
+			expectWorkspaceAppValid:   true,
 		},
 		{
-			name:            "CreatedAgent",
-			buildStatus:     database.ProvisionerJobStatusSucceeded,
-			buildTransition: database.WorkspaceTransitionStart,
-			agentState:      database.WorkspaceAgentLifecycleStateCreated,
-			appHealths:      []database.WorkspaceAppHealth{database.WorkspaceAppHealthInitializing},
-			expectedStatus:  database.TaskStatusInitializing,
-			description:     "Workspace is running but agent is created",
+			name:                      "CreatedAgent",
+			buildStatus:               database.ProvisionerJobStatusSucceeded,
+			buildTransition:           database.WorkspaceTransitionStart,
+			agentState:                database.WorkspaceAgentLifecycleStateCreated,
+			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthInitializing},
+			expectedStatus:            database.TaskStatusInitializing,
+			description:               "Workspace is running but agent is created",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: true,
+			expectWorkspaceAppValid:   true,
 		},
 		{
-			name:            "ReadyAgentInitializingApp",
-			buildStatus:     database.ProvisionerJobStatusSucceeded,
-			buildTransition: database.WorkspaceTransitionStart,
-			agentState:      database.WorkspaceAgentLifecycleStateReady,
-			appHealths:      []database.WorkspaceAppHealth{database.WorkspaceAppHealthInitializing},
-			expectedStatus:  database.TaskStatusInitializing,
-			description:     "Agent is ready but app is initializing",
+			name:                      "ReadyAgentInitializingApp",
+			buildStatus:               database.ProvisionerJobStatusSucceeded,
+			buildTransition:           database.WorkspaceTransitionStart,
+			agentState:                database.WorkspaceAgentLifecycleStateReady,
+			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthInitializing},
+			expectedStatus:            database.TaskStatusInitializing,
+			description:               "Agent is ready but app is initializing",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: true,
+			expectWorkspaceAppValid:   true,
 		},
 		{
-			name:            "ReadyAgentHealthyApp",
-			buildStatus:     database.ProvisionerJobStatusSucceeded,
-			buildTransition: database.WorkspaceTransitionStart,
-			agentState:      database.WorkspaceAgentLifecycleStateReady,
-			appHealths:      []database.WorkspaceAppHealth{database.WorkspaceAppHealthHealthy},
-			expectedStatus:  database.TaskStatusActive,
-			description:     "Agent is ready and app is healthy",
+			name:                      "ReadyAgentHealthyApp",
+			buildStatus:               database.ProvisionerJobStatusSucceeded,
+			buildTransition:           database.WorkspaceTransitionStart,
+			agentState:                database.WorkspaceAgentLifecycleStateReady,
+			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthHealthy},
+			expectedStatus:            database.TaskStatusActive,
+			description:               "Agent is ready and app is healthy",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: true,
+			expectWorkspaceAppValid:   true,
 		},
 		{
-			name:            "ReadyAgentDisabledApp",
-			buildStatus:     database.ProvisionerJobStatusSucceeded,
-			buildTransition: database.WorkspaceTransitionStart,
-			agentState:      database.WorkspaceAgentLifecycleStateReady,
-			appHealths:      []database.WorkspaceAppHealth{database.WorkspaceAppHealthDisabled},
-			expectedStatus:  database.TaskStatusActive,
-			description:     "Agent is ready and app health checking is disabled",
+			name:                      "ReadyAgentDisabledApp",
+			buildStatus:               database.ProvisionerJobStatusSucceeded,
+			buildTransition:           database.WorkspaceTransitionStart,
+			agentState:                database.WorkspaceAgentLifecycleStateReady,
+			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthDisabled},
+			expectedStatus:            database.TaskStatusActive,
+			description:               "Agent is ready and app health checking is disabled",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: true,
+			expectWorkspaceAppValid:   true,
 		},
 		{
-			name:            "ReadyAgentUnhealthyApp",
-			buildStatus:     database.ProvisionerJobStatusSucceeded,
-			buildTransition: database.WorkspaceTransitionStart,
-			agentState:      database.WorkspaceAgentLifecycleStateReady,
-			appHealths:      []database.WorkspaceAppHealth{database.WorkspaceAppHealthUnhealthy},
-			expectedStatus:  database.TaskStatusError,
-			description:     "Agent is ready but app is unhealthy",
+			name:                      "ReadyAgentUnhealthyApp",
+			buildStatus:               database.ProvisionerJobStatusSucceeded,
+			buildTransition:           database.WorkspaceTransitionStart,
+			agentState:                database.WorkspaceAgentLifecycleStateReady,
+			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthUnhealthy},
+			expectedStatus:            database.TaskStatusError,
+			description:               "Agent is ready but app is unhealthy",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: true,
+			expectWorkspaceAppValid:   true,
 		},
 		{
-			name:            "AgentStartTimeout",
-			buildStatus:     database.ProvisionerJobStatusSucceeded,
-			buildTransition: database.WorkspaceTransitionStart,
-			agentState:      database.WorkspaceAgentLifecycleStateStartTimeout,
-			expectedStatus:  database.TaskStatusUnknown,
-			description:     "Agent start timed out",
+			name:                      "AgentStartTimeout",
+			buildStatus:               database.ProvisionerJobStatusSucceeded,
+			buildTransition:           database.WorkspaceTransitionStart,
+			agentState:                database.WorkspaceAgentLifecycleStateStartTimeout,
+			expectedStatus:            database.TaskStatusUnknown,
+			description:               "Agent start timed out",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: true,
+			expectWorkspaceAppValid:   false,
 		},
 		{
-			name:            "AgentStartError",
-			buildStatus:     database.ProvisionerJobStatusSucceeded,
-			buildTransition: database.WorkspaceTransitionStart,
-			agentState:      database.WorkspaceAgentLifecycleStateStartError,
-			expectedStatus:  database.TaskStatusUnknown,
-			description:     "Agent failed to start",
+			name:                      "AgentStartError",
+			buildStatus:               database.ProvisionerJobStatusSucceeded,
+			buildTransition:           database.WorkspaceTransitionStart,
+			agentState:                database.WorkspaceAgentLifecycleStateStartError,
+			expectedStatus:            database.TaskStatusUnknown,
+			description:               "Agent failed to start",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: true,
+			expectWorkspaceAppValid:   false,
 		},
 		{
-			name:            "AgentShuttingDown",
-			buildStatus:     database.ProvisionerJobStatusSucceeded,
-			buildTransition: database.WorkspaceTransitionStart,
-			agentState:      database.WorkspaceAgentLifecycleStateShuttingDown,
-			expectedStatus:  database.TaskStatusUnknown,
-			description:     "Agent is shutting down",
+			name:                      "AgentShuttingDown",
+			buildStatus:               database.ProvisionerJobStatusSucceeded,
+			buildTransition:           database.WorkspaceTransitionStart,
+			agentState:                database.WorkspaceAgentLifecycleStateShuttingDown,
+			expectedStatus:            database.TaskStatusUnknown,
+			description:               "Agent is shutting down",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: true,
+			expectWorkspaceAppValid:   false,
 		},
 		{
-			name:            "AgentOff",
-			buildStatus:     database.ProvisionerJobStatusSucceeded,
-			buildTransition: database.WorkspaceTransitionStart,
-			agentState:      database.WorkspaceAgentLifecycleStateOff,
-			expectedStatus:  database.TaskStatusUnknown,
-			description:     "Agent is off",
+			name:                      "AgentOff",
+			buildStatus:               database.ProvisionerJobStatusSucceeded,
+			buildTransition:           database.WorkspaceTransitionStart,
+			agentState:                database.WorkspaceAgentLifecycleStateOff,
+			expectedStatus:            database.TaskStatusUnknown,
+			description:               "Agent is off",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: true,
+			expectWorkspaceAppValid:   false,
 		},
 		{
-			name:            "RunningJobReadyAgentHealthyApp",
-			buildStatus:     database.ProvisionerJobStatusRunning,
-			buildTransition: database.WorkspaceTransitionStart,
-			agentState:      database.WorkspaceAgentLifecycleStateReady,
-			appHealths:      []database.WorkspaceAppHealth{database.WorkspaceAppHealthHealthy},
-			expectedStatus:  database.TaskStatusActive,
-			description:     "Running job with ready agent and healthy app should be active",
+			name:                      "RunningJobReadyAgentHealthyApp",
+			buildStatus:               database.ProvisionerJobStatusRunning,
+			buildTransition:           database.WorkspaceTransitionStart,
+			agentState:                database.WorkspaceAgentLifecycleStateReady,
+			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthHealthy},
+			expectedStatus:            database.TaskStatusActive,
+			description:               "Running job with ready agent and healthy app should be active",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: true,
+			expectWorkspaceAppValid:   true,
 		},
 		{
-			name:            "RunningJobReadyAgentInitializingApp",
-			buildStatus:     database.ProvisionerJobStatusRunning,
-			buildTransition: database.WorkspaceTransitionStart,
-			agentState:      database.WorkspaceAgentLifecycleStateReady,
-			appHealths:      []database.WorkspaceAppHealth{database.WorkspaceAppHealthInitializing},
-			expectedStatus:  database.TaskStatusInitializing,
-			description:     "Running job with ready agent but initializing app should be initializing",
+			name:                      "RunningJobReadyAgentInitializingApp",
+			buildStatus:               database.ProvisionerJobStatusRunning,
+			buildTransition:           database.WorkspaceTransitionStart,
+			agentState:                database.WorkspaceAgentLifecycleStateReady,
+			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthInitializing},
+			expectedStatus:            database.TaskStatusInitializing,
+			description:               "Running job with ready agent but initializing app should be initializing",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: true,
+			expectWorkspaceAppValid:   true,
 		},
 		{
-			name:            "RunningJobReadyAgentUnhealthyApp",
-			buildStatus:     database.ProvisionerJobStatusRunning,
-			buildTransition: database.WorkspaceTransitionStart,
-			agentState:      database.WorkspaceAgentLifecycleStateReady,
-			appHealths:      []database.WorkspaceAppHealth{database.WorkspaceAppHealthUnhealthy},
-			expectedStatus:  database.TaskStatusError,
-			description:     "Running job with ready agent but unhealthy app should be error",
+			name:                      "RunningJobReadyAgentUnhealthyApp",
+			buildStatus:               database.ProvisionerJobStatusRunning,
+			buildTransition:           database.WorkspaceTransitionStart,
+			agentState:                database.WorkspaceAgentLifecycleStateReady,
+			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthUnhealthy},
+			expectedStatus:            database.TaskStatusError,
+			description:               "Running job with ready agent but unhealthy app should be error",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: true,
+			expectWorkspaceAppValid:   true,
 		},
 		{
-			name:            "RunningJobConnectingAgent",
-			buildStatus:     database.ProvisionerJobStatusRunning,
-			buildTransition: database.WorkspaceTransitionStart,
-			agentState:      database.WorkspaceAgentLifecycleStateStarting,
-			appHealths:      []database.WorkspaceAppHealth{database.WorkspaceAppHealthInitializing},
-			expectedStatus:  database.TaskStatusInitializing,
-			description:     "Running job with connecting agent should be initializing",
+			name:                      "RunningJobConnectingAgent",
+			buildStatus:               database.ProvisionerJobStatusRunning,
+			buildTransition:           database.WorkspaceTransitionStart,
+			agentState:                database.WorkspaceAgentLifecycleStateStarting,
+			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthInitializing},
+			expectedStatus:            database.TaskStatusInitializing,
+			description:               "Running job with connecting agent should be initializing",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: true,
+			expectWorkspaceAppValid:   true,
 		},
 		{
-			name:            "RunningJobReadyAgentDisabledApp",
-			buildStatus:     database.ProvisionerJobStatusRunning,
-			buildTransition: database.WorkspaceTransitionStart,
-			agentState:      database.WorkspaceAgentLifecycleStateReady,
-			appHealths:      []database.WorkspaceAppHealth{database.WorkspaceAppHealthDisabled},
-			expectedStatus:  database.TaskStatusActive,
-			description:     "Running job with ready agent and disabled app health checking should be active",
+			name:                      "RunningJobReadyAgentDisabledApp",
+			buildStatus:               database.ProvisionerJobStatusRunning,
+			buildTransition:           database.WorkspaceTransitionStart,
+			agentState:                database.WorkspaceAgentLifecycleStateReady,
+			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthDisabled},
+			expectedStatus:            database.TaskStatusActive,
+			description:               "Running job with ready agent and disabled app health checking should be active",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: true,
+			expectWorkspaceAppValid:   true,
 		},
 		{
-			name:            "RunningJobReadyAgentHealthyTaskAppUnhealthyOtherAppIsOK",
-			buildStatus:     database.ProvisionerJobStatusRunning,
-			buildTransition: database.WorkspaceTransitionStart,
-			agentState:      database.WorkspaceAgentLifecycleStateReady,
-			appHealths:      []database.WorkspaceAppHealth{database.WorkspaceAppHealthHealthy, database.WorkspaceAppHealthUnhealthy},
-			expectedStatus:  database.TaskStatusActive,
-			description:     "Running job with ready agent and multiple healthy apps should be active",
+			name:                      "RunningJobReadyAgentHealthyTaskAppUnhealthyOtherAppIsOK",
+			buildStatus:               database.ProvisionerJobStatusRunning,
+			buildTransition:           database.WorkspaceTransitionStart,
+			agentState:                database.WorkspaceAgentLifecycleStateReady,
+			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthHealthy, database.WorkspaceAppHealthUnhealthy},
+			expectedStatus:            database.TaskStatusActive,
+			description:               "Running job with ready agent and multiple healthy apps should be active",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: true,
+			expectWorkspaceAppValid:   true,
 		},
 	}
 
@@ -7018,7 +7109,22 @@ func TestTasksWithStatusView(t *testing.T) {
 			got, err := db.GetTaskByID(ctx, task.ID)
 			require.NoError(t, err)
 
-			require.Equal(t, tt.expectedStatus, got.Status, "unexpected status for test case: %s", tt.description)
+			require.Equal(t, tt.expectedStatus, got.Status)
+
+			require.Equal(t, tt.expectBuildNumberValid, got.WorkspaceBuildNumber.Valid)
+			if tt.expectBuildNumberValid {
+				require.Equal(t, tt.expectBuildNumber, got.WorkspaceBuildNumber.Int32)
+			}
+
+			require.Equal(t, tt.expectWorkspaceAgentValid, got.WorkspaceAgentID.Valid)
+			if tt.expectWorkspaceAgentValid {
+				require.NotEqual(t, uuid.Nil, got.WorkspaceAgentID.UUID)
+			}
+
+			require.Equal(t, tt.expectWorkspaceAppValid, got.WorkspaceAppID.Valid)
+			if tt.expectWorkspaceAppValid {
+				require.NotEqual(t, uuid.Nil, got.WorkspaceAppID.UUID)
+			}
 		})
 	}
 }
@@ -7095,11 +7201,14 @@ func TestGetTaskByWorkspaceID(t *testing.T) {
 
 			ctx := testutil.Context(t, testutil.WaitLong)
 
-			_, err := db.GetTaskByWorkspaceID(ctx, workspace.ID)
+			task, err := db.GetTaskByWorkspaceID(ctx, workspace.ID)
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
+				require.False(t, task.WorkspaceBuildNumber.Valid)
+				require.False(t, task.WorkspaceAgentID.Valid)
+				require.False(t, task.WorkspaceAppID.Valid)
 			}
 		})
 	}
@@ -7354,7 +7463,7 @@ func TestListTasks(t *testing.T) {
 		})
 		pj := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{})
 		sidebarAppID := uuid.New()
-		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		wb := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
 			JobID:             pj.ID,
 			TemplateVersionID: tv.ID,
 			WorkspaceID:       ws.ID,
@@ -7377,9 +7486,10 @@ func TestListTasks(t *testing.T) {
 			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
 		})
 		_ = dbgen.TaskWorkspaceApp(t, db, database.TaskWorkspaceApp{
-			TaskID:           tsk.ID,
-			WorkspaceAgentID: uuid.NullUUID{Valid: true, UUID: agt.ID},
-			WorkspaceAppID:   uuid.NullUUID{Valid: true, UUID: wa.ID},
+			TaskID:               tsk.ID,
+			WorkspaceBuildNumber: wb.BuildNumber,
+			WorkspaceAgentID:     uuid.NullUUID{Valid: true, UUID: agt.ID},
+			WorkspaceAppID:       uuid.NullUUID{Valid: true, UUID: wa.ID},
 		})
 		t.Logf("task_id:%s owner_id:%s org_id:%s", tsk.ID, ownerID, orgID)
 		return tsk
@@ -7441,11 +7551,19 @@ func TestListTasks(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitShort)
 			tasks, err := db.ListTasks(ctx, tc.filter)
-			if assert.NoError(t, err) {
-				require.Len(t, tasks, len(tc.expectIDs))
-				for idx, eid := range tc.expectIDs {
-					assert.Equal(t, eid.String(), tasks[idx].ID.String())
-				}
+			require.NoError(t, err)
+			require.Len(t, tasks, len(tc.expectIDs))
+
+			for idx, eid := range tc.expectIDs {
+				task := tasks[idx]
+				assert.Equal(t, eid, task.ID, "task ID mismatch at index %d", idx)
+
+				require.True(t, task.WorkspaceBuildNumber.Valid)
+				require.Greater(t, task.WorkspaceBuildNumber.Int32, int32(0))
+				require.True(t, task.WorkspaceAgentID.Valid)
+				require.NotEqual(t, uuid.Nil, task.WorkspaceAgentID.UUID)
+				require.True(t, task.WorkspaceAppID.Valid)
+				require.NotEqual(t, uuid.Nil, task.WorkspaceAppID.UUID)
 			}
 		})
 	}
