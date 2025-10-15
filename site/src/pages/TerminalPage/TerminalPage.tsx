@@ -228,6 +228,7 @@ const TerminalPage: FC = () => {
 		renderer,
 		theme.palette.background.default,
 		currentTerminalFont,
+		copyToClipboard,
 	]);
 
 	// Updates the reconnection token into the URL if necessary.
