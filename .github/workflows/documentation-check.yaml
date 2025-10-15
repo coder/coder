@@ -213,7 +213,7 @@ jobs:
           ")
           export PROMPT
 
-          export TASK_NAME="doccheck-pr-${PR_NUMBER}-${RUN_ID}"
+          export TASK_NAME="doccheck-pr-${PR_NUMBER}"
           export CONTEXT_KEY="gh-pr-${PR_NUMBER}"
           echo "Creating task: ${CODER_USERNAME}/${TASK_NAME}"
 
