@@ -222,8 +222,9 @@ func (src *jwtTokenSource) Token() (*oauth2.Token, error) {
 		RefreshToken string `json:"refresh_token,omitempty"`
 
 		// Extra fields returned by the refresh that are needed
-		IDToken   string `json:"id_token"`
-		ExpiresIn json.Number  `json:"expires_in"` // relative seconds from now, use Number since Azure AD might return string
+		IDToken   string      `json:"id_token"`
+		ExpiresIn json.Number `json:"expires_in"` // relative seconds from now, use Number since Azure AD might return string
+
 		// error fields
 		// https://datatracker.ietf.org/doc/html/rfc6749#section-5.2
 		ErrorCode        string `json:"error"`
