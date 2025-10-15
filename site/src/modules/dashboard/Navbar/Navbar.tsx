@@ -24,7 +24,8 @@ export const Navbar: FC = () => {
 		featureVisibility.audit_log && permissions.viewAnyAuditLog;
 	const canViewConnectionLog =
 		featureVisibility.connection_log && permissions.viewAnyConnectionLog;
-	const canViewAIGovernance = true;
+	// TODO: We should have a separate permission for this
+	const canViewAIGovernance = featureVisibility.aibridge;
 
 	return (
 		<NavbarView
