@@ -7,7 +7,7 @@ interface TermsOfServiceLinkProps {
 
 export const TermsOfServiceLink: FC<TermsOfServiceLinkProps> = ({ url }) => {
 	return (
-		<div className={"pt-3 text-base"}>
+		<div className="pt-3 text-base">
 			By continuing, you agree to the{" "}
 			<Link
 				className="font-medium whitespace-nowrap"
