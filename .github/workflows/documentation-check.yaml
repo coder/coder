@@ -1,0 +1,245 @@
+name: AI Documentation Updates Automation
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Pull Request number to process"
+        required: true
+        type: number
+
+jobs:
+  documentation-check:
+    name: Check Documentation Updates with Claude Code
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CODER_URL: ${{ secrets.TRAIAGE_CODER_URL }}
+      CODER_SESSION_TOKEN: ${{ secrets.TRAIAGE_CODER_SESSION_TOKEN }}
+    permissions:
+      contents: read
+      pull-requests: write
+      actions: write
+
+    steps:
+      - name: Determine PR Number
+        id: determine-pr
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_EVENT_PR_NUMBER: ${{ github.event.pull_request.number }}
+          INPUTS_PR_NUMBER: ${{ inputs.pr_number }}
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            echo "pr_number=${INPUTS_PR_NUMBER}" >> "${GITHUB_OUTPUT}"
+          elif [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            echo "pr_number=${GITHUB_EVENT_PR_NUMBER}" >> "${GITHUB_OUTPUT}"
+          else
+            echo "::error::Unsupported event type: ${GITHUB_EVENT_NAME}"
+            exit 1
+          fi
+
+      - name: Verify push access
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_ACTOR: ${{ github.actor }}
+        run: |
+          can_push="$(gh api "/repos/${GITHUB_REPOSITORY}/collaborators/${GITHUB_ACTOR}/permission" --jq '.user.permissions.push')"
+          if [[ "${can_push}" != "true" ]]; then
+            echo "::error title=Access Denied::${GITHUB_ACTOR} does not have push access to ${GITHUB_REPOSITORY}"
+            exit 1
+          fi
+
+      - name: Post initial comment
+        id: post-comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.determine-pr.outputs.pr_number }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          COMMENT_BODY="🤖 **Documentation Check Started**
+
+Analyzing PR changes to determine if documentation updates are needed...
+
+[View workflow run](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID})
+"
+          COMMENT_ID=$(gh pr comment "${PR_NUMBER}" --body "${COMMENT_BODY}" --repo "${GITHUB_REPOSITORY}" | grep -oP 'https://github.com/.*/pull/.*#issuecomment-\K\d+')
+          echo "comment_id=${COMMENT_ID}" >> "${GITHUB_OUTPUT}"
+
+      - name: Download and install Coder binary
+        shell: bash
+        env:
+          CODER_URL: ${{ secrets.TRAIAGE_CODER_URL }}
+        run: |
+          if [ "${{ runner.arch }}" == "ARM64" ]; then
+            ARCH="arm64"
+          else
+            ARCH="amd64"
+          fi
+          mkdir -p "${HOME}/.local/bin"
+          curl -fsSL --compressed "$CODER_URL/bin/coder-linux-${ARCH}" -o "${HOME}/.local/bin/coder"
+          chmod +x "${HOME}/.local/bin/coder"
+          export PATH="$HOME/.local/bin:$PATH"
+          coder version
+          coder whoami
+          echo "$HOME/.local/bin" >> "${GITHUB_PATH}"
+
+      - name: Get Coder username from GitHub actor
+        id: get-coder-username
+        env:
+          CODER_SESSION_TOKEN: ${{ secrets.TRAIAGE_CODER_SESSION_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_ACTOR: ${{ github.actor }}
+        run: |
+          GITHUB_USER_ID=$(gh api "users/${GITHUB_ACTOR}" --jq '.id')
+          user_json=$(coder users list --github-user-id="${GITHUB_USER_ID}" --output=json)
+          coder_username=$(jq -r 'first | .username' <<< "$user_json")
+          [[ -z "${coder_username}" || "${coder_username}" == "null" ]] && echo "No Coder user with GitHub user ID ${GITHUB_USER_ID} found" && exit 1
+          echo "coder_username=${coder_username}" >> "${GITHUB_OUTPUT}"
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Create Coder task for documentation analysis
+        id: create-task
+        env:
+          CODER_USERNAME: ${{ steps.get-coder-username.outputs.coder_username }}
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ steps.determine-pr.outputs.pr_number }}
+          RUN_ID: ${{ github.run_id }}
+          TEMPLATE_NAME: "traiage"
+          TEMPLATE_PRESET: "Default"
+        run: |
+          # Fetch PR details using `gh` CLI
+          pr_json=$(gh pr view "${PR_NUMBER}" --repo "${GITHUB_REPOSITORY}" --json 'title,body,url,files')
+          pr_title=$(echo "${pr_json}" | jq -r '.title')
+          pr_body=$(echo "${pr_json}" | jq -r '.body')
+          pr_url=$(echo "${pr_json}" | jq -r '.url')
+
+          # Get list of changed files
+          files_changed=$(echo "${pr_json}" | jq -r '.files[] | "  - \(.path) (\(.additions) additions, \(.deletions) deletions)"')
+
+          # Get the actual diff for code changes
+          pr_diff=$(gh pr diff "${PR_NUMBER}" --repo "${GITHUB_REPOSITORY}")
+
+          # Build comprehensive prompt
+          PROMPT=$(cat <<EOF
+Analyze PR ${pr_url} for documentation updates.
+
+## Task Description
+You are tasked with analyzing code changes in a pull request and determining what documentation updates are needed. Please:
+
+1. Review the PR description and code changes to understand what was changed
+2. Examine the existing documentation in the docs/ directory
+3. Identify any of the following needs:
+   - Updates required to existing documentation
+   - Documentation that needs to be deprecated
+   - New documentation that should be added
+4. Provide a clear, actionable list of documentation changes needed
+
+## PR Details
+**Title**: ${pr_title}
+
+**Description**:
+${pr_body}
+
+**Files Changed**:
+${files_changed}
+
+**Code Diff**:
+\`\`\`diff
+${pr_diff}
+\`\`\`
+
+## Output Format
+Please provide your analysis in the following format:
+
+### Documentation Updates Required
+
+#### Updates to Existing Documentation
+- [List any existing docs that need updates with specific changes needed]
+
+#### Documentation to Deprecate
+- [List any docs that should be marked as deprecated or removed]
+
+#### New Documentation Needed
+- [List any new documentation that should be created]
+
+#### No Changes Needed
+- [If no documentation changes are required, explain why]
+
+Be specific and provide file paths and section references where applicable.
+EOF
+          )
+          export PROMPT
+
+          export TASK_NAME="doccheck-pr-${PR_NUMBER}-${RUN_ID}"
+          export CONTEXT_KEY="gh-pr-${PR_NUMBER}"
+          echo "Creating task: ${CODER_USERNAME}/${TASK_NAME}"
+
+          ./scripts/documentation-check.sh create
+
+          echo "TASK_NAME=${CODER_USERNAME}/${TASK_NAME}" >> "${GITHUB_OUTPUT}"
+          echo "TASK_NAME=${CODER_USERNAME}/${TASK_NAME}" >> "${GITHUB_ENV}"
+
+      - name: Wait for task completion and get results
+        id: get-results
+        env:
+          TASK_NAME: ${{ steps.create-task.outputs.TASK_NAME }}
+        run: |
+          echo "Waiting for task to complete..."
+          ./scripts/documentation-check.sh wait
+
+          echo "Getting task results..."
+          TASK_OUTPUT=$(./scripts/documentation-check.sh summary)
+
+          # Save output to file for next step
+          echo "${TASK_OUTPUT}" > /tmp/task_output.txt
+
+          echo "Task completed successfully"
+
+      - name: Update PR comment with results
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.determine-pr.outputs.pr_number }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          COMMENT_ID: ${{ steps.post-comment.outputs.comment_id }}
+          TASK_NAME: ${{ steps.create-task.outputs.TASK_NAME }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          TASK_OUTPUT=$(cat /tmp/task_output.txt)
+
+          COMMENT_BODY="🤖 **Documentation Check Complete**
+
+${TASK_OUTPUT}
+
+---
+Task: https://dev.coder.com/tasks/${TASK_NAME}
+[View workflow run](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID})
+"
+
+          # Update the existing comment
+          gh api \
+            --method PATCH \
+            "/repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}" \
+            -f body="${COMMENT_BODY}"
+
+      - name: Cleanup task
+        if: always()
+        env:
+          TASK_NAME: ${{ steps.create-task.outputs.TASK_NAME }}
+        run: |
+          if [[ -n "${TASK_NAME}" ]]; then
+            echo "Cleaning up task: ${TASK_NAME}"
+            ./scripts/documentation-check.sh delete || true
+          fi
