@@ -11,9 +11,9 @@ const RequestLogsPage: FC = () => {
 		<>
 			<title>{pageTitle("AI Governance", "Request Logs")}</title>
 
-			<RequestLogsPageView />
+			<RequestLogsPageView interceptions={interceptionsQuery.data?.results} />
 		</>
-	)
+	);
 };
 
 export default RequestLogsPage;

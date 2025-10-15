@@ -1,3 +1,4 @@
+import type { AIBridgeInterception } from "api/typesGenerated";
 import {
 	Table,
 	TableBody,
@@ -8,10 +9,13 @@ import {
 import type { FC } from "react";
 import { RequestLogsRow } from "./RequestLogsRow/RequestLogsRow";
 
-// biome-ignore lint/suspicious/noEmptyInterface: TODO
-interface RequestLogsPageViewProps {}
+interface RequestLogsPageViewProps {
+	interceptions?: readonly AIBridgeInterception[];
+}
 
-export const RequestLogsPageView: FC<RequestLogsPageViewProps> = () => {
+export const RequestLogsPageView: FC<RequestLogsPageViewProps> = ({
+	interceptions,
+}) => {
 	return (
 		<Table>
 			<TableHeader>
@@ -26,8 +30,8 @@ export const RequestLogsPageView: FC<RequestLogsPageViewProps> = () => {
 				</TableRow>
 			</TableHeader>
 			<TableBody>
-				{new Array(5).fill(0).map((_, x) => (
-					<RequestLogsRow key={x} />
+				{interceptions?.map((interception) => (
+					<RequestLogsRow interception={interception} key={interception.id} />
 				))}
 			</TableBody>
 		</Table>

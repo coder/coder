@@ -1,12 +1,16 @@
 import { Margins } from "components/Margins/Margins";
-import { PageHeader, PageHeaderSubtitle, PageHeaderTitle } from "components/PageHeader/PageHeader";
+import {
+	PageHeader,
+	PageHeaderSubtitle,
+	PageHeaderTitle,
+} from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
 import type { FC, PropsWithChildren } from "react";
 import { Outlet } from "react-router";
 
 const Language = {
 	title: "AI Governance",
-	subtitle: "Manage AI policies and usage for your organization.",
+	subtitle: "Manage usage for your organization.",
 };
 
 const AIGovernanceLayout: FC<PropsWithChildren> = ({
@@ -20,13 +24,11 @@ const AIGovernanceLayout: FC<PropsWithChildren> = ({
 						<span>{Language.title}</span>
 					</Stack>
 				</PageHeaderTitle>
-				<PageHeaderSubtitle>
-					{Language.subtitle}
-				</PageHeaderSubtitle>
+				<PageHeaderSubtitle>{Language.subtitle}</PageHeaderSubtitle>
 			</PageHeader>
 			{children}
 		</Margins>
 	);
 };
 
-export default AIGovernanceLayout
+export default AIGovernanceLayout;
