@@ -471,6 +471,13 @@ func (api *API) enqueueAITaskStateNotification(
 			return
 		}
 
+		// Skip the initial "Working" notification when task first starts.
+		// This is obvious to the user since they just created the task.
+		// We still notify on first "Idle" status and all subsequent transitions.
+		if len(latestAppStatus) == 0 && newAppStatus == codersdk.WorkspaceAppStatusStateWorking {
+			return
+		}
+
 		// Use the task prompt as the "task" label, fallback to workspace name
 		parameters, err := api.Database.GetWorkspaceBuildParameters(ctx, workspaceBuild.ID)
 		if err != nil {

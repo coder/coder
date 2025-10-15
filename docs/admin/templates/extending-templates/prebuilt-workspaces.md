@@ -364,6 +364,63 @@ For example, the [`ami`](https://registry.terraform.io/providers/hashicorp/aws/l
 has [`ForceNew`](https://github.com/hashicorp/terraform-provider-aws/blob/main/internal/service/ec2/ec2_instance.go#L75-L81) set,
 since the AMI cannot be changed in-place._
 
+### Preventing prebuild queue contention (recommended)
+
+The section [Managing prebuild provisioning queues](#managing-prebuild-provisioning-queues) covers how to recover when prebuilds have already overwhelmed the provisioner queue.
+This section outlines a **best-practice configuration** to prevent that situation by isolating prebuild jobs to a dedicated provisioner pool.
+This setup is optional and requires minor template changes.
+
+Coder supports [external provisioners and provisioner tags](../../provisioners/index.md), which allows you to route jobs to provisioners with matching tags.
+By creating external provisioners with a special tag (e.g., `is_prebuild=true`) and updating the template to conditionally add that tag for prebuild jobs,
+all prebuild work is handled by the prebuild pool.
+This keeps other provisioners available to handle user-initiated jobs.
+
+#### Setup
+
+1) Create a provisioner key with a prebuild tag (e.g., `is_prebuild=true`).
+Provisioner keys are org-scoped and their tags are inferred automatically by provisioner daemons that use the key.
+See [Scoped Key](../../provisioners/index.md#scoped-key-recommended) for instructions on how to create a provisioner key.
+
+2) Deploy a separate provisioner pool using that key (for example, via the [Helm coder-provisioner chart](https://github.com/coder/coder/pkgs/container/chart%2Fcoder-provisioner)).
+Daemons in this pool will only execute jobs that include all of the tags specified in their provisioner key.
+See [External provisioners](../../provisioners/index.md) for environment-specific deployment examples.
+
+3) Update the template to conditionally add the prebuild tag for prebuild jobs.
+
+```hcl
+data "coder_workspace_tags" "prebuilds" {
+  count = data.coder_workspace_owner.me.name == "prebuilds" ? 1 : 0
+  tags = {
+    "is_prebuild" = "true"
+  }
+}
+```
+
+Prebuild workspaces are a special type of workspace owned by the system user `prebuilds`.
+The value `data.coder_workspace_owner.me.name` returns the name of the workspace owner, for prebuild workspaces, this value is `"prebuild"`.
+Because the condition evaluates based on the workspace owner, provisioning or deprovisioning prebuilds automatically applies the prebuild tag, whereas regular jobs (like workspace creation or template import) do not.
+
+> [!NOTE]
+> The prebuild provisioner pool can still accept non-prebuild jobs.
+> To achieve a fully isolated setup, add an additional tag (`is_prebuild=false`) to your standard provisioners, ensuring a clean separation between prebuild and non-prebuild workloads.
+> See [Provisioner Tags](../../provisioners/index.md#provisioner-tags) for further details.
+
+#### Validation
+
+To confirm that prebuild jobs are correctly routed to the new provisioner pool, use the Provisioner Jobs dashboard or the [`coder provisioner jobs list`](../../../reference/cli/provisioner_jobs_list.md) CLI command to inspect job metadata and tags.
+Follow these steps:
+
+1) Publish the new template version.
+
+2) Wait for the prebuilds reconciliation loop to run.
+The loop frequency is controlled by the configuration value [`CODER_WORKSPACE_PREBUILDS_RECONCILIATION_INTERVAL`](../../../reference/cli/server.md#--workspace-prebuilds-reconciliation-interval).
+When the loop runs, it will provision prebuilds for the new template version and deprovision prebuilds for the previous version.
+Both provisioning and deprovisioning jobs for prebuilds should display the tag `is_prebuild=true`.
+
+3) Create a new workspace from a preset.
+Whether the preset uses a prebuild pool or not, the resulting job should not include the `is_prebuild=true` tag.
+This confirms that only prebuild-related jobs are routed to the dedicated prebuild provisioner pool.
+
 ### Monitoring and observability
 
 #### Available metrics

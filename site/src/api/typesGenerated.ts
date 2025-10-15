@@ -3060,6 +3060,7 @@ export type ResourceType =
 	| "organization"
 	| "organization_member"
 	| "prebuilds_settings"
+	| "task"
 	| "template"
 	| "template_version"
 	| "user"
@@ -3087,6 +3088,7 @@ export const ResourceTypes: ResourceType[] = [
 	"organization",
 	"organization_member",
 	"prebuilds_settings",
+	"task",
 	"template",
 	"template_version",
 	"user",

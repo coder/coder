@@ -781,10 +781,14 @@ func (a *agent) reportConnectionsLoop(ctx context.Context, aAPI proto.DRPCAgentC
 			logger.Debug(ctx, "reporting connection")
 			_, err := aAPI.ReportConnection(ctx, payload)
 			if err != nil {
-				return xerrors.Errorf("failed to report connection: %w", err)
+				// Do not fail the loop if we fail to report a connection, just
+				// log a warning.
+				// Related to https://github.com/coder/coder/issues/20194
+				logger.Warn(ctx, "failed to report connection to server", slog.Error(err))
+				// keep going, we still need to remove it from the slice
+			} else {
+				logger.Debug(ctx, "successfully reported connection")
 			}
-
-			logger.Debug(ctx, "successfully reported connection")
 
 			// Remove the payload we sent.
 			a.reportConnectionsMu.Lock()
@@ -814,6 +818,13 @@ func (a *agent) reportConnection(id uuid.UUID, connectionType proto.Connection_T
 	} else {
 		// Best effort.
 		ip = host
+	}
+
+	// If the IP is "localhost" (which it can be in some cases), set it to
+	// 127.0.0.1 instead.
+	// Related to https://github.com/coder/coder/issues/20194
+	if ip == "localhost" {
+		ip = "127.0.0.1"
 	}
 
 	a.reportConnectionsMu.Lock()
