@@ -27,17 +27,43 @@ jobs:
       actions: write
 
     steps:
-      - name: Determine PR Number
-        id: determine-pr
+      - name: Determine Inputs
+        id: determine-inputs
+        if: always()
         env:
+          GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_EVENT_NAME: ${{ github.event_name }}
           GITHUB_EVENT_PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_EVENT_USER_ID: ${{ github.event.sender.id }}
+          GITHUB_EVENT_USER_LOGIN: ${{ github.event.sender.login }}
           INPUTS_PR_NUMBER: ${{ inputs.pr_number }}
+          GH_TOKEN: ${{ github.token }}
         run: |
+          # For workflow_dispatch, use the actor who triggered it
+          # For pull_request events, use the PR author
           if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            if ! GITHUB_USER_ID=$(gh api "users/${GITHUB_ACTOR}" --jq '.id'); then
+              echo "::error::Failed to get GitHub user ID for actor ${GITHUB_ACTOR}"
+              exit 1
+            fi
+            echo "Using workflow_dispatch actor: ${GITHUB_ACTOR} (ID: ${GITHUB_USER_ID})"
+            echo "github_user_id=${GITHUB_USER_ID}" >> "${GITHUB_OUTPUT}"
+            echo "github_username=${GITHUB_ACTOR}" >> "${GITHUB_OUTPUT}"
+
+            echo "Using PR number: ${INPUTS_PR_NUMBER}"
             echo "pr_number=${INPUTS_PR_NUMBER}" >> "${GITHUB_OUTPUT}"
+
+            exit 0
           elif [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            GITHUB_USER_ID=${GITHUB_EVENT_USER_ID}
+            echo "Using PR author: ${GITHUB_EVENT_USER_LOGIN} (ID: ${GITHUB_USER_ID})"
+            echo "github_user_id=${GITHUB_USER_ID}" >> "${GITHUB_OUTPUT}"
+            echo "github_username=${GITHUB_EVENT_USER_LOGIN}" >> "${GITHUB_OUTPUT}"
+
+            echo "Using PR number: ${GITHUB_EVENT_PR_NUMBER}"
             echo "pr_number=${GITHUB_EVENT_PR_NUMBER}" >> "${GITHUB_OUTPUT}"
+
+            exit 0
           else
             echo "::error::Unsupported event type: ${GITHUB_EVENT_NAME}"
             exit 1
@@ -47,11 +73,13 @@ jobs:
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
-          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_USERNAME: ${{ steps.determine-inputs.outputs.github_username }}
+          GITHUB_USER_ID: ${{ steps.determine-inputs.outputs.github_user_id }}
         run: |
-          can_push="$(gh api "/repos/${GITHUB_REPOSITORY}/collaborators/${GITHUB_ACTOR}/permission" --jq '.user.permissions.push')"
+          # Query the actor's permission on this repo
+          can_push="$(gh api "/repos/${GITHUB_REPOSITORY}/collaborators/${GITHUB_USERNAME}/permission" --jq '.user.permissions.push')"
           if [[ "${can_push}" != "true" ]]; then
-            echo "::error title=Access Denied::${GITHUB_ACTOR} does not have push access to ${GITHUB_REPOSITORY}"
+            echo "::error title=Access Denied::${GITHUB_USERNAME} does not have push access to ${GITHUB_REPOSITORY}"
             exit 1
           fi
 
@@ -59,7 +87,7 @@ jobs:
         id: post-comment
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ steps.determine-pr.outputs.pr_number }}
+          PR_NUMBER: ${{ steps.determine-inputs.outputs.pr_number }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           RUN_ID: ${{ github.run_id }}
         run: |
@@ -97,10 +125,11 @@ jobs:
         env:
           CODER_SESSION_TOKEN: ${{ secrets.TRAIAGE_CODER_SESSION_TOKEN }}
           GH_TOKEN: ${{ github.token }}
-          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_USER_ID: ${{ steps.determine-inputs.outputs.github_user_id }}
         run: |
-          GITHUB_USER_ID=$(gh api "users/${GITHUB_ACTOR}" --jq '.id')
-          user_json=$(coder users list --github-user-id="${GITHUB_USER_ID}" --output=json)
+          user_json=$(
+            coder users list --github-user-id="${GITHUB_USER_ID}" --output=json
+          )
           coder_username=$(jq -r 'first | .username' <<< "$user_json")
           [[ -z "${coder_username}" || "${coder_username}" == "null" ]] && echo "No Coder user with GitHub user ID ${GITHUB_USER_ID} found" && exit 1
           echo "coder_username=${coder_username}" >> "${GITHUB_OUTPUT}"
@@ -117,7 +146,7 @@ jobs:
           CODER_USERNAME: ${{ steps.get-coder-username.outputs.coder_username }}
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-          PR_NUMBER: ${{ steps.determine-pr.outputs.pr_number }}
+          PR_NUMBER: ${{ steps.determine-inputs.outputs.pr_number }}
           RUN_ID: ${{ github.run_id }}
           TEMPLATE_NAME: "traiage"
           TEMPLATE_PRESET: "Default"
@@ -135,7 +164,7 @@ jobs:
           pr_diff=$(gh pr diff "${PR_NUMBER}" --repo "${GITHUB_REPOSITORY}")
 
           # Build comprehensive prompt
-          PROMPT=$(cat <<EOF
+          PROMPT=$(cat <<'EOF'
 Analyze PR ${pr_url} for documentation updates.
 
 ## Task Description
@@ -159,9 +188,9 @@ ${pr_body}
 ${files_changed}
 
 **Code Diff**:
-\`\`\`diff
+```diff
 ${pr_diff}
-\`\`\`
+```
 
 ## Output Format
 Please provide your analysis in the following format:
@@ -183,6 +212,11 @@ Please provide your analysis in the following format:
 Be specific and provide file paths and section references where applicable.
 EOF
           )
+          # Expand variables in the prompt
+          PROMPT=$(eval "cat <<EOF
+${PROMPT}
+EOF
+")
           export PROMPT
 
           export TASK_NAME="doccheck-pr-${PR_NUMBER}-${RUN_ID}"
@@ -213,7 +247,7 @@ EOF
       - name: Update PR comment with results
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ steps.determine-pr.outputs.pr_number }}
+          PR_NUMBER: ${{ steps.determine-inputs.outputs.pr_number }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           COMMENT_ID: ${{ steps.post-comment.outputs.comment_id }}
           TASK_NAME: ${{ steps.create-task.outputs.TASK_NAME }}
