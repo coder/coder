@@ -48,6 +48,8 @@ func AsAuthzSystem(mws ...func(http.Handler) http.Handler) func(http.Handler) ht
 // a per-request basis by setting the `x-record-authz-checks` header to a truthy value.
 //
 // Requires using a Recorder Authorizer.
+//
+//nolint:revive
 func RecordAuthzChecks(always bool) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
