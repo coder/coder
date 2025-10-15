@@ -141,6 +141,7 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 	ca-certificates \
 	cargo \
 	cmake \
+	containerd.io \
 	crypto-policies \
 	curl \
 	docker-ce \
