@@ -370,7 +370,7 @@ The section [Managing prebuild provisioning queues](#managing-prebuild-provision
 This section outlines a **best-practice configuration** to prevent that situation by isolating prebuild jobs to a dedicated provisioner pool.
 This setup is optional and requires minor template changes.
 
-Coder supports [external provisioners and provisioner tags](../../provisioners/index.md), allowing to route jobs to provisioners with matching tags.
+Coder supports [external provisioners and provisioner tags](../../provisioners/index.md), which allows you to route jobs to provisioners with matching tags.
 By creating external provisioners with a special tag (e.g., `is_prebuild=true`) and updating the template to conditionally add that tag for prebuild jobs,
 all prebuild work is handled by the prebuild pool.
 This keeps other provisioners available to handle user-initiated jobs.
@@ -381,15 +381,15 @@ This keeps other provisioners available to handle user-initiated jobs.
 Provisioner keys are org-scoped and their tags are inferred automatically by provisioner daemons that use the key.
 See [Scoped Key](../../provisioners/index.md#scoped-key-recommended) for instructions on how to create a provisioner key.
 
-2) Deploy a separate provisioner pool using that key (for example, via the Helm coder-provisioner chart).
-Daemons in this pool will only execute jobs that include the key’s tags.
+2) Deploy a separate provisioner pool using that key (for example, via the [Helm coder-provisioner chart](https://github.com/coder/coder/pkgs/container/chart%2Fcoder-provisioner)).
+Daemons in this pool will only execute jobs that include all of the tags specified in their provisioner key.
 See [External provisioners](../../provisioners/index.md) for environment-specific deployment examples.
 
 3) Update the template to conditionally add the prebuild tag for prebuild jobs.
 
 ```hcl
 data "coder_workspace_tags" "prebuilds" {
-  count            = data.coder_workspace_owner.me.name == "prebuilds" ? 1 : 0
+  count = data.coder_workspace_owner.me.name == "prebuilds" ? 1 : 0
   tags = {
     "is_prebuild" = "true"
   }
