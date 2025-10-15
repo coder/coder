@@ -1,5 +1,4 @@
 import { useTheme } from "@emotion/react";
-import GitHubIcon from "@mui/icons-material/GitHub";
 import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
 import { API } from "api/api";
@@ -13,6 +12,7 @@ import type {
 import { Button } from "components/Button/Button";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "components/EmptyState/EmptyState";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Stack } from "components/Stack/Stack";
 import { CircleCheck as CircleCheckIcon, KeyIcon } from "lucide-react";
 import { type FC, useState } from "react";
@@ -155,7 +155,7 @@ export const SingleSignOnSection: FC<SingleSignOnSectionProps> = ({
 									disabled={isUpdating}
 									onClick={() => openConfirmation("github")}
 								>
-									<GitHubIcon />
+									<ExternalImage src="/icon/github.svg" />
 									GitHub
 								</Button>
 							)}
@@ -204,7 +204,7 @@ export const SingleSignOnSection: FC<SingleSignOnSectionProps> = ({
 							</span>
 							<div css={{ marginLeft: "auto", lineHeight: 1 }}>
 								{userLoginType.login_type === "github" ? (
-									<GitHubIcon css={{ width: 16, height: 16 }} />
+									<ExternalImage src="/icon/github.svg" />
 								) : (
 									<OIDCIcon oidcAuth={authMethods.oidc} />
 								)}
