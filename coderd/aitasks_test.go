@@ -343,8 +343,6 @@ func TestTasks(t *testing.T) {
 	t.Run("Delete", func(t *testing.T) {
 		t.Parallel()
 
-		t.Skip("TODO(mafredri): Remove, fixed down-stack!")
-
 		t.Run("OK", func(t *testing.T) {
 			t.Parallel()
 
