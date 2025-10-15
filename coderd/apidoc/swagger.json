@@ -10636,6 +10636,11 @@
 				"tailnet_coordinator:delete",
 				"tailnet_coordinator:read",
 				"tailnet_coordinator:update",
+				"task:*",
+				"task:create",
+				"task:delete",
+				"task:read",
+				"task:update",
 				"template:*",
 				"template:create",
 				"template:delete",
@@ -10827,6 +10832,11 @@
 				"APIKeyScopeTailnetCoordinatorDelete",
 				"APIKeyScopeTailnetCoordinatorRead",
 				"APIKeyScopeTailnetCoordinatorUpdate",
+				"APIKeyScopeTaskAll",
+				"APIKeyScopeTaskCreate",
+				"APIKeyScopeTaskDelete",
+				"APIKeyScopeTaskRead",
+				"APIKeyScopeTaskUpdate",
 				"APIKeyScopeTemplateAll",
 				"APIKeyScopeTemplateCreate",
 				"APIKeyScopeTemplateDelete",
@@ -15513,6 +15523,7 @@
 				"replicas",
 				"system",
 				"tailnet_coordinator",
+				"task",
 				"template",
 				"usage_event",
 				"user",
@@ -15556,6 +15567,7 @@
 				"ResourceReplicas",
 				"ResourceSystem",
 				"ResourceTailnetCoordinator",
+				"ResourceTask",
 				"ResourceTemplate",
 				"ResourceUsageEvent",
 				"ResourceUser",
@@ -15761,7 +15773,8 @@
 				"idp_sync_settings_group",
 				"idp_sync_settings_role",
 				"workspace_agent",
-				"workspace_app"
+				"workspace_app",
+				"task"
 			],
 			"x-enum-varnames": [
 				"ResourceTypeTemplate",
@@ -15788,7 +15801,8 @@
 				"ResourceTypeIdpSyncSettingsGroup",
 				"ResourceTypeIdpSyncSettingsRole",
 				"ResourceTypeWorkspaceAgent",
-				"ResourceTypeWorkspaceApp"
+				"ResourceTypeWorkspaceApp",
+				"ResourceTypeTask"
 			]
 		},
 		"codersdk.Response": {
@@ -16127,6 +16141,17 @@
 				},
 				"workspace_agent_lifecycle": {
 					"$ref": "#/definitions/codersdk.WorkspaceAgentLifecycle"
+				},
+				"workspace_app_id": {
+					"format": "uuid",
+					"allOf": [
+						{
+							"$ref": "#/definitions/uuid.NullUUID"
+						}
+					]
+				},
+				"workspace_build_number": {
+					"type": "integer"
 				},
 				"workspace_id": {
 					"format": "uuid",

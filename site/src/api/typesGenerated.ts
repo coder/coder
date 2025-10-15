@@ -247,6 +247,11 @@ export type APIKeyScope =
 	| "tailnet_coordinator:delete"
 	| "tailnet_coordinator:read"
 	| "tailnet_coordinator:update"
+	| "task:*"
+	| "task:create"
+	| "task:delete"
+	| "task:read"
+	| "task:update"
 	| "template:*"
 	| "template:create"
 	| "template:delete"
@@ -438,6 +443,11 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"tailnet_coordinator:delete",
 	"tailnet_coordinator:read",
 	"tailnet_coordinator:update",
+	"task:*",
+	"task:create",
+	"task:delete",
+	"task:read",
+	"task:update",
 	"template:*",
 	"template:create",
 	"template:delete",
@@ -2916,6 +2926,7 @@ export type RBACResource =
 	| "replicas"
 	| "system"
 	| "tailnet_coordinator"
+	| "task"
 	| "template"
 	| "usage_event"
 	| "user"
@@ -2959,6 +2970,7 @@ export const RBACResources: RBACResource[] = [
 	"replicas",
 	"system",
 	"tailnet_coordinator",
+	"task",
 	"template",
 	"usage_event",
 	"user",
@@ -3049,6 +3061,7 @@ export type ResourceType =
 	| "organization"
 	| "organization_member"
 	| "prebuilds_settings"
+	| "task"
 	| "template"
 	| "template_version"
 	| "user"
@@ -3076,6 +3089,7 @@ export const ResourceTypes: ResourceType[] = [
 	"organization",
 	"organization_member",
 	"prebuilds_settings",
+	"task",
 	"template",
 	"template_version",
 	"user",
@@ -3336,9 +3350,11 @@ export interface Task {
 	readonly template_display_name: string;
 	readonly template_icon: string;
 	readonly workspace_id: string | null;
+	readonly workspace_build_number?: number;
 	readonly workspace_agent_id: string | null;
 	readonly workspace_agent_lifecycle: WorkspaceAgentLifecycle | null;
 	readonly workspace_agent_health: WorkspaceAgentHealth | null;
+	readonly workspace_app_id: string | null;
 	readonly initial_prompt: string;
 	readonly status: WorkspaceStatus;
 	readonly current_state: TaskStateEntry | null;

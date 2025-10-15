@@ -1008,15 +1008,25 @@ func TestTasksNotification(t *testing.T) {
 			isNotificationSent: false,
 			taskPrompt:         "NonNotifiedTransition",
 		},
-		// Should send TemplateTaskWorking when the AI task transitions to 'Working'.
+		// Should NOT send TemplateTaskWorking when the AI task's FIRST status is 'Working' (obvious state).
 		{
 			name:                 "TemplateTaskWorking",
 			latestAppStatuses:    nil,
 			newAppStatus:         codersdk.WorkspaceAppStatusStateWorking,
 			isAITask:             true,
-			isNotificationSent:   true,
+			isNotificationSent:   false,
 			notificationTemplate: notifications.TemplateTaskWorking,
 			taskPrompt:           "TemplateTaskWorking",
+		},
+		// Should send TemplateTaskIdle when the AI task's FIRST status is 'Idle' (task completed immediately).
+		{
+			name:                 "InitialTemplateTaskIdle",
+			latestAppStatuses:    nil,
+			newAppStatus:         codersdk.WorkspaceAppStatusStateIdle,
+			isAITask:             true,
+			isNotificationSent:   true,
+			notificationTemplate: notifications.TemplateTaskIdle,
+			taskPrompt:           "InitialTemplateTaskIdle",
 		},
 		// Should send TemplateTaskWorking when the AI task transitions to 'Working' from 'Idle'.
 		{

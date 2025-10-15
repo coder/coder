@@ -312,6 +312,11 @@
         "valid": true
       },
       "workspace_agent_lifecycle": "created",
+      "workspace_app_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "workspace_build_number": 0,
       "workspace_id": {
         "uuid": "string",
         "valid": true
@@ -909,6 +914,11 @@
 | `tailnet_coordinator:delete`              |
 | `tailnet_coordinator:read`                |
 | `tailnet_coordinator:update`              |
+| `task:*`                                  |
+| `task:create`                             |
+| `task:delete`                             |
+| `task:read`                               |
+| `task:update`                             |
 | `template:*`                              |
 | `template:create`                         |
 | `template:delete`                         |
@@ -7126,6 +7136,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `replicas`                         |
 | `system`                           |
 | `tailnet_coordinator`              |
+| `task`                             |
 | `template`                         |
 | `usage_event`                      |
 | `user`                             |
@@ -7377,6 +7388,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `idp_sync_settings_role`         |
 | `workspace_agent`                |
 | `workspace_app`                  |
+| `task`                           |
 
 ## codersdk.Response
 
@@ -7722,6 +7734,11 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
     "valid": true
   },
   "workspace_agent_lifecycle": "created",
+  "workspace_app_id": {
+    "uuid": "string",
+    "valid": true
+  },
+  "workspace_build_number": 0,
   "workspace_id": {
     "uuid": "string",
     "valid": true
@@ -7750,6 +7767,8 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `workspace_agent_health`    | [codersdk.WorkspaceAgentHealth](#codersdkworkspaceagenthealth)       | false    |              |             |
 | `workspace_agent_id`        | [uuid.NullUUID](#uuidnulluuid)                                       | false    |              |             |
 | `workspace_agent_lifecycle` | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle) | false    |              |             |
+| `workspace_app_id`          | [uuid.NullUUID](#uuidnulluuid)                                       | false    |              |             |
+| `workspace_build_number`    | integer                                                              | false    |              |             |
 | `workspace_id`              | [uuid.NullUUID](#uuidnulluuid)                                       | false    |              |             |
 
 #### Enumerated Values
