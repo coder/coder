@@ -218,16 +218,32 @@ jobs:
         env:
           TASK_NAME: ${{ steps.create-task.outputs.TASK_NAME }}
         run: |
+          START_TIME=$(date +%s)
+
           echo "Waiting for task to complete..."
           ./scripts/documentation-check.sh wait
 
           echo "Getting task results..."
           TASK_OUTPUT=$(./scripts/documentation-check.sh summary)
 
+          END_TIME=$(date +%s)
+          DURATION=$((END_TIME - START_TIME))
+
+          # Convert to minutes and seconds
+          MINUTES=$((DURATION / 60))
+          SECONDS=$((DURATION % 60))
+
+          if [ $MINUTES -gt 0 ]; then
+            DURATION_STR="${MINUTES}m ${SECONDS}s"
+          else
+            DURATION_STR="${SECONDS}s"
+          fi
+
           # Save output to file for next step
           echo "${TASK_OUTPUT}" > /tmp/task_output.txt
+          echo "${DURATION_STR}" > /tmp/task_duration.txt
 
-          echo "Task completed successfully"
+          echo "Task completed successfully in ${DURATION_STR}"
 
       - name: Update PR comment with results
         env:
@@ -239,6 +255,7 @@ jobs:
           RUN_ID: ${{ github.run_id }}
         run: |
           TASK_OUTPUT=$(cat /tmp/task_output.txt)
+          DURATION=$(cat /tmp/task_duration.txt)
 
           COMMENT_BODY=$(cat <<EOF
           🤖 **Documentation Check Complete**
@@ -246,6 +263,7 @@ jobs:
           ${TASK_OUTPUT}
 
           ---
+          ⏱️ Execution time: **${DURATION}**
           Task: https://dev.coder.com/tasks/${TASK_NAME}
           [View workflow run](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID})
           EOF
