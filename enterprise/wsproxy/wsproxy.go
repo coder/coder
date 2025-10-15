@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"flag"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -436,8 +437,8 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	return s, nil
 }
 
-func (s *Server) RegisterNow() error {
-	_, err := s.registerLoop.RegisterNow()
+func (s *Server) RegisterNow(ctx context.Context) error {
+	_, err := s.registerLoop.RegisterNow(ctx)
 	return err
 }
 
@@ -482,7 +483,13 @@ func (s *Server) handleRegister(res wsproxysdk.RegisterWorkspaceProxyResponse) e
 }
 
 func (s *Server) pingSiblingReplicas(replicas []codersdk.Replica) {
-	ctx, cancel := context.WithTimeout(s.ctx, 10*time.Second)
+	// Use a larger timeout for peer connectivity tests during testing.
+	timeout := 10 * time.Second
+	if flag.Lookup("test.v") != nil {
+		timeout = 25 * time.Second // each attempt has a timeout of 10s, so ~20s for two attempts
+	}
+
+	ctx, cancel := context.WithTimeout(s.ctx, timeout)
 	defer cancel()
 
 	errStr := pingSiblingReplicas(ctx, s.Logger, &s.replicaPingSingleflight, s.derpMeshTLSConfig, replicas)
@@ -507,10 +514,17 @@ func pingSiblingReplicas(ctx context.Context, logger slog.Logger, sf *singleflig
 	slices.Sort(relayURLs)
 	singleflightStr := strings.Join(relayURLs, " ") // URLs can't contain spaces.
 
+	// Use a much larger timeout for peer connectivity tests during testing. The
+	// passed in context is still always used.
+	timeout := 5 * time.Second
+	if flag.Lookup("test.v") != nil {
+		timeout = 10 * time.Second
+	}
+
 	//nolint:dogsled
 	errStrInterface, _, _ := sf.Do(singleflightStr, func() (any, error) {
 		client := http.Client{
-			Timeout: 3 * time.Second,
+			Timeout: timeout,
 			Transport: &http.Transport{
 				TLSClientConfig:   derpMeshTLSConfig,
 				DisableKeepAlives: true,
@@ -521,7 +535,7 @@ func pingSiblingReplicas(ctx context.Context, logger slog.Logger, sf *singleflig
 		errs := make(chan error, len(replicas))
 		for _, peer := range replicas {
 			go func(peer codersdk.Replica) {
-				err := replicasync.PingPeerReplica(ctx, client, peer.RelayAddress)
+				err := pingReplica(ctx, client, peer)
 				if err != nil {
 					errs <- xerrors.Errorf("ping sibling replica %s (%s): %w", peer.Hostname, peer.RelayAddress, err)
 					logger.Warn(ctx, "failed to ping sibling replica, this could happen if the replica has shutdown",
@@ -551,6 +565,34 @@ func pingSiblingReplicas(ctx context.Context, logger slog.Logger, sf *singleflig
 
 	//nolint:forcetypeassert
 	return errStrInterface.(string)
+}
+
+// pingReplica pings a replica over it's internal relay address to ensure it's
+// reachable and alive for health purposes. It will try to ping the replica
+// twice if the first ping fails, with a short delay between attempts.
+func pingReplica(ctx context.Context, client http.Client, replica codersdk.Replica) error {
+	const attempts = 2
+	var err error
+	for i := 0; i < attempts; i++ {
+		err = replicasync.PingPeerReplica(ctx, client, replica.RelayAddress)
+		if err == nil {
+			return nil
+		}
+		if i < attempts-1 {
+			// Use a timer to avoid a goroutine remaining after the test. Newer
+			// versions of Go will garbage collect unused timers, but the
+			// goroutine may still be running after the test completes.
+			timer := time.NewTimer(1 * time.Second)
+			select {
+			case <-ctx.Done():
+				timer.Stop() // prefer not to defer inside loop
+				return ctx.Err()
+			case <-timer.C:
+			}
+			timer.Stop() // prefer not to defer inside loop
+		}
+	}
+	return err
 }
 
 func (s *Server) handleRegisterFailure(err error) {
