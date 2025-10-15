@@ -2067,16 +2067,9 @@ var SendTaskInput = Tool[SendTaskInputArgs, codersdk.Response]{
 		}
 
 		expClient := codersdk.NewExperimentalClient(deps.coderClient)
-
-		id, err := uuid.Parse(args.TaskID)
-		owner := codersdk.Me
+		id, owner, err := resolveTaskID(ctx, deps.coderClient, args.TaskID)
 		if err != nil {
-			ws, err := normalizedNamedWorkspace(ctx, deps.coderClient, args.TaskID)
-			if err != nil {
-				return codersdk.Response{}, xerrors.Errorf("get task workspace %q: %w", args.TaskID, err)
-			}
-			owner = ws.OwnerName
-			id = ws.ID
+			return codersdk.Response{}, err
 		}
 
 		err = expClient.TaskSend(ctx, owner, id, codersdk.TaskSendRequest{
@@ -2117,16 +2110,9 @@ var GetTaskLogs = Tool[GetTaskLogsArgs, codersdk.TaskLogsResponse]{
 		}
 
 		expClient := codersdk.NewExperimentalClient(deps.coderClient)
-
-		id, err := uuid.Parse(args.TaskID)
-		owner := codersdk.Me
+		id, owner, err := resolveTaskID(ctx, deps.coderClient, args.TaskID)
 		if err != nil {
-			ws, err := normalizedNamedWorkspace(ctx, deps.coderClient, args.TaskID)
-			if err != nil {
-				return codersdk.TaskLogsResponse{}, xerrors.Errorf("get task workspace %q: %w", args.TaskID, err)
-			}
-			owner = ws.OwnerName
-			id = ws.ID
+			return codersdk.TaskLogsResponse{}, err
 		}
 
 		logs, err := expClient.TaskLogs(ctx, owner, id)
@@ -2214,4 +2200,16 @@ func taskIDDescription(action string) string {
 
 func userDescription(action string) string {
 	return fmt.Sprintf("Username or ID of the user for which to %s. Omit or use the `me` keyword to %s for the authenticated user.", action, action)
+}
+
+func resolveTaskID(ctx context.Context, coderClient *codersdk.Client, taskID string) (uuid.UUID, string, error) {
+	id, err := uuid.Parse(taskID)
+	if err == nil {
+		return id, codersdk.Me, nil
+	}
+	ws, err := normalizedNamedWorkspace(ctx, coderClient, taskID)
+	if err != nil {
+		return uuid.UUID{}, codersdk.Me, xerrors.Errorf("get task workspace %q: %w", taskID, err)
+	}
+	return ws.ID, ws.OwnerName, nil
 }
