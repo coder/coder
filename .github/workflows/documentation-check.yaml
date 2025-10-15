@@ -266,15 +266,20 @@ jobs:
           TASK_OUTPUT=$(cat /tmp/task_output.txt)
           DURATION=$(cat /tmp/task_duration.txt)
 
+          # Fetch the original comment to preserve it
+          ORIGINAL_COMMENT=$(gh api "/repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}" --jq '.body')
+
           COMMENT_BODY=$(cat <<EOF
-          🤖 **Documentation Check Complete**
+          ${ORIGINAL_COMMENT}
+
+          ---
 
           ${TASK_OUTPUT}
 
           ---
           ⏱️ Execution time: **${DURATION}**
-          Task: https://dev.coder.com/tasks/${TASK_NAME}
-          [View workflow run](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID})
+          📋 Task: https://dev.coder.com/tasks/${TASK_NAME}
+          🔗 [View workflow run](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID})
           EOF
           )
 
