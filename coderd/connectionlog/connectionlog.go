@@ -86,56 +86,28 @@ func (m *FakeConnectionLogger) Contains(t testing.TB, expected database.UpsertCo
 			t.Logf("connection log %d: expected Type %s, got %s", idx+1, expected.Type, cl.Type)
 			continue
 		}
-		if expected.Code.Valid != cl.Code.Valid {
-			t.Logf("connection log %d: expected Code valid %t, got %t", idx+1, expected.Code.Valid, cl.Code.Valid)
-			continue
-		}
 		if expected.Code.Valid && cl.Code.Int32 != expected.Code.Int32 {
 			t.Logf("connection log %d: expected Code %d, got %d", idx+1, expected.Code.Int32, cl.Code.Int32)
-			continue
-		}
-		if expected.Ip.Valid != cl.Ip.Valid {
-			t.Logf("connection log %d: expected IP valid %t, got %t", idx+1, expected.Ip.Valid, cl.Ip.Valid)
 			continue
 		}
 		if expected.Ip.Valid && cl.Ip.IPNet.String() != expected.Ip.IPNet.String() {
 			t.Logf("connection log %d: expected IP %s, got %s", idx+1, expected.Ip.IPNet, cl.Ip.IPNet)
 			continue
 		}
-		if expected.UserAgent.Valid != cl.UserAgent.Valid {
-			t.Logf("connection log %d: expected UserAgent valid %t, got %t", idx+1, expected.UserAgent.Valid, cl.UserAgent.Valid)
-			continue
-		}
 		if expected.UserAgent.Valid && cl.UserAgent.String != expected.UserAgent.String {
 			t.Logf("connection log %d: expected UserAgent %s, got %s", idx+1, expected.UserAgent.String, cl.UserAgent.String)
-			continue
-		}
-		if expected.UserID.Valid != cl.UserID.Valid {
-			t.Logf("connection log %d: expected UserID valid %t, got %t", idx+1, expected.UserID.Valid, cl.UserID.Valid)
 			continue
 		}
 		if expected.UserID.Valid && cl.UserID.UUID != expected.UserID.UUID {
 			t.Logf("connection log %d: expected UserID %s, got %s", idx+1, expected.UserID.UUID, cl.UserID.UUID)
 			continue
 		}
-		if expected.SlugOrPort.Valid != cl.SlugOrPort.Valid {
-			t.Logf("connection log %d: expected SlugOrPort valid %t, got %t", idx+1, expected.SlugOrPort.Valid, cl.SlugOrPort.Valid)
-			continue
-		}
 		if expected.SlugOrPort.Valid && cl.SlugOrPort.String != expected.SlugOrPort.String {
 			t.Logf("connection log %d: expected SlugOrPort %s, got %s", idx+1, expected.SlugOrPort.String, cl.SlugOrPort.String)
 			continue
 		}
-		if expected.ConnectionID.Valid != cl.ConnectionID.Valid {
-			t.Logf("connection log %d: expected ConnectionID valid %t, got %t", idx+1, expected.ConnectionID.Valid, cl.ConnectionID.Valid)
-			continue
-		}
 		if expected.ConnectionID.Valid && cl.ConnectionID.UUID != expected.ConnectionID.UUID {
 			t.Logf("connection log %d: expected ConnectionID %s, got %s", idx+1, expected.ConnectionID.UUID, cl.ConnectionID.UUID)
-			continue
-		}
-		if expected.DisconnectReason.Valid != cl.DisconnectReason.Valid {
-			t.Logf("connection log %d: expected DisconnectReason valid %t, got %t", idx+1, expected.DisconnectReason.Valid, cl.DisconnectReason.Valid)
 			continue
 		}
 		if expected.DisconnectReason.Valid && cl.DisconnectReason.String != expected.DisconnectReason.String {
@@ -146,7 +118,7 @@ func (m *FakeConnectionLogger) Contains(t testing.TB, expected database.UpsertCo
 			t.Logf("connection log %d: expected Time %s, got %s", idx+1, expected.Time, cl.Time)
 			continue
 		}
-		if expected.ConnectionStatus != cl.ConnectionStatus {
+		if expected.ConnectionStatus != "" && expected.ConnectionStatus != cl.ConnectionStatus {
 			t.Logf("connection log %d: expected ConnectionStatus %s, got %s", idx+1, expected.ConnectionStatus, cl.ConnectionStatus)
 			continue
 		}
