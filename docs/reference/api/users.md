@@ -744,6 +744,8 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/tokens \
 
 `GET /users/{user}/keys/tokens`
 
+Returns both token and password-type API keys by default. Visibility matches existing behavior: users see their own; owners can include all via include_all=true.
+
 ### Parameters
 
 | Name   | In   | Type   | Required | Description          |

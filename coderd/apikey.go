@@ -302,6 +302,7 @@ func (api *API) apiKeyByName(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get user tokens
+// @Description Returns both token and password-type API keys by default. Visibility matches existing behavior: users see their own; owners can include all via include_all=true.
 // @ID get-user-tokens
 // @Security CoderSessionToken
 // @Produce json
@@ -319,9 +320,12 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 		includeAll, _ = strconv.ParseBool(queryStr)
 	)
 
+	// Always include both token and password login types by default.
+	loginTypes := []database.LoginType{database.LoginTypeToken, database.LoginTypePassword}
+
 	if includeAll {
-		// get tokens for all users
-		keys, err = api.Database.GetAPIKeysByLoginType(ctx, database.LoginTypeToken)
+		// get tokens for all users, across both login types
+		keys, err = api.Database.GetAPIKeysByLoginTypes(ctx, loginTypes)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching API keys.",
@@ -330,8 +334,11 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		// get user's tokens only
-		keys, err = api.Database.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{LoginType: database.LoginTypeToken, UserID: user.ID})
+		// get user's tokens only, across both login types
+		keys, err = api.Database.GetAPIKeysByUserIDAndLoginTypes(ctx, database.GetAPIKeysByUserIDAndLoginTypesParams{
+			UserID:     user.ID,
+			LoginTypes: loginTypes,
+		})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching API keys.",

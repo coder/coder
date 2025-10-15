@@ -1214,6 +1214,21 @@ func (mr *MockStoreMockRecorder) GetAPIKeysByLoginType(ctx, loginType any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAPIKeysByLoginType", reflect.TypeOf((*MockStore)(nil).GetAPIKeysByLoginType), ctx, loginType)
 }
 
+// GetAPIKeysByLoginTypes mocks base method.
+func (m *MockStore) GetAPIKeysByLoginTypes(ctx context.Context, loginTypes []database.LoginType) ([]database.APIKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAPIKeysByLoginTypes", ctx, loginTypes)
+	ret0, _ := ret[0].([]database.APIKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAPIKeysByLoginTypes indicates an expected call of GetAPIKeysByLoginTypes.
+func (mr *MockStoreMockRecorder) GetAPIKeysByLoginTypes(ctx, loginTypes any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAPIKeysByLoginTypes", reflect.TypeOf((*MockStore)(nil).GetAPIKeysByLoginTypes), ctx, loginTypes)
+}
+
 // GetAPIKeysByUserID mocks base method.
 func (m *MockStore) GetAPIKeysByUserID(ctx context.Context, arg database.GetAPIKeysByUserIDParams) ([]database.APIKey, error) {
 	m.ctrl.T.Helper()
@@ -1227,6 +1242,21 @@ func (m *MockStore) GetAPIKeysByUserID(ctx context.Context, arg database.GetAPIK
 func (mr *MockStoreMockRecorder) GetAPIKeysByUserID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAPIKeysByUserID", reflect.TypeOf((*MockStore)(nil).GetAPIKeysByUserID), ctx, arg)
+}
+
+// GetAPIKeysByUserIDAndLoginTypes mocks base method.
+func (m *MockStore) GetAPIKeysByUserIDAndLoginTypes(ctx context.Context, arg database.GetAPIKeysByUserIDAndLoginTypesParams) ([]database.APIKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAPIKeysByUserIDAndLoginTypes", ctx, arg)
+	ret0, _ := ret[0].([]database.APIKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAPIKeysByUserIDAndLoginTypes indicates an expected call of GetAPIKeysByUserIDAndLoginTypes.
+func (mr *MockStoreMockRecorder) GetAPIKeysByUserIDAndLoginTypes(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAPIKeysByUserIDAndLoginTypes", reflect.TypeOf((*MockStore)(nil).GetAPIKeysByUserIDAndLoginTypes), ctx, arg)
 }
 
 // GetAPIKeysLastUsedAfter mocks base method.

@@ -7675,6 +7675,7 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+                "description": "Returns both token and password-type API keys by default. Visibility matches existing behavior: users see their own; owners can include all via include_all=true.",
                 "produces": [
                     "application/json"
                 ],

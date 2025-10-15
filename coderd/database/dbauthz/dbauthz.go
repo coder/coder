@@ -1975,8 +1975,16 @@ func (q *querier) GetAPIKeysByLoginType(ctx context.Context, loginType database.
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetAPIKeysByLoginType)(ctx, loginType)
 }
 
+func (q *querier) GetAPIKeysByLoginTypes(ctx context.Context, loginTypes []database.LoginType) ([]database.APIKey, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetAPIKeysByLoginTypes)(ctx, loginTypes)
+}
+
 func (q *querier) GetAPIKeysByUserID(ctx context.Context, params database.GetAPIKeysByUserIDParams) ([]database.APIKey, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetAPIKeysByUserID)(ctx, database.GetAPIKeysByUserIDParams{LoginType: params.LoginType, UserID: params.UserID})
+}
+
+func (q *querier) GetAPIKeysByUserIDAndLoginTypes(ctx context.Context, arg database.GetAPIKeysByUserIDAndLoginTypesParams) ([]database.APIKey, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetAPIKeysByUserIDAndLoginTypes)(ctx, arg)
 }
 
 func (q *querier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]database.APIKey, error) {

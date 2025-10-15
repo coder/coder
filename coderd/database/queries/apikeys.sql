@@ -30,6 +30,12 @@ SELECT * FROM api_keys WHERE login_type = $1;
 -- name: GetAPIKeysByUserID :many
 SELECT * FROM api_keys WHERE login_type = $1 AND user_id = $2;
 
+-- name: GetAPIKeysByLoginTypes :many
+SELECT * FROM api_keys WHERE login_type = ANY(@login_types::login_type[]);
+
+-- name: GetAPIKeysByUserIDAndLoginTypes :many
+SELECT * FROM api_keys WHERE user_id = @user_id AND login_type = ANY(@login_types::login_type[]);
+
 -- name: InsertAPIKey :one
 INSERT INTO
 	api_keys (
