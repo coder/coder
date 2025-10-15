@@ -15,6 +15,7 @@ import {
 import { displayError } from "components/GlobalSnackbar/utils";
 import { useProxy } from "contexts/ProxyContext";
 import { ThemeOverride } from "contexts/ThemeProvider";
+import { useClipboard } from "hooks/useClipboard";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { type FC, useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
@@ -80,6 +81,8 @@ const TerminalPage: FC = () => {
 
 	const config = useQuery(deploymentConfig());
 	const renderer = config.data?.config.web_terminal_renderer;
+
+	const { copyToClipboard } = useClipboard();
 
 	// Periodically report workspace usage.
 	useQuery(
@@ -153,16 +156,7 @@ const TerminalPage: FC = () => {
 		const copySelection = () => {
 			const selection = terminal.getSelection();
 			if (selection) {
-				navigator.clipboard.writeText(selection).catch((err) => {
-					console.error(err);
-					if (err.message) {
-						displayError(`Failed to copy text: ${err.message}`);
-					} else {
-						displayError(
-							"Failed to copy text, but no error message was provided",
-						);
-					}
-				});
+				copyToClipboard(selection);
 			}
 		};
 
