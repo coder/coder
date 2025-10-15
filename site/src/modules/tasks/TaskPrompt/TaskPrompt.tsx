@@ -150,13 +150,6 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 		(t) => t.id === selectedTemplateId,
 	) as Template;
 
-	const {
-		externalAuth,
-		externalAuthError,
-		isPollingExternalAuth,
-		isLoadingExternalAuth,
-	} = useExternalAuth(selectedTemplate.active_version_id);
-
 	// Template versions
 	const [selectedVersionId, setSelectedVersionId] = useState(
 		selectedTemplate.active_version_id,
@@ -189,6 +182,12 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 	}, [presetPrompt]);
 
 	// External Auth
+	const {
+		externalAuth,
+		externalAuthError,
+		isPollingExternalAuth,
+		isLoadingExternalAuth,
+	} = useExternalAuth(selectedVersionId);
 	const missedExternalAuth = externalAuth?.filter(
 		(auth) => !auth.optional && !auth.authenticated,
 	);
@@ -358,7 +357,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 					<div className="flex items-center gap-2">
 						{missedExternalAuth && (
 							<ExternalAuthButtons
-								template={selectedTemplate}
+								versionId={selectedVersionId}
 								missedExternalAuth={missedExternalAuth}
 							/>
 						)}
@@ -405,19 +404,19 @@ const PromptSelectTrigger: FC<SelectTriggerProps> = ({
 };
 
 type ExternalAuthButtonProps = {
-	template: Template;
+	versionId: string;
 	missedExternalAuth: TemplateVersionExternalAuth[];
 };
 
 const ExternalAuthButtons: FC<ExternalAuthButtonProps> = ({
-	template,
+	versionId,
 	missedExternalAuth,
 }) => {
 	const {
 		startPollingExternalAuth,
 		isPollingExternalAuth,
 		externalAuthPollingState,
-	} = useExternalAuth(template.active_version_id);
+	} = useExternalAuth(versionId);
 	const shouldRetry = externalAuthPollingState === "abandoned";
 
 	return missedExternalAuth.map((auth) => {

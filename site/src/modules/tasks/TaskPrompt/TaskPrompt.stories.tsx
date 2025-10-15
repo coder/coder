@@ -30,15 +30,6 @@ const meta: Meta<typeof TasksPage> = {
 	},
 	beforeEach: () => {
 		spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([]);
-		spyOn(API, "getTemplates").mockResolvedValue([
-			MockTemplate,
-			{
-				...MockTemplate,
-				id: "test-template-2",
-				name: "template 2",
-				display_name: "Template 2",
-			},
-		]);
 		spyOn(API, "getTemplateVersions").mockResolvedValue([
 			{
 				...MockTemplateVersion,
@@ -188,7 +179,6 @@ export const SelectTemplateVersion: Story = {
 export const OnError: Story = {
 	decorators: [withGlobalSnackbar],
 	beforeEach: () => {
-		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
 		spyOn(API, "getTemplate").mockResolvedValue(MockTemplate);
 		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
 		spyOn(API.experimental, "createTask").mockRejectedValue(
@@ -291,6 +281,65 @@ export const ExternalAuthError: Story = {
 
 		await step("Renders error", async () => {
 			await canvas.findByText(/failed to load external auth/i);
+		});
+	},
+};
+
+const tmplWithExternalAuth = {
+	...MockTemplateVersion,
+	id: "2",
+	name: "With external",
+};
+
+export const CheckExternalAuthOnChangingVersions: Story = {
+	args: {
+		templates: [
+			{
+				...MockTemplate,
+				active_version_id: tmplWithExternalAuth.id,
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API, "getTemplateVersions").mockResolvedValue([
+			{
+				...MockTemplateVersion,
+				id: "1",
+				name: "No external",
+			},
+			tmplWithExternalAuth,
+		]);
+		spyOn(API, "getTemplateVersionExternalAuth").mockImplementation(
+			(versionId: string) => {
+				return Promise.resolve(
+					versionId === tmplWithExternalAuth.id
+						? [MockTemplateVersionExternalAuthGithub]
+						: [],
+				);
+			},
+		);
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+
+		await step("Renders external authentication", async () => {
+			await canvas.findByRole("button", { name: /connect to github/i });
+		});
+
+		await step("Change into version without external auth", async () => {
+			const body = within(canvasElement.ownerDocument.body);
+			const versionSelect = await canvas.findByLabelText(/template version/i);
+			await userEvent.click(versionSelect);
+			const versionOption = await body.findByRole("option", {
+				name: /no external/i,
+			});
+			await userEvent.click(versionOption);
+		});
+
+		await step("Don't render external authentication", async () => {
+			expect(
+				canvas.queryByRole("button", { name: /connect to github/i }),
+			).not.toBeInTheDocument();
 		});
 	},
 };
