@@ -635,16 +635,16 @@ func (m queryMetricsStore) GetAPIKeyByName(ctx context.Context, arg database.Get
 	return apiKey, err
 }
 
-func (m queryMetricsStore) GetAPIKeysByLoginType(ctx context.Context, loginType database.LoginType) ([]database.APIKey, error) {
+func (m queryMetricsStore) GetAPIKeysByLoginType(ctx context.Context, arg database.GetAPIKeysByLoginTypeParams) ([]database.APIKey, error) {
 	start := time.Now()
-	apiKeys, err := m.s.GetAPIKeysByLoginType(ctx, loginType)
+	apiKeys, err := m.s.GetAPIKeysByLoginType(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetAPIKeysByLoginType").Observe(time.Since(start).Seconds())
 	return apiKeys, err
 }
 
-func (m queryMetricsStore) GetAPIKeysByLoginTypes(ctx context.Context, loginTypes []database.LoginType) ([]database.APIKey, error) {
+func (m queryMetricsStore) GetAPIKeysByLoginTypes(ctx context.Context, arg database.GetAPIKeysByLoginTypesParams) ([]database.APIKey, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetAPIKeysByLoginTypes(ctx, loginTypes)
+	r0, r1 := m.s.GetAPIKeysByLoginTypes(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetAPIKeysByLoginTypes").Observe(time.Since(start).Seconds())
 	return r0, r1
 }

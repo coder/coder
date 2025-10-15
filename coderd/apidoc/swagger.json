@@ -6838,6 +6838,19 @@
 						"required": true
 					},
 					{
+						"type": "boolean",
+						"description": "Include tokens for all users (owners only)",
+						"name": "include_all",
+						"in": "query"
+					},
+					{
+						"enum": ["active", "expired", "all"],
+						"type": "string",
+						"description": "Token status filter",
+						"name": "status",
+						"in": "query"
+					},
+					{
 						"description": "Create token request",
 						"name": "request",
 						"in": "body",

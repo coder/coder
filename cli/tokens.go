@@ -162,9 +162,10 @@ func (r *RootCmd) listTokens() *serpent.Command {
 	}
 
 	var (
-		all           bool
-		displayTokens []tokenListRow
-		formatter     = cliui.NewOutputFormatter(
+		all            bool
+		includeExpired bool
+		displayTokens  []tokenListRow
+		formatter      = cliui.NewOutputFormatter(
 			cliui.TableFormat([]tokenListRow{}, defaultCols),
 			cliui.JSONFormat(),
 		)
@@ -183,8 +184,14 @@ func (r *RootCmd) listTokens() *serpent.Command {
 				return err
 			}
 
+			status := codersdk.TokenStatusActive
+			if includeExpired {
+				status = codersdk.TokenStatusAll
+			}
+
 			tokens, err := client.Tokens(inv.Context(), codersdk.Me, codersdk.TokensFilter{
 				IncludeAll: all,
+				Status:     status,
 			})
 			if err != nil {
 				return xerrors.Errorf("list tokens: %w", err)
@@ -219,6 +226,11 @@ func (r *RootCmd) listTokens() *serpent.Command {
 			FlagShorthand: "a",
 			Description:   "Specifies whether all users' tokens will be listed or not (must have Owner role to see all tokens).",
 			Value:         serpent.BoolOf(&all),
+		},
+		{
+			Flag:        "include-expired",
+			Description: "Include expired tokens in the results.",
+			Value:       serpent.BoolOf(&includeExpired),
 		},
 	}
 

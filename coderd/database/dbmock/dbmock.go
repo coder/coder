@@ -1200,33 +1200,33 @@ func (mr *MockStoreMockRecorder) GetAPIKeyByName(ctx, arg any) *gomock.Call {
 }
 
 // GetAPIKeysByLoginType mocks base method.
-func (m *MockStore) GetAPIKeysByLoginType(ctx context.Context, loginType database.LoginType) ([]database.APIKey, error) {
+func (m *MockStore) GetAPIKeysByLoginType(ctx context.Context, arg database.GetAPIKeysByLoginTypeParams) ([]database.APIKey, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAPIKeysByLoginType", ctx, loginType)
+	ret := m.ctrl.Call(m, "GetAPIKeysByLoginType", ctx, arg)
 	ret0, _ := ret[0].([]database.APIKey)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetAPIKeysByLoginType indicates an expected call of GetAPIKeysByLoginType.
-func (mr *MockStoreMockRecorder) GetAPIKeysByLoginType(ctx, loginType any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetAPIKeysByLoginType(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAPIKeysByLoginType", reflect.TypeOf((*MockStore)(nil).GetAPIKeysByLoginType), ctx, loginType)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAPIKeysByLoginType", reflect.TypeOf((*MockStore)(nil).GetAPIKeysByLoginType), ctx, arg)
 }
 
 // GetAPIKeysByLoginTypes mocks base method.
-func (m *MockStore) GetAPIKeysByLoginTypes(ctx context.Context, loginTypes []database.LoginType) ([]database.APIKey, error) {
+func (m *MockStore) GetAPIKeysByLoginTypes(ctx context.Context, arg database.GetAPIKeysByLoginTypesParams) ([]database.APIKey, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAPIKeysByLoginTypes", ctx, loginTypes)
+	ret := m.ctrl.Call(m, "GetAPIKeysByLoginTypes", ctx, arg)
 	ret0, _ := ret[0].([]database.APIKey)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetAPIKeysByLoginTypes indicates an expected call of GetAPIKeysByLoginTypes.
-func (mr *MockStoreMockRecorder) GetAPIKeysByLoginTypes(ctx, loginTypes any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetAPIKeysByLoginTypes(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAPIKeysByLoginTypes", reflect.TypeOf((*MockStore)(nil).GetAPIKeysByLoginTypes), ctx, loginTypes)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAPIKeysByLoginTypes", reflect.TypeOf((*MockStore)(nil).GetAPIKeysByLoginTypes), ctx, arg)
 }
 
 // GetAPIKeysByUserID mocks base method.

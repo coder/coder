@@ -104,6 +104,68 @@ func TestTokensListIncludesPasswordAndTokenTypes(t *testing.T) {
 	require.True(t, seenToken, "expected at least one token-type key in listing")
 }
 
+func TestTokensListStatusFilters(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   pubsub,
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	activeToken, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{TokenName: "active"})
+	require.NoError(t, err)
+	activeID := strings.Split(activeToken.Key, "-")[0]
+
+	expiredToken, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{TokenName: "expired"})
+	require.NoError(t, err)
+	expiredID := strings.Split(expiredToken.Key, "-")[0]
+
+	storedExpired, err := db.GetAPIKeyByID(ctx, expiredID)
+	require.NoError(t, err)
+	err = db.UpdateAPIKeyByID(ctx, database.UpdateAPIKeyByIDParams{
+		ID:        storedExpired.ID,
+		LastUsed:  storedExpired.LastUsed,
+		ExpiresAt: dbtime.Now().Add(-time.Hour),
+		IPAddress: storedExpired.IPAddress,
+	})
+	require.NoError(t, err)
+
+	// Default (active) listing excludes expired tokens.
+	activeOnly, err := client.Tokens(ctx, codersdk.Me, codersdk.TokensFilter{})
+	require.NoError(t, err)
+	activeIDs := make([]string, 0, len(activeOnly))
+	for _, tok := range activeOnly {
+		activeIDs = append(activeIDs, tok.ID)
+	}
+	require.Contains(t, activeIDs, activeID)
+	require.NotContains(t, activeIDs, expiredID)
+
+	// Explicit expired filter.
+	expiredOnly, err := client.Tokens(ctx, codersdk.Me, codersdk.TokensFilter{Status: codersdk.TokenStatusExpired})
+	require.NoError(t, err)
+	expiredIDs := make([]string, 0, len(expiredOnly))
+	for _, tok := range expiredOnly {
+		expiredIDs = append(expiredIDs, tok.ID)
+	}
+	require.Contains(t, expiredIDs, expiredID)
+	require.NotContains(t, expiredIDs, activeID)
+
+	// All includes both active and expired tokens.
+	allTokens, err := client.Tokens(ctx, codersdk.Me, codersdk.TokensFilter{Status: codersdk.TokenStatusAll})
+	require.NoError(t, err)
+	allIDs := make([]string, 0, len(allTokens))
+	for _, tok := range allTokens {
+		allIDs = append(allIDs, tok.ID)
+	}
+	require.Contains(t, allIDs, activeID)
+	require.Contains(t, allIDs, expiredID)
+}
+
 func TestTokenScoped(t *testing.T) {
 	t.Parallel()
 

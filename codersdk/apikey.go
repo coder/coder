@@ -56,6 +56,14 @@ type GenerateAPIKeyResponse struct {
 	Key string `json:"key"`
 }
 
+type TokenStatus string
+
+const (
+	TokenStatusActive  TokenStatus = "active"
+	TokenStatusExpired TokenStatus = "expired"
+	TokenStatusAll     TokenStatus = "all"
+)
+
 // CreateToken generates an API key for the user ID provided with
 // custom expiration. These tokens can be used for long-lived access,
 // like for use with CI.
@@ -93,7 +101,8 @@ func (c *Client) CreateAPIKey(ctx context.Context, user string) (GenerateAPIKeyR
 }
 
 type TokensFilter struct {
-	IncludeAll bool `json:"include_all"`
+	IncludeAll bool        `json:"include_all"`
+	Status     TokenStatus `json:"status"`
 }
 
 type APIKeyWithOwner struct {
@@ -111,6 +120,9 @@ func (f TokensFilter) asRequestOption() RequestOption {
 	return func(r *http.Request) {
 		q := r.URL.Query()
 		q.Set("include_all", fmt.Sprintf("%t", f.IncludeAll))
+		if f.Status != "" {
+			q.Set("status", string(f.Status))
+		}
 		r.URL.RawQuery = q.Encode()
 	}
 }

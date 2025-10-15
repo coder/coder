@@ -23,6 +23,14 @@ coder tokens list [flags]
 
 Specifies whether all users' tokens will be listed or not (must have Owner role to see all tokens).
 
+### --include-expired
+
+|      |                   |
+|------|-------------------|
+| Type | <code>bool</code> |
+
+Include expired tokens in the results.
+
 ### -c, --column
 
 |         |                                                                   |
