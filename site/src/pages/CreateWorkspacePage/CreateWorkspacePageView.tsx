@@ -26,7 +26,6 @@ import { Stack } from "components/Stack/Stack";
 import { Switch } from "components/Switch/Switch";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
-import { useEffectEvent } from "hooks/hookPolyfills";
 import type { ExternalAuthPollingState } from "hooks/useExternalAuth";
 import { ExternalLinkIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
@@ -163,7 +162,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	]);
 	const [selectedPresetIndex, setSelectedPresetIndex] = useState(0);
 	// Build options and keep default label/value in sync
-	useEffectEvent(() => {
+	useEffect(() => {
 		const options = [
 			{ displayName: "None", value: "undefined", icon: "", description: "" },
 			...presets.map((preset) => ({
@@ -183,12 +182,12 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 			setSelectedPresetIndex(0); // Explicitly set to "None"
 			form.setFieldValue("template_version_preset_id", undefined);
 		}
-	});
+	}, [presets, form.setFieldValue]);
 
 	const [presetParameterNames, setPresetParameterNames] = useState<string[]>(
 		[],
 	);
-	useEffectEvent(() => {
+	useEffect(() => {
 		const selectedPresetOption = presetOptions[selectedPresetIndex];
 		let selectedPreset: TypesGen.Preset | undefined;
 		for (const preset of presets) {
@@ -218,7 +217,13 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 				value: presetParameter.Value,
 			});
 		}
-	});
+	}, [
+		presetOptions,
+		selectedPresetIndex,
+		presets,
+		parameters,
+		form.setFieldValue,
+	]);
 
 	return (
 		<Margins size="medium">
