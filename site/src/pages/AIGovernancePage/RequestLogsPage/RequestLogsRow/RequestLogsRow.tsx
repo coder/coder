@@ -48,7 +48,6 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 				</TableCell>
 				<TableCell>{tokens}</TableCell>
 				<TableCell>{toolCalls}</TableCell>
-				<TableCell>Status</TableCell>
 			</TableRow>
 			{isOpen && (
 				<TableRow>

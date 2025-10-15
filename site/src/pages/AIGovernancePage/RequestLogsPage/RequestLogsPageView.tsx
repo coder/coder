@@ -26,7 +26,6 @@ export const RequestLogsPageView: FC<RequestLogsPageViewProps> = ({
 					<TableHead>Prompt</TableHead>
 					<TableHead>Tokens</TableHead>
 					<TableHead>Tool Calls</TableHead>
-					<TableHead>Status</TableHead>
 				</TableRow>
 			</TableHeader>
 			<TableBody>
