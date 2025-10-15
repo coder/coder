@@ -27,11 +27,16 @@ export const Latency: FC<LatencyProps> = ({
 	if (isLoading) {
 		return (
 			<MiniTooltip title="Loading latency..." className={className}>
-				{/* TODO trigger's variable height from spinning causes tooltip to jitter up/down */}
-				<CircularProgress
-					className={cn("!size-icon-xs", iconClassName)}
-					style={{ color }}
-				/>
+				{/**
+				 * Spinning progress icon must be placed inside a fixed-size container,
+				 * to ensure tooltip remains stationary when opened
+				 */}
+				<div className="size-4 flex flex-wrap place-content-center">
+					<CircularProgress
+						className={cn("!size-icon-xs", iconClassName)}
+						style={{ color }}
+					/>
+				</div>
 			</MiniTooltip>
 		);
 	}
