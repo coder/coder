@@ -26,6 +26,7 @@ export const Navbar: FC = () => {
 	const canViewConnectionLog =
 		featureVisibility.connection_log && permissions.viewAnyConnectionLog;
 	// TODO: We should have a separate permission for this
+	// TODO: We should have a check for the experiment too.
 	const canViewAIGovernance = featureVisibility.aibridge;
 
 	const uniqueLinks = new Map<string, LinkConfig>();
