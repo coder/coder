@@ -177,24 +177,33 @@ jobs:
           ## PR to Analyze
           ${pr_url}
 
-          ## Output Format
-          Please provide your analysis in the following format:
+          ## IMPORTANT: Final Output Format
+          After completing your analysis, you MUST end your response with ONLY the following formatted output between the markers:
 
-          ### Documentation Updates Required
+          ---DOCUMENTATION-ANALYSIS-START---
+          [Your concise bulleted list of recommendations OR "No documentation changes needed"]
+          ---DOCUMENTATION-ANALYSIS-END---
 
-          #### Updates to Existing Documentation
-          - [List any existing docs that need updates with specific changes needed]
+          The content between these markers should be:
+          - A simple bulleted list with links to docs that need updating
+          - OR a single sentence: "No documentation changes needed - [brief reason]"
+          - Maximum 10-15 lines
+          - Use markdown formatting
+          - Include file paths as links when referencing docs
 
-          #### Documentation to Deprecate
-          - [List any docs that should be marked as deprecated or removed]
+          Example format:
+          ---DOCUMENTATION-ANALYSIS-START---
+          ### Documentation Updates Needed
+          - **Update** [docs/admin/templates.md](docs/admin/templates.md) - Add new parameter documentation
+          - **Create** docs/guides/new-feature.md - Document the new feature workflow
+          - **Deprecate** docs/old-feature.md - Feature has been removed
+          ---DOCUMENTATION-ANALYSIS-END---
 
-          #### New Documentation Needed
-          - [List any new documentation that should be created]
+          OR:
 
-          #### No Changes Needed
-          - [If no documentation changes are required, explain why]
-
-          Be specific and provide file paths and section references where applicable.
+          ---DOCUMENTATION-ANALYSIS-START---
+          No documentation changes needed - This PR only contains internal refactoring with no user-facing changes.
+          ---DOCUMENTATION-ANALYSIS-END---
           EOF
           )
           # Expand variables in the prompt

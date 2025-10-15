@@ -94,10 +94,15 @@ summary() {
 	# Extract the last output message from the task
 	last_output_msg=$(jq -r 'last(.[] | select(.type=="output")) | .content' <<<"${last_msg_json}")
 
-	# Clean up the output (remove bullet points and tool markers)
-	last_msg=$(echo "${last_output_msg}" | sed 's/^● //' | sed 's/●//g')
-
-	echo "${last_msg}"
+	# Extract only the content between the documentation analysis markers
+	if echo "${last_output_msg}" | grep -q "---DOCUMENTATION-ANALYSIS-START---"; then
+		# Extract content between markers
+		summary=$(echo "${last_output_msg}" | sed -n '/---DOCUMENTATION-ANALYSIS-START---/,/---DOCUMENTATION-ANALYSIS-END---/p' | sed '1d;$d')
+		echo "${summary}"
+	else
+		# Fallback: if markers not found, return a message
+		echo "⚠️ Unable to extract documentation analysis. Please check the [task logs](https://dev.coder.com/tasks/${TASK_NAME})."
+	fi
 }
 
 delete() {
