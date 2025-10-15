@@ -110,6 +110,11 @@ func TestConnectionLog(t *testing.T) {
 			mDB := dbmock.NewMockStore(gomock.NewController(t))
 			mDB.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(workspace, nil)
 
+			// TEMPORARY FIX for https://github.com/coder/coder/issues/20194
+			if tt.ip == "" {
+				tt.ip = "127.0.0.1"
+			}
+
 			api := &agentapi.ConnLogAPI{
 				ConnectionLogger: asAtomicPointer[connectionlog.ConnectionLogger](connLogger),
 				Database:         mDB,
