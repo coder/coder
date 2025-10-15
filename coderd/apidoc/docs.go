@@ -296,6 +296,51 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/tasks/{user}/{id}/feedback": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Experimental"
+                ],
+                "summary": "Submit task feedback",
+                "operationId": "post-task-feedback",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Username, user ID, or 'me' for the authenticated user",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Task ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Task feedback",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.TaskFeedbackRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
         "/api/experimental/tasks/{user}/{id}/logs": {
             "get": {
                 "security": [
@@ -17540,6 +17585,12 @@ const docTemplate = `{
                 "current_state": {
                     "$ref": "#/definitions/codersdk.TaskStateEntry"
                 },
+                "feedback_comment": {
+                    "type": "string"
+                },
+                "feedback_score": {
+                    "type": "number"
+                },
                 "id": {
                     "type": "string",
                     "format": "uuid"
@@ -17618,6 +17669,17 @@ const docTemplate = `{
                             "$ref": "#/definitions/uuid.NullUUID"
                         }
                     ]
+                }
+            }
+        },
+        "codersdk.TaskFeedbackRequest": {
+            "type": "object",
+            "properties": {
+                "comment": {
+                    "type": "string"
+                },
+                "score": {
+                    "type": "number"
                 }
             }
         },

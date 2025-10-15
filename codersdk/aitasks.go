@@ -124,6 +124,8 @@ type Task struct {
 	CurrentState            *TaskStateEntry          `json:"current_state" table:"cs,recursive_inline"`
 	CreatedAt               time.Time                `json:"created_at" format:"date-time" table:"created at"`
 	UpdatedAt               time.Time                `json:"updated_at" format:"date-time" table:"updated at"`
+	FeedbackScore           *float64                 `json:"feedback_score,omitempty" table:"feedback score"`
+	FeedbackComment         *string                  `json:"feedback_comment,omitempty" table:"feedback comment"`
 }
 
 // TaskStateEntry represents a single entry in the task's state history.
@@ -294,4 +296,27 @@ func (c *ExperimentalClient) TaskLogs(ctx context.Context, user string, id uuid.
 	}
 
 	return logs, nil
+}
+
+// TaskFeedbackRequest represents feedback for a task.
+//
+// Experimental: This type is experimental and may change in the future.
+type TaskFeedbackRequest struct {
+	Score   float64 `json:"score"`
+	Comment string  `json:"comment,omitempty"`
+}
+
+// PostTaskFeedback submits feedback for a task.
+//
+// Experimental: This method is experimental and may change in the future.
+func (c *ExperimentalClient) PostTaskFeedback(ctx context.Context, user string, taskID uuid.UUID, req TaskFeedbackRequest) error {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/tasks/%s/%s/feedback", user, taskID.String()), req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }

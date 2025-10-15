@@ -3043,6 +3043,13 @@ func (m queryMetricsStore) UpdateTailnetPeerStatusByCoordinator(ctx context.Cont
 	return r0
 }
 
+func (m queryMetricsStore) UpdateTaskFeedback(ctx context.Context, arg database.UpdateTaskFeedbackParams) (database.TaskTable, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateTaskFeedback(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateTaskFeedback").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpdateTemplateACLByID(ctx context.Context, arg database.UpdateTemplateACLByIDParams) error {
 	start := time.Now()
 	err := m.s.UpdateTemplateACLByID(ctx, arg)

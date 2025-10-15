@@ -4953,6 +4953,18 @@ func (q *querier) UpdateTailnetPeerStatusByCoordinator(ctx context.Context, arg 
 	return q.db.UpdateTailnetPeerStatusByCoordinator(ctx, arg)
 }
 
+func (q *querier) UpdateTaskFeedback(ctx context.Context, arg database.UpdateTaskFeedbackParams) (database.TaskTable, error) {
+	// Fetch the task to derive the RBAC object and authorize update on it.
+	task, err := q.db.GetTaskByID(ctx, arg.TaskID)
+	if err != nil {
+		return database.TaskTable{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, task); err != nil {
+		return database.TaskTable{}, err
+	}
+	return q.db.UpdateTaskFeedback(ctx, arg)
+}
+
 func (q *querier) UpdateTemplateACLByID(ctx context.Context, arg database.UpdateTemplateACLByIDParams) error {
 	fetch := func(ctx context.Context, arg database.UpdateTemplateACLByIDParams) (database.Template, error) {
 		return q.db.GetTemplateByID(ctx, arg.ID)

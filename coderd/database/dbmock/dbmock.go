@@ -6518,6 +6518,21 @@ func (mr *MockStoreMockRecorder) UpdateTailnetPeerStatusByCoordinator(ctx, arg a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTailnetPeerStatusByCoordinator", reflect.TypeOf((*MockStore)(nil).UpdateTailnetPeerStatusByCoordinator), ctx, arg)
 }
 
+// UpdateTaskFeedback mocks base method.
+func (m *MockStore) UpdateTaskFeedback(ctx context.Context, arg database.UpdateTaskFeedbackParams) (database.TaskTable, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateTaskFeedback", ctx, arg)
+	ret0, _ := ret[0].(database.TaskTable)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateTaskFeedback indicates an expected call of UpdateTaskFeedback.
+func (mr *MockStoreMockRecorder) UpdateTaskFeedback(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTaskFeedback", reflect.TypeOf((*MockStore)(nil).UpdateTaskFeedback), ctx, arg)
+}
+
 // UpdateTemplateACLByID mocks base method.
 func (m *MockStore) UpdateTemplateACLByID(ctx context.Context, arg database.UpdateTemplateACLByIDParams) error {
 	m.ctrl.T.Helper()

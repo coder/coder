@@ -1024,6 +1024,7 @@ func New(options *Options) *API {
 				r.Delete("/{id}", api.taskDelete)
 				r.Post("/{id}/send", api.taskSend)
 				r.Get("/{id}/logs", api.taskLogs)
+				r.Post("/{id}/feedback", api.postTaskFeedback)
 				r.Post("/", api.tasksCreate)
 			})
 		})

@@ -9,6 +9,7 @@ const (
 	CheckOneTimePasscodeSet                        CheckConstraint = "one_time_passcode_set"                            // users
 	CheckUsersUsernameMinLength                    CheckConstraint = "users_username_min_length"                        // users
 	CheckMaxProvisionerLogsLength                  CheckConstraint = "max_provisioner_logs_length"                      // provisioner_jobs
+	CheckTasksFeedbackScoreRange                   CheckConstraint = "tasks_feedback_score_range"                       // tasks
 	CheckMaxLogsLength                             CheckConstraint = "max_logs_length"                                  // workspace_agents
 	CheckSubsystemsNotNone                         CheckConstraint = "subsystems_not_none"                              // workspace_agents
 	CheckWorkspaceBuildsAiTaskSidebarAppIDRequired CheckConstraint = "workspace_builds_ai_task_sidebar_app_id_required" // workspace_builds

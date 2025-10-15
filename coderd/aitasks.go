@@ -925,3 +925,102 @@ func (api *API) authAndDoWithTaskSidebarAppClient(
 	}
 	return do(ctx, client, parsedURL)
 }
+
+// @Summary Submit task feedback
+// @Description: EXPERIMENTAL: this endpoint is experimental and not guaranteed to be stable.
+// @ID post-task-feedback
+// @Security CoderSessionToken
+// @Tags Experimental
+// @Param user path string true "Username, user ID, or 'me' for the authenticated user"
+// @Param id path string true "Task ID" format(uuid)
+// @Param request body codersdk.TaskFeedbackRequest true "Task feedback"
+// @Success 204
+// @Router /api/experimental/tasks/{user}/{id}/feedback [post]
+//
+// EXPERIMENTAL: This endpoint is experimental and not guaranteed to be stable.
+func (api *API) postTaskFeedback(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+
+	taskIDStr := chi.URLParam(r, "id")
+	taskID, err := uuid.Parse(taskIDStr)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid task ID format.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	var req codersdk.TaskFeedbackRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	var validationErrors []codersdk.ValidationError
+
+	// NOTE(DanielleMaywood):
+	// Scary magic numbers are scary.
+	if req.Score < 0.0 || req.Score > 1.0 {
+		validationErrors = append(validationErrors, codersdk.ValidationError{
+			Field:  "score",
+			Detail: "Must be between 0.0 and 1.0 (inclusive).",
+		})
+	}
+
+	// NOTE(DanielleMaywood):
+	// Scary magic number is scary.
+	if len(req.Comment) > 512 {
+		validationErrors = append(validationErrors, codersdk.ValidationError{
+			Field:  "comment",
+			Detail: "Must be 512 characters or less.",
+		})
+	}
+
+	if len(validationErrors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Validation failed.",
+			Validations: validationErrors,
+		})
+		return
+	}
+
+	task, err := api.Database.GetTaskByID(ctx, taskID)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to fetch task.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// NOTE(DanielleMaywood):
+	// Does this check make sense? We don't actually track _who_ made the feedback
+	// so I think it makes most sense to limit it to the task owner?
+	if task.OwnerID != apiKey.UserID {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "You can only provide feedback on your own tasks.",
+		})
+		return
+	}
+
+	_, err = api.Database.UpdateTaskFeedback(ctx, database.UpdateTaskFeedbackParams{
+		TaskID:  taskID,
+		Score:   sql.NullFloat64{Valid: true, Float64: req.Score},
+		Comment: sql.NullString{Valid: req.Comment != "", String: req.Comment},
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to update task feedback.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
+}
