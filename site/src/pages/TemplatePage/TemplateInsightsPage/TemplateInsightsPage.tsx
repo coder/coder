@@ -663,6 +663,9 @@ const ParameterUsageRow: FC<HTMLAttributes<HTMLDivElement>> = ({
 				alignItems: "baseline",
 				justifyContent: "space-between",
 				padding: "4px 0",
+				gap: 16,
+				// Ensure the row doesn't overflow and constrains its children
+				minWidth: 0,
 			}}
 			{...attrs}
 		>
@@ -694,10 +697,13 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 					display: "flex",
 					alignItems: "center",
 					gap: 16,
+					// Prevent overflow
+					minWidth: 0,
+					flex: 1,
 				}}
 			>
 				{icon && (
-					<div css={{ width: 16, height: 16, lineHeight: 1 }}>
+					<div css={{ width: 16, height: 16, lineHeight: 1, flexShrink: 0 }}>
 						<img
 							alt=""
 							src={icon}
@@ -710,7 +716,16 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 						/>
 					</div>
 				)}
-				<span id={ariaId}>{label}</span>
+				<span
+					id={ariaId}
+					css={{
+						overflow: "hidden",
+						textOverflow: "ellipsis",
+						whiteSpace: "nowrap",
+					}}
+				>
+					{label}
+				</span>
 			</div>
 		);
 	}
@@ -726,6 +741,9 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 					alignItems: "center",
 					gap: 1,
 					color: theme.palette.text.primary,
+					// Prevent overflow
+					minWidth: 0,
+					flex: 1,
 				}}
 			>
 				<TextValue>{usage.value}</TextValue>
@@ -737,7 +755,7 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 	if (parameter.type === "list(string)") {
 		const values = JSON.parse(usage.value) as string[];
 		return (
-			<div css={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+			<div css={{ display: "flex", gap: 8, flexWrap: "wrap", flex: 1 }}>
 				{values.map((v, i) => (
 					<div
 						key={i}
@@ -762,6 +780,7 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 					display: "flex",
 					alignItems: "center",
 					gap: 8,
+					flex: 1,
 				}}
 			>
 				{usage.value === "false" ? (
@@ -866,7 +885,16 @@ const TextValue: FC<PropsWithChildren> = ({ children }) => {
 	const theme = useTheme();
 
 	return (
-		<span>
+		<span
+			css={{
+				// Prevent overflow for long text values
+				minWidth: 0,
+				flex: 1,
+				overflow: "hidden",
+				textOverflow: "ellipsis",
+				whiteSpace: "nowrap",
+			}}
+		>
 			<span
 				css={{
 					color: theme.palette.text.secondary,
