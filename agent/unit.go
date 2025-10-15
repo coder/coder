@@ -8,9 +8,10 @@ import (
 	"time"
 )
 
-// A Unit (named to represent its resemblance to the systemd concept) is a kind of lock that encodes metadata
-// about the state of a resource. Units are primarily meant to encapsulate sections of processes such as coder scripts
-// to coordinate access to a contended resource, such as a database lock or a socket that is used or provided by the script.
+// A Unit (named to represent its resemblance to the systemd concept) is a kind of node in a dependency graph. It can depend
+// on other units and it can be depended on by other units. Units are primarily meant to encapsulate sections of processes
+// such as coder scripts to coordinate access to a contended resource, such as a database lock or a socket that is used or
+// provided by the script.
 //
 // In most cases, `coder_script` resources will create and manage units by invocations of:
 // * `coder agent unit start <unit> [--wants <unit>]`
@@ -44,13 +45,12 @@ const (
 // Listener represents an event handler
 type Listener func(ctx context.Context, event UnitEventType)
 
-// LockCoordinator is the core interface for agent state coordination
+// UnitCoordinator is the core interface for agent state coordination
 type UnitCoordinator interface {
-	AcquireUnit(unitName string) bool                                              // Returns true if acquired, false if already held
-	ReleaseUnit(unitName string) bool                                              // Releases the unit
-	IsUnitHeld(unitName string) bool                                               // Checks if unit is currently held
-	SubscribeToUnit(unitName string, listener Listener) (cancel func(), err error) // Subscribe to unit events
-	GetUnitHistory(unitName string) []Event                                        // Get all events for a unit
+	StartUnit(unitName string) bool         // Returns true if acquired, false if already held
+	StopUnit(unitName string) bool          // Releases the unit
+	IsUnitHeld(unitName string) bool        // Checks if unit is currently held
+	GetUnitHistory(unitName string) []Event // Get all events for a unit
 	Close() error
 }
 
@@ -126,7 +126,7 @@ func (s *memoryUnitCoordinator) GetUnitHistory(unitName string) []Event {
 }
 
 // AcquireUnit attempts to acquire a unit, returns true if successful
-func (s *memoryUnitCoordinator) AcquireUnit(unitName string) bool {
+func (s *memoryUnitCoordinator) StartUnit(unitName string) bool {
 	return s.acquireUnitInternal(unitName, nil)
 }
 
@@ -171,7 +171,7 @@ func (s *memoryUnitCoordinator) acquireUnitInternal(unitName string, ttl *time.D
 }
 
 // ReleaseLock releases a previously acquired lock
-func (s *memoryUnitCoordinator) ReleaseUnit(unitName string) bool {
+func (s *memoryUnitCoordinator) StopUnit(unitName string) bool {
 	if atomic.LoadInt32(&s.closed) == 1 {
 		return false
 	}

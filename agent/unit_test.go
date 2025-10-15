@@ -11,52 +11,53 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestLockCoordinator(t *testing.T) {
+func TestUnitCoordinator(t *testing.T) {
 	t.Parallel()
 
-	t.Run("AcquireLock", func(t *testing.T) {
+	t.Run("StartUnit", func(t *testing.T) {
 		t.Parallel()
 
-		coordinator := agent.NewMemoryLockCoordinator()
+		coordinator := agent.NewMemoryUnitCoordinator()
 
-		// First acquisition should succeed
-		acquired := coordinator.AcquireLock("test.lock")
+		// Start unit
+		acquired := coordinator.StartUnit("test.unit")
 		assert.True(t, acquired)
 
-		// Second acquisition should fail
-		acquired = coordinator.AcquireLock("test.lock")
+		// Cannot start a second unit with the same name while the first is running
+		acquired = coordinator.StartUnit("test.unit")
 		assert.False(t, acquired)
 
-		// Check lock is held
-		assert.True(t, coordinator.IsLockHeld("test.lock"))
+		// Check unit is running
+		assert.True(t, coordinator.IsUnitHeld("test.unit"))
 	})
 
-	t.Run("ReleaseLock", func(t *testing.T) {
+	t.Run("StopUnit", func(t *testing.T) {
 		t.Parallel()
 
-		coordinator := agent.NewMemoryLockCoordinator()
+		coordinator := agent.NewMemoryUnitCoordinator()
 
-		// Acquire lock
-		acquired := coordinator.AcquireLock("test.lock")
+		// Start unit
+		acquired := coordinator.StartUnit("test.unit")
 		assert.True(t, acquired)
-		assert.True(t, coordinator.IsLockHeld("test.lock"))
+		assert.True(t, coordinator.IsUnitHeld("test.unit"))
 
-		// Release lock
-		coordinator.ReleaseLock("test.lock")
-		assert.False(t, coordinator.IsLockHeld("test.lock"))
+		// Stop unit
+		coordinator.StopUnit("test.unit")
+		assert.False(t, coordinator.IsUnitHeld("test.unit"))
 
-		// Should be able to acquire again
-		acquired = coordinator.AcquireLock("test.lock")
+		// Can start unit again after stopping
+		acquired = coordinator.StartUnit("test.unit")
 		assert.True(t, acquired)
+		assert.True(t, coordinator.IsUnitHeld("test.unit"))
 	})
 
 	t.Run("SubscribeToLock", func(t *testing.T) {
 		t.Parallel()
 
-		coordinator := agent.NewMemoryLockCoordinator()
+		coordinator := agent.NewMemoryUnitCoordinator()
 
 		received := make(chan agent.UnitEventType, 10)
-		cancel, err := coordinator.SubscribeToLock("test.lock", func(ctx context.Context, event agent.UnitEventType) {
+		cancel, err := coordinator.SubscribeToUnit("test.unit", func(ctx context.Context, event agent.UnitEventType) {
 			received <- event
 		})
 		require.NoError(t, err)
@@ -65,27 +66,27 @@ func TestLockCoordinator(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		// Acquire lock - should trigger acquired event
-		coordinator.AcquireLock("test.lock")
+		coordinator.StartUnit("test.unit")
 		event := testutil.RequireReceive(ctx, t, received)
-		assert.Equal(t, agent.LockEventTypeAcquired, event)
+		assert.Equal(t, agent.UnitEventTypeAcquired, event)
 
 		// Release lock - should trigger released event
-		coordinator.ReleaseLock("test.lock")
+		coordinator.StopUnit("test.unit")
 		event = testutil.RequireReceive(ctx, t, received)
-		assert.Equal(t, agent.LockEventTypeReleased, event)
+		assert.Equal(t, agent.UnitEventTypeReleased, event)
 	})
 
 	t.Run("SubscribeToLockAfterAcquire", func(t *testing.T) {
 		t.Parallel()
 
-		coordinator := agent.NewMemoryLockCoordinator()
+		coordinator := agent.NewMemoryUnitCoordinator()
 
 		// Acquire lock first
-		coordinator.AcquireLock("test.lock")
+		coordinator.StartUnit("test.unit")
 
 		// Subscribe after acquisition - should receive historical event
 		received := make(chan agent.UnitEventType, 10)
-		cancel, err := coordinator.SubscribeToLock("test.lock", func(ctx context.Context, event agent.UnitEventType) {
+		cancel, err := coordinator.SubscribeToUnit("test.unit", func(ctx context.Context, event agent.UnitEventType) {
 			received <- event
 		})
 		require.NoError(t, err)
@@ -93,70 +94,70 @@ func TestLockCoordinator(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 		event := testutil.RequireReceive(ctx, t, received)
-		assert.Equal(t, agent.LockEventTypeAcquired, event)
+		assert.Equal(t, agent.UnitEventTypeAcquired, event)
 	})
 
 	t.Run("GetLockHistory", func(t *testing.T) {
 		t.Parallel()
 
-		coordinator := agent.NewMemoryLockCoordinator()
+		coordinator := agent.NewMemoryUnitCoordinator()
 
 		// Initially no history
-		history := coordinator.GetLockHistory("test.lock")
+		history := coordinator.GetUnitHistory("test.unit")
 		assert.Empty(t, history)
 
 		// Acquire lock
-		coordinator.AcquireLock("test.lock")
-		history = coordinator.GetLockHistory("test.lock")
+		coordinator.StartUnit("test.unit")
+		history = coordinator.GetUnitHistory("test.unit")
 		require.Len(t, history, 1)
-		assert.Equal(t, agent.LockEventTypeAcquired, history[0].Type)
+		assert.Equal(t, agent.UnitEventTypeAcquired, history[0].Type)
 
 		// Release lock
-		coordinator.ReleaseLock("test.lock")
-		history = coordinator.GetLockHistory("test.lock")
+		coordinator.StopUnit("test.unit")
+		history = coordinator.GetUnitHistory("test.unit")
 		require.Len(t, history, 2)
-		assert.Equal(t, agent.LockEventTypeAcquired, history[0].Type)
-		assert.Equal(t, agent.LockEventTypeReleased, history[1].Type)
+		assert.Equal(t, agent.UnitEventTypeAcquired, history[0].Type)
+		assert.Equal(t, agent.UnitEventTypeReleased, history[1].Type)
 
 		// Acquire again
-		coordinator.AcquireLock("test.lock")
-		history = coordinator.GetLockHistory("test.lock")
+		coordinator.StartUnit("test.unit")
+		history = coordinator.GetUnitHistory("test.unit")
 		require.Len(t, history, 3)
-		assert.Equal(t, agent.LockEventTypeAcquired, history[2].Type)
+		assert.Equal(t, agent.UnitEventTypeAcquired, history[2].Type)
 	})
 
 	t.Run("MultipleLocks", func(t *testing.T) {
 		t.Parallel()
 
-		coordinator := agent.NewMemoryLockCoordinator()
+		coordinator := agent.NewMemoryUnitCoordinator()
 
 		// Acquire different locks
-		assert.True(t, coordinator.AcquireLock("lock1"))
-		assert.True(t, coordinator.AcquireLock("lock2"))
-		assert.True(t, coordinator.AcquireLock("lock3"))
+		assert.True(t, coordinator.StartUnit("unit1"))
+		assert.True(t, coordinator.StartUnit("unit2"))
+		assert.True(t, coordinator.StartUnit("unit3"))
 
 		// All should be held
-		assert.True(t, coordinator.IsLockHeld("lock1"))
-		assert.True(t, coordinator.IsLockHeld("lock2"))
-		assert.True(t, coordinator.IsLockHeld("lock3"))
+		assert.True(t, coordinator.IsUnitHeld("unit1"))
+		assert.True(t, coordinator.IsUnitHeld("unit2"))
+		assert.True(t, coordinator.IsUnitHeld("unit3"))
 
 		// Release one
-		coordinator.ReleaseLock("lock2")
-		assert.True(t, coordinator.IsLockHeld("lock1"))
-		assert.False(t, coordinator.IsLockHeld("lock2"))
-		assert.True(t, coordinator.IsLockHeld("lock3"))
+		coordinator.StopUnit("unit2")
+		assert.True(t, coordinator.IsUnitHeld("unit1"))
+		assert.False(t, coordinator.IsUnitHeld("unit2"))
+		assert.True(t, coordinator.IsUnitHeld("unit3"))
 	})
 
 	t.Run("ConcurrentAcquisition", func(t *testing.T) {
 		t.Parallel()
 
-		coordinator := agent.NewMemoryLockCoordinator()
+		coordinator := agent.NewMemoryUnitCoordinator()
 
 		// Simulate concurrent acquisition attempts
 		results := make(chan bool, 10)
 		for i := 0; i < 10; i++ {
 			go func() {
-				results <- coordinator.AcquireLock("concurrent.lock")
+				results <- coordinator.StartUnit("concurrent.unit")
 			}()
 		}
 
@@ -169,28 +170,28 @@ func TestLockCoordinator(t *testing.T) {
 		}
 
 		assert.Equal(t, 1, successCount)
-		assert.True(t, coordinator.IsLockHeld("concurrent.lock"))
+		assert.True(t, coordinator.IsUnitHeld("concurrent.unit"))
 	})
 
 	t.Run("Close", func(t *testing.T) {
 		t.Parallel()
 
-		coordinator := agent.NewMemoryLockCoordinator()
+		coordinator := agent.NewMemoryUnitCoordinator()
 
 		// Acquire a lock
-		coordinator.AcquireLock("test.lock")
-		assert.True(t, coordinator.IsLockHeld("test.lock"))
+		coordinator.StartUnit("test.unit")
+		assert.True(t, coordinator.IsUnitHeld("test.unit"))
 
 		// Close coordinator
 		err := coordinator.Close()
 		assert.NoError(t, err)
 
 		// Should not be able to acquire locks after close
-		acquired := coordinator.AcquireLock("test.lock")
+		acquired := coordinator.StartUnit("test.unit")
 		assert.False(t, acquired)
 
 		// Should not be able to subscribe after close
-		_, err = coordinator.SubscribeToLock("test.lock", func(ctx context.Context, event agent.UnitEventType) {})
+		_, err = coordinator.SubscribeToUnit("test.unit", func(ctx context.Context, event agent.UnitEventType) {})
 		assert.Error(t, err)
 	})
 }
