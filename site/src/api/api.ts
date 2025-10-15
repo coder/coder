@@ -2748,6 +2748,14 @@ class ExperimentalApiMethods {
 			setTimeout(() => res(), 500);
 		});
 	};
+
+	getAIBridgeInterceptions = async () => {
+		const response =
+			await this.axios.get<TypesGen.AIBridgeListInterceptionsResponse>(
+				"/api/experimental/aibridge/interceptions",
+			);
+		return response.data;
+	};
 }
 
 // This is a hard coded CSRF token/cookie pair for local development. In prod,
