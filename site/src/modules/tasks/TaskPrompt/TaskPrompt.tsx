@@ -165,6 +165,9 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 		...templateVersions(selectedTemplate.id),
 		enabled: permissions.updateTemplates,
 	});
+	useEffect(() => {
+		setSelectedVersionId(selectedTemplate.active_version_id);
+	}, [selectedTemplate]);
 
 	// Presets
 	const { data: presets, isLoading: isLoadingPresets } = useQuery(
@@ -269,7 +272,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 					<div className="flex items-center gap-1">
 						<div>
 							<label htmlFor="templateID" className="sr-only">
-								Template
+								Select template
 							</label>
 							<Select
 								name="templateID"
@@ -326,7 +329,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 								Preset
 							</label>
 							{isLoadingPresets ? (
-								<Skeleton className="w-[320px] h-8" />
+								<Skeleton className="w-[140px] h-8 rounded-full" />
 							) : (
 								presets &&
 								presets.length > 0 &&
