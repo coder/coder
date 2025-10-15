@@ -26,8 +26,10 @@ func Test_TaskLogs(t *testing.T) {
 	var (
 		clock = time.Date(2025, 8, 26, 12, 34, 56, 0, time.UTC)
 
-		taskID   = uuid.MustParse("11111111-1111-1111-1111-111111111111")
-		taskName = "task-workspace"
+		taskID       = uuid.MustParse("11111111-1111-1111-1111-111111111111")
+		taskName     = "task-workspace"
+		agentID      = uuid.MustParse("22222222-2222-2222-2222-222222222222")
+		sidebarAppID = uuid.MustParse("33333333-3333-3333-3333-333333333333")
 
 		taskLogs = []codersdk.TaskLogEntry{
 			{
@@ -45,14 +47,47 @@ func Test_TaskLogs(t *testing.T) {
 		}
 	)
 
+	// Helper to create a workspace response with AI task configuration
+	makeTaskWorkspace := func() codersdk.Workspace {
+		hasAITask := true
+		return codersdk.Workspace{
+			ID:   taskID,
+			Name: taskName,
+			LatestBuild: codersdk.WorkspaceBuild{
+				ID:                 uuid.New(),
+				HasAITask:          &hasAITask,
+				AITaskSidebarAppID: &sidebarAppID,
+				Resources: []codersdk.WorkspaceResource{
+					{
+						Agents: []codersdk.WorkspaceAgent{
+							{
+								ID: agentID,
+								Apps: []codersdk.WorkspaceApp{
+									{
+										ID:     sidebarAppID,
+										URL:    "http://localhost:8080",
+										Health: codersdk.WorkspaceAppHealthHealthy,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+	}
+
 	tests := []struct {
-		args        []string
-		expectTable string
-		expectLogs  []codersdk.TaskLogEntry
-		expectError string
-		handler     func(t *testing.T, ctx context.Context) http.HandlerFunc
+		name                 string
+		args                 []string
+		expectTable          string
+		expectLogs           []codersdk.TaskLogEntry
+		expectError          string
+		expectStderrContains string
+		handler              func(t *testing.T, ctx context.Context) http.HandlerFunc
 	}{
 		{
+			name:       "task name with json output",
 			args:       []string{taskName, "--output", "json"},
 			expectLogs: taskLogs,
 			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
@@ -73,6 +108,7 @@ func Test_TaskLogs(t *testing.T) {
 			},
 		},
 		{
+			name:       "task ID with json output",
 			args:       []string{taskID.String(), "--output", "json"},
 			expectLogs: taskLogs,
 			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
@@ -89,6 +125,7 @@ func Test_TaskLogs(t *testing.T) {
 			},
 		},
 		{
+			name: "task ID with table output",
 			args: []string{taskID.String()},
 			expectTable: `
 TYPE    CONTENT
@@ -108,6 +145,7 @@ output  2`,
 			},
 		},
 		{
+			name:        "non-existent task name",
 			args:        []string{"doesnotexist"},
 			expectError: httpapi.ResourceNotFoundResponse.Message,
 			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
@@ -122,7 +160,8 @@ output  2`,
 			},
 		},
 		{
-			args:        []string{uuid.Nil.String()}, // uuid does not exist
+			name:        "non-existent task UUID",
+			args:        []string{uuid.Nil.String()},
 			expectError: httpapi.ResourceNotFoundResponse.Message,
 			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
 				return func(w http.ResponseWriter, r *http.Request) {
@@ -136,6 +175,7 @@ output  2`,
 			},
 		},
 		{
+			name:        "error fetching logs",
 			args:        []string{"err-fetching-logs"},
 			expectError: assert.AnError.Error(),
 			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
@@ -153,10 +193,114 @@ output  2`,
 				}
 			},
 		},
+		// --follow tests
+		{
+			name:                 "follow validates workspace and attempts agent dial",
+			args:                 []string{taskID.String(), "--follow"},
+			expectError:          "dial workspace agent",
+			expectStderrContains: "Connecting to task workspace agent",
+			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					switch r.URL.Path {
+					case fmt.Sprintf("/api/v2/workspaces/%s", taskID.String()):
+						httpapi.Write(ctx, w, http.StatusOK, makeTaskWorkspace())
+					default:
+						t.Logf("unexpected path: %s", r.URL.Path)
+					}
+				}
+			},
+		},
+		{
+			name:                 "follow works with task name",
+			args:                 []string{taskName, "--follow"},
+			expectError:          "dial workspace agent",
+			expectStderrContains: "Connecting to task workspace agent",
+			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					switch r.URL.Path {
+					case fmt.Sprintf("/api/v2/users/me/workspace/%s", taskName):
+						httpapi.Write(ctx, w, http.StatusOK, makeTaskWorkspace())
+					case fmt.Sprintf("/api/v2/workspaces/%s", taskID.String()):
+						httpapi.Write(ctx, w, http.StatusOK, makeTaskWorkspace())
+					default:
+						t.Logf("unexpected path: %s", r.URL.Path)
+					}
+				}
+			},
+		},
+		{
+			name:        "follow fails for non-AI task workspace",
+			args:        []string{taskID.String(), "--follow"},
+			expectError: "not configured as an AI task",
+			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					switch r.URL.Path {
+					case fmt.Sprintf("/api/v2/workspaces/%s", taskID.String()):
+						ws := makeTaskWorkspace()
+						notAITask := false
+						ws.LatestBuild.HasAITask = &notAITask
+						httpapi.Write(ctx, w, http.StatusOK, ws)
+					default:
+						t.Logf("unexpected path: %s", r.URL.Path)
+					}
+				}
+			},
+		},
+		{
+			name:        "follow fails for missing sidebar app",
+			args:        []string{taskID.String(), "--follow"},
+			expectError: "not configured with a sidebar app",
+			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					switch r.URL.Path {
+					case fmt.Sprintf("/api/v2/workspaces/%s", taskID.String()):
+						ws := makeTaskWorkspace()
+						ws.LatestBuild.AITaskSidebarAppID = nil
+						httpapi.Write(ctx, w, http.StatusOK, ws)
+					default:
+						t.Logf("unexpected path: %s", r.URL.Path)
+					}
+				}
+			},
+		},
+		{
+			name:        "follow fails for unhealthy app",
+			args:        []string{taskID.String(), "--follow"},
+			expectError: "unhealthy",
+			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					switch r.URL.Path {
+					case fmt.Sprintf("/api/v2/workspaces/%s", taskID.String()):
+						ws := makeTaskWorkspace()
+						ws.LatestBuild.Resources[0].Agents[0].Apps[0].Health = codersdk.WorkspaceAppHealthUnhealthy
+						httpapi.Write(ctx, w, http.StatusOK, ws)
+					default:
+						t.Logf("unexpected path: %s", r.URL.Path)
+					}
+				}
+			},
+		},
+		{
+			name:        "follow fails for initializing app",
+			args:        []string{taskID.String(), "--follow"},
+			expectError: "initializing",
+			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					switch r.URL.Path {
+					case fmt.Sprintf("/api/v2/workspaces/%s", taskID.String()):
+						ws := makeTaskWorkspace()
+						ws.LatestBuild.Resources[0].Agents[0].Apps[0].Health = codersdk.WorkspaceAppHealthInitializing
+						httpapi.Write(ctx, w, http.StatusOK, ws)
+					default:
+						t.Logf("unexpected path: %s", r.URL.Path)
+					}
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {
-		t.Run(strings.Join(tt.args, ","), func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			var (
@@ -165,6 +309,7 @@ output  2`,
 				client = codersdk.New(testutil.MustURL(t, srv.URL))
 				args   = []string{"exp", "task", "logs"}
 				stdout strings.Builder
+				stderr strings.Builder
 				err    error
 			)
 
@@ -172,7 +317,7 @@ output  2`,
 
 			inv, root := clitest.New(t, append(args, tt.args...)...)
 			inv.Stdout = &stdout
-			inv.Stderr = &stdout
+			inv.Stderr = &stderr
 			clitest.SetupConfig(t, client, root)
 
 			err = inv.WithContext(ctx).Run()
@@ -180,6 +325,10 @@ output  2`,
 				assert.NoError(t, err)
 			} else {
 				assert.ErrorContains(t, err, tt.expectError)
+			}
+
+			if tt.expectStderrContains != "" {
+				assert.Contains(t, stderr.String(), tt.expectStderrContains)
 			}
 
 			if tt.expectTable != "" {
