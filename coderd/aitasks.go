@@ -715,78 +715,66 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 // @Router /api/experimental/tasks/{user}/{id} [delete]
 //
 // EXPERIMENTAL: This endpoint is experimental and not guaranteed to be stable.
-// taskDelete is an experimental endpoint to delete a task by ID (workspace ID).
+// taskDelete is an experimental endpoint to delete a task by ID.
 // It creates a delete workspace build and returns 202 Accepted if the build was
 // created.
 func (api *API) taskDelete(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
+	task := httpmw.TaskParam(r)
 
-	idStr := chi.URLParam(r, "id")
-	taskID, err := uuid.Parse(idStr)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Invalid UUID %q for task ID.", idStr),
-		})
-		return
+	now := api.Clock.Now()
+
+	if task.WorkspaceID.Valid {
+		workspace, err := api.Database.GetWorkspaceByID(ctx, task.WorkspaceID.UUID)
+		if err != nil {
+			if httpapi.Is404Error(err) {
+				httpapi.ResourceNotFound(rw)
+				return
+			}
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching workspace.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		// Construct a request to the workspace build creation handler to
+		// initiate deletion.
+		buildReq := codersdk.CreateWorkspaceBuildRequest{
+			Transition: codersdk.WorkspaceTransitionDelete,
+			Reason:     "Deleted via tasks API",
+		}
+
+		_, err = api.postWorkspaceBuildsInternal(
+			ctx,
+			apiKey,
+			workspace,
+			buildReq,
+			func(action policy.Action, object rbac.Objecter) bool {
+				return api.Authorize(r, action, object)
+			},
+			audit.WorkspaceBuildBaggageFromRequest(r),
+		)
+		if err != nil {
+			httperror.WriteWorkspaceBuildError(ctx, rw, err)
+			return
+		}
 	}
 
-	// For now, taskID = workspaceID, once we have a task data model in
-	// the DB, we can change this lookup.
-	workspaceID := taskID
-	workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceID)
-	if httpapi.Is404Error(err) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
+	_, err := api.Database.DeleteTask(ctx, database.DeleteTaskParams{
+		ID:        task.ID,
+		DeletedAt: dbtime.Time(now),
+	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace.",
+			Message: "Failed to delete task",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	data, err := api.workspaceData(ctx, []database.Workspace{workspace})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace resources.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if len(data.builds) == 0 || len(data.templates) == 0 {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-	if data.builds[0].HasAITask == nil || !*data.builds[0].HasAITask {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
-	// Construct a request to the workspace build creation handler to
-	// initiate deletion.
-	buildReq := codersdk.CreateWorkspaceBuildRequest{
-		Transition: codersdk.WorkspaceTransitionDelete,
-		Reason:     "Deleted via tasks API",
-	}
-
-	_, err = api.postWorkspaceBuildsInternal(
-		ctx,
-		apiKey,
-		workspace,
-		buildReq,
-		func(action policy.Action, object rbac.Objecter) bool {
-			return api.Authorize(r, action, object)
-		},
-		audit.WorkspaceBuildBaggageFromRequest(r),
-	)
-	if err != nil {
-		httperror.WriteWorkspaceBuildError(ctx, rw, err)
-		return
-	}
-
-	// Delete build created successfully.
+	// Task deleted and delete build created successfully.
 	rw.WriteHeader(http.StatusAccepted)
 }
 
