@@ -2084,7 +2084,7 @@ var SendTaskInput = Tool[SendTaskInputArgs, codersdk.Response]{
 		}
 
 		return codersdk.Response{
-			Message: "Input received.",
+			Message: "Input sent to task successfully.",
 		}, nil
 	},
 }
