@@ -63,12 +63,14 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           RUN_ID: ${{ github.run_id }}
         run: |
-          COMMENT_BODY="🤖 **Documentation Check Started**
+          COMMENT_BODY=$(cat <<'EOF'
+          🤖 **Documentation Check Started**
 
-Analyzing PR changes to determine if documentation updates are needed...
+          Analyzing PR changes to determine if documentation updates are needed...
 
-[View workflow run](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID})
-"
+          [View workflow run](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID})
+          EOF
+          )
           COMMENT_ID=$(gh pr comment "${PR_NUMBER}" --body "${COMMENT_BODY}" --repo "${GITHUB_REPOSITORY}" | grep -oP 'https://github.com/.*/pull/.*#issuecomment-\K\d+')
           echo "comment_id=${COMMENT_ID}" >> "${GITHUB_OUTPUT}"
 
@@ -219,14 +221,16 @@ EOF
         run: |
           TASK_OUTPUT=$(cat /tmp/task_output.txt)
 
-          COMMENT_BODY="🤖 **Documentation Check Complete**
+          COMMENT_BODY=$(cat <<EOF
+          🤖 **Documentation Check Complete**
 
-${TASK_OUTPUT}
+          ${TASK_OUTPUT}
 
----
-Task: https://dev.coder.com/tasks/${TASK_NAME}
-[View workflow run](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID})
-"
+          ---
+          Task: https://dev.coder.com/tasks/${TASK_NAME}
+          [View workflow run](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID})
+          EOF
+          )
 
           # Update the existing comment
           gh api \
