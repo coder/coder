@@ -1,6 +1,7 @@
 package rbac
 
 import (
+	"container/ring"
 	"context"
 	"crypto/sha256"
 	_ "embed"
@@ -808,14 +809,10 @@ const (
 )
 
 type AuthzCheckRecorder struct {
-	// lock guards checks and writeIdx
+	// lock guards ring buffer
 	lock sync.Mutex
-	// checks is a ring buffer of preformatted authz check IDs and their result
-	checks []recordedCheck
-	// writeIdx is the next index to write to in the ring buffer
-	writeIdx int
-	// wrapped indicates if we've wrapped around the ring buffer at least once
-	wrapped bool
+	// ring is a ring buffer of preformatted authz check IDs and their result
+	ring *ring.Ring
 }
 
 type recordedCheck struct {
@@ -826,7 +823,7 @@ type recordedCheck struct {
 
 func WithAuthzCheckRecorder(ctx context.Context) context.Context {
 	return context.WithValue(ctx, authzCheckRecorderKey{}, &AuthzCheckRecorder{
-		checks: make([]recordedCheck, MaxRecordedChecks),
+		ring: ring.New(MaxRecordedChecks),
 	})
 }
 
@@ -856,13 +853,8 @@ func recordAuthzCheck(ctx context.Context, action policy.Action, object Object, 
 	name := strings.Join(parts, "")
 
 	r.lock.Lock()
-	// Write to ring buffer at current index.
-	r.checks[r.writeIdx] = recordedCheck{name: name, result: authorized}
-	r.writeIdx++
-	if r.writeIdx >= MaxRecordedChecks {
-		r.writeIdx = 0
-		r.wrapped = true
-	}
+	r.ring.Value = recordedCheck{name: name, result: authorized}
+	r.ring = r.ring.Next()
 	r.lock.Unlock()
 }
 
@@ -881,44 +873,20 @@ func (r *AuthzCheckRecorder) String() string {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
-	// If we haven't written anything yet.
-	if r.writeIdx == 0 && !r.wrapped {
-		return "nil"
-	}
-
-	// Determine how many valid entries we have.
-	var count int
-	if r.wrapped {
-		count = MaxRecordedChecks
-	} else {
-		count = r.writeIdx
-	}
-
-	checks := make([]string, 0, count)
-
-	if r.wrapped {
-		// Read from writeIdx to end (oldest entries).
-		for i := r.writeIdx; i < MaxRecordedChecks; i++ {
-			check := r.checks[i]
-			if check.name != "" {
-				checks = append(checks, fmt.Sprintf("%v=%v", check.name, check.result))
-			}
+	var checks []string
+	current := r.ring
+	for i := 0; i < MaxRecordedChecks; i++ {
+		if current.Value == nil {
+			current = current.Next()
+			continue
 		}
-		// Read from start to writeIdx (newer entries).
-		for i := 0; i < r.writeIdx; i++ {
-			check := r.checks[i]
-			if check.name != "" {
-				checks = append(checks, fmt.Sprintf("%v=%v", check.name, check.result))
-			}
+		check, ok := current.Value.(recordedCheck)
+		if !ok || check.name == "" {
+			current = current.Next()
+			continue
 		}
-	} else {
-		// Just read from start to writeIdx.
-		for i := 0; i < r.writeIdx; i++ {
-			check := r.checks[i]
-			if check.name != "" {
-				checks = append(checks, fmt.Sprintf("%v=%v", check.name, check.result))
-			}
-		}
+		checks = append(checks, fmt.Sprintf("%v=%v", check.name, check.result))
+		current = current.Next()
 	}
 
 	if len(checks) == 0 {
