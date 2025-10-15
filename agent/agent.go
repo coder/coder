@@ -785,7 +785,7 @@ func (a *agent) reportConnectionsLoop(ctx context.Context, aAPI proto.DRPCAgentC
 				// log a warning.
 				// Related to https://github.com/coder/coder/issues/20194
 				logger.Warn(ctx, "failed to report connection to server", slog.Error(err))
-				// no continue here, we still need to remove it from the slice
+				// keep going, we still need to remove it from the slice
 			} else {
 				logger.Debug(ctx, "successfully reported connection")
 			}
