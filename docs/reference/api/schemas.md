@@ -7367,6 +7367,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `idp_sync_settings_role`         |
 | `workspace_agent`                |
 | `workspace_app`                  |
+| `task`                           |
 
 ## codersdk.Response
 
