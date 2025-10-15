@@ -824,40 +824,28 @@ func recordAuthzCheck(ctx context.Context, action policy.Action, object Object, 
 		return
 	}
 
-	// We serialize the check using the following syntax
-	var b strings.Builder
+	// Build string parts to concatenate.
+	parts := make([]string, 0, 8)
+
 	if object.OrgID != "" {
-		_, err := fmt.Fprintf(&b, "organization:%v::", object.OrgID)
-		if err != nil {
-			return
-		}
+		parts = append(parts, "organization:", object.OrgID, "::")
 	}
 	if object.AnyOrgOwner {
-		_, err := fmt.Fprint(&b, "organization:any::")
-		if err != nil {
-			return
-		}
+		parts = append(parts, "organization:any::")
 	}
 	if object.Owner != "" {
-		_, err := fmt.Fprintf(&b, "owner:%v::", object.Owner)
-		if err != nil {
-			return
-		}
+		parts = append(parts, "owner:", object.Owner, "::")
 	}
 	if object.ID != "" {
-		_, err := fmt.Fprintf(&b, "id:%v::", object.ID)
-		if err != nil {
-			return
-		}
+		parts = append(parts, "id:", object.ID, "::")
 	}
-	_, err := fmt.Fprintf(&b, "%v.%v", object.RBACObject().Type, action)
-	if err != nil {
-		return
-	}
+	parts = append(parts, object.RBACObject().Type, ".", string(action))
+
+	name := strings.Join(parts, "")
 
 	r.lock.Lock()
-	defer r.lock.Unlock()
-	r.checks = append(r.checks, recordedCheck{name: b.String(), result: authorized})
+	r.checks = append(r.checks, recordedCheck{name: name, result: authorized})
+	r.lock.Unlock()
 }
 
 func GetAuthzCheckRecorder(ctx context.Context) (*AuthzCheckRecorder, bool) {

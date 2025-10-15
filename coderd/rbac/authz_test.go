@@ -314,6 +314,96 @@ func BenchmarkCacher(b *testing.B) {
 	}
 }
 
+// BenchmarkRecorder benchmarks the overhead of recording authorization checks.
+// This is important because recordAuthzCheck is called on every authorization
+// in hot paths and uses string building, fmt operations, and mutex locking.
+//
+//	go test -run=^$ -bench '^BenchmarkRecorder$' -benchmem -cpuprofile profile.out
+func BenchmarkRecorder(b *testing.B) {
+	// Test different object configurations to measure string building cost.
+	objects := []struct {
+		name string
+		obj  rbac.Object
+	}{
+		{
+			name: "Minimal",
+			obj: rbac.Object{
+				Type: "workspace",
+			},
+		},
+		{
+			name: "WithID",
+			obj: rbac.Object{
+				Type: "workspace",
+				ID:   uuid.NewString(),
+			},
+		},
+		{
+			name: "WithOwner",
+			obj: rbac.Object{
+				Type:  "workspace",
+				ID:    uuid.NewString(),
+				Owner: uuid.NewString(),
+			},
+		},
+		{
+			name: "WithOrg",
+			obj: rbac.Object{
+				Type:  "workspace",
+				ID:    uuid.NewString(),
+				Owner: uuid.NewString(),
+				OrgID: uuid.NewString(),
+			},
+		},
+		{
+			name: "AllFields",
+			obj: rbac.Object{
+				Type:  "workspace",
+				ID:    uuid.NewString(),
+				Owner: uuid.NewString(),
+				OrgID: uuid.NewString(),
+			},
+		},
+	}
+
+	for _, obj := range objects {
+		b.Run(obj.name, func(b *testing.B) {
+			ctx := rbac.WithAuthzCheckRecorder(context.Background())
+			authz := rbac.Recorder(&coderdtest.FakeAuthorizer{})
+			subj := coderdtest.RandomRBACSubject()
+			action := policy.ActionRead
+
+			b.ReportAllocs()
+			b.ResetTimer()
+			for b.Loop() {
+				_ = authz.Authorize(ctx, subj, action, obj.obj)
+			}
+		})
+	}
+
+	// Benchmark contention with multiple goroutines.
+	b.Run("Contention", func(b *testing.B) {
+		ctx := rbac.WithAuthzCheckRecorder(context.Background())
+		authz := rbac.Recorder(&coderdtest.FakeAuthorizer{})
+		subj := coderdtest.RandomRBACSubject()
+		action := policy.ActionRead
+		obj := rbac.Object{
+			Type:  "workspace",
+			ID:    uuid.NewString(),
+			Owner: uuid.NewString(),
+			OrgID: uuid.NewString(),
+		}
+
+		b.ReportAllocs()
+		b.ResetTimer()
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				_ = authz.Authorize(ctx, subj, action, obj)
+			}
+		})
+	})
+}
+
 func TestCache(t *testing.T) {
 	t.Parallel()
 
