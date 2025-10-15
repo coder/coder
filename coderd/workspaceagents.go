@@ -452,6 +452,10 @@ func (api *API) enqueueAITaskStateNotification(
 		notificationTemplate = notifications.TemplateTaskWorking
 	case codersdk.WorkspaceAppStatusStateIdle:
 		notificationTemplate = notifications.TemplateTaskIdle
+	case codersdk.WorkspaceAppStatusStateComplete:
+		notificationTemplate = notifications.TemplateTaskCompleted
+	case codersdk.WorkspaceAppStatusStateFailure:
+		notificationTemplate = notifications.TemplateTaskFailed
 	default:
 		// Not a notifiable state, do nothing
 		return
