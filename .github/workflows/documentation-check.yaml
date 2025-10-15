@@ -316,12 +316,3 @@ jobs:
             "/repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}" \
             -f body="${COMMENT_BODY}"
 
-      - name: Cleanup task
-        if: always()
-        env:
-          TASK_NAME: ${{ steps.create-task.outputs.TASK_NAME }}
-        run: |
-          if [[ -n "${TASK_NAME}" ]]; then
-            echo "Cleaning up task: ${TASK_NAME}"
-            ./scripts/documentation-check.sh delete || true
-          fi
