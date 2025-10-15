@@ -3,6 +3,7 @@ package rbac_test
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -516,5 +517,132 @@ func TestCache(t *testing.T) {
 		rec.AssertActor(t, subj1, rec.Pair(action1, obj1))
 		rec.AssertActor(t, subj2, pairs...)
 		require.NoError(t, rec.AllAsserted(), "all assertions should have been made")
+	})
+}
+
+func TestAuthzCheckRecorderRingBuffer(t *testing.T) {
+	t.Parallel()
+
+	t.Run("EmptyRecorder", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := rbac.WithAuthzCheckRecorder(context.Background())
+		recorder, ok := rbac.GetAuthzCheckRecorder(ctx)
+		require.True(t, ok)
+
+		str := recorder.String()
+		require.Equal(t, "nil", str)
+	})
+
+	t.Run("PartialFill", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := rbac.WithAuthzCheckRecorder(context.Background())
+		authz := rbac.Recorder(&coderdtest.FakeAuthorizer{})
+		subj := coderdtest.RandomRBACSubject()
+		obj := rbac.Object{
+			Type: "workspace",
+			ID:   "test-id",
+		}
+
+		for range 5 {
+			_ = authz.Authorize(ctx, subj, policy.ActionRead, obj)
+		}
+
+		recorder, ok := rbac.GetAuthzCheckRecorder(ctx)
+		require.True(t, ok)
+
+		str := recorder.String()
+		// Should have 5 entries (4 semicolons).
+		count := strings.Count(str, ";")
+		require.Equal(t, 4, count, "should have 5 entries (4 semicolons)")
+		require.Contains(t, str, "workspace.read=true")
+	})
+
+	t.Run("ExactlyFull", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := rbac.WithAuthzCheckRecorder(context.Background())
+		authz := rbac.Recorder(&coderdtest.FakeAuthorizer{})
+		subj := coderdtest.RandomRBACSubject()
+		obj := rbac.Object{
+			Type: "workspace",
+			ID:   "test-id",
+		}
+
+		// Fill exactly to capacity.
+		for range rbac.MaxRecordedChecks {
+			_ = authz.Authorize(ctx, subj, policy.ActionRead, obj)
+		}
+
+		recorder, ok := rbac.GetAuthzCheckRecorder(ctx)
+		require.True(t, ok)
+
+		str := recorder.String()
+		// Should have 1 semicolons fewer colons than the capacity, due to concatenation.
+		count := strings.Count(str, ";")
+		require.Equal(t, rbac.MaxRecordedChecks-1, count, "unexpected count of elements")
+	})
+
+	t.Run("OverflowRingBuffer", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := rbac.WithAuthzCheckRecorder(context.Background())
+		authz := rbac.Recorder(&coderdtest.FakeAuthorizer{})
+		subj := coderdtest.RandomRBACSubject()
+
+		// Add more than ring buffer capacity.
+		// Use different objects so we can verify ordering.
+		for i := range rbac.MaxRecordedChecks + 5 {
+			obj := rbac.Object{
+				Type: "workspace",
+				ID:   fmt.Sprintf("id-%d", i),
+			}
+			_ = authz.Authorize(ctx, subj, policy.ActionRead, obj)
+		}
+
+		recorder, ok := rbac.GetAuthzCheckRecorder(ctx)
+		require.True(t, ok)
+
+		str := recorder.String()
+		// Should have 1 semicolons fewer colons than the capacity, due to concatenation.
+		count := strings.Count(str, ";")
+		require.Equal(t, rbac.MaxRecordedChecks-1, count, "unexpected count of elements")
+
+		// Should contain the newest entries (id-5 through id-24).
+		// The first 5 (id-0 through id-4) should have been overwritten.
+		require.NotContains(t, str, "id-0", "oldest entry should be overwritten")
+		require.NotContains(t, str, "id-4", "old entry should be overwritten")
+		require.Contains(t, str, "id-5", "should contain entry after wraparound")
+		require.Contains(t, str, "id-24", "should contain newest entry")
+
+		// Verify ordering: oldest (id-5) should appear before newest (id-24).
+		idx5 := strings.Index(str, "id-5")
+		idx24 := strings.Index(str, "id-24")
+		require.Less(t, idx5, idx24, "oldest entry should appear before newest")
+	})
+
+	t.Run("AuthorizationResults", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := rbac.WithAuthzCheckRecorder(context.Background())
+		subj := coderdtest.RandomRBACSubject()
+		obj := rbac.Object{
+			Type: "workspace",
+			ID:   "test-id",
+		}
+
+		// Use FakeAuthorizer with no permissions to trigger denial.
+		authz := rbac.Recorder(&coderdtest.FakeAuthorizer{})
+
+		// This should be denied since FakeAuthorizer with empty permissions denies by default.
+		_ = authz.Authorize(ctx, subj, policy.ActionDelete, obj)
+
+		recorder, ok := rbac.GetAuthzCheckRecorder(ctx)
+		require.True(t, ok)
+
+		str := recorder.String()
+		// Should show authorization result.
+		require.Contains(t, str, "workspace.delete", "should record authorization check")
 	})
 }
