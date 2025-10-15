@@ -3348,9 +3348,11 @@ export interface Task {
 	readonly template_display_name: string;
 	readonly template_icon: string;
 	readonly workspace_id: string | null;
+	readonly workspace_build_number?: number;
 	readonly workspace_agent_id: string | null;
 	readonly workspace_agent_lifecycle: WorkspaceAgentLifecycle | null;
 	readonly workspace_agent_health: WorkspaceAgentHealth | null;
+	readonly workspace_app_id: string | null;
 	readonly initial_prompt: string;
 	readonly status: WorkspaceStatus;
 	readonly current_state: TaskStateEntry | null;
