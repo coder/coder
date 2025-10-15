@@ -3301,7 +3301,6 @@ Write out the current server config as YAML to stdout.`,
 			Required: false,
 			Flag:     "enable-authz-recordings",
 			Env:      "CODER_ENABLE_AUTHZ_RECORDINGS",
-			YAML:     "enable_authz_recordings",
 			Default:  "false",
 			Value:    &c.EnableAuthzRecording,
 			// Do not show this option ever. It is a developer tool only, and not to be
