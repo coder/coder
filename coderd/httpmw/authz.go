@@ -4,6 +4,7 @@ package httpmw
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 
@@ -46,7 +47,13 @@ func AsAuthzSystem(mws ...func(http.Handler) http.Handler) func(http.Handler) ht
 // Requires using a Recorder Authorizer.
 func RecordAuthzChecks(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		r = r.WithContext(rbac.WithAuthzCheckRecorder(r.Context()))
+		// Only enabled if the x-authz-checks header is set to a truthy value.
+		// The requester is expected to explicitly ask for this header to be set
+		// in the response.
+		if enabled, _ := strconv.ParseBool(r.Header.Get("x-authz-checks")); enabled {
+			r = r.WithContext(rbac.WithAuthzCheckRecorder(r.Context()))
+		}
+
 		next.ServeHTTP(rw, r)
 	})
 }
