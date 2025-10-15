@@ -2066,6 +2066,10 @@ var SendTaskInput = Tool[SendTaskInputArgs, codersdk.Response]{
 			return codersdk.Response{}, xerrors.New("task_id is required")
 		}
 
+		if args.Input == "" {
+			return codersdk.Response{}, xerrors.New("input is required")
+		}
+
 		expClient := codersdk.NewExperimentalClient(deps.coderClient)
 		id, owner, err := resolveTaskID(ctx, deps.coderClient, args.TaskID)
 		if err != nil {
