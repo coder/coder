@@ -152,10 +152,12 @@ func TestTelemetry(t *testing.T) {
 			AITaskSidebarAppID: uuid.NullUUID{Valid: true, UUID: taskWsApp.ID},
 		})
 		task := dbgen.Task(t, db, database.TaskTable{
-			OwnerID:           user.ID,
-			OrganizationID:    org.ID,
-			WorkspaceID:       uuid.NullUUID{Valid: true, UUID: taskWs.ID},
-			TemplateVersionID: taskTV.ID,
+			OwnerID:            user.ID,
+			OrganizationID:     org.ID,
+			WorkspaceID:        uuid.NullUUID{Valid: true, UUID: taskWs.ID},
+			TemplateVersionID:  taskTV.ID,
+			Prompt:             "example prompt",
+			TemplateParameters: json.RawMessage(`{"foo": "bar"}`),
 		})
 
 		group := dbgen.Group(t, db, database.Group{
@@ -237,8 +239,8 @@ func TestTelemetry(t *testing.T) {
 			assert.Equal(t, task.WorkspaceAgentID, snapTask.WorkspaceAgentID)
 			assert.Equal(t, task.WorkspaceAppID, snapTask.WorkspaceAppID)
 			assert.Equal(t, task.TemplateVersionID, snapTask.TemplateVersionID)
-			assert.NotEmpty(t, snapTask.TemplateParametersHash)
-			assert.NotEmpty(t, snapTask.PromptHash)
+			assert.Equal(t, "e196fe22e61cfa32d8c38749e0ce348108bb4cae29e2c36cdcce7e77faa9eb5f", snapTask.PromptHash)
+			assert.Equal(t, "426fc04f04bf8fdb5831dc37bbb6dcf70f63a37e05a68c6ea5f63e85ae579376", snapTask.TemplateParametersHash)
 			assert.Equal(t, task.CreatedAt.UTC(), snapTask.CreatedAt.UTC())
 		}
 
