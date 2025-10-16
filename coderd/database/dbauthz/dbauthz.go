@@ -1257,8 +1257,8 @@ func (q *querier) customRoleCheck(ctx context.Context, role database.CustomRole)
 	}
 
 	if len(rbacRole.ByOrgID) > 0 && len(rbacRole.Site) > 0 {
-		// This is a choice to keep roles simple. If we allow mixing site and org scoped perms, then knowing who can
-		// do what gets more complicated.
+		// This is a choice to keep roles simple. If we allow mixing site and org
+		// scoped perms, then knowing who can do what gets more complicated.
 		return xerrors.Errorf("invalid custom role, cannot assign both org and site permissions at the same time")
 	}
 
@@ -1283,6 +1283,11 @@ func (q *querier) customRoleCheck(ctx context.Context, role database.CustomRole)
 			}
 		}
 		for _, memberPerm := range perms.Member {
+			// The person giving the permission should still be required to have
+			// the permissions throughout the org in order to give individuals the
+			// same permission among their own resources, since the role can be given
+			// to anyone. The `Owner` is intentionally ommitted from the `Object` to
+			// enforce this.
 			err := q.customRoleEscalationCheck(ctx, act, memberPerm, rbac.Object{OrgID: orgID, Type: memberPerm.ResourceType})
 			if err != nil {
 				return xerrors.Errorf("org=%q: member: %w", orgID, err)
@@ -1303,8 +1308,8 @@ func (q *querier) customRoleCheck(ctx context.Context, role database.CustomRole)
 func (q *querier) authorizeProvisionerJob(ctx context.Context, job database.ProvisionerJob) error {
 	switch job.Type {
 	case database.ProvisionerJobTypeWorkspaceBuild:
-		// Authorized call to get workspace build. If we can read the build, we
-		// can read the job.
+		// Authorized call to get workspace build. If we can read the build, we can
+		// read the job.
 		_, err := q.GetWorkspaceBuildByJobID(ctx, job.ID)
 		if err != nil {
 			return xerrors.Errorf("fetch related workspace build: %w", err)
@@ -1347,8 +1352,8 @@ func (q *querier) ActivityBumpWorkspace(ctx context.Context, arg database.Activi
 }
 
 func (q *querier) AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UUID, error) {
-	// Although this technically only reads users, only system-related functions should be
-	// allowed to call this.
+	// Although this technically only reads users, only system-related functions
+	// should be allowed to call this.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
 	}
@@ -1367,8 +1372,8 @@ func (q *querier) ArchiveUnusedTemplateVersions(ctx context.Context, arg databas
 }
 
 func (q *querier) BatchUpdateWorkspaceLastUsedAt(ctx context.Context, arg database.BatchUpdateWorkspaceLastUsedAtParams) error {
-	// Could be any workspace and checking auth to each workspace is overkill for the purpose
-	// of this function.
+	// Could be any workspace and checking auth to each workspace is overkill for
+	// the purpose of this function.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceWorkspace.All()); err != nil {
 		return err
 	}
