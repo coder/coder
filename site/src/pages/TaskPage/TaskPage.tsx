@@ -143,7 +143,7 @@ const TaskPage = () => {
 		content = <TaskStartingAgent agent={agent} />;
 	} else {
 		const chatApp = getTaskApps(task).find(
-			(app) => app.id === task.workspace.latest_build.ai_task_sidebar_app_id,
+			(app) => app.id === task.workspace.latest_build.task_app_id,
 		);
 		content = (
 			<PanelGroup autoSaveId="task" direction="horizontal">

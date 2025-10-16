@@ -269,10 +269,10 @@ func taskFromWorkspace(ws codersdk.Workspace, initialPrompt string) codersdk.Tas
 	}
 
 	var appID uuid.NullUUID
-	if ws.LatestBuild.AITaskSidebarAppID != nil {
+	if ws.LatestBuild.TaskAppID != nil {
 		appID = uuid.NullUUID{
 			Valid: true,
-			UUID:  *ws.LatestBuild.AITaskSidebarAppID,
+			UUID:  *ws.LatestBuild.TaskAppID,
 		}
 	}
 
@@ -667,9 +667,9 @@ func (api *API) taskDelete(rw http.ResponseWriter, r *http.Request) {
 // @Router /api/experimental/tasks/{user}/{id}/send [post]
 //
 // EXPERIMENTAL: This endpoint is experimental and not guaranteed to be stable.
-// taskSend submits task input to the tasks sidebar app by dialing the agent
+// taskSend submits task input to the task app by dialing the agent
 // directly over the tailnet. We enforce ApplicationConnect RBAC on the
-// workspace and validate the sidebar app health.
+// workspace and validate the task app health.
 func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -693,7 +693,7 @@ func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err = api.authAndDoWithTaskSidebarAppClient(r, taskID, func(ctx context.Context, client *http.Client, appURL *url.URL) error {
+	if err = api.authAndDoWithTaskAppClient(r, taskID, func(ctx context.Context, client *http.Client, appURL *url.URL) error {
 		agentAPIClient, err := aiagentapi.NewClient(appURL.String(), aiagentapi.WithHTTPClient(client))
 		if err != nil {
 			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
@@ -749,7 +749,7 @@ func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 //
 // EXPERIMENTAL: This endpoint is experimental and not guaranteed to be stable.
 // taskLogs reads task output by dialing the agent directly over the tailnet.
-// We enforce ApplicationConnect RBAC on the workspace and validate the sidebar app health.
+// We enforce ApplicationConnect RBAC on the workspace and validate the task app health.
 func (api *API) taskLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -763,7 +763,7 @@ func (api *API) taskLogs(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var out codersdk.TaskLogsResponse
-	if err := api.authAndDoWithTaskSidebarAppClient(r, taskID, func(ctx context.Context, client *http.Client, appURL *url.URL) error {
+	if err := api.authAndDoWithTaskAppClient(r, taskID, func(ctx context.Context, client *http.Client, appURL *url.URL) error {
 		agentAPIClient, err := aiagentapi.NewClient(appURL.String(), aiagentapi.WithHTTPClient(client))
 		if err != nil {
 			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
@@ -811,16 +811,16 @@ func (api *API) taskLogs(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, out)
 }
 
-// authAndDoWithTaskSidebarAppClient centralizes the shared logic to:
+// authAndDoWithTaskAppClient centralizes the shared logic to:
 //
 //   - Fetch the task workspace
 //   - Authorize ApplicationConnect on the workspace
-//   - Validate the AI task and sidebar app health
+//   - Validate the AI task and task app health
 //   - Dial the agent and construct an HTTP client to the apps loopback URL
 //
 // The provided callback receives the context, an HTTP client that dials via the
 // agent, and the base app URL (as a value URL) to perform any request.
-func (api *API) authAndDoWithTaskSidebarAppClient(
+func (api *API) authAndDoWithTaskAppClient(
 	r *http.Request,
 	taskID uuid.UUID,
 	do func(ctx context.Context, client *http.Client, appURL *url.URL) error,
@@ -855,19 +855,19 @@ func (api *API) authAndDoWithTaskSidebarAppClient(
 		return httperror.ErrResourceNotFound
 	}
 	build := data.builds[0]
-	if build.HasAITask == nil || !*build.HasAITask || build.AITaskSidebarAppID == nil || *build.AITaskSidebarAppID == uuid.Nil {
+	if build.HasAITask == nil || !*build.HasAITask || build.TaskAppID == nil || *build.TaskAppID == uuid.Nil {
 		return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
-			Message: "Task is not configured with a sidebar app.",
+			Message: "Task is not configured with a task app.",
 		})
 	}
 
-	// Find the sidebar app details to get the URL and validate app health.
-	sidebarAppID := *build.AITaskSidebarAppID
-	agentID, sidebarApp, ok := func() (uuid.UUID, codersdk.WorkspaceApp, bool) {
+	// Find the task app details to get the URL and validate app health.
+	taskAppID := *build.TaskAppID
+	agentID, taskApp, ok := func() (uuid.UUID, codersdk.WorkspaceApp, bool) {
 		for _, res := range build.Resources {
 			for _, agent := range res.Agents {
 				for _, app := range agent.Apps {
-					if app.ID == sidebarAppID {
+					if app.ID == taskAppID {
 						return agent.ID, app, true
 					}
 				}
@@ -877,32 +877,32 @@ func (api *API) authAndDoWithTaskSidebarAppClient(
 	}()
 	if !ok {
 		return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
-			Message: "Task sidebar app not found in latest build.",
+			Message: "Task app not found in latest build.",
 		})
 	}
 
 	// Return an informative error if the app isn't healthy rather than trying
 	// and failing.
-	switch sidebarApp.Health {
+	switch taskApp.Health {
 	case codersdk.WorkspaceAppHealthDisabled:
 		// No health check, pass through.
 	case codersdk.WorkspaceAppHealthInitializing:
 		return httperror.NewResponseError(http.StatusServiceUnavailable, codersdk.Response{
-			Message: "Task sidebar app is initializing. Try again shortly.",
+			Message: "Task app is initializing. Try again shortly.",
 		})
 	case codersdk.WorkspaceAppHealthUnhealthy:
 		return httperror.NewResponseError(http.StatusServiceUnavailable, codersdk.Response{
-			Message: "Task sidebar app is unhealthy.",
+			Message: "Task app is unhealthy.",
 		})
 	}
 
 	// Build the direct app URL and dial the agent.
-	if sidebarApp.URL == "" {
+	if taskApp.URL == "" {
 		return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
-			Message: "Task sidebar app URL is not configured.",
+			Message: "Task app URL is not configured.",
 		})
 	}
-	parsedURL, err := url.Parse(sidebarApp.URL)
+	parsedURL, err := url.Parse(taskApp.URL)
 	if err != nil {
 		return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error parsing task app URL.",
