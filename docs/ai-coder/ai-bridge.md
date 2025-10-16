@@ -152,7 +152,7 @@ data "coder_workspace_owner" "me" {}
 
 module "claude-code" {
   source    = "registry.coder.com/coder/claude-code/coder"
-  version   = "3.0.1"
+  version   = "3.1.0"
   agent_id  = coder_agent.main.id
   workdir   = "/home/coder/project"
   ai_prompt = data.coder_parameter.ai_prompt.value
@@ -162,9 +162,9 @@ module "claude-code" {
 }
 
 resource "coder_env" "bridge_base_url" {
-  workspace_id = coder_workspace.main.id
-  name         = "ANTHROPIC_BASE_URL"
-  value        = "${data.coder_workspace.me.access_url}/api/v2/api/experimental/aibridge/"
+  agent_id = coder_agent.main.id
+  name     = "ANTHROPIC_BASE_URL"
+  value    = "${data.coder_workspace.me.access_url}/api/v2/api/experimental/aibridge/"
 }
 ```
 
