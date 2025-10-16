@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
-	"flag"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -85,7 +84,9 @@ type Options struct {
 
 	// ReplicaErrCallback is called when the proxy replica successfully or
 	// unsuccessfully pings its peers in the mesh.
-	ReplicaErrCallback func(replicas []codersdk.Replica, err string)
+	ReplicaErrCallback           func(replicas []codersdk.Replica, err string)
+	ReplicaPingTimeout           time.Duration // timeout for the entire ping operation, defaults to 10s
+	ReplicaPingPerAttemptTimeout time.Duration // timeout for each sibling ping attempt, defaults to 5s
 
 	ProxySessionToken string
 	// AllowAllCors will set all CORs headers to '*'.
@@ -483,16 +484,19 @@ func (s *Server) handleRegister(res wsproxysdk.RegisterWorkspaceProxyResponse) e
 }
 
 func (s *Server) pingSiblingReplicas(replicas []codersdk.Replica) {
-	// Use a larger timeout for peer connectivity tests during testing.
 	timeout := 10 * time.Second
-	if flag.Lookup("test.v") != nil {
-		timeout = 25 * time.Second // each attempt has a timeout of 10s, so ~20s for two attempts
+	if s.Options.ReplicaPingTimeout > 0 {
+		timeout = s.Options.ReplicaPingTimeout
+	}
+	attemptTimeout := 5 * time.Second
+	if s.Options.ReplicaPingPerAttemptTimeout > 0 {
+		attemptTimeout = s.Options.ReplicaPingPerAttemptTimeout
 	}
 
 	ctx, cancel := context.WithTimeout(s.ctx, timeout)
 	defer cancel()
 
-	errStr := pingSiblingReplicas(ctx, s.Logger, &s.replicaPingSingleflight, s.derpMeshTLSConfig, replicas)
+	errStr := pingSiblingReplicas(ctx, s.Logger, &s.replicaPingSingleflight, s.derpMeshTLSConfig, attemptTimeout, replicas)
 	s.replicaErrMut.Lock()
 	s.replicaErr = errStr
 	defer s.replicaErrMut.Unlock()
@@ -501,7 +505,7 @@ func (s *Server) pingSiblingReplicas(replicas []codersdk.Replica) {
 	}
 }
 
-func pingSiblingReplicas(ctx context.Context, logger slog.Logger, sf *singleflight.Group, derpMeshTLSConfig *tls.Config, replicas []codersdk.Replica) string {
+func pingSiblingReplicas(ctx context.Context, logger slog.Logger, sf *singleflight.Group, derpMeshTLSConfig *tls.Config, attemptTimeout time.Duration, replicas []codersdk.Replica) string {
 	if len(replicas) == 0 {
 		return ""
 	}
@@ -514,17 +518,10 @@ func pingSiblingReplicas(ctx context.Context, logger slog.Logger, sf *singleflig
 	slices.Sort(relayURLs)
 	singleflightStr := strings.Join(relayURLs, " ") // URLs can't contain spaces.
 
-	// Use a much larger timeout for peer connectivity tests during testing. The
-	// passed in context is still always used.
-	timeout := 5 * time.Second
-	if flag.Lookup("test.v") != nil {
-		timeout = 10 * time.Second
-	}
-
 	//nolint:dogsled
 	errStrInterface, _, _ := sf.Do(singleflightStr, func() (any, error) {
 		client := http.Client{
-			Timeout: timeout,
+			Timeout: attemptTimeout,
 			Transport: &http.Transport{
 				TLSClientConfig:   derpMeshTLSConfig,
 				DisableKeepAlives: true,
@@ -579,9 +576,10 @@ func pingReplica(ctx context.Context, client http.Client, replica codersdk.Repli
 			return nil
 		}
 		if i < attempts-1 {
-			// Use a timer to avoid a goroutine remaining after the test. Newer
-			// versions of Go will garbage collect unused timers, but the
-			// goroutine may still be running after the test completes.
+			// Use a time.Timer rather than time.After to avoid a goroutine
+			// remaining if the context is canceled. Newer versions of Go do
+			// garbage collect unused timers, but until the goroutine is garbage
+			// collected it could be considered leaked by the leak detector.
 			timer := time.NewTimer(1 * time.Second)
 			select {
 			case <-ctx.Done():

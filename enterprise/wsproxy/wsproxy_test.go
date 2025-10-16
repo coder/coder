@@ -1187,8 +1187,17 @@ func createProxyReplicas(ctx context.Context, t *testing.T, opts *createProxyRep
 			ok = true
 			wg sync.WaitGroup
 		)
+
+		// Copy the replicaPingSuccessful slice to a local variable so we can
+		// view the state of all proxies at the same point in time.
+		replicaPingSuccessfulCopy := make([]bool, len(replicaPingSuccessful))
+		replicaPingMutex.Lock()
+		copy(replicaPingSuccessfulCopy, replicaPingSuccessful)
+		replicaPingMutex.Unlock()
+
 		for i, proxy := range proxies {
-			if !replicaPingSuccessful[i] {
+			success := replicaPingSuccessfulCopy[i]
+			if !success {
 				t.Logf("replica %d has not successfully pinged yet", i)
 				ok = false
 
