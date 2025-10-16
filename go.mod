@@ -556,5 +556,3 @@ require (
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	k8s.io/utils v0.0.0-20241210054802-24370beab758 // indirect
 )
-
-replace github.com/coder/guts => /home/steven/go/src/github.com/coder/guts
