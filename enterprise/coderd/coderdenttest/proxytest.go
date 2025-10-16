@@ -161,15 +161,13 @@ func NewWorkspaceProxyReplica(t *testing.T, coderdAPI *coderd.API, owner *coders
 		DisablePathApps:   options.DisablePathApps,
 		// We need a new registry to not conflict with the coderd internal
 		// proxy metrics.
-		PrometheusRegistry:           prometheus.NewRegistry(),
-		DERPEnabled:                  !options.DerpDisabled,
-		DERPOnly:                     options.DerpOnly,
-		DERPServerRelayAddress:       serverURL.String(),
-		ReplicaErrCallback:           options.ReplicaPingCallback,
-		ReplicaPingTimeout:           testutil.WaitLong,
-		ReplicaPingPerAttemptTimeout: testutil.WaitShort,
-		StatsCollectorOptions:        statsCollectorOptions,
-		BlockDirect:                  options.BlockDirect,
+		PrometheusRegistry:     prometheus.NewRegistry(),
+		DERPEnabled:            !options.DerpDisabled,
+		DERPOnly:               options.DerpOnly,
+		DERPServerRelayAddress: serverURL.String(),
+		ReplicaErrCallback:     options.ReplicaPingCallback,
+		StatsCollectorOptions:  statsCollectorOptions,
+		BlockDirect:            options.BlockDirect,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {

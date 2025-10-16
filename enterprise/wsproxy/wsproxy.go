@@ -84,9 +84,7 @@ type Options struct {
 
 	// ReplicaErrCallback is called when the proxy replica successfully or
 	// unsuccessfully pings its peers in the mesh.
-	ReplicaErrCallback           func(replicas []codersdk.Replica, err string)
-	ReplicaPingTimeout           time.Duration // timeout for the entire ping operation, defaults to 10s
-	ReplicaPingPerAttemptTimeout time.Duration // timeout for each sibling ping attempt, defaults to 5s
+	ReplicaErrCallback func(replicas []codersdk.Replica, err string)
 
 	ProxySessionToken string
 	// AllowAllCors will set all CORs headers to '*'.
@@ -484,19 +482,10 @@ func (s *Server) handleRegister(res wsproxysdk.RegisterWorkspaceProxyResponse) e
 }
 
 func (s *Server) pingSiblingReplicas(replicas []codersdk.Replica) {
-	timeout := 10 * time.Second
-	if s.Options.ReplicaPingTimeout > 0 {
-		timeout = s.Options.ReplicaPingTimeout
-	}
-	attemptTimeout := 5 * time.Second
-	if s.Options.ReplicaPingPerAttemptTimeout > 0 {
-		attemptTimeout = s.Options.ReplicaPingPerAttemptTimeout
-	}
-
-	ctx, cancel := context.WithTimeout(s.ctx, timeout)
+	ctx, cancel := context.WithTimeout(s.ctx, 10*time.Second)
 	defer cancel()
 
-	errStr := pingSiblingReplicas(ctx, s.Logger, &s.replicaPingSingleflight, s.derpMeshTLSConfig, attemptTimeout, replicas)
+	errStr := pingSiblingReplicas(ctx, s.Logger, &s.replicaPingSingleflight, s.derpMeshTLSConfig, replicas)
 	s.replicaErrMut.Lock()
 	s.replicaErr = errStr
 	defer s.replicaErrMut.Unlock()
@@ -505,7 +494,7 @@ func (s *Server) pingSiblingReplicas(replicas []codersdk.Replica) {
 	}
 }
 
-func pingSiblingReplicas(ctx context.Context, logger slog.Logger, sf *singleflight.Group, derpMeshTLSConfig *tls.Config, attemptTimeout time.Duration, replicas []codersdk.Replica) string {
+func pingSiblingReplicas(ctx context.Context, logger slog.Logger, sf *singleflight.Group, derpMeshTLSConfig *tls.Config, replicas []codersdk.Replica) string {
 	if len(replicas) == 0 {
 		return ""
 	}
@@ -521,7 +510,7 @@ func pingSiblingReplicas(ctx context.Context, logger slog.Logger, sf *singleflig
 	//nolint:dogsled
 	errStrInterface, _, _ := sf.Do(singleflightStr, func() (any, error) {
 		client := http.Client{
-			Timeout: attemptTimeout,
+			Timeout: 3 * time.Second,
 			Transport: &http.Transport{
 				TLSClientConfig:   derpMeshTLSConfig,
 				DisableKeepAlives: true,
@@ -576,18 +565,11 @@ func pingReplica(ctx context.Context, client http.Client, replica codersdk.Repli
 			return nil
 		}
 		if i < attempts-1 {
-			// Use a time.Timer rather than time.After to avoid a goroutine
-			// remaining if the context is canceled. Newer versions of Go do
-			// garbage collect unused timers, but until the goroutine is garbage
-			// collected it could be considered leaked by the leak detector.
-			timer := time.NewTimer(1 * time.Second)
 			select {
 			case <-ctx.Done():
-				timer.Stop() // prefer not to defer inside loop
 				return ctx.Err()
-			case <-timer.C:
+			case <-time.After(1 * time.Second):
 			}
-			timer.Stop() // prefer not to defer inside loop
 		}
 	}
 	return err
