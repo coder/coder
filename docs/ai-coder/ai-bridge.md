@@ -166,14 +166,7 @@ resource "coder_env" "bridge_base_url" {
   name         = "ANTHROPIC_BASE_URL"
   value        = "${data.coder_workspace.me.access_url}/api/v2/api/experimental/aibridge/"
 }
-
-#### Benefits of Template Pre-configuration
-
-- **Zero user configuration**: Users get AI tooling that works out of the box
-- **Centralized management**: Admins control AI provider access through Bridge
-- **Automatic authentication**: Session tokens are managed by Coder automatically
-- **Consistent environment**: All workspaces use the same AI configuration
-- **Audit trail**: All AI usage is automatically tracked through Bridge
+```
 
 ## Collected Data
 
