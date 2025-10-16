@@ -96,7 +96,7 @@ require (
 	github.com/chromedp/chromedp v0.14.1
 	github.com/cli/safeexec v1.0.1
 	github.com/coder/flog v1.1.0
-	github.com/coder/guts v1.6.0
+	github.com/coder/guts v1.6.1
 	github.com/coder/pretty v0.0.0-20230908205945-e89ba86370e0
 	github.com/coder/quartz v0.2.1
 	github.com/coder/retry v1.5.1
@@ -556,3 +556,5 @@ require (
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	k8s.io/utils v0.0.0-20241210054802-24370beab758 // indirect
 )
+
+replace github.com/coder/guts => /home/steven/go/src/github.com/coder/guts
