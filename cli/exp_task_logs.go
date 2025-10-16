@@ -207,9 +207,9 @@ func (*RootCmd) followTaskLogs(inv *serpent.Invocation, client *codersdk.Client,
 		_, _ = fmt.Fprintln(inv.Stdout, msg.Content)
 	}
 
-	lastSeenID := int64(-1)
+	var lastUpdate aiagentapi.EventMessageUpdate
 	if len(messagesResp.Messages) > 0 {
-		lastSeenID = messagesResp.Messages[len(messagesResp.Messages)-1].Id
+		lastUpdate.Id = messagesResp.Messages[len(messagesResp.Messages)-1].Id
 	}
 
 	cliui.Infof(inv.Stderr, "Following logs (Ctrl+C to stop)...")
@@ -224,18 +224,31 @@ func (*RootCmd) followTaskLogs(inv *serpent.Invocation, client *codersdk.Client,
 			}
 			return nil
 		case event := <-eventsCh:
-			switch msgEvent := event.(type) {
+			switch evt := event.(type) {
 			case aiagentapi.EventMessageUpdate:
-				if msgEvent.Id <= lastSeenID {
-					continue
+				if evt.Id < lastUpdate.Id {
+					continue // ignore old updates
+				} else if evt.Id == lastUpdate.Id {
+					// As we get a 'stream' of message updates, keep the last one but don't print it yet.
+					lastUpdate = evt
+				} else {
+					// New message! Print the last one.
+					// TODO: we might want to periodically print the last message to keep the user updated.
+					if lastUpdate.Id != -1 {
+						_, _ = fmt.Fprintln(inv.Stdout, lastUpdate.Message)
+					}
+					lastUpdate = evt
 				}
-				lastSeenID = msgEvent.Id
-				// Prefix user messages
-				if msgEvent.Role == aiagentapi.RoleUser {
-					_, _ = fmt.Fprintf(inv.Stdout, "\t>")
+			case aiagentapi.EventStatusChange:
+				if evt.Status != aiagentapi.StatusStable {
+					continue // ignore non-stable status changes
 				}
-				_, _ = fmt.Fprintln(inv.Stdout, msgEvent.Message)
-			default: // ignore all other events
+				// Agent reported stable status, meaning it's finished emitting output.
+				if lastUpdate.Id != -1 {
+					_, _ = fmt.Fprintln(inv.Stdout, lastUpdate.Message)
+				}
+			default:
+				return xerrors.Errorf("unknown event type: %T", evt)
 			}
 		}
 	}
