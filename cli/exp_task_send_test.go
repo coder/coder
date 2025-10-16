@@ -2,18 +2,27 @@ package cli_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	aiagentapi "github.com/coder/agentapi-sdk-go"
+
+	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/cli/clitest"
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -160,6 +169,7 @@ func Test_TaskSend(t *testing.T) {
 
 			inv, root := clitest.New(t, append(args, tt.args...)...)
 			inv.Stdin = strings.NewReader(tt.stdin)
+			//nolint:gocritic // This is not actually hitting the coderd API.
 			clitest.SetupConfig(t, client, root)
 
 			err = inv.WithContext(ctx).Run()
@@ -170,4 +180,66 @@ func Test_TaskSend(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_TaskSend_HappyPath(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	owner := coderdtest.CreateFirstUser(t, client)
+	userClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	fakeAPI := startFakeAgentAPI(t, map[string]http.HandlerFunc{
+		"/status": func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"status": "stable",
+			})
+		},
+		"/message": func(w http.ResponseWriter, r *http.Request) {
+			// The agentapi SDK expects a Message response
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			var msg aiagentapi.PostMessageParams
+			if err := json.NewDecoder(r.Body).Decode(&msg); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			require.Equal(t, "Please add unit tests", msg.Content)
+			message := aiagentapi.Message{
+				Id:      999,
+				Role:    aiagentapi.RoleAgent,
+				Content: "You got it",
+				Time:    time.Now(),
+			}
+			_ = json.NewEncoder(w).Encode(message)
+		},
+	})
+	authToken := uuid.NewString()
+	template := createAITaskTemplate(t, client, owner.OrganizationID, withSidebarURL(fakeAPI.URL()), withAgentToken(authToken))
+
+	wantPrompt := "build me a calculator"
+	workspace := coderdtest.CreateWorkspace(t, userClient, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
+		req.RichParameterValues = []codersdk.WorkspaceBuildParameter{
+			{Name: codersdk.AITaskPromptParameterName, Value: wantPrompt},
+		}
+	})
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken))
+	_ = agenttest.New(t, client.URL, authToken, func(o *agent.Options) {
+		o.Client = agentClient
+	})
+
+	coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).
+		WaitFor(coderdtest.AgentsReady)
+
+	var stdout strings.Builder
+	inv, root := clitest.New(t, "exp", "task", "send", workspace.Name, "Please add unit tests")
+	inv.Stdout = &stdout
+	clitest.SetupConfig(t, userClient, root)
+
+	err := inv.WithContext(ctx).Run()
+	require.NoError(t, err)
 }
