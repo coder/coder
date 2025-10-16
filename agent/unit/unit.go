@@ -14,16 +14,16 @@ const (
 	StatusFailed    Status = "failed"
 )
 
-type UnitGraph struct {
+type DependencyCoordinator struct {
 	*Graph[Status, *Unit]
 }
 
-func (g *UnitGraph) AddEdge(from, to *Unit, edge Status) {
+func (g *DependencyCoordinator) AddEdge(from, to *Unit, edge Status) {
 	g.Graph.AddEdge(from, to, edge)
 }
 
-type UnitEdge = Edge[Status, *Unit]
+type DependencyEdge = Edge[Status, *Unit]
 
-func NewUnitGraph() *UnitGraph {
-	return &UnitGraph{Graph: NewGraph[Status, *Unit]()}
+func NewDependencyCoordinator() *DependencyCoordinator {
+	return &DependencyCoordinator{Graph: NewGraph[Status, *Unit]()}
 }
