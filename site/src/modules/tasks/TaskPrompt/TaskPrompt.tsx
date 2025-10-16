@@ -232,6 +232,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 			await createTaskMutation.mutateAsync({
 				prompt,
 			});
+			setPrompt("");
 		} catch (error) {
 			const message = getErrorMessage(error, "Error creating task");
 			const detail = getErrorDetail(error) ?? "Please try again";
