@@ -4493,6 +4493,7 @@ export interface WorkspaceBuild {
 	readonly template_version_preset_id: string | null;
 	readonly has_ai_task?: boolean;
 	readonly ai_task_sidebar_app_id?: string;
+	readonly task_app_id?: string;
 	readonly has_external_agent?: boolean;
 }
 

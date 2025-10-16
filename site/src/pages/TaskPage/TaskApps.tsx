@@ -32,7 +32,7 @@ export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 		// The Chat UI app will be displayed in the sidebar, so we don't want to
 		// show it as a web app.
 		(app) =>
-			app.id !== task.workspace.latest_build.ai_task_sidebar_app_id &&
+			app.id !== task.workspace.latest_build.task_app_id &&
 			app.health !== "disabled",
 	);
 	const [embeddedApps, externalApps] = splitEmbeddedAndExternalApps(apps);
