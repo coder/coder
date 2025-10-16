@@ -29,9 +29,7 @@ export interface AIBridgeInterception {
 	readonly initiator_id: string;
 	readonly provider: string;
 	readonly model: string;
-	/**
-	 * empty interface{} type, falling back to unknown
-	 */
+	// empty interface{} type, falling back to unknown
 	readonly metadata: Record<string, unknown>;
 	readonly started_at: string;
 	readonly token_usages: readonly AIBridgeTokenUsage[];
@@ -57,9 +55,7 @@ export interface AIBridgeTokenUsage {
 	readonly provider_response_id: string;
 	readonly input_tokens: number;
 	readonly output_tokens: number;
-	/**
-	 * empty interface{} type, falling back to unknown
-	 */
+	// empty interface{} type, falling back to unknown
 	readonly metadata: Record<string, unknown>;
 	readonly created_at: string;
 }
@@ -74,9 +70,7 @@ export interface AIBridgeToolUsage {
 	readonly input: string;
 	readonly injected: boolean;
 	readonly invocation_error: string;
-	/**
-	 * empty interface{} type, falling back to unknown
-	 */
+	// empty interface{} type, falling back to unknown
 	readonly metadata: Record<string, unknown>;
 	readonly created_at: string;
 }
@@ -87,9 +81,7 @@ export interface AIBridgeUserPrompt {
 	readonly interception_id: string;
 	readonly provider_response_id: string;
 	readonly prompt: string;
-	/**
-	 * empty interface{} type, falling back to unknown
-	 */
+	// empty interface{} type, falling back to unknown
 	readonly metadata: Record<string, unknown>;
 	readonly created_at: string;
 }
@@ -698,13 +690,9 @@ export type AuditDiff = Record<string, AuditDiffField>;
 
 // From codersdk/audit.go
 export interface AuditDiffField {
-	/**
-	 * empty interface{} type, falling back to unknown
-	 */
+	// empty interface{} type, falling back to unknown
 	readonly old?: unknown;
-	/**
-	 * empty interface{} type, falling back to unknown
-	 */
+	// empty interface{} type, falling back to unknown
 	readonly new?: unknown;
 	readonly secret: boolean;
 }
@@ -2500,12 +2488,12 @@ export interface License {
 	readonly uuid: string;
 	readonly uploaded_at: string;
 	/**
-	 * empty interface{} type, falling back to unknown
 	 * Claims are the JWT claims asserted by the license.  Here we use
 	 * a generic string map to ensure that all data from the server is
 	 * parsed verbatim, not just the fields this version of Coder
 	 * understands.
 	 */
+	// empty interface{} type, falling back to unknown
 	readonly claims: Record<string, unknown>;
 }
 
@@ -4324,10 +4312,10 @@ export interface SerpentOption {
 	 */
 	readonly default?: string;
 	/**
-	 * interface type, falling back to unknown
-	 * this is likely an enum in an external package "github.com/spf13/pflag.Value"
 	 * Value includes the types listed in values.go.
 	 */
+	// interface type, falling back to unknown
+	// this is likely an enum in an external package "github.com/spf13/pflag.Value"
 	readonly value?: unknown;
 	/**
 	 * Annotations enable extensions to serpent higher up in the stack. It's useful for
@@ -4387,9 +4375,7 @@ export interface ServerInfoMessage {
 // From codersdk/serversentevents.go
 export interface ServerSentEvent {
 	readonly type: ServerSentEventType;
-	/**
-	 * empty interface{} type, falling back to unknown
-	 */
+	// empty interface{} type, falling back to unknown
 	readonly data: unknown;
 }
 
