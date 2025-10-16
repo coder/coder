@@ -378,24 +378,24 @@ This keeps other provisioners available to handle user-initiated jobs.
 #### Setup
 
 1. Create a provisioner key with a prebuild tag (e.g., `is_prebuild=true`).
-	Provisioner keys are org-scoped and their tags are inferred automatically by provisioner daemons that use the key.
-	**Note:** `coder_workspace_tags` are cumulative, so if your template already defines provisioner tags, you will need to create the provisioner key with the same tags plus the `is_prebuild=true` tag so that prebuild jobs correctly match the dedicated prebuild pool.
-	See [Scoped Key](../../provisioners/index.md#scoped-key-recommended) for instructions on how to create a provisioner key.
+    Provisioner keys are org-scoped and their tags are inferred automatically by provisioner daemons that use the key.
+    **Note:** `coder_workspace_tags` are cumulative, so if your template already defines provisioner tags, you will need to create the provisioner key with the same tags plus the `is_prebuild=true` tag so that prebuild jobs correctly match the dedicated prebuild pool.
+    See [Scoped Key](../../provisioners/index.md#scoped-key-recommended) for instructions on how to create a provisioner key.
 
 1. Deploy a separate provisioner pool using that key (for example, via the [Helm coder-provisioner chart](https://github.com/coder/coder/pkgs/container/chart%2Fcoder-provisioner)).
-	Daemons in this pool will only execute jobs that include all of the tags specified in their provisioner key.
-	See [External provisioners](../../provisioners/index.md) for environment-specific deployment examples.
+    Daemons in this pool will only execute jobs that include all of the tags specified in their provisioner key.
+    See [External provisioners](../../provisioners/index.md) for environment-specific deployment examples.
 
 1. Update the template to conditionally add the prebuild tag for prebuild jobs.
 
-	```hcl
-	data "coder_workspace_tags" "prebuilds" {
-	  count = data.coder_workspace_owner.me.name == "prebuilds" ? 1 : 0
-	  tags = {
-	    "is_prebuild" = "true"
-	  }
-	}
-	```
+    ```hcl
+    data "coder_workspace_tags" "prebuilds" {
+      count = data.coder_workspace_owner.me.name == "prebuilds" ? 1 : 0
+      tags = {
+        "is_prebuild" = "true"
+      }
+    }
+    ```
 
 Prebuild workspaces are a special type of workspace owned by the system user `prebuild`.
 The value `data.coder_workspace_owner.me.name` returns the name of the workspace owner, for prebuild workspaces, this value is `"prebuild"`.
@@ -414,16 +414,16 @@ Follow these steps:
 1. Publish the new template version.
 
 1. Validate the status of the prebuild provisioners.
-	Check the Provisioners page in the Coder dashboard or run the [`coder provisioner list`](../../../reference/cli/provisioner_list.md) CLI command to ensure all prebuild provisioners are up to date and the tags are properly set.
+    Check the Provisioners page in the Coder dashboard or run the [`coder provisioner list`](../../../reference/cli/provisioner_list.md) CLI command to ensure all prebuild provisioners are up to date and the tags are properly set.
 
 1. Wait for the prebuilds reconciliation loop to run.
-	The loop frequency is controlled by the configuration value [`CODER_WORKSPACE_PREBUILDS_RECONCILIATION_INTERVAL`](../../../reference/cli/server.md#--workspace-prebuilds-reconciliation-interval).
-	When the loop runs, it will provision prebuilds for the new template version and deprovision prebuilds for the previous version.
-	Both provisioning and deprovisioning jobs for prebuilds should display the tag `is_prebuild=true`.
+    The loop frequency is controlled by the configuration value [`CODER_WORKSPACE_PREBUILDS_RECONCILIATION_INTERVAL`](../../../reference/cli/server.md#--workspace-prebuilds-reconciliation-interval).
+    When the loop runs, it will provision prebuilds for the new template version and deprovision prebuilds for the previous version.
+    Both provisioning and deprovisioning jobs for prebuilds should display the tag `is_prebuild=true`.
 
 1. Create a new workspace from a preset.
-	Whether the preset uses a prebuild pool or not, the resulting job should not include the `is_prebuild=true` tag.
-	This confirms that only prebuild-related jobs are routed to the dedicated prebuild provisioner pool.
+    Whether the preset uses a prebuild pool or not, the resulting job should not include the `is_prebuild=true` tag.
+    This confirms that only prebuild-related jobs are routed to the dedicated prebuild provisioner pool.
 
 ### Monitoring and observability
 
