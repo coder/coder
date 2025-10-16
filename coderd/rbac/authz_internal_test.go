@@ -1340,7 +1340,7 @@ func testAuthorize(t *testing.T, name string, subject Subject, sets ...[]authTes
 
 					authError := authorizer.Authorize(ctx, subject, a, c.resource)
 
-					d, _ := json.Marshal(map[string]interface{}{
+					d, _ := json.Marshal(map[string]any{
 						// This is not perfect marshal, but it is good enough for debugging this test.
 						"subject": authSubject{
 							ID:     subject.ID,
