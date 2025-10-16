@@ -3501,6 +3501,13 @@ func (q *querier) GetWorkspaceAgentsCreatedAfter(ctx context.Context, createdAt 
 	return q.db.GetWorkspaceAgentsCreatedAfter(ctx, createdAt)
 }
 
+func (q *querier) GetWorkspaceAgentsForMetrics(ctx context.Context, deleted bool) ([]database.GetWorkspaceAgentsForMetricsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceAgentsForMetrics(ctx, deleted)
+}
+
 func (q *querier) GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkspaceAgent, error) {
 	workspace, err := q.GetWorkspaceByID(ctx, workspaceID)
 	if err != nil {

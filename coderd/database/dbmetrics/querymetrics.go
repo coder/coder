@@ -1923,6 +1923,13 @@ func (m queryMetricsStore) GetWorkspaceAgentsCreatedAfter(ctx context.Context, c
 	return agents, err
 }
 
+func (m queryMetricsStore) GetWorkspaceAgentsForMetrics(ctx context.Context, deleted bool) ([]database.GetWorkspaceAgentsForMetricsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceAgentsForMetrics(ctx, deleted)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentsForMetrics").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkspaceAgent, error) {
 	start := time.Now()
 	agents, err := m.s.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspaceID)
