@@ -81,6 +81,100 @@ Bridge is compatible with _[Google Vertex AI](https://cloud.google.com/vertex-ai
 > [!NOTE]
 > See [Supported APIs](#supported-apis) section below for a comprehensive list.
 
+## Client Configuration
+
+Once Bridge is enabled and configured on the server side, you need to configure your AI clients (IDEs, agents, CLI tools) to route their requests through Bridge instead of directly to OpenAI or Anthropic.
+
+### Setting Base URLs
+
+Configure your AI client to point to your Coder deployment's Bridge endpoints:
+
+- **OpenAI-compatible clients**: Set `OPENAI_BASE_URL` to `https://coder.example.com/api/v2/api/experimental/aibridge/openai/v1/`
+- **Anthropic-compatible clients**: Set `ANTHROPIC_BASE_URL` to `https://coder.example.com/api/v2/api/experimental/aibridge/anthropic/`
+
+Replace `coder.example.com` with your actual Coder deployment URL.
+
+### Authentication
+
+Instead of using provider-specific API keys (OpenAI/Anthropic keys), clients authenticate using your **Coder session token** or **API key**:
+
+- **OpenAI clients**: Set `OPENAI_API_KEY` to your Coder session token or API key
+- **Anthropic clients**: Set `ANTHROPIC_API_KEY` to your Coder session token or API key
+
+You can generate a Coder API key using:
+
+```sh
+coder tokens create
+```
+
+### Configuration Examples
+
+#### Claude Code CLI
+
+Configure Claude Code to use Bridge:
+
+```sh
+export ANTHROPIC_BASE_URL="https://coder.example.com/api/v2/api/experimental/aibridge/anthropic/"
+export ANTHROPIC_API_KEY="your-coder-session-token"
+```
+
+#### Custom Scripts
+
+Any tool that supports custom base URLs can be configured similarly:
+
+```python
+import openai
+
+client = openai.OpenAI(
+    base_url="https://coder.example.com/api/v2/api/experimental/aibridge/openai/v1/",
+    api_key="your-coder-session-token"
+)
+```
+
+### Pre-configuring in Coder Templates
+
+For the best user experience, you can pre-configure AI Bridge settings in your Coder templates so that users don't need to manually set environment variables. This is especially useful for:
+
+- **IDE workspaces** (VS Code, Cursor, JetBrains) where AI extensions are used
+- **Agent workspaces** where tools like Goose or Claude Code run
+- **Development environments** that include AI tooling out of the box
+
+Coder provides the [`data.coder_workspace_owner.me.session_token`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_owner) data source which gives you access to the workspace owner's session token. This token automatically authenticates requests through Bridge.
+
+#### Configuring AI Agents in Tasks
+
+For Coder Tasks templates, you can pre-configure agents to use Bridge:
+
+```tf
+# For Claude Code
+
+data "coder_workspace_owner" "me" {}
+
+module "claude-code" {
+  source    = "registry.coder.com/coder/claude-code/coder"
+  version   = "3.0.1"
+  agent_id  = coder_agent.main.id
+  workdir   = "/home/coder/project"
+  ai_prompt = data.coder_parameter.ai_prompt.value
+
+  # Use Bridge instead of direct Anthropic API
+  claude_api_key = data.coder_workspace_owner.me.session_token
+}
+
+resource "coder_env" "bridge_base_url" {
+  workspace_id = coder_workspace.main.id
+  name         = "ANTHROPIC_BASE_URL"
+  value        = "${data.coder_workspace.me.access_url}/api/v2/api/experimental/aibridge/"
+}
+
+#### Benefits of Template Pre-configuration
+
+- **Zero user configuration**: Users get AI tooling that works out of the box
+- **Centralized management**: Admins control AI provider access through Bridge
+- **Automatic authentication**: Session tokens are managed by Coder automatically
+- **Consistent environment**: All workspaces use the same AI configuration
+- **Audit trail**: All AI usage is automatically tracked through Bridge
+
 ## Collected Data
 
 Bridge collects:
