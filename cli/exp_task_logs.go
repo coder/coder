@@ -89,20 +89,21 @@ func (r *RootCmd) taskLogs() *serpent.Command {
 			_, _ = fmt.Fprintln(inv.Stdout, out)
 			return nil
 		},
+		Options: serpent.OptionSet{
+			{
+				Flag:          "follow",
+				FlagShorthand: "f",
+				Description:   "Follow logs in real-time, similar to 'tail -f'.",
+				Value:         serpent.BoolOf(&follow),
+			},
+		},
 	}
-
-	cmd.Options = append(cmd.Options, serpent.Option{
-		Flag:          "follow",
-		FlagShorthand: "f",
-		Env:           "",
-		Description:   "Follow logs in real-time, similar to 'tail -f'.",
-		Value:         serpent.BoolOf(&follow),
-	})
 
 	formatter.AttachOptions(&cmd.Options)
 	return cmd
 }
 
+// TODO(cian): this will need to be updated when the task data model is updated.
 func (*RootCmd) followTaskLogs(inv *serpent.Invocation, client *codersdk.Client, taskID uuid.UUID) error {
 	ctx := inv.Context()
 	workspace, err := client.Workspace(ctx, taskID)
@@ -228,6 +229,7 @@ func (*RootCmd) followTaskLogs(inv *serpent.Invocation, client *codersdk.Client,
 				if msgEvent.Id <= lastSeenID {
 					continue
 				}
+				lastSeenID = msgEvent.Id
 				// Prefix user messages
 				if msgEvent.Role == aiagentapi.RoleUser {
 					_, _ = fmt.Fprintf(inv.Stdout, "\t>")
