@@ -1795,8 +1795,8 @@ func ConvertTask(task database.Task) Task {
 		WorkspaceAgentID:       task.WorkspaceAgentID,
 		WorkspaceAppID:         task.WorkspaceAppID,
 		TemplateVersionID:      task.TemplateVersionID,
-		TemplateParametersHash: fmt.Sprintf("%x", sha256.New().Sum(task.TemplateParameters)),
-		PromptHash:             fmt.Sprintf("%x", sha256.New().Sum([]byte(task.Prompt))),
+		TemplateParametersHash: fmt.Sprintf("%x", sha256.Sum256(task.TemplateParameters)),
+		PromptHash:             fmt.Sprintf("%x", sha256.Sum256([]byte(task.Prompt))),
 		CreatedAt:              task.CreatedAt,
 		Status:                 string(task.Status),
 	}
