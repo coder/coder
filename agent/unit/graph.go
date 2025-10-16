@@ -1,9 +1,12 @@
 package unit
 
 import (
+	"fmt"
 	"sync"
 
 	"golang.org/x/xerrors"
+	"gonum.org/v1/gonum/graph/simple"
+	"gonum.org/v1/gonum/graph/topo"
 )
 
 // Graph is an bidirectional adjacency list representation of a graph.
@@ -17,9 +20,12 @@ import (
 // In this case we need to distinguish between different edge types to represent
 // the different relationships between units.
 type Graph[EdgeType, VertexType comparable] struct {
-	mu                   sync.RWMutex
-	adjacencyList        map[VertexType]map[VertexType]EdgeType
-	reverseAdjacencyList map[VertexType]map[VertexType]EdgeType
+	mu         sync.RWMutex
+	gonumGraph *simple.DirectedGraph
+	vertexToID map[VertexType]int64
+	idToVertex map[int64]VertexType
+	nextID     int64
+	edgeTypes  map[string]EdgeType // Store edge types by "fromID->toID" key
 }
 
 // Edge is a convenience type for representing an edge in the graph.
@@ -30,35 +36,35 @@ type Edge[EdgeType, VertexType comparable] struct {
 	Edge EdgeType
 }
 
-// AddEdge adds an edge to the graph. It initializes the adjacency lists if they don't exist
-// and adds the edge to both the adjacency list and the reverse adjacency list.
+// AddEdge adds an edge to the graph. It initializes the graph if it doesn't exist
+// and adds the edge to the gonum graph.
 func (g *Graph[EdgeType, VertexType]) AddEdge(from, to VertexType, edge EdgeType) error {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
 	// Initialize the graph if it doesn't exist
-	if g.adjacencyList == nil {
-		g.adjacencyList = make(map[VertexType]map[VertexType]EdgeType)
-	}
-	if g.reverseAdjacencyList == nil {
-		g.reverseAdjacencyList = make(map[VertexType]map[VertexType]EdgeType)
+	if g.gonumGraph == nil {
+		g.gonumGraph = simple.NewDirectedGraph()
+		g.vertexToID = make(map[VertexType]int64)
+		g.idToVertex = make(map[int64]VertexType)
+		g.edgeTypes = make(map[string]EdgeType)
+		g.nextID = 1
 	}
 
-	// Initialize the adjacency lists if they don't exist
-	if _, ok := g.adjacencyList[from]; !ok {
-		g.adjacencyList[from] = make(map[VertexType]EdgeType)
-	}
-	if _, ok := g.reverseAdjacencyList[to]; !ok {
-		g.reverseAdjacencyList[to] = make(map[VertexType]EdgeType)
-	}
+	// Get or create IDs for vertices
+	fromID := g.getOrCreateVertexID(from)
+	toID := g.getOrCreateVertexID(to)
 
 	if g.canReach(to, from) {
 		return xerrors.Errorf("adding edge (%v -> %v) would create a cycle", from, to)
 	}
 
-	// Add the edge to the adjacency lists
-	g.adjacencyList[from][to] = edge
-	g.reverseAdjacencyList[to][from] = edge
+	// Add the edge to the gonum graph
+	g.gonumGraph.SetEdge(simple.Edge{F: simple.Node(fromID), T: simple.Node(toID)})
+
+	// Store the edge type
+	edgeKey := fmt.Sprintf("%d->%d", fromID, toID)
+	g.edgeTypes[edgeKey] = edge
 
 	return nil
 }
@@ -68,9 +74,22 @@ func (g *Graph[EdgeType, VertexType]) GetForwardAdjacentVertices(from VertexType
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 
-	edges := make([]Edge[EdgeType, VertexType], 0, len(g.adjacencyList[from]))
-	for to, edge := range g.adjacencyList[from] {
-		edges = append(edges, Edge[EdgeType, VertexType]{From: from, To: to, Edge: edge})
+	fromID, exists := g.vertexToID[from]
+	if !exists {
+		return []Edge[EdgeType, VertexType]{}
+	}
+
+	edges := []Edge[EdgeType, VertexType]{}
+	toNodes := g.gonumGraph.From(fromID)
+	for toNodes.Next() {
+		toID := toNodes.Node().ID()
+		to := g.idToVertex[toID]
+
+		// Get the edge type
+		edgeKey := fmt.Sprintf("%d->%d", fromID, toID)
+		edgeType := g.edgeTypes[edgeKey]
+
+		edges = append(edges, Edge[EdgeType, VertexType]{From: from, To: to, Edge: edgeType})
 	}
 
 	return edges
@@ -81,12 +100,42 @@ func (g *Graph[EdgeType, VertexType]) GetReverseAdjacentVertices(to VertexType) 
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 
-	edges := make([]Edge[EdgeType, VertexType], 0, len(g.reverseAdjacencyList[to]))
-	for from, edge := range g.reverseAdjacencyList[to] {
-		edges = append(edges, Edge[EdgeType, VertexType]{From: from, To: to, Edge: edge})
+	toID, exists := g.vertexToID[to]
+	if !exists {
+		return []Edge[EdgeType, VertexType]{}
+	}
+
+	edges := []Edge[EdgeType, VertexType]{}
+	fromNodes := g.gonumGraph.To(toID)
+	for fromNodes.Next() {
+		fromID := fromNodes.Node().ID()
+		from := g.idToVertex[fromID]
+
+		// Get the edge type
+		edgeKey := fmt.Sprintf("%d->%d", fromID, toID)
+		edgeType := g.edgeTypes[edgeKey]
+
+		edges = append(edges, Edge[EdgeType, VertexType]{From: from, To: to, Edge: edgeType})
 	}
 
 	return edges
+}
+
+// getOrCreateVertexID returns the ID for a vertex, creating it if it doesn't exist
+func (g *Graph[EdgeType, VertexType]) getOrCreateVertexID(vertex VertexType) int64 {
+	if id, exists := g.vertexToID[vertex]; exists {
+		return id
+	}
+
+	id := g.nextID
+	g.nextID++
+	g.vertexToID[vertex] = id
+	g.idToVertex[id] = vertex
+
+	// Add the node to the gonum graph
+	g.gonumGraph.AddNode(simple.Node(id))
+
+	return id
 }
 
 func (g *Graph[EdgeType, VertexType]) canReach(start, end VertexType) bool {
@@ -94,24 +143,13 @@ func (g *Graph[EdgeType, VertexType]) canReach(start, end VertexType) bool {
 		return true
 	}
 
-	visited := make(map[VertexType]bool)
-	stack := []VertexType{start}
+	startID, startExists := g.vertexToID[start]
+	endID, endExists := g.vertexToID[end]
 
-	for len(stack) > 0 {
-		currentVertex := stack[len(stack)-1]
-		stack = stack[:len(stack)-1]
-
-		if currentVertex == end {
-			return true
-		}
-
-		visited[currentVertex] = true
-		for adjacentVertex := range g.adjacencyList[currentVertex] {
-			if !visited[adjacentVertex] {
-				stack = append(stack, adjacentVertex)
-			}
-		}
+	if !startExists || !endExists {
+		return false
 	}
 
-	return false
+	// Use gonum's built-in path existence check
+	return topo.PathExistsIn(g.gonumGraph, simple.Node(startID), simple.Node(endID))
 }
