@@ -41,7 +41,9 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 						)}
 					</div>
 				</TableCell>
-				<TableCell>{interception.started_at}</TableCell>
+				<TableCell>
+					{new Date(interception.started_at).toLocaleString()}
+				</TableCell>
 				<TableCell>{interception.initiator_id}</TableCell>
 				<TableCell>
 					{hasPrompt && interception.user_prompts[0].prompt}
