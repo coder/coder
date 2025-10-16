@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	aiagentapi "github.com/coder/agentapi-sdk-go"
@@ -49,7 +50,7 @@ func Test_TaskLogs(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		client, workspace := setupTaskLogsTest(ctx, t, testMessages)
+		client, workspace := setupCLITaskTest(ctx, t, fakeAgentAPITaskLogsOK(testMessages))
 		userClient := client // user already has access to their own workspace
 
 		var stdout strings.Builder
@@ -75,7 +76,7 @@ func Test_TaskLogs(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		client, workspace := setupTaskLogsTest(ctx, t, testMessages)
+		client, workspace := setupCLITaskTest(ctx, t, fakeAgentAPITaskLogsOK(testMessages))
 		userClient := client
 
 		var stdout strings.Builder
@@ -101,7 +102,7 @@ func Test_TaskLogs(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		client, workspace := setupTaskLogsTest(ctx, t, testMessages)
+		client, workspace := setupCLITaskTest(ctx, t, fakeAgentAPITaskLogsOK(testMessages))
 		userClient := client
 
 		var stdout strings.Builder
@@ -153,6 +154,20 @@ func Test_TaskLogs(t *testing.T) {
 		err := inv.WithContext(ctx).Run()
 		require.Error(t, err)
 		require.ErrorContains(t, err, httpapi.ResourceNotFoundResponse.Message)
+	})
+
+	t.Run("ErrorFetchingLogs", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		client, workspace := setupCLITaskTest(ctx, t, fakeAgentAPITaskLogsErr(assert.AnError))
+		userClient := client
+
+		inv, root := clitest.New(t, "exp", "task", "logs", workspace.ID.String())
+		clitest.SetupConfig(t, userClient, root)
+
+		err := inv.WithContext(ctx).Run()
+		require.ErrorContains(t, err, assert.AnError.Error())
 	})
 }
 
@@ -305,23 +320,40 @@ func withAgentToken(token string) aiTemplateOpt {
 	return func(o *aiTemplateOpts) { o.authToken = token }
 }
 
-// setupTaskLogsTest creates a test workspace with an AI task template and agent,
-// returns the user client and workspace for testing task logs functionality.
-func setupTaskLogsTest(ctx context.Context, t *testing.T, messages []aiagentapi.Message) (*codersdk.Client, codersdk.Workspace) {
-	t.Helper()
-
-	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-	owner := coderdtest.CreateFirstUser(t, client)
-	userClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-
-	fakeAPI := startFakeAgentAPI(t, map[string]http.HandlerFunc{
+func fakeAgentAPITaskLogsOK(messages []aiagentapi.Message) map[string]http.HandlerFunc {
+	return map[string]http.HandlerFunc{
 		"/messages": func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"messages": messages,
 			})
 		},
-	})
+	}
+}
+
+func fakeAgentAPITaskLogsErr(err error) map[string]http.HandlerFunc {
+	return map[string]http.HandlerFunc{
+		"/messages": func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"error": err.Error(),
+			})
+		},
+	}
+}
+
+// setupCLITaskTest creates a test workspace with an AI task template and agent,
+// with a fake agent API configured with the provided set of handlers.
+// Returns the user client and workspace.
+func setupCLITaskTest(ctx context.Context, t *testing.T, agentAPIHandlers map[string]http.HandlerFunc) (*codersdk.Client, codersdk.Workspace) {
+	t.Helper()
+
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	owner := coderdtest.CreateFirstUser(t, client)
+	userClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+	fakeAPI := startFakeAgentAPI(t, agentAPIHandlers)
 
 	authToken := uuid.NewString()
 	template := createAITaskTemplate(t, client, owner.OrganizationID, withSidebarURL(fakeAPI.URL()), withAgentToken(authToken))
