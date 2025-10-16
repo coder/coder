@@ -31,5 +31,5 @@ func (g *DependencyCoordinator) AddEdge(from, to *Unit, edge Status) {
 type DependencyEdge = Edge[Status, *Unit]
 
 func NewDependencyCoordinator() *DependencyCoordinator {
-	return &DependencyCoordinator{Graph: NewGraph[Status, *Unit]()}
+	return &DependencyCoordinator{Graph: &Graph[Status, *Unit]{}}
 }

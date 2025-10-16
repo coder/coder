@@ -8,13 +8,13 @@ import (
 	"github.com/coder/coder/v2/agent/unit"
 )
 
-func TestDependencyCoordinator(t *testing.T) {
+func TestGraph(t *testing.T) {
 	t.Parallel()
 
 	t.Run("ForwardAndReverseEdges", func(t *testing.T) {
 		t.Parallel()
 
-		graph := unit.NewDependencyCoordinator()
+		graph := &unit.Graph[unit.Status, *unit.Unit]{}
 		unit1 := &unit.Unit{Name: "unit1", Status: unit.StatusPending}
 		unit2 := &unit.Unit{Name: "unit2", Status: unit.StatusPending}
 		unit3 := &unit.Unit{Name: "unit3", Status: unit.StatusPending}

@@ -26,18 +26,19 @@ type Edge[EdgeType, VertexType comparable] struct {
 	Edge EdgeType
 }
 
-func NewGraph[EdgeType, VertexType comparable]() *Graph[EdgeType, VertexType] {
-	return &Graph[EdgeType, VertexType]{
-		adjacencyList:        make(map[VertexType]map[VertexType]EdgeType),
-		reverseAdjacencyList: make(map[VertexType]map[VertexType]EdgeType),
-	}
-}
-
 // AddEdge adds an edge to the graph. It initializes the adjacency lists if they don't exist
 // and adds the edge to both the adjacency list and the reverse adjacency list.
 func (g *Graph[EdgeType, VertexType]) AddEdge(from, to VertexType, edge EdgeType) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+
+	// Initialize the graph if it doesn't exist
+	if g.adjacencyList == nil {
+		g.adjacencyList = make(map[VertexType]map[VertexType]EdgeType)
+	}
+	if g.reverseAdjacencyList == nil {
+		g.reverseAdjacencyList = make(map[VertexType]map[VertexType]EdgeType)
+	}
 
 	// Initialize the adjacency lists if they don't exist
 	if _, ok := g.adjacencyList[from]; !ok {
@@ -52,18 +53,12 @@ func (g *Graph[EdgeType, VertexType]) AddEdge(from, to VertexType, edge EdgeType
 	g.reverseAdjacencyList[to][from] = edge
 }
 
-// GetAdjacentVertices returns all the edges that originate from the given vertex.
-func (g *Graph[EdgeType, VertexType]) GetAdjacentVertices(from VertexType) []Edge[EdgeType, VertexType] {
+// GetForwardAdjacentVertices returns all the edges that originate from the given vertex.
+func (g *Graph[EdgeType, VertexType]) GetForwardAdjacentVertices(from VertexType) []Edge[EdgeType, VertexType] {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 
-	// Get the edges from the adjacency list
-	edges := make([]Edge[EdgeType, VertexType], 0, len(g.adjacencyList[from]))
-	for to, edge := range g.adjacencyList[from] {
-		edges = append(edges, Edge[EdgeType, VertexType]{From: from, To: to, Edge: edge})
-	}
-
-	return edges
+	return getAdjacentVertices(g.adjacencyList, from)
 }
 
 // GetReverseAdjacentVertices returns all the edges that terminate at the given vertex.
@@ -71,9 +66,12 @@ func (g *Graph[EdgeType, VertexType]) GetReverseAdjacentVertices(to VertexType) 
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 
-	// Get the edges from the reverse adjacency list
-	edges := make([]Edge[EdgeType, VertexType], 0, len(g.reverseAdjacencyList[to]))
-	for from, edge := range g.reverseAdjacencyList[to] {
+	return getAdjacentVertices(g.reverseAdjacencyList, to)
+}
+
+func getAdjacentVertices[EdgeType, VertexType comparable](adjacencyList map[VertexType]map[VertexType]EdgeType, from VertexType) []Edge[EdgeType, VertexType] {
+	edges := make([]Edge[EdgeType, VertexType], 0, len(adjacencyList[from]))
+	for to, edge := range adjacencyList[from] {
 		edges = append(edges, Edge[EdgeType, VertexType]{From: from, To: to, Edge: edge})
 	}
 
