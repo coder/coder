@@ -269,6 +269,13 @@ data "coder_workspace_tags" "tags" {
   }
 }
 
+data "coder_workspace_tags" "prebuild" {
+  count = data.coder_workspace_owner.me.name == "prebuilds" ? 1 : 0
+  tags = {
+    "is_prebuild" = "true"
+  }
+}
+
 data "coder_parameter" "ide_choices" {
   type        = "list(string)"
   name        = "Select IDEs"
