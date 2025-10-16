@@ -159,6 +159,12 @@ func TestTelemetry(t *testing.T) {
 			Prompt:             "example prompt",
 			TemplateParameters: json.RawMessage(`{"foo": "bar"}`),
 		})
+		taskWA := dbgen.TaskWorkspaceApp(t, db, database.TaskWorkspaceApp{
+			TaskID:               task.ID,
+			WorkspaceAgentID:     uuid.NullUUID{Valid: true, UUID: taskWsAgent.ID},
+			WorkspaceAppID:       uuid.NullUUID{Valid: true, UUID: taskWsApp.ID},
+			WorkspaceBuildNumber: taskWB.BuildNumber,
+		})
 
 		group := dbgen.Group(t, db, database.Group{
 			OrganizationID: org.ID,
@@ -230,15 +236,17 @@ func TestTelemetry(t *testing.T) {
 		require.Equal(t, string(database.WorkspaceAgentSubsystemExectrace), wsa.Subsystems[1])
 		require.Len(t, snapshot.Tasks, 1)
 		for _, snapTask := range snapshot.Tasks {
-			assert.Equal(t, task.ID, snapTask.ID)
-			assert.Equal(t, task.OrganizationID, snapTask.OrganizationID)
-			assert.Equal(t, task.OwnerID, snapTask.OwnerID)
+			assert.Equal(t, task.ID.String(), snapTask.ID)
+			assert.Equal(t, task.OrganizationID.String(), snapTask.OrganizationID)
+			assert.Equal(t, task.OwnerID.String(), snapTask.OwnerID)
 			assert.Equal(t, task.Name, snapTask.Name)
-			assert.Equal(t, task.WorkspaceID, snapTask.WorkspaceID)
-			assert.Equal(t, task.WorkspaceBuildNumber, snapTask.WorkspaceBuildNumber)
-			assert.Equal(t, task.WorkspaceAgentID, snapTask.WorkspaceAgentID)
-			assert.Equal(t, task.WorkspaceAppID, snapTask.WorkspaceAppID)
-			assert.Equal(t, task.TemplateVersionID, snapTask.TemplateVersionID)
+			if assert.True(t, task.WorkspaceID.Valid) {
+				assert.Equal(t, task.WorkspaceID.UUID.String(), *snapTask.WorkspaceID)
+			}
+			assert.EqualValues(t, taskWA.WorkspaceBuildNumber, *snapTask.WorkspaceBuildNumber)
+			assert.Equal(t, taskWA.WorkspaceAgentID.UUID.String(), *snapTask.WorkspaceAgentID)
+			assert.Equal(t, taskWA.WorkspaceAppID.UUID.String(), *snapTask.WorkspaceAppID)
+			assert.Equal(t, task.TemplateVersionID.String(), snapTask.TemplateVersionID)
 			assert.Equal(t, "e196fe22e61cfa32d8c38749e0ce348108bb4cae29e2c36cdcce7e77faa9eb5f", snapTask.PromptHash)
 			assert.Equal(t, "426fc04f04bf8fdb5831dc37bbb6dcf70f63a37e05a68c6ea5f63e85ae579376", snapTask.TemplateParametersHash)
 			assert.Equal(t, task.CreatedAt.UTC(), snapTask.CreatedAt.UTC())

@@ -1768,38 +1768,51 @@ type Organization struct {
 }
 
 type Task struct {
-	ID                     uuid.UUID     `json:"id"`
-	OrganizationID         uuid.UUID     `json:"organization_id"`
-	OwnerID                uuid.UUID     `json:"owner_id"`
-	Name                   string        `json:"name"`
-	WorkspaceID            uuid.NullUUID `json:"workspace_id"`
-	WorkspaceBuildNumber   sql.NullInt32 `json:"workspace_build_number"`
-	WorkspaceAgentID       uuid.NullUUID `json:"workspace_agent_id"`
-	WorkspaceAppID         uuid.NullUUID `json:"workspace_app_id"`
-	TemplateVersionID      uuid.UUID     `json:"template_version_id"`
-	TemplateParametersHash string        `json:"template_parameters_hash"` // Parameters are hashed for privacy.
-	PromptHash             string        `json:"hashed_prompt"`            // Prompt is hashed for privacy.
-	CreatedAt              time.Time     `json:"created_at"`
-	Status                 string        `json:"status"`
+	ID                     string    `json:"id"`
+	OrganizationID         string    `json:"organization_id"`
+	OwnerID                string    `json:"owner_id"`
+	Name                   string    `json:"name"`
+	WorkspaceID            *string   `json:"workspace_id"`
+	WorkspaceBuildNumber   *int64    `json:"workspace_build_number"`
+	WorkspaceAgentID       *string   `json:"workspace_agent_id"`
+	WorkspaceAppID         *string   `json:"workspace_app_id"`
+	TemplateVersionID      string    `json:"template_version_id"`
+	TemplateParametersHash string    `json:"template_parameters_hash"` // Parameters are hashed for privacy.
+	PromptHash             string    `json:"prompt_hash"`              // Prompt is hashed for privacy.
+	CreatedAt              time.Time `json:"created_at"`
+	Status                 string    `json:"status"`
 }
 
 // ConvertTask anonymizes a Task.
 func ConvertTask(task database.Task) Task {
-	return Task{
-		ID:                     task.ID,
-		OrganizationID:         task.OrganizationID,
-		OwnerID:                task.OwnerID,
+	t := &Task{
+		ID:                     task.ID.String(),
+		OrganizationID:         task.OrganizationID.String(),
+		OwnerID:                task.OwnerID.String(),
 		Name:                   task.Name,
-		WorkspaceID:            task.WorkspaceID,
-		WorkspaceBuildNumber:   task.WorkspaceBuildNumber,
-		WorkspaceAgentID:       task.WorkspaceAgentID,
-		WorkspaceAppID:         task.WorkspaceAppID,
-		TemplateVersionID:      task.TemplateVersionID,
+		WorkspaceID:            nil,
+		WorkspaceBuildNumber:   nil,
+		WorkspaceAgentID:       nil,
+		WorkspaceAppID:         nil,
+		TemplateVersionID:      task.TemplateVersionID.String(),
 		TemplateParametersHash: fmt.Sprintf("%x", sha256.Sum256(task.TemplateParameters)),
 		PromptHash:             fmt.Sprintf("%x", sha256.Sum256([]byte(task.Prompt))),
 		CreatedAt:              task.CreatedAt,
 		Status:                 string(task.Status),
 	}
+	if task.WorkspaceID.Valid {
+		t.WorkspaceID = ptr.Ref(task.WorkspaceID.UUID.String())
+	}
+	if task.WorkspaceBuildNumber.Valid {
+		t.WorkspaceBuildNumber = ptr.Ref(int64(task.WorkspaceBuildNumber.Int32))
+	}
+	if task.WorkspaceAgentID.Valid {
+		t.WorkspaceAgentID = ptr.Ref(task.WorkspaceAgentID.UUID.String())
+	}
+	if task.WorkspaceAppID.Valid {
+		t.WorkspaceAppID = ptr.Ref(task.WorkspaceAppID.UUID.String())
+	}
+	return *t
 }
 
 type telemetryItemKey string
