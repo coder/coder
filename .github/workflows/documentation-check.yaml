@@ -84,7 +84,6 @@ jobs:
           fi
 
       - name: Post initial comment
-        id: post-comment
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ steps.determine-inputs.outputs.pr_number }}
@@ -99,8 +98,7 @@ jobs:
           [View workflow run](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID})
           EOF
           )
-          COMMENT_ID=$(gh pr comment "${PR_NUMBER}" --body "${COMMENT_BODY}" --repo "${GITHUB_REPOSITORY}" | grep -oP 'https://github.com/.*/pull/.*#issuecomment-\K\d+')
-          echo "comment_id=${COMMENT_ID}" >> "${GITHUB_OUTPUT}"
+          gh pr comment "${PR_NUMBER}" --body "${COMMENT_BODY}" --repo "${GITHUB_REPOSITORY}" --create-if-none --edit-last
 
       - name: Download and install Coder binary
         shell: bash
@@ -225,15 +223,17 @@ jobs:
       - name: Update comment with task link
         env:
           GH_TOKEN: ${{ github.token }}
-          COMMENT_ID: ${{ steps.post-comment.outputs.comment_id }}
+          PR_NUMBER: ${{ steps.determine-inputs.outputs.pr_number }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           TASK_NAME: ${{ steps.create-task.outputs.TASK_NAME }}
+          RUN_ID: ${{ github.run_id }}
         run: |
-          # Fetch the original comment
-          ORIGINAL_COMMENT=$(gh api "/repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}" --jq '.body')
-
           COMMENT_BODY=$(cat <<EOF
-          ${ORIGINAL_COMMENT}
+          🤖 **Documentation Check Started**
+
+          Analyzing PR changes to determine if documentation updates are needed...
+
+          [View workflow run](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID})
 
           ---
 
@@ -243,11 +243,7 @@ jobs:
           EOF
           )
 
-          # Update the comment with task link
-          gh api \
-            --method PATCH \
-            "/repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}" \
-            -f body="${COMMENT_BODY}"
+          gh pr comment "${PR_NUMBER}" --body "${COMMENT_BODY}" --repo "${GITHUB_REPOSITORY}" --edit-last
 
       - name: Wait for task completion and get results
         id: get-results
@@ -286,18 +282,18 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ steps.determine-inputs.outputs.pr_number }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-          COMMENT_ID: ${{ steps.post-comment.outputs.comment_id }}
           TASK_NAME: ${{ steps.create-task.outputs.TASK_NAME }}
           RUN_ID: ${{ github.run_id }}
         run: |
           TASK_OUTPUT=$(cat /tmp/task_output.txt)
           DURATION=$(cat /tmp/task_duration.txt)
 
-          # Fetch the original comment to preserve it
-          ORIGINAL_COMMENT=$(gh api "/repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}" --jq '.body')
-
           COMMENT_BODY=$(cat <<EOF
-          ${ORIGINAL_COMMENT}
+          🤖 **Documentation Check Started**
+
+          Analyzing PR changes to determine if documentation updates are needed...
+
+          [View workflow run](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID})
 
           ---
 
@@ -310,9 +306,5 @@ jobs:
           EOF
           )
 
-          # Update the existing comment
-          gh api \
-            --method PATCH \
-            "/repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}" \
-            -f body="${COMMENT_BODY}"
+          gh pr comment "${PR_NUMBER}" --body "${COMMENT_BODY}" --repo "${GITHUB_REPOSITORY}" --edit-last
 
