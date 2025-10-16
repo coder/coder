@@ -10,6 +10,7 @@ import {
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import type { FC } from "react";
+import { docs } from "utils/docs";
 import { RequestLogsRow } from "./RequestLogsRow/RequestLogsRow";
 
 interface RequestLogsPageViewProps {
@@ -28,8 +29,7 @@ export const RequestLogsPageView: FC<RequestLogsPageViewProps> = ({
 			<Paywall
 				message="AI Governance"
 				description="AI Governance allows you to monitor and manage AI requests. You need an Premium license to use this feature."
-				// TODO: Add documentation link
-				// documentationLink={docs("/admin/security/ai-governance")}
+				documentationLink={docs("/ai-coder/ai-bridge")}
 			/>
 		);
 	}
