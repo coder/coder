@@ -13354,7 +13354,11 @@
 			"properties": {
 				"icon": {
 					"type": "string",
-					"enum": ["bug", "chat", "docs"]
+					"enum": ["bug", "chat", "docs", "star"]
+				},
+				"location": {
+					"type": "string",
+					"enum": ["navbar", "dropdown"]
 				},
 				"name": {
 					"type": "string"
