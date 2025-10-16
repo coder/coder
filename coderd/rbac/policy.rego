@@ -40,9 +40,9 @@ bool_flip(b) if {
 }
 
 # number(set) maps a set of boolean values to one of the following numbers:
-#  -1: deny (if 'false' value is in the set)		=> set is {true, false} or {false}
-#   0: no decision (if the set is empty)			=> set is {}
-#   1: allow (if only 'true' values are in the set)	=> set is {true}
+#  -1: deny (if 'false' value is in the set)        => set is {true, false} or {false}
+#   0: no decision (if the set is empty)            => set is {}
+#   1: allow (if only 'true' values are in the set) => set is {true}
 
 # Return -1 if the set contains any 'false' value (i.e., an explicit deny)
 number(set) := -1 if {
