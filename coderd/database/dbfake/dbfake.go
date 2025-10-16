@@ -119,17 +119,21 @@ func (b WorkspaceBuildBuilder) WithAgent(mutations ...func([]*sdkproto.Agent) []
 	return b
 }
 
-func (b WorkspaceBuildBuilder) WithTask() WorkspaceBuildBuilder {
+func (b WorkspaceBuildBuilder) WithTask(seed *sdkproto.App) WorkspaceBuildBuilder {
 	//nolint: revive // returns modified struct
 	b.taskAppID = uuid.New()
+	if seed == nil {
+		seed = &sdkproto.App{}
+	}
 	return b.Params(database.WorkspaceBuildParameter{
 		Name:  codersdk.AITaskPromptParameterName,
 		Value: "list me",
 	}).WithAgent(func(a []*sdkproto.Agent) []*sdkproto.Agent {
 		a[0].Apps = []*sdkproto.App{
 			{
-				Id:   b.taskAppID.String(),
-				Slug: "vcode",
+				Id:   takeFirst(seed.Id, b.taskAppID.String()),
+				Slug: takeFirst(seed.Slug, "vcode"),
+				Url:  takeFirst(seed.Url, ""),
 			},
 		}
 		return a
