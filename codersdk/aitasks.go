@@ -148,6 +148,21 @@ const (
 	TaskStateFailed TaskState = "failed"
 )
 
+func TaskStateFromWorkspaceAppStatus(was WorkspaceAppStatusState) TaskState {
+	switch was {
+	case WorkspaceAppStatusStateWorking:
+		return TaskStateWorking
+	case WorkspaceAppStatusStateIdle:
+		return TaskStateIdle
+	case WorkspaceAppStatusStateComplete:
+		return TaskStateComplete
+	case WorkspaceAppStatusStateFailure:
+		return TaskStateFailed
+	default:
+		return TaskState("unknown")
+	}
+}
+
 // Task represents a task.
 //
 // Experimental: This type is experimental and may change in the future.
