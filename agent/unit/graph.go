@@ -3,12 +3,23 @@ package unit
 import "sync"
 
 // Graph is an bidirectional adjacency list representation of a graph.
+// It is considered bidirectional instead of undirected, because we distinguish
+// between forward and reverse edges. Wanting and being wanted by other units
+// are related but different concepts that have different graph traversal implications
+// when Units update their status. Adding one of these directions necessarily adds
+// the other to the complementary unit.
+//
+// Graph vertices often have their own attributes specific to the problem domain.
+// In this case we need to distinguish between different edge types to represent
+// the different relationships between units.
 type Graph[EdgeType, VertexType comparable] struct {
 	mu                   sync.RWMutex
 	adjacencyList        map[VertexType]map[VertexType]EdgeType
 	reverseAdjacencyList map[VertexType]map[VertexType]EdgeType
 }
 
+// Edge is a convenience type for representing an edge in the graph.
+// It encapsulates the from and to vertices and the edge type itself.
 type Edge[EdgeType, VertexType comparable] struct {
 	From VertexType
 	To   VertexType
@@ -22,6 +33,8 @@ func NewGraph[EdgeType, VertexType comparable]() *Graph[EdgeType, VertexType] {
 	}
 }
 
+// AddEdge adds an edge to the graph. It initializes the adjacency lists if they don't exist
+// and adds the edge to both the adjacency list and the reverse adjacency list.
 func (g *Graph[EdgeType, VertexType]) AddEdge(from, to VertexType, edge EdgeType) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -39,6 +52,7 @@ func (g *Graph[EdgeType, VertexType]) AddEdge(from, to VertexType, edge EdgeType
 	g.reverseAdjacencyList[to][from] = edge
 }
 
+// GetAdjacentVertices returns all the edges that originate from the given vertex.
 func (g *Graph[EdgeType, VertexType]) GetAdjacentVertices(from VertexType) []Edge[EdgeType, VertexType] {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
@@ -52,6 +66,7 @@ func (g *Graph[EdgeType, VertexType]) GetAdjacentVertices(from VertexType) []Edg
 	return edges
 }
 
+// GetReverseAdjacentVertices returns all the edges that terminate at the given vertex.
 func (g *Graph[EdgeType, VertexType]) GetReverseAdjacentVertices(to VertexType) []Edge[EdgeType, VertexType] {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
