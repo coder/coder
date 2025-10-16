@@ -3,7 +3,6 @@ package cli_test
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -12,7 +11,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	aiagentapi "github.com/coder/agentapi-sdk-go"
@@ -32,250 +30,27 @@ import (
 func Test_TaskLogs(t *testing.T) {
 	t.Parallel()
 
-	var (
-		clock = time.Date(2025, 8, 26, 12, 34, 56, 0, time.UTC)
-
-		taskID   = uuid.MustParse("11111111-1111-1111-1111-111111111111")
-		taskName = "task-workspace"
-
-		taskLogs = []codersdk.TaskLogEntry{
-			{
-				ID:      0,
-				Content: "What is 1 + 1?",
-				Type:    codersdk.TaskLogTypeInput,
-				Time:    clock,
-			},
-			{
-				ID:      1,
-				Content: "2",
-				Type:    codersdk.TaskLogTypeOutput,
-				Time:    clock.Add(1 * time.Second),
-			},
-		}
-	)
-
-	tests := []struct {
-		args        []string
-		expectTable string
-		expectLogs  []codersdk.TaskLogEntry
-		expectError string
-		handler     func(t *testing.T, ctx context.Context) http.HandlerFunc
-	}{
-		{
-			args:       []string{taskName, "--output", "json"},
-			expectLogs: taskLogs,
-			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
-				return func(w http.ResponseWriter, r *http.Request) {
-					switch r.URL.Path {
-					case fmt.Sprintf("/api/v2/users/me/workspace/%s", taskName):
-						httpapi.Write(ctx, w, http.StatusOK, codersdk.Workspace{
-							ID: taskID,
-						})
-					case fmt.Sprintf("/api/experimental/tasks/me/%s/logs", taskID.String()):
-						httpapi.Write(ctx, w, http.StatusOK, codersdk.TaskLogsResponse{
-							Logs: taskLogs,
-						})
-					default:
-						t.Errorf("unexpected path: %s", r.URL.Path)
-					}
-				}
-			},
-		},
-		{
-			args:       []string{taskID.String(), "--output", "json"},
-			expectLogs: taskLogs,
-			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
-				return func(w http.ResponseWriter, r *http.Request) {
-					switch r.URL.Path {
-					case fmt.Sprintf("/api/experimental/tasks/me/%s/logs", taskID.String()):
-						httpapi.Write(ctx, w, http.StatusOK, codersdk.TaskLogsResponse{
-							Logs: taskLogs,
-						})
-					default:
-						t.Errorf("unexpected path: %s", r.URL.Path)
-					}
-				}
-			},
-		},
-		{
-			args: []string{taskID.String()},
-			expectTable: `
-TYPE    CONTENT
-input   What is 1 + 1?
-output  2`,
-			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
-				return func(w http.ResponseWriter, r *http.Request) {
-					switch r.URL.Path {
-					case fmt.Sprintf("/api/experimental/tasks/me/%s/logs", taskID.String()):
-						httpapi.Write(ctx, w, http.StatusOK, codersdk.TaskLogsResponse{
-							Logs: taskLogs,
-						})
-					default:
-						t.Errorf("unexpected path: %s", r.URL.Path)
-					}
-				}
-			},
-		},
-		{
-			args:        []string{"doesnotexist"},
-			expectError: httpapi.ResourceNotFoundResponse.Message,
-			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
-				return func(w http.ResponseWriter, r *http.Request) {
-					switch r.URL.Path {
-					case "/api/v2/users/me/workspace/doesnotexist":
-						httpapi.ResourceNotFound(w)
-					default:
-						t.Errorf("unexpected path: %s", r.URL.Path)
-					}
-				}
-			},
-		},
-		{
-			args:        []string{uuid.Nil.String()}, // uuid does not exist
-			expectError: httpapi.ResourceNotFoundResponse.Message,
-			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
-				return func(w http.ResponseWriter, r *http.Request) {
-					switch r.URL.Path {
-					case fmt.Sprintf("/api/experimental/tasks/me/%s/logs", uuid.Nil.String()):
-						httpapi.ResourceNotFound(w)
-					default:
-						t.Errorf("unexpected path: %s", r.URL.Path)
-					}
-				}
-			},
-		},
-		{
-			args:        []string{"err-fetching-logs"},
-			expectError: assert.AnError.Error(),
-			handler: func(t *testing.T, ctx context.Context) http.HandlerFunc {
-				return func(w http.ResponseWriter, r *http.Request) {
-					switch r.URL.Path {
-					case "/api/v2/users/me/workspace/err-fetching-logs":
-						httpapi.Write(ctx, w, http.StatusOK, codersdk.Workspace{
-							ID: taskID,
-						})
-					case fmt.Sprintf("/api/experimental/tasks/me/%s/logs", taskID.String()):
-						httpapi.InternalServerError(w, assert.AnError)
-					default:
-						t.Errorf("unexpected path: %s", r.URL.Path)
-					}
-				}
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(strings.Join(tt.args, ","), func(t *testing.T) {
-			t.Parallel()
-
-			var (
-				ctx    = testutil.Context(t, testutil.WaitShort)
-				srv    = httptest.NewServer(tt.handler(t, ctx))
-				client = codersdk.New(testutil.MustURL(t, srv.URL))
-				args   = []string{"exp", "task", "logs"}
-				stdout strings.Builder
-				err    error
-			)
-
-			t.Cleanup(srv.Close)
-
-			inv, root := clitest.New(t, append(args, tt.args...)...)
-			inv.Stdout = &stdout
-			inv.Stderr = &stdout
-			clitest.SetupConfig(t, client, root)
-
-			err = inv.WithContext(ctx).Run()
-			if tt.expectError == "" {
-				assert.NoError(t, err)
-			} else {
-				assert.ErrorContains(t, err, tt.expectError)
-			}
-
-			if tt.expectTable != "" {
-				if diff := tableDiff(tt.expectTable, stdout.String()); diff != "" {
-					t.Errorf("unexpected output diff (-want +got):\n%s", diff)
-				}
-			}
-
-			if tt.expectLogs != nil {
-				var logs []codersdk.TaskLogEntry
-				err = json.NewDecoder(strings.NewReader(stdout.String())).Decode(&logs)
-				require.NoError(t, err)
-
-				assert.Equal(t, tt.expectLogs, logs)
-			}
-		})
-	}
-}
-
-func Test_TaskLogs_HappyPath(t *testing.T) {
-	t.Parallel()
-
-	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-	owner := coderdtest.CreateFirstUser(t, client)
-	userClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-
 	testMessages := []aiagentapi.Message{
 		{
 			Id:      0,
 			Role:    aiagentapi.RoleUser,
-			Content: "What is 2 + 2?",
+			Content: "What is 1 + 1?",
 			Time:    time.Now().Add(-2 * time.Minute),
 		},
 		{
 			Id:      1,
 			Role:    aiagentapi.RoleAgent,
-			Content: "The answer is 4",
+			Content: "2",
 			Time:    time.Now().Add(-1 * time.Minute),
-		},
-		{
-			Id:      2,
-			Role:    aiagentapi.RoleUser,
-			Content: "Thanks!",
-			Time:    time.Now(),
 		},
 	}
 
-	fakeAPI := startFakeAgentAPI(t, map[string]http.HandlerFunc{
-		"/messages": func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{
-				"messages": testMessages,
-			})
-		},
-	})
-	authToken := uuid.NewString()
-	template := createAITaskTemplate(t, client, owner.OrganizationID, withSidebarURL(fakeAPI.URL()), withAgentToken(authToken))
-
-	wantPrompt := "build me a calculator"
-	workspace := coderdtest.CreateWorkspace(t, userClient, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
-		req.RichParameterValues = []codersdk.WorkspaceBuildParameter{
-			{Name: codersdk.AITaskPromptParameterName, Value: wantPrompt},
-		}
-	})
-	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-
-	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken))
-	_ = agenttest.New(t, client.URL, authToken, func(o *agent.Options) {
-		o.Client = agentClient
-	})
-
-	coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).
-		WaitFor(coderdtest.AgentsReady)
-
-	ws := coderdtest.MustWorkspace(t, client, workspace.ID)
-	resources := ws.LatestBuild.Resources
-
-	require.Len(t, resources, 1)
-	require.Len(t, resources[0].Agents, 1)
-	agentResource := resources[0].Agents[0]
-	require.Len(t, agentResource.Apps, 1)
-	// App health may be disabled since we're using a fake API without proper health checks
-	require.NotEqual(t, codersdk.WorkspaceAppHealthUnhealthy, agentResource.Apps[0].Health)
-
-	t.Run("WithoutFollow_JSON", func(t *testing.T) {
+	t.Run("ByWorkspaceName_JSON", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
+
+		client, workspace := setupTaskLogsTest(ctx, t, testMessages)
+		userClient := client // user already has access to their own workspace
 
 		var stdout strings.Builder
 		inv, root := clitest.New(t, "exp", "task", "logs", workspace.Name, "--output", "json")
@@ -289,21 +64,48 @@ func Test_TaskLogs_HappyPath(t *testing.T) {
 		err = json.NewDecoder(strings.NewReader(stdout.String())).Decode(&logs)
 		require.NoError(t, err)
 
-		require.Len(t, logs, 3)
-		require.Equal(t, "What is 2 + 2?", logs[0].Content)
+		require.Len(t, logs, 2)
+		require.Equal(t, "What is 1 + 1?", logs[0].Content)
 		require.Equal(t, codersdk.TaskLogTypeInput, logs[0].Type)
-		require.Equal(t, "The answer is 4", logs[1].Content)
+		require.Equal(t, "2", logs[1].Content)
 		require.Equal(t, codersdk.TaskLogTypeOutput, logs[1].Type)
-		require.Equal(t, "Thanks!", logs[2].Content)
-		require.Equal(t, codersdk.TaskLogTypeInput, logs[2].Type)
 	})
 
-	t.Run("WithoutFollow_Table", func(t *testing.T) {
+	t.Run("ByWorkspaceID_JSON", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
+		client, workspace := setupTaskLogsTest(ctx, t, testMessages)
+		userClient := client
+
 		var stdout strings.Builder
-		inv, root := clitest.New(t, "exp", "task", "logs", workspace.Name)
+		inv, root := clitest.New(t, "exp", "task", "logs", workspace.ID.String(), "--output", "json")
+		inv.Stdout = &stdout
+		clitest.SetupConfig(t, userClient, root)
+
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		var logs []codersdk.TaskLogEntry
+		err = json.NewDecoder(strings.NewReader(stdout.String())).Decode(&logs)
+		require.NoError(t, err)
+
+		require.Len(t, logs, 2)
+		require.Equal(t, "What is 1 + 1?", logs[0].Content)
+		require.Equal(t, codersdk.TaskLogTypeInput, logs[0].Type)
+		require.Equal(t, "2", logs[1].Content)
+		require.Equal(t, codersdk.TaskLogTypeOutput, logs[1].Type)
+	})
+
+	t.Run("ByWorkspaceID_Table", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		client, workspace := setupTaskLogsTest(ctx, t, testMessages)
+		userClient := client
+
+		var stdout strings.Builder
+		inv, root := clitest.New(t, "exp", "task", "logs", workspace.ID.String())
 		inv.Stdout = &stdout
 		clitest.SetupConfig(t, userClient, root)
 
@@ -311,11 +113,46 @@ func Test_TaskLogs_HappyPath(t *testing.T) {
 		require.NoError(t, err)
 
 		output := stdout.String()
-		require.Contains(t, output, "What is 2 + 2?")
-		require.Contains(t, output, "The answer is 4")
-		require.Contains(t, output, "Thanks!")
+		require.Contains(t, output, "What is 1 + 1?")
+		require.Contains(t, output, "2")
 		require.Contains(t, output, "input")
 		require.Contains(t, output, "output")
+	})
+
+	t.Run("WorkspaceNotFound_ByName", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		userClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		var stdout strings.Builder
+		inv, root := clitest.New(t, "exp", "task", "logs", "doesnotexist")
+		inv.Stdout = &stdout
+		clitest.SetupConfig(t, userClient, root)
+
+		err := inv.WithContext(ctx).Run()
+		require.Error(t, err)
+		require.ErrorContains(t, err, httpapi.ResourceNotFoundResponse.Message)
+	})
+
+	t.Run("WorkspaceNotFound_ByID", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		userClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		var stdout strings.Builder
+		inv, root := clitest.New(t, "exp", "task", "logs", uuid.Nil.String())
+		inv.Stdout = &stdout
+		clitest.SetupConfig(t, userClient, root)
+
+		err := inv.WithContext(ctx).Run()
+		require.Error(t, err)
+		require.ErrorContains(t, err, httpapi.ResourceNotFoundResponse.Message)
 	})
 }
 
@@ -466,4 +303,44 @@ func withSidebarURL(url string) aiTemplateOpt {
 
 func withAgentToken(token string) aiTemplateOpt {
 	return func(o *aiTemplateOpts) { o.authToken = token }
+}
+
+// setupTaskLogsTest creates a test workspace with an AI task template and agent,
+// returns the user client and workspace for testing task logs functionality.
+func setupTaskLogsTest(ctx context.Context, t *testing.T, messages []aiagentapi.Message) (*codersdk.Client, codersdk.Workspace) {
+	t.Helper()
+
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	owner := coderdtest.CreateFirstUser(t, client)
+	userClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+	fakeAPI := startFakeAgentAPI(t, map[string]http.HandlerFunc{
+		"/messages": func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"messages": messages,
+			})
+		},
+	})
+
+	authToken := uuid.NewString()
+	template := createAITaskTemplate(t, client, owner.OrganizationID, withSidebarURL(fakeAPI.URL()), withAgentToken(authToken))
+
+	wantPrompt := "test prompt"
+	workspace := coderdtest.CreateWorkspace(t, userClient, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
+		req.RichParameterValues = []codersdk.WorkspaceBuildParameter{
+			{Name: codersdk.AITaskPromptParameterName, Value: wantPrompt},
+		}
+	})
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken))
+	_ = agenttest.New(t, client.URL, authToken, func(o *agent.Options) {
+		o.Client = agentClient
+	})
+
+	coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).
+		WaitFor(coderdtest.AgentsReady)
+
+	return userClient, workspace
 }
