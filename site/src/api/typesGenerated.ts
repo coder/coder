@@ -1811,7 +1811,7 @@ export interface HealthcheckReport {
 }
 
 // From codersdk/idpsync.go
-export interface IDPSyncMapping<ResourceIdType extends string | string> {
+export interface IDPSyncMapping<ResourceIdType extends string> {
 	readonly Given: string;
 	readonly Gets: ResourceIdType;
 }
@@ -4666,30 +4666,3 @@ export interface WorkspacesResponse {
 	readonly workspaces: readonly Workspace[];
 	readonly count: number;
 }
-
-// From codersdk/deployment.go
-export const annotationEnterpriseKey = "enterprise";
-
-// From codersdk/deployment.go
-export const annotationExternalProxies = "external_workspace_proxies";
-
-// From codersdk/deployment.go
-export const annotationFormatDuration = "format_duration";
-
-// From codersdk/deployment.go
-export const annotationSecretKey = "secret";
-
-// From codersdk/insights.go
-export const insightsTimeLayout = "2006-01-02T15:04:05Z07:00";
-
-// From codersdk/notifications.go
-export const maxCustomNotificationMessageLen = 2000;
-
-// From codersdk/notifications.go
-export const maxCustomNotificationTitleLen = 120;
-
-// From healthsdk/interfaces.go
-export const safeMTU = 1378;
-
-// From codersdk/workspacedisplaystatus.go
-export const unknownStatus = "Unknown";
