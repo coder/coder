@@ -89,8 +89,8 @@ Once Bridge is enabled and configured on the server side, you need to configure 
 
 Configure your AI client to point to your Coder deployment's Bridge endpoints:
 
-- **OpenAI-compatible clients**: Set `OPENAI_BASE_URL` to `https://coder.example.com/api/v2/api/experimental/aibridge/openai/v1/`
-- **Anthropic-compatible clients**: Set `ANTHROPIC_BASE_URL` to `https://coder.example.com/api/v2/api/experimental/aibridge/anthropic/`
+- **OpenAI-compatible clients**: Set `OPENAI_BASE_URL` to `https://coder.example.com/api/experimental/aibridge/openai/v1`
+- **Anthropic-compatible clients**: Set `ANTHROPIC_BASE_URL` to `https://coder.example.com/api/experimental/aibridge/anthropic/v1`
 
 Replace `coder.example.com` with your actual Coder deployment URL.
 
@@ -114,7 +114,7 @@ coder tokens create
 Configure Claude Code to use Bridge:
 
 ```sh
-export ANTHROPIC_BASE_URL="https://coder.example.com/api/v2/api/experimental/aibridge/anthropic/"
+export ANTHROPIC_BASE_URL="https://coder.example.com/api/experimental/aibridge/anthropic/v1"
 export ANTHROPIC_API_KEY="your-coder-session-token"
 ```
 
@@ -126,7 +126,7 @@ Any tool that supports custom base URLs can be configured similarly:
 import openai
 
 client = openai.OpenAI(
-    base_url="https://coder.example.com/api/v2/api/experimental/aibridge/openai/v1/",
+    base_url="https://coder.example.com/api/experimental/aibridge/openai/v1",
     api_key="your-coder-session-token"
 )
 ```
@@ -164,7 +164,7 @@ module "claude-code" {
 resource "coder_env" "bridge_base_url" {
   agent_id = coder_agent.main.id
   name     = "ANTHROPIC_BASE_URL"
-  value    = "${data.coder_workspace.me.access_url}/api/v2/api/experimental/aibridge/"
+  value    = "${data.coder_workspace.me.access_url}/api/experimental/aibridge/anthropic/v1"
 }
 ```
 
