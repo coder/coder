@@ -297,9 +297,15 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		}),
 		User: append(allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceUser, ResourceOrganizationMember),
 			Permissions(map[string][]policy.Action{
+				// Reduced permission set on dormant workspaces. No build, ssh, or exec
+				ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent},
 				// Users cannot do create/update/delete on themselves, but they
 				// can read their own details.
 				ResourceUser.Type: {policy.ActionRead, policy.ActionReadPersonal, policy.ActionUpdatePersonal},
+				// Can read their own organization member record
+				ResourceOrganizationMember.Type: {policy.ActionRead},
+				// Users can create provisioner daemons scoped to themselves.
+				ResourceProvisionerDaemon.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
 			})...,
 		),
 		ByOrgID: map[string]OrgPermissions{},
@@ -447,19 +453,6 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 							ResourceOrganization.Type: {policy.ActionRead},
 							// Can read available roles.
 							ResourceAssignOrgRole.Type: {policy.ActionRead},
-						}),
-						Member: Permissions(map[string][]policy.Action{
-							// Users can create provisioner daemons scoped to themselves.
-							// All provisioners still need an organization relation as well.
-							ResourceProvisionerDaemon.Type: ResourceProvisionerDaemon.AvailableActions(),
-							// All group members can read their own group membership
-							ResourceGroupMember.Type:       {policy.ActionRead},
-							ResourceInboxNotification.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
-							ResourceWorkspace.Type:         ResourceWorkspace.AvailableActions(),
-							// Reduced permission set on dormant workspaces. No build, ssh, or exec
-							ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent},
-							// Can read their own organization member record
-							ResourceOrganizationMember.Type: {policy.ActionRead},
 						}),
 					},
 				},
