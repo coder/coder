@@ -115,8 +115,8 @@ site_allow(roles) := num if {
 #  level permissions.
 #  Adding a second org_members set might affect the partial evaluation.
 #  This is being left until org scopes are used.
-org_members := {orgID |
-	input.subject.roles[_].by_org_id[orgID]
+org_members := {org_id |
+	input.subject.roles[_].by_org_id[org_id]
 }
 
 # 'org' is the same as 'site' except we need to iterate over each organization
@@ -283,12 +283,12 @@ scope_org_member := num if {
 # Scope allow_list is a list of resource (Type, ID) tuples explicitly allowed by the scope.
 # If the list contains `(*,*)`, then all resources are allowed.
 scope_allow_list if {
-	input.subject.scope.allow_list[_] == {"type": "*", "id": "*"}
+	{"type": "*", "id": "*"} in input.subject.scope.allow_list
 }
 
 # This is a shortcut if the allow_list contains (type, *), then allow all IDs of that type.
 scope_allow_list if {
-	input.subject.scope.allow_list[_] == {"type": input.object.type, "id": "*"}
+	{"type": input.object.type, "id": "*"} in input.subject.scope.allow_list
 }
 
 # A comprehension that iterates over the allow_list and checks if the
