@@ -1,6 +1,10 @@
 package unit
 
-import "sync"
+import (
+	"sync"
+
+	"golang.org/x/xerrors"
+)
 
 // Graph is an bidirectional adjacency list representation of a graph.
 // It is considered bidirectional instead of undirected, because we distinguish
@@ -28,7 +32,7 @@ type Edge[EdgeType, VertexType comparable] struct {
 
 // AddEdge adds an edge to the graph. It initializes the adjacency lists if they don't exist
 // and adds the edge to both the adjacency list and the reverse adjacency list.
-func (g *Graph[EdgeType, VertexType]) AddEdge(from, to VertexType, edge EdgeType) {
+func (g *Graph[EdgeType, VertexType]) AddEdge(from, to VertexType, edge EdgeType) error {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
@@ -48,9 +52,15 @@ func (g *Graph[EdgeType, VertexType]) AddEdge(from, to VertexType, edge EdgeType
 		g.reverseAdjacencyList[to] = make(map[VertexType]EdgeType)
 	}
 
+	if g.canReach(to, from) {
+		return xerrors.Errorf("adding edge (%v -> %v) would create a cycle", from, to)
+	}
+
 	// Add the edge to the adjacency lists
 	g.adjacencyList[from][to] = edge
 	g.reverseAdjacencyList[to][from] = edge
+
+	return nil
 }
 
 // GetForwardAdjacentVertices returns all the edges that originate from the given vertex.
@@ -58,7 +68,12 @@ func (g *Graph[EdgeType, VertexType]) GetForwardAdjacentVertices(from VertexType
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 
-	return getAdjacentVertices(g.adjacencyList, from)
+	edges := make([]Edge[EdgeType, VertexType], 0, len(g.adjacencyList[from]))
+	for to, edge := range g.adjacencyList[from] {
+		edges = append(edges, Edge[EdgeType, VertexType]{From: from, To: to, Edge: edge})
+	}
+
+	return edges
 }
 
 // GetReverseAdjacentVertices returns all the edges that terminate at the given vertex.
@@ -66,14 +81,37 @@ func (g *Graph[EdgeType, VertexType]) GetReverseAdjacentVertices(to VertexType) 
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 
-	return getAdjacentVertices(g.reverseAdjacencyList, to)
-}
-
-func getAdjacentVertices[EdgeType, VertexType comparable](adjacencyList map[VertexType]map[VertexType]EdgeType, from VertexType) []Edge[EdgeType, VertexType] {
-	edges := make([]Edge[EdgeType, VertexType], 0, len(adjacencyList[from]))
-	for to, edge := range adjacencyList[from] {
+	edges := make([]Edge[EdgeType, VertexType], 0, len(g.reverseAdjacencyList[to]))
+	for from, edge := range g.reverseAdjacencyList[to] {
 		edges = append(edges, Edge[EdgeType, VertexType]{From: from, To: to, Edge: edge})
 	}
 
 	return edges
+}
+
+func (g *Graph[EdgeType, VertexType]) canReach(start, end VertexType) bool {
+	if start == end {
+		return true
+	}
+
+	visited := make(map[VertexType]bool)
+	stack := []VertexType{start}
+
+	for len(stack) > 0 {
+		currentVertex := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+
+		if currentVertex == end {
+			return true
+		}
+
+		visited[currentVertex] = true
+		for adjacentVertex := range g.adjacencyList[currentVertex] {
+			if !visited[adjacentVertex] {
+				stack = append(stack, adjacentVertex)
+			}
+		}
+	}
+
+	return false
 }

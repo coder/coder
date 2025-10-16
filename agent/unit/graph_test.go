@@ -1,6 +1,7 @@
 package unit_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -18,8 +19,10 @@ func TestGraph(t *testing.T) {
 		unit1 := &unit.Unit{Name: "unit1", Status: unit.StatusPending}
 		unit2 := &unit.Unit{Name: "unit2", Status: unit.StatusPending}
 		unit3 := &unit.Unit{Name: "unit3", Status: unit.StatusPending}
-		graph.AddEdge(unit1, unit2, unit.StatusCompleted)
-		graph.AddEdge(unit1, unit3, unit.StatusStarted)
+		err := graph.AddEdge(unit1, unit2, unit.StatusCompleted)
+		require.NoError(t, err)
+		err = graph.AddEdge(unit1, unit3, unit.StatusStarted)
+		require.NoError(t, err)
 
 		// Check for forward edge
 		vertices := graph.GetForwardAdjacentVertices(unit1)
@@ -55,5 +58,28 @@ func TestGraph(t *testing.T) {
 			To:   unit3,
 			Edge: unit.StatusStarted,
 		})
+	})
+
+	t.Run("SelfReference", func(t *testing.T) {
+		t.Parallel()
+
+		graph := &unit.Graph[unit.Status, *unit.Unit]{}
+		unit1 := &unit.Unit{Name: "unit1", Status: unit.StatusPending}
+		err := graph.AddEdge(unit1, unit1, unit.StatusCompleted)
+		require.Error(t, err)
+		require.ErrorContains(t, err, fmt.Sprintf("adding edge (%v -> %v) would create a cycle", unit1, unit1))
+	})
+
+	t.Run("Cycle", func(t *testing.T) {
+		t.Parallel()
+
+		graph := &unit.Graph[unit.Status, *unit.Unit]{}
+		unit1 := &unit.Unit{Name: "unit1", Status: unit.StatusPending}
+		unit2 := &unit.Unit{Name: "unit2", Status: unit.StatusPending}
+		err := graph.AddEdge(unit1, unit2, unit.StatusCompleted)
+		require.NoError(t, err)
+		err = graph.AddEdge(unit2, unit1, unit.StatusStarted)
+		require.Error(t, err)
+		require.ErrorContains(t, err, fmt.Sprintf("adding edge (%v -> %v) would create a cycle", unit2, unit1))
 	})
 }
