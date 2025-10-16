@@ -1,10 +1,6 @@
-import type { SelectTriggerProps } from "@radix-ui/react-select";
 import { API } from "api/api";
 import { getErrorDetail, getErrorMessage } from "api/errors";
-import {
-	templateVersionPresets,
-	templateVersions,
-} from "api/queries/templates";
+import { templateVersionPresets } from "api/queries/templates";
 import type {
 	Preset,
 	Task,
@@ -20,7 +16,6 @@ import {
 	Select,
 	SelectContent,
 	SelectItem,
-	SelectTrigger,
 	SelectValue,
 } from "components/Select/Select";
 import { Skeleton } from "components/Skeleton/Skeleton";
@@ -40,8 +35,9 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import TextareaAutosize, {
 	type TextareaAutosizeProps,
 } from "react-textarea-autosize";
-import { cn } from "utils/cn";
 import { docs } from "utils/docs";
+import { PromptSelectTrigger } from "./PromptSelectTrigger";
+import { TemplateVersionSelect } from "./TemplateVersionSelect";
 
 type TaskPromptProps = {
 	templates: Template[] | undefined;
@@ -154,10 +150,6 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 	const [selectedVersionId, setSelectedVersionId] = useState(
 		selectedTemplate.active_version_id,
 	);
-	const versionsQuery = useQuery({
-		...templateVersions(selectedTemplate.id),
-		enabled: permissions.updateTemplates,
-	});
 	useEffect(() => {
 		setSelectedVersionId(selectedTemplate.active_version_id);
 	}, [selectedTemplate]);
@@ -279,7 +271,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 								defaultValue={templates[0].id}
 								required
 							>
-								<PromptSelectTrigger id="templateID">
+								<PromptSelectTrigger id="templateID" tooltip="Template">
 									<SelectValue placeholder="Select a template" />
 								</PromptSelectTrigger>
 								<SelectContent>
@@ -296,30 +288,17 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 							</Select>
 						</div>
 
-						{versionsQuery.data && (
+						{permissions.updateTemplates && (
 							<div>
 								<label htmlFor="versionId" className="sr-only">
 									Template version
 								</label>
-								<Select
-									name="versionId"
-									onValueChange={(value) => setSelectedVersionId(value)}
+								<TemplateVersionSelect
+									templateId={selectedTemplateId}
+									activeVersionId={selectedTemplate.active_version_id}
 									value={selectedVersionId}
-									required
-								>
-									<PromptSelectTrigger id="versionId">
-										<SelectValue placeholder="Select a version" />
-									</PromptSelectTrigger>
-									<SelectContent>
-										{versionsQuery.data.map((version) => {
-											return (
-												<SelectItem value={version.id} key={version.id}>
-													{version.name}
-												</SelectItem>
-											);
-										})}
-									</SelectContent>
-								</Select>
+									onValueChange={setSelectedVersionId}
+								/>
 							</div>
 						)}
 
@@ -339,7 +318,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 										value={selectedPresetId}
 										onValueChange={setSelectedPresetId}
 									>
-										<PromptSelectTrigger id="presetID">
+										<PromptSelectTrigger id="presetID" tooltip="Preset">
 											<SelectValue placeholder="Select a preset" />
 										</PromptSelectTrigger>
 										<SelectContent>
@@ -386,23 +365,6 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 				</div>
 			</fieldset>
 		</form>
-	);
-};
-
-const PromptSelectTrigger: FC<SelectTriggerProps> = ({
-	className,
-	...props
-}) => {
-	return (
-		<SelectTrigger
-			{...props}
-			className={cn([
-				className,
-				`border-0 bg-surface-secondary text-sm text-content-primary gap-2 px-3
-				[&_svg]:text-inherit cursor-pointer hover:bg-surface-quaternary rounded-full
-				h-8 data-[state=open]:bg-surface-tertiary`,
-			])}
-		/>
 	);
 };
 
