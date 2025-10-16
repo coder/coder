@@ -129,3 +129,64 @@ export const IdleTasks: Story = {
 		],
 	},
 };
+
+export const SupportLinks: Story = {
+	args: {
+		user: MockUserMember,
+		canViewAuditLog: false,
+		canViewDeployment: false,
+		canViewHealth: false,
+		canViewOrganizations: false,
+		supportLinks: [
+			{
+				name: "This is a bug",
+				icon: "bug",
+				target: "http://bug",
+			},
+			{
+				name: "This is a star",
+				icon: "star",
+				target: "http://star",
+				location: "dropdown",
+			},
+			{
+				name: "This is a chat",
+				icon: "chat",
+				target: "http://chat",
+				location: "navbar",
+			},
+			{
+				name: "No icon here",
+				icon: "",
+				target: "http://chat",
+				location: "navbar",
+			},
+			{
+				name: "No icon here too",
+				icon: "",
+				target: "http://no-icon",
+			},
+		],
+	},
+};
+
+export const DefaultSupportLinks: Story = {
+	args: {
+		user: MockUserMember,
+		canViewAuditLog: false,
+		canViewDeployment: false,
+		canViewHealth: false,
+		canViewOrganizations: false,
+		supportLinks: [
+			{ icon: "docs", name: "Documentation", target: "" },
+			{ icon: "bug", name: "Report a bug", target: "" },
+			{
+				icon: "chat",
+				name: "Join the Coder Discord",
+				target: "",
+				location: "navbar",
+			},
+			{ icon: "star", name: "Star the Repo", target: "" },
+		],
+	},
+};

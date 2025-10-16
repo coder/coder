@@ -21,6 +21,7 @@ import { cn } from "utils/cn";
 import { DeploymentDropdown } from "./DeploymentDropdown";
 import { MobileMenu } from "./MobileMenu";
 import { ProxyMenu } from "./ProxyMenu";
+import { SupportButtons } from "./SupportButtons";
 import { UserDropdown } from "./UserDropdown/UserDropdown";
 
 interface NavbarViewProps {
@@ -77,6 +78,12 @@ export const NavbarView: FC<NavbarViewProps> = ({
 					</div>
 				)}
 
+				{supportLinks && (
+					<SupportButtons
+						supportLinks={supportLinks.filter((l) => isNavbarLink(l))}
+					/>
+				)}
+
 				<div className="hidden md:block">
 					<DeploymentDropdown
 						canViewAuditLog={canViewAuditLog}
@@ -121,7 +128,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 					<UserDropdown
 						user={user}
 						buildInfo={buildInfo}
-						supportLinks={supportLinks}
+						supportLinks={supportLinks?.filter((link) => !isNavbarLink(link))}
 						onSignOut={onSignOut}
 					/>
 				</div>
@@ -130,7 +137,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 					<MobileMenu
 						proxyContextValue={proxyContextValue}
 						user={user}
-						supportLinks={supportLinks}
+						supportLinks={supportLinks?.filter((link) => !isNavbarLink(link))}
 						onSignOut={onSignOut}
 						canViewAuditLog={canViewAuditLog}
 						canViewConnectionLog={canViewConnectionLog}
@@ -239,4 +246,8 @@ const TasksNavItem: FC<TasksNavItemProps> = ({ user }) => {
 
 function idleTasksLabel(count: number) {
 	return `You have ${count} ${count === 1 ? "task" : "tasks"} waiting for input`;
+}
+
+function isNavbarLink(link: TypesGen.LinkConfig): boolean {
+	return link.location === "navbar";
 }
