@@ -3864,13 +3864,6 @@ func (q *querier) GetWorkspacesEligibleForTransition(ctx context.Context, now ti
 	return q.db.GetWorkspacesEligibleForTransition(ctx, now)
 }
 
-func (q *querier) GetWorkspacesForAgentMetrics(ctx context.Context, deleted bool) ([]database.GetWorkspacesForAgentMetricsRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return nil, err
-	}
-	return q.db.GetWorkspacesForAgentMetrics(ctx, deleted)
-}
-
 func (q *querier) GetWorkspacesForWorkspaceMetrics(ctx context.Context, deleted bool) ([]database.GetWorkspacesForWorkspaceMetricsRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err

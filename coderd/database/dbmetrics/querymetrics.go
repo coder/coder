@@ -2231,13 +2231,6 @@ func (m queryMetricsStore) GetWorkspacesEligibleForTransition(ctx context.Contex
 	return workspaces, err
 }
 
-func (m queryMetricsStore) GetWorkspacesForAgentMetrics(ctx context.Context, deleted bool) ([]database.GetWorkspacesForAgentMetricsRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetWorkspacesForAgentMetrics(ctx, deleted)
-	m.queryLatencies.WithLabelValues("GetWorkspacesForAgentMetrics").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetWorkspacesForWorkspaceMetrics(ctx context.Context, deleted bool) ([]database.GetWorkspacesForWorkspaceMetricsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspacesForWorkspaceMetrics(ctx, deleted)

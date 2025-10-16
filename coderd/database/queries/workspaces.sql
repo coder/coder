@@ -1003,23 +1003,3 @@ AND wb.build_number = (
     FROM workspace_builds wb2
     WHERE wb2.workspace_id = w.id
 );
-
--- name: GetWorkspacesForAgentMetrics :many
-SELECT
-    w.id,
-    w.name,
-    u.username as owner_username,
-    t.name as template_name,
-    tv.name as template_version_name,
-    wb.build_number
-FROM workspaces w
-JOIN users u ON w.owner_id = u.id
-JOIN templates t ON w.template_id = t.id
-JOIN workspace_builds wb ON w.id = wb.workspace_id
-LEFT JOIN template_versions tv ON wb.template_version_id = tv.id  -- LEFT JOIN preserves NULLs
-WHERE w.deleted = @deleted
-AND wb.build_number = (
-    SELECT MAX(wb2.build_number)
-    FROM workspace_builds wb2
-    WHERE wb2.workspace_id = w.id
-);

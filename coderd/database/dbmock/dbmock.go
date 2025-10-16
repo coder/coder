@@ -4754,21 +4754,6 @@ func (mr *MockStoreMockRecorder) GetWorkspacesEligibleForTransition(ctx, now any
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspacesEligibleForTransition", reflect.TypeOf((*MockStore)(nil).GetWorkspacesEligibleForTransition), ctx, now)
 }
 
-// GetWorkspacesForAgentMetrics mocks base method.
-func (m *MockStore) GetWorkspacesForAgentMetrics(ctx context.Context, deleted bool) ([]database.GetWorkspacesForAgentMetricsRow, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetWorkspacesForAgentMetrics", ctx, deleted)
-	ret0, _ := ret[0].([]database.GetWorkspacesForAgentMetricsRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetWorkspacesForAgentMetrics indicates an expected call of GetWorkspacesForAgentMetrics.
-func (mr *MockStoreMockRecorder) GetWorkspacesForAgentMetrics(ctx, deleted any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspacesForAgentMetrics", reflect.TypeOf((*MockStore)(nil).GetWorkspacesForAgentMetrics), ctx, deleted)
-}
-
 // GetWorkspacesForWorkspaceMetrics mocks base method.
 func (m *MockStore) GetWorkspacesForWorkspaceMetrics(ctx context.Context, deleted bool) ([]database.GetWorkspacesForWorkspaceMetricsRow, error) {
 	m.ctrl.T.Helper()
