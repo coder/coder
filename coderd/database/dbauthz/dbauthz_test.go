@@ -1692,11 +1692,11 @@ func (s *MethodTestSuite) TestWorkspace() {
 	s.Run("GetWorkspaceAgentsForMetrics", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		row := testutil.Fake(s.T(), faker, database.GetWorkspaceAgentsForMetricsRow{})
 		dbm.EXPECT().GetWorkspaceAgentsForMetrics(gomock.Any(), false).Return([]database.GetWorkspaceAgentsForMetricsRow{row}, nil).AnyTimes()
-		check.Args(false).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns([]database.GetWorkspaceAgentsForMetricsRow{row})
+		check.Args(false).Asserts(rbac.ResourceWorkspace, policy.ActionRead).Returns([]database.GetWorkspaceAgentsForMetricsRow{row})
 	}))
 	s.Run("GetWorkspacesForWorkspaceMetrics", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().GetWorkspacesForWorkspaceMetrics(gomock.Any(), false).Return([]database.GetWorkspacesForWorkspaceMetricsRow{}, nil).AnyTimes()
-		check.Args(false).Asserts(rbac.ResourceSystem, policy.ActionRead)
+		check.Args(false).Asserts(rbac.ResourceWorkspace, policy.ActionRead)
 	}))
 	s.Run("GetAuthorizedWorkspaces", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.GetWorkspacesParams{}

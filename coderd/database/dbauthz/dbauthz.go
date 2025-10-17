@@ -3553,7 +3553,7 @@ func (q *querier) GetWorkspaceAgentsCreatedAfter(ctx context.Context, createdAt 
 }
 
 func (q *querier) GetWorkspaceAgentsForMetrics(ctx context.Context, deleted bool) ([]database.GetWorkspaceAgentsForMetricsRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace); err != nil {
 		return nil, err
 	}
 	return q.db.GetWorkspaceAgentsForMetrics(ctx, deleted)
@@ -3865,7 +3865,7 @@ func (q *querier) GetWorkspacesEligibleForTransition(ctx context.Context, now ti
 }
 
 func (q *querier) GetWorkspacesForWorkspaceMetrics(ctx context.Context, deleted bool) ([]database.GetWorkspacesForWorkspaceMetricsRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace); err != nil {
 		return nil, err
 	}
 	return q.db.GetWorkspacesForWorkspaceMetrics(ctx, deleted)
