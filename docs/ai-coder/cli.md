@@ -157,9 +157,16 @@ USAGE:
 
         $ coder exp task logs task1
 
+    - Follow logs in real-time.:
+
+        $ coder exp task logs task1 --follow
+
 OPTIONS:
   -c, --column [id|content|type|time] (default: type,content)
           Columns to display in table output.
+
+  -f, --follow bool
+          Follow logs in real-time, similar to 'tail -f'.
 
   -o, --output table|json (default: table)
           Output format.
