@@ -145,6 +145,11 @@ export const OnSuccess: Story = {
 			const successMessage = await body.findByText(/task created/i);
 			expect(successMessage).toBeInTheDocument();
 		});
+
+		await step("Clears prompt", async () => {
+			const prompt = await canvas.findByLabelText(/prompt/i);
+			expect(prompt).toHaveValue("");
+		});
 	},
 };
 
