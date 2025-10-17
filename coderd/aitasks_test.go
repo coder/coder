@@ -6,8 +6,10 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -977,6 +979,7 @@ func TestTasksNotification(t *testing.T) {
 		isAITask             bool
 		isNotificationSent   bool
 		notificationTemplate uuid.UUID
+		taskPrompt           string
 	}{
 		// Should not send a notification when the agent app is not an AI task.
 		{
@@ -985,6 +988,7 @@ func TestTasksNotification(t *testing.T) {
 			newAppStatus:       codersdk.WorkspaceAppStatusStateWorking,
 			isAITask:           false,
 			isNotificationSent: false,
+			taskPrompt:         "NoAITask",
 		},
 		// Should not send a notification when the new app status is neither 'Working' nor 'Idle'.
 		{
@@ -993,6 +997,7 @@ func TestTasksNotification(t *testing.T) {
 			newAppStatus:       codersdk.WorkspaceAppStatusStateComplete,
 			isAITask:           true,
 			isNotificationSent: false,
+			taskPrompt:         "NonNotifiedState",
 		},
 		// Should not send a notification when the new app status equals the latest status (Working).
 		{
@@ -1001,15 +1006,27 @@ func TestTasksNotification(t *testing.T) {
 			newAppStatus:       codersdk.WorkspaceAppStatusStateWorking,
 			isAITask:           true,
 			isNotificationSent: false,
+			taskPrompt:         "NonNotifiedTransition",
 		},
-		// Should send TemplateTaskWorking when the AI task transitions to 'Working'.
+		// Should NOT send TemplateTaskWorking when the AI task's FIRST status is 'Working' (obvious state).
 		{
 			name:                 "TemplateTaskWorking",
 			latestAppStatuses:    nil,
 			newAppStatus:         codersdk.WorkspaceAppStatusStateWorking,
 			isAITask:             true,
-			isNotificationSent:   true,
+			isNotificationSent:   false,
 			notificationTemplate: notifications.TemplateTaskWorking,
+			taskPrompt:           "TemplateTaskWorking",
+		},
+		// Should send TemplateTaskIdle when the AI task's FIRST status is 'Idle' (task completed immediately).
+		{
+			name:                 "InitialTemplateTaskIdle",
+			latestAppStatuses:    nil,
+			newAppStatus:         codersdk.WorkspaceAppStatusStateIdle,
+			isAITask:             true,
+			isNotificationSent:   true,
+			notificationTemplate: notifications.TemplateTaskIdle,
+			taskPrompt:           "InitialTemplateTaskIdle",
 		},
 		// Should send TemplateTaskWorking when the AI task transitions to 'Working' from 'Idle'.
 		{
@@ -1022,6 +1039,7 @@ func TestTasksNotification(t *testing.T) {
 			isAITask:             true,
 			isNotificationSent:   true,
 			notificationTemplate: notifications.TemplateTaskWorking,
+			taskPrompt:           "TemplateTaskWorkingFromIdle",
 		},
 		// Should send TemplateTaskIdle when the AI task transitions to 'Idle'.
 		{
@@ -1031,6 +1049,75 @@ func TestTasksNotification(t *testing.T) {
 			isAITask:             true,
 			isNotificationSent:   true,
 			notificationTemplate: notifications.TemplateTaskIdle,
+			taskPrompt:           "TemplateTaskIdle",
+		},
+		// Long task prompts should be truncated to 160 characters.
+		{
+			name:                 "LongTaskPrompt",
+			latestAppStatuses:    []codersdk.WorkspaceAppStatusState{codersdk.WorkspaceAppStatusStateWorking},
+			newAppStatus:         codersdk.WorkspaceAppStatusStateIdle,
+			isAITask:             true,
+			isNotificationSent:   true,
+			notificationTemplate: notifications.TemplateTaskIdle,
+			taskPrompt:           "This is a very long task prompt that should be truncated to 160 characters. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+		},
+		// Should send TemplateTaskCompleted when the AI task transitions to 'Complete'.
+		{
+			name:                 "TemplateTaskCompleted",
+			latestAppStatuses:    []codersdk.WorkspaceAppStatusState{codersdk.WorkspaceAppStatusStateWorking},
+			newAppStatus:         codersdk.WorkspaceAppStatusStateComplete,
+			isAITask:             true,
+			isNotificationSent:   true,
+			notificationTemplate: notifications.TemplateTaskCompleted,
+			taskPrompt:           "TemplateTaskCompleted",
+		},
+		// Should send TemplateTaskFailed when the AI task transitions to 'Failure'.
+		{
+			name:                 "TemplateTaskFailed",
+			latestAppStatuses:    []codersdk.WorkspaceAppStatusState{codersdk.WorkspaceAppStatusStateWorking},
+			newAppStatus:         codersdk.WorkspaceAppStatusStateFailure,
+			isAITask:             true,
+			isNotificationSent:   true,
+			notificationTemplate: notifications.TemplateTaskFailed,
+			taskPrompt:           "TemplateTaskFailed",
+		},
+		// Should send TemplateTaskCompleted when the AI task transitions from 'Idle' to 'Complete'.
+		{
+			name:                 "TemplateTaskCompletedFromIdle",
+			latestAppStatuses:    []codersdk.WorkspaceAppStatusState{codersdk.WorkspaceAppStatusStateIdle},
+			newAppStatus:         codersdk.WorkspaceAppStatusStateComplete,
+			isAITask:             true,
+			isNotificationSent:   true,
+			notificationTemplate: notifications.TemplateTaskCompleted,
+			taskPrompt:           "TemplateTaskCompletedFromIdle",
+		},
+		// Should send TemplateTaskFailed when the AI task transitions from 'Idle' to 'Failure'.
+		{
+			name:                 "TemplateTaskFailedFromIdle",
+			latestAppStatuses:    []codersdk.WorkspaceAppStatusState{codersdk.WorkspaceAppStatusStateIdle},
+			newAppStatus:         codersdk.WorkspaceAppStatusStateFailure,
+			isAITask:             true,
+			isNotificationSent:   true,
+			notificationTemplate: notifications.TemplateTaskFailed,
+			taskPrompt:           "TemplateTaskFailedFromIdle",
+		},
+		// Should NOT send notification when transitioning from 'Complete' to 'Complete' (no change).
+		{
+			name:               "NoNotificationCompleteToComplete",
+			latestAppStatuses:  []codersdk.WorkspaceAppStatusState{codersdk.WorkspaceAppStatusStateComplete},
+			newAppStatus:       codersdk.WorkspaceAppStatusStateComplete,
+			isAITask:           true,
+			isNotificationSent: false,
+			taskPrompt:         "NoNotificationCompleteToComplete",
+		},
+		// Should NOT send notification when transitioning from 'Failure' to 'Failure' (no change).
+		{
+			name:               "NoNotificationFailureToFailure",
+			latestAppStatuses:  []codersdk.WorkspaceAppStatusState{codersdk.WorkspaceAppStatusStateFailure},
+			newAppStatus:       codersdk.WorkspaceAppStatusStateFailure,
+			isAITask:           true,
+			isNotificationSent: false,
+			taskPrompt:         "NoNotificationFailureToFailure",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1067,7 +1154,7 @@ func TestTasksNotification(t *testing.T) {
 			}).Seed(workspaceBuildSeed).Params(database.WorkspaceBuildParameter{
 				WorkspaceBuildID: workspaceBuildID,
 				Name:             codersdk.AITaskPromptParameterName,
-				Value:            "task prompt",
+				Value:            tc.taskPrompt,
 			}).WithAgent(func(agent []*proto.Agent) []*proto.Agent {
 				agent[0].Apps = []*proto.App{{
 					Id:   workspaceAgentAppID.String(),
@@ -1115,7 +1202,13 @@ func TestTasksNotification(t *testing.T) {
 				require.Len(t, sent, 1)
 				require.Equal(t, memberUser.ID, sent[0].UserID)
 				require.Len(t, sent[0].Labels, 2)
-				require.Equal(t, "task prompt", sent[0].Labels["task"])
+				// NOTE: len(string) is the number of bytes in the string, not the number of runes.
+				require.LessOrEqual(t, utf8.RuneCountInString(sent[0].Labels["task"]), 160)
+				if len(tc.taskPrompt) > 160 {
+					require.Contains(t, tc.taskPrompt, strings.TrimSuffix(sent[0].Labels["task"], "…"))
+				} else {
+					require.Equal(t, tc.taskPrompt, sent[0].Labels["task"])
+				}
 				require.Equal(t, workspace.Name, sent[0].Labels["workspace"])
 			} else {
 				// Then: No notification is sent

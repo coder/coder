@@ -452,6 +452,10 @@ func (api *API) enqueueAITaskStateNotification(
 		notificationTemplate = notifications.TemplateTaskWorking
 	case codersdk.WorkspaceAppStatusStateIdle:
 		notificationTemplate = notifications.TemplateTaskIdle
+	case codersdk.WorkspaceAppStatusStateComplete:
+		notificationTemplate = notifications.TemplateTaskCompleted
+	case codersdk.WorkspaceAppStatusStateFailure:
+		notificationTemplate = notifications.TemplateTaskFailed
 	default:
 		// Not a notifiable state, do nothing
 		return
@@ -471,6 +475,13 @@ func (api *API) enqueueAITaskStateNotification(
 			return
 		}
 
+		// Skip the initial "Working" notification when task first starts.
+		// This is obvious to the user since they just created the task.
+		// We still notify on first "Idle" status and all subsequent transitions.
+		if len(latestAppStatus) == 0 && newAppStatus == codersdk.WorkspaceAppStatusStateWorking {
+			return
+		}
+
 		// Use the task prompt as the "task" label, fallback to workspace name
 		parameters, err := api.Database.GetWorkspaceBuildParameters(ctx, workspaceBuild.ID)
 		if err != nil {
@@ -484,6 +495,11 @@ func (api *API) enqueueAITaskStateNotification(
 			}
 		}
 
+		// As task prompt may be particularly long, truncate it to 160 characters for notifications.
+		if len(taskName) > 160 {
+			taskName = strutil.Truncate(taskName, 160, strutil.TruncateWithEllipsis, strutil.TruncateWithFullWords)
+		}
+
 		if _, err := api.NotificationsEnqueuer.EnqueueWithData(
 			// nolint:gocritic // Need notifier actor to enqueue notifications
 			dbauthz.AsNotifier(ctx),
@@ -494,10 +510,10 @@ func (api *API) enqueueAITaskStateNotification(
 				"workspace": workspace.Name,
 			},
 			map[string]any{
-				// Use a 10-second bucketed timestamp to bypass per-day dedupe,
+				// Use a 1-minute bucketed timestamp to bypass per-day dedupe,
 				// allowing identical content to resend within the same day
 				// (but not more than once every 10s).
-				"dedupe_bypass_ts": api.Clock.Now().UTC().Truncate(10 * time.Second),
+				"dedupe_bypass_ts": api.Clock.Now().UTC().Truncate(time.Minute),
 			},
 			"api-workspace-agent-app-status",
 			// Associate this notification with related entities

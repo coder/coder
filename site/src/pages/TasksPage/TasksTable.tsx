@@ -16,10 +16,18 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
-import { RotateCcwIcon } from "lucide-react";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
+import { RotateCcwIcon, TrashIcon } from "lucide-react";
+import { TaskDeleteDialog } from "modules/tasks/TaskDeleteDialog/TaskDeleteDialog";
 import type { Task } from "modules/tasks/tasks";
 import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
-import type { FC, ReactNode } from "react";
+import { WorkspaceStatus } from "modules/workspaces/WorkspaceStatus/WorkspaceStatus";
+import { type FC, type ReactNode, useState } from "react";
 import { Link as RouterLink } from "react-router";
 import { relativeTime } from "utils/time";
 
@@ -39,7 +47,7 @@ export const TasksTable: FC<TasksTableProps> = ({ tasks, error, onRetry }) => {
 	} else if (tasks.length === 0) {
 		body = <TasksEmpty />;
 	} else {
-		body = <Tasks tasks={tasks} />;
+		body = tasks.map((task) => <TaskRow key={task.workspace.id} task={task} />);
 	}
 
 	return (
@@ -47,8 +55,10 @@ export const TasksTable: FC<TasksTableProps> = ({ tasks, error, onRetry }) => {
 			<TableHeader>
 				<TableRow>
 					<TableHead>Task</TableHead>
-					<TableHead>Status</TableHead>
+					<TableHead>Agent status</TableHead>
+					<TableHead>Workspace status</TableHead>
 					<TableHead>Created by</TableHead>
+					<TableHead />
 				</TableRow>
 			</TableHeader>
 			<TableBody>{body}</TableBody>
@@ -64,7 +74,7 @@ type TasksErrorBodyProps = {
 const TasksErrorBody: FC<TasksErrorBodyProps> = ({ error, onRetry }) => {
 	return (
 		<TableRow>
-			<TableCell colSpan={4} className="text-center">
+			<TableCell colSpan={5} className="text-center">
 				<div className="rounded-lg w-full min-h-80 flex items-center justify-center">
 					<div className="flex flex-col items-center">
 						<h3 className="m-0 font-medium text-content-primary text-base">
@@ -87,7 +97,7 @@ const TasksErrorBody: FC<TasksErrorBodyProps> = ({ error, onRetry }) => {
 const TasksEmpty: FC = () => {
 	return (
 		<TableRow>
-			<TableCell colSpan={4} className="text-center">
+			<TableCell colSpan={5} className="text-center">
 				<div className="w-full min-h-80 p-4 flex items-center justify-center">
 					<div className="flex flex-col items-center">
 						<h3 className="m-0 font-medium text-content-primary text-base">
@@ -103,24 +113,25 @@ const TasksEmpty: FC = () => {
 	);
 };
 
-type TasksProps = { tasks: Task[] };
+type TaskRowProps = { task: Task };
 
-const Tasks: FC<TasksProps> = ({ tasks }) => {
-	return tasks.map(({ workspace, prompt }) => {
-		const templateDisplayName =
-			workspace.template_display_name ?? workspace.template_name;
+const TaskRow: FC<TaskRowProps> = ({ task }) => {
+	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+	const templateDisplayName =
+		task.workspace.template_display_name ?? task.workspace.template_name;
 
-		return (
-			<TableRow key={workspace.id} className="relative" hover>
+	return (
+		<>
+			<TableRow key={task.workspace.id} className="relative" hover>
 				<TableCell>
 					<AvatarData
 						title={
 							<>
 								<span className="block max-w-[520px] overflow-hidden text-ellipsis whitespace-nowrap">
-									{prompt}
+									{task.prompt}
 								</span>
 								<RouterLink
-									to={`/tasks/${workspace.owner_name}/${workspace.name}`}
+									to={`/tasks/${task.workspace.owner_name}/${task.workspace.name}`}
 									className="absolute inset-0"
 								>
 									<span className="sr-only">Access task</span>
@@ -132,7 +143,7 @@ const Tasks: FC<TasksProps> = ({ tasks }) => {
 							<Avatar
 								size="lg"
 								variant="icon"
-								src={workspace.template_icon}
+								src={task.workspace.template_icon}
 								fallback={templateDisplayName}
 							/>
 						}
@@ -140,24 +151,53 @@ const Tasks: FC<TasksProps> = ({ tasks }) => {
 				</TableCell>
 				<TableCell>
 					<WorkspaceAppStatus
-						disabled={workspace.latest_build.status !== "running"}
-						status={workspace.latest_app_status}
+						disabled={task.workspace.latest_build.status !== "running"}
+						status={task.workspace.latest_app_status}
 					/>
 				</TableCell>
 				<TableCell>
+					<WorkspaceStatus workspace={task.workspace} />
+				</TableCell>
+				<TableCell>
 					<AvatarData
-						title={workspace.owner_name}
+						title={task.workspace.owner_name}
 						subtitle={
 							<span className="block first-letter:uppercase">
-								{relativeTime(new Date(workspace.created_at))}
+								{relativeTime(new Date(task.workspace.created_at))}
 							</span>
 						}
-						src={workspace.owner_avatar_url}
+						src={task.workspace.owner_avatar_url}
 					/>
 				</TableCell>
+				<TableCell className="text-right">
+					<TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									size="icon"
+									variant="outline"
+									className="relative z-50"
+									onClick={() => setIsDeleteDialogOpen(true)}
+								>
+									<span className="sr-only">Delete task</span>
+									<TrashIcon />
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent>Delete task</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
+				</TableCell>
 			</TableRow>
-		);
-	});
+
+			<TaskDeleteDialog
+				task={task}
+				open={isDeleteDialogOpen}
+				onClose={() => {
+					setIsDeleteDialogOpen(false);
+				}}
+			/>
+		</>
+	);
 };
 
 const TasksSkeleton: FC = () => {
@@ -171,7 +211,15 @@ const TasksSkeleton: FC = () => {
 					<Skeleton className="w-[100px] h-6" />
 				</TableCell>
 				<TableCell>
+					<Skeleton className="w-[100px] h-6" />
+				</TableCell>
+				<TableCell>
 					<AvatarDataSkeleton />
+				</TableCell>
+				<TableCell>
+					<div className="flex justify-end items-center">
+						<Skeleton className="size-8" />
+					</div>
 				</TableCell>
 			</TableRowSkeleton>
 		</TableLoaderSkeleton>

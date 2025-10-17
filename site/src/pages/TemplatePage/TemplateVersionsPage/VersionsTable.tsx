@@ -1,10 +1,6 @@
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableRow from "@mui/material/TableRow";
 import type * as TypesGen from "api/typesGenerated";
 import { EmptyState } from "components/EmptyState/EmptyState";
+import { Table, TableBody, TableCell, TableRow } from "components/Table/Table";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import { Timeline } from "components/Timeline/Timeline";
 import type { FC } from "react";
@@ -49,39 +45,37 @@ export const VersionsTable: FC<VersionsTableProps> = ({
 	)?.id;
 
 	return (
-		<TableContainer>
-			<Table data-testid="versions-table">
-				<TableBody>
-					{versions ? (
-						<Timeline
-							items={[...versions].reverse()}
-							getDate={(version) => new Date(version.created_at)}
-							row={(version) => (
-								<VersionRow
-									onArchiveClick={onArchiveClick}
-									onPromoteClick={onPromoteClick}
-									version={version}
-									key={version.id}
-									isActive={activeVersionId === version.id}
-									isLatest={latestVersionId === version.id}
-								/>
-							)}
-						/>
-					) : (
-						<TableLoader />
-					)}
+		<Table data-testid="versions-table">
+			<TableBody>
+				{versions ? (
+					<Timeline
+						items={[...versions].reverse()}
+						getDate={(version) => new Date(version.created_at)}
+						row={(version) => (
+							<VersionRow
+								onArchiveClick={onArchiveClick}
+								onPromoteClick={onPromoteClick}
+								version={version}
+								key={version.id}
+								isActive={activeVersionId === version.id}
+								isLatest={latestVersionId === version.id}
+							/>
+						)}
+					/>
+				) : (
+					<TableLoader />
+				)}
 
-					{versions && versions.length === 0 && (
-						<TableRow>
-							<TableCell colSpan={999}>
-								<div css={{ padding: 32 }}>
-									<EmptyState message={Language.emptyMessage} />
-								</div>
-							</TableCell>
-						</TableRow>
-					)}
-				</TableBody>
-			</Table>
-		</TableContainer>
+				{versions && versions.length === 0 && (
+					<TableRow>
+						<TableCell colSpan={999}>
+							<div css={{ padding: 32 }}>
+								<EmptyState message={Language.emptyMessage} />
+							</div>
+						</TableCell>
+					</TableRow>
+				)}
+			</TableBody>
+		</Table>
 	);
 };

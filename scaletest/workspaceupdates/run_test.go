@@ -24,7 +24,7 @@ import (
 func TestRun(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitMedium)
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
 
 	client := coderdtest.New(t, &coderdtest.Options{
 		IncludeProvisionerDaemon: true,

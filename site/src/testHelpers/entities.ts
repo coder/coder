@@ -679,6 +679,7 @@ export const MockProvisionerJob: TypesGen.ProvisionerJob = {
 	status: "succeeded",
 	file_id: MockOrganization.id,
 	completed_at: "2022-05-17T17:39:01.382927298Z",
+	initiator_id: MockUserMember.id,
 	tags: {
 		scope: "organization",
 		owner: "",
@@ -4702,6 +4703,31 @@ export const MockSystemNotificationTemplates: TypesGen.NotificationTemplate[] =
 			kind: "system",
 			enabled_by_default: true,
 		},
+		{
+			id: "d4a6271c-cced-4ed0-84ad-afd02a9c7799",
+			name: "Task Idle",
+			title_template: "Task '{{.Labels.workspace}}' is idle",
+			body_template: "The task '{{.Labels.task}}' is idle and ready for input.",
+			actions:
+				'[{"url": "{{base_url}}/tasks/{{.UserUsername}}/{{.Labels.workspace}}", "label": "View task"}, {"url": "{{base_url}}/@{{.UserUsername}}/{{.Labels.workspace}}", "label": "View workspace"}]',
+			group: "Task Events",
+			method: "",
+			kind: "system",
+			enabled_by_default: true,
+		},
+		{
+			id: "bd4b7168-d05e-4e19-ad0f-3593b77aa90f",
+			name: "Task Working",
+			title_template: "Task '{{.Labels.workspace}}' is working",
+			body_template:
+				"The task '{{.Labels.task}}' transitioned to a working state.",
+			actions:
+				'[{"url": "{{base_url}}/tasks/{{.UserUsername}}/{{.Labels.workspace}}", "label": "View task"}, {"url": "{{base_url}}/@{{.UserUsername}}/{{.Labels.workspace}}", "label": "View workspace"}]',
+			group: "Task Events",
+			method: "",
+			kind: "system",
+			enabled_by_default: true,
+		},
 	];
 
 export const MockCustomNotificationTemplates: TypesGen.NotificationTemplate[] =
@@ -5002,9 +5028,11 @@ export const MockTask: TypesGen.Task = {
 	template_display_name: MockTemplate.display_name,
 	template_icon: MockTemplate.icon,
 	workspace_id: MockWorkspace.id,
+	workspace_build_number: MockWorkspaceBuild.build_number,
 	workspace_agent_id: MockWorkspaceAgent.id,
 	workspace_agent_lifecycle: MockWorkspaceAgent.lifecycle_state,
 	workspace_agent_health: MockWorkspaceAgent.health,
+	workspace_app_id: MockWorkspaceApp.id,
 	initial_prompt: "Perform some task",
 	status: "running",
 	current_state: {

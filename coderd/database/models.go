@@ -166,6 +166,51 @@ const (
 	ApiKeyScopeCoderTemplatesbuild                 APIKeyScope = "coder:templates.build"
 	ApiKeyScopeCoderTemplatesauthor                APIKeyScope = "coder:templates.author"
 	ApiKeyScopeCoderApikeysmanageSelf              APIKeyScope = "coder:apikeys.manage_self"
+	ApiKeyScopeAibridgeInterception                APIKeyScope = "aibridge_interception:*"
+	ApiKeyScopeApiKey                              APIKeyScope = "api_key:*"
+	ApiKeyScopeAssignOrgRole                       APIKeyScope = "assign_org_role:*"
+	ApiKeyScopeAssignRole                          APIKeyScope = "assign_role:*"
+	ApiKeyScopeAuditLog                            APIKeyScope = "audit_log:*"
+	ApiKeyScopeConnectionLog                       APIKeyScope = "connection_log:*"
+	ApiKeyScopeCryptoKey                           APIKeyScope = "crypto_key:*"
+	ApiKeyScopeDebugInfo                           APIKeyScope = "debug_info:*"
+	ApiKeyScopeDeploymentConfig                    APIKeyScope = "deployment_config:*"
+	ApiKeyScopeDeploymentStats                     APIKeyScope = "deployment_stats:*"
+	ApiKeyScopeFile                                APIKeyScope = "file:*"
+	ApiKeyScopeGroup                               APIKeyScope = "group:*"
+	ApiKeyScopeGroupMember                         APIKeyScope = "group_member:*"
+	ApiKeyScopeIdpsyncSettings                     APIKeyScope = "idpsync_settings:*"
+	ApiKeyScopeInboxNotification                   APIKeyScope = "inbox_notification:*"
+	ApiKeyScopeLicense                             APIKeyScope = "license:*"
+	ApiKeyScopeNotificationMessage                 APIKeyScope = "notification_message:*"
+	ApiKeyScopeNotificationPreference              APIKeyScope = "notification_preference:*"
+	ApiKeyScopeNotificationTemplate                APIKeyScope = "notification_template:*"
+	ApiKeyScopeOauth2App                           APIKeyScope = "oauth2_app:*"
+	ApiKeyScopeOauth2AppCodeToken                  APIKeyScope = "oauth2_app_code_token:*"
+	ApiKeyScopeOauth2AppSecret                     APIKeyScope = "oauth2_app_secret:*"
+	ApiKeyScopeOrganization                        APIKeyScope = "organization:*"
+	ApiKeyScopeOrganizationMember                  APIKeyScope = "organization_member:*"
+	ApiKeyScopePrebuiltWorkspace                   APIKeyScope = "prebuilt_workspace:*"
+	ApiKeyScopeProvisionerDaemon                   APIKeyScope = "provisioner_daemon:*"
+	ApiKeyScopeProvisionerJobs                     APIKeyScope = "provisioner_jobs:*"
+	ApiKeyScopeReplicas                            APIKeyScope = "replicas:*"
+	ApiKeyScopeSystem                              APIKeyScope = "system:*"
+	ApiKeyScopeTailnetCoordinator                  APIKeyScope = "tailnet_coordinator:*"
+	ApiKeyScopeTemplate                            APIKeyScope = "template:*"
+	ApiKeyScopeUsageEvent                          APIKeyScope = "usage_event:*"
+	ApiKeyScopeUser                                APIKeyScope = "user:*"
+	ApiKeyScopeUserSecret                          APIKeyScope = "user_secret:*"
+	ApiKeyScopeWebpushSubscription                 APIKeyScope = "webpush_subscription:*"
+	ApiKeyScopeWorkspace                           APIKeyScope = "workspace:*"
+	ApiKeyScopeWorkspaceAgentDevcontainers         APIKeyScope = "workspace_agent_devcontainers:*"
+	ApiKeyScopeWorkspaceAgentResourceMonitor       APIKeyScope = "workspace_agent_resource_monitor:*"
+	ApiKeyScopeWorkspaceDormant                    APIKeyScope = "workspace_dormant:*"
+	ApiKeyScopeWorkspaceProxy                      APIKeyScope = "workspace_proxy:*"
+	ApiKeyScopeTaskCreate                          APIKeyScope = "task:create"
+	ApiKeyScopeTaskRead                            APIKeyScope = "task:read"
+	ApiKeyScopeTaskUpdate                          APIKeyScope = "task:update"
+	ApiKeyScopeTaskDelete                          APIKeyScope = "task:delete"
+	ApiKeyScopeTask                                APIKeyScope = "task:*"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -351,7 +396,52 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeCoderWorkspacesaccess,
 		ApiKeyScopeCoderTemplatesbuild,
 		ApiKeyScopeCoderTemplatesauthor,
-		ApiKeyScopeCoderApikeysmanageSelf:
+		ApiKeyScopeCoderApikeysmanageSelf,
+		ApiKeyScopeAibridgeInterception,
+		ApiKeyScopeApiKey,
+		ApiKeyScopeAssignOrgRole,
+		ApiKeyScopeAssignRole,
+		ApiKeyScopeAuditLog,
+		ApiKeyScopeConnectionLog,
+		ApiKeyScopeCryptoKey,
+		ApiKeyScopeDebugInfo,
+		ApiKeyScopeDeploymentConfig,
+		ApiKeyScopeDeploymentStats,
+		ApiKeyScopeFile,
+		ApiKeyScopeGroup,
+		ApiKeyScopeGroupMember,
+		ApiKeyScopeIdpsyncSettings,
+		ApiKeyScopeInboxNotification,
+		ApiKeyScopeLicense,
+		ApiKeyScopeNotificationMessage,
+		ApiKeyScopeNotificationPreference,
+		ApiKeyScopeNotificationTemplate,
+		ApiKeyScopeOauth2App,
+		ApiKeyScopeOauth2AppCodeToken,
+		ApiKeyScopeOauth2AppSecret,
+		ApiKeyScopeOrganization,
+		ApiKeyScopeOrganizationMember,
+		ApiKeyScopePrebuiltWorkspace,
+		ApiKeyScopeProvisionerDaemon,
+		ApiKeyScopeProvisionerJobs,
+		ApiKeyScopeReplicas,
+		ApiKeyScopeSystem,
+		ApiKeyScopeTailnetCoordinator,
+		ApiKeyScopeTemplate,
+		ApiKeyScopeUsageEvent,
+		ApiKeyScopeUser,
+		ApiKeyScopeUserSecret,
+		ApiKeyScopeWebpushSubscription,
+		ApiKeyScopeWorkspace,
+		ApiKeyScopeWorkspaceAgentDevcontainers,
+		ApiKeyScopeWorkspaceAgentResourceMonitor,
+		ApiKeyScopeWorkspaceDormant,
+		ApiKeyScopeWorkspaceProxy,
+		ApiKeyScopeTaskCreate,
+		ApiKeyScopeTaskRead,
+		ApiKeyScopeTaskUpdate,
+		ApiKeyScopeTaskDelete,
+		ApiKeyScopeTask:
 		return true
 	}
 	return false
@@ -506,6 +596,51 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeCoderTemplatesbuild,
 		ApiKeyScopeCoderTemplatesauthor,
 		ApiKeyScopeCoderApikeysmanageSelf,
+		ApiKeyScopeAibridgeInterception,
+		ApiKeyScopeApiKey,
+		ApiKeyScopeAssignOrgRole,
+		ApiKeyScopeAssignRole,
+		ApiKeyScopeAuditLog,
+		ApiKeyScopeConnectionLog,
+		ApiKeyScopeCryptoKey,
+		ApiKeyScopeDebugInfo,
+		ApiKeyScopeDeploymentConfig,
+		ApiKeyScopeDeploymentStats,
+		ApiKeyScopeFile,
+		ApiKeyScopeGroup,
+		ApiKeyScopeGroupMember,
+		ApiKeyScopeIdpsyncSettings,
+		ApiKeyScopeInboxNotification,
+		ApiKeyScopeLicense,
+		ApiKeyScopeNotificationMessage,
+		ApiKeyScopeNotificationPreference,
+		ApiKeyScopeNotificationTemplate,
+		ApiKeyScopeOauth2App,
+		ApiKeyScopeOauth2AppCodeToken,
+		ApiKeyScopeOauth2AppSecret,
+		ApiKeyScopeOrganization,
+		ApiKeyScopeOrganizationMember,
+		ApiKeyScopePrebuiltWorkspace,
+		ApiKeyScopeProvisionerDaemon,
+		ApiKeyScopeProvisionerJobs,
+		ApiKeyScopeReplicas,
+		ApiKeyScopeSystem,
+		ApiKeyScopeTailnetCoordinator,
+		ApiKeyScopeTemplate,
+		ApiKeyScopeUsageEvent,
+		ApiKeyScopeUser,
+		ApiKeyScopeUserSecret,
+		ApiKeyScopeWebpushSubscription,
+		ApiKeyScopeWorkspace,
+		ApiKeyScopeWorkspaceAgentDevcontainers,
+		ApiKeyScopeWorkspaceAgentResourceMonitor,
+		ApiKeyScopeWorkspaceDormant,
+		ApiKeyScopeWorkspaceProxy,
+		ApiKeyScopeTaskCreate,
+		ApiKeyScopeTaskRead,
+		ApiKeyScopeTaskUpdate,
+		ApiKeyScopeTaskDelete,
+		ApiKeyScopeTask,
 	}
 }
 
@@ -2535,6 +2670,7 @@ const (
 	ResourceTypeWorkspaceAgent              ResourceType = "workspace_agent"
 	ResourceTypeWorkspaceApp                ResourceType = "workspace_app"
 	ResourceTypePrebuildsSettings           ResourceType = "prebuilds_settings"
+	ResourceTypeTask                        ResourceType = "task"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -2598,7 +2734,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeIdpSyncSettingsRole,
 		ResourceTypeWorkspaceAgent,
 		ResourceTypeWorkspaceApp,
-		ResourceTypePrebuildsSettings:
+		ResourceTypePrebuildsSettings,
+		ResourceTypeTask:
 		return true
 	}
 	return false
@@ -2631,6 +2768,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeWorkspaceAgent,
 		ResourceTypeWorkspaceApp,
 		ResourceTypePrebuildsSettings,
+		ResourceTypeTask,
 	}
 }
 
@@ -2747,6 +2885,76 @@ func AllTailnetStatusValues() []TailnetStatus {
 	return []TailnetStatus{
 		TailnetStatusOk,
 		TailnetStatusLost,
+	}
+}
+
+type TaskStatus string
+
+const (
+	TaskStatusPending      TaskStatus = "pending"
+	TaskStatusInitializing TaskStatus = "initializing"
+	TaskStatusActive       TaskStatus = "active"
+	TaskStatusPaused       TaskStatus = "paused"
+	TaskStatusUnknown      TaskStatus = "unknown"
+	TaskStatusError        TaskStatus = "error"
+)
+
+func (e *TaskStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TaskStatus(s)
+	case string:
+		*e = TaskStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TaskStatus: %T", src)
+	}
+	return nil
+}
+
+type NullTaskStatus struct {
+	TaskStatus TaskStatus `json:"task_status"`
+	Valid      bool       `json:"valid"` // Valid is true if TaskStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTaskStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.TaskStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TaskStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTaskStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TaskStatus), nil
+}
+
+func (e TaskStatus) Valid() bool {
+	switch e {
+	case TaskStatusPending,
+		TaskStatusInitializing,
+		TaskStatusActive,
+		TaskStatusPaused,
+		TaskStatusUnknown,
+		TaskStatusError:
+		return true
+	}
+	return false
+}
+
+func AllTaskStatusValues() []TaskStatus {
+	return []TaskStatus{
+		TaskStatusPending,
+		TaskStatusInitializing,
+		TaskStatusActive,
+		TaskStatusPaused,
+		TaskStatusUnknown,
+		TaskStatusError,
 	}
 }
 
@@ -3992,6 +4200,23 @@ type TailnetTunnel struct {
 }
 
 type Task struct {
+	ID                   uuid.UUID       `db:"id" json:"id"`
+	OrganizationID       uuid.UUID       `db:"organization_id" json:"organization_id"`
+	OwnerID              uuid.UUID       `db:"owner_id" json:"owner_id"`
+	Name                 string          `db:"name" json:"name"`
+	WorkspaceID          uuid.NullUUID   `db:"workspace_id" json:"workspace_id"`
+	TemplateVersionID    uuid.UUID       `db:"template_version_id" json:"template_version_id"`
+	TemplateParameters   json.RawMessage `db:"template_parameters" json:"template_parameters"`
+	Prompt               string          `db:"prompt" json:"prompt"`
+	CreatedAt            time.Time       `db:"created_at" json:"created_at"`
+	DeletedAt            sql.NullTime    `db:"deleted_at" json:"deleted_at"`
+	Status               TaskStatus      `db:"status" json:"status"`
+	WorkspaceBuildNumber sql.NullInt32   `db:"workspace_build_number" json:"workspace_build_number"`
+	WorkspaceAgentID     uuid.NullUUID   `db:"workspace_agent_id" json:"workspace_agent_id"`
+	WorkspaceAppID       uuid.NullUUID   `db:"workspace_app_id" json:"workspace_app_id"`
+}
+
+type TaskTable struct {
 	ID                 uuid.UUID       `db:"id" json:"id"`
 	OrganizationID     uuid.UUID       `db:"organization_id" json:"organization_id"`
 	OwnerID            uuid.UUID       `db:"owner_id" json:"owner_id"`
@@ -4005,10 +4230,10 @@ type Task struct {
 }
 
 type TaskWorkspaceApp struct {
-	TaskID           uuid.UUID `db:"task_id" json:"task_id"`
-	WorkspaceBuildID uuid.UUID `db:"workspace_build_id" json:"workspace_build_id"`
-	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
-	WorkspaceAppID   uuid.UUID `db:"workspace_app_id" json:"workspace_app_id"`
+	TaskID               uuid.UUID     `db:"task_id" json:"task_id"`
+	WorkspaceAgentID     uuid.NullUUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	WorkspaceAppID       uuid.NullUUID `db:"workspace_app_id" json:"workspace_app_id"`
+	WorkspaceBuildNumber int32         `db:"workspace_build_number" json:"workspace_build_number"`
 }
 
 type TelemetryItem struct {

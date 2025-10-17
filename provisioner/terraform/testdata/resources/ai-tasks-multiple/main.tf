@@ -11,11 +11,6 @@ data "coder_provisioner" "me" {}
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
 
-data "coder_parameter" "prompt" {
-  name = "AI Prompt"
-  type = "string"
-}
-
 resource "coder_ai_task" "a" {
   count = 1
   sidebar_app {
@@ -24,8 +19,6 @@ resource "coder_ai_task" "a" {
 }
 
 resource "coder_ai_task" "b" {
-  count = 1
-  sidebar_app {
-    id = "5ece4674-dd35-4f16-88c8-82e40e72e2fd" # fake ID to satisfy requirement, irrelevant otherwise
-  }
+  count  = 1
+  app_id = "5ece4674-dd35-4f16-88c8-82e40e72e2fd" # fake ID to satisfy requirement, irrelevant otherwise
 }

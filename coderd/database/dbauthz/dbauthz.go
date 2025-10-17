@@ -219,7 +219,9 @@ var (
 					rbac.ResourceUser.Type:             {policy.ActionRead, policy.ActionReadPersonal, policy.ActionUpdatePersonal},
 					rbac.ResourceWorkspaceDormant.Type: {policy.ActionDelete, policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceStop},
 					rbac.ResourceWorkspace.Type:        {policy.ActionDelete, policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceStart, policy.ActionWorkspaceStop, policy.ActionCreateAgent},
-					rbac.ResourceApiKey.Type:           {policy.WildcardSymbol},
+					// Provisionerd needs to read and update tasks associated with workspaces.
+					rbac.ResourceTask.Type:   {policy.ActionRead, policy.ActionUpdate},
+					rbac.ResourceApiKey.Type: {policy.WildcardSymbol},
 					// When org scoped provisioner credentials are implemented,
 					// this can be reduced to read a specific org.
 					rbac.ResourceOrganization.Type: {policy.ActionRead},
@@ -232,8 +234,8 @@ var (
 					// Provisionerd creates usage events
 					rbac.ResourceUsageEvent.Type: {policy.ActionCreate},
 				}),
-				Org:  map[string][]rbac.Permission{},
-				User: []rbac.Permission{},
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
 			},
 		}),
 		Scope: rbac.ScopeAll,
@@ -257,8 +259,8 @@ var (
 					rbac.ResourceWorkspace.Type:           {policy.ActionDelete, policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceStart, policy.ActionWorkspaceStop},
 					rbac.ResourceWorkspaceDormant.Type:    {policy.ActionDelete, policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceStop},
 				}),
-				Org:  map[string][]rbac.Permission{},
-				User: []rbac.Permission{},
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
 			},
 		}),
 		Scope: rbac.ScopeAll,
@@ -274,13 +276,14 @@ var (
 				Identifier:  rbac.RoleIdentifier{Name: "jobreaper"},
 				DisplayName: "Job Reaper Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceSystem.Type:          {policy.WildcardSymbol},
-					rbac.ResourceTemplate.Type:        {policy.ActionRead},
-					rbac.ResourceWorkspace.Type:       {policy.ActionRead, policy.ActionUpdate},
-					rbac.ResourceProvisionerJobs.Type: {policy.ActionRead, policy.ActionUpdate},
+					rbac.ResourceSystem.Type:           {policy.WildcardSymbol},
+					rbac.ResourceTemplate.Type:         {policy.ActionRead, policy.ActionUpdate},
+					rbac.ResourceWorkspace.Type:        {policy.ActionRead, policy.ActionUpdate},
+					rbac.ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionUpdate},
+					rbac.ResourceProvisionerJobs.Type:  {policy.ActionRead, policy.ActionUpdate},
 				}),
-				Org:  map[string][]rbac.Permission{},
-				User: []rbac.Permission{},
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
 			},
 		}),
 		Scope: rbac.ScopeAll,
@@ -298,8 +301,8 @@ var (
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceCryptoKey.Type: {policy.WildcardSymbol},
 				}),
-				Org:  map[string][]rbac.Permission{},
-				User: []rbac.Permission{},
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
 			},
 		}),
 		Scope: rbac.ScopeAll,
@@ -317,8 +320,8 @@ var (
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceCryptoKey.Type: {policy.WildcardSymbol},
 				}),
-				Org:  map[string][]rbac.Permission{},
-				User: []rbac.Permission{},
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
 			},
 		}),
 		Scope: rbac.ScopeAll,
@@ -335,8 +338,8 @@ var (
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceConnectionLog.Type: {policy.ActionUpdate, policy.ActionRead},
 				}),
-				Org:  map[string][]rbac.Permission{},
-				User: []rbac.Permission{},
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
 			},
 		}),
 		Scope: rbac.ScopeAll,
@@ -356,8 +359,8 @@ var (
 					rbac.ResourceWebpushSubscription.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceDeploymentConfig.Type:    {policy.ActionRead, policy.ActionUpdate}, // To read and upsert VAPID keys
 				}),
-				Org:  map[string][]rbac.Permission{},
-				User: []rbac.Permission{},
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
 			},
 		}),
 		Scope: rbac.ScopeAll,
@@ -375,8 +378,8 @@ var (
 					// The workspace monitor needs to be able to update monitors
 					rbac.ResourceWorkspaceAgentResourceMonitor.Type: {policy.ActionUpdate},
 				}),
-				Org:  map[string][]rbac.Permission{},
-				User: []rbac.Permission{},
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
 			},
 		}),
 		Scope: rbac.ScopeAll,
@@ -392,12 +395,12 @@ var (
 					Identifier:  rbac.RoleIdentifier{Name: "subagentapi"},
 					DisplayName: "Sub Agent API",
 					Site:        []rbac.Permission{},
-					Org: map[string][]rbac.Permission{
-						orgID.String(): {},
-					},
 					User: rbac.Permissions(map[string][]policy.Action{
 						rbac.ResourceWorkspace.Type: {policy.ActionRead, policy.ActionUpdate, policy.ActionCreateAgent, policy.ActionDeleteAgent},
 					}),
+					ByOrgID: map[string]rbac.OrgPermissions{
+						orgID.String(): {},
+					},
 				},
 			}),
 			Scope: rbac.ScopeAll,
@@ -436,8 +439,8 @@ var (
 					rbac.ResourceOauth2App.Type:              {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceOauth2AppSecret.Type:        {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 				}),
-				Org:  map[string][]rbac.Permission{},
-				User: []rbac.Permission{},
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
 			},
 		}),
 		Scope: rbac.ScopeAll,
@@ -454,8 +457,8 @@ var (
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceProvisionerDaemon.Type: {policy.ActionRead},
 				}),
-				Org:  map[string][]rbac.Permission{},
-				User: []rbac.Permission{},
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
 			},
 		}),
 		Scope: rbac.ScopeAll,
@@ -531,8 +534,8 @@ var (
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceFile.Type: {policy.ActionRead},
 				}),
-				Org:  map[string][]rbac.Permission{},
-				User: []rbac.Permission{},
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
 			},
 		}),
 		Scope: rbac.ScopeAll,
@@ -552,8 +555,8 @@ var (
 					// reads/processes them.
 					rbac.ResourceUsageEvent.Type: {policy.ActionRead, policy.ActionUpdate},
 				}),
-				Org:  map[string][]rbac.Permission{},
-				User: []rbac.Permission{},
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
 			},
 		}),
 		Scope: rbac.ScopeAll,
@@ -576,8 +579,8 @@ var (
 					rbac.ResourceApiKey.Type:               {policy.ActionRead}, // Validate API keys.
 					rbac.ResourceAibridgeInterception.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
 				}),
-				Org:  map[string][]rbac.Permission{},
-				User: []rbac.Permission{},
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
 			},
 		}),
 		Scope: rbac.ScopeAll,
@@ -1253,13 +1256,13 @@ func (q *querier) customRoleCheck(ctx context.Context, role database.CustomRole)
 		return xerrors.Errorf("invalid role: %w", err)
 	}
 
-	if len(rbacRole.Org) > 0 && len(rbacRole.Site) > 0 {
+	if len(rbacRole.ByOrgID) > 0 && len(rbacRole.Site) > 0 {
 		// This is a choice to keep roles simple. If we allow mixing site and org scoped perms, then knowing who can
 		// do what gets more complicated.
 		return xerrors.Errorf("invalid custom role, cannot assign both org and site permissions at the same time")
 	}
 
-	if len(rbacRole.Org) > 1 {
+	if len(rbacRole.ByOrgID) > 1 {
 		// Again to avoid more complexity in our roles
 		return xerrors.Errorf("invalid custom role, cannot assign permissions to more than 1 org at a time")
 	}
@@ -1272,8 +1275,8 @@ func (q *querier) customRoleCheck(ctx context.Context, role database.CustomRole)
 		}
 	}
 
-	for orgID, perms := range rbacRole.Org {
-		for _, orgPerm := range perms {
+	for orgID, perms := range rbacRole.ByOrgID {
+		for _, orgPerm := range perms.Org {
 			err := q.customRoleEscalationCheck(ctx, act, orgPerm, rbac.Object{OrgID: orgID, Type: orgPerm.ResourceType})
 			if err != nil {
 				return xerrors.Errorf("org=%q: %w", orgID, err)
@@ -1691,6 +1694,7 @@ func (q *querier) DeleteOrganizationMember(ctx context.Context, arg database.Del
 			OrganizationID: arg.OrganizationID,
 			UserID:         arg.UserID,
 			IncludeSystem:  false,
+			GithubUserID:   0,
 		}))
 		if err != nil {
 			return database.OrganizationMember{}, err
@@ -2879,6 +2883,14 @@ func (q *querier) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUID) 
 		return nil, err
 	}
 	return q.db.GetTailnetTunnelPeerIDs(ctx, srcID)
+}
+
+func (q *querier) GetTaskByID(ctx context.Context, id uuid.UUID) (database.Task, error) {
+	return fetch(q.log, q.auth, q.db.GetTaskByID)(ctx, id)
+}
+
+func (q *querier) GetTaskByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.Task, error) {
+	return fetch(q.log, q.auth, q.db.GetTaskByWorkspaceID)(ctx, workspaceID)
 }
 
 func (q *querier) GetTelemetryItem(ctx context.Context, key string) (database.TelemetryItem, error) {
@@ -4106,6 +4118,17 @@ func (q *querier) InsertReplica(ctx context.Context, arg database.InsertReplicaP
 	return q.db.InsertReplica(ctx, arg)
 }
 
+func (q *querier) InsertTask(ctx context.Context, arg database.InsertTaskParams) (database.TaskTable, error) {
+	// Ensure the actor can access the specified template version (and thus its template).
+	if _, err := q.GetTemplateVersionByID(ctx, arg.TemplateVersionID); err != nil {
+		return database.TaskTable{}, err
+	}
+
+	obj := rbac.ResourceTask.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID)
+
+	return insert(q.log, q.auth, obj, q.db.InsertTask)(ctx, arg)
+}
+
 func (q *querier) InsertTelemetryItemIfNotExists(ctx context.Context, arg database.InsertTelemetryItemIfNotExistsParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
 		return err
@@ -4462,6 +4485,11 @@ func (q *querier) ListProvisionerKeysByOrganizationExcludeReserved(ctx context.C
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.ListProvisionerKeysByOrganizationExcludeReserved)(ctx, organizationID)
 }
 
+func (q *querier) ListTasks(ctx context.Context, arg database.ListTasksParams) ([]database.Task, error) {
+	// TODO(Cian): replace this with a sql filter for improved performance. https://github.com/coder/internal/issues/1061
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.ListTasks)(ctx, arg)
+}
+
 func (q *querier) ListUserSecrets(ctx context.Context, userID uuid.UUID) ([]database.UserSecret, error) {
 	obj := rbac.ResourceUserSecret.WithOwner(userID.String())
 	if err := q.authorizeContext(ctx, policy.ActionRead, obj); err != nil {
@@ -4694,6 +4722,7 @@ func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemb
 		OrganizationID: arg.OrgID,
 		UserID:         arg.UserID,
 		IncludeSystem:  false,
+		GithubUserID:   0,
 	}))
 	if err != nil {
 		return database.OrganizationMember{}, err
@@ -5661,6 +5690,18 @@ func (q *querier) UpsertTailnetTunnel(ctx context.Context, arg database.UpsertTa
 		return database.TailnetTunnel{}, err
 	}
 	return q.db.UpsertTailnetTunnel(ctx, arg)
+}
+
+func (q *querier) UpsertTaskWorkspaceApp(ctx context.Context, arg database.UpsertTaskWorkspaceAppParams) (database.TaskWorkspaceApp, error) {
+	// Fetch the task to derive the RBAC object and authorize update on it.
+	task, err := q.db.GetTaskByID(ctx, arg.TaskID)
+	if err != nil {
+		return database.TaskWorkspaceApp{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, task); err != nil {
+		return database.TaskWorkspaceApp{}, err
+	}
+	return q.db.UpsertTaskWorkspaceApp(ctx, arg)
 }
 
 func (q *querier) UpsertTelemetryItem(ctx context.Context, arg database.UpsertTelemetryItemParams) error {

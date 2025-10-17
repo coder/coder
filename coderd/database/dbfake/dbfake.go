@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/wspubsub"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 )
@@ -55,6 +56,7 @@ type WorkspaceBuildBuilder struct {
 	params     []database.WorkspaceBuildParameter
 	agentToken string
 	dispo      workspaceBuildDisposition
+	taskAppID  uuid.UUID
 }
 
 type workspaceBuildDisposition struct {
@@ -117,6 +119,27 @@ func (b WorkspaceBuildBuilder) WithAgent(mutations ...func([]*sdkproto.Agent) []
 	return b
 }
 
+func (b WorkspaceBuildBuilder) WithTask(seed *sdkproto.App) WorkspaceBuildBuilder {
+	//nolint: revive // returns modified struct
+	b.taskAppID = uuid.New()
+	if seed == nil {
+		seed = &sdkproto.App{}
+	}
+	return b.Params(database.WorkspaceBuildParameter{
+		Name:  codersdk.AITaskPromptParameterName,
+		Value: "list me",
+	}).WithAgent(func(a []*sdkproto.Agent) []*sdkproto.Agent {
+		a[0].Apps = []*sdkproto.App{
+			{
+				Id:   takeFirst(seed.Id, b.taskAppID.String()),
+				Slug: takeFirst(seed.Slug, "vcode"),
+				Url:  takeFirst(seed.Url, ""),
+			},
+		}
+		return a
+	})
+}
+
 func (b WorkspaceBuildBuilder) Starting() WorkspaceBuildBuilder {
 	//nolint: revive // returns modified struct
 	b.dispo.starting = true
@@ -133,6 +156,14 @@ func (b WorkspaceBuildBuilder) Do() WorkspaceResponse {
 	jobID := uuid.New()
 	b.seed.ID = uuid.New()
 	b.seed.JobID = jobID
+
+	if b.taskAppID != uuid.Nil {
+		b.seed.HasAITask = sql.NullBool{
+			Bool:  true,
+			Valid: true,
+		}
+		b.seed.AITaskSidebarAppID = uuid.NullUUID{UUID: b.taskAppID, Valid: true}
+	}
 
 	resp := WorkspaceResponse{
 		AgentToken: b.agentToken,

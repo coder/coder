@@ -693,13 +693,13 @@ func SlimRoleFromName(name string) codersdk.SlimRole {
 func RBACRole(role rbac.Role) codersdk.Role {
 	slim := SlimRole(role)
 
-	orgPerms := role.Org[slim.OrganizationID]
+	orgPerms := role.ByOrgID[slim.OrganizationID]
 	return codersdk.Role{
 		Name:                    slim.Name,
 		OrganizationID:          slim.OrganizationID,
 		DisplayName:             slim.DisplayName,
 		SitePermissions:         List(role.Site, RBACPermission),
-		OrganizationPermissions: List(orgPerms, RBACPermission),
+		OrganizationPermissions: List(orgPerms.Org, RBACPermission),
 		UserPermissions:         List(role.User, RBACPermission),
 	}
 }

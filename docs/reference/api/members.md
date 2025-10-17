@@ -213,6 +213,7 @@ Status Code **200**
 | `resource_type` | `replicas`                         |
 | `resource_type` | `system`                           |
 | `resource_type` | `tailnet_coordinator`              |
+| `resource_type` | `task`                             |
 | `resource_type` | `template`                         |
 | `resource_type` | `usage_event`                      |
 | `resource_type` | `user`                             |
@@ -386,6 +387,7 @@ Status Code **200**
 | `resource_type` | `replicas`                         |
 | `resource_type` | `system`                           |
 | `resource_type` | `tailnet_coordinator`              |
+| `resource_type` | `task`                             |
 | `resource_type` | `template`                         |
 | `resource_type` | `usage_event`                      |
 | `resource_type` | `user`                             |
@@ -559,6 +561,7 @@ Status Code **200**
 | `resource_type` | `replicas`                         |
 | `resource_type` | `system`                           |
 | `resource_type` | `tailnet_coordinator`              |
+| `resource_type` | `task`                             |
 | `resource_type` | `template`                         |
 | `resource_type` | `usage_event`                      |
 | `resource_type` | `user`                             |
@@ -701,6 +704,7 @@ Status Code **200**
 | `resource_type` | `replicas`                         |
 | `resource_type` | `system`                           |
 | `resource_type` | `tailnet_coordinator`              |
+| `resource_type` | `task`                             |
 | `resource_type` | `template`                         |
 | `resource_type` | `usage_event`                      |
 | `resource_type` | `user`                             |
@@ -1065,6 +1069,7 @@ Status Code **200**
 | `resource_type` | `replicas`                         |
 | `resource_type` | `system`                           |
 | `resource_type` | `tailnet_coordinator`              |
+| `resource_type` | `task`                             |
 | `resource_type` | `template`                         |
 | `resource_type` | `usage_event`                      |
 | `resource_type` | `user`                             |
