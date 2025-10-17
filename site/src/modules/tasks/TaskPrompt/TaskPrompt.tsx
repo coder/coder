@@ -458,17 +458,85 @@ async function createTaskWithLatestTemplateVersion(
 	});
 }
 
-const PromptTextarea: FC<TextareaAutosizeProps> = (props) => {
+type PromptTextareaProps = TextareaAutosizeProps & {
+	isSubmitting?: boolean;
+};
+
+const PromptTextarea: FC<PromptTextareaProps> = ({
+	isSubmitting,
+	...props
+}) => {
 	return (
-		<TextareaAutosize
-			{...props}
-			required
-			id="prompt"
-			name="prompt"
-			placeholder="Prompt your AI agent to start a task..."
-			className={`border-0 px-3 py-2 resize-none w-full h-full bg-transparent rounded-lg
-						outline-none flex min-h-24 text-sm shadow-sm text-content-primary
-						placeholder:text-content-secondary md:text-sm ${props.readOnly ? "opacity-60 cursor-not-allowed" : ""}`}
-		/>
+		<div className="relative">
+			<TextareaAutosize
+				{...props}
+				required
+				id="prompt"
+				name="prompt"
+				placeholder="Prompt your AI agent to start a task..."
+				className={`border-0 px-3 py-2 resize-none w-full h-full bg-transparent rounded-lg
+							outline-none flex min-h-24 text-sm shadow-sm text-content-primary
+							placeholder:text-content-secondary md:text-sm ${props.readOnly || isSubmitting ? "opacity-60 cursor-not-allowed" : ""}`}
+			/>
+			{isSubmitting && (
+				<div className="absolute inset-0 pointer-events-none overflow-hidden">
+					<div className="caret-scanner" />
+				</div>
+			)}
+			<style>{`
+				@keyframes caretScan {
+					0%, 100% {
+						left: 0%;
+						top: 10%;
+					}
+					10% {
+						left: 70%;
+						top: 10%;
+					}
+					20% {
+						left: 30%;
+						top: 30%;
+					}
+					30% {
+						left: 90%;
+						top: 20%;
+					}
+					40% {
+						left: 20%;
+						top: 50%;
+					}
+					50% {
+						left: 80%;
+						top: 60%;
+					}
+					60% {
+						left: 40%;
+						top: 70%;
+					}
+					70% {
+						left: 60%;
+						top: 40%;
+					}
+					80% {
+						left: 10%;
+						top: 80%;
+					}
+					90% {
+						left: 50%;
+						top: 90%;
+					}
+				}
+
+				.caret-scanner {
+					position: absolute;
+					width: 12px;
+					height: 20px;
+					background-color: rgba(99, 102, 241, 0.5);
+					border: 1px solid rgb(99, 102, 241);
+					animation: caretScan 3s ease-in-out infinite;
+					border-radius: 2px;
+				}
+			`}</style>
+		</div>
 	);
 };
