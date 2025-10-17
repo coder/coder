@@ -91,7 +91,6 @@ export const EmptyTemplates: FC<EmptyTemplatesProps> = ({
 
 	return (
 		<TableEmpty
-			className="pb-0"
 			message="Create a Template"
 			description="Contact your Coder administrator to create a template. You can share the code below."
 			cta={<CodeExample secret={false} code="coder templates init" />}
