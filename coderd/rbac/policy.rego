@@ -121,7 +121,6 @@ scope_org := check_org_permissions([input.subject.scope], "org")
 # org id because the org id _might_ be unknown. In order to make sure that this
 # policy compresses down to simple queries we need to keep unknown values out of
 # comprehensions.
-# https://www.openpolicyagent.org/docs/latest/policy-language/#comprehensions
 check_all_org_permissions(roles, key) := {org_id: vote |
 	org_id := org_memberships[_]
 	allow := {is_allowed |
@@ -152,7 +151,7 @@ check_org_permissions(roles, key) := vote if {
 # This check handles the case where we want to know if the user has the
 # appropriate permission for any organization, without needing to know which.
 # This is used in several places in the UI to determine if certain parts of the
-# app should be accessable.
+# app should be accessible.
 # For example, can the user create a new template in any organization? If yes,
 # then we should show the "New template" button.
 check_org_permissions(roles, key) := vote if {
@@ -217,7 +216,10 @@ scope_org_member := num if {
 #==============================================================================#
 
 # role_allow specifies all of the conditions under which a role can grant
-# permission
+# permission. These rules intentionally use the "unification" operator rather
+# than the equality and inequality operators, because those operators do not
+# work on partial values.
+# https://www.openpolicyagent.org/docs/policy-language#unification-
 
 # Site level authorization
 role_allow if {
@@ -251,11 +253,14 @@ role_allow if {
 #==============================================================================#
 
 # scope_allow specifies all of the conditions under which a scope can grant
-# permission
+# permission. These rules intentionally use the "unification" (=) operator
+# rather than the equality (==) and inequality (!=) operators, because those
+# operators do not work on partial values.
+# https://www.openpolicyagent.org/docs/policy-language#unification-
 
 # Site level scope enforcement
 scope_allow if {
-	check_scope_allow_list
+	object_is_included_in_scope_allow_list
 	scope_site = 1
 }
 
@@ -263,7 +268,7 @@ scope_allow if {
 scope_allow if {
 	# User scope permissions must be allowed by the scope, and not denied
 	# by the site. The object *must not* be owned by an organization.
-	check_scope_allow_list
+	object_is_included_in_scope_allow_list
 	not scope_site = -1
 
 	scope_user = 1
@@ -273,7 +278,7 @@ scope_allow if {
 scope_allow if {
 	# Org member scope permissions must be allowed by the scope, and not denied
 	# by the site. The object *must* be owned by an organization.
-	check_scope_allow_list
+	object_is_included_in_scope_allow_list
 	not scope_site = -1
 
 	scope_org = 1
@@ -283,7 +288,7 @@ scope_allow if {
 scope_allow if {
 	# Org member scope permissions must be allowed by the scope, and not denied
 	# by the site or org. The object *must* be owned by an organization.
-	check_scope_allow_list
+	object_is_included_in_scope_allow_list
 	not scope_site = -1
 	not scope_org = -1
 
@@ -291,17 +296,17 @@ scope_allow if {
 }
 
 # If *.* is allowed, then all objects are in scope.
-check_scope_allow_list if {
+object_is_included_in_scope_allow_list if {
 	{"type": "*", "id": "*"} in input.subject.scope.allow_list
 }
 
 # If <type>.* is allowed, then all objects of that type are in scope.
-check_scope_allow_list if {
+object_is_included_in_scope_allow_list if {
 	{"type": input.object.type, "id": "*"} in input.subject.scope.allow_list
 }
 
 # Check if the object type and ID match one of the allow list entries.
-check_scope_allow_list if {
+object_is_included_in_scope_allow_list if {
 	# Check that the wildcard rules do not apply. This prevents partial inputs
 	# from needing to include `input.object.id`.
 	not {"type": "*", "id": "*"} in input.subject.scope.allow_list
