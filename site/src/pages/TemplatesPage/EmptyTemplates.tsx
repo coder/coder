@@ -97,23 +97,10 @@ export const EmptyTemplates: FC<EmptyTemplatesProps> = ({
 			description="Contact your Coder administrator to create a template. You can share the code below."
 			cta={<CodeExample secret={false} code="coder templates init" />}
 			image={
-				<div css={styles.emptyImage}>
+				<div className="max-w-[50%] h-80 overflow-hidden opacity-85 [&_img]:max-w-full">
 					<img src="/featured/templates.webp" alt="" />
 				</div>
 			}
 		/>
 	);
 };
-
-const styles = {
-	emptyImage: {
-		maxWidth: "50%",
-		height: 320,
-		overflow: "hidden",
-		opacity: 0.85,
-
-		"& img": {
-			maxWidth: "100%",
-		},
-	},
-} satisfies Record<string, Interpolation<Theme>>;
