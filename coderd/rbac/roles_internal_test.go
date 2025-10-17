@@ -108,7 +108,7 @@ func TestRegoInputValue(t *testing.T) {
 		t.Parallel()
 
 		// This is the input that would be passed to the rego policy.
-		jsonInput := map[string]interface{}{
+		jsonInput := map[string]any{
 			"subject": authSubject{
 				ID:     actor.ID,
 				Roles:  must(actor.Roles.Expand()),
@@ -139,7 +139,7 @@ func TestRegoInputValue(t *testing.T) {
 		t.Parallel()
 
 		// This is the input that would be passed to the rego policy.
-		jsonInput := map[string]interface{}{
+		jsonInput := map[string]any{
 			"subject": authSubject{
 				ID:     actor.ID,
 				Roles:  must(actor.Roles.Expand()),
@@ -147,7 +147,7 @@ func TestRegoInputValue(t *testing.T) {
 				Scope:  must(actor.Scope.Expand()),
 			},
 			"action": action,
-			"object": map[string]interface{}{
+			"object": map[string]any{
 				"type": obj.Type,
 			},
 		}

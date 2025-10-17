@@ -389,9 +389,7 @@ func TestAuthorizeDomain(t *testing.T) {
 		{resource: ResourceWorkspace.AnyOrganization().WithOwner(user.ID), actions: ResourceWorkspace.AvailableActions(), allow: true},
 		{resource: ResourceTemplate.AnyOrganization(), actions: []policy.Action{policy.ActionCreate}, allow: false},
 
-		// ResourceWorkspace WITHOUT an organization. Should never happen in prod. The default member role omits these
-		// permissions.
-		{resource: ResourceWorkspace.WithOwner(user.ID), actions: ResourceWorkspace.AvailableActions(), allow: false},
+		{resource: ResourceWorkspace.WithOwner(user.ID), actions: ResourceWorkspace.AvailableActions(), allow: true},
 
 		{resource: ResourceWorkspace.All(), actions: ResourceWorkspace.AvailableActions(), allow: false},
 
@@ -457,7 +455,6 @@ func TestAuthorizeDomain(t *testing.T) {
 		Scope: must(ExpandScope(ScopeAll)),
 		Roles: Roles{
 			must(RoleByName(ScopedRoleOrgAdmin(defOrg))),
-			must(RoleByName(ScopedRoleOrgMember(defOrg))),
 			must(RoleByName(RoleMember())),
 		},
 	}
@@ -472,8 +469,7 @@ func TestAuthorizeDomain(t *testing.T) {
 		{resource: ResourceWorkspace.InOrg(defOrg), actions: workspaceExceptConnect, allow: true},
 		{resource: ResourceWorkspace.InOrg(defOrg), actions: workspaceConnect, allow: false},
 
-		// Workspace is not in any organization, will never happen in prod.
-		{resource: ResourceWorkspace.WithOwner(user.ID), actions: ResourceWorkspace.AvailableActions(), allow: false},
+		{resource: ResourceWorkspace.WithOwner(user.ID), actions: ResourceWorkspace.AvailableActions(), allow: true},
 
 		{resource: ResourceWorkspace.All(), actions: ResourceWorkspace.AvailableActions(), allow: false},
 
@@ -550,8 +546,7 @@ func TestAuthorizeDomain(t *testing.T) {
 			{resource: ResourceWorkspace.InOrg(defOrg).WithOwner(user.ID), allow: true},
 			{resource: ResourceWorkspace.InOrg(defOrg), allow: false},
 
-			// Workspace with no ownership will never happen in prod.
-			{resource: ResourceWorkspace.WithOwner(user.ID), allow: false},
+			{resource: ResourceWorkspace.WithOwner(user.ID), allow: true},
 
 			{resource: ResourceWorkspace.All(), allow: false},
 
@@ -652,11 +647,7 @@ func TestAuthorizeDomain(t *testing.T) {
 							ResourceType: "*",
 							Action:       policy.ActionRead,
 						}},
-						Member: []Permission{{
-							Negate:       false,
-							ResourceType: "*",
-							Action:       policy.ActionRead,
-						}},
+						Member: []Permission{},
 					},
 				},
 			},
@@ -747,6 +738,7 @@ func TestAuthorizeLevels(t *testing.T) {
 								Action:       "*",
 							},
 						},
+						Member: []Permission{},
 					},
 				},
 			},
@@ -1160,9 +1152,7 @@ func TestAuthorizeScope(t *testing.T) {
 						Org: Permissions(map[string][]policy.Action{
 							ResourceWorkspace.Type: {policy.ActionRead},
 						}),
-						Member: Permissions(map[string][]policy.Action{
-							ResourceWorkspace.Type: {policy.ActionRead},
-						}),
+						Member: []Permission{},
 					},
 				},
 			},
@@ -1329,9 +1319,9 @@ type authTestCase struct {
 func testAuthorize(t *testing.T, name string, subject Subject, sets ...[]authTestCase) {
 	t.Helper()
 	authorizer := NewAuthorizer(prometheus.NewRegistry())
-	for si, cases := range sets {
+	for _, cases := range sets {
 		for i, c := range cases {
-			caseName := fmt.Sprintf("%s/%d-%d", name, si, i)
+			caseName := fmt.Sprintf("%s/%d", name, i)
 			t.Run(caseName, func(t *testing.T) {
 				t.Parallel()
 				for _, a := range c.actions {
@@ -1340,7 +1330,7 @@ func testAuthorize(t *testing.T, name string, subject Subject, sets ...[]authTes
 
 					authError := authorizer.Authorize(ctx, subject, a, c.resource)
 
-					d, _ := json.Marshal(map[string]any{
+					d, _ := json.Marshal(map[string]interface{}{
 						// This is not perfect marshal, but it is good enough for debugging this test.
 						"subject": authSubject{
 							ID:     subject.ID,
