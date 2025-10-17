@@ -1,5 +1,9 @@
 # Rego authorization policy
 
+## Code style
+
+It's a good idea to consult the [Rego style guide](https://docs.styra.com/opa/rego-style-guide). The "Variables and Data Types" section in particular has some helpful and non-obvious advice in it.
+
 ## Debugging
 
 Open Policy Agent provides a CLI and a playground that can be used for evaluating, formatting, testing, and linting policies.

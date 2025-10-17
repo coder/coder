@@ -56,7 +56,7 @@ scope_user := check_user_permissions([input.subject.scope])
 
 check_user_permissions(roles) := vote if {
 	# The object must be owned by the subject.
-	input.subject.id = input.object.owner
+	input.subject.id == input.object.owner
 
 	allow := {is_allowed |
 		# Iterate over all user permissions in all roles, and check which ones match
@@ -198,26 +198,26 @@ org_ok if {
 
 # Site level authorization
 role_allow if {
-	site = 1
+	site == 1
 }
 
 # User level authorization
 role_allow if {
-	not site = -1
-	not org = -1
+	site != -1
+	org != -1
 
 	# If we are not a member of an org, and the object has an org, then we are
 	# not authorized. This is an "implied -1" for not being in the org.
 	org_ok
 
-	user = 1
+	user == 1
 }
 
 # Org level authorization
 role_allow if {
-	not site = -1
+	site != -1
 
-	org = 1
+	org == 1
 }
 
 #==============================================================================#
@@ -229,47 +229,47 @@ role_allow if {
 
 # Site level scope enforcement
 scope_allow if {
-	check_scope_allow_list
-	scope_site = 1
+	object_is_included_in_scope_allow_list
+	scope_site == 1
 }
 
 # User level scope enforcement
 scope_allow if {
 	# User scope permissions must be allowed by the scope, and not denied
 	# by the site. The object *must not* be owned by an organization.
-	check_scope_allow_list
-	not scope_site = -1
-	not org = -1
+	object_is_included_in_scope_allow_list
+	scope_site != -1
+	org != -1
 
 	# If we are not a member of an org, and the object has an org, then we are
 	# not authorized. This is an "implied -1" for not being in the org.
 	org_ok
 
-	scope_user = 1
+	scope_user == 1
 }
 
 # Org level scope enforcement
 scope_allow if {
 	# Org member scope permissions must be allowed by the scope, and not denied
 	# by the site. The object *must* be owned by an organization.
-	check_scope_allow_list
-	not scope_site = -1
+	object_is_included_in_scope_allow_list
+	scope_site != -1
 
-	scope_org = 1
+	scope_org == 1
 }
 
 # If *.* is allowed, then all objects are in scope.
-check_scope_allow_list if {
+object_is_included_in_scope_allow_list if {
 	{"type": "*", "id": "*"} in input.subject.scope.allow_list
 }
 
 # If <type>.* is allowed, then all objects of that type are in scope.
-check_scope_allow_list if {
+object_is_included_in_scope_allow_list if {
 	{"type": input.object.type, "id": "*"} in input.subject.scope.allow_list
 }
 
 # Check if the object type and ID match one of the allow list entries.
-check_scope_allow_list if {
+object_is_included_in_scope_allow_list if {
 	# Check that the wildcard rules do not apply. This prevents partial inputs
 	# from needing to include `input.object.id`.
 	not {"type": "*", "id": "*"} in input.subject.scope.allow_list
