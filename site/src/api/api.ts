@@ -2755,7 +2755,7 @@ class ExperimentalApiMethods {
 				"/api/experimental/aibridge/interceptions",
 			);
 		return response.data;
-  };
+	};
 }
 
 // This is a hard coded CSRF token/cookie pair for local development. In prod,
