@@ -984,7 +984,7 @@ func DefaultSupportLinks(docsURL string) []LinkConfig {
 		},
 		{
 			Name:     "Join the Coder Discord",
-			Target:   "https://coder.com/chat?utm_source=coder&utm_medium=coder&utm_campaign=server-footer",
+			Target:   "https://discord.gg/coder",
 			Icon:     "chat",
 			Location: "navbar",
 		},
