@@ -464,20 +464,121 @@ type PromptTextareaProps = TextareaAutosizeProps & {
 
 const PromptTextarea: FC<PromptTextareaProps> = ({
 	isSubmitting,
+	value,
+	onChange,
 	...props
 }) => {
+	const [step1, setStep1] = useState("");
+	const [step2, setStep2] = useState("");
+	const [step3, setStep3] = useState("");
+
+	// When value changes from parent (e.g., reset), update steps
+	useEffect(() => {
+		if (value === "") {
+			setStep1("");
+			setStep2("");
+			setStep3("");
+		} else if (typeof value === "string" && value !== step1 + step2 + step3) {
+			// If value is set from parent (e.g., preset), put it all in step1
+			setStep1(value);
+			setStep2("");
+			setStep3("");
+		}
+	}, [value, step1, step2, step3]);
+
+	// Combine steps and call parent onChange
+	const handleStepChange = (stepNumber: number, newValue: string): void => {
+		const newStep1 = stepNumber === 1 ? newValue : step1;
+		const newStep2 = stepNumber === 2 ? newValue : step2;
+		const newStep3 = stepNumber === 3 ? newValue : step3;
+
+		setStep1(newStep1);
+		setStep2(newStep2);
+		setStep3(newStep3);
+
+		// Combine all steps with double newlines between non-empty steps
+		const parts = [newStep1, newStep2, newStep3].filter((s) => s.trim());
+		const combined = parts.join("\n\n");
+
+		// Call parent onChange with synthetic event
+		if (onChange) {
+			const syntheticEvent = {
+				target: { value: combined, name: "prompt" },
+			} as React.ChangeEvent<HTMLTextAreaElement>;
+			onChange(syntheticEvent);
+		}
+	};
+
+	const isReadOnly = props.readOnly || isSubmitting;
+
 	return (
 		<div className="relative">
-			<TextareaAutosize
-				{...props}
-				required
-				id="prompt"
-				name="prompt"
-				placeholder="Prompt your AI agent to start a task..."
-				className={`border-0 px-3 py-2 resize-none w-full h-full bg-transparent rounded-lg
-							outline-none flex min-h-24 text-sm shadow-sm text-content-primary
-							placeholder:text-content-secondary md:text-sm ${props.readOnly || isSubmitting ? "opacity-60 cursor-not-allowed" : ""}`}
-			/>
+			<div className="flex flex-col gap-3">
+				{/* Step 1: What needs solving */}
+				<div className="flex flex-col gap-1">
+					<label
+						htmlFor="prompt-step1"
+						className="text-xs font-medium text-content-secondary px-3"
+					>
+						Step 1: What needs solving?
+					</label>
+					<TextareaAutosize
+						{...props}
+						required
+						id="prompt-step1"
+						name="prompt-step1"
+						value={step1}
+						onChange={(e) => handleStepChange(1, e.target.value)}
+						placeholder="Describe the problem or task that needs to be addressed..."
+						aria-label="prompt"
+						className={`border-0 px-3 py-2 resize-none w-full bg-transparent rounded-lg
+									outline-none flex min-h-16 text-sm shadow-sm text-content-primary
+									placeholder:text-content-secondary md:text-sm ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
+					/>
+				</div>
+
+				{/* Step 2: Expected output */}
+				<div className="flex flex-col gap-1">
+					<label
+						htmlFor="prompt-step2"
+						className="text-xs font-medium text-content-secondary px-3"
+					>
+						Step 2: What should the agent deliver?
+					</label>
+					<TextareaAutosize
+						{...props}
+						id="prompt-step2"
+						name="prompt-step2"
+						value={step2}
+						onChange={(e) => handleStepChange(2, e.target.value)}
+						placeholder="Specify the expected output, deliverables, or results..."
+						className={`border-0 px-3 py-2 resize-none w-full bg-transparent rounded-lg
+									outline-none flex min-h-16 text-sm shadow-sm text-content-primary
+									placeholder:text-content-secondary md:text-sm ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
+					/>
+				</div>
+
+				{/* Step 3: Optional context */}
+				<div className="flex flex-col gap-1">
+					<label
+						htmlFor="prompt-step3"
+						className="text-xs font-medium text-content-secondary px-3"
+					>
+						Step 3: Additional context (optional)
+					</label>
+					<TextareaAutosize
+						{...props}
+						id="prompt-step3"
+						name="prompt-step3"
+						value={step3}
+						onChange={(e) => handleStepChange(3, e.target.value)}
+						placeholder="Any extra context, constraints, or preferences..."
+						className={`border-0 px-3 py-2 resize-none w-full bg-transparent rounded-lg
+									outline-none flex min-h-16 text-sm shadow-sm text-content-primary
+									placeholder:text-content-secondary md:text-sm ${isReadOnly ? "opacity-60 cursor-not-allowed" : ""}`}
+					/>
+				</div>
+			</div>
 			{isSubmitting && (
 				<div className="absolute inset-0 pointer-events-none overflow-hidden">
 					<div
