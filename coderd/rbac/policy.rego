@@ -194,30 +194,33 @@ check_user_permissions(roles) := vote if {
 #==============================================================================#
 
 # role_allow specifies all of the conditions under which a role can grant
-# permission
+# permission. These rules intentionally use the "unification" operator rather
+# than the equality and inequality operators, because those operators do not
+# work on partial values.
+# https://www.openpolicyagent.org/docs/policy-language#unification-
 
 # Site level authorization
 role_allow if {
-	site == 1
+	site = 1
 }
 
 # Org level authorization
 role_allow if {
-	site != -1
+	not site = -1
 
-	org == 1
+	org = 1
 }
 
 # User level authorization
 role_allow if {
-	site != -1
-	org != -1
+	not site = -1
+	not org = -1
 
 	# If we are not a member of an org, and the object has an org, then we are
 	# not authorized. This is an "implied -1" for not being in the org.
 	org_ok
 
-	user == 1
+	user = 1
 }
 
 #==============================================================================#
@@ -225,12 +228,15 @@ role_allow if {
 #==============================================================================#
 
 # scope_allow specifies all of the conditions under which a scope can grant
-# permission
+# permission. These rules intentionally use the "unification" (=) operator
+# rather than the equality (==) and inequality (!=) operators, because those
+# operators do not work on partial values.
+# https://www.openpolicyagent.org/docs/policy-language#unification-
 
 # Site level scope enforcement
 scope_allow if {
 	object_is_included_in_scope_allow_list
-	scope_site == 1
+	scope_site = 1
 }
 
 # Org level scope enforcement
@@ -238,9 +244,9 @@ scope_allow if {
 	# Org member scope permissions must be allowed by the scope, and not denied
 	# by the site. The object *must* be owned by an organization.
 	object_is_included_in_scope_allow_list
-	scope_site != -1
+	not scope_site = -1
 
-	scope_org == 1
+	scope_org = 1
 }
 
 # User level scope enforcement
@@ -248,14 +254,14 @@ scope_allow if {
 	# User scope permissions must be allowed by the scope, and not denied
 	# by the site. The object *must not* be owned by an organization.
 	object_is_included_in_scope_allow_list
-	scope_site != -1
-	org != -1
+	not scope_site = -1
+	not org = -1
 
 	# If we are not a member of an org, and the object has an org, then we are
 	# not authorized. This is an "implied -1" for not being in the org.
 	org_ok
 
-	scope_user == 1
+	scope_user = 1
 }
 
 # If *.* is allowed, then all objects are in scope.
