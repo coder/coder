@@ -19,16 +19,16 @@ const (
 // to track propagation of status changes through the graph and a pub-sub mechanism to notify units
 // when their dependencies are updated such that they can update their own status accordingly.
 type DependencyCoordinator struct {
-	*Graph[Status, *Unit]
+	graph *Graph[Status, *Unit]
 	// TODO(sas): implement pub-sub mechanism to notify units when their dependencies are updated
 }
 
-func (g *DependencyCoordinator) AddEdge(from, to *Unit, edge Status) {
-	g.Graph.AddEdge(from, to, edge)
+func (g *DependencyCoordinator) AddDependency(from, to *Unit, edge Status) error {
+	return g.graph.AddEdge(from, to, edge)
 }
 
 type DependencyEdge = Edge[Status, *Unit]
 
 func NewDependencyCoordinator() *DependencyCoordinator {
-	return &DependencyCoordinator{Graph: &Graph[Status, *Unit]{}}
+	return &DependencyCoordinator{graph: &Graph[Status, *Unit]{}}
 }
