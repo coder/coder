@@ -6709,7 +6709,7 @@ func TestTasksWithStatusView(t *testing.T) {
 		buildTransition database.WorkspaceTransition,
 		agentState database.WorkspaceAgentLifecycleState,
 		appHealths []database.WorkspaceAppHealth,
-	) database.TaskTable {
+	) database.Task {
 		t.Helper()
 
 		template := dbgen.Template(t, db, database.Template{
@@ -7455,7 +7455,7 @@ func TestListTasks(t *testing.T) {
 	})
 
 	// Helper function to create a task
-	createTask := func(orgID, ownerID uuid.UUID) database.TaskTable {
+	createTask := func(orgID, ownerID uuid.UUID) database.Task {
 		ws := dbgen.Workspace(t, db, database.WorkspaceTable{
 			OrganizationID: orgID,
 			OwnerID:        ownerID,

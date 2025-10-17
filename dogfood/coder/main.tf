@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 2.9"
+      version = "= 2.12.0-pre0"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -269,6 +269,13 @@ data "coder_workspace_tags" "tags" {
   }
 }
 
+data "coder_workspace_tags" "prebuild" {
+  count = data.coder_workspace_owner.me.name == "prebuilds" ? 1 : 0
+  tags = {
+    "is_prebuild" = "true"
+  }
+}
+
 data "coder_parameter" "ide_choices" {
   type        = "list(string)"
   name        = "Select IDEs"
@@ -472,8 +479,8 @@ resource "coder_agent" "dev" {
   dir  = local.repo_dir
   env = {
     OIDC_TOKEN : data.coder_workspace_owner.me.oidc_access_token,
+    # To Enable AI Bridge integration
     ANTHROPIC_BASE_URL : "https://dev.coder.com/api/experimental/aibridge/anthropic",
-    ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token
   }
   startup_script_behavior = "blocking"
 
@@ -848,7 +855,7 @@ module "claude-code" {
   workdir             = local.repo_dir
   claude_code_version = "latest"
   order               = 999
-  claude_api_key      = data.coder_workspace_owner.me.session_token
+  claude_api_key      = data.coder_workspace_owner.me.session_token # To Enable AI Bridge integration
   agentapi_version    = "latest"
 
   system_prompt       = local.claude_system_prompt

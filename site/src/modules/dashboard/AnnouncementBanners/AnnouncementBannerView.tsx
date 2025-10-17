@@ -1,29 +1,24 @@
-import { css, type Interpolation, type Theme } from "@emotion/react";
 import { InlineMarkdown } from "components/Markdown/Markdown";
 import type { FC } from "react";
 import { readableForegroundColor } from "utils/colors";
 
 interface AnnouncementBannerViewProps {
-	message?: string;
-	backgroundColor?: string;
+	message: string;
+	backgroundColor: string;
 }
 
 export const AnnouncementBannerView: FC<AnnouncementBannerViewProps> = ({
 	message,
 	backgroundColor,
 }) => {
-	if (!message || !backgroundColor) {
-		return null;
-	}
-
 	return (
 		<div
-			css={styles.banner}
+			className="p-3 flex items-center"
 			style={{ backgroundColor }}
-			className="service-banner"
+			data-test-id="service-banner"
 		>
 			<div
-				css={styles.wrapper}
+				className="mx-auto font-normal [&_a]:text-inherit [&_a]:underline"
 				style={{ color: readableForegroundColor(backgroundColor) }}
 			>
 				<InlineMarkdown>{message}</InlineMarkdown>
@@ -31,20 +26,3 @@ export const AnnouncementBannerView: FC<AnnouncementBannerViewProps> = ({
 		</div>
 	);
 };
-
-const styles = {
-	banner: css`
-    padding: 12px;
-    display: flex;
-    align-items: center;
-  `,
-	wrapper: css`
-    margin-right: auto;
-    margin-left: auto;
-    font-weight: 400;
-
-    & a {
-      color: inherit;
-    }
-  `,
-} satisfies Record<string, Interpolation<Theme>>;
