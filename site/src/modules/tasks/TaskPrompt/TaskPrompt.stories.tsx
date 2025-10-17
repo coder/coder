@@ -103,6 +103,35 @@ export const SubmitDisabledWhenPromptEmpty: Story = {
 	},
 };
 
+export const Submitting: Story = {
+	decorators: [withGlobalSnackbar],
+	beforeEach: () => {
+		spyOn(API.experimental, "createTask").mockImplementation(
+			() =>
+				// Never resolve to keep the component in the submitting state for visual testing.
+				new Promise(() => {}),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const prompt = await canvas.findByLabelText(/prompt/i);
+		await userEvent.type(
+			prompt,
+			"Lorem ipsum dolor sit amet, consectetur adipiscing elit.{enter}{enter}Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+		);
+
+		const submitButton = canvas.getByRole("button", { name: /run task/i });
+		await waitFor(() => expect(submitButton).toBeEnabled());
+		await userEvent.click(submitButton);
+	},
+	parameters: {
+		chromatic: {
+			disableSnapshot: true,
+		},
+	},
+};
+
 export const OnSuccess: Story = {
 	decorators: [withGlobalSnackbar],
 	parameters: {
