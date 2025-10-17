@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import type { FC } from "react";
 import { Link } from "react-router";
+import { cn } from "utils/cn";
 import { renderSupportIcon } from "../SupportButtons";
 
 export const Language = {
@@ -52,7 +53,9 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 			<Link to="/install" css={styles.link}>
 				<PopoverClose asChild>
 					<MenuItem css={styles.menuItem}>
-						<MonitorDownIcon css={styles.menuItemIcon} />
+						<MonitorDownIcon
+							className={cn(["text-content-secondary", "size-5"])}
+						/>
 						<span css={styles.menuItemText}>Install CLI</span>
 					</MenuItem>
 				</PopoverClose>
@@ -61,14 +64,16 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 			<Link to="/settings/account" css={styles.link}>
 				<PopoverClose asChild>
 					<MenuItem css={styles.menuItem}>
-						<CircleUserIcon css={styles.menuItemIcon} />
+						<CircleUserIcon
+							className={cn(["text-content-secondary", "size-5"])}
+						/>
 						<span css={styles.menuItemText}>{Language.accountLabel}</span>
 					</MenuItem>
 				</PopoverClose>
 			</Link>
 
 			<MenuItem css={styles.menuItem} onClick={onSignOut}>
-				<LogOutIcon css={styles.menuItemIcon} />
+				<LogOutIcon className={cn(["text-content-secondary", "size-5"])} />
 				<span css={styles.menuItemText}>{Language.signOutLabel}</span>
 			</MenuItem>
 
@@ -86,7 +91,10 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 							<PopoverClose asChild>
 								<MenuItem css={styles.menuItem}>
 									{link.icon &&
-										renderSupportIcon(link.icon, styles.menuItemIcon)}
+										renderSupportIcon(
+											link.icon,
+											cn(["text-content-secondary", "size-5"]),
+										)}
 									<span css={styles.menuItemText}>{link.name}</span>
 								</MenuItem>
 							</PopoverClose>
@@ -158,11 +166,6 @@ const styles = {
 			transition: background-color 0.3s ease;
 		}
 	`,
-	menuItemIcon: (theme) => ({
-		color: theme.palette.text.secondary,
-		width: 20,
-		height: 20,
-	}),
 	menuItemText: {
 		fontSize: 14,
 	},
