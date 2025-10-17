@@ -480,35 +480,13 @@ const PromptTextarea: FC<PromptTextareaProps> = ({
 			/>
 			{isSubmitting && (
 				<div className="absolute inset-0 pointer-events-none overflow-hidden">
-					<div className="caret-scanner" />
+					<div
+						className={`absolute top-0 w-0.5 h-full
+						bg-green-400/90 animate-caret-scan rounded-sm
+						shadow-[-15px_0_15px_rgba(0,255,0,0.9),-30px_0_30px_rgba(0,255,0,0.7),-45px_0_45px_rgba(0,255,0,0.5),-60px_0_60px_rgba(0,255,0,0.3)]`}
+					/>
 				</div>
 			)}
-			<style>{`
-				@keyframes caretScan {
-					0% {
-						left: 0%;
-					}
-					100% {
-						left: 100%;
-					}
-				}
-
-				.caret-scanner {
-					position: absolute;
-					width: 2px;
-					height: 100%;
-					top: 0;
-					background-color: rgba(0, 255, 0, 0.8);
-					border: none;
-					animation: caretScan 3s ease-in-out infinite;
-					border-radius: 1px;
-					box-shadow:
-						-10px 0 10px rgba(0, 255, 0, 0.8),
-						-20px 0 20px rgba(0, 255, 0, 0.6),
-						-30px 0 30px rgba(0, 255, 0, 0.4),
-						-40px 0 40px rgba(0, 255, 0, 0.2);
-				}
-			`}</style>
 		</div>
 	);
 };
