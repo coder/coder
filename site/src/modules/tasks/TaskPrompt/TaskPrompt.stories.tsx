@@ -72,6 +72,37 @@ export const ReadOnlyPresetPrompt: Story = {
 	},
 };
 
+export const SubmitEnabledWhenPromptNotEmpty: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const prompt = await canvas.findByLabelText(/prompt/i);
+		await userEvent.type(prompt, MockNewTaskData.prompt);
+
+		const submitButton = canvas.getByRole("button", { name: /run task/i });
+		expect(submitButton).toBeEnabled();
+	},
+};
+
+export const SubmitDisabledWhenPromptEmpty: Story = {
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+
+		await step("No prompt", async () => {
+			const submitButton = canvas.getByRole("button", { name: /run task/i });
+			expect(submitButton).toBeDisabled();
+		});
+
+		await step("Whitespace prompt", async () => {
+			const prompt = await canvas.findByLabelText(/prompt/i);
+			await userEvent.type(prompt, "   ");
+
+			const submitButton = canvas.getByRole("button", { name: /run task/i });
+			expect(submitButton).toBeDisabled();
+		});
+	},
+};
+
 export const OnSuccess: Story = {
 	decorators: [withGlobalSnackbar],
 	parameters: {

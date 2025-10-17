@@ -368,7 +368,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 						<Button
 							size="icon"
 							type="submit"
-							disabled={prompt.length === 0 || isMissingExternalAuth}
+							disabled={prompt.trim().length === 0 || isMissingExternalAuth}
 							className="rounded-full disabled:bg-surface-invert-primary disabled:opacity-70"
 						>
 							<Spinner
