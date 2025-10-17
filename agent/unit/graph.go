@@ -19,12 +19,17 @@ import (
 // The graph stores edge types to represent different relationships between units,
 // allowing for domain-specific semantics beyond simple connectivity.
 type Graph[EdgeType, VertexType comparable] struct {
-	mu         sync.RWMutex
+	mu sync.RWMutex
+	// The underlying gonum graph. It stores vertices and edges without knowing about the types of the vertices and edges.
 	gonumGraph *simple.DirectedGraph
+	// Maps vertices to their IDs so that a gonum vertex ID can be used to lookup the vertex type.
 	vertexToID map[VertexType]int64
+	// Maps vertex IDs to their types so that a vertex type can be used to lookup the gonum vertex ID.
 	idToVertex map[int64]VertexType
-	nextID     int64
-	edgeTypes  map[string]EdgeType // Store edge types by "fromID->toID" key
+	// The next ID to assign to a vertex.
+	nextID int64
+	// Store edge types by "fromID->toID" key. This is used to lookup the edge type for a given edge.
+	edgeTypes map[string]EdgeType
 }
 
 // Edge is a convenience type for representing an edge in the graph.
@@ -120,7 +125,7 @@ func (g *Graph[EdgeType, VertexType]) GetReverseAdjacentVertices(to VertexType) 
 	return edges
 }
 
-// getOrCreateVertexID returns the ID for a vertex, creating it if it doesn't exist
+// getOrCreateVertexID returns the ID for a vertex, creating it if it doesn't exist.
 func (g *Graph[EdgeType, VertexType]) getOrCreateVertexID(vertex VertexType) int64 {
 	if id, exists := g.vertexToID[vertex]; exists {
 		return id
@@ -137,6 +142,7 @@ func (g *Graph[EdgeType, VertexType]) getOrCreateVertexID(vertex VertexType) int
 	return id
 }
 
+// canReach checks if there is a path from the start vertex to the end vertex.
 func (g *Graph[EdgeType, VertexType]) canReach(start, end VertexType) bool {
 	if start == end {
 		return true

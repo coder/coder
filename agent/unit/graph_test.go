@@ -25,7 +25,8 @@ import (
 	"github.com/coder/coder/v2/agent/unit"
 )
 
-// Test types for thread safety testing
+// Test types for thread safety testing.
+// values in production might differ from these test values.
 type Status string
 
 const (
@@ -34,16 +35,21 @@ const (
 	StatusCompleted Status = "completed"
 )
 
+// Unit is a test type for the graph.
+// Production types might be more complex.
 type Unit struct {
 	Name   string
 	Status Status
 }
 
-// DependencyEdge is an alias for unit.Edge for backward compatibility
-type DependencyEdge = unit.Edge[Status, *Unit]
+// TestEdge is a convenience type, meant to be more readable than unit.Edge[Status, *Unit]
+// in these tests.
+type TestEdge = unit.Edge[Status, *Unit]
 
-// secureRandInt generates a secure random integer in the range [0, limit)
-func secureRandInt(limit int) int {
+// randInt generates a random integer in the range [0, limit).
+// Used because the linter won't allow more convenient math/rand functions
+// and this is cleaner than having additional nolint comments in the tests.
+func randInt(limit int) int {
 	if limit <= 0 {
 		return 0
 	}
@@ -54,15 +60,19 @@ func secureRandInt(limit int) int {
 	return int(n.Int64())
 }
 
-// createTestOutputDir creates a gitignored directory for test outputs
+// createTestOutputDir creates a directory for test outputs.
+// This directory should be listed in the .gitignore file as:
+// test-output/
 func createTestOutputDir(t *testing.T) string {
-	outputDir := filepath.Join("test-output", "thread-safety", t.Name())
+	outputDir := filepath.Join("test-output", t.Name())
 	err := os.MkdirAll(outputDir, 0o755)
 	require.NoError(t, err, "failed to create test output directory")
 	return outputDir
 }
 
-// saveDOTFile saves a DOT representation of the graph to a file
+// saveDOTFile saves a DOT representation of the graph to a file for human inspection
+// after test execution. This is useful for debugging and visualizing the graph structure.
+// this is not used for golden file verification. For golden files, see assertDOTGraph.
 func saveDOTFile(t *testing.T, graph *unit.Graph[Status, *Unit], filename string) {
 	outputDir := createTestOutputDir(t)
 	dot, err := graph.ToDOT(filename)
@@ -123,13 +133,13 @@ func TestGraph(t *testing.T) {
 		vertices := graph.GetForwardAdjacentVertices(unit1)
 		require.Len(t, vertices, 2)
 		// Unit 1 depends on the completion of Unit2
-		require.Contains(t, vertices, DependencyEdge{
+		require.Contains(t, vertices, TestEdge{
 			From: unit1,
 			To:   unit2,
 			Edge: StatusCompleted,
 		})
 		// Unit 1 depends on the start of Unit3
-		require.Contains(t, vertices, DependencyEdge{
+		require.Contains(t, vertices, TestEdge{
 			From: unit1,
 			To:   unit3,
 			Edge: StatusStarted,
@@ -139,7 +149,7 @@ func TestGraph(t *testing.T) {
 		unit2ReverseEdges := graph.GetReverseAdjacentVertices(unit2)
 		require.Len(t, unit2ReverseEdges, 1)
 		// Unit 2 must be completed before Unit 1 can start
-		require.Contains(t, unit2ReverseEdges, DependencyEdge{
+		require.Contains(t, unit2ReverseEdges, TestEdge{
 			From: unit1,
 			To:   unit2,
 			Edge: StatusCompleted,
@@ -148,7 +158,7 @@ func TestGraph(t *testing.T) {
 		unit3ReverseEdges := graph.GetReverseAdjacentVertices(unit3)
 		require.Len(t, unit3ReverseEdges, 1)
 		// Unit 3 must be started before Unit 1 can complete
-		require.Contains(t, unit3ReverseEdges, DependencyEdge{
+		require.Contains(t, unit3ReverseEdges, TestEdge{
 			From: unit1,
 			To:   unit3,
 			Edge: StatusStarted,
@@ -211,7 +221,7 @@ func TestGraph(t *testing.T) {
 		require.Len(t, forwardEdges, 3)
 
 		// Verify all expected dependencies exist
-		expectedDependencies := []DependencyEdge{
+		expectedDependencies := []TestEdge{
 			{From: unit1, To: unit2, Edge: StatusCompleted},
 			{From: unit1, To: unit3, Edge: StatusCompleted},
 			{From: unit1, To: unit4, Edge: StatusStarted},
@@ -224,19 +234,19 @@ func TestGraph(t *testing.T) {
 		// Check reverse dependencies
 		unit2ReverseEdges := graph.GetReverseAdjacentVertices(unit2)
 		require.Len(t, unit2ReverseEdges, 1)
-		require.Contains(t, unit2ReverseEdges, DependencyEdge{
+		require.Contains(t, unit2ReverseEdges, TestEdge{
 			From: unit1, To: unit2, Edge: StatusCompleted,
 		})
 
 		unit3ReverseEdges := graph.GetReverseAdjacentVertices(unit3)
 		require.Len(t, unit3ReverseEdges, 1)
-		require.Contains(t, unit3ReverseEdges, DependencyEdge{
+		require.Contains(t, unit3ReverseEdges, TestEdge{
 			From: unit1, To: unit3, Edge: StatusCompleted,
 		})
 
 		unit4ReverseEdges := graph.GetReverseAdjacentVertices(unit4)
 		require.Len(t, unit4ReverseEdges, 1)
-		require.Contains(t, unit4ReverseEdges, DependencyEdge{
+		require.Contains(t, unit4ReverseEdges, TestEdge{
 			From: unit1, To: unit4, Edge: StatusStarted,
 		})
 
@@ -288,7 +298,7 @@ func TestGraphThreadSafety(t *testing.T) {
 		// Save DOT file for analysis
 		saveDOTFile(t, graph, "concurrent-add-edge")
 
-		// Verify no panics occurred and graph is in valid state
+		// Verify that the graph is in a valid state after concurrent operations.
 		// We can't easily count total edges due to concurrent access, but we can verify
 		// the graph is still functional
 		dot, err := graph.ToDOT("test")
@@ -337,7 +347,7 @@ func TestGraphThreadSafety(t *testing.T) {
 				}()
 
 				// Read from random vertices
-				vertex := units[secureRandInt(len(units))]
+				vertex := units[randInt(len(units))]
 				forwardEdges := graph.GetForwardAdjacentVertices(vertex)
 				reverseEdges := graph.GetReverseAdjacentVertices(vertex)
 
@@ -364,18 +374,18 @@ func TestGraphThreadSafety(t *testing.T) {
 		var wg sync.WaitGroup
 		const numWriters = 50
 		const numReaders = 100
+		const operationsPerWriter = 1000
+		const operationsPerReader = 2000
 
 		// Launch writers
 		for i := 0; i < numWriters; i++ {
 			wg.Add(1)
 			go func(writerID int) {
 				defer wg.Done()
-				start := time.Now()
-				for time.Since(start) < 100*time.Millisecond {
-					from := &Unit{Name: fmt.Sprintf("writer-%d-%d", writerID, time.Now().UnixNano()), Status: StatusPending}
-					to := &Unit{Name: fmt.Sprintf("writer-%d-%d", writerID, time.Now().UnixNano()+1), Status: StatusPending}
+				for j := 0; j < operationsPerWriter; j++ {
+					from := &Unit{Name: fmt.Sprintf("writer-%d-%d", writerID, j), Status: StatusPending}
+					to := &Unit{Name: fmt.Sprintf("writer-%d-%d", writerID, j+1), Status: StatusPending}
 					graph.AddEdge(from, to, StatusCompleted)
-					time.Sleep(time.Microsecond) // Small delay to allow readers
 				}
 			}(i)
 		}
@@ -396,11 +406,10 @@ func TestGraphThreadSafety(t *testing.T) {
 					}
 				}()
 
-				start := time.Now()
 				readCount := 0
-				for time.Since(start) < 100*time.Millisecond {
+				for j := 0; j < operationsPerReader; j++ {
 					// Create a test vertex and read
-					testUnit := &Unit{Name: "test-reader", Status: StatusPending}
+					testUnit := &Unit{Name: fmt.Sprintf("test-reader-%d-%d", readerID, j), Status: StatusPending}
 					forwardEdges := graph.GetForwardAdjacentVertices(testUnit)
 					reverseEdges := graph.GetReverseAdjacentVertices(testUnit)
 
@@ -408,7 +417,6 @@ func TestGraphThreadSafety(t *testing.T) {
 					_ = forwardEdges
 					_ = reverseEdges
 					readCount++
-					time.Sleep(time.Microsecond)
 				}
 				readerResults[readerID].readCount = readCount
 			}(i)
@@ -419,7 +427,7 @@ func TestGraphThreadSafety(t *testing.T) {
 		// Verify no panics occurred in readers
 		for i, result := range readerResults {
 			require.False(t, result.panicked, "reader %d panicked", i)
-			require.Greater(t, result.readCount, 0, "reader %d should have performed some reads", i)
+			require.Equal(t, operationsPerReader, result.readCount, "reader %d should have performed expected reads", i)
 		}
 	})
 
@@ -597,7 +605,7 @@ func TestGraphThreadSafety(t *testing.T) {
 				operationCount := 0
 
 				for time.Since(start) < 500*time.Millisecond && operationCount < 50 {
-					operation := float32(secureRandInt(100)) / 100.0
+					operation := float32(randInt(100)) / 100.0
 
 					if operation < 0.6 { // 60% reads
 						// Read operation
