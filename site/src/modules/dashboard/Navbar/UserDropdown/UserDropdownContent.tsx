@@ -20,7 +20,7 @@ import {
 import type { FC } from "react";
 import { Link } from "react-router";
 import { cn } from "utils/cn";
-import { renderSupportIcon } from "../SupportButtons";
+import { SupportIcon } from "../SupportIcon";
 
 export const Language = {
 	accountLabel: "Account",
@@ -90,11 +90,12 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 						>
 							<PopoverClose asChild>
 								<MenuItem css={styles.menuItem}>
-									{link.icon &&
-										renderSupportIcon(
-											link.icon,
-											cn(["text-content-secondary", "size-5"]),
-										)}
+									{link.icon && (
+										<SupportIcon
+											icon={link.icon}
+											className={cn(["text-content-secondary", "size-5"])}
+										/>
+									)}
 									<span css={styles.menuItemText}>{link.name}</span>
 								</MenuItem>
 							</PopoverClose>

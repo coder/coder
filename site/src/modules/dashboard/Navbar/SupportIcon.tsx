@@ -1,44 +1,14 @@
 import type { SvgIconProps } from "@mui/material/SvgIcon";
-import type * as TypesGen from "api/typesGenerated";
-import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { BookOpenTextIcon, BugIcon, MessageSquareIcon } from "lucide-react";
-import type { FC, JSX } from "react";
-import { cn } from "utils/cn";
+import type { FC } from "react";
 
-interface SupportButtonsProps {
-	supportLinks: TypesGen.LinkConfig[];
+interface SupportIconProps {
+	icon: string;
+	className?: string;
 }
 
-export const SupportButtons: FC<SupportButtonsProps> = ({ supportLinks }) => {
-	return (
-		<>
-			{supportLinks.map((link) => (
-				<Button asChild key={link.name} variant="outline">
-					<a
-						href={link.target}
-						target="_blank"
-						rel="noreferrer"
-						className="inline-block"
-					>
-						{link.icon &&
-							renderSupportIcon(
-								link.icon,
-								cn(["text-content-secondary", "size-5"]),
-							)}
-						{link.name}
-						<span className="sr-only"> (link opens in new tab)</span>
-					</a>
-				</Button>
-			))}
-		</>
-	);
-};
-
-export function renderSupportIcon(
-	icon: string,
-	className?: string,
-): JSX.Element {
+export const SupportIcon: FC<SupportIconProps> = ({ icon, className }) => {
 	switch (icon) {
 		case "bug":
 			return <BugIcon className={className} />;
@@ -51,7 +21,7 @@ export function renderSupportIcon(
 		default:
 			return <ExternalImage src={icon} className={className} />;
 	}
-}
+};
 
 const GithubStar: FC<SvgIconProps> = (props) => (
 	<svg

@@ -21,7 +21,7 @@ import { cn } from "utils/cn";
 import { DeploymentDropdown } from "./DeploymentDropdown";
 import { MobileMenu } from "./MobileMenu";
 import { ProxyMenu } from "./ProxyMenu";
-import { SupportButtons } from "./SupportButtons";
+import { SupportIcon } from "./SupportIcon";
 import { UserDropdown } from "./UserDropdown/UserDropdown";
 
 interface NavbarViewProps {
@@ -249,3 +249,33 @@ function idleTasksLabel(count: number) {
 function isNavbarLink(link: TypesGen.LinkConfig): boolean {
 	return link.location === "navbar";
 }
+
+interface SupportButtonsProps {
+	supportLinks: TypesGen.LinkConfig[];
+}
+
+const SupportButtons: FC<SupportButtonsProps> = ({ supportLinks }) => {
+	return (
+		<>
+			{supportLinks.map((link) => (
+				<Button asChild key={link.name} variant="outline">
+					<a
+						href={link.target}
+						target="_blank"
+						rel="noreferrer"
+						className="inline-block"
+					>
+						{link.icon && (
+							<SupportIcon
+								icon={link.icon}
+								className={cn(["text-content-secondary", "size-5"])}
+							/>
+						)}
+						{link.name}
+						<span className="sr-only"> (link opens in new tab)</span>
+					</a>
+				</Button>
+			))}
+		</>
+	);
+};
