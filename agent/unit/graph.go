@@ -10,16 +10,14 @@ import (
 	"gonum.org/v1/gonum/graph/topo"
 )
 
-// Graph is an bidirectional adjacency list representation of a graph.
-// It is considered bidirectional instead of undirected, because we distinguish
-// between forward and reverse edges. Wanting and being wanted by other units
-// are related but different concepts that have different graph traversal implications
-// when Units update their status. Adding one of these directions necessarily adds
-// the other to the complementary unit.
+// Graph provides a bidirectional interface over gonum's directed graph implementation.
+// While the underlying gonum graph is directed, we overlay bidirectional semantics
+// by distinguishing between forward and reverse edges. Wanting and being wanted by
+// other units are related but different concepts that have different graph traversal
+// implications when Units update their status.
 //
-// Graph vertices often have their own attributes specific to the problem domain.
-// In this case we need to distinguish between different edge types to represent
-// the different relationships between units.
+// The graph stores edge types to represent different relationships between units,
+// allowing for domain-specific semantics beyond simple connectivity.
 type Graph[EdgeType, VertexType comparable] struct {
 	mu         sync.RWMutex
 	gonumGraph *simple.DirectedGraph
