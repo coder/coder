@@ -73,7 +73,9 @@ export const NavbarView: FC<NavbarViewProps> = ({
 
 			<div className="flex items-center gap-3 ml-auto">
 				{supportLinks && (
-					<SupportButtons supportLinks={supportLinks.filter(isNavbarLink)} />
+					<div className="hidden md:block">
+						<SupportButtons supportLinks={supportLinks.filter(isNavbarLink)} />
+					</div>
 				)}
 
 				{proxyContextValue && (
@@ -135,7 +137,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 					<MobileMenu
 						proxyContextValue={proxyContextValue}
 						user={user}
-						supportLinks={supportLinks?.filter((link) => !isNavbarLink(link))}
+						supportLinks={supportLinks}
 						onSignOut={onSignOut}
 						canViewAuditLog={canViewAuditLog}
 						canViewConnectionLog={canViewConnectionLog}
