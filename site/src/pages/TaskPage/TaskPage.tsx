@@ -142,7 +142,8 @@ const TaskPage = () => {
 	} else if (agent && ["created", "starting"].includes(agent.lifecycle_state)) {
 		content = <TaskStartingAgent agent={agent} />;
 	} else {
-		const chatApp = getTaskApps(task).find(
+		const apps = getTaskApps(task);
+		const chatApp = apps.find(
 			(app) => app.id === task.workspace.latest_build.ai_task_sidebar_app_id,
 		);
 		content = (

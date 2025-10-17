@@ -2,9 +2,9 @@ import Link from "@mui/material/Link";
 import type { WorkspaceAgent } from "api/typesGenerated";
 import { Alert, type AlertProps } from "components/Alert/Alert";
 import { Button } from "components/Button/Button";
+import type { ConnectionStatus } from "components/Terminal/types";
 import { type FC, useEffect, useRef, useState } from "react";
 import { docs } from "utils/docs";
-import type { ConnectionStatus } from "./types";
 
 type TerminalAlertsProps = {
 	agent: WorkspaceAgent | undefined;
