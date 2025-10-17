@@ -16,7 +16,7 @@ import {
 	type WorkspacePermissions,
 	workspaceChecks,
 } from "modules/workspaces/permissions";
-import type { ConnectionStatus } from "pages/TerminalPage/types";
+import type { ConnectionStatus } from "components/Terminal/types";
 import type {
 	QueryClient,
 	QueryOptions,

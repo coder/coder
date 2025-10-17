@@ -11,7 +11,7 @@ import userEvent from "@testing-library/user-event";
 import { API } from "api/api";
 import WS from "jest-websocket-mock";
 import { HttpResponse, http } from "msw";
-import TerminalPage, { Language } from "./TerminalPage";
+import TerminalPage from "./TerminalPage";
 
 const renderTerminal = async (
 	route = `/${MockUserOwner.username}/${MockWorkspace.name}/terminal`,
@@ -83,7 +83,11 @@ describe("TerminalPage", () => {
 
 		const { container } = await renderTerminal();
 
-		await expectTerminalText(container, Language.workspaceErrorMessagePrefix);
+		// Terminal should not be rendered when workspace fetch fails
+		await waitFor(() => {
+			const elements = container.getElementsByClassName("xterm-rows");
+			expect(elements.length).toBe(0);
+		});
 	});
 
 	it("shows reconnect message when websocket fails", async () => {

@@ -24,6 +24,9 @@ import {
 } from "websocket-ts";
 import type { ConnectionStatus } from "./types";
 
+/**
+ * @public
+ */
 export interface TerminalProps {
 	agentId: string;
 	agentName?: string;

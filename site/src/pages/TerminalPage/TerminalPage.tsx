@@ -1,61 +1,25 @@
 import "@xterm/xterm/css/xterm.css";
-import type { Interpolation, Theme } from "@emotion/react";
-import { CanvasAddon } from "@xterm/addon-canvas";
-import { FitAddon } from "@xterm/addon-fit";
-import { Unicode11Addon } from "@xterm/addon-unicode11";
-import { WebLinksAddon } from "@xterm/addon-web-links";
-import { WebglAddon } from "@xterm/addon-webgl";
-import { Terminal } from "@xterm/xterm";
-import { deploymentConfig } from "api/queries/deployment";
-import { appearanceSettings } from "api/queries/users";
 import {
 	workspaceByOwnerAndName,
 	workspaceUsage,
 } from "api/queries/workspaces";
-import { useProxy } from "contexts/ProxyContext";
+import { Terminal } from "components/Terminal/Terminal";
+import type { ConnectionStatus } from "components/Terminal/types";
 import { ThemeOverride } from "contexts/ThemeProvider";
-import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import { type FC, useCallback, useEffect, useRef, useState } from "react";
+import { type FC, useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import themes from "theme";
-import { DEFAULT_TERMINAL_FONT, terminalFonts } from "theme/constants";
 import { pageTitle } from "utils/page";
-import { openMaybePortForwardedURL } from "utils/portForward";
-import { terminalWebsocketUrl } from "utils/terminal";
 import { getMatchingAgentOrFirst } from "utils/workspace";
 import { v4 as uuidv4 } from "uuid";
-// Use websocket-ts for better WebSocket handling and auto-reconnection.
-import {
-	ExponentialBackoff,
-	type Websocket,
-	WebsocketBuilder,
-	WebsocketEvent,
-} from "websocket-ts";
 import { TerminalAlerts } from "./TerminalAlerts";
-import type { ConnectionStatus } from "./types";
-
-export const Language = {
-	workspaceErrorMessagePrefix: "Unable to fetch workspace: ",
-	workspaceAgentErrorMessagePrefix: "Unable to fetch workspace agent: ",
-	websocketErrorMessagePrefix: "WebSocket failed: ",
-};
 
 const TerminalPage: FC = () => {
-	// Maybe one day we'll support a light themed terminal, but terminal coloring
-	// is notably a pain because of assumptions certain programs might make about your
-	// background color.
 	const theme = themes.dark;
 	const navigate = useNavigate();
-	const { proxy, proxyLatencies } = useProxy();
 	const params = useParams() as { username: string; workspace: string };
 	const username = params.username.replace("@", "");
-	const terminalWrapperRef = useRef<HTMLDivElement>(null);
-	// The terminal is maintained as a state to trigger certain effects when it
-	// updates.
-	const [terminal, setTerminal] = useState<Terminal>();
-	const [connectionStatus, setConnectionStatus] =
-		useState<ConnectionStatus>("initializing");
 	const [searchParams] = useSearchParams();
 	const isDebugging = searchParams.has("debug");
 	// The reconnection token is a unique token that identifies
@@ -74,11 +38,9 @@ const TerminalPage: FC = () => {
 	const workspaceAgent = workspace.data
 		? getMatchingAgentOrFirst(workspace.data, workspaceNameParts?.[1])
 		: undefined;
-	const selectedProxy = proxy.proxy;
-	const latency = selectedProxy ? proxyLatencies[selectedProxy.id] : undefined;
 
-	const config = useQuery(deploymentConfig());
-	const renderer = config.data?.config.web_terminal_renderer;
+	const [connectionStatus, setConnectionStatus] =
+		useState<ConnectionStatus>("initializing");
 
 	// Periodically report workspace usage.
 	useQuery(
@@ -89,107 +51,6 @@ const TerminalPage: FC = () => {
 			agentId: workspaceAgent?.id,
 		}),
 	);
-
-	// handleWebLink handles opening of URLs in the terminal!
-	const handleWebLink = useCallback(
-		(uri: string) => {
-			openMaybePortForwardedURL(
-				uri,
-				proxy.preferredWildcardHostname,
-				workspaceAgent?.name,
-				workspace.data?.name,
-				username,
-			);
-		},
-		[workspaceAgent, workspace.data, username, proxy.preferredWildcardHostname],
-	);
-	const handleWebLinkRef = useRef(handleWebLink);
-	useEffect(() => {
-		handleWebLinkRef.current = handleWebLink;
-	}, [handleWebLink]);
-
-	const { metadata } = useEmbeddedMetadata();
-	const appearanceSettingsQuery = useQuery(
-		appearanceSettings(metadata.userAppearance),
-	);
-	const currentTerminalFont =
-		appearanceSettingsQuery.data?.terminal_font || DEFAULT_TERMINAL_FONT;
-
-	// Create the terminal!
-	const fitAddonRef = useRef<FitAddon>(undefined);
-	useEffect(() => {
-		if (!terminalWrapperRef.current || config.isLoading) {
-			return;
-		}
-		const terminal = new Terminal({
-			allowProposedApi: true,
-			allowTransparency: true,
-			disableStdin: false,
-			fontFamily: terminalFonts[currentTerminalFont],
-			fontSize: 16,
-			theme: {
-				background: theme.palette.background.default,
-			},
-		});
-		if (renderer === "webgl") {
-			terminal.loadAddon(new WebglAddon());
-		} else if (renderer === "canvas") {
-			terminal.loadAddon(new CanvasAddon());
-		}
-		const fitAddon = new FitAddon();
-		fitAddonRef.current = fitAddon;
-		terminal.loadAddon(fitAddon);
-		terminal.loadAddon(new Unicode11Addon());
-		terminal.unicode.activeVersion = "11";
-		terminal.loadAddon(
-			new WebLinksAddon((_, uri) => {
-				handleWebLinkRef.current(uri);
-			}),
-		);
-
-		// Make shift+enter send ^[^M (escaped carriage return).  Applications
-		// typically take this to mean to insert a literal newline.  There is no way
-		// to remove this handler, so we must attach it once and rely on a ref to
-		// send it to the current socket.
-		const escapedCarriageReturn = "\x1b\r";
-		terminal.attachCustomKeyEventHandler((ev) => {
-			if (ev.shiftKey && ev.key === "Enter") {
-				if (ev.type === "keydown") {
-					websocketRef.current?.send(
-						new TextEncoder().encode(
-							JSON.stringify({ data: escapedCarriageReturn }),
-						),
-					);
-				}
-				return false;
-			}
-			return true;
-		});
-
-		terminal.open(terminalWrapperRef.current);
-
-		// We have to fit twice here. It's unknown why, but the first fit will
-		// overflow slightly in some scenarios. Applying a second fit resolves this.
-		fitAddon.fit();
-		fitAddon.fit();
-
-		// This will trigger a resize event on the terminal.
-		const listener = () => fitAddon.fit();
-		window.addEventListener("resize", listener);
-
-		// Terminal is correctly sized and is ready to be used.
-		setTerminal(terminal);
-
-		return () => {
-			window.removeEventListener("resize", listener);
-			terminal.dispose();
-		};
-	}, [
-		config.isLoading,
-		renderer,
-		theme.palette.background.default,
-		currentTerminalFont,
-	]);
 
 	// Updates the reconnection token into the URL if necessary.
 	useEffect(() => {
@@ -206,166 +67,6 @@ const TerminalPage: FC = () => {
 			},
 		);
 	}, [navigate, reconnectionToken, searchParams]);
-
-	// Hook up the terminal through a web socket.
-	const websocketRef = useRef<Websocket>(undefined);
-	useEffect(() => {
-		if (!terminal) {
-			return;
-		}
-
-		// The terminal should be cleared on each reconnect
-		// because all data is re-rendered from the backend.
-		terminal.clear();
-
-		// Focusing on connection allows users to reload the page and start
-		// typing immediately.
-		terminal.focus();
-
-		// Disable input while we connect.
-		terminal.options.disableStdin = true;
-
-		// Show a message if we failed to find the workspace or agent.
-		if (workspace.isLoading) {
-			return;
-		}
-
-		if (workspace.error instanceof Error) {
-			terminal.writeln(
-				Language.workspaceErrorMessagePrefix + workspace.error.message,
-			);
-			setConnectionStatus("disconnected");
-			return;
-		}
-
-		if (!workspaceAgent) {
-			terminal.writeln(
-				`${Language.workspaceAgentErrorMessagePrefix}no agent found with ID, is the workspace started?`,
-			);
-			setConnectionStatus("disconnected");
-			return;
-		}
-
-		// Hook up terminal events to the websocket.
-		let websocket: Websocket | null;
-		const disposers = [
-			terminal.onData((data) => {
-				websocket?.send(
-					new TextEncoder().encode(JSON.stringify({ data: data })),
-				);
-			}),
-			terminal.onResize((event) => {
-				websocket?.send(
-					new TextEncoder().encode(
-						JSON.stringify({
-							height: event.rows,
-							width: event.cols,
-						}),
-					),
-				);
-			}),
-		];
-
-		let disposed = false;
-
-		terminalWebsocketUrl(
-			// When on development mode we can bypass the proxy and connect directly.
-			process.env.NODE_ENV !== "development"
-				? proxy.preferredPathAppURL
-				: undefined,
-			reconnectionToken,
-			workspaceAgent.id,
-			command,
-			terminal.rows,
-			terminal.cols,
-			containerName,
-			containerUser,
-		)
-			.then((url) => {
-				if (disposed) {
-					return; // Unmounted while we waited for the async call.
-				}
-				websocket = new WebsocketBuilder(url)
-					.withBackoff(new ExponentialBackoff(1000, 6))
-					.build();
-				websocket.binaryType = "arraybuffer";
-				websocketRef.current = websocket;
-				websocket.addEventListener(WebsocketEvent.open, () => {
-					// Now that we are connected, allow user input.
-					terminal.options = {
-						disableStdin: false,
-						windowsMode: workspaceAgent?.operating_system === "windows",
-					};
-					// Send the initial size.
-					websocket?.send(
-						new TextEncoder().encode(
-							JSON.stringify({
-								height: terminal.rows,
-								width: terminal.cols,
-							}),
-						),
-					);
-					setConnectionStatus("connected");
-				});
-				websocket.addEventListener(WebsocketEvent.error, (_, event) => {
-					console.error("WebSocket error:", event);
-					terminal.options.disableStdin = true;
-					setConnectionStatus("disconnected");
-				});
-				websocket.addEventListener(WebsocketEvent.close, () => {
-					terminal.options.disableStdin = true;
-					setConnectionStatus("disconnected");
-				});
-				websocket.addEventListener(WebsocketEvent.message, (_, event) => {
-					if (typeof event.data === "string") {
-						// This exclusively occurs when testing.
-						// "jest-websocket-mock" doesn't support ArrayBuffer.
-						terminal.write(event.data);
-					} else {
-						terminal.write(new Uint8Array(event.data));
-					}
-				});
-				websocket.addEventListener(WebsocketEvent.reconnect, () => {
-					if (websocket) {
-						websocket.binaryType = "arraybuffer";
-						websocket.send(
-							new TextEncoder().encode(
-								JSON.stringify({
-									height: terminal.rows,
-									width: terminal.cols,
-								}),
-							),
-						);
-					}
-				});
-			})
-			.catch((error) => {
-				if (disposed) {
-					return; // Unmounted while we waited for the async call.
-				}
-				console.error("WebSocket connection failed:", error);
-				setConnectionStatus("disconnected");
-			});
-
-		return () => {
-			disposed = true; // Could use AbortController instead?
-			for (const d of disposers) {
-				d.dispose();
-			}
-			websocket?.close(1000);
-			websocketRef.current = undefined;
-		};
-	}, [
-		command,
-		proxy.preferredPathAppURL,
-		reconnectionToken,
-		terminal,
-		workspace.error,
-		workspace.isLoading,
-		workspaceAgent,
-		containerName,
-		containerUser,
-	]);
 
 	return (
 		<ThemeOverride theme={theme}>
@@ -386,17 +87,27 @@ const TerminalPage: FC = () => {
 					agent={workspaceAgent}
 					status={connectionStatus}
 					onAlertChange={() => {
-						fitAddonRef.current?.fit();
+						// Terminal component handles its own resizing
 					}}
 				/>
-				<div
-					css={styles.terminal}
-					ref={terminalWrapperRef}
-					data-testid="terminal"
-				/>
+				{workspaceAgent && (
+					<Terminal
+						agentId={workspaceAgent.id}
+						agentName={workspaceAgent.name}
+						agentOS={workspaceAgent.operating_system}
+						workspaceName={workspace.data?.name || ""}
+						username={username}
+						reconnectionToken={reconnectionToken}
+						command={command}
+						containerName={containerName}
+						containerUser={containerUser}
+						onConnectionStatus={setConnectionStatus}
+						className="flex-1"
+					/>
+				)}
 			</div>
 
-			{latency && isDebugging && (
+			{isDebugging && (
 				<span
 					css={{
 						position: "absolute",
@@ -406,41 +117,11 @@ const TerminalPage: FC = () => {
 						fontSize: 14,
 					}}
 				>
-					Latency: {latency.latencyMS.toFixed(0)}ms
+					Debug mode enabled
 				</span>
 			)}
 		</ThemeOverride>
 	);
 };
-
-const styles = {
-	terminal: (theme) => ({
-		width: "100%",
-		overflow: "hidden",
-		backgroundColor: theme.palette.background.paper,
-		flex: 1,
-		// These styles attempt to mimic the VS Code scrollbar.
-		"& .xterm": {
-			padding: 4,
-			width: "100%",
-			height: "100%",
-		},
-		"& .xterm-viewport": {
-			// This is required to force full-width on the terminal.
-			// Otherwise there's a small white bar to the right of the scrollbar.
-			width: "auto !important",
-		},
-		"& .xterm-viewport::-webkit-scrollbar": {
-			width: "10px",
-		},
-		"& .xterm-viewport::-webkit-scrollbar-track": {
-			backgroundColor: "inherit",
-		},
-		"& .xterm-viewport::-webkit-scrollbar-thumb": {
-			minHeight: 20,
-			backgroundColor: "rgba(255, 255, 255, 0.18)",
-		},
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
 
 export default TerminalPage;
