@@ -131,15 +131,17 @@ The use case for specifying this type of permission in a role is limited, and do
 Example of a scope for a workspace agent token, using an `allow_list` containing a single resource id.
 
 ```javascript
-    "scope": {
-      "name": "workspace_agent",
-      "display_name": "Workspace_Agent",
-      // The ID of the given workspace the agent token correlates to.
-      "allow_list": ["10d03e62-7703-4df5-a358-4f76577d4e2f"],
-      "site": [/* ... perms ... */],
-      "org": {/* ... perms ... */},
-      "user": [/* ... perms ... */]
-    }
+{
+	"scope": {
+		"name": "workspace_agent",
+		"display_name": "Workspace_Agent",
+		// The ID of the given workspace the agent token correlates to.
+		"allow_list": ["10d03e62-7703-4df5-a358-4f76577d4e2f"],
+		"site": [/* ... perms ... */],
+		"org": {/* ... perms ... */},
+		"user": [/* ... perms ... */]
+	}
+}
 ```
 
 ## OPA (Open Policy Agent)
