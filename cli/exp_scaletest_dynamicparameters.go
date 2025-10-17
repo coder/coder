@@ -30,6 +30,8 @@ func (r *RootCmd) scaletestDynamicParameters() *serpent.Command {
 		numEvals        int64
 		tracingFlags    = &scaletestTracingFlags{}
 		prometheusFlags = &scaletestPrometheusFlags{}
+		// This test requires unlimited concurrency
+		timeoutStrategy = &timeoutFlags{}
 	)
 	orgContext := NewOrganizationContext()
 	output := &scaletestOutputFlags{}
@@ -102,7 +104,10 @@ func (r *RootCmd) scaletestDynamicParameters() *serpent.Command {
 				return xerrors.Errorf("setup dynamic parameters partitions: %w", err)
 			}
 
-			th := harness.NewTestHarness(harness.ConcurrentExecutionStrategy{}, harness.ConcurrentExecutionStrategy{})
+			th := harness.NewTestHarness(
+				timeoutStrategy.wrapStrategy(harness.ConcurrentExecutionStrategy{}),
+				// there is no cleanup since it's just a connection that we sever.
+				nil)
 
 			for i, part := range partitions {
 				for j := range part.ConcurrentEvaluations {
@@ -123,7 +128,9 @@ func (r *RootCmd) scaletestDynamicParameters() *serpent.Command {
 				}
 			}
 
-			err = th.Run(ctx)
+			testCtx, testCancel := timeoutStrategy.toContext(ctx)
+			defer testCancel()
+			err = th.Run(testCtx)
 			if err != nil {
 				return xerrors.Errorf("run test harness: %w", err)
 			}
@@ -158,5 +165,6 @@ func (r *RootCmd) scaletestDynamicParameters() *serpent.Command {
 	output.attach(&cmd.Options)
 	tracingFlags.attach(&cmd.Options)
 	prometheusFlags.attach(&cmd.Options)
+	timeoutStrategy.attach(&cmd.Options)
 	return cmd
 }
