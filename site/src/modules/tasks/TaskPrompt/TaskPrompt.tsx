@@ -259,6 +259,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 					value={prompt}
 					onChange={(e) => setPrompt(e.target.value)}
 					readOnly={isPromptReadOnly}
+					isSubmitting={createTaskMutation.isPending}
 				/>
 				<div className="flex items-center justify-between pt-2">
 					<div className="flex items-center gap-1">
@@ -457,17 +458,35 @@ async function createTaskWithLatestTemplateVersion(
 	});
 }
 
-const PromptTextarea: FC<TextareaAutosizeProps> = (props) => {
+type PromptTextareaProps = TextareaAutosizeProps & {
+	isSubmitting?: boolean;
+};
+
+const PromptTextarea: FC<PromptTextareaProps> = ({
+	isSubmitting,
+	...props
+}) => {
 	return (
-		<TextareaAutosize
-			{...props}
-			required
-			id="prompt"
-			name="prompt"
-			placeholder="Prompt your AI agent to start a task..."
-			className={`border-0 px-3 py-2 resize-none w-full h-full bg-transparent rounded-lg
-						outline-none flex min-h-24 text-sm shadow-sm text-content-primary
-						placeholder:text-content-secondary md:text-sm ${props.readOnly ? "opacity-60 cursor-not-allowed" : ""}`}
-		/>
+		<div className="relative">
+			<TextareaAutosize
+				{...props}
+				required
+				id="prompt"
+				name="prompt"
+				placeholder="Prompt your AI agent to start a task..."
+				className={`border-0 px-3 py-2 resize-none w-full h-full bg-transparent rounded-lg
+							outline-none flex min-h-24 text-sm shadow-sm text-content-primary
+							placeholder:text-content-secondary md:text-sm ${props.readOnly || isSubmitting ? "opacity-60 cursor-not-allowed" : ""}`}
+			/>
+			{isSubmitting && (
+				<div className="absolute inset-0 pointer-events-none overflow-hidden">
+					<div
+						className={`absolute top-0 w-0.5 h-full
+						bg-green-400/90 animate-caret-scan rounded-sm
+						shadow-[-15px_0_15px_rgba(0,255,0,0.9),-30px_0_30px_rgba(0,255,0,0.7),-45px_0_45px_rgba(0,255,0,0.5),-60px_0_60px_rgba(0,255,0,0.3)]`}
+					/>
+				</div>
+			)}
+		</div>
 	);
 };
