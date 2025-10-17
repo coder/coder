@@ -259,6 +259,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 					value={prompt}
 					onChange={(e) => setPrompt(e.target.value)}
 					readOnly={isPromptReadOnly}
+					isSubmitting={createTaskMutation.isPending}
 				/>
 				<div className="flex items-center justify-between pt-2">
 					<div className="flex items-center gap-1">
