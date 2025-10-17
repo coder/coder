@@ -1500,6 +1500,42 @@ curl -X POST http://coder-server:8080/api/v2/oauth2/register \
 |--------|--------------------------------------------------------------|-------------|--------------------------------------------------------------------------------------------------|
 | 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.OAuth2ClientRegistrationResponse](schemas.md#codersdkoauth2clientregistrationresponse) |
 
+## Revoke OAuth2 tokens (RFC 7009)
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/oauth2/revoke \
+
+```
+
+`POST /oauth2/revoke`
+
+> Body parameter
+
+```yaml
+client_id: string
+token: string
+token_type_hint: string
+
+```
+
+### Parameters
+
+| Name                | In   | Type   | Required | Description                                           |
+|---------------------|------|--------|----------|-------------------------------------------------------|
+| `body`              | body | object | true     |                                                       |
+| `» client_id`       | body | string | true     | Client ID for authentication                          |
+| `» token`           | body | string | true     | The token to revoke                                   |
+| `» token_type_hint` | body | string | false    | Hint about token type (access_token or refresh_token) |
+
+### Responses
+
+| Status | Meaning                                                 | Description                | Schema |
+|--------|---------------------------------------------------------|----------------------------|--------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | Token successfully revoked |        |
+
 ## OAuth2 token exchange
 
 ### Code samples
