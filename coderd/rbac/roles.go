@@ -680,9 +680,10 @@ func (perm Permission) Valid() error {
 }
 
 // Role is a set of permissions at multiple levels:
-// - Site level permissions apply EVERYWHERE
-// - Org level permissions apply to EVERYTHING in a given ORG
-// - User level permissions are the lowest
+// - Site permissions apply EVERYWHERE
+// - Org permissions apply to EVERYTHING in a given ORG
+// - User permissions apply to all resources the user owns
+// - OrgMember permissions apply to resources in the given org that the user owns
 // This is the type passed into the rego as a json payload.
 // Users of this package should instead **only** use the role names, and
 // this package will expand the role names into their json payloads.
@@ -703,7 +704,8 @@ type Role struct {
 }
 
 type OrgPermissions struct {
-	Org []Permission `json:"org"`
+	Org    []Permission `json:"org"`
+	Member []Permission `json:"member"`
 }
 
 // Valid will check all it's permissions and ensure they are all correct
@@ -720,7 +722,12 @@ func (role Role) Valid() error {
 	for orgID, orgPermissions := range role.ByOrgID {
 		for _, perm := range orgPermissions.Org {
 			if err := perm.Valid(); err != nil {
-				errs = append(errs, xerrors.Errorf("org=%q: %w", orgID, err))
+				errs = append(errs, xerrors.Errorf("org=%q: org %w", orgID, err))
+			}
+		}
+		for _, perm := range orgPermissions.Member {
+			if err := perm.Valid(); err != nil {
+				errs = append(errs, xerrors.Errorf("org=%q: member: %w", orgID, err))
 			}
 		}
 	}

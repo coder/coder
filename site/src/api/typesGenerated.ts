@@ -1124,8 +1124,9 @@ export interface CustomRoleRequest {
 	readonly name: string;
 	readonly display_name: string;
 	readonly site_permissions: readonly Permission[];
-	readonly organization_permissions: readonly Permission[];
 	readonly user_permissions: readonly Permission[];
+	readonly organization_permissions: readonly Permission[];
+	readonly organization_member_permissions: readonly Permission[];
 }
 
 // From codersdk/deployment.go
@@ -3112,8 +3113,9 @@ export interface Role {
 	readonly organization_id?: string;
 	readonly display_name: string;
 	readonly site_permissions: readonly Permission[];
-	readonly organization_permissions: readonly Permission[];
 	readonly user_permissions: readonly Permission[];
+	readonly organization_permissions: readonly Permission[];
+	readonly organization_member_permissions: readonly Permission[];
 }
 
 // From codersdk/rbacroles.go

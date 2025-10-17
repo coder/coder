@@ -33,10 +33,11 @@ func BenchmarkRBACValueAllocation(b *testing.B) {
 			uuid.NewString(): {policy.ActionRead, policy.ActionCreate},
 			uuid.NewString(): {policy.ActionRead, policy.ActionCreate},
 			uuid.NewString(): {policy.ActionRead, policy.ActionCreate},
-		}).WithACLUserList(map[string][]policy.Action{
-		uuid.NewString(): {policy.ActionRead, policy.ActionCreate},
-		uuid.NewString(): {policy.ActionRead, policy.ActionCreate},
-	})
+		}).
+		WithACLUserList(map[string][]policy.Action{
+			uuid.NewString(): {policy.ActionRead, policy.ActionCreate},
+			uuid.NewString(): {policy.ActionRead, policy.ActionCreate},
+		})
 
 	jsonSubject := authSubject{
 		ID:     actor.ID,
@@ -282,5 +283,6 @@ func equalRoles(t *testing.T, a, b Role) {
 		bv, ok := b.ByOrgID[ak]
 		require.True(t, ok, "org permissions missing: %s", ak)
 		require.ElementsMatchf(t, av.Org, bv.Org, "org %s permissions", ak)
+		require.ElementsMatchf(t, av.Member, bv.Member, "member %s permissions", ak)
 	}
 }

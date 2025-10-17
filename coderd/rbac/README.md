@@ -58,6 +58,42 @@ This can be represented by the following truth table, where Y represents _positi
 - `+site.app.*.read`: allowed to perform the `read` action against all objects of type `app` in a given Coder deployment.
 - `-user.workspace.*.create`: user is not allowed to create workspaces.
 
+## Levels
+
+A user can be given (or deprived) a permission at several levels. Currently,
+those levels are:
+
+- Site-wide level
+- Organization level
+- User level
+- Organization member level
+
+The site-wide level is the most authoritative. Any permission granted or denied at the side-wide level is absolute. After checking the site-wide level, depending of if the resource is owned by an organization or not, it will check the other levels.
+
+- If the resource is owned by an organization, the next most authoritative level is the organization level. It acts like the site-wide level, but only for resources within the cooresponding organization. The user can use that permission on any resource within that organization.
+
+	- After the organization level is the member level. This level only applies to resources that are owned by both the organization _and_ the user.
+
+- If the resource is not owned by an organization, the next level to check is the user level. This level only applies to resources owned by the user and that are not owned by any organization.
+
+```
+                 ┌──────────┐
+                 │   Site   │
+                 └─────┬────┘
+            ┌──────────┴───────────┐
+         ┌──┤   Owned by an org?   ├──┐
+         │  └──────────────────────┘  │
+      ┌──┴──┐                      ┌──┴─┐
+      │ Yes │                      │ No │
+      └──┬──┘                      └──┬─┘
+┌────────┴─────────┐            ┌─────┴────┐
+│   Organization   │            │   User   │
+└────────┬─────────┘            └──────────┘
+   ┌─────┴──────┐
+   │   Member   │
+   └────────────┘
+```
+
 ## Roles
 
 A _role_ is a set of permissions. When evaluating a role's permission to form an action, all the relevant permissions for the role are combined at each level. Permissions at a higher level override permissions at a lower level.
@@ -65,15 +101,18 @@ A _role_ is a set of permissions. When evaluating a role's permission to form an
 The following table shows the per-level role evaluation.
 Y indicates that the role provides positive permissions, N indicates the role provides negative permissions, and _indicates the role does not provide positive or negative permissions. YN_ indicates that the value in the cell does not matter for the access result.
 
-| Role (example)  | Site | Org  | User | Result |
-|-----------------|------|------|------|--------|
-| site-admin      | Y    | YN\_ | YN\_ | Y      |
-| no-permission   | N    | YN\_ | YN\_ | N      |
-| org-admin       | \_   | Y    | YN\_ | Y      |
-| non-org-member  | \_   | N    | YN\_ | N      |
-| user            | \_   | \_   | Y    | Y      |
-|                 | \_   | \_   | N    | N      |
-| unauthenticated | \_   | \_   | \_   | N      |
+| Role (example)  | Site | Org  | OrgMember | User | Result |
+|-----------------|------|------|-----------|------|--------|
+| site-admin      | Y    | YN\_ | YN\_      | YN\_ | Y      |
+| no-permission   | N    | YN\_ | YN\_      | YN\_ | N      |
+| org-admin       | \_   | Y    | YN\_      | YN\_ | Y      |
+| non-org-member  | \_   | N    | YN\_      | YN\_ | N      |
+| org-object      | \_   | \_   | Y         | YN\_ | N      |
+| org-object      | \_   | \_   | N         | YN\_ | N      |
+| org-object      | \_   | \_   | \_        | YN\_ | N      |
+| no-org          | \_   | \_   | YN\_      | Y    | Y      |
+| no-org          | \_   | \_   | YN\_      | N    | N      |
+| unauthenticated | \_   | \_   | \_        | \_   | N      |
 
 ## Scopes
 

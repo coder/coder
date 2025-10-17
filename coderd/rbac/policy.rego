@@ -35,7 +35,7 @@ bool_flip(b) := false if {
 	b
 }
 
-bool_flip(b) := true if {
+bool_flip(b) if {
 	not b
 }
 
@@ -78,9 +78,11 @@ number(set) := 1 if {
 # -------------------
 
 default site := 0
+
 site := site_allow(input.subject.roles)
 
 default scope_site := 0
+
 scope_site := site_allow([input.subject.scope])
 
 # site_allow receives a list of roles and returns a single number:
@@ -113,16 +115,18 @@ site_allow(roles) := num if {
 #  level permissions.
 #  Adding a second org_members set might affect the partial evaluation.
 #  This is being left until org scopes are used.
-org_members := {orgID |
-	input.subject.roles[_].by_org_id[orgID]
+org_members := {org_id |
+	input.subject.roles[_].by_org_id[org_id]
 }
 
 # 'org' is the same as 'site' except we need to iterate over each organization
 # that the actor is a member of.
 default org := 0
+
 org := org_allow(input.subject.roles, "org")
 
 default scope_org := 0
+
 scope_org := org_allow([input.subject.scope], "org")
 
 # org_allow_set is a helper function that iterates over all orgs that the actor
@@ -225,13 +229,19 @@ org_ok if {
 # 'user' is the same as 'site', except it only applies if the user owns the object and
 # the user is apart of the org (if the object has an org).
 default user := 0
+
 user := user_allow(input.subject.roles)
 
 default scope_user := 0
+
 scope_user := user_allow([input.subject.scope])
 
 user_allow(roles) := num if {
 	input.object.owner != ""
+
+	# if there is an org, use org_member permissions instead
+	input.object.org_owner == ""
+	not input.object.any_org
 	input.subject.id = input.object.owner
 
 	allow := {is_allowed |
@@ -246,15 +256,39 @@ user_allow(roles) := num if {
 	num := number(allow)
 }
 
+# -------------------
+# Organization Member Owner Rules
+# -------------------
+
+# 'org_member' applies if the object is owned by both the user and an organization.
+# It replaces the `user` permissions in this case.
+default org_member := 0
+
+org_member := num if {
+	# Object must be jointly owned by the user
+	input.object.owner != ""
+	input.subject.id = input.object.owner
+	num := org_allow(input.subject.roles, "member")
+}
+
+default scope_org_member := 0
+
+scope_org_member := num if {
+	# Object must be jointly owned by the user
+	input.object.owner != ""
+	input.subject.id = input.object.owner
+	num := org_allow([input.subject.scope], "member")
+}
+
 # Scope allow_list is a list of resource (Type, ID) tuples explicitly allowed by the scope.
 # If the list contains `(*,*)`, then all resources are allowed.
 scope_allow_list if {
-	input.subject.scope.allow_list[_] == {"type": "*", "id": "*"}
+	{"type": "*", "id": "*"} in input.subject.scope.allow_list
 }
 
 # This is a shortcut if the allow_list contains (type, *), then allow all IDs of that type.
 scope_allow_list if {
-	input.subject.scope.allow_list[_] == {"type": input.object.type, "id": "*"}
+	{"type": input.object.type, "id": "*"} in input.subject.scope.allow_list
 }
 
 # A comprehension that iterates over the allow_list and checks if the
@@ -264,43 +298,52 @@ scope_allow_list if {
 	# object.id. This line is included to prevent partial compilations from
 	# ever needing to include the object.id.
 	not {"type": "*", "id": "*"} in input.subject.scope.allow_list
+
 	# This is equivalent to the above line, as `type` is known at partial query time.
 	not {"type": input.object.type, "id": "*"} in input.subject.scope.allow_list
 
 	# allows_ids is the set of all ids allowed for the given object.type
 	allowed_ids := {allowed_id |
-  		# Iterate over all allow list elements
-  		ele := input.subject.scope.allow_list[_]
-  		ele.type in [input.object.type, "*"]
-      allowed_id := ele.id
-  }
+		# Iterate over all allow list elements
+		ele := input.subject.scope.allow_list[_]
+		ele.type in [input.object.type, "*"]
+		allowed_id := ele.id
+	}
 
-  # Return if the object.id is in the allowed ids
-  # This rule is evaluated at the end so the partial query can use the object.id
-  # against this precomputed set of allowed ids.
-  input.object.id in allowed_ids
+	# Return if the object.id is in the allowed ids
+	# This rule is evaluated at the end so the partial query can use the object.id
+	# against this precomputed set of allowed ids.
+	input.object.id in allowed_ids
 }
 
 # -------------------
 # Role-Specific Rules
 # -------------------
 
-role_allow if {
+role_allow if { # site level authed
 	site = 1
 }
 
-role_allow if {
+role_allow if { # org level authed
 	not site = -1
 	org = 1
 }
 
-role_allow if {
+role_allow if { # org member auth
 	not site = -1
 	not org = -1
+
+	# Organization member owner permissions require both ownership and org membership
+	org_member = 1
+}
+
+role_allow if { # user level authed
+	not site = -1
 
 	# If we are not a member of an org, and the object has an org, then we are
 	# not authorized. This is an "implied -1" for not being in the org.
 	org_ok
+
 	user = 1
 }
 
@@ -308,18 +351,27 @@ role_allow if {
 # Scope-Specific Rules
 # -------------------
 
-scope_allow if {
+scope_allow if { # scope site level authed
 	scope_allow_list
 	scope_site = 1
 }
 
-scope_allow if {
+scope_allow if { # scope org level authed
 	scope_allow_list
 	not scope_site = -1
 	scope_org = 1
 }
 
-scope_allow if {
+scope_allow if { # scope org member auth
+	scope_allow_list
+	not scope_site = -1
+	not scope_org = -1
+
+	# Organization member owner permissions require both ownership and org membership
+	scope_org_member = 1
+}
+
+scope_allow if { # scope user level authed
 	scope_allow_list
 	not scope_site = -1
 	not scope_org = -1
