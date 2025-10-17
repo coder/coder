@@ -147,7 +147,7 @@ check_org_permissions(roles, key) := vote if {
 # This check handles the case where we want to know if the user has the
 # appropriate permission for any organization, without needing to know which.
 # This is used in several places in the UI to determine if certain parts of the
-# app should be accessable.
+# app should be accessible.
 # For example, can the user create a new template in any organization? If yes,
 # then we should show the "New template" button.
 check_org_permissions(roles, key) := vote if {
