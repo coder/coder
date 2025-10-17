@@ -298,10 +298,12 @@ export const Active: Story = {
 		const vscodeIframe = await canvas.findByTitle("VS Code Web");
 		const zedIframe = await canvas.findByTitle("Zed");
 		const claudeIframe = await canvas.findByTitle("Claude Code");
+		const terminalButton = await canvas.findByText("Terminal");
 
 		expect(vscodeIframe).toBeVisible();
 		expect(zedIframe).not.toBeVisible();
 		expect(claudeIframe).toBeVisible();
+		expect(terminalButton).toBeVisible();
 	},
 };
 
@@ -492,6 +494,32 @@ function mockTaskWorkspace(
 	sidebarApp: WorkspaceApp,
 	activeApp: WorkspaceApp,
 ): Workspace {
+	const apps: WorkspaceApp[] = [
+		sidebarApp,
+		activeApp,
+		{
+			...MockWorkspaceApp,
+			slug: "zed",
+			id: "zed",
+			display_name: "Zed",
+			icon: "/icon/zed.svg",
+			health: "healthy",
+		},
+		{
+			...MockWorkspaceApp,
+			slug: "preview",
+			id: "preview",
+			display_name: "Preview",
+			health: "healthy",
+		},
+		{
+			...MockWorkspaceApp,
+			slug: "disabled",
+			id: "disabled",
+			display_name: "Disabled",
+		},
+	];
+
 	return {
 		...MockWorkspace,
 		latest_build: {
@@ -504,31 +532,7 @@ function mockTaskWorkspace(
 					agents: [
 						{
 							...MockWorkspaceAgentReady,
-							apps: [
-								sidebarApp,
-								activeApp,
-								{
-									...MockWorkspaceApp,
-									slug: "zed",
-									id: "zed",
-									display_name: "Zed",
-									icon: "/icon/zed.svg",
-									health: "healthy",
-								},
-								{
-									...MockWorkspaceApp,
-									slug: "preview",
-									id: "preview",
-									display_name: "Preview",
-									health: "healthy",
-								},
-								{
-									...MockWorkspaceApp,
-									slug: "disabled",
-									id: "disabled",
-									display_name: "Disabled",
-								},
-							],
+							apps,
 						},
 					],
 				},
