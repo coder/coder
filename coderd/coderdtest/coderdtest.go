@@ -1195,13 +1195,13 @@ func (w WorkspaceAgentWaiter) WaitFor(criteria ...WaitForAgentFn) {
 		agentNamesMap[name] = struct{}{}
 	}
 
-	wCtx := w.ctx
+	ctx := w.ctx
 	if w.ctx == nil {
-		wCtx = testutil.Context(w.t, testutil.WaitLong)
+		ctx = testutil.Context(w.t, testutil.WaitLong)
 	}
 
 	w.t.Logf("waiting for workspace agents (workspace %s)", w.workspaceID)
-	testutil.Eventually(wCtx, w.t, func(ctx context.Context) bool {
+	testutil.Eventually(ctx, w.t, func(ctx context.Context) bool {
 		var err error
 		workspace, err := w.client.Workspace(ctx, w.workspaceID)
 		if err != nil {
@@ -1242,14 +1242,14 @@ func (w WorkspaceAgentWaiter) Wait() []codersdk.WorkspaceResource {
 		agentNamesMap[name] = struct{}{}
 	}
 
-	wCtx := w.ctx
+	ctx := w.ctx
 	if w.ctx == nil {
-		wCtx = testutil.Context(w.t, testutil.WaitLong)
+		ctx = testutil.Context(w.t, testutil.WaitLong)
 	}
 
 	w.t.Logf("waiting for workspace agents (workspace %s)", w.workspaceID)
 	var resources []codersdk.WorkspaceResource
-	testutil.Eventually(wCtx, w.t, func(ctx context.Context) bool {
+	testutil.Eventually(ctx, w.t, func(ctx context.Context) bool {
 		var err error
 		workspace, err := w.client.Workspace(ctx, w.workspaceID)
 		if err != nil {
