@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -35,6 +36,8 @@ import (
 // @Produce json
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
+// @Param include_all query bool false "Include tokens for all users (owners only)"
+// @Param status query string false "Token status filter" Enums(active,expired,all)
 // @Param request body codersdk.CreateTokenRequest true "Create token request"
 // @Success 201 {object} codersdk.GenerateAPIKeyResponse
 // @Router /users/{user}/keys/tokens [post]
@@ -302,6 +305,7 @@ func (api *API) apiKeyByName(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get user tokens
+// @Description Returns both token and password-type API keys by default. Visibility matches existing behavior: users see their own; owners can include all via include_all=true.
 // @ID get-user-tokens
 // @Security CoderSessionToken
 // @Produce json
@@ -319,9 +323,29 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 		includeAll, _ = strconv.ParseBool(queryStr)
 	)
 
+	statusParam := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("status")))
+	status := "active"
+	switch statusParam {
+	case "", "active":
+		// keep default
+	case "expired", "all":
+		status = statusParam
+	default:
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Invalid status %q. Valid values are active, expired, or all.", statusParam),
+		})
+		return
+	}
+
+	// Always include both token and password login types by default.
+	loginTypes := []database.LoginType{database.LoginTypeToken, database.LoginTypePassword}
+
 	if includeAll {
-		// get tokens for all users
-		keys, err = api.Database.GetAPIKeysByLoginType(ctx, database.LoginTypeToken)
+		// get tokens for all users, across both login types
+		keys, err = api.Database.GetAPIKeysByLoginTypes(ctx, database.GetAPIKeysByLoginTypesParams{
+			LoginTypes: loginTypes,
+			Status:     status,
+		})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching API keys.",
@@ -330,8 +354,12 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		// get user's tokens only
-		keys, err = api.Database.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{LoginType: database.LoginTypeToken, UserID: user.ID})
+		// get user's tokens only, across both login types
+		keys, err = api.Database.GetAPIKeysByUserIDAndLoginTypes(ctx, database.GetAPIKeysByUserIDAndLoginTypesParams{
+			UserID:     user.ID,
+			LoginTypes: loginTypes,
+			Status:     status,
+		})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching API keys.",

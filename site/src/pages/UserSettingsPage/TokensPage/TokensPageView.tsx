@@ -14,9 +14,15 @@ import {
 } from "components/Table/Table";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import { TableLoader } from "components/TableLoader/TableLoader";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
-import { TrashIcon } from "lucide-react";
+import { KeyIcon, LockKeyholeIcon, TrashIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
 
 dayjs.extend(relativeTime);
@@ -25,6 +31,17 @@ const lastUsedOrNever = (lastUsed: string) => {
 	const t = dayjs(lastUsed);
 	const now = dayjs();
 	return now.isBefore(t.add(100, "year")) ? t.fromNow() : "Never";
+};
+
+const formatLoginType = (type: string) =>
+	type
+		.split("_")
+		.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+		.join(" ");
+
+const loginTypeIcon: Record<string, ReactNode> = {
+	password: <LockKeyholeIcon className="size-4" aria-hidden="true" />,
+	token: <KeyIcon className="size-4" aria-hidden="true" />,
 };
 
 interface TokensPageViewProps {
@@ -55,11 +72,12 @@ export const TokensPageView: FC<TokensPageViewProps> = ({
 			<Table>
 				<TableHeader>
 					<TableRow>
-						<TableHead className="w-1/5">ID</TableHead>
-						<TableHead className="w-1/5">Name</TableHead>
-						<TableHead className="w-1/5">Last Used</TableHead>
-						<TableHead className="w-1/5">Expires At</TableHead>
-						<TableHead className="w-1/5">Created At</TableHead>
+						<TableHead className="w-1/6 min-w-32">ID</TableHead>
+						<TableHead className="w-1/6 min-w-32">Name</TableHead>
+						<TableHead className="w-1/6 min-w-24">Type</TableHead>
+						<TableHead className="w-1/6 min-w-28">Last Used</TableHead>
+						<TableHead className="w-1/6 min-w-28">Expires At</TableHead>
+						<TableHead className="w-1/6 min-w-28">Created At</TableHead>
 						<TableHead className="w-[1%]" />
 					</TableRow>
 				</TableHeader>
@@ -89,6 +107,27 @@ export const TokensPageView: FC<TokensPageViewProps> = ({
 											<span style={{ color: theme.palette.text.secondary }}>
 												{token.token_name}
 											</span>
+										</TableCell>
+
+										<TableCell>
+											<TooltipProvider>
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<span
+															style={{ color: theme.palette.text.secondary }}
+														>
+															{loginTypeIcon[token.login_type] ?? (
+																<span className="text-xs">
+																	{formatLoginType(token.login_type)}
+																</span>
+															)}
+														</span>
+													</TooltipTrigger>
+													<TooltipContent>
+														{formatLoginType(token.login_type)}
+													</TooltipContent>
+												</Tooltip>
+											</TooltipProvider>
 										</TableCell>
 
 										<TableCell>{lastUsedOrNever(token.last_used)}</TableCell>

@@ -744,6 +744,8 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/tokens \
 
 `GET /users/{user}/keys/tokens`
 
+Returns both token and password-type API keys by default. Visibility matches existing behavior: users see their own; owners can include all via include_all=true.
+
 ### Parameters
 
 | Name   | In   | Type   | Required | Description          |
@@ -847,10 +849,20 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/keys/tokens \
 
 ### Parameters
 
-| Name   | In   | Type                                                                 | Required | Description          |
-|--------|------|----------------------------------------------------------------------|----------|----------------------|
-| `user` | path | string                                                               | true     | User ID, name, or me |
-| `body` | body | [codersdk.CreateTokenRequest](schemas.md#codersdkcreatetokenrequest) | true     | Create token request |
+| Name          | In    | Type                                                                 | Required | Description                                |
+|---------------|-------|----------------------------------------------------------------------|----------|--------------------------------------------|
+| `user`        | path  | string                                                               | true     | User ID, name, or me                       |
+| `include_all` | query | boolean                                                              | false    | Include tokens for all users (owners only) |
+| `status`      | query | string                                                               | false    | Token status filter                        |
+| `body`        | body  | [codersdk.CreateTokenRequest](schemas.md#codersdkcreatetokenrequest) | true     | Create token request                       |
+
+#### Enumerated Values
+
+| Parameter | Value     |
+|-----------|-----------|
+| `status`  | `active`  |
+| `status`  | `expired` |
+| `status`  | `all`     |
 
 ### Example responses
 

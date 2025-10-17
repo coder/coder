@@ -928,11 +928,106 @@ func (q *sqlQuerier) GetAPIKeyByName(ctx context.Context, arg GetAPIKeyByNamePar
 }
 
 const getAPIKeysByLoginType = `-- name: GetAPIKeysByLoginType :many
-SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes, allow_list FROM api_keys WHERE login_type = $1
+SELECT
+    id,
+    hashed_secret,
+    user_id,
+    last_used,
+    expires_at,
+    created_at,
+    updated_at,
+    login_type,
+    lifetime_seconds,
+    ip_address,
+    token_name,
+    scopes,
+    allow_list
+FROM
+    api_keys
+WHERE
+    login_type = $1 :: login_type
+    AND (
+        $2 :: text = 'all'
+        OR ($2 :: text = 'active' AND (expires_at IS NULL OR expires_at > NOW()))
+        OR ($2 :: text = 'expired' AND expires_at <= NOW())
+    )
 `
 
-func (q *sqlQuerier) GetAPIKeysByLoginType(ctx context.Context, loginType LoginType) ([]APIKey, error) {
-	rows, err := q.db.QueryContext(ctx, getAPIKeysByLoginType, loginType)
+type GetAPIKeysByLoginTypeParams struct {
+	LoginType LoginType `db:"login_type" json:"login_type"`
+	Status    string    `db:"status" json:"status"`
+}
+
+func (q *sqlQuerier) GetAPIKeysByLoginType(ctx context.Context, arg GetAPIKeysByLoginTypeParams) ([]APIKey, error) {
+	rows, err := q.db.QueryContext(ctx, getAPIKeysByLoginType, arg.LoginType, arg.Status)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []APIKey
+	for rows.Next() {
+		var i APIKey
+		if err := rows.Scan(
+			&i.ID,
+			&i.HashedSecret,
+			&i.UserID,
+			&i.LastUsed,
+			&i.ExpiresAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.LoginType,
+			&i.LifetimeSeconds,
+			&i.IPAddress,
+			&i.TokenName,
+			&i.Scopes,
+			&i.AllowList,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAPIKeysByLoginTypes = `-- name: GetAPIKeysByLoginTypes :many
+SELECT
+    id,
+    hashed_secret,
+    user_id,
+    last_used,
+    expires_at,
+    created_at,
+    updated_at,
+    login_type,
+    lifetime_seconds,
+    ip_address,
+    token_name,
+    scopes,
+    allow_list
+FROM
+    api_keys
+WHERE
+    login_type = ANY($1 :: login_type [])
+    AND (
+        $2 :: text = 'all'
+        OR ($2 :: text = 'active' AND (expires_at IS NULL OR expires_at > NOW()))
+        OR ($2 :: text = 'expired' AND expires_at <= NOW())
+    )
+`
+
+type GetAPIKeysByLoginTypesParams struct {
+	LoginTypes []LoginType `db:"login_types" json:"login_types"`
+	Status     string      `db:"status" json:"status"`
+}
+
+func (q *sqlQuerier) GetAPIKeysByLoginTypes(ctx context.Context, arg GetAPIKeysByLoginTypesParams) ([]APIKey, error) {
+	rows, err := q.db.QueryContext(ctx, getAPIKeysByLoginTypes, pq.Array(arg.LoginTypes), arg.Status)
 	if err != nil {
 		return nil, err
 	}
@@ -969,16 +1064,110 @@ func (q *sqlQuerier) GetAPIKeysByLoginType(ctx context.Context, loginType LoginT
 }
 
 const getAPIKeysByUserID = `-- name: GetAPIKeysByUserID :many
-SELECT id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes, allow_list FROM api_keys WHERE login_type = $1 AND user_id = $2
+SELECT
+    id,
+    hashed_secret,
+    user_id,
+    last_used,
+    expires_at,
+    created_at,
+    updated_at,
+    login_type,
+    lifetime_seconds,
+    ip_address,
+    token_name,
+    scopes,
+    allow_list
+FROM
+    api_keys
+WHERE
+    login_type = $1 :: login_type
+    AND user_id = $2
+    AND (
+        $3 :: text = 'all'
+        OR ($3 :: text = 'active' AND (expires_at IS NULL OR expires_at > NOW()))
+        OR ($3 :: text = 'expired' AND expires_at <= NOW())
+    )
 `
 
 type GetAPIKeysByUserIDParams struct {
 	LoginType LoginType `db:"login_type" json:"login_type"`
 	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+	Status    string    `db:"status" json:"status"`
 }
 
 func (q *sqlQuerier) GetAPIKeysByUserID(ctx context.Context, arg GetAPIKeysByUserIDParams) ([]APIKey, error) {
-	rows, err := q.db.QueryContext(ctx, getAPIKeysByUserID, arg.LoginType, arg.UserID)
+	rows, err := q.db.QueryContext(ctx, getAPIKeysByUserID, arg.LoginType, arg.UserID, arg.Status)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []APIKey
+	for rows.Next() {
+		var i APIKey
+		if err := rows.Scan(
+			&i.ID,
+			&i.HashedSecret,
+			&i.UserID,
+			&i.LastUsed,
+			&i.ExpiresAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.LoginType,
+			&i.LifetimeSeconds,
+			&i.IPAddress,
+			&i.TokenName,
+			&i.Scopes,
+			&i.AllowList,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAPIKeysByUserIDAndLoginTypes = `-- name: GetAPIKeysByUserIDAndLoginTypes :many
+SELECT
+    id,
+    hashed_secret,
+    user_id,
+    last_used,
+    expires_at,
+    created_at,
+    updated_at,
+    login_type,
+    lifetime_seconds,
+    ip_address,
+    token_name,
+    scopes,
+    allow_list
+FROM
+    api_keys
+WHERE
+    user_id = $1
+    AND login_type = ANY($2 :: login_type [])
+    AND (
+        $3 :: text = 'all'
+        OR ($3 :: text = 'active' AND expires_at > NOW())
+        OR ($3 :: text = 'expired' AND expires_at <= NOW())
+    )
+`
+
+type GetAPIKeysByUserIDAndLoginTypesParams struct {
+	UserID     uuid.UUID   `db:"user_id" json:"user_id"`
+	LoginTypes []LoginType `db:"login_types" json:"login_types"`
+	Status     string      `db:"status" json:"status"`
+}
+
+func (q *sqlQuerier) GetAPIKeysByUserIDAndLoginTypes(ctx context.Context, arg GetAPIKeysByUserIDAndLoginTypesParams) ([]APIKey, error) {
+	rows, err := q.db.QueryContext(ctx, getAPIKeysByUserIDAndLoginTypes, arg.UserID, pq.Array(arg.LoginTypes), arg.Status)
 	if err != nil {
 		return nil, err
 	}

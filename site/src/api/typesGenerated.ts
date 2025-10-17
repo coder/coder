@@ -5240,8 +5240,14 @@ export interface TokenConfig {
 }
 
 // From codersdk/apikey.go
+export type TokenStatus = "active" | "all" | "expired";
+
+export const TokenStatuses: TokenStatus[] = ["active", "all", "expired"];
+
+// From codersdk/apikey.go
 export interface TokensFilter {
 	readonly include_all: boolean;
+	readonly status: TokenStatus;
 }
 
 // From codersdk/deployment.go

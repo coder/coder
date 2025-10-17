@@ -25,10 +25,106 @@ LIMIT
 SELECT * FROM api_keys WHERE last_used > $1;
 
 -- name: GetAPIKeysByLoginType :many
-SELECT * FROM api_keys WHERE login_type = $1;
+SELECT
+    id,
+    hashed_secret,
+    user_id,
+    last_used,
+    expires_at,
+    created_at,
+    updated_at,
+    login_type,
+    lifetime_seconds,
+    ip_address,
+    token_name,
+    scopes,
+    allow_list
+FROM
+    api_keys
+WHERE
+    login_type = @login_type :: login_type
+    AND (
+        @status :: text = 'all'
+        OR (@status :: text = 'active' AND (expires_at IS NULL OR expires_at > NOW()))
+        OR (@status :: text = 'expired' AND expires_at <= NOW())
+    );
 
 -- name: GetAPIKeysByUserID :many
-SELECT * FROM api_keys WHERE login_type = $1 AND user_id = $2;
+SELECT
+    id,
+    hashed_secret,
+    user_id,
+    last_used,
+    expires_at,
+    created_at,
+    updated_at,
+    login_type,
+    lifetime_seconds,
+    ip_address,
+    token_name,
+    scopes,
+    allow_list
+FROM
+    api_keys
+WHERE
+    login_type = @login_type :: login_type
+    AND user_id = @user_id
+    AND (
+        @status :: text = 'all'
+        OR (@status :: text = 'active' AND (expires_at IS NULL OR expires_at > NOW()))
+        OR (@status :: text = 'expired' AND expires_at <= NOW())
+    );
+
+-- name: GetAPIKeysByLoginTypes :many
+SELECT
+    id,
+    hashed_secret,
+    user_id,
+    last_used,
+    expires_at,
+    created_at,
+    updated_at,
+    login_type,
+    lifetime_seconds,
+    ip_address,
+    token_name,
+    scopes,
+    allow_list
+FROM
+    api_keys
+WHERE
+    login_type = ANY(@login_types :: login_type [])
+    AND (
+        @status :: text = 'all'
+        OR (@status :: text = 'active' AND (expires_at IS NULL OR expires_at > NOW()))
+        OR (@status :: text = 'expired' AND expires_at <= NOW())
+    );
+
+-- name: GetAPIKeysByUserIDAndLoginTypes :many
+SELECT
+    id,
+    hashed_secret,
+    user_id,
+    last_used,
+    expires_at,
+    created_at,
+    updated_at,
+    login_type,
+    lifetime_seconds,
+    ip_address,
+    token_name,
+    scopes,
+    allow_list
+FROM
+    api_keys
+WHERE
+    user_id = @user_id
+    AND login_type = ANY(@login_types :: login_type [])
+    AND (
+        @status :: text = 'all'
+        OR (@status :: text = 'active' AND expires_at > NOW())
+        OR (@status :: text = 'expired' AND expires_at <= NOW())
+    );
 
 -- name: InsertAPIKey :one
 INSERT INTO

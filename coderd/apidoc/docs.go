@@ -7829,6 +7829,7 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+                "description": "Returns both token and password-type API keys by default. Visibility matches existing behavior: users see their own; owners can include all via include_all=true.",
                 "produces": [
                     "application/json"
                 ],
@@ -7882,6 +7883,23 @@ const docTemplate = `{
                         "name": "user",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Include tokens for all users (owners only)",
+                        "name": "include_all",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "active",
+                            "expired",
+                            "all"
+                        ],
+                        "type": "string",
+                        "description": "Token status filter",
+                        "name": "status",
+                        "in": "query"
                     },
                     {
                         "description": "Create token request",

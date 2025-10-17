@@ -157,8 +157,10 @@ type sqlcQuerier interface {
 	GetAPIKeyByID(ctx context.Context, id string) (APIKey, error)
 	// there is no unique constraint on empty token names
 	GetAPIKeyByName(ctx context.Context, arg GetAPIKeyByNameParams) (APIKey, error)
-	GetAPIKeysByLoginType(ctx context.Context, loginType LoginType) ([]APIKey, error)
+	GetAPIKeysByLoginType(ctx context.Context, arg GetAPIKeysByLoginTypeParams) ([]APIKey, error)
+	GetAPIKeysByLoginTypes(ctx context.Context, arg GetAPIKeysByLoginTypesParams) ([]APIKey, error)
 	GetAPIKeysByUserID(ctx context.Context, arg GetAPIKeysByUserIDParams) ([]APIKey, error)
+	GetAPIKeysByUserIDAndLoginTypes(ctx context.Context, arg GetAPIKeysByUserIDAndLoginTypesParams) ([]APIKey, error)
 	GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]APIKey, error)
 	GetActivePresetPrebuildSchedules(ctx context.Context) ([]TemplateVersionPresetPrebuildSchedule, error)
 	GetActiveUserCount(ctx context.Context, includeSystem bool) (int64, error)
