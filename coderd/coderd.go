@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	httppprof "net/http/pprof"
 	"net/url"
 	"path/filepath"
 	"regexp"
@@ -32,6 +33,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/klauspost/compress/zstd"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
@@ -1545,6 +1547,45 @@ func New(options *Options) *API {
 				})
 			}
 			r.Method("GET", "/expvar", expvar.Handler()) // contains DERP metrics as well as cmdline and memstats
+
+			r.Route("/pprof", func(r chi.Router) {
+				r.Use(func(next http.Handler) http.Handler {
+					// Some of the pprof handlers strip the `/debug/pprof`
+					// prefix, so we need to strip our additional prefix as
+					// well.
+					return http.StripPrefix("/api/v2", next)
+				})
+
+				// Serve the index HTML page.
+				r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+					// Redirect to include a trailing slash, otherwise links on
+					// the generated HTML page will be broken.
+					if !strings.HasSuffix(r.URL.Path, "/") {
+						http.Redirect(w, r, "/api/v2/debug/pprof/", http.StatusTemporaryRedirect)
+						return
+					}
+					httppprof.Index(w, r)
+				})
+
+				// Handle any out of the box pprof handlers that don't get
+				// dealt with by the default index handler. See httppprof.init.
+				r.Get("/cmdline", func(w http.ResponseWriter, r *http.Request) {
+					httpapi.Write(r.Context(), w, http.StatusNotFound, codersdk.Response{
+						Message: "cmdline pprof is not exposed on this endpoint as it could contain secret values.",
+						Detail:  "Enable and use the separate pprof localhost server to access this endpoint.",
+					})
+				})
+				r.Get("/profile", httppprof.Profile)
+				r.Get("/symbol", httppprof.Symbol)
+				r.Get("/trace", httppprof.Trace)
+
+				// Index will handle any custom runtime/pprof handlers as well.
+				r.Mount("/", http.HandlerFunc(httppprof.Index))
+			})
+
+			r.Handle("/metrics", promhttp.InstrumentMetricHandler(
+				options.PrometheusRegistry, promhttp.HandlerFor(options.PrometheusRegistry, promhttp.HandlerOpts{}),
+			))
 		})
 		// Manage OAuth2 applications that can use Coder as an OAuth2 provider.
 		r.Route("/oauth2-provider", func(r chi.Router) {
