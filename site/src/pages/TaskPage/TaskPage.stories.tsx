@@ -320,6 +320,60 @@ export const ActivePreview: Story = {
 	},
 };
 
+export const WorkspaceStarting: Story = {
+	decorators: [withGlobalSnackbar],
+	beforeEach: () => {
+		spyOn(API, "startWorkspace").mockResolvedValue(
+			MockStartingWorkspace.latest_build,
+		);
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				pathParams: {
+					username: MockStoppedWorkspace.owner_name,
+					workspace: MockStoppedWorkspace.name,
+				},
+			},
+			routing: {
+				path: "/tasks/:username/:workspace",
+			},
+		}),
+		queries: [
+			{
+				key: [
+					"tasks",
+					MockStoppedWorkspace.owner_name,
+					MockStoppedWorkspace.name,
+				],
+				data: {
+					prompt: "Create competitors page",
+					workspace: MockStoppedWorkspace,
+				},
+			},
+			{
+				key: ["workspace", MockStoppedWorkspace.id, "parameters"],
+				data: {
+					templateVersionRichParameters: [],
+					buildParameters: [],
+				},
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const startButton = await canvas.findByText("Start workspace");
+		expect(startButton).toBeInTheDocument();
+
+		await userEvent.click(startButton);
+
+		await waitFor(async () => {
+			expect(API.startWorkspace).toBeCalled();
+		});
+	},
+};
+
 export const WorkspaceStartFailure: Story = {
 	decorators: [withGlobalSnackbar],
 	beforeEach: () => {

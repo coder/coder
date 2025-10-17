@@ -62,10 +62,6 @@ func (m *FakeConnectionLogger) Contains(t testing.TB, expected database.UpsertCo
 			t.Logf("connection log %d: expected ID %s, got %s", idx+1, expected.ID, cl.ID)
 			continue
 		}
-		if !expected.Time.IsZero() && expected.Time != cl.Time {
-			t.Logf("connection log %d: expected Time %s, got %s", idx+1, expected.Time, cl.Time)
-			continue
-		}
 		if expected.OrganizationID != uuid.Nil && cl.OrganizationID != expected.OrganizationID {
 			t.Logf("connection log %d: expected OrganizationID %s, got %s", idx+1, expected.OrganizationID, cl.OrganizationID)
 			continue
@@ -112,6 +108,18 @@ func (m *FakeConnectionLogger) Contains(t testing.TB, expected database.UpsertCo
 		}
 		if expected.ConnectionID.Valid && cl.ConnectionID.UUID != expected.ConnectionID.UUID {
 			t.Logf("connection log %d: expected ConnectionID %s, got %s", idx+1, expected.ConnectionID.UUID, cl.ConnectionID.UUID)
+			continue
+		}
+		if expected.DisconnectReason.Valid && cl.DisconnectReason.String != expected.DisconnectReason.String {
+			t.Logf("connection log %d: expected DisconnectReason %s, got %s", idx+1, expected.DisconnectReason.String, cl.DisconnectReason.String)
+			continue
+		}
+		if !expected.Time.IsZero() && expected.Time != cl.Time {
+			t.Logf("connection log %d: expected Time %s, got %s", idx+1, expected.Time, cl.Time)
+			continue
+		}
+		if expected.ConnectionStatus != "" && expected.ConnectionStatus != cl.ConnectionStatus {
+			t.Logf("connection log %d: expected ConnectionStatus %s, got %s", idx+1, expected.ConnectionStatus, cl.ConnectionStatus)
 			continue
 		}
 		return true

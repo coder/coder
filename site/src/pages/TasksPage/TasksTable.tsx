@@ -74,7 +74,7 @@ type TasksErrorBodyProps = {
 const TasksErrorBody: FC<TasksErrorBodyProps> = ({ error, onRetry }) => {
 	return (
 		<TableRow>
-			<TableCell colSpan={4} className="text-center">
+			<TableCell colSpan={5} className="text-center">
 				<div className="rounded-lg w-full min-h-80 flex items-center justify-center">
 					<div className="flex flex-col items-center">
 						<h3 className="m-0 font-medium text-content-primary text-base">
@@ -97,7 +97,7 @@ const TasksErrorBody: FC<TasksErrorBodyProps> = ({ error, onRetry }) => {
 const TasksEmpty: FC = () => {
 	return (
 		<TableRow>
-			<TableCell colSpan={4} className="text-center">
+			<TableCell colSpan={5} className="text-center">
 				<div className="w-full min-h-80 p-4 flex items-center justify-center">
 					<div className="flex flex-col items-center">
 						<h3 className="m-0 font-medium text-content-primary text-base">
@@ -215,6 +215,11 @@ const TasksSkeleton: FC = () => {
 				</TableCell>
 				<TableCell>
 					<AvatarDataSkeleton />
+				</TableCell>
+				<TableCell>
+					<div className="flex justify-end items-center">
+						<Skeleton className="size-8" />
+					</div>
 				</TableCell>
 			</TableRowSkeleton>
 		</TableLoaderSkeleton>

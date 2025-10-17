@@ -1811,7 +1811,7 @@ export interface HealthcheckReport {
 }
 
 // From codersdk/idpsync.go
-export interface IDPSyncMapping<ResourceIdType extends string | string> {
+export interface IDPSyncMapping<ResourceIdType extends string> {
 	readonly Given: string;
 	readonly Gets: ResourceIdType;
 }
@@ -3060,6 +3060,7 @@ export type ResourceType =
 	| "organization"
 	| "organization_member"
 	| "prebuilds_settings"
+	| "task"
 	| "template"
 	| "template_version"
 	| "user"
@@ -3087,6 +3088,7 @@ export const ResourceTypes: ResourceType[] = [
 	"organization",
 	"organization_member",
 	"prebuilds_settings",
+	"task",
 	"template",
 	"template_version",
 	"user",
@@ -3346,9 +3348,11 @@ export interface Task {
 	readonly template_display_name: string;
 	readonly template_icon: string;
 	readonly workspace_id: string | null;
+	readonly workspace_build_number?: number;
 	readonly workspace_agent_id: string | null;
 	readonly workspace_agent_lifecycle: WorkspaceAgentLifecycle | null;
 	readonly workspace_agent_health: WorkspaceAgentHealth | null;
+	readonly workspace_app_id: string | null;
 	readonly initial_prompt: string;
 	readonly status: WorkspaceStatus;
 	readonly current_state: TaskStateEntry | null;
@@ -4662,30 +4666,3 @@ export interface WorkspacesResponse {
 	readonly workspaces: readonly Workspace[];
 	readonly count: number;
 }
-
-// From codersdk/deployment.go
-export const annotationEnterpriseKey = "enterprise";
-
-// From codersdk/deployment.go
-export const annotationExternalProxies = "external_workspace_proxies";
-
-// From codersdk/deployment.go
-export const annotationFormatDuration = "format_duration";
-
-// From codersdk/deployment.go
-export const annotationSecretKey = "secret";
-
-// From codersdk/insights.go
-export const insightsTimeLayout = "2006-01-02T15:04:05Z07:00";
-
-// From codersdk/notifications.go
-export const maxCustomNotificationMessageLen = 2000;
-
-// From codersdk/notifications.go
-export const maxCustomNotificationTitleLen = 120;
-
-// From healthsdk/interfaces.go
-export const safeMTU = 1378;
-
-// From codersdk/workspacedisplaystatus.go
-export const unknownStatus = "Unknown";

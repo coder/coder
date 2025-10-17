@@ -1008,15 +1008,25 @@ func TestTasksNotification(t *testing.T) {
 			isNotificationSent: false,
 			taskPrompt:         "NonNotifiedTransition",
 		},
-		// Should send TemplateTaskWorking when the AI task transitions to 'Working'.
+		// Should NOT send TemplateTaskWorking when the AI task's FIRST status is 'Working' (obvious state).
 		{
 			name:                 "TemplateTaskWorking",
 			latestAppStatuses:    nil,
 			newAppStatus:         codersdk.WorkspaceAppStatusStateWorking,
 			isAITask:             true,
-			isNotificationSent:   true,
+			isNotificationSent:   false,
 			notificationTemplate: notifications.TemplateTaskWorking,
 			taskPrompt:           "TemplateTaskWorking",
+		},
+		// Should send TemplateTaskIdle when the AI task's FIRST status is 'Idle' (task completed immediately).
+		{
+			name:                 "InitialTemplateTaskIdle",
+			latestAppStatuses:    nil,
+			newAppStatus:         codersdk.WorkspaceAppStatusStateIdle,
+			isAITask:             true,
+			isNotificationSent:   true,
+			notificationTemplate: notifications.TemplateTaskIdle,
+			taskPrompt:           "InitialTemplateTaskIdle",
 		},
 		// Should send TemplateTaskWorking when the AI task transitions to 'Working' from 'Idle'.
 		{
@@ -1050,6 +1060,64 @@ func TestTasksNotification(t *testing.T) {
 			isNotificationSent:   true,
 			notificationTemplate: notifications.TemplateTaskIdle,
 			taskPrompt:           "This is a very long task prompt that should be truncated to 160 characters. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+		},
+		// Should send TemplateTaskCompleted when the AI task transitions to 'Complete'.
+		{
+			name:                 "TemplateTaskCompleted",
+			latestAppStatuses:    []codersdk.WorkspaceAppStatusState{codersdk.WorkspaceAppStatusStateWorking},
+			newAppStatus:         codersdk.WorkspaceAppStatusStateComplete,
+			isAITask:             true,
+			isNotificationSent:   true,
+			notificationTemplate: notifications.TemplateTaskCompleted,
+			taskPrompt:           "TemplateTaskCompleted",
+		},
+		// Should send TemplateTaskFailed when the AI task transitions to 'Failure'.
+		{
+			name:                 "TemplateTaskFailed",
+			latestAppStatuses:    []codersdk.WorkspaceAppStatusState{codersdk.WorkspaceAppStatusStateWorking},
+			newAppStatus:         codersdk.WorkspaceAppStatusStateFailure,
+			isAITask:             true,
+			isNotificationSent:   true,
+			notificationTemplate: notifications.TemplateTaskFailed,
+			taskPrompt:           "TemplateTaskFailed",
+		},
+		// Should send TemplateTaskCompleted when the AI task transitions from 'Idle' to 'Complete'.
+		{
+			name:                 "TemplateTaskCompletedFromIdle",
+			latestAppStatuses:    []codersdk.WorkspaceAppStatusState{codersdk.WorkspaceAppStatusStateIdle},
+			newAppStatus:         codersdk.WorkspaceAppStatusStateComplete,
+			isAITask:             true,
+			isNotificationSent:   true,
+			notificationTemplate: notifications.TemplateTaskCompleted,
+			taskPrompt:           "TemplateTaskCompletedFromIdle",
+		},
+		// Should send TemplateTaskFailed when the AI task transitions from 'Idle' to 'Failure'.
+		{
+			name:                 "TemplateTaskFailedFromIdle",
+			latestAppStatuses:    []codersdk.WorkspaceAppStatusState{codersdk.WorkspaceAppStatusStateIdle},
+			newAppStatus:         codersdk.WorkspaceAppStatusStateFailure,
+			isAITask:             true,
+			isNotificationSent:   true,
+			notificationTemplate: notifications.TemplateTaskFailed,
+			taskPrompt:           "TemplateTaskFailedFromIdle",
+		},
+		// Should NOT send notification when transitioning from 'Complete' to 'Complete' (no change).
+		{
+			name:               "NoNotificationCompleteToComplete",
+			latestAppStatuses:  []codersdk.WorkspaceAppStatusState{codersdk.WorkspaceAppStatusStateComplete},
+			newAppStatus:       codersdk.WorkspaceAppStatusStateComplete,
+			isAITask:           true,
+			isNotificationSent: false,
+			taskPrompt:         "NoNotificationCompleteToComplete",
+		},
+		// Should NOT send notification when transitioning from 'Failure' to 'Failure' (no change).
+		{
+			name:               "NoNotificationFailureToFailure",
+			latestAppStatuses:  []codersdk.WorkspaceAppStatusState{codersdk.WorkspaceAppStatusStateFailure},
+			newAppStatus:       codersdk.WorkspaceAppStatusStateFailure,
+			isAITask:           true,
+			isNotificationSent: false,
+			taskPrompt:         "NoNotificationFailureToFailure",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

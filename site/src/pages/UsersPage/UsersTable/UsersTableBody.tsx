@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import GitHub from "@mui/icons-material/GitHub";
 import Skeleton from "@mui/material/Skeleton";
 import type { GroupsByUserId } from "api/queries/groups";
 import type * as TypesGen from "api/typesGenerated";
@@ -16,6 +15,7 @@ import {
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
 import { EmptyState } from "components/EmptyState/EmptyState";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { LastSeen } from "components/LastSeen/LastSeen";
 import { TableCell, TableRow } from "components/Table/Table";
 import {
@@ -269,7 +269,7 @@ const LoginType: FC<LoginTypeProps> = ({ authMethods, value }) => {
 		icon = <BanIcon css={styles.icon} />;
 	} else if (value === "github") {
 		displayName = "GitHub";
-		icon = <GitHub css={styles.icon} />;
+		icon = <ExternalImage src="/icon/github.svg" css={styles.icon} />;
 	} else if (value === "token") {
 		displayName = "Token";
 		icon = <KeyIcon css={styles.icon} />;

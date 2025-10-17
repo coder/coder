@@ -186,15 +186,6 @@ const muiTheme = createTheme({
 				}),
 			},
 		},
-		MuiIconButton: {
-			styleOverrides: {
-				root: {
-					"&.Mui-focusVisible": {
-						boxShadow: `0 0 0 2px ${tw.blue[600]}`,
-					},
-				},
-			},
-		},
 	},
 });
 

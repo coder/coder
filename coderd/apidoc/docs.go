@@ -17247,7 +17247,8 @@ const docTemplate = `{
                 "idp_sync_settings_group",
                 "idp_sync_settings_role",
                 "workspace_agent",
-                "workspace_app"
+                "workspace_app",
+                "task"
             ],
             "x-enum-varnames": [
                 "ResourceTypeTemplate",
@@ -17274,7 +17275,8 @@ const docTemplate = `{
                 "ResourceTypeIdpSyncSettingsGroup",
                 "ResourceTypeIdpSyncSettingsRole",
                 "ResourceTypeWorkspaceAgent",
-                "ResourceTypeWorkspaceApp"
+                "ResourceTypeWorkspaceApp",
+                "ResourceTypeTask"
             ]
         },
         "codersdk.Response": {
@@ -17610,6 +17612,17 @@ const docTemplate = `{
                 },
                 "workspace_agent_lifecycle": {
                     "$ref": "#/definitions/codersdk.WorkspaceAgentLifecycle"
+                },
+                "workspace_app_id": {
+                    "format": "uuid",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/uuid.NullUUID"
+                        }
+                    ]
+                },
+                "workspace_build_number": {
+                    "type": "integer"
                 },
                 "workspace_id": {
                     "format": "uuid",

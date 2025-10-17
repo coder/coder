@@ -13,6 +13,7 @@ import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
+import { Spinner } from "components/Spinner/Spinner";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import { ArrowLeftIcon, RotateCcwIcon } from "lucide-react";
 import { AgentLogs } from "modules/resources/AgentLogs/AgentLogs";
@@ -206,6 +207,11 @@ const WorkspaceNotRunning: FC<WorkspaceNotRunningProps> = ({ task }) => {
 		},
 	});
 
+	// After requesting a workspace start, it may take a while to become ready.
+	// Show a loading state in the meantime.
+	const isWaitingForStart =
+		mutateStartWorkspace.isPending || mutateStartWorkspace.isSuccess;
+
 	const apiError = isApiError(mutateStartWorkspace.error)
 		? mutateStartWorkspace.error
 		: undefined;
@@ -223,16 +229,15 @@ const WorkspaceNotRunning: FC<WorkspaceNotRunningProps> = ({ task }) => {
 					<div className="flex flex-row mt-4 gap-4">
 						<Button
 							size="sm"
-							disabled={mutateStartWorkspace.isPending}
+							disabled={isWaitingForStart}
 							onClick={() => {
 								mutateStartWorkspace.mutate({
 									buildParameters: parameters?.buildParameters,
 								});
 							}}
 						>
-							{mutateStartWorkspace.isPending
-								? "Starting workspace..."
-								: "Start workspace"}
+							<Spinner loading={isWaitingForStart} />
+							Start workspace
 						</Button>
 					</div>
 				</div>

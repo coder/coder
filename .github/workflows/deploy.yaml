@@ -121,6 +121,8 @@ jobs:
           flux --namespace flux-system reconcile source chart coder-coder-provisioner
           flux --namespace coder reconcile helmrelease coder
           flux --namespace coder reconcile helmrelease coder-provisioner
+          flux --namespace coder reconcile helmrelease coder-provisioner-tagged
+          flux --namespace coder reconcile helmrelease coder-provisioner-tagged-prebuilds
 
       # Just updating Flux is usually not enough. The Helm release may get
       # redeployed, but unless something causes the Deployment to update the
@@ -136,6 +138,8 @@ jobs:
           kubectl --namespace coder rollout status deployment/coder-provisioner
           kubectl --namespace coder rollout restart deployment/coder-provisioner-tagged
           kubectl --namespace coder rollout status deployment/coder-provisioner-tagged
+          kubectl --namespace coder rollout restart deployment/coder-provisioner-tagged-prebuilds
+          kubectl --namespace coder rollout status deployment/coder-provisioner-tagged-prebuilds
 
   deploy-wsproxies:
     runs-on: ubuntu-latest

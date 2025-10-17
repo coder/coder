@@ -83,6 +83,7 @@ test("set service banner", async ({ page }) => {
 	await page.goto("/workspaces", { waitUntil: "domcontentloaded" });
 	await expectUrl(page).toHavePathName("/workspaces");
 
-	const bar = page.locator("div.service-banner", { hasText: message });
-	await expect(bar).toBeVisible();
+	const banner = page.getByTestId("service-banner");
+	await expect(banner).toBeVisible();
+	await expect(banner).toHaveText(message);
 });

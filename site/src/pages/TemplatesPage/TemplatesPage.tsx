@@ -73,7 +73,6 @@ const useTemplatesFilter = ({
 	onSearchParamsChange,
 }: UseTemplatesFilterOptions): TemplateFilterState => {
 	const filter = useFilter({
-		fallbackFilter: "deprecated:false",
 		searchParams,
 		onSearchParamsChange,
 	});

@@ -2670,6 +2670,7 @@ const (
 	ResourceTypeWorkspaceAgent              ResourceType = "workspace_agent"
 	ResourceTypeWorkspaceApp                ResourceType = "workspace_app"
 	ResourceTypePrebuildsSettings           ResourceType = "prebuilds_settings"
+	ResourceTypeTask                        ResourceType = "task"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -2733,7 +2734,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeIdpSyncSettingsRole,
 		ResourceTypeWorkspaceAgent,
 		ResourceTypeWorkspaceApp,
-		ResourceTypePrebuildsSettings:
+		ResourceTypePrebuildsSettings,
+		ResourceTypeTask:
 		return true
 	}
 	return false
@@ -2766,6 +2768,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeWorkspaceAgent,
 		ResourceTypeWorkspaceApp,
 		ResourceTypePrebuildsSettings,
+		ResourceTypeTask,
 	}
 }
 
@@ -4197,17 +4200,20 @@ type TailnetTunnel struct {
 }
 
 type Task struct {
-	ID                 uuid.UUID       `db:"id" json:"id"`
-	OrganizationID     uuid.UUID       `db:"organization_id" json:"organization_id"`
-	OwnerID            uuid.UUID       `db:"owner_id" json:"owner_id"`
-	Name               string          `db:"name" json:"name"`
-	WorkspaceID        uuid.NullUUID   `db:"workspace_id" json:"workspace_id"`
-	TemplateVersionID  uuid.UUID       `db:"template_version_id" json:"template_version_id"`
-	TemplateParameters json.RawMessage `db:"template_parameters" json:"template_parameters"`
-	Prompt             string          `db:"prompt" json:"prompt"`
-	CreatedAt          time.Time       `db:"created_at" json:"created_at"`
-	DeletedAt          sql.NullTime    `db:"deleted_at" json:"deleted_at"`
-	Status             TaskStatus      `db:"status" json:"status"`
+	ID                   uuid.UUID       `db:"id" json:"id"`
+	OrganizationID       uuid.UUID       `db:"organization_id" json:"organization_id"`
+	OwnerID              uuid.UUID       `db:"owner_id" json:"owner_id"`
+	Name                 string          `db:"name" json:"name"`
+	WorkspaceID          uuid.NullUUID   `db:"workspace_id" json:"workspace_id"`
+	TemplateVersionID    uuid.UUID       `db:"template_version_id" json:"template_version_id"`
+	TemplateParameters   json.RawMessage `db:"template_parameters" json:"template_parameters"`
+	Prompt               string          `db:"prompt" json:"prompt"`
+	CreatedAt            time.Time       `db:"created_at" json:"created_at"`
+	DeletedAt            sql.NullTime    `db:"deleted_at" json:"deleted_at"`
+	Status               TaskStatus      `db:"status" json:"status"`
+	WorkspaceBuildNumber sql.NullInt32   `db:"workspace_build_number" json:"workspace_build_number"`
+	WorkspaceAgentID     uuid.NullUUID   `db:"workspace_agent_id" json:"workspace_agent_id"`
+	WorkspaceAppID       uuid.NullUUID   `db:"workspace_app_id" json:"workspace_app_id"`
 }
 
 type TaskTable struct {

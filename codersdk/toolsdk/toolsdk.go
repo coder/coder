@@ -55,6 +55,8 @@ const (
 	ToolNameDeleteTask                  = "coder_delete_task"
 	ToolNameListTasks                   = "coder_list_tasks"
 	ToolNameGetTaskStatus               = "coder_get_task_status"
+	ToolNameSendTaskInput               = "coder_send_task_input"
+	ToolNameGetTaskLogs                 = "coder_get_task_logs"
 )
 
 func NewDeps(client *codersdk.Client, opts ...func(*Deps)) (Deps, error) {
@@ -233,6 +235,8 @@ var All = []GenericTool{
 	DeleteTask.Generic(),
 	ListTasks.Generic(),
 	GetTaskStatus.Generic(),
+	SendTaskInput.Generic(),
+	GetTaskLogs.Generic(),
 }
 
 type ReportTaskArgs struct {
@@ -2033,6 +2037,97 @@ var GetTaskStatus = Tool[GetTaskStatusArgs, GetTaskStatusResponse]{
 	},
 }
 
+type SendTaskInputArgs struct {
+	TaskID string `json:"task_id"`
+	Input  string `json:"input"`
+}
+
+var SendTaskInput = Tool[SendTaskInputArgs, codersdk.Response]{
+	Tool: aisdk.Tool{
+		Name:        ToolNameSendTaskInput,
+		Description: `Send input to a running task.`,
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"task_id": map[string]any{
+					"type":        "string",
+					"description": taskIDDescription("prompt"),
+				},
+				"input": map[string]any{
+					"type":        "string",
+					"description": "The input to send to the task.",
+				},
+			},
+			Required: []string{"task_id", "input"},
+		},
+	},
+	UserClientOptional: true,
+	Handler: func(ctx context.Context, deps Deps, args SendTaskInputArgs) (codersdk.Response, error) {
+		if args.TaskID == "" {
+			return codersdk.Response{}, xerrors.New("task_id is required")
+		}
+
+		if args.Input == "" {
+			return codersdk.Response{}, xerrors.New("input is required")
+		}
+
+		expClient := codersdk.NewExperimentalClient(deps.coderClient)
+		id, owner, err := resolveTaskID(ctx, deps.coderClient, args.TaskID)
+		if err != nil {
+			return codersdk.Response{}, err
+		}
+
+		err = expClient.TaskSend(ctx, owner, id, codersdk.TaskSendRequest{
+			Input: args.Input,
+		})
+		if err != nil {
+			return codersdk.Response{}, xerrors.Errorf("send task input %q: %w", args.TaskID, err)
+		}
+
+		return codersdk.Response{
+			Message: "Input sent to task successfully.",
+		}, nil
+	},
+}
+
+type GetTaskLogsArgs struct {
+	TaskID string `json:"task_id"`
+}
+
+var GetTaskLogs = Tool[GetTaskLogsArgs, codersdk.TaskLogsResponse]{
+	Tool: aisdk.Tool{
+		Name:        ToolNameGetTaskLogs,
+		Description: `Get the logs of a task.`,
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"task_id": map[string]any{
+					"type":        "string",
+					"description": taskIDDescription("query"),
+				},
+			},
+			Required: []string{"task_id"},
+		},
+	},
+	UserClientOptional: true,
+	Handler: func(ctx context.Context, deps Deps, args GetTaskLogsArgs) (codersdk.TaskLogsResponse, error) {
+		if args.TaskID == "" {
+			return codersdk.TaskLogsResponse{}, xerrors.New("task_id is required")
+		}
+
+		expClient := codersdk.NewExperimentalClient(deps.coderClient)
+		id, owner, err := resolveTaskID(ctx, deps.coderClient, args.TaskID)
+		if err != nil {
+			return codersdk.TaskLogsResponse{}, err
+		}
+
+		logs, err := expClient.TaskLogs(ctx, owner, id)
+		if err != nil {
+			return codersdk.TaskLogsResponse{}, xerrors.Errorf("get task logs %q: %w", args.TaskID, err)
+		}
+
+		return logs, nil
+	},
+}
+
 // normalizedNamedWorkspace normalizes the workspace name before getting the
 // workspace by name.
 func normalizedNamedWorkspace(ctx context.Context, client *codersdk.Client, name string) (codersdk.Workspace, error) {
@@ -2109,4 +2204,16 @@ func taskIDDescription(action string) string {
 
 func userDescription(action string) string {
 	return fmt.Sprintf("Username or ID of the user for which to %s. Omit or use the `me` keyword to %s for the authenticated user.", action, action)
+}
+
+func resolveTaskID(ctx context.Context, coderClient *codersdk.Client, taskID string) (uuid.UUID, string, error) {
+	id, err := uuid.Parse(taskID)
+	if err == nil {
+		return id, codersdk.Me, nil
+	}
+	ws, err := normalizedNamedWorkspace(ctx, coderClient, taskID)
+	if err != nil {
+		return uuid.UUID{}, codersdk.Me, xerrors.Errorf("get task workspace %q: %w", taskID, err)
+	}
+	return ws.ID, ws.OwnerName, nil
 }

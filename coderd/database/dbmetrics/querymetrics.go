@@ -2735,6 +2735,13 @@ func (m queryMetricsStore) ListProvisionerKeysByOrganizationExcludeReserved(ctx 
 	return r0, r1
 }
 
+func (m queryMetricsStore) ListTasks(ctx context.Context, arg database.ListTasksParams) ([]database.Task, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListTasks(ctx, arg)
+	m.queryLatencies.WithLabelValues("ListTasks").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) ListUserSecrets(ctx context.Context, userID uuid.UUID) ([]database.UserSecret, error) {
 	start := time.Now()
 	r0, r1 := m.s.ListUserSecrets(ctx, userID)
