@@ -130,4 +130,61 @@ func TestGraph(t *testing.T) {
 		// Assert on the DOT representation using golden file (should contain only the first edge)
 		assertDOTGraph(t, graph, "Cycle")
 	})
+
+	t.Run("MultipleDependenciesSameStatus", func(t *testing.T) {
+		t.Parallel()
+
+		graph := &unit.Graph[unit.Status, *unit.Unit]{}
+		unit1 := &unit.Unit{Name: "unit1", Status: unit.StatusPending}
+		unit2 := &unit.Unit{Name: "unit2", Status: unit.StatusPending}
+		unit3 := &unit.Unit{Name: "unit3", Status: unit.StatusPending}
+		unit4 := &unit.Unit{Name: "unit4", Status: unit.StatusPending}
+
+		// Unit1 depends on completion of both unit2 and unit3 (same status type)
+		err := graph.AddEdge(unit1, unit2, unit.StatusCompleted)
+		require.NoError(t, err)
+		err = graph.AddEdge(unit1, unit3, unit.StatusCompleted)
+		require.NoError(t, err)
+
+		// Unit1 also depends on starting of unit4 (different status type)
+		err = graph.AddEdge(unit1, unit4, unit.StatusStarted)
+		require.NoError(t, err)
+
+		// Check that unit1 has 3 forward dependencies
+		forwardEdges := graph.GetForwardAdjacentVertices(unit1)
+		require.Len(t, forwardEdges, 3)
+
+		// Verify all expected dependencies exist
+		expectedDependencies := []unit.DependencyEdge{
+			{From: unit1, To: unit2, Edge: unit.StatusCompleted},
+			{From: unit1, To: unit3, Edge: unit.StatusCompleted},
+			{From: unit1, To: unit4, Edge: unit.StatusStarted},
+		}
+
+		for _, expected := range expectedDependencies {
+			require.Contains(t, forwardEdges, expected)
+		}
+
+		// Check reverse dependencies
+		unit2ReverseEdges := graph.GetReverseAdjacentVertices(unit2)
+		require.Len(t, unit2ReverseEdges, 1)
+		require.Contains(t, unit2ReverseEdges, unit.DependencyEdge{
+			From: unit1, To: unit2, Edge: unit.StatusCompleted,
+		})
+
+		unit3ReverseEdges := graph.GetReverseAdjacentVertices(unit3)
+		require.Len(t, unit3ReverseEdges, 1)
+		require.Contains(t, unit3ReverseEdges, unit.DependencyEdge{
+			From: unit1, To: unit3, Edge: unit.StatusCompleted,
+		})
+
+		unit4ReverseEdges := graph.GetReverseAdjacentVertices(unit4)
+		require.Len(t, unit4ReverseEdges, 1)
+		require.Contains(t, unit4ReverseEdges, unit.DependencyEdge{
+			From: unit1, To: unit4, Edge: unit.StatusStarted,
+		})
+
+		// Assert on the DOT representation using golden file
+		assertDOTGraph(t, graph, "MultipleDependenciesSameStatus")
+	})
 }
