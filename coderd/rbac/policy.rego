@@ -58,10 +58,6 @@ check_user_permissions(roles) := vote if {
 	# The object must be owned by the subject.
 	input.subject.id = input.object.owner
 
-	# If there is an org, use org_member permissions instead
-	input.object.org_owner == ""
-	not input.object.any_org
-
 	allow := {is_allowed |
 		# Iterate over all user permissions in all roles, and check which ones match
 		# the action and object type.
@@ -121,7 +117,6 @@ scope_org := check_org_permissions([input.subject.scope], "org")
 # org id because the org id _might_ be unknown. In order to make sure that this
 # policy compresses down to simple queries we need to keep unknown values out of
 # comprehensions.
-# https://www.openpolicyagent.org/docs/latest/policy-language/#comprehensions
 check_all_org_permissions(roles, key) := {org_id: vote |
 	org_id := org_memberships[_]
 	allow := {is_allowed |
@@ -184,35 +179,6 @@ is_org_member if {
 }
 
 #==============================================================================#
-# Org member level rules                                                       #
-#==============================================================================#
-
-# Org member level permissions apply to all objects owned by the subject _and_
-# the corresponding org. Permissions for objects which are not jointly owned
-# instead defer to the user level rules.
-#
-# The rules for this level are very similar to the rules for the organization
-# level, and so we reuse the `check_org_permissions` function from those rules.
-
-default org_member := 0
-
-org_member := num if {
-	# Object must be jointly owned by the user
-	input.object.owner != ""
-	input.subject.id = input.object.owner
-	num := check_org_permissions(input.subject.roles, "member")
-}
-
-default scope_org_member := 0
-
-scope_org_member := num if {
-	# Object must be jointly owned by the user
-	input.object.owner != ""
-	input.subject.id = input.object.owner
-	num := check_org_permissions([input.subject.scope], "member")
-}
-
-#==============================================================================#
 # Role rules                                                                   #
 #==============================================================================#
 
@@ -236,14 +202,6 @@ role_allow if {
 	not site = -1
 
 	org = 1
-}
-
-# Org member authorization
-role_allow if {
-	not site = -1
-	not org = -1
-
-	org_member = 1
 }
 
 #==============================================================================#
@@ -277,17 +235,6 @@ scope_allow if {
 	not scope_site = -1
 
 	scope_org = 1
-}
-
-# Org member level scope enforcement
-scope_allow if {
-	# Org member scope permissions must be allowed by the scope, and not denied
-	# by the site or org. The object *must* be owned by an organization.
-	check_scope_allow_list
-	not scope_site = -1
-	not scope_org = -1
-
-	scope_org_member = 1
 }
 
 # If *.* is allowed, then all objects are in scope.

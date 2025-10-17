@@ -89,7 +89,7 @@ This policy is specifically constructed to compress to a set of queries if 'inpu
 
 Some general rules to follow:
 
-1. Do not use unknown values in any list/set comprehension or iteration.
+1. Do not use unknown values in any [comprehensions](https://www.openpolicyagent.org/docs/latest/policy-language/#comprehensions) or iterations.
 
 2. Use the unknown values as minimally as possible.
 
