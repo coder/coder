@@ -178,6 +178,17 @@ is_org_member if {
 	count(org_memberships) > 0
 }
 
+org_ok if {
+	org_mem
+}
+
+# If the object has no organization, then the user is also considered part of
+# the non-existent org.
+org_ok if {
+	input.object.org_owner == ""
+	not input.object.any_org
+}
+
 #==============================================================================#
 # Role rules                                                                   #
 #==============================================================================#
