@@ -1676,7 +1676,6 @@ func TestOAuth2CoderClient(t *testing.T) {
 
 	_, err = usingOauth.User(ctx, codersdk.Me)
 	require.Error(t, err)
-
 }
 
 // NOTE: OAuth2 client registration validation tests have been migrated to
