@@ -39,40 +39,6 @@ check_site_permissions(roles) := vote if {
 }
 
 #==============================================================================#
-# User level rules                                                             #
-#==============================================================================#
-
-# User level rules apply to all objects owned by the subject which are not also
-# owned by an org. Permissions for objects which are "jointly" owned by an org
-# instead defer to the org member level rules.
-
-default user := 0
-
-user := check_user_permissions(input.subject.roles)
-
-default scope_user := 0
-
-scope_user := check_user_permissions([input.subject.scope])
-
-check_user_permissions(roles) := vote if {
-	# The object must be owned by the subject.
-	input.subject.id == input.object.owner
-
-	allow := {is_allowed |
-		# Iterate over all user permissions in all roles, and check which ones match
-		# the action and object type.
-		perm := roles[_].user[_]
-		perm.action in [input.action, "*"]
-		perm.resource_type in [input.object.type, "*"]
-
-		# If a negative matching permission was found, then we vote to disallow it.
-		# If the permission is not negative, then we vote to allow it.
-		is_allowed := bool_flip(perm.negate)
-	}
-	vote := to_vote(allow)
-}
-
-#==============================================================================#
 # Org level rules                                                              #
 #==============================================================================#
 
@@ -190,6 +156,40 @@ org_ok if {
 }
 
 #==============================================================================#
+# User level rules                                                             #
+#==============================================================================#
+
+# User level rules apply to all objects owned by the subject which are not also
+# owned by an org. Permissions for objects which are "jointly" owned by an org
+# instead defer to the org member level rules.
+
+default user := 0
+
+user := check_user_permissions(input.subject.roles)
+
+default scope_user := 0
+
+scope_user := check_user_permissions([input.subject.scope])
+
+check_user_permissions(roles) := vote if {
+	# The object must be owned by the subject.
+	input.subject.id == input.object.owner
+
+	allow := {is_allowed |
+		# Iterate over all user permissions in all roles, and check which ones match
+		# the action and object type.
+		perm := roles[_].user[_]
+		perm.action in [input.action, "*"]
+		perm.resource_type in [input.object.type, "*"]
+
+		# If a negative matching permission was found, then we vote to disallow it.
+		# If the permission is not negative, then we vote to allow it.
+		is_allowed := bool_flip(perm.negate)
+	}
+	vote := to_vote(allow)
+}
+
+#==============================================================================#
 # Role rules                                                                   #
 #==============================================================================#
 
@@ -199,6 +199,13 @@ org_ok if {
 # Site level authorization
 role_allow if {
 	site == 1
+}
+
+# Org level authorization
+role_allow if {
+	site != -1
+
+	org == 1
 }
 
 # User level authorization
@@ -211,13 +218,6 @@ role_allow if {
 	org_ok
 
 	user == 1
-}
-
-# Org level authorization
-role_allow if {
-	site != -1
-
-	org == 1
 }
 
 #==============================================================================#
@@ -233,6 +233,16 @@ scope_allow if {
 	scope_site == 1
 }
 
+# Org level scope enforcement
+scope_allow if {
+	# Org member scope permissions must be allowed by the scope, and not denied
+	# by the site. The object *must* be owned by an organization.
+	object_is_included_in_scope_allow_list
+	scope_site != -1
+
+	scope_org == 1
+}
+
 # User level scope enforcement
 scope_allow if {
 	# User scope permissions must be allowed by the scope, and not denied
@@ -246,16 +256,6 @@ scope_allow if {
 	org_ok
 
 	scope_user == 1
-}
-
-# Org level scope enforcement
-scope_allow if {
-	# Org member scope permissions must be allowed by the scope, and not denied
-	# by the site. The object *must* be owned by an organization.
-	object_is_included_in_scope_allow_list
-	scope_site != -1
-
-	scope_org == 1
 }
 
 # If *.* is allowed, then all objects are in scope.
