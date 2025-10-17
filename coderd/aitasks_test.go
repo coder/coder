@@ -519,9 +519,9 @@ func TestTasks(t *testing.T) {
 			_ = agenttest.New(t, client.URL, authToken, func(o *agent.Options) {
 				o.Client = agentClient
 			})
-			coderdtest.NewWorkspaceAgentWaiter(t, client, ws.ID).WaitFor(coderdtest.AgentsReady)
 
 			ctx := testutil.Context(t, testutil.WaitMedium)
+			coderdtest.NewWorkspaceAgentWaiter(t, client, ws.ID).WithContext(ctx).WaitFor(coderdtest.AgentsReady)
 
 			// Lookup the sidebar app ID.
 			w, err := client.Workspace(ctx, ws.ID)
@@ -712,7 +712,7 @@ func TestTasks(t *testing.T) {
 			_ = agenttest.New(t, client.URL, authToken, func(o *agent.Options) {
 				o.Client = agentClient
 			})
-			coderdtest.NewWorkspaceAgentWaiter(t, client, ws.ID).WaitFor(coderdtest.AgentsReady)
+			coderdtest.NewWorkspaceAgentWaiter(t, client, ws.ID).WithContext(ctx).WaitFor(coderdtest.AgentsReady)
 
 			// Omit sidebar app health as undefined is OK.
 
@@ -762,7 +762,7 @@ func TestTasks(t *testing.T) {
 			_ = agenttest.New(t, client.URL, authToken, func(o *agent.Options) {
 				o.Client = agentClient
 			})
-			coderdtest.NewWorkspaceAgentWaiter(t, client, ws.ID).WaitFor(coderdtest.AgentsReady)
+			coderdtest.NewWorkspaceAgentWaiter(t, client, ws.ID).WithContext(ctx).WaitFor(coderdtest.AgentsReady)
 
 			exp := codersdk.NewExperimentalClient(client)
 			_, err := exp.TaskLogs(ctx, "me", ws.ID)
