@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import Link from "@mui/material/Link";
 import type { TemplateExample } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
@@ -96,11 +95,6 @@ export const EmptyTemplates: FC<EmptyTemplatesProps> = ({
 			message="Create a Template"
 			description="Contact your Coder administrator to create a template. You can share the code below."
 			cta={<CodeExample secret={false} code="coder templates init" />}
-			image={
-				<div className="max-w-[50%] h-80 overflow-hidden opacity-85 [&_img]:max-w-full">
-					<img src="/featured/templates.webp" alt="" />
-				</div>
-			}
 		/>
 	);
 };
