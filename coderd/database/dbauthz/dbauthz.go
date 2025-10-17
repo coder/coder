@@ -447,7 +447,7 @@ var (
 	}.WithCachedASTValue()
 
 	subjectSystemOAuth2 = rbac.Subject{
-		Type:         rbac.SubjectTypeSystemRestricted,
+		Type:         rbac.SubjectTypeSystemOAuth,
 		FriendlyName: "System OAuth2",
 		ID:           uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
