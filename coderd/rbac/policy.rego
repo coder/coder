@@ -179,7 +179,7 @@ is_org_member if {
 }
 
 org_ok if {
-	org_mem
+	is_org_member
 }
 
 # If the object has no organization, then the user is also considered part of
