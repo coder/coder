@@ -373,7 +373,6 @@ SELECT
     u.username as owner_username,
     t.name as template_name,
     tv.name as template_version_name,
-    wb.build_number,
     sqlc.embed(workspace_agents)
 FROM workspaces w
 JOIN users u ON w.owner_id = u.id
@@ -382,7 +381,7 @@ JOIN workspace_builds wb ON w.id = wb.workspace_id
 LEFT JOIN template_versions tv ON wb.template_version_id = tv.id
 JOIN workspace_resources wr ON wb.job_id = wr.job_id
 JOIN workspace_agents ON wr.id = workspace_agents.resource_id
-WHERE w.deleted = @deleted
+WHERE w.deleted = false
 AND wb.build_number = (
     SELECT MAX(wb2.build_number)
     FROM workspace_builds wb2

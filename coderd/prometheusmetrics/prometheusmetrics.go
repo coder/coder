@@ -182,7 +182,7 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 
 	updateWorkspaceMetrics := func() {
 		// Don't count deleted workspaces as part of these metrics.
-		ws, err := db.GetWorkspacesForWorkspaceMetrics(ctx, false)
+		ws, err := db.GetWorkspacesForWorkspaceMetrics(ctx)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				workspaceLatestBuildTotals.Reset()
@@ -344,7 +344,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 			timer := prometheus.NewTimer(metricsCollectorAgents)
 			derpMap := derpMapFn()
 
-			workspaceAgents, err := db.GetWorkspaceAgentsForMetrics(ctx, false)
+			workspaceAgents, err := db.GetWorkspaceAgentsForMetrics(ctx)
 			if err != nil {
 				logger.Error(ctx, "can't get workspace agents", slog.Error(err))
 				goto done
@@ -352,7 +352,11 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 
 			for _, agent := range workspaceAgents {
 				// Collect information about agents
-				agentsGauge.WithLabelValues(VectorOperationAdd, 1, agent.OwnerUsername, agent.WorkspaceName, agent.TemplateName, agent.TemplateVersionName.String)
+				templateVersionName := agent.TemplateVersionName.String
+				if !agent.TemplateVersionName.Valid {
+					templateVersionName = "unknown"
+				}
+				agentsGauge.WithLabelValues(VectorOperationAdd, 1, agent.OwnerUsername, agent.WorkspaceName, agent.TemplateName, templateVersionName)
 
 				connectionStatus := agent.WorkspaceAgent.Status(agentInactiveDisconnectTimeout)
 				node := (*coordinator.Load()).Node(agent.WorkspaceAgent.ID)

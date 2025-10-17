@@ -997,7 +997,7 @@ JOIN templates t ON w.template_id = t.id
 JOIN workspace_builds wb ON w.id = wb.workspace_id
 JOIN provisioner_jobs pj ON wb.job_id = pj.id
 LEFT JOIN template_versions tv ON wb.template_version_id = tv.id
-WHERE w.deleted = @deleted
+WHERE w.deleted = false
 AND wb.build_number = (
     SELECT MAX(wb2.build_number)
     FROM workspace_builds wb2

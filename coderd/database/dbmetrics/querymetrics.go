@@ -1972,9 +1972,9 @@ func (m queryMetricsStore) GetWorkspaceAgentsCreatedAfter(ctx context.Context, c
 	return agents, err
 }
 
-func (m queryMetricsStore) GetWorkspaceAgentsForMetrics(ctx context.Context, deleted bool) ([]database.GetWorkspaceAgentsForMetricsRow, error) {
+func (m queryMetricsStore) GetWorkspaceAgentsForMetrics(ctx context.Context) ([]database.GetWorkspaceAgentsForMetricsRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetWorkspaceAgentsForMetrics(ctx, deleted)
+	r0, r1 := m.s.GetWorkspaceAgentsForMetrics(ctx)
 	m.queryLatencies.WithLabelValues("GetWorkspaceAgentsForMetrics").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
@@ -2231,9 +2231,9 @@ func (m queryMetricsStore) GetWorkspacesEligibleForTransition(ctx context.Contex
 	return workspaces, err
 }
 
-func (m queryMetricsStore) GetWorkspacesForWorkspaceMetrics(ctx context.Context, deleted bool) ([]database.GetWorkspacesForWorkspaceMetricsRow, error) {
+func (m queryMetricsStore) GetWorkspacesForWorkspaceMetrics(ctx context.Context) ([]database.GetWorkspacesForWorkspaceMetricsRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetWorkspacesForWorkspaceMetrics(ctx, deleted)
+	r0, r1 := m.s.GetWorkspacesForWorkspaceMetrics(ctx)
 	m.queryLatencies.WithLabelValues("GetWorkspacesForWorkspaceMetrics").Observe(time.Since(start).Seconds())
 	return r0, r1
 }

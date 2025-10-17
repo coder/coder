@@ -17652,7 +17652,6 @@ SELECT
     u.username as owner_username,
     t.name as template_name,
     tv.name as template_version_name,
-    wb.build_number,
     workspace_agents.id, workspace_agents.created_at, workspace_agents.updated_at, workspace_agents.name, workspace_agents.first_connected_at, workspace_agents.last_connected_at, workspace_agents.disconnected_at, workspace_agents.resource_id, workspace_agents.auth_token, workspace_agents.auth_instance_id, workspace_agents.architecture, workspace_agents.environment_variables, workspace_agents.operating_system, workspace_agents.instance_metadata, workspace_agents.resource_metadata, workspace_agents.directory, workspace_agents.version, workspace_agents.last_connected_replica_id, workspace_agents.connection_timeout_seconds, workspace_agents.troubleshooting_url, workspace_agents.motd_file, workspace_agents.lifecycle_state, workspace_agents.expanded_directory, workspace_agents.logs_length, workspace_agents.logs_overflowed, workspace_agents.started_at, workspace_agents.ready_at, workspace_agents.subsystems, workspace_agents.display_apps, workspace_agents.api_version, workspace_agents.display_order, workspace_agents.parent_id, workspace_agents.api_key_scope, workspace_agents.deleted
 FROM workspaces w
 JOIN users u ON w.owner_id = u.id
@@ -17661,7 +17660,7 @@ JOIN workspace_builds wb ON w.id = wb.workspace_id
 LEFT JOIN template_versions tv ON wb.template_version_id = tv.id
 JOIN workspace_resources wr ON wb.job_id = wr.job_id
 JOIN workspace_agents ON wr.id = workspace_agents.resource_id
-WHERE w.deleted = $1
+WHERE w.deleted = false
 AND wb.build_number = (
     SELECT MAX(wb2.build_number)
     FROM workspace_builds wb2
@@ -17676,12 +17675,11 @@ type GetWorkspaceAgentsForMetricsRow struct {
 	OwnerUsername       string         `db:"owner_username" json:"owner_username"`
 	TemplateName        string         `db:"template_name" json:"template_name"`
 	TemplateVersionName sql.NullString `db:"template_version_name" json:"template_version_name"`
-	BuildNumber         int32          `db:"build_number" json:"build_number"`
 	WorkspaceAgent      WorkspaceAgent `db:"workspace_agent" json:"workspace_agent"`
 }
 
-func (q *sqlQuerier) GetWorkspaceAgentsForMetrics(ctx context.Context, deleted bool) ([]GetWorkspaceAgentsForMetricsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentsForMetrics, deleted)
+func (q *sqlQuerier) GetWorkspaceAgentsForMetrics(ctx context.Context) ([]GetWorkspaceAgentsForMetricsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentsForMetrics)
 	if err != nil {
 		return nil, err
 	}
@@ -17695,7 +17693,6 @@ func (q *sqlQuerier) GetWorkspaceAgentsForMetrics(ctx context.Context, deleted b
 			&i.OwnerUsername,
 			&i.TemplateName,
 			&i.TemplateVersionName,
-			&i.BuildNumber,
 			&i.WorkspaceAgent.ID,
 			&i.WorkspaceAgent.CreatedAt,
 			&i.WorkspaceAgent.UpdatedAt,
@@ -22466,7 +22463,7 @@ JOIN templates t ON w.template_id = t.id
 JOIN workspace_builds wb ON w.id = wb.workspace_id
 JOIN provisioner_jobs pj ON wb.job_id = pj.id
 LEFT JOIN template_versions tv ON wb.template_version_id = tv.id
-WHERE w.deleted = $1
+WHERE w.deleted = false
 AND wb.build_number = (
     SELECT MAX(wb2.build_number)
     FROM workspace_builds wb2
@@ -22482,8 +22479,8 @@ type GetWorkspacesForWorkspaceMetricsRow struct {
 	LatestBuildTransition WorkspaceTransition  `db:"latest_build_transition" json:"latest_build_transition"`
 }
 
-func (q *sqlQuerier) GetWorkspacesForWorkspaceMetrics(ctx context.Context, deleted bool) ([]GetWorkspacesForWorkspaceMetricsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspacesForWorkspaceMetrics, deleted)
+func (q *sqlQuerier) GetWorkspacesForWorkspaceMetrics(ctx context.Context) ([]GetWorkspacesForWorkspaceMetricsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspacesForWorkspaceMetrics)
 	if err != nil {
 		return nil, err
 	}
