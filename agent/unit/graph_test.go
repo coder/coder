@@ -1,13 +1,52 @@
+// Package unit_test provides tests for the unit package.
+//
+// DOT Graph Testing:
+// The graph tests use golden files for DOT representation verification.
+// To update the golden files:
+// make gen/golden-files
+//
+// The golden files contain the expected DOT representation and can be easily
+// inspected, version controlled, and updated when the graph structure changes.
 package unit_test
 
 import (
+	"flag"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/agent/unit"
 )
+
+// UpdateGoldenFiles indicates golden files should be updated.
+// To update the golden files:
+// make gen/golden-files
+var UpdateGoldenFiles = flag.Bool("update", false, "update .golden files")
+
+// assertDOTGraph asserts that the graph's DOT representation matches the golden file
+func assertDOTGraph(t *testing.T, graph *unit.Graph[unit.Status, *unit.Unit], goldenName string) {
+	t.Helper()
+
+	dot, err := graph.ToDOT(goldenName)
+	require.NoError(t, err)
+
+	goldenFile := filepath.Join("testdata", goldenName+".golden")
+	if *UpdateGoldenFiles {
+		t.Logf("update golden file for: %q: %s", goldenName, goldenFile)
+		err := os.MkdirAll(filepath.Dir(goldenFile), 0o755)
+		require.NoError(t, err, "want no error creating golden file directory")
+		err = os.WriteFile(goldenFile, []byte(dot), 0o600)
+		require.NoError(t, err, "update golden file")
+	}
+
+	expected, err := os.ReadFile(goldenFile)
+	require.NoError(t, err, "read golden file, run \"make gen/golden-files\" and commit the changes")
+
+	require.Equal(t, string(expected), dot, "golden file mismatch (-want +got): %s, run \"make gen/golden-files\", verify and commit the changes", goldenFile)
+}
 
 func TestGraph(t *testing.T) {
 	t.Parallel()
@@ -58,6 +97,9 @@ func TestGraph(t *testing.T) {
 			To:   unit3,
 			Edge: unit.StatusStarted,
 		})
+
+		// Assert on the DOT representation using golden file
+		assertDOTGraph(t, graph, "ForwardAndReverseEdges")
 	})
 
 	t.Run("SelfReference", func(t *testing.T) {
@@ -68,6 +110,9 @@ func TestGraph(t *testing.T) {
 		err := graph.AddEdge(unit1, unit1, unit.StatusCompleted)
 		require.Error(t, err)
 		require.ErrorContains(t, err, fmt.Sprintf("adding edge (%v -> %v) would create a cycle", unit1, unit1))
+
+		// Assert on the DOT representation using golden file (should be empty graph)
+		assertDOTGraph(t, graph, "SelfReference")
 	})
 
 	t.Run("Cycle", func(t *testing.T) {
@@ -81,5 +126,8 @@ func TestGraph(t *testing.T) {
 		err = graph.AddEdge(unit2, unit1, unit.StatusStarted)
 		require.Error(t, err)
 		require.ErrorContains(t, err, fmt.Sprintf("adding edge (%v -> %v) would create a cycle", unit2, unit1))
+
+		// Assert on the DOT representation using golden file (should contain only the first edge)
+		assertDOTGraph(t, graph, "Cycle")
 	})
 }

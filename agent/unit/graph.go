@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"golang.org/x/xerrors"
+	"gonum.org/v1/gonum/graph/encoding/dot"
 	"gonum.org/v1/gonum/graph/simple"
 	"gonum.org/v1/gonum/graph/topo"
 )
@@ -152,4 +153,22 @@ func (g *Graph[EdgeType, VertexType]) canReach(start, end VertexType) bool {
 
 	// Use gonum's built-in path existence check
 	return topo.PathExistsIn(g.gonumGraph, simple.Node(startID), simple.Node(endID))
+}
+
+// ToDOT exports the graph to DOT format for visualization
+func (g *Graph[EdgeType, VertexType]) ToDOT(name string) (string, error) {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+
+	if g.gonumGraph == nil {
+		return "", xerrors.New("graph is not initialized")
+	}
+
+	// Marshal the graph to DOT format
+	dotBytes, err := dot.Marshal(g.gonumGraph, name, "", "  ")
+	if err != nil {
+		return "", xerrors.Errorf("failed to marshal graph to DOT: %w", err)
+	}
+
+	return string(dotBytes), nil
 }
