@@ -25,12 +25,19 @@ export const Navbar: FC = () => {
 	const canViewConnectionLog =
 		featureVisibility.connection_log && permissions.viewAnyConnectionLog;
 
+	const uniqueLinks = appearance.support_links
+		? appearance.support_links.filter(
+				(link, index, self) =>
+					index === self.findIndex((l) => l.name === link.name),
+			)
+		: undefined;
+
 	return (
 		<NavbarView
 			user={me}
 			logo_url={appearance.logo_url}
 			buildInfo={buildInfoQuery.data}
-			supportLinks={appearance.support_links}
+			supportLinks={uniqueLinks}
 			onSignOut={signOut}
 			canViewDeployment={canViewDeployment}
 			canViewOrganizations={canViewOrganizations}
