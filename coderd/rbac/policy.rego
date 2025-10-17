@@ -193,6 +193,11 @@ role_allow if {
 # User level authorization
 role_allow if {
 	not site = -1
+	not org = -1
+
+	# If we are not a member of an org, and the object has an org, then we are
+	# not authorized. This is an "implied -1" for not being in the org.
+	org_ok
 
 	user = 1
 }
@@ -223,6 +228,11 @@ scope_allow if {
 	# by the site. The object *must not* be owned by an organization.
 	check_scope_allow_list
 	not scope_site = -1
+	not org = -1
+
+	# If we are not a member of an org, and the object has an org, then we are
+	# not authorized. This is an "implied -1" for not being in the org.
+	org_ok
 
 	scope_user = 1
 }
