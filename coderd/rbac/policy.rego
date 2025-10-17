@@ -4,9 +4,8 @@ import rego.v1
 
 # Check the POLICY.md file before editing this!
 #
-# Use the playground while editing to getting linting, code formatting, and
-# help debugging!
 # https://play.openpolicyagent.org/
+#
 
 #==============================================================================#
 # Site level rules                                                             #
@@ -38,7 +37,6 @@ check_site_permissions(roles) := vote if {
 	}
 	vote := to_vote(allow)
 }
-
 
 #==============================================================================#
 # User level rules                                                             #
@@ -124,22 +122,20 @@ scope_org := check_org_permissions([input.subject.scope], "org")
 # policy compresses down to simple queries we need to keep unknown values out of
 # comprehensions.
 # https://www.openpolicyagent.org/docs/latest/policy-language/#comprehensions
-check_all_org_permissions(roles, key) := org_map if {
-	org_map := {org_id: vote |
-		org_id := org_memberships[_]
-		allow := {is_allowed |
-			# Iterate over all site permissions in all roles, and check which ones
-			# match the action and object type.
-			perm := roles[_].by_org_id[org_id][key][_]
-			perm.action in [input.action, "*"]
-			perm.resource_type in [input.object.type, "*"]
+check_all_org_permissions(roles, key) := {org_id: vote |
+	org_id := org_memberships[_]
+	allow := {is_allowed |
+		# Iterate over all site permissions in all roles, and check which ones match
+		# the action and object type.
+		perm := roles[_].by_org_id[org_id][key][_]
+		perm.action in [input.action, "*"]
+		perm.resource_type in [input.object.type, "*"]
 
-			# If a negative matching permission was found, then we vote to disallow
-			# it. If the permission is not negative, then we vote to allow it.
-			is_allowed := bool_flip(perm.negate)
-		}
-		vote := to_vote(allow)
+		# If a negative matching permission was found, then we vote to disallow it.
+		# If the permission is not negative, then we vote to allow it.
+		is_allowed := bool_flip(perm.negate)
 	}
+	vote := to_vote(allow)
 }
 
 # This check handles the case where the org id is known.
@@ -168,7 +164,7 @@ check_org_permissions(roles, key) := vote if {
 	# Since we're checking if the subject has the permission in _any_ org, we're
 	# essentially trying to find the highest vote from any org.
 	vote := max({vote |
-		vote := allow_map[_]
+		some vote in allow_map
 	})
 }
 
@@ -312,10 +308,9 @@ check_scope_allow_list if {
 	not {"type": input.object.type, "id": "*"} in input.subject.scope.allow_list
 
 	# Check which IDs from the allow list match the object type
-	allowed_ids_for_object_type := {allowed_id |
+	allowed_ids_for_object_type := {it.id |
 		some it in input.subject.scope.allow_list
 		it.type in [input.object.type, "*"]
-		allowed_id := it.id
 	}
 
 	# Check if the input object ID is in the set of allowed IDs for the same
@@ -334,7 +329,8 @@ acl_allow if {
 	perms := input.object.acl_user_list[input.subject.id]
 
 	# Check if either the action or * is allowed
-	[input.action, "*"][_] in perms
+	some action in [input.action, "*"]
+	action in perms
 }
 
 # ACL for groups
@@ -342,11 +338,12 @@ acl_allow if {
 	# If there is no organization owner, the object cannot be owned by an
 	# org-scoped group.
 	is_org_member
-	group := input.subject.groups[_]
+	some group in input.subject.groups
 	perms := input.object.acl_group_list[group]
 
 	# Check if either the action or * is allowed
-	[input.action, "*"][_] in perms
+	some action in [input.action, "*"]
+	action in perms
 }
 
 # ACL for the special "Everyone" groups
@@ -357,9 +354,9 @@ acl_allow if {
 	perms := input.object.acl_group_list[input.object.org_owner]
 
 	# Check if either the action or * is allowed
-	[input.action, "*"][_] in perms
+	some action in [input.action, "*"]
+	action in perms
 }
-
 
 #==============================================================================#
 # Allow                                                                        #
