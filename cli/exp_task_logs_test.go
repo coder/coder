@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	aiagentapi "github.com/coder/agentapi-sdk-go"
+	agentapisdk "github.com/coder/agentapi-sdk-go"
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -23,16 +23,16 @@ import (
 func Test_TaskLogs(t *testing.T) {
 	t.Parallel()
 
-	testMessages := []aiagentapi.Message{
+	testMessages := []agentapisdk.Message{
 		{
 			Id:      0,
-			Role:    aiagentapi.RoleUser,
+			Role:    agentapisdk.RoleUser,
 			Content: "What is 1 + 1?",
 			Time:    time.Now().Add(-2 * time.Minute),
 		},
 		{
 			Id:      1,
-			Role:    aiagentapi.RoleAgent,
+			Role:    agentapisdk.RoleAgent,
 			Content: "2",
 			Time:    time.Now().Add(-1 * time.Minute),
 		},
@@ -163,7 +163,7 @@ func Test_TaskLogs(t *testing.T) {
 	})
 }
 
-func fakeAgentAPITaskLogsOK(messages []aiagentapi.Message) map[string]http.HandlerFunc {
+func fakeAgentAPITaskLogsOK(messages []agentapisdk.Message) map[string]http.HandlerFunc {
 	return map[string]http.HandlerFunc{
 		"/messages": func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")

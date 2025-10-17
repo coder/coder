@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	aiagentapi "github.com/coder/agentapi-sdk-go"
+	agentapisdk "github.com/coder/agentapi-sdk-go"
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -134,15 +134,15 @@ func fakeAgentAPITaskSendOK(t *testing.T, expectMessage, returnMessage string) m
 		"/message": func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			var msg aiagentapi.PostMessageParams
+			var msg agentapisdk.PostMessageParams
 			if err := json.NewDecoder(r.Body).Decode(&msg); err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
 			assert.Equal(t, expectMessage, msg.Content)
-			message := aiagentapi.Message{
+			message := agentapisdk.Message{
 				Id:      999,
-				Role:    aiagentapi.RoleAgent,
+				Role:    agentapisdk.RoleAgent,
 				Content: returnMessage,
 				Time:    time.Now(),
 			}
