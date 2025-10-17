@@ -142,8 +142,9 @@ func (r *RootCmd) taskList() *serpent.Command {
 			}
 
 			tasks, err := exp.Tasks(ctx, &codersdk.TasksFilter{
-				Owner:  targetUser,
-				Status: statusFilter,
+				Owner: targetUser,
+				// TODO(mafredri): Replace with Status.
+				WorkspaceStatus: statusFilter,
 			})
 			if err != nil {
 				return xerrors.Errorf("list tasks: %w", err)
