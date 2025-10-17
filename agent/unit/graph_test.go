@@ -57,7 +57,7 @@ func secureRandInt(limit int) int {
 // createTestOutputDir creates a gitignored directory for test outputs
 func createTestOutputDir(t *testing.T) string {
 	outputDir := filepath.Join("test-output", "thread-safety", t.Name())
-	err := os.MkdirAll(outputDir, 0755)
+	err := os.MkdirAll(outputDir, 0o755)
 	require.NoError(t, err, "failed to create test output directory")
 	return outputDir
 }
@@ -72,7 +72,7 @@ func saveDOTFile(t *testing.T, graph *unit.Graph[Status, *Unit], filename string
 	}
 
 	dotPath := filepath.Join(outputDir, filename+".dot")
-	err = os.WriteFile(dotPath, []byte(dot), 0600)
+	err = os.WriteFile(dotPath, []byte(dot), 0o600)
 	require.NoError(t, err, "failed to write DOT file")
 	t.Logf("Saved DOT file: %s", dotPath)
 }
