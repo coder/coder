@@ -3552,6 +3552,13 @@ func (q *querier) GetWorkspaceAgentsCreatedAfter(ctx context.Context, createdAt 
 	return q.db.GetWorkspaceAgentsCreatedAfter(ctx, createdAt)
 }
 
+func (q *querier) GetWorkspaceAgentsForMetrics(ctx context.Context) ([]database.GetWorkspaceAgentsForMetricsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceAgentsForMetrics(ctx)
+}
+
 func (q *querier) GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkspaceAgent, error) {
 	workspace, err := q.GetWorkspaceByID(ctx, workspaceID)
 	if err != nil {
@@ -3855,6 +3862,13 @@ func (q *querier) GetWorkspacesByTemplateID(ctx context.Context, templateID uuid
 
 func (q *querier) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]database.GetWorkspacesEligibleForTransitionRow, error) {
 	return q.db.GetWorkspacesEligibleForTransition(ctx, now)
+}
+
+func (q *querier) GetWorkspacesForWorkspaceMetrics(ctx context.Context) ([]database.GetWorkspacesForWorkspaceMetricsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspacesForWorkspaceMetrics(ctx)
 }
 
 func (q *querier) InsertAIBridgeInterception(ctx context.Context, arg database.InsertAIBridgeInterceptionParams) (database.AIBridgeInterception, error) {
