@@ -485,56 +485,28 @@ const PromptTextarea: FC<PromptTextareaProps> = ({
 			)}
 			<style>{`
 				@keyframes caretScan {
-					0%, 100% {
+					0% {
 						left: 0%;
-						top: 10%;
 					}
-					10% {
-						left: 70%;
-						top: 10%;
-					}
-					20% {
-						left: 30%;
-						top: 30%;
-					}
-					30% {
-						left: 90%;
-						top: 20%;
-					}
-					40% {
-						left: 20%;
-						top: 50%;
-					}
-					50% {
-						left: 80%;
-						top: 60%;
-					}
-					60% {
-						left: 40%;
-						top: 70%;
-					}
-					70% {
-						left: 60%;
-						top: 40%;
-					}
-					80% {
-						left: 10%;
-						top: 80%;
-					}
-					90% {
-						left: 50%;
-						top: 90%;
+					100% {
+						left: 100%;
 					}
 				}
 
 				.caret-scanner {
 					position: absolute;
-					width: 12px;
-					height: 20px;
-					background-color: rgba(99, 102, 241, 0.5);
-					border: 1px solid rgb(99, 102, 241);
+					width: 2px;
+					height: 100%;
+					top: 0;
+					background-color: rgba(0, 255, 0, 0.8);
+					border: none;
 					animation: caretScan 3s ease-in-out infinite;
-					border-radius: 2px;
+					border-radius: 1px;
+					box-shadow:
+						-10px 0 10px rgba(0, 255, 0, 0.8),
+						-20px 0 20px rgba(0, 255, 0, 0.6),
+						-30px 0 30px rgba(0, 255, 0, 0.4),
+						-40px 0 40px rgba(0, 255, 0, 0.2);
 				}
 			`}</style>
 		</div>
