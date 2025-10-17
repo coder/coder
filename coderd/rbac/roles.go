@@ -431,6 +431,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 							// Note: even without PrebuiltWorkspace permissions, access is still granted via Workspace permissions.
 							ResourcePrebuiltWorkspace.Type: {policy.ActionUpdate, policy.ActionDelete},
 						})...),
+						Member: []Permission{},
 					},
 				},
 			}
@@ -454,6 +455,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 							// Can read available roles.
 							ResourceAssignOrgRole.Type: {policy.ActionRead},
 						}),
+						Member: []Permission{},
 					},
 				},
 			}
@@ -476,6 +478,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 							ResourceOrganization.Type:       {policy.ActionRead},
 							ResourceOrganizationMember.Type: {policy.ActionRead},
 						}),
+						Member: []Permission{},
 					},
 				},
 			}
@@ -502,6 +505,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 							ResourceGroupMember.Type:        ResourceGroupMember.AvailableActions(),
 							ResourceIdpsyncSettings.Type:    {policy.ActionRead, policy.ActionUpdate},
 						}),
+						Member: []Permission{},
 					},
 				},
 			}
@@ -531,6 +535,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 							ResourceProvisionerDaemon.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 							ResourceProvisionerJobs.Type:   {policy.ActionRead, policy.ActionUpdate, policy.ActionCreate},
 						}),
+						Member: []Permission{},
 					},
 				},
 			}
@@ -568,6 +573,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 								Action:       policy.ActionDeleteAgent,
 							},
 						},
+						Member: []Permission{},
 					},
 				},
 			}

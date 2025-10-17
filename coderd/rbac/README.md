@@ -92,6 +92,7 @@ The site-wide level is the most authoritative. Any permission granted or denied 
    ┌─────┴──────┐
    │   Member   │
    └────────────┘
+
 ```
 
 ## Roles
