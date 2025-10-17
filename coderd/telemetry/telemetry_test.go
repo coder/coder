@@ -248,7 +248,6 @@ func TestTelemetry(t *testing.T) {
 			assert.Equal(t, taskWA.WorkspaceAppID.UUID.String(), *snapTask.WorkspaceAppID)
 			assert.Equal(t, task.TemplateVersionID.String(), snapTask.TemplateVersionID)
 			assert.Equal(t, "e196fe22e61cfa32d8c38749e0ce348108bb4cae29e2c36cdcce7e77faa9eb5f", snapTask.PromptHash)
-			assert.Equal(t, "426fc04f04bf8fdb5831dc37bbb6dcf70f63a37e05a68c6ea5f63e85ae579376", snapTask.TemplateParametersHash)
 			assert.Equal(t, task.CreatedAt.UTC(), snapTask.CreatedAt.UTC())
 		}
 

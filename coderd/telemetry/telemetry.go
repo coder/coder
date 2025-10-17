@@ -1768,37 +1768,35 @@ type Organization struct {
 }
 
 type Task struct {
-	ID                     string    `json:"id"`
-	OrganizationID         string    `json:"organization_id"`
-	OwnerID                string    `json:"owner_id"`
-	Name                   string    `json:"name"`
-	WorkspaceID            *string   `json:"workspace_id"`
-	WorkspaceBuildNumber   *int64    `json:"workspace_build_number"`
-	WorkspaceAgentID       *string   `json:"workspace_agent_id"`
-	WorkspaceAppID         *string   `json:"workspace_app_id"`
-	TemplateVersionID      string    `json:"template_version_id"`
-	TemplateParametersHash string    `json:"template_parameters_hash"` // Parameters are hashed for privacy.
-	PromptHash             string    `json:"prompt_hash"`              // Prompt is hashed for privacy.
-	CreatedAt              time.Time `json:"created_at"`
-	Status                 string    `json:"status"`
+	ID                   string    `json:"id"`
+	OrganizationID       string    `json:"organization_id"`
+	OwnerID              string    `json:"owner_id"`
+	Name                 string    `json:"name"`
+	WorkspaceID          *string   `json:"workspace_id"`
+	WorkspaceBuildNumber *int64    `json:"workspace_build_number"`
+	WorkspaceAgentID     *string   `json:"workspace_agent_id"`
+	WorkspaceAppID       *string   `json:"workspace_app_id"`
+	TemplateVersionID    string    `json:"template_version_id"`
+	PromptHash           string    `json:"prompt_hash"` // Prompt is hashed for privacy.
+	CreatedAt            time.Time `json:"created_at"`
+	Status               string    `json:"status"`
 }
 
 // ConvertTask anonymizes a Task.
 func ConvertTask(task database.Task) Task {
 	t := &Task{
-		ID:                     task.ID.String(),
-		OrganizationID:         task.OrganizationID.String(),
-		OwnerID:                task.OwnerID.String(),
-		Name:                   task.Name,
-		WorkspaceID:            nil,
-		WorkspaceBuildNumber:   nil,
-		WorkspaceAgentID:       nil,
-		WorkspaceAppID:         nil,
-		TemplateVersionID:      task.TemplateVersionID.String(),
-		TemplateParametersHash: fmt.Sprintf("%x", sha256.Sum256(task.TemplateParameters)),
-		PromptHash:             fmt.Sprintf("%x", sha256.Sum256([]byte(task.Prompt))),
-		CreatedAt:              task.CreatedAt,
-		Status:                 string(task.Status),
+		ID:                   task.ID.String(),
+		OrganizationID:       task.OrganizationID.String(),
+		OwnerID:              task.OwnerID.String(),
+		Name:                 task.Name,
+		WorkspaceID:          nil,
+		WorkspaceBuildNumber: nil,
+		WorkspaceAgentID:     nil,
+		WorkspaceAppID:       nil,
+		TemplateVersionID:    task.TemplateVersionID.String(),
+		PromptHash:           fmt.Sprintf("%x", sha256.Sum256([]byte(task.Prompt))),
+		CreatedAt:            task.CreatedAt,
+		Status:               string(task.Status),
 	}
 	if task.WorkspaceID.Valid {
 		t.WorkspaceID = ptr.Ref(task.WorkspaceID.UUID.String())
