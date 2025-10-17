@@ -460,7 +460,8 @@ CREATE TYPE resource_type AS ENUM (
     'idp_sync_settings_role',
     'workspace_agent',
     'workspace_app',
-    'prebuilds_settings'
+    'prebuilds_settings',
+    'task'
 );
 
 CREATE TYPE startup_script_behavior AS ENUM (
@@ -1970,7 +1971,10 @@ CREATE VIEW tasks_with_status AS
                 ELSE 'unknown'::task_status
             END
             ELSE 'unknown'::task_status
-        END AS status
+        END AS status,
+    task_app.workspace_build_number,
+    task_app.workspace_agent_id,
+    task_app.workspace_app_id
    FROM ((((tasks
      LEFT JOIN LATERAL ( SELECT task_app_1.workspace_build_number,
             task_app_1.workspace_agent_id,
