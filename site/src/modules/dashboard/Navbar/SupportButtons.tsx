@@ -1,5 +1,3 @@
-// components/Navbar/SupportButtons.tsx
-
 import type { Interpolation, Theme } from "@emotion/react";
 import type { SvgIconProps } from "@mui/material/SvgIcon";
 import type * as TypesGen from "api/typesGenerated";
@@ -16,19 +14,18 @@ export const SupportButtons: FC<SupportButtonsProps> = ({ supportLinks }) => {
 	return (
 		<>
 			{supportLinks.map((link) => (
-				<a
-					key={link.name}
-					href={link.target}
-					target="_blank"
-					rel="noreferrer"
-					className="inline-block"
-				>
-					<Button variant="outline">
-						{link.icon !== "" &&
-							renderSupportIcon(link.icon, styles.buttonIcon)}
+				<Button key={link.name} variant="outline">
+					<a
+						href={link.target}
+						target="_blank"
+						rel="noreferrer"
+						className="inline-block"
+					>
+						{link.icon && renderSupportIcon(link.icon, styles.buttonIcon)}
 						{link.name}
-					</Button>
-				</a>
+						<span className="sr-only"> (link opens in new tab)</span>
+					</a>
+				</Button>
 			))}
 		</>
 	);

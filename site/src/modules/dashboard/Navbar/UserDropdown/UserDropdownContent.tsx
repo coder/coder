@@ -85,7 +85,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 						>
 							<PopoverClose asChild>
 								<MenuItem css={styles.menuItem}>
-									{link.icon !== "" &&
+									{link.icon &&
 										renderSupportIcon(link.icon, styles.menuItemIcon)}
 									<span css={styles.menuItemText}>{link.name}</span>
 								</MenuItem>

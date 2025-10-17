@@ -73,9 +73,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 
 			<div className="flex items-center gap-3 ml-auto">
 				{supportLinks && (
-					<SupportButtons
-						supportLinks={supportLinks.filter((l) => isNavbarLink(l))}
-					/>
+					<SupportButtons supportLinks={supportLinks.filter(isNavbarLink)} />
 				)}
 
 				{proxyContextValue && (
