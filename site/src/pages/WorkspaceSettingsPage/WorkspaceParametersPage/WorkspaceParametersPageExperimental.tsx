@@ -98,6 +98,7 @@ const WorkspaceParametersPageExperimental: FC = () => {
 
 		if (!initialParamsSentRef.current && response.parameters?.length > 0) {
 			sendInitialParameters();
+			return;
 		}
 
 		setLatestResponse(response);
