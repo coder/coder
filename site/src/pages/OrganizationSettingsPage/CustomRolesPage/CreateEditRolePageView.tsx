@@ -66,9 +66,11 @@ const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
 		initialValues: {
 			name: role?.name || "",
 			display_name: role?.display_name || "",
-			site_permissions: role?.site_permissions || [],
-			organization_permissions: role?.organization_permissions || [],
-			user_permissions: role?.user_permissions || [],
+			site_permissions: role?.site_permissions ?? [],
+			user_permissions: role?.user_permissions ?? [],
+			organization_permissions: role?.organization_permissions ?? [],
+			organization_member_permissions:
+				role?.organization_member_permissions ?? [],
 		},
 		validationSchema,
 		onSubmit,

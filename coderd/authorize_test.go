@@ -50,6 +50,13 @@ func TestCheckPermissions(t *testing.T) {
 			},
 			Action: "read",
 		},
+		readOrgWorkspaces: {
+			Object: codersdk.AuthorizationObject{
+				ResourceType:   codersdk.ResourceWorkspace,
+				OrganizationID: adminUser.OrganizationID.String(),
+			},
+			Action: "read",
+		},
 		readMyself: {
 			Object: codersdk.AuthorizationObject{
 				ResourceType: codersdk.ResourceUser,
@@ -59,15 +66,9 @@ func TestCheckPermissions(t *testing.T) {
 		},
 		readOwnWorkspaces: {
 			Object: codersdk.AuthorizationObject{
-				ResourceType: codersdk.ResourceWorkspace,
-				OwnerID:      "me",
-			},
-			Action: "read",
-		},
-		readOrgWorkspaces: {
-			Object: codersdk.AuthorizationObject{
 				ResourceType:   codersdk.ResourceWorkspace,
 				OrganizationID: adminUser.OrganizationID.String(),
+				OwnerID:        "me",
 			},
 			Action: "read",
 		},
@@ -92,9 +93,9 @@ func TestCheckPermissions(t *testing.T) {
 			UserID: adminUser.UserID,
 			Check: map[string]bool{
 				readAllUsers:           true,
+				readOrgWorkspaces:      true,
 				readMyself:             true,
 				readOwnWorkspaces:      true,
-				readOrgWorkspaces:      true,
 				updateSpecificTemplate: true,
 			},
 		},
@@ -104,9 +105,9 @@ func TestCheckPermissions(t *testing.T) {
 			UserID: orgAdminUser.ID,
 			Check: map[string]bool{
 				readAllUsers:           true,
+				readOrgWorkspaces:      true,
 				readMyself:             true,
 				readOwnWorkspaces:      true,
-				readOrgWorkspaces:      true,
 				updateSpecificTemplate: true,
 			},
 		},
@@ -116,9 +117,9 @@ func TestCheckPermissions(t *testing.T) {
 			UserID: memberUser.ID,
 			Check: map[string]bool{
 				readAllUsers:           false,
+				readOrgWorkspaces:      false,
 				readMyself:             true,
 				readOwnWorkspaces:      true,
-				readOrgWorkspaces:      false,
 				updateSpecificTemplate: false,
 			},
 		},

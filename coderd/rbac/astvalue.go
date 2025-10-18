@@ -165,6 +165,10 @@ func (role Role) regoValue() ast.Value {
 					ast.StringTerm("org"),
 					ast.NewTerm(regoSlice(p.Org)),
 				},
+				[2]*ast.Term{
+					ast.StringTerm("member"),
+					ast.NewTerm(regoSlice(p.Member)),
+				},
 			),
 		))
 	}
