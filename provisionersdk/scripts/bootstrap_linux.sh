@@ -28,8 +28,14 @@ while :; do
 	elif command -v busybox >/dev/null 2>&1; then
 		busybox wget -q "${BINARY_URL}" -O "${BINARY_NAME}" && break
 		status=$?
+	elif command -v python3 >/dev/null 2>&1; then
+		python3 -c 'import sys, urllib.request; urllib.request.urlretrieve(*sys.argv[1:])' "${BINARY_URL}" "${BINARY_NAME}" && break
+		status=$?
+	elif command -v python >/dev/null 2>&1; then
+		python -c 'import sys, urllib.request; urllib.request.urlretrieve(*sys.argv[1:])' "${BINARY_URL}" "${BINARY_NAME}" && break
+		status=$?
 	else
-		echo "error: no download tool found, please install curl, wget or busybox wget"
+		echo "error: no download tool found, please install curl, (busybox) wget or python 3.x"
 		exit 127
 	fi
 	echo "error: failed to download coder agent"
