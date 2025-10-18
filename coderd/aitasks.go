@@ -261,7 +261,7 @@ func taskFromWorkspace(ws codersdk.Workspace, initialPrompt string) codersdk.Tas
 		if ws.LatestBuild.Transition != codersdk.WorkspaceTransitionStart || ws.LatestAppStatus.CreatedAt.After(ws.LatestBuild.CreatedAt) {
 			currentState = &codersdk.TaskStateEntry{
 				Timestamp: ws.LatestAppStatus.CreatedAt,
-				State:     codersdk.TaskState(ws.LatestAppStatus.State),
+				State:     codersdk.TaskStateFromWorkspaceAppStatus(ws.LatestAppStatus.State),
 				Message:   ws.LatestAppStatus.Message,
 				URI:       ws.LatestAppStatus.URI,
 			}
