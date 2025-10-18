@@ -37,6 +37,7 @@ import (
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/cli/gitauth"
+	"github.com/coder/coder/v2/cli/sessionstore"
 	"github.com/coder/coder/v2/cli/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -382,6 +383,14 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 	if r.clientURL == nil {
 		r.clientURL = new(url.URL)
 	}
+	if r.tokenBackend == nil {
+		switch runtime.GOOS {
+		case "windows", "darwin":
+			r.tokenBackend = sessionstore.NewKeyringWithFileFallback()
+		default:
+			r.tokenBackend = sessionstore.File{}
+		}
+	}
 
 	globalGroup := &serpent.Group{
 		Name:        "Global",
@@ -508,6 +517,7 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 type RootCmd struct {
 	clientURL     *url.URL
 	token         string
+	tokenBackend  sessionstore.Backend
 	globalConfig  string
 	header        []string
 	headerCommand string
@@ -549,13 +559,19 @@ func (r *RootCmd) InitClient(inv *serpent.Invocation) (*codersdk.Client, error) 
 			return nil, err
 		}
 	}
-	// Read the token stored on disk.
 	if r.token == "" {
-		r.token, err = conf.Session().Read()
+		tok, location, err := r.tokenBackend.Read(conf, r.clientURL)
 		// Even if there isn't a token, we don't care.
 		// Some API routes can be unauthenticated.
-		if err != nil && !os.IsNotExist(err) {
+		if err != nil && !xerrors.Is(err, os.ErrNotExist) {
 			return nil, err
+		}
+		if tok != "" {
+			r.token = tok
+		}
+		if r.tokenBackend.PreferredLocation() == sessionstore.LocationKeyring && location == sessionstore.LocationFile {
+			_, _ = fmt.Fprintln(inv.Stderr, pretty.Sprint(cliui.DefaultStyles.Warn,
+				"⚠️ Token read from PLAIN TEXT. Consider logging in again to use keyring storage."))
 		}
 	}
 
@@ -588,7 +604,6 @@ func (r *RootCmd) InitClient(inv *serpent.Invocation) (*codersdk.Client, error) 
 // This allows commands to run without requiring authentication, but still use auth if available.
 func (r *RootCmd) TryInitClient(inv *serpent.Invocation) (*codersdk.Client, error) {
 	conf := r.createConfig()
-	var err error
 	// Read the client URL stored on disk.
 	if r.clientURL == nil || r.clientURL.String() == "" {
 		rawURL, err := conf.URL().Read()
@@ -605,13 +620,19 @@ func (r *RootCmd) TryInitClient(inv *serpent.Invocation) (*codersdk.Client, erro
 			}
 		}
 	}
-	// Read the token stored on disk.
 	if r.token == "" {
-		r.token, err = conf.Session().Read()
+		tok, location, err := r.tokenBackend.Read(conf, r.clientURL)
 		// Even if there isn't a token, we don't care.
 		// Some API routes can be unauthenticated.
-		if err != nil && !os.IsNotExist(err) {
+		if err != nil && !xerrors.Is(err, os.ErrNotExist) {
 			return nil, err
+		}
+		if tok != "" {
+			r.token = tok
+		}
+		if r.tokenBackend.PreferredLocation() == sessionstore.LocationKeyring && location == sessionstore.LocationFile {
+			_, _ = fmt.Fprintln(inv.Stderr, pretty.Sprint(cliui.DefaultStyles.Warn,
+				"⚠️ Token read from PLAIN TEXT. Login again to use keyring storage."))
 		}
 	}
 
@@ -686,6 +707,10 @@ func (r *RootCmd) createUnauthenticatedClient(ctx context.Context, serverURL *ur
 	}
 	client := codersdk.New(serverURL, codersdk.WithHTTPClient(httpClient))
 	return client, nil
+}
+
+func (r *RootCmd) WithSessionStorageBackend(backend sessionstore.Backend) {
+	r.tokenBackend = backend
 }
 
 type AgentAuth struct {

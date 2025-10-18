@@ -9,6 +9,12 @@ Authenticate with Coder deployment
 coder login [flags] [<url>]
 ```
 
+## Description
+
+```console
+Stores the session token in the operating system keyring, with a fallback to plain text if the keyring is not available. The security command is used on macOS. Windows Credential Manager API is used on Windows. The session is only stored in plain text on Linux.
+```
+
 ## Options
 
 ### --first-user-email

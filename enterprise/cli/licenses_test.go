@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -189,7 +190,16 @@ func TestLicensesListReal(t *testing.T) {
 		}()
 		require.NoError(t, <-errC)
 		assert.Equal(t, "[]\n", stdout.String())
-		assert.Contains(t, testWarning, stderr.String())
+
+		switch runtime.GOOS {
+		case "windows", "darwin":
+			// This warning message appears because SetupConfig writes the session token to
+			// disk, and the real CLI created by newCLI nominally expects the token to be
+			// from the keychain on Windows/macOS.
+			assert.Contains(t, stderr.String(), "⚠️ Token read from PLAIN TEXT. Consider logging in again to use keyring storage.")
+		default:
+			assert.Equal(t, "", stderr.String())
+		}
 	})
 }
 
