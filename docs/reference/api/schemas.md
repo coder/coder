@@ -1096,6 +1096,7 @@
   "support_links": [
     {
       "icon": "bug",
+      "location": "navbar",
       "name": "string",
       "target": "string"
     }
@@ -3123,6 +3124,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "value": [
           {
             "icon": "bug",
+            "location": "navbar",
             "name": "string",
             "target": "string"
           }
@@ -3628,6 +3630,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "value": [
         {
           "icon": "bug",
+          "location": "navbar",
           "name": "string",
           "target": "string"
         }
@@ -4735,6 +4738,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 ```json
 {
   "icon": "bug",
+  "location": "navbar",
   "name": "string",
   "target": "string"
 }
@@ -4742,19 +4746,23 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ### Properties
 
-| Name     | Type   | Required | Restrictions | Description |
-|----------|--------|----------|--------------|-------------|
-| `icon`   | string | false    |              |             |
-| `name`   | string | false    |              |             |
-| `target` | string | false    |              |             |
+| Name       | Type   | Required | Restrictions | Description |
+|------------|--------|----------|--------------|-------------|
+| `icon`     | string | false    |              |             |
+| `location` | string | false    |              |             |
+| `name`     | string | false    |              |             |
+| `target`   | string | false    |              |             |
 
 #### Enumerated Values
 
-| Property | Value  |
-|----------|--------|
-| `icon`   | `bug`  |
-| `icon`   | `chat` |
-| `icon`   | `docs` |
+| Property   | Value      |
+|------------|------------|
+| `icon`     | `bug`      |
+| `icon`     | `chat`     |
+| `icon`     | `docs`     |
+| `icon`     | `star`     |
+| `location` | `navbar`   |
+| `location` | `dropdown` |
 
 ## codersdk.ListInboxNotificationsResponse
 
@@ -7605,6 +7613,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
     "value": [
       {
         "icon": "bug",
+        "location": "navbar",
         "name": "string",
         "target": "string"
       }
@@ -13661,6 +13670,7 @@ None
   "value": [
     {
       "icon": "bug",
+      "location": "navbar",
       "name": "string",
       "target": "string"
     }

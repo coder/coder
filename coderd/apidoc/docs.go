@@ -14750,7 +14750,15 @@ const docTemplate = `{
                     "enum": [
                         "bug",
                         "chat",
-                        "docs"
+                        "docs",
+                        "star"
+                    ]
+                },
+                "location": {
+                    "type": "string",
+                    "enum": [
+                        "navbar",
+                        "dropdown"
                     ]
                 },
                 "name": {

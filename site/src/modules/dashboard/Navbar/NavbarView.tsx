@@ -21,6 +21,7 @@ import { cn } from "utils/cn";
 import { DeploymentDropdown } from "./DeploymentDropdown";
 import { MobileMenu } from "./MobileMenu";
 import { ProxyMenu } from "./ProxyMenu";
+import { SupportIcon } from "./SupportIcon";
 import { UserDropdown } from "./UserDropdown/UserDropdown";
 
 interface NavbarViewProps {
@@ -71,6 +72,12 @@ export const NavbarView: FC<NavbarViewProps> = ({
 			<NavItems className="ml-4" user={user} />
 
 			<div className="flex items-center gap-3 ml-auto">
+				{supportLinks && (
+					<div className="hidden md:block">
+						<SupportButtons supportLinks={supportLinks.filter(isNavbarLink)} />
+					</div>
+				)}
+
 				{proxyContextValue && (
 					<div className="hidden md:block">
 						<ProxyMenu proxyContextValue={proxyContextValue} />
@@ -121,7 +128,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 					<UserDropdown
 						user={user}
 						buildInfo={buildInfo}
-						supportLinks={supportLinks}
+						supportLinks={supportLinks?.filter((link) => !isNavbarLink(link))}
 						onSignOut={onSignOut}
 					/>
 				</div>
@@ -240,3 +247,37 @@ const TasksNavItem: FC<TasksNavItemProps> = ({ user }) => {
 function idleTasksLabel(count: number) {
 	return `You have ${count} ${count === 1 ? "task" : "tasks"} waiting for input`;
 }
+
+function isNavbarLink(link: TypesGen.LinkConfig): boolean {
+	return link.location === "navbar";
+}
+
+interface SupportButtonsProps {
+	supportLinks: TypesGen.LinkConfig[];
+}
+
+const SupportButtons: FC<SupportButtonsProps> = ({ supportLinks }) => {
+	return (
+		<>
+			{supportLinks.map((link) => (
+				<Button asChild key={link.name} variant="outline">
+					<a
+						href={link.target}
+						target="_blank"
+						rel="noreferrer"
+						className="inline-block"
+					>
+						{link.icon && (
+							<SupportIcon
+								icon={link.icon}
+								className={cn(["text-content-secondary", "size-5"])}
+							/>
+						)}
+						{link.name}
+						<span className="sr-only"> (link opens in new tab)</span>
+					</a>
+				</Button>
+			))}
+		</>
+	);
+};

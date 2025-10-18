@@ -120,6 +120,7 @@ curl -X GET http://coder-server:8080/api/v2/appearance \
   "support_links": [
     {
       "icon": "bug",
+      "location": "navbar",
       "name": "string",
       "target": "string"
     }
