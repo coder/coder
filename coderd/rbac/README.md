@@ -99,15 +99,19 @@ A _role_ is a set of permissions. When evaluating a role's permission to form an
 
 The following tables show the per-level role evaluation. Y indicates that the role provides positive permissions, N indicates the role provides negative permissions, and _indicates the role does not provide positive or negative permissions. YN_ indicates that the value in the cell does not matter for the access result. The table varies depending on if the resource belongs to an organization or not.
 
+If the resource is owned by an organization, such as a template or a workspace:
+
 | Role (example)           | Site | Org  | OrgMember | Result |
 | ------------------------ | ---- | ---- | --------- | ------ |
 | site-admin               | Y    | YN\_ | YN\_      | Y      |
 | negative-site-permission | N    | YN\_ | YN\_      | N      |
 | org-admin                | \_   | Y    | YN\_      | Y      |
 | non-org-member           | \_   | N    | YN\_      | N      |
-| member-owned             | \_   | \_   | Y         | N      |
+| member-owned             | \_   | \_   | Y         | Y      |
 | not-member-owned         | \_   | \_   | N         | N      |
 | unauthenticated          | \_   | \_   | \_        | N      |
+
+If the resource is not owned by an organization:
 
 | Role (example)           | Site | User | Result |
 | ------------------------ | ---- | ---- | ------ |

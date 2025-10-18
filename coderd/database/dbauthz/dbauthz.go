@@ -1288,7 +1288,7 @@ func (q *querier) customRoleCheck(ctx context.Context, role database.CustomRole)
 			// The person giving the permission should still be required to have
 			// the permissions throughout the org in order to give individuals the
 			// same permission among their own resources, since the role can be given
-			// to anyone. The `Owner` is intentionally ommitted from the `Object` to
+			// to anyone. The `Owner` is intentionally omitted from the `Object` to
 			// enforce this.
 			err := q.customRoleEscalationCheck(ctx, act, memberPerm, rbac.Object{OrgID: orgID, Type: memberPerm.ResourceType})
 			if err != nil {
