@@ -469,3 +469,178 @@ func TestMigration000362AggregateUsageEvents(t *testing.T) {
 		require.JSONEq(t, string(expectedDailyRows[i].usageData), string(row.UsageData))
 	}
 }
+
+func TestMigration000384MigrateExistingTaskWorkspaces(t *testing.T) {
+	t.Parallel()
+	const migrationVersion = 384
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	sqlDB := testSQLDB(t)
+
+	// Migrate up to the migration before the task migration
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	// Setup test data: create a workspace with has_ai_task = true
+	var (
+		orgID             = uuid.New()
+		userID            = uuid.New()
+		templateID        = uuid.New()
+		templateVersionID = uuid.New()
+		workspaceID       = uuid.New()
+		buildID           = uuid.New()
+		jobID             = uuid.New()
+		resourceID        = uuid.New()
+		agentID           = uuid.New()
+		appID             = uuid.New()
+		now               = time.Now().UTC()
+	)
+	// Start a transaction
+	tx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer tx.Rollback()
+
+	// Given: we have a "task workspace" owned by a given user in a given org.
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO organizations (id, name, display_name, description, created_at, updated_at)
+		VALUES ($1, 'test-org', 'Test Organization', 'Test Organization', $2, $2)
+	`, orgID, now)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type)
+		VALUES ($1, 'testuser', 'test@example.com', '\x', $2, $2, 'active', '{}', 'password')
+	`, userID, now)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO provisioner_jobs (id, created_at, updated_at, started_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, file_id, type, input, tags)
+		VALUES ($1, $2, $2, $2, $2, '', $3, $4, 'terraform', 'file', $5, 'template_version_import', '{}', '{}')
+	`, jobID, now, orgID, userID, uuid.New())
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO template_versions (id, organization_id, name, readme, created_at, updated_at, job_id, created_by)
+		VALUES ($1, $2, 'v1.0', 'Test template', $3, $3, $4, $5)
+	`, templateVersionID, orgID, now, jobID, userID)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO templates (id, organization_id, name, created_at, updated_at, provisioner, active_version_id, created_by)
+		VALUES ($1, $2, 'test-template', $3, $3, 'terraform', $4, $5)
+	`, templateID, orgID, now, templateVersionID, userID)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx, `
+		UPDATE template_versions SET template_id = $1 WHERE id = $2
+	`, templateID, templateVersionID)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO workspaces (id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, last_used_at)
+		VALUES ($1, $2, $2, $3, $4, $5, false, 'test-task-workspace', $2)
+	`, workspaceID, now, userID, orgID, templateID)
+	require.NoError(t, err)
+
+	buildJobID := uuid.New()
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO provisioner_jobs (id, created_at, updated_at, started_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, file_id, type, input, tags)
+		VALUES ($1, $2, $2, $2, $2, '', $3, $4, 'terraform', 'file', $5, 'workspace_build', '{}', '{}')
+	`, buildJobID, now, orgID, userID, uuid.New())
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO workspace_resources (id, created_at, job_id, transition, type, name, hide, icon, daily_cost, instance_type)
+		VALUES ($1, $2, $3, 'start', 'docker_container', 'main', false, '', 0, '')
+	`, resourceID, now, buildJobID)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO workspace_agents (id, created_at, updated_at, name, resource_id, auth_token, auth_instance_id, architecture, environment_variables, operating_system, directory, instance_metadata, resource_metadata, connection_timeout_seconds, troubleshooting_url, motd_file, lifecycle_state, api_version, version, expanded_directory, logs_length, logs_overflowed)
+		VALUES ($1, $2, $2, 'main', $3, $4, '', 'amd64', '{}', 'linux', '/home/coder', '{}', '{}', 120, '', '', 'ready', '', '', '', 0, false)
+	`, agentID, now, resourceID, uuid.New())
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO workspace_apps (id, created_at, agent_id, slug, display_name, icon, command, url, subdomain, external)
+		VALUES ($1, $2, $3, 'code-server', 'Code Server', '', '', 'http://localhost:8080', false, false)
+	`, appID, now, agentID)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO workspace_builds (id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, provisioner_state, job_id, deadline, reason, daily_cost, max_deadline, has_ai_task, ai_task_sidebar_app_id)
+		VALUES ($1, $2, $2, $3, $4, 1, 'start', $5, '\x', $6, $7, 'initiator', 0, $7, true, $8)
+	`, buildID, now, workspaceID, templateVersionID, userID, buildJobID, now.Add(8*time.Hour), appID)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO workspace_build_parameters (workspace_build_id, name, value)
+		VALUES ($1, 'coder_ai_task_prompt', 'Build a web server'),
+		       ($1, 'region', 'us-east-1')
+	`, buildID)
+	require.NoError(t, err)
+
+	err = tx.Commit()
+	require.NoError(t, err)
+
+	// When: we run the migration
+	version, _, err := next()
+	require.NoError(t, err)
+	require.EqualValues(t, migrationVersion, version)
+
+	// Then: there should be one task row populated.
+	var taskCount int
+	err = sqlDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM tasks WHERE workspace_id = $1", workspaceID).Scan(&taskCount)
+	require.NoError(t, err)
+	require.Equal(t, 1, taskCount, "should have created one task from workspace")
+
+	// Then: the row data should be as expected: one task row with equivalent fields.
+	var (
+		taskID                uuid.UUID
+		taskOrgID             uuid.UUID
+		taskOwnerID           uuid.UUID
+		taskName              string
+		taskWorkspaceID       uuid.UUID
+		taskTemplateVersionID uuid.UUID
+		taskPrompt            string
+		taskParams            []byte
+	)
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, prompt, template_parameters
+		FROM tasks WHERE workspace_id = $1
+	`, workspaceID).Scan(&taskID, &taskOrgID, &taskOwnerID, &taskName, &taskWorkspaceID, &taskTemplateVersionID, &taskPrompt, &taskParams)
+	require.NoError(t, err)
+	require.Equal(t, orgID, taskOrgID)
+	require.Equal(t, userID, taskOwnerID)
+	require.Equal(t, "test-task-workspace", taskName)
+	require.Equal(t, workspaceID, taskWorkspaceID)
+	require.Equal(t, templateVersionID, taskTemplateVersionID)
+	require.Equal(t, "Build a web server", taskPrompt)
+	require.JSONEq(t, `{"region":"us-east-1"}`, string(taskParams))
+
+	var (
+		twaTaskID           uuid.UUID
+		twaBuildNumber      int32
+		twaWorkspaceAgentID uuid.UUID
+		twaWorkspaceAppID   uuid.UUID
+	)
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT task_id, workspace_build_number, workspace_agent_id, workspace_app_id
+		FROM task_workspace_apps WHERE task_id = $1
+	`, taskID).Scan(&twaTaskID, &twaBuildNumber, &twaWorkspaceAgentID, &twaWorkspaceAppID)
+	require.NoError(t, err)
+	require.Equal(t, taskID, twaTaskID)
+	require.Equal(t, int32(1), twaBuildNumber)
+	require.Equal(t, agentID, twaWorkspaceAgentID)
+	require.Equal(t, appID, twaWorkspaceAppID)
+}
