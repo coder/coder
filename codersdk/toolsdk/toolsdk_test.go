@@ -1396,7 +1396,7 @@ func TestTools(t *testing.T) {
 					TaskID: r.Workspace.ID.String(),
 					Input:  "this is ignored",
 				},
-				error: "Task is not configured with a sidebar app",
+				error: "Task is not configured with a task app",
 			},
 		}
 
@@ -1516,7 +1516,7 @@ func TestTools(t *testing.T) {
 				args: toolsdk.GetTaskLogsArgs{
 					TaskID: r.Workspace.ID.String(),
 				},
-				error: "Task is not configured with a sidebar app",
+				error: "Task is not configured with a task app",
 			},
 		}
 
