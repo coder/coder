@@ -577,6 +577,19 @@ export const MockOrganizationMember2: TypesGen.OrganizationMemberWithUserData =
 		roles: [],
 	};
 
+export const MockOrganizationMember3: TypesGen.OrganizationMemberWithUserData =
+	{
+		organization_id: MockOrganization.id,
+		user_id: SuspendedMockUser.id,
+		username: SuspendedMockUser.username,
+		email: SuspendedMockUser.email,
+		updated_at: "2025-10-15T00:11:42.783Z",
+		created_at: "2025-10-15T00:11:42.783Z",
+		name: SuspendedMockUser.name,
+		global_roles: MockUserOwner.roles,
+		roles: [MockTemplateAdminRole],
+	};
+
 export const MockProvisionerKey: TypesGen.ProvisionerKey = {
 	id: "test-provisioner-key",
 	organization: MockOrganization.id,
@@ -1033,7 +1046,7 @@ export const MockWorkspaceAppStatus: TypesGen.WorkspaceAppStatus = {
 	icon: "",
 };
 
-const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
+export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
 	...MockWorkspaceAgent,
 	id: "test-workspace-agent-2",
 	name: "another-workspace-agent",

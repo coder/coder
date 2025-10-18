@@ -6,7 +6,6 @@ import ListItem from "@mui/material/ListItem";
 import ListItemText, { listItemTextClasses } from "@mui/material/ListItemText";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
-import Tooltip from "@mui/material/Tooltip";
 import { getErrorMessage } from "api/errors";
 import {
 	type selectTemplatesByGroup,
@@ -16,6 +15,7 @@ import type { DeploymentValues } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { Button } from "components/Button/Button";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import MiniTooltip from "components/MiniTooltip/MiniTooltip";
 import { Stack } from "components/Stack/Stack";
 import {
 	castNotificationMethod,
@@ -186,7 +186,7 @@ const MethodToggleGroup: FC<MethodToggleGroupProps> = ({
 				const Icon = methodIcons[method];
 				const label = methodLabels[method];
 				return (
-					<Tooltip key={method} title={label}>
+					<MiniTooltip key={method} title={label}>
 						<ToggleButton
 							value={method}
 							css={styles.toggleButton}
@@ -202,7 +202,7 @@ const MethodToggleGroup: FC<MethodToggleGroupProps> = ({
 						>
 							<Icon aria-label={label} />
 						</ToggleButton>
-					</Tooltip>
+					</MiniTooltip>
 				);
 			})}
 		</ToggleButtonGroup>

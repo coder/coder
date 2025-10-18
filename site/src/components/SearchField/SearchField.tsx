@@ -1,7 +1,7 @@
 import IconButton from "@mui/material/IconButton";
 import InputAdornment from "@mui/material/InputAdornment";
 import TextField, { type TextFieldProps } from "@mui/material/TextField";
-import Tooltip from "@mui/material/Tooltip";
+import MiniTooltip from "components/MiniTooltip/MiniTooltip";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { SearchIcon, XIcon } from "lucide-react";
 import { type FC, useLayoutEffect, useRef } from "react";
@@ -47,7 +47,7 @@ export const SearchField: FC<SearchFieldProps> = ({
 				),
 				endAdornment: value !== "" && (
 					<InputAdornment position="end">
-						<Tooltip title="Clear search">
+						<MiniTooltip title="Clear search">
 							<IconButton
 								size="small"
 								onClick={() => {
@@ -57,7 +57,7 @@ export const SearchField: FC<SearchFieldProps> = ({
 								<XIcon className="size-icon-xs" />
 								<span className="sr-only">Clear search</span>
 							</IconButton>
-						</Tooltip>
+						</MiniTooltip>
 					</InputAdornment>
 				),
 				...InputProps,
