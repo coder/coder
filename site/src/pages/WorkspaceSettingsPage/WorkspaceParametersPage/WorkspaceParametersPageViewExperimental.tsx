@@ -73,8 +73,8 @@ export const WorkspaceParametersPageViewExperimental: FC<
 
 	const setFormFieldTouched = useCallback(
 		(parameter: PreviewParameter) => {
-			const parameters = form.values.rich_parameter_values ?? [];
-			const index = parameters.findIndex((p) => p.name === parameter.name);
+			const values = form.values.rich_parameter_values ?? [];
+			const index = values.findIndex((p) => p.name === parameter.name);
 			if (index !== -1) {
 				const path = `rich_parameter_values.${index}.value`;
 				if (getIn(form.touched, path) !== true) {
@@ -114,17 +114,17 @@ export const WorkspaceParametersPageViewExperimental: FC<
 	) => {
 		const formInputs: Record<string, string> = {};
 		formInputs[parameter.name] = value;
-		const parameters = form.values.rich_parameter_values ?? [];
+		const values = form.values.rich_parameter_values ?? [];
 
 		const touchedNames = new Set<string>();
-		parameters.forEach((param, idx) => {
+		values.forEach((param, idx) => {
 			const valuePath = `rich_parameter_values.${idx}.value`;
 			if (getIn(form.touched, valuePath)) {
 				touchedNames.add(param.name);
 			}
 		});
 
-		parameters.forEach((param) => {
+		values.forEach((param) => {
 			if (
 				param?.name &&
 				param.name !== parameter.name &&
