@@ -701,7 +701,7 @@ func RBACRole(role rbac.Role) codersdk.Role {
 		SitePermissions:               List(role.Site, RBACPermission),
 		UserPermissions:               List(role.User, RBACPermission),
 		OrganizationPermissions:       List(orgPerms.Org, RBACPermission),
-		OrganizationMemberPermissions: List(orgPerms.Org, RBACPermission),
+		OrganizationMemberPermissions: List(orgPerms.Member, RBACPermission),
 	}
 }
 

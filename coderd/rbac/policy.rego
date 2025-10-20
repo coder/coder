@@ -195,20 +195,20 @@ is_org_member if {
 
 default org_member := 0
 
-org_member := num if {
+org_member := vote if {
 	# Object must be jointly owned by the user
 	input.object.owner != ""
 	input.subject.id = input.object.owner
-	num := check_org_permissions(input.subject.roles, "member")
+	vote := check_org_permissions(input.subject.roles, "member")
 }
 
 default scope_org_member := 0
 
-scope_org_member := num if {
+scope_org_member := vote if {
 	# Object must be jointly owned by the user
 	input.object.owner != ""
 	input.subject.id = input.object.owner
-	num := check_org_permissions([input.subject.scope], "member")
+	vote := check_org_permissions([input.subject.scope], "member")
 }
 
 #==============================================================================#
