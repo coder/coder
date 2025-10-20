@@ -15,12 +15,10 @@ curl -X GET http://coder-server:8080/api/v2/api/experimental/tasks \
 
 ### Parameters
 
-| Name       | In    | Type    | Required | Description                               |
-|------------|-------|---------|----------|-------------------------------------------|
-| `q`        | query | string  | false    | Search query for filtering tasks          |
-| `after_id` | query | string  | false    | Return tasks after this ID for pagination |
-| `limit`    | query | integer | false    | Maximum number of tasks to return         |
-| `offset`   | query | integer | false    | Offset for pagination                     |
+| Name     | In    | Type   | Required | Description                                                                   |
+|----------|-------|--------|----------|-------------------------------------------------------------------------------|
+| `owner`  | query | string | false    | Filter by owner (username, UUID, or 'me' for current user)                    |
+| `status` | query | string | false    | Filter by task status (pending, initializing, active, paused, error, unknown) |
 
 ### Example responses
 

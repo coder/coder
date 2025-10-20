@@ -125,31 +125,14 @@
 				"parameters": [
 					{
 						"type": "string",
-						"description": "Search query for filtering tasks",
-						"name": "q",
+						"description": "Filter by owner (username, UUID, or 'me' for current user)",
+						"name": "owner",
 						"in": "query"
 					},
 					{
 						"type": "string",
-						"description": "Return tasks after this ID for pagination",
-						"name": "after_id",
-						"in": "query"
-					},
-					{
-						"maximum": 100,
-						"minimum": 1,
-						"type": "integer",
-						"default": 25,
-						"description": "Maximum number of tasks to return",
-						"name": "limit",
-						"in": "query"
-					},
-					{
-						"minimum": 0,
-						"type": "integer",
-						"default": 0,
-						"description": "Offset for pagination",
-						"name": "offset",
+						"description": "Filter by task status (pending, initializing, active, paused, error, unknown)",
+						"name": "status",
 						"in": "query"
 					}
 				],
