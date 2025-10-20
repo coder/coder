@@ -1,0 +1,86 @@
+name: "Create Coder Task"
+description: "Create a Coder task for a GitHub user, with support for issue commenting"
+
+inputs:
+  # Required: Coder configuration
+  coder-url:
+    description: "Coder deployment URL"
+    required: true
+
+  coder-token:
+    description: "Coder session token for authentication"
+    required: true
+
+  # Required: Task configuration
+  template-name:
+    description: "Coder template to use for workspace"
+    required: true
+
+  task-prompt:
+    description: "Prompt/instructions to send to the task"
+    required: true
+
+  # Optional: User identification
+  github-user-id:
+    description: "GitHub user ID (defaults to event sender)"
+    required: false
+
+  github-username:
+    description: "GitHub username (defaults to event sender)"
+    required: false
+
+  # Optional: Task configuration
+  template-preset:
+    description: "Template preset to use"
+    required: false
+    default: "Default"
+
+  task-name-prefix:
+    description: "Prefix for task name"
+    required: false
+    default: "task"
+
+  task-name:
+    description: "Full task name (overrides auto-generation)"
+    required: false
+
+  organization:
+    description: "Coder organization name"
+    required: false
+    default: "coder"
+
+  # Optional: Issue integration
+  issue-url:
+    description: "GitHub issue URL to comment on"
+    required: false
+
+  comment-on-issue:
+    description: "Whether to comment on the issue"
+    required: false
+    default: "true"
+
+  coder-web-url:
+    description: "Coder web UI URL for task links (defaults to coder-url)"
+    required: false
+
+  # GitHub token for API operations
+  github-token:
+    description: "GitHub token for commenting on issues"
+    required: true
+
+outputs:
+  coder-username:
+    description: "The Coder username resolved from GitHub user"
+
+  task-name:
+    description: "The full task name (username/task-name)"
+
+  task-url:
+    description: "The URL to view the task in Coder"
+
+  task-exists:
+    description: "Whether the task already existed (true/false)"
+
+runs:
+  using: "node20"
+  main: "dist/index.js"
