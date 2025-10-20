@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/userpassword"
 )
 
 var (
@@ -28,6 +29,12 @@ var (
 )
 
 // RevokeToken implements RFC 7009 OAuth2 Token Revocation
+// Authentication is unique for this endpoint in that it does not use the
+// standard token authentication middleware. Instead, it expects the token that
+// is being revoked to be valid.
+// TODO: Currently the token validation occurs in the revocation logic itself.
+// This code should be refactored to share token validation logic with other parts
+// of the OAuth2 provider/http middleware.
 func RevokeToken(db database.Store, logger slog.Logger) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
@@ -124,6 +131,14 @@ func revokeRefreshTokenInTx(ctx context.Context, db database.Store, token string
 			return nil
 		}
 		return xerrors.Errorf("get oauth2 provider app token by prefix: %w", err)
+	}
+
+	equal, err := userpassword.Compare(string(dbToken.RefreshHash), parsedToken.Secret)
+	if err != nil {
+		return xerrors.Errorf("invalid refresh token: %w", err)
+	}
+	if !equal {
+		return xerrors.Errorf("invalid refresh token")
 	}
 
 	// Verify ownership
