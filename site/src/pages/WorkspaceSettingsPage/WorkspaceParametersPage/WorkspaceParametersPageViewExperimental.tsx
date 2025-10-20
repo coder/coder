@@ -8,7 +8,7 @@ import { Button } from "components/Button/Button";
 import { Label } from "components/Label/Label";
 import { Link } from "components/Link/Link";
 import { Spinner } from "components/Spinner/Spinner";
-import { useFormik } from "formik";
+import { getIn, useFormik } from "formik";
 import { useSyncFormParameters } from "modules/hooks/useSyncFormParameters";
 import {
 	DynamicParameter,
@@ -16,6 +16,7 @@ import {
 	useValidationSchemaForDynamicParameters,
 } from "modules/workspaces/DynamicParameter/DynamicParameter";
 import type { FC } from "react";
+import { useCallback, useEffect } from "react";
 import { docs } from "utils/docs";
 import type { AutofillBuildParameter } from "utils/richParameters";
 
@@ -51,15 +52,6 @@ export const WorkspaceParametersPageViewExperimental: FC<
 	const autofillByName = Object.fromEntries(
 		autofillParameters.map((param) => [param.name, param]),
 	);
-	const initialTouched = parameters.reduce(
-		(touched, parameter) => {
-			if (autofillByName[parameter.name] !== undefined) {
-				touched[parameter.name] = true;
-			}
-			return touched;
-		},
-		{} as Record<string, boolean>,
-	);
 	const form = useFormik({
 		onSubmit,
 		initialValues: {
@@ -68,7 +60,6 @@ export const WorkspaceParametersPageViewExperimental: FC<
 				autofillParameters,
 			),
 		},
-		initialTouched,
 		validationSchema: useValidationSchemaForDynamicParameters(parameters),
 		enableReinitialize: false,
 		validateOnChange: true,
@@ -80,6 +71,29 @@ export const WorkspaceParametersPageViewExperimental: FC<
 		workspace.template_require_active_version &&
 		!canChangeVersions;
 
+	const setFormFieldTouched = useCallback(
+		(parameter: PreviewParameter) => {
+			const parameters = form.values.rich_parameter_values ?? [];
+			const index = parameters.findIndex((p) => p.name === parameter.name);
+			if (index !== -1) {
+				const path = `rich_parameter_values.${index}.value`;
+				if (getIn(form.touched, path) !== true) {
+					form.setFieldTouched(path, true, false);
+				}
+			}
+		},
+		[form.touched, form.setFieldTouched, form.values.rich_parameter_values],
+	);
+
+	useEffect(() => {
+		parameters.forEach((parameter) => {
+			if (autofillByName[parameter.name] === undefined) {
+				return;
+			}
+			setFormFieldTouched(parameter);
+		});
+	}, [autofillByName, parameters, setFormFieldTouched]);
+
 	const handleChange = async (
 		parameter: PreviewParameter,
 		parameterField: string,
@@ -89,7 +103,7 @@ export const WorkspaceParametersPageViewExperimental: FC<
 			name: parameter.name,
 			value,
 		});
-		form.setFieldTouched(parameter.name, true);
+		setFormFieldTouched(parameter);
 		sendDynamicParamsRequest(parameter, value);
 	};
 
@@ -102,14 +116,24 @@ export const WorkspaceParametersPageViewExperimental: FC<
 		formInputs[parameter.name] = value;
 		const parameters = form.values.rich_parameter_values ?? [];
 
-		for (const [fieldName, isTouched] of Object.entries(form.touched)) {
-			if (isTouched && fieldName !== parameter.name) {
-				const param = parameters.find((p) => p.name === fieldName);
-				if (param?.value) {
-					formInputs[fieldName] = param.value;
-				}
+		const touchedNames = new Set<string>();
+		parameters.forEach((param, idx) => {
+			const valuePath = `rich_parameter_values.${idx}.value`;
+			if (getIn(form.touched, valuePath)) {
+				touchedNames.add(param.name);
 			}
-		}
+		});
+
+		parameters.forEach((param) => {
+			if (
+				param?.name &&
+				param.name !== parameter.name &&
+				touchedNames.has(param.name) &&
+				param.value
+			) {
+				formInputs[param.name] = param.value;
+			}
+		});
 
 		sendMessage(formInputs);
 	};
