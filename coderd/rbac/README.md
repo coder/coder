@@ -36,7 +36,7 @@ Both **negative** and **positive** permissions override **abstain** at the same 
 This can be represented by the following truth table, where Y represents _positive_, N represents _negative_, and \_ represents _abstain_:
 
 | Action | Positive | Negative | Result |
-| ------ | -------- | -------- | ------ |
+|--------|----------|----------|--------|
 | read   | Y        | \_       | Y      |
 | read   | Y        | N        | N      |
 | read   | \_       | \_       | \_     |
@@ -102,7 +102,7 @@ The following tables show the per-level role evaluation. Y indicates that the ro
 If the resource is owned by an organization, such as a template or a workspace:
 
 | Role (example)           | Site | Org  | OrgMember | Result |
-| ------------------------ | ---- | ---- | --------- | ------ |
+|--------------------------|------|------|-----------|--------|
 | site-admin               | Y    | YN\_ | YN\_      | Y      |
 | negative-site-permission | N    | YN\_ | YN\_      | N      |
 | org-admin                | \_   | Y    | YN\_      | Y      |
@@ -114,7 +114,7 @@ If the resource is owned by an organization, such as a template or a workspace:
 If the resource is not owned by an organization:
 
 | Role (example)           | Site | User | Result |
-| ------------------------ | ---- | ---- | ------ |
+|--------------------------|------|------|--------|
 | site-admin               | Y    | YN\_ | Y      |
 | negative-site-permission | N    | YN\_ | N      |
 | user-owned               | \_   | Y    | Y      |
