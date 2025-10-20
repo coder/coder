@@ -33,10 +33,8 @@ type Stream struct {
 	// goroutines manages the copy goroutines
 	goroutines sync.WaitGroup
 
-	// Shutdown signal
-	shutdownChan chan struct{}
-
-	// Context cancellation for BackedPipe
+	// Context cancellation for BackedPipe and stream lifecycle
+	ctx    context.Context
 	cancel context.CancelFunc
 }
 
@@ -46,13 +44,13 @@ func NewStream(id uuid.UUID, name string, port uint16, logger slog.Logger) *Stre
 	ctx, cancel := context.WithCancel(context.Background())
 
 	stream := &Stream{
-		id:           id,
-		name:         name,
-		port:         port,
-		createdAt:    time.Now(),
-		logger:       logger,
-		shutdownChan: make(chan struct{}),
-		cancel:       cancel, // Store cancel function for cleanup
+		id:        id,
+		name:      name,
+		port:      port,
+		createdAt: time.Now(),
+		logger:    logger,
+		ctx:       ctx,
+		cancel:    cancel, // Store cancel function for cleanup
 		// Create BackedPipe without a reconnector; reconnections are accepted
 		// explicitly via HandleReconnect.
 		pipe: backedpipe.NewBackedPipe(ctx, nil),
@@ -134,10 +132,6 @@ func (s *Stream) Close() error {
 	if s.cancel != nil {
 		s.cancel()
 	}
-
-	// Signal shutdown to any pending reconnect attempts and listeners
-	// Closing the channel wakes all waiters exactly once
-	close(s.shutdownChan)
 
 	// No reconnection waiters in the simplified model.
 
@@ -224,14 +218,7 @@ func (s *Stream) startCopyingLocked() {
 		defer s.logger.Debug(context.Background(), "exiting bicopy goroutine")
 		s.logger.Debug(context.Background(), "starting bicopy goroutine")
 
-		// Create a context that cancels when the stream is shutting down
-		ctx, cancel := context.WithCancel(context.Background())
-		go func() {
-			<-s.shutdownChan
-			cancel()
-		}()
-
-		agentssh.Bicopy(ctx, s.pipe, s.localConn)
+		agentssh.Bicopy(s.ctx, s.pipe, s.localConn)
 	}()
 
 	// BackedPipe disconnection callback will update disconnection timestamp.
