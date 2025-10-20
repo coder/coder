@@ -239,35 +239,38 @@ func TestTasks(t *testing.T) {
 	t.Run("List", func(t *testing.T) {
 		t.Parallel()
 
-		t.Skip("TODO(mafredri): Remove, fixed down-stack!")
-
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		template := createAITemplate(t, client, user)
 
-		// Create a workspace (task) with a specific prompt.
+		// Create a task with a specific prompt using the new data model.
 		wantPrompt := "build me a web app"
-		workspace := coderdtest.CreateWorkspace(t, client, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
-			req.RichParameterValues = []codersdk.WorkspaceBuildParameter{
-				{Name: codersdk.AITaskPromptParameterName, Value: wantPrompt},
-			}
+		exp := codersdk.NewExperimentalClient(client)
+		task, err := exp.CreateTask(ctx, codersdk.Me, codersdk.CreateTaskRequest{
+			TemplateVersionID: template.ActiveVersionID,
+			Input:             wantPrompt,
 		})
+		require.NoError(t, err)
+		require.True(t, task.WorkspaceID.Valid, "task should have a workspace ID")
+
+		// Wait for the workspace to be built.
+		workspace, err := client.Workspace(ctx, task.WorkspaceID.UUID)
+		require.NoError(t, err)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		// List tasks via experimental API and verify the prompt and status mapping.
-		exp := codersdk.NewExperimentalClient(client)
 		tasks, err := exp.Tasks(ctx, &codersdk.TasksFilter{Owner: codersdk.Me})
 		require.NoError(t, err)
 
-		got, ok := slice.Find(tasks, func(task codersdk.Task) bool { return task.ID == workspace.ID })
+		got, ok := slice.Find(tasks, func(t codersdk.Task) bool { return t.ID == task.ID })
 		require.True(t, ok, "task should be found in the list")
 		assert.Equal(t, wantPrompt, got.InitialPrompt, "task prompt should match the AI Prompt parameter")
-		assert.Equal(t, workspace.Name, got.Name, "task name should map from workspace name")
-		assert.Equal(t, workspace.ID, got.WorkspaceID.UUID, "workspace id should match")
-		// Status should be populated via app status or workspace status mapping.
-		assert.NotEmpty(t, got.WorkspaceStatus, "task status should not be empty")
+		assert.Equal(t, task.WorkspaceID.UUID, got.WorkspaceID.UUID, "workspace id should match")
+		// Status should be populated via the tasks_with_status view.
+		assert.NotEmpty(t, got.Status, "task status should not be empty")
+		assert.NotEmpty(t, got.WorkspaceStatus, "workspace status should not be empty")
 	})
 
 	t.Run("Get", func(t *testing.T) {

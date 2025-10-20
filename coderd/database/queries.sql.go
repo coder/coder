@@ -12717,16 +12717,18 @@ SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, t
 WHERE tws.deleted_at IS NULL
 AND CASE WHEN $1::UUID != '00000000-0000-0000-0000-000000000000' THEN tws.owner_id = $1::UUID ELSE TRUE END
 AND CASE WHEN $2::UUID != '00000000-0000-0000-0000-000000000000' THEN tws.organization_id = $2::UUID ELSE TRUE END
+AND CASE WHEN $3::text != '' THEN tws.status = $3::task_status ELSE TRUE END
 ORDER BY tws.created_at DESC
 `
 
 type ListTasksParams struct {
 	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Status         string    `db:"status" json:"status"`
 }
 
 func (q *sqlQuerier) ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, error) {
-	rows, err := q.db.QueryContext(ctx, listTasks, arg.OwnerID, arg.OrganizationID)
+	rows, err := q.db.QueryContext(ctx, listTasks, arg.OwnerID, arg.OrganizationID, arg.Status)
 	if err != nil {
 		return nil, err
 	}

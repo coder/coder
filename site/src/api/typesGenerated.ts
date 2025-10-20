@@ -4810,6 +4810,10 @@ export interface TasksFilter {
 	 * Owner can be a username, UUID, or "me".
 	 */
 	readonly owner?: string;
+	/**
+	 * Status filters the tasks by their task status.
+	 */
+	readonly status?: TaskStatus;
 }
 
 // From codersdk/deployment.go

@@ -1909,24 +1909,12 @@ var DeleteTask = Tool[DeleteTaskArgs, codersdk.Response]{
 
 		expClient := codersdk.NewExperimentalClient(deps.coderClient)
 
-		var owner string
-		id, err := uuid.Parse(args.TaskID)
-		if err == nil {
-			task, err := expClient.TaskByID(ctx, id)
-			if err != nil {
-				return codersdk.Response{}, xerrors.Errorf("get task %q: %w", args.TaskID, err)
-			}
-			owner = task.OwnerName
-		} else {
-			ws, err := normalizedNamedWorkspace(ctx, deps.coderClient, args.TaskID)
-			if err != nil {
-				return codersdk.Response{}, xerrors.Errorf("get task workspace %q: %w", args.TaskID, err)
-			}
-			owner = ws.OwnerName
-			id = ws.ID
+		task, err := resolveTask(ctx, expClient, args.TaskID)
+		if err != nil {
+			return codersdk.Response{}, xerrors.Errorf("resolve task: %w", err)
 		}
 
-		err = expClient.DeleteTask(ctx, owner, id)
+		err = expClient.DeleteTask(ctx, task.OwnerName, task.ID)
 		if err != nil {
 			return codersdk.Response{}, xerrors.Errorf("delete task: %w", err)
 		}
@@ -1938,8 +1926,8 @@ var DeleteTask = Tool[DeleteTaskArgs, codersdk.Response]{
 }
 
 type ListTasksArgs struct {
-	WorkspaceStatus string `json:"status"`
-	User            string `json:"user"`
+	Status codersdk.TaskStatus `json:"status"`
+	User   string              `json:"user"`
 }
 
 type ListTasksResponse struct {
@@ -1972,8 +1960,8 @@ var ListTasks = Tool[ListTasksArgs, ListTasksResponse]{
 
 		expClient := codersdk.NewExperimentalClient(deps.coderClient)
 		tasks, err := expClient.Tasks(ctx, &codersdk.TasksFilter{
-			Owner:           args.User,
-			WorkspaceStatus: args.WorkspaceStatus,
+			Owner:  args.User,
+			Status: args.Status,
 		})
 		if err != nil {
 			return ListTasksResponse{}, xerrors.Errorf("list tasks: %w", err)
@@ -1990,7 +1978,7 @@ type GetTaskStatusArgs struct {
 }
 
 type GetTaskStatusResponse struct {
-	Status codersdk.WorkspaceStatus `json:"status"`
+	Status codersdk.TaskStatus      `json:"status"`
 	State  *codersdk.TaskStateEntry `json:"state"`
 }
 
@@ -2016,22 +2004,13 @@ var GetTaskStatus = Tool[GetTaskStatusArgs, GetTaskStatusResponse]{
 
 		expClient := codersdk.NewExperimentalClient(deps.coderClient)
 
-		id, err := uuid.Parse(args.TaskID)
+		task, err := resolveTask(ctx, expClient, args.TaskID)
 		if err != nil {
-			ws, err := normalizedNamedWorkspace(ctx, deps.coderClient, args.TaskID)
-			if err != nil {
-				return GetTaskStatusResponse{}, xerrors.Errorf("get task workspace %q: %w", args.TaskID, err)
-			}
-			id = ws.ID
-		}
-
-		task, err := expClient.TaskByID(ctx, id)
-		if err != nil {
-			return GetTaskStatusResponse{}, xerrors.Errorf("get task %q: %w", args.TaskID, err)
+			return GetTaskStatusResponse{}, xerrors.Errorf("resolve task %q: %w", args.TaskID, err)
 		}
 
 		return GetTaskStatusResponse{
-			Status: task.WorkspaceStatus,
+			Status: task.Status,
 			State:  task.CurrentState,
 		}, nil
 	},
@@ -2071,12 +2050,13 @@ var SendTaskInput = Tool[SendTaskInputArgs, codersdk.Response]{
 		}
 
 		expClient := codersdk.NewExperimentalClient(deps.coderClient)
-		id, owner, err := resolveTaskID(ctx, deps.coderClient, args.TaskID)
+
+		task, err := resolveTask(ctx, expClient, args.TaskID)
 		if err != nil {
-			return codersdk.Response{}, err
+			return codersdk.Response{}, xerrors.Errorf("resolve task %q: %w", args.TaskID, err)
 		}
 
-		err = expClient.TaskSend(ctx, owner, id, codersdk.TaskSendRequest{
+		err = expClient.TaskSend(ctx, task.OwnerName, task.ID, codersdk.TaskSendRequest{
 			Input: args.Input,
 		})
 		if err != nil {
@@ -2114,25 +2094,19 @@ var GetTaskLogs = Tool[GetTaskLogsArgs, codersdk.TaskLogsResponse]{
 		}
 
 		expClient := codersdk.NewExperimentalClient(deps.coderClient)
-		id, owner, err := resolveTaskID(ctx, deps.coderClient, args.TaskID)
+
+		task, err := resolveTask(ctx, expClient, args.TaskID)
 		if err != nil {
 			return codersdk.TaskLogsResponse{}, err
 		}
 
-		logs, err := expClient.TaskLogs(ctx, owner, id)
+		logs, err := expClient.TaskLogs(ctx, task.OwnerName, task.ID)
 		if err != nil {
 			return codersdk.TaskLogsResponse{}, xerrors.Errorf("get task logs %q: %w", args.TaskID, err)
 		}
 
 		return logs, nil
 	},
-}
-
-// normalizedNamedWorkspace normalizes the workspace name before getting the
-// workspace by name.
-func normalizedNamedWorkspace(ctx context.Context, client *codersdk.Client, name string) (codersdk.Workspace, error) {
-	// Maybe namedWorkspace should itself call NormalizeWorkspaceInput?
-	return namedWorkspace(ctx, client, NormalizeWorkspaceInput(name))
 }
 
 // NormalizeWorkspaceInput converts workspace name input to standard format.
@@ -2206,14 +2180,49 @@ func userDescription(action string) string {
 	return fmt.Sprintf("Username or ID of the user for which to %s. Omit or use the `me` keyword to %s for the authenticated user.", action, action)
 }
 
-func resolveTaskID(ctx context.Context, coderClient *codersdk.Client, taskID string) (uuid.UUID, string, error) {
-	id, err := uuid.Parse(taskID)
-	if err == nil {
-		return id, codersdk.Me, nil
+// resolveTask fetches and returns a task by an identifier, which may be either
+// a UUID, a bare name (for a task owned by the current user), or a "user/task"
+// combination, where user is either a username or UUID.
+//
+// Since there is no TaskByOwnerAndName endpoint yet, this function uses the
+// list endpoint with filtering when a name is provided.
+func resolveTask(ctx context.Context, exp *codersdk.ExperimentalClient, identifier string) (codersdk.Task, error) {
+	identifier = strings.TrimSpace(identifier)
+
+	// Try parsing as UUID first.
+	if taskID, err := uuid.Parse(identifier); err == nil {
+		return exp.TaskByID(ctx, taskID)
 	}
-	ws, err := normalizedNamedWorkspace(ctx, coderClient, taskID)
+
+	// Not a UUID, treat as identifier.
+	taskName, owner := splitNameAndOwner(identifier)
+
+	tasks, err := exp.Tasks(ctx, &codersdk.TasksFilter{
+		Owner: owner,
+	})
 	if err != nil {
-		return uuid.UUID{}, codersdk.Me, xerrors.Errorf("get task workspace %q: %w", taskID, err)
+		return codersdk.Task{}, xerrors.Errorf("list tasks for owner %q: %w", owner, err)
 	}
-	return ws.ID, ws.OwnerName, nil
+
+	if taskID, err := uuid.Parse(taskName); err == nil {
+		// Find task by ID.
+		for _, task := range tasks {
+			if task.ID == taskID {
+				return task, nil
+			}
+		}
+	} else {
+		// Find task by name.
+		for _, task := range tasks {
+			if task.Name == taskName {
+				return task, nil
+			}
+		}
+	}
+
+	// Mimic resource not found from API.
+	var notFoundErr error = &codersdk.Error{
+		Response: codersdk.Response{Message: "Resource not found or you do not have access to this resource"},
+	}
+	return codersdk.Task{}, xerrors.Errorf("task %q not found for owner %q: %w", taskName, owner, notFoundErr)
 }

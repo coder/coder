@@ -2,7 +2,6 @@ package coderd
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"net"
 	"net/http"
@@ -12,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/audit"
@@ -22,7 +22,6 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
-	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/taskname"
 	"github.com/coder/coder/v2/codersdk"
 
@@ -360,107 +359,6 @@ func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) cod
 	}
 }
 
-func taskFromWorkspace(ws codersdk.Workspace, initialPrompt string) codersdk.Task {
-	// TODO(DanielleMaywood):
-	// This just picks up the first agent it discovers.
-	// This approach _might_ break when a task has multiple agents,
-	// depending on which agent was found first.
-	//
-	// We explicitly do not have support for running tasks
-	// inside of a sub agent at the moment, so we can be sure
-	// that any sub agents are not the agent we're looking for.
-	var taskAgentID uuid.NullUUID
-	var taskAgentLifecycle *codersdk.WorkspaceAgentLifecycle
-	var taskAgentHealth *codersdk.WorkspaceAgentHealth
-	for _, resource := range ws.LatestBuild.Resources {
-		for _, agent := range resource.Agents {
-			if agent.ParentID.Valid {
-				continue
-			}
-
-			taskAgentID = uuid.NullUUID{Valid: true, UUID: agent.ID}
-			taskAgentLifecycle = &agent.LifecycleState
-			taskAgentHealth = &agent.Health
-			break
-		}
-	}
-
-	// Ignore 'latest app status' if it is older than the latest build and the
-	// latest build is a 'start' transition. This ensures that you don't show a
-	// stale app status from a previous build. For stop transitions, there is
-	// still value in showing the latest app status.
-	var currentState *codersdk.TaskStateEntry
-	if ws.LatestAppStatus != nil {
-		if ws.LatestBuild.Transition != codersdk.WorkspaceTransitionStart || ws.LatestAppStatus.CreatedAt.After(ws.LatestBuild.CreatedAt) {
-			currentState = &codersdk.TaskStateEntry{
-				Timestamp: ws.LatestAppStatus.CreatedAt,
-				State:     codersdk.TaskState(ws.LatestAppStatus.State),
-				Message:   ws.LatestAppStatus.Message,
-				URI:       ws.LatestAppStatus.URI,
-			}
-		}
-	}
-
-	var appID uuid.NullUUID
-	if ws.LatestBuild.AITaskSidebarAppID != nil {
-		appID = uuid.NullUUID{
-			Valid: true,
-			UUID:  *ws.LatestBuild.AITaskSidebarAppID,
-		}
-	}
-
-	return codersdk.Task{
-		ID:                      ws.ID,
-		OrganizationID:          ws.OrganizationID,
-		OwnerID:                 ws.OwnerID,
-		OwnerName:               ws.OwnerName,
-		Name:                    ws.Name,
-		TemplateID:              ws.TemplateID,
-		TemplateName:            ws.TemplateName,
-		TemplateDisplayName:     ws.TemplateDisplayName,
-		TemplateIcon:            ws.TemplateIcon,
-		WorkspaceID:             uuid.NullUUID{Valid: true, UUID: ws.ID},
-		WorkspaceBuildNumber:    ws.LatestBuild.BuildNumber,
-		WorkspaceAgentID:        taskAgentID,
-		WorkspaceAgentLifecycle: taskAgentLifecycle,
-		WorkspaceAgentHealth:    taskAgentHealth,
-		WorkspaceAppID:          appID,
-		CreatedAt:               ws.CreatedAt,
-		UpdatedAt:               ws.UpdatedAt,
-		InitialPrompt:           initialPrompt,
-		WorkspaceStatus:         ws.LatestBuild.Status,
-		CurrentState:            currentState,
-	}
-}
-
-// tasksFromWorkspaces converts a slice of API workspaces into tasks, fetching
-// prompts and mapping status/state. This method enforces that only AI task
-// workspaces are given.
-func (api *API) tasksFromWorkspaces(ctx context.Context, apiWorkspaces []codersdk.Workspace) ([]codersdk.Task, error) {
-	// Fetch prompts for each workspace build and map by build ID.
-	buildIDs := make([]uuid.UUID, 0, len(apiWorkspaces))
-	for _, ws := range apiWorkspaces {
-		buildIDs = append(buildIDs, ws.LatestBuild.ID)
-	}
-	parameters, err := api.Database.GetWorkspaceBuildParametersByBuildIDs(ctx, buildIDs)
-	if err != nil {
-		return nil, err
-	}
-	promptsByBuildID := make(map[uuid.UUID]string, len(parameters))
-	for _, p := range parameters {
-		if p.Name == codersdk.AITaskPromptParameterName {
-			promptsByBuildID[p.WorkspaceBuildID] = p.Value
-		}
-	}
-
-	tasks := make([]codersdk.Task, 0, len(apiWorkspaces))
-	for _, ws := range apiWorkspaces {
-		tasks = append(tasks, taskFromWorkspace(ws, promptsByBuildID[ws.LatestBuild.ID]))
-	}
-
-	return tasks, nil
-}
-
 // tasksListResponse wraps a list of experimental tasks.
 //
 // Experimental: Response shape is experimental and may change.
@@ -474,106 +372,71 @@ type tasksListResponse struct {
 // @ID list-tasks
 // @Security CoderSessionToken
 // @Tags Experimental
-// @Param q query string false "Search query for filtering tasks"
-// @Param after_id query string false "Return tasks after this ID for pagination"
-// @Param limit query int false "Maximum number of tasks to return" minimum(1) maximum(100) default(25)
-// @Param offset query int false "Offset for pagination" minimum(0) default(0)
+// @Param owner query string false "Filter by owner (username, UUID, or 'me' for current user)"
+// @Param status query string false "Filter by task status (pending, initializing, active, paused, error, unknown)"
 // @Success 200 {object} coderd.tasksListResponse
 // @Router /api/experimental/tasks [get]
 //
 // EXPERIMENTAL: This endpoint is experimental and not guaranteed to be stable.
-// tasksList is an experimental endpoint to list AI tasks by mapping
-// workspaces to a task-shaped response.
+// tasksList is an experimental endpoint to list tasks.
 func (api *API) tasksList(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 
-	// Support standard pagination/filters for workspaces.
-	page, ok := ParsePagination(rw, r)
-	if !ok {
-		return
-	}
-	queryStr := r.URL.Query().Get("q")
-	filter, errs := searchquery.Workspaces(ctx, api.Database, queryStr, page, api.AgentInactiveDisconnectTimeout)
-	if len(errs) > 0 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message:     "Invalid workspace search query.",
-			Validations: errs,
-		})
-		return
+	// Parse query parameters for filtering tasks.
+	ownerParam := r.URL.Query().Get("owner")
+	statusParam := r.URL.Query().Get("status")
+
+	// Determine owner ID based on the owner parameter.
+	var ownerID uuid.UUID
+	switch ownerParam {
+	case codersdk.Me:
+		ownerID = apiKey.UserID
+	case "":
+		// If ownerID is not set, list all tasks the user has access to.
+	default:
+		// Try to parse as UUID first.
+		parsedUUID, err := uuid.Parse(ownerParam)
+		if err == nil {
+			ownerID = parsedUUID
+		} else if err != nil {
+			// Otherwise, look up by username.
+			user, err := api.Database.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
+				Username: ownerParam,
+			})
+			if err != nil {
+				if httpapi.Is404Error(err) {
+					httpapi.ResourceNotFound(rw)
+					return
+				}
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Internal error fetching user.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+			ownerID = user.ID
+		}
 	}
 
-	// Ensure that we only include AI task workspaces in the results.
-	filter.HasAITask = sql.NullBool{Valid: true, Bool: true}
-
-	if filter.OwnerUsername == "me" {
-		filter.OwnerID = apiKey.UserID
-		filter.OwnerUsername = ""
-	}
-
-	prepared, err := api.HTTPAuth.AuthorizeSQLFilter(r, policy.ActionRead, rbac.ResourceWorkspace.Type)
+	// Fetch all tasks matching the filters from the database.
+	dbTasks, err := api.Database.ListTasks(ctx, database.ListTasksParams{
+		OwnerID:        ownerID,
+		OrganizationID: uuid.Nil, // TODO(mafredri): ?
+		Status:         statusParam,
+	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error preparing sql filter.",
+			Message: "Internal error fetching tasks.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	// Order with requester's favorites first, include summary row.
-	filter.RequesterID = apiKey.UserID
-	filter.WithSummary = true
-
-	workspaceRows, err := api.Database.GetAuthorizedWorkspaces(ctx, filter, prepared)
+	tasks, err := api.convertTasks(ctx, apiKey.UserID, dbTasks)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspaces.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if len(workspaceRows) == 0 {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspaces.",
-			Detail:  "Workspace summary row is missing.",
-		})
-		return
-	}
-	if len(workspaceRows) == 1 {
-		httpapi.Write(ctx, rw, http.StatusOK, tasksListResponse{
-			Tasks: []codersdk.Task{},
-			Count: 0,
-		})
-		return
-	}
-
-	// Skip summary row.
-	workspaceRows = workspaceRows[:len(workspaceRows)-1]
-
-	workspaces := database.ConvertWorkspaceRows(workspaceRows)
-
-	// Gather associated data and convert to API workspaces.
-	data, err := api.workspaceData(ctx, workspaces)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace resources.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	apiWorkspaces, err := convertWorkspaces(apiKey.UserID, workspaces, data)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error converting workspaces.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	tasks, err := api.tasksFromWorkspaces(ctx, apiWorkspaces)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching task prompts and states.",
+			Message: "Internal error converting tasks.",
 			Detail:  err.Error(),
 		})
 		return
@@ -583,6 +446,58 @@ func (api *API) tasksList(rw http.ResponseWriter, r *http.Request) {
 		Tasks: tasks,
 		Count: len(tasks),
 	})
+}
+
+// convertTasks converts database tasks to API tasks, enriching them with
+// workspace information.
+func (api *API) convertTasks(ctx context.Context, requesterID uuid.UUID, dbTasks []database.Task) ([]codersdk.Task, error) {
+	if len(dbTasks) == 0 {
+		return []codersdk.Task{}, nil
+	}
+
+	// Prepare to batch fetch workspaces.
+	workspaceIDs := make([]uuid.UUID, 0, len(dbTasks))
+	for _, task := range dbTasks {
+		if !task.WorkspaceID.Valid {
+			return nil, xerrors.New("task has no workspace ID")
+		}
+		workspaceIDs = append(workspaceIDs, task.WorkspaceID.UUID)
+	}
+
+	// Fetch workspaces for tasks that have workspaces.
+	workspaceRows, err := api.Database.GetWorkspaces(ctx, database.GetWorkspacesParams{
+		WorkspaceIds: workspaceIDs,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("fetch workspaces: %w", err)
+	}
+
+	workspaces := database.ConvertWorkspaceRows(workspaceRows)
+
+	// Gather associated data and convert to API workspaces.
+	data, err := api.workspaceData(ctx, workspaces)
+	if err != nil {
+		return nil, xerrors.Errorf("fetch workspace data: %w", err)
+	}
+
+	apiWorkspaces, err := convertWorkspaces(requesterID, workspaces, data)
+	if err != nil {
+		return nil, xerrors.Errorf("convert workspaces: %w", err)
+	}
+
+	workspacesByID := make(map[uuid.UUID]codersdk.Workspace)
+	for _, ws := range apiWorkspaces {
+		workspacesByID[ws.ID] = ws
+	}
+
+	// Convert tasks to SDK format.
+	result := make([]codersdk.Task, 0, len(dbTasks))
+	for _, dbTask := range dbTasks {
+		task := taskFromDBTaskAndWorkspace(dbTask, workspacesByID[dbTask.WorkspaceID.UUID])
+		result = append(result, task)
+	}
+
+	return result, nil
 }
 
 // @Summary Get AI task by ID

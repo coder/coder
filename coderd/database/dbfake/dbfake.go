@@ -120,19 +120,23 @@ func (b WorkspaceBuildBuilder) WithAgent(mutations ...func([]*sdkproto.Agent) []
 }
 
 func (b WorkspaceBuildBuilder) WithTask(seed *sdkproto.App) WorkspaceBuildBuilder {
-	//nolint: revive // returns modified struct
-	b.taskAppID = uuid.New()
 	if seed == nil {
 		seed = &sdkproto.App{}
 	}
+
+	var err error
+	//nolint: revive // returns modified struct
+	b.taskAppID, err = uuid.Parse(takeFirst(seed.Id, uuid.NewString()))
+	require.NoError(b.t, err)
+
 	return b.Params(database.WorkspaceBuildParameter{
 		Name:  codersdk.AITaskPromptParameterName,
 		Value: "list me",
 	}).WithAgent(func(a []*sdkproto.Agent) []*sdkproto.Agent {
 		a[0].Apps = []*sdkproto.App{
 			{
-				Id:   takeFirst(seed.Id, b.taskAppID.String()),
-				Slug: takeFirst(seed.Slug, "vcode"),
+				Id:   b.taskAppID.String(),
+				Slug: takeFirst(seed.Slug, "task-app"),
 				Url:  takeFirst(seed.Url, ""),
 			},
 		}
@@ -195,11 +199,11 @@ func (b WorkspaceBuildBuilder) Do() WorkspaceResponse {
 	if b.ws.ID == uuid.Nil {
 		// nolint: revive
 		b.ws = dbgen.Workspace(b.t, b.db, b.ws)
-		resp.Workspace = b.ws
 		b.logger.Debug(context.Background(), "created workspace",
-			slog.F("name", resp.Workspace.Name),
-			slog.F("workspace_id", resp.Workspace.ID))
+			slog.F("name", b.ws.Name),
+			slog.F("workspace_id", b.ws.ID))
 	}
+	resp.Workspace = b.ws
 	b.seed.WorkspaceID = b.ws.ID
 	b.seed.InitiatorID = takeFirst(b.seed.InitiatorID, b.ws.OwnerID)
 
@@ -272,6 +276,30 @@ func (b WorkspaceBuildBuilder) Do() WorkspaceResponse {
 		slog.F("build_id", resp.Build.ID),
 		slog.F("workspace_id", resp.Workspace.ID),
 		slog.F("build_number", resp.Build.BuildNumber))
+
+	// If this is a task workspace, link it to the workspace build.
+	task, err := b.db.GetTaskByWorkspaceID(ownerCtx, resp.Workspace.ID)
+	if err != nil {
+		if b.taskAppID != uuid.Nil {
+			require.Fail(b.t, "task app configured but failed to get task by workspace id", err)
+		}
+	} else {
+		if b.taskAppID == uuid.Nil {
+			require.Fail(b.t, "task app not configured but workspace is a task workspace")
+		}
+
+		app := mustWorkspaceAppByWorkspaceAndBuildAndAppID(ownerCtx, b.t, b.db, resp.Workspace.ID, resp.Build.BuildNumber, b.taskAppID)
+		_, err = b.db.UpsertTaskWorkspaceApp(ownerCtx, database.UpsertTaskWorkspaceAppParams{
+			TaskID:               task.ID,
+			WorkspaceBuildNumber: resp.Build.BuildNumber,
+			WorkspaceAgentID:     uuid.NullUUID{UUID: app.AgentID, Valid: true},
+			WorkspaceAppID:       uuid.NullUUID{UUID: app.ID, Valid: true},
+		})
+		require.NoError(b.t, err, "upsert task workspace app")
+		b.logger.Debug(context.Background(), "linked task to workspace build",
+			slog.F("task_id", task.ID),
+			slog.F("build_number", resp.Build.BuildNumber))
+	}
 
 	for i := range b.params {
 		b.params[i].WorkspaceBuildID = resp.Build.ID
@@ -622,4 +650,31 @@ func takeFirst[Value comparable](values ...Value) Value {
 	return takeFirstF(values, func(v Value) bool {
 		return v != empty
 	})
+}
+
+// mustWorkspaceAppByWorkspaceAndBuildAndAppID finds a workspace app by
+// workspace ID, build number, and app ID. It returns the workspace app
+// if found, otherwise fails the test.
+func mustWorkspaceAppByWorkspaceAndBuildAndAppID(ctx context.Context, t testing.TB, db database.Store, workspaceID uuid.UUID, buildNumber int32, appID uuid.UUID) database.WorkspaceApp {
+	t.Helper()
+
+	agents, err := db.GetWorkspaceAgentsByWorkspaceAndBuildNumber(ctx, database.GetWorkspaceAgentsByWorkspaceAndBuildNumberParams{
+		WorkspaceID: workspaceID,
+		BuildNumber: buildNumber,
+	})
+	require.NoError(t, err, "get workspace agents")
+	require.NotEmpty(t, agents, "no agents found for workspace")
+
+	for _, agent := range agents {
+		apps, err := db.GetWorkspaceAppsByAgentID(ctx, agent.ID)
+		require.NoError(t, err, "get workspace apps")
+		for _, app := range apps {
+			if app.ID == appID {
+				return app
+			}
+		}
+	}
+
+	require.FailNow(t, "could not find workspace app", "workspaceID=%s buildNumber=%d appID=%s", workspaceID, buildNumber, appID)
+	return database.WorkspaceApp{} // Unreachable.
 }

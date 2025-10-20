@@ -103,6 +103,17 @@ const (
 	TaskStatusError        TaskStatus = "error"
 )
 
+func AllTaskStatuses() []TaskStatus {
+	return []TaskStatus{
+		TaskStatusPending,
+		TaskStatusInitializing,
+		TaskStatusActive,
+		TaskStatusPaused,
+		TaskStatusError,
+		TaskStatusUnknown,
+	}
+}
+
 // TaskState represents the high-level lifecycle of a task.
 //
 // Experimental: This type is experimental and may change in the future.
@@ -160,18 +171,8 @@ type TaskStateEntry struct {
 type TasksFilter struct {
 	// Owner can be a username, UUID, or "me".
 	Owner string `json:"owner,omitempty"`
-	// Status filters the tasks by their status.
-	//
-	// TODO(mafredri): Enable this field.
-	// Status TaskStatus `json:"status,omitempty"`
-	// WorkspaceStatus is a workspace status to filter by.
-	//
-	// Deprecated: Use TaskStatus instead.
-	WorkspaceStatus string `json:"workspace_status,omitempty" typescript:"-"`
-	// Offset is the number of tasks to skip before returning results.
-	Offset int `json:"offset,omitempty" typescript:"-"`
-	// Limit is a limit on the number of tasks returned.
-	Limit int `json:"limit,omitempty" typescript:"-"`
+	// Status filters the tasks by their task status.
+	Status TaskStatus `json:"status,omitempty"`
 }
 
 // Tasks lists all tasks belonging to the user or specified owner.
@@ -182,15 +183,15 @@ func (c *ExperimentalClient) Tasks(ctx context.Context, filter *TasksFilter) ([]
 		filter = &TasksFilter{}
 	}
 
-	var wsFilter WorkspaceFilter
-	wsFilter.Owner = filter.Owner
-	wsFilter.Status = filter.WorkspaceStatus
-	page := Pagination{
-		Offset: filter.Offset,
-		Limit:  filter.Limit,
+	var opts []RequestOption
+	if filter.Owner != "" {
+		opts = append(opts, WithQueryParam("owner", filter.Owner))
+	}
+	if filter.Status != "" {
+		opts = append(opts, WithQueryParam("status", string(filter.Status)))
 	}
 
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/tasks", nil, wsFilter.asRequestOption(), page.asRequestOption())
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/tasks", nil, opts...)
 	if err != nil {
 		return nil, err
 	}
