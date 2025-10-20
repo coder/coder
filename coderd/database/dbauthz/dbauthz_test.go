@@ -1689,6 +1689,15 @@ func (s *MethodTestSuite) TestWorkspace() {
 		// No asserts here because SQLFilter.
 		check.Args(arg).Asserts()
 	}))
+	s.Run("GetWorkspaceAgentsForMetrics", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		row := testutil.Fake(s.T(), faker, database.GetWorkspaceAgentsForMetricsRow{})
+		dbm.EXPECT().GetWorkspaceAgentsForMetrics(gomock.Any()).Return([]database.GetWorkspaceAgentsForMetricsRow{row}, nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceWorkspace, policy.ActionRead).Returns([]database.GetWorkspaceAgentsForMetricsRow{row})
+	}))
+	s.Run("GetWorkspacesForWorkspaceMetrics", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetWorkspacesForWorkspaceMetrics(gomock.Any()).Return([]database.GetWorkspacesForWorkspaceMetricsRow{}, nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceWorkspace, policy.ActionRead)
+	}))
 	s.Run("GetAuthorizedWorkspaces", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.GetWorkspacesParams{}
 		dbm.EXPECT().GetAuthorizedWorkspaces(gomock.Any(), arg, gomock.Any()).Return([]database.GetWorkspacesRow{}, nil).AnyTimes()
@@ -2391,6 +2400,18 @@ func (s *MethodTestSuite) TestTasks() {
 		task.WorkspaceID = uuid.NullUUID{UUID: uuid.New(), Valid: true}
 		dbm.EXPECT().GetTaskByWorkspaceID(gomock.Any(), task.WorkspaceID.UUID).Return(task, nil).AnyTimes()
 		check.Args(task.WorkspaceID.UUID).Asserts(task, policy.ActionRead).Returns(task)
+	}))
+	s.Run("ListTasks", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		u1 := testutil.Fake(s.T(), faker, database.User{})
+		u2 := testutil.Fake(s.T(), faker, database.User{})
+		org1 := testutil.Fake(s.T(), faker, database.Organization{})
+		org2 := testutil.Fake(s.T(), faker, database.Organization{})
+		_ = testutil.Fake(s.T(), faker, database.OrganizationMember{UserID: u1.ID, OrganizationID: org1.ID})
+		_ = testutil.Fake(s.T(), faker, database.OrganizationMember{UserID: u2.ID, OrganizationID: org2.ID})
+		t1 := testutil.Fake(s.T(), faker, database.Task{OwnerID: u1.ID})
+		t2 := testutil.Fake(s.T(), faker, database.Task{OwnerID: u2.ID})
+		dbm.EXPECT().ListTasks(gomock.Any(), gomock.Any()).Return([]database.Task{t1, t2}, nil).AnyTimes()
+		check.Args(database.ListTasksParams{}).Asserts(t1, policy.ActionRead, t2, policy.ActionRead).Returns([]database.Task{t1, t2})
 	}))
 }
 
