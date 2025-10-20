@@ -1307,6 +1307,7 @@ export interface DeploymentValues {
 	readonly session_lifetime?: SessionLifetime;
 	readonly disable_password_auth?: boolean;
 	readonly support?: SupportConfig;
+	readonly enable_authz_recording?: boolean;
 	readonly external_auth?: SerpentStruct<ExternalAuthConfig[]>;
 	readonly config_ssh?: SSHConfig;
 	readonly wgtunnel_host?: string;

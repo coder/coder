@@ -13832,6 +13832,9 @@ const docTemplate = `{
                 "docs_url": {
                     "$ref": "#/definitions/serpent.URL"
                 },
+                "enable_authz_recording": {
+                    "type": "boolean"
+                },
                 "enable_terraform_debug_mode": {
                     "type": "boolean"
                 },

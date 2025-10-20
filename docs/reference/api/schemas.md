@@ -2883,6 +2883,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "scheme": "string",
       "user": {}
     },
+    "enable_authz_recording": true,
     "enable_terraform_debug_mode": true,
     "ephemeral_deployment": true,
     "experiments": [
@@ -3388,6 +3389,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "scheme": "string",
     "user": {}
   },
+  "enable_authz_recording": true,
   "enable_terraform_debug_mode": true,
   "ephemeral_deployment": true,
   "experiments": [
@@ -3722,6 +3724,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `disable_password_auth`              | boolean                                                                                              | false    |              |                                                                    |
 | `disable_path_apps`                  | boolean                                                                                              | false    |              |                                                                    |
 | `docs_url`                           | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
+| `enable_authz_recording`             | boolean                                                                                              | false    |              |                                                                    |
 | `enable_terraform_debug_mode`        | boolean                                                                                              | false    |              |                                                                    |
 | `ephemeral_deployment`               | boolean                                                                                              | false    |              |                                                                    |
 | `experiments`                        | array of string                                                                                      | false    |              |                                                                    |
