@@ -641,6 +641,17 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 		dbm.EXPECT().UpdateProvisionerJobWithCancelByID(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(v.RBACObject(tpl), []policy.Action{policy.ActionRead, policy.ActionUpdate}).Returns()
 	}))
+	s.Run("UpdatePrebuildProvisionerJobWithCancel", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := database.UpdatePrebuildProvisionerJobWithCancelParams{
+			Now:               dbtime.Now(),
+			TemplateID:        uuid.New(),
+			TemplateVersionID: uuid.New(),
+		}
+		jobIDs := []uuid.UUID{uuid.New(), uuid.New()}
+
+		dbm.EXPECT().UpdatePrebuildProvisionerJobWithCancel(gomock.Any(), arg).Return(jobIDs, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(jobIDs)
+	}))
 	s.Run("GetProvisionerJobsByIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		org := testutil.Fake(s.T(), faker, database.Organization{})
 		org2 := testutil.Fake(s.T(), faker, database.Organization{})
@@ -1008,6 +1019,11 @@ func (s *MethodTestSuite) TestTemplate() {
 		t1 := testutil.Fake(s.T(), faker, database.Template{})
 		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()
 		check.Args(t1.ID).Asserts(t1, policy.ActionRead).Returns(t1)
+	}))
+	s.Run("GetTemplateByIDWithLock", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		tt1 := testutil.Fake(s.T(), faker, database.TemplateTable{})
+		dbm.EXPECT().GetTemplateByIDWithLock(gomock.Any(), tt1.ID).Return(tt1, nil).AnyTimes()
+		check.Args(tt1.ID).Asserts(tt1, policy.ActionRead).Returns(tt1)
 	}))
 	s.Run("GetTemplateByOrganizationAndName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		t1 := testutil.Fake(s.T(), faker, database.Template{})

@@ -288,6 +288,13 @@ func (t Template) RBACObject() rbac.Object {
 		WithGroupACL(t.GroupACL)
 }
 
+func (t TemplateTable) RBACObject() rbac.Object {
+	return rbac.ResourceTemplate.WithID(t.ID).
+		InOrg(t.OrganizationID).
+		WithACLUserList(t.UserACL).
+		WithGroupACL(t.GroupACL)
+}
+
 func (t GetFileTemplatesRow) RBACObject() rbac.Object {
 	return rbac.ResourceTemplate.WithID(t.TemplateID).
 		InOrg(t.TemplateOrganizationID).

@@ -1545,6 +1545,13 @@ func (m queryMetricsStore) GetTemplateByID(ctx context.Context, id uuid.UUID) (d
 	return template, err
 }
 
+func (m queryMetricsStore) GetTemplateByIDWithLock(ctx context.Context, id uuid.UUID) (database.TemplateTable, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTemplateByIDWithLock(ctx, id)
+	m.queryLatencies.WithLabelValues("GetTemplateByIDWithLock").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetTemplateByOrganizationAndName(ctx context.Context, arg database.GetTemplateByOrganizationAndNameParams) (database.Template, error) {
 	start := time.Now()
 	template, err := m.s.GetTemplateByOrganizationAndName(ctx, arg)
@@ -2992,6 +2999,13 @@ func (m queryMetricsStore) UpdateOrganizationDeletedByID(ctx context.Context, ar
 	r0 := m.s.UpdateOrganizationDeletedByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateOrganizationDeletedByID").Observe(time.Since(start).Seconds())
 	return r0
+}
+
+func (m queryMetricsStore) UpdatePrebuildProvisionerJobWithCancel(ctx context.Context, arg database.UpdatePrebuildProvisionerJobWithCancelParams) ([]uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdatePrebuildProvisionerJobWithCancel(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdatePrebuildProvisionerJobWithCancel").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m queryMetricsStore) UpdatePresetPrebuildStatus(ctx context.Context, arg database.UpdatePresetPrebuildStatusParams) error {

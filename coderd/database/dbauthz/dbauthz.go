@@ -2942,6 +2942,30 @@ func (q *querier) GetTemplateByID(ctx context.Context, id uuid.UUID) (database.T
 	return fetch(q.log, q.auth, q.db.GetTemplateByID)(ctx, id)
 }
 
+// GetTemplateByIDWithLock acquires an exclusive lock on the template and returns it.
+// This method MUST be called within a transaction, otherwise the lock
+// will be released immediately after acquisition, defeating its purpose.
+func (q *querier) GetTemplateByIDWithLock(ctx context.Context, id uuid.UUID) (database.TemplateTable, error) {
+	act, ok := ActorFromContext(ctx)
+	if !ok {
+		return database.TemplateTable{}, ErrNoActor
+	}
+
+	// Acquire the lock on the templates table
+	templateTable, err := q.db.GetTemplateByIDWithLock(ctx, id)
+	if err != nil {
+		return database.TemplateTable{}, xerrors.Errorf("acquire template lock: %w", err)
+	}
+
+	// Authorize read access to the template
+	err = q.auth.Authorize(ctx, act, policy.ActionRead, templateTable.RBACObject())
+	if err != nil {
+		return database.TemplateTable{}, logNotAuthorizedError(ctx, q.log, err)
+	}
+
+	return templateTable, nil
+}
+
 func (q *querier) GetTemplateByOrganizationAndName(ctx context.Context, arg database.GetTemplateByOrganizationAndNameParams) (database.Template, error) {
 	return fetch(q.log, q.auth, q.db.GetTemplateByOrganizationAndName)(ctx, arg)
 }
@@ -4826,6 +4850,16 @@ func (q *querier) UpdateOrganizationDeletedByID(ctx context.Context, arg databas
 		})
 	}
 	return deleteQ(q.log, q.auth, q.db.GetOrganizationByID, deleteF)(ctx, arg.ID)
+}
+
+func (q *querier) UpdatePrebuildProvisionerJobWithCancel(ctx context.Context, arg database.UpdatePrebuildProvisionerJobWithCancelParams) ([]uuid.UUID, error) {
+	// This is a system-only operation for canceling pending prebuild-related jobs
+	// when a new template version is promoted.
+	// User authorization is checked at the template promotion level.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return []uuid.UUID{}, err
+	}
+	return q.db.UpdatePrebuildProvisionerJobWithCancel(ctx, arg)
 }
 
 func (q *querier) UpdatePresetPrebuildStatus(ctx context.Context, arg database.UpdatePresetPrebuildStatusParams) error {

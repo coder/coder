@@ -1367,66 +1367,103 @@ func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	version, err := api.Database.GetTemplateVersionByID(ctx, req.ID)
-	if httpapi.Is404Error(err) {
-		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-			Message: "Template version not found.",
-		})
-		return
-	}
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching template version.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if version.TemplateID.UUID.String() != template.ID.String() {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "The provided template version doesn't belong to the specified template.",
-		})
-		return
-	}
-	job, err := api.Database.GetProvisionerJobByID(ctx, version.JobID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching template version job status.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if job.JobStatus != database.ProvisionerJobStatusSucceeded {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Only versions that have been built successfully can be promoted.",
-			Detail:  fmt.Sprintf("Attempted to promote a version with a %s build", job.JobStatus),
-		})
-		return
-	}
-	if version.Archived {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "The provided template version is archived.",
-		})
-		return
-	}
 
-	err = api.Database.InTx(func(store database.Store) error {
+	err := api.Database.InTx(func(store database.Store) error {
+		currentTemplate, err := store.GetTemplateByIDWithLock(ctx, template.ID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching template.",
+				Detail:  err.Error(),
+			})
+			return err
+		}
+
+		// Validate template version
+		version, err := api.Database.GetTemplateVersionByID(ctx, req.ID)
+		if httpapi.Is404Error(err) {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: "Template version not found.",
+			})
+			return err
+		}
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching template version.",
+				Detail:  err.Error(),
+			})
+			return err
+		}
+		if version.TemplateID.UUID.String() != template.ID.String() {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "The provided template version doesn't belong to the specified template.",
+			})
+			return xerrors.Errorf("the provided template version doesn't belong to the specified template")
+		}
+		if version.Archived {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "The provided template version is archived.",
+			})
+			return xerrors.Errorf("the provided template version is archived")
+		}
+
+		// Validate provisioner job
+		job, err := api.Database.GetProvisionerJobByID(ctx, version.JobID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching template version job status.",
+				Detail:  err.Error(),
+			})
+			return err
+		}
+		if job.JobStatus != database.ProvisionerJobStatusSucceeded {
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+				Message: "Only versions that have been built successfully can be promoted.",
+				Detail:  fmt.Sprintf("Attempted to promote a version with a %s build", job.JobStatus),
+			})
+			return xerrors.Errorf("only versions that have been built successfully can be promoted")
+		}
+
+		previousVersion := currentTemplate.ActiveVersionID
+
+		// Update to the new template version
 		err = store.UpdateTemplateActiveVersionByID(ctx, database.UpdateTemplateActiveVersionByIDParams{
 			ID:              template.ID,
 			ActiveVersionID: req.ID,
-			UpdatedAt:       dbtime.Now(),
+			UpdatedAt:       api.Clock.Now(),
 		})
 		if err != nil {
 			return xerrors.Errorf("update active version: %w", err)
 		}
+
+		// Cancel pending prebuild jobs for the previous version
+		// nolint:gocritic // System operation to cancel old prebuild jobs when promoting template version
+		canceledJobs, err := store.UpdatePrebuildProvisionerJobWithCancel(dbauthz.AsSystemRestricted(ctx), database.UpdatePrebuildProvisionerJobWithCancelParams{
+			TemplateID:        currentTemplate.ID,
+			TemplateVersionID: previousVersion,
+			Now:               api.Clock.Now(),
+		})
+		if err != nil {
+			api.Logger.Warn(ctx, "failed to cancel pending prebuild jobs for previous template version",
+				slog.F("template_id", currentTemplate.ID),
+				slog.F("template_version_id", previousVersion.ID()),
+				slog.Error(err))
+		} else if len(canceledJobs) > 0 {
+			api.Logger.Info(ctx, "canceled pending prebuild jobs for previous template version",
+				slog.F("template_id", currentTemplate.ID),
+				slog.F("template_version_id", previousVersion.ID()),
+				slog.F("count", len(canceledJobs)))
+		}
+
 		return nil
 	}, nil)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error updating active template version.",
-			Detail:  err.Error(),
-		})
+		api.Logger.Error(ctx, "internal error updating active template version",
+			slog.F("template_id", template.ID),
+			slog.Error(err))
 		return
 	}
+
+	// Update audit record with new state
 	newTemplate := template
 	newTemplate.ActiveVersionID = req.ID
 	aReq.New = newTemplate
