@@ -8,6 +8,7 @@
 		"dev": "bun run --watch src/index.ts",
 		"format": "biome format --write .",
 		"format:check": "biome format .",
+		"lint": "biome lint --error-on-warnings .",
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
