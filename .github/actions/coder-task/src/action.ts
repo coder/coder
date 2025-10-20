@@ -1,3 +1,4 @@
+import * as core from "@actions/core";
 import { getOctokit } from "@actions/github";
 import { CoderClient } from "./coder-client";
 import { ActionInputs, ActionOutputs } from "./schemas";
@@ -159,16 +160,16 @@ export class CoderTaskAction {
 	async run(): Promise<ActionOutputs> {
 		// 1. Resolve GitHub user ID
 		const githubUserId = await this.resolveGitHubUserId();
-		console.log(`GitHub user ID: ${githubUserId}`);
+		core.debug(`GitHub user ID: ${githubUserId}`);
 
 		// 2. Get Coder username from GitHub ID
 		const coderUser = await this.coder.getCoderUserByGitHubId(githubUserId);
-		console.log(`Coder username: ${coderUser.username}`);
+		core.debug(`Coder username: ${coderUser.username}`);
 
 		// 3. Generate task name
 		const issueNumber = await this.getIssueNumber();
 		const taskName = this.generateTaskName(issueNumber);
-		console.log(`Task name: ${taskName}`);
+		core.debug(`Task name: ${taskName}`);
 
 		// 4. Check if task already exists
 		const existingTask = await this.coder.getTaskStatus(
@@ -177,8 +178,8 @@ export class CoderTaskAction {
 		);
 
 		if (existingTask) {
-			console.log(`Task already exists: ${existingTask.id}`);
-			console.log("Sending prompt to existing task...");
+			core.debug(`Task already exists: ${existingTask.id}`);
+			core.debug("Sending prompt to existing task...");
 
 			// Send prompt to existing task
 			await this.coder.sendTaskInput(
@@ -186,9 +187,9 @@ export class CoderTaskAction {
 				taskName,
 				this.inputs.taskPrompt,
 			);
-			console.log("Prompt sent successfully");
+			core.debug("Prompt sent successfully");
 		} else {
-			console.log("Creating new task...");
+			core.debug("Creating new task...");
 
 			// Create new task
 			await this.coder.createTask({
@@ -199,25 +200,25 @@ export class CoderTaskAction {
 				prompt: this.inputs.taskPrompt,
 				organization: this.inputs.organization,
 			});
-			console.log("Task created successfully");
+			core.debug("Task created successfully");
 		}
 
 		// 5. Generate task URL
 		const taskUrl = this.generateTaskUrl(coderUser.username, taskName);
-		console.log(`Task URL: ${taskUrl}`);
+		core.debug(`Task URL: ${taskUrl}`);
 
 		// 6. Comment on issue if requested
 		if (this.inputs.issueUrl && this.inputs.commentOnIssue) {
 			const issueInfo = this.parseIssueUrl();
 			if (issueInfo) {
-				console.log("Commenting on issue...");
+				core.debug("Commenting on issue...");
 				await this.commentOnIssue(
 					taskUrl,
 					issueInfo.owner,
 					issueInfo.repo,
 					issueInfo.issueNumber,
 				);
-				console.log("Comment posted successfully");
+				core.debug("Comment posted successfully");
 			}
 		}
 

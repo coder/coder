@@ -26,16 +26,16 @@ async function main() {
 			githubToken: core.getInput("github-token", { required: true }),
 		});
 
-		console.log("Inputs validated successfully");
-		console.log(`Coder URL: ${inputs.coderUrl}`);
-		console.log(`Template: ${inputs.templateName}`);
-		console.log(`Organization: ${inputs.organization}`);
+		core.debug("Inputs validated successfully");
+		core.debug(`Coder URL: ${inputs.coderUrl}`);
+		core.debug(`Template: ${inputs.templateName}`);
+		core.debug(`Organization: ${inputs.organization}`);
 
 		// Initialize clients
 		const coder = new CoderClient(inputs.coderUrl, inputs.coderToken);
 		const octokit = github.getOctokit(inputs.githubToken);
 
-		console.log("Clients initialized");
+		core.debug("Clients initialized");
 
 		// Execute action
 		const action = new CoderTaskAction(coder, octokit, inputs);
@@ -47,8 +47,8 @@ async function main() {
 		core.setOutput("task-url", outputs.taskUrl);
 		core.setOutput("task-exists", outputs.taskExists.toString());
 
-		console.log("Action completed successfully");
-		console.log(`Outputs: ${JSON.stringify(outputs, null, 2)}`);
+		core.debug("Action completed successfully");
+		core.debug(`Outputs: ${JSON.stringify(outputs, null, 2)}`);
 	} catch (error) {
 		if (error instanceof Error) {
 			core.setFailed(error.message);
