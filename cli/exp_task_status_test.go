@@ -24,8 +24,6 @@ import (
 func Test_TaskStatus(t *testing.T) {
 	t.Parallel()
 
-	t.Skip("TODO(mafredri): Remove, fixed down-stack!")
-
 	for _, tc := range []struct {
 		args         []string
 		expectOutput string
@@ -90,7 +88,9 @@ func Test_TaskStatus(t *testing.T) {
 								Healthy: true,
 							},
 							WorkspaceAgentLifecycle: ptr.Ref(codersdk.WorkspaceAgentLifecycleReady),
+							Status:                  codersdk.TaskStatusActive,
 						})
+						return
 					default:
 						t.Errorf("unexpected path: %s", r.URL.Path)
 					}
@@ -125,7 +125,9 @@ STATE CHANGED  STATUS   HEALTHY  STATE  MESSAGE
 									Healthy: true,
 								},
 								WorkspaceAgentLifecycle: ptr.Ref(codersdk.WorkspaceAgentLifecycleReady),
+								Status:                  codersdk.TaskStatusPending,
 							})
+							return
 						case 1:
 							httpapi.Write(ctx, w, http.StatusOK, codersdk.Task{
 								ID:              uuid.MustParse("11111111-1111-1111-1111-111111111111"),
@@ -136,7 +138,9 @@ STATE CHANGED  STATUS   HEALTHY  STATE  MESSAGE
 								},
 								WorkspaceAgentLifecycle: ptr.Ref(codersdk.WorkspaceAgentLifecycleReady),
 								UpdatedAt:               now.Add(-4 * time.Second),
+								Status:                  codersdk.TaskStatusActive,
 							})
+							return
 						case 2:
 							httpapi.Write(ctx, w, http.StatusOK, codersdk.Task{
 								ID:              uuid.MustParse("11111111-1111-1111-1111-111111111111"),
@@ -152,7 +156,9 @@ STATE CHANGED  STATUS   HEALTHY  STATE  MESSAGE
 									Timestamp: now.Add(-3 * time.Second),
 									Message:   "Reticulating splines...",
 								},
+								Status: codersdk.TaskStatusActive,
 							})
+							return
 						case 3:
 							httpapi.Write(ctx, w, http.StatusOK, codersdk.Task{
 								ID:              uuid.MustParse("11111111-1111-1111-1111-111111111111"),
@@ -168,13 +174,16 @@ STATE CHANGED  STATUS   HEALTHY  STATE  MESSAGE
 									Timestamp: now.Add(-2 * time.Second),
 									Message:   "Splines reticulated successfully!",
 								},
+								Status: codersdk.TaskStatusActive,
 							})
+							return
 						default:
 							httpapi.InternalServerError(w, xerrors.New("too many calls!"))
 							return
 						}
 					default:
 						httpapi.InternalServerError(w, xerrors.Errorf("unexpected path: %q", r.URL.Path))
+						return
 					}
 				}
 			},
@@ -188,16 +197,18 @@ STATE CHANGED  STATUS   HEALTHY  STATE  MESSAGE
   "owner_name": "",
   "name": "",
   "template_id": "00000000-0000-0000-0000-000000000000",
+  "template_version_id": "00000000-0000-0000-0000-000000000000",
   "template_name": "",
   "template_display_name": "",
   "template_icon": "",
   "workspace_id": null,
+  "workspace_status": "running",
   "workspace_agent_id": null,
   "workspace_agent_lifecycle": null,
   "workspace_agent_health": null,
   "workspace_app_id": null,
   "initial_prompt": "",
-  "status": "running",
+  "status": "active",
   "current_state": {
     "timestamp": "2025-08-26T12:34:57Z",
     "state": "working",
@@ -226,7 +237,9 @@ STATE CHANGED  STATUS   HEALTHY  STATE  MESSAGE
 								Timestamp: ts.Add(time.Second),
 								Message:   "Thinking furiously...",
 							},
+							Status: codersdk.TaskStatusActive,
 						})
+						return
 					default:
 						t.Errorf("unexpected path: %s", r.URL.Path)
 					}
