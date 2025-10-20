@@ -23,8 +23,13 @@
 						"action": "*"
 					}
 				],
-				"org": {},
-				"user": []
+				"user": [],
+				"by_org_id": {
+					"bf7b72bd-a2b1-4ef2-962c-1d698e0483f6": {
+						"org": [],
+						"member": []
+					}
+				}
 			}
 		],
 		"groups": ["b617a647-b5d0-4cbe-9e40-26f89710bf18"],
@@ -38,13 +43,19 @@
 					"action": "*"
 				}
 			],
-			"org": {},
 			"user": [],
+			"by_org_id": {
+				"bf7b72bd-a2b1-4ef2-962c-1d698e0483f6": {
+					"org": [],
+					"member": []
+				}
+			},
 			"allow_list": [
 				{
 					"type": "workspace",
 					"id": "*"
-				}]
+				}
+			]
 		}
 	}
 }
