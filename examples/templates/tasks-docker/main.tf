@@ -22,7 +22,7 @@ provider "docker" {}
 module "claude-code" {
   count               = data.coder_workspace.me.start_count
   source              = "registry.coder.com/coder/claude-code/coder"
-  version             = "3.0.0"
+  version             = "3.1.1"
   agent_id            = coder_agent.main.id
   workdir             = "/home/coder/projects"
   order               = 999
