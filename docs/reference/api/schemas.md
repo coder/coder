@@ -5326,7 +5326,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "redirect_uris": [
     "string"
   ],
-  "registration_access_token": "string",
+  "registration_access_token": [
+    0
+  ],
   "registration_client_uri": "string",
   "response_types": [
     "string"
@@ -5341,28 +5343,28 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ### Properties
 
-| Name                         | Type            | Required | Restrictions | Description |
-|------------------------------|-----------------|----------|--------------|-------------|
-| `client_id`                  | string          | false    |              |             |
-| `client_id_issued_at`        | integer         | false    |              |             |
-| `client_name`                | string          | false    |              |             |
-| `client_secret_expires_at`   | integer         | false    |              |             |
-| `client_uri`                 | string          | false    |              |             |
-| `contacts`                   | array of string | false    |              |             |
-| `grant_types`                | array of string | false    |              |             |
-| `jwks`                       | object          | false    |              |             |
-| `jwks_uri`                   | string          | false    |              |             |
-| `logo_uri`                   | string          | false    |              |             |
-| `policy_uri`                 | string          | false    |              |             |
-| `redirect_uris`              | array of string | false    |              |             |
-| `registration_access_token`  | string          | false    |              |             |
-| `registration_client_uri`    | string          | false    |              |             |
-| `response_types`             | array of string | false    |              |             |
-| `scope`                      | string          | false    |              |             |
-| `software_id`                | string          | false    |              |             |
-| `software_version`           | string          | false    |              |             |
-| `token_endpoint_auth_method` | string          | false    |              |             |
-| `tos_uri`                    | string          | false    |              |             |
+| Name                         | Type             | Required | Restrictions | Description |
+|------------------------------|------------------|----------|--------------|-------------|
+| `client_id`                  | string           | false    |              |             |
+| `client_id_issued_at`        | integer          | false    |              |             |
+| `client_name`                | string           | false    |              |             |
+| `client_secret_expires_at`   | integer          | false    |              |             |
+| `client_uri`                 | string           | false    |              |             |
+| `contacts`                   | array of string  | false    |              |             |
+| `grant_types`                | array of string  | false    |              |             |
+| `jwks`                       | object           | false    |              |             |
+| `jwks_uri`                   | string           | false    |              |             |
+| `logo_uri`                   | string           | false    |              |             |
+| `policy_uri`                 | string           | false    |              |             |
+| `redirect_uris`              | array of string  | false    |              |             |
+| `registration_access_token`  | array of integer | false    |              |             |
+| `registration_client_uri`    | string           | false    |              |             |
+| `response_types`             | array of string  | false    |              |             |
+| `scope`                      | string           | false    |              |             |
+| `software_id`                | string           | false    |              |             |
+| `software_version`           | string           | false    |              |             |
+| `token_endpoint_auth_method` | string           | false    |              |             |
+| `tos_uri`                    | string           | false    |              |             |
 
 ## codersdk.OAuth2ClientRegistrationRequest
 

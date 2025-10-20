@@ -15442,7 +15442,10 @@ const docTemplate = `{
                     }
                 },
                 "registration_access_token": {
-                    "type": "string"
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
                 },
                 "registration_client_uri": {
                     "type": "string"

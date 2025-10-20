@@ -1268,7 +1268,9 @@ curl -X GET http://coder-server:8080/api/v2/oauth2/clients/{client_id} \
   "redirect_uris": [
     "string"
   ],
-  "registration_access_token": "string",
+  "registration_access_token": [
+    0
+  ],
   "registration_client_uri": "string",
   "response_types": [
     "string"
@@ -1362,7 +1364,9 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2/clients/{client_id} \
   "redirect_uris": [
     "string"
   ],
-  "registration_access_token": "string",
+  "registration_access_token": [
+    0
+  ],
   "registration_client_uri": "string",
   "response_types": [
     "string"
