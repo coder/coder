@@ -44,10 +44,11 @@ const (
 type APIKeyScope string
 
 type CreateTokenRequest struct {
-	Lifetime  time.Duration `json:"lifetime"`
-	Scope     APIKeyScope   `json:"scope,omitempty"` // Deprecated: use Scopes instead.
-	Scopes    []APIKeyScope `json:"scopes,omitempty"`
-	TokenName string        `json:"token_name"`
+	Lifetime  time.Duration        `json:"lifetime"`
+	Scope     APIKeyScope          `json:"scope,omitempty"` // Deprecated: use Scopes instead.
+	Scopes    []APIKeyScope        `json:"scopes,omitempty"`
+	TokenName string               `json:"token_name"`
+	AllowList []APIAllowListTarget `json:"allow_list,omitempty"`
 }
 
 // GenerateAPIKeyResponse contains an API key for a user.

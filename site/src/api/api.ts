@@ -2669,6 +2669,13 @@ class ApiMethods {
 //
 // All methods must be defined with arrow function syntax. See the docstring
 // above the ApiMethods class for a full explanation.
+
+export type TaskFeedbackRating = "good" | "okay" | "bad";
+
+export type CreateTaskFeedbackRequest = {
+	rate: TaskFeedbackRating;
+	comment?: string;
+};
 class ExperimentalApiMethods {
 	constructor(protected readonly axios: AxiosInstance) {}
 
@@ -2731,6 +2738,15 @@ class ExperimentalApiMethods {
 
 	deleteTask = async (user: string, id: string): Promise<void> => {
 		await this.axios.delete(`/api/experimental/tasks/${user}/${id}`);
+	};
+
+	createTaskFeedback = async (
+		_taskId: string,
+		_req: CreateTaskFeedbackRequest,
+	) => {
+		return new Promise<void>((res) => {
+			setTimeout(() => res(), 500);
+		});
 	};
 }
 

@@ -452,6 +452,10 @@ func (api *API) enqueueAITaskStateNotification(
 		notificationTemplate = notifications.TemplateTaskWorking
 	case codersdk.WorkspaceAppStatusStateIdle:
 		notificationTemplate = notifications.TemplateTaskIdle
+	case codersdk.WorkspaceAppStatusStateComplete:
+		notificationTemplate = notifications.TemplateTaskCompleted
+	case codersdk.WorkspaceAppStatusStateFailure:
+		notificationTemplate = notifications.TemplateTaskFailed
 	default:
 		// Not a notifiable state, do nothing
 		return
@@ -468,6 +472,13 @@ func (api *API) enqueueAITaskStateNotification(
 		workspaceBuild.AITaskSidebarAppID.Valid && workspaceBuild.AITaskSidebarAppID.UUID == appID {
 		// Skip if the latest persisted state equals the new state (no new transition)
 		if len(latestAppStatus) > 0 && latestAppStatus[0].State == database.WorkspaceAppStatusState(newAppStatus) {
+			return
+		}
+
+		// Skip the initial "Working" notification when task first starts.
+		// This is obvious to the user since they just created the task.
+		// We still notify on first "Idle" status and all subsequent transitions.
+		if len(latestAppStatus) == 0 && newAppStatus == codersdk.WorkspaceAppStatusStateWorking {
 			return
 		}
 

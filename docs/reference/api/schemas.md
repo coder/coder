@@ -277,6 +277,62 @@
 |--------------|--------|----------|--------------|-------------|
 | `csp-report` | object | false    |              |             |
 
+## coderd.tasksListResponse
+
+```json
+{
+  "count": 0,
+  "tasks": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "current_state": {
+        "message": "string",
+        "state": "working",
+        "timestamp": "2019-08-24T14:15:22Z",
+        "uri": "string"
+      },
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "initial_prompt": "string",
+      "name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "owner_name": "string",
+      "status": "pending",
+      "template_display_name": "string",
+      "template_icon": "string",
+      "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+      "template_name": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "workspace_agent_health": {
+        "healthy": false,
+        "reason": "agent has lost connection"
+      },
+      "workspace_agent_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "workspace_agent_lifecycle": "created",
+      "workspace_app_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "workspace_build_number": 0,
+      "workspace_id": {
+        "uuid": "string",
+        "valid": true
+      }
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name    | Type                                    | Required | Restrictions | Description |
+|---------|-----------------------------------------|----------|--------------|-------------|
+| `count` | integer                                 | false    |              |             |
+| `tasks` | array of [codersdk.Task](#codersdktask) | false    |              |             |
+
 ## codersdk.ACLAvailable
 
 ```json
@@ -654,6 +710,22 @@
 |----------|----------------------------------------------------|----------|--------------|-------------|
 | `bridge` | [codersdk.AIBridgeConfig](#codersdkaibridgeconfig) | false    |              |             |
 
+## codersdk.APIAllowListTarget
+
+```json
+{
+  "id": "string",
+  "type": "*"
+}
+```
+
+### Properties
+
+| Name   | Type                                           | Required | Restrictions | Description |
+|--------|------------------------------------------------|----------|--------------|-------------|
+| `id`   | string                                         | false    |              |             |
+| `type` | [codersdk.RBACResource](#codersdkrbacresource) | false    |              |             |
+
 ## codersdk.APIKey
 
 ```json
@@ -842,6 +914,11 @@
 | `tailnet_coordinator:delete`              |
 | `tailnet_coordinator:read`                |
 | `tailnet_coordinator:update`              |
+| `task:*`                                  |
+| `task:create`                             |
+| `task:delete`                             |
+| `task:read`                               |
+| `task:update`                             |
 | `template:*`                              |
 | `template:create`                         |
 | `template:delete`                         |
@@ -1981,6 +2058,26 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-------|--------|----------|--------------|-------------|
 | `key` | string | false    |              |             |
 
+## codersdk.CreateTaskRequest
+
+```json
+{
+  "input": "string",
+  "name": "string",
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+  "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1"
+}
+```
+
+### Properties
+
+| Name                         | Type   | Required | Restrictions | Description |
+|------------------------------|--------|----------|--------------|-------------|
+| `input`                      | string | false    |              |             |
+| `name`                       | string | false    |              |             |
+| `template_version_id`        | string | false    |              |             |
+| `template_version_preset_id` | string | false    |              |             |
+
 ## codersdk.CreateTemplateRequest
 
 ```json
@@ -2172,6 +2269,12 @@ This is required on creation to enable a user-flow of validating a template work
 
 ```json
 {
+  "allow_list": [
+    {
+      "id": "string",
+      "type": "*"
+    }
+  ],
   "lifetime": 0,
   "scope": "all",
   "scopes": [
@@ -2183,12 +2286,13 @@ This is required on creation to enable a user-flow of validating a template work
 
 ### Properties
 
-| Name         | Type                                                  | Required | Restrictions | Description                     |
-|--------------|-------------------------------------------------------|----------|--------------|---------------------------------|
-| `lifetime`   | integer                                               | false    |              |                                 |
-| `scope`      | [codersdk.APIKeyScope](#codersdkapikeyscope)          | false    |              | Deprecated: use Scopes instead. |
-| `scopes`     | array of [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              |                                 |
-| `token_name` | string                                                | false    |              |                                 |
+| Name         | Type                                                                | Required | Restrictions | Description                     |
+|--------------|---------------------------------------------------------------------|----------|--------------|---------------------------------|
+| `allow_list` | array of [codersdk.APIAllowListTarget](#codersdkapiallowlisttarget) | false    |              |                                 |
+| `lifetime`   | integer                                                             | false    |              |                                 |
+| `scope`      | [codersdk.APIKeyScope](#codersdkapikeyscope)                        | false    |              | Deprecated: use Scopes instead. |
+| `scopes`     | array of [codersdk.APIKeyScope](#codersdkapikeyscope)               | false    |              |                                 |
+| `token_name` | string                                                              | false    |              |                                 |
 
 ## codersdk.CreateUserRequestWithOrgs
 
@@ -7016,6 +7120,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `replicas`                         |
 | `system`                           |
 | `tailnet_coordinator`              |
+| `task`                             |
 | `template`                         |
 | `usage_event`                      |
 | `user`                             |
@@ -7267,6 +7372,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `idp_sync_settings_role`         |
 | `workspace_agent`                |
 | `workspace_app`                  |
+| `task`                           |
 
 ## codersdk.Response
 
@@ -7571,6 +7677,197 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `min_version`            | string                               | false    |              |             |
 | `redirect_http`          | boolean                              | false    |              |             |
 | `supported_ciphers`      | array of string                      | false    |              |             |
+
+## codersdk.Task
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "current_state": {
+    "message": "string",
+    "state": "working",
+    "timestamp": "2019-08-24T14:15:22Z",
+    "uri": "string"
+  },
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "initial_prompt": "string",
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "owner_name": "string",
+  "status": "pending",
+  "template_display_name": "string",
+  "template_icon": "string",
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+  "template_name": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "workspace_agent_health": {
+    "healthy": false,
+    "reason": "agent has lost connection"
+  },
+  "workspace_agent_id": {
+    "uuid": "string",
+    "valid": true
+  },
+  "workspace_agent_lifecycle": "created",
+  "workspace_app_id": {
+    "uuid": "string",
+    "valid": true
+  },
+  "workspace_build_number": 0,
+  "workspace_id": {
+    "uuid": "string",
+    "valid": true
+  }
+}
+```
+
+### Properties
+
+| Name                        | Type                                                                 | Required | Restrictions | Description |
+|-----------------------------|----------------------------------------------------------------------|----------|--------------|-------------|
+| `created_at`                | string                                                               | false    |              |             |
+| `current_state`             | [codersdk.TaskStateEntry](#codersdktaskstateentry)                   | false    |              |             |
+| `id`                        | string                                                               | false    |              |             |
+| `initial_prompt`            | string                                                               | false    |              |             |
+| `name`                      | string                                                               | false    |              |             |
+| `organization_id`           | string                                                               | false    |              |             |
+| `owner_id`                  | string                                                               | false    |              |             |
+| `owner_name`                | string                                                               | false    |              |             |
+| `status`                    | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)                 | false    |              |             |
+| `template_display_name`     | string                                                               | false    |              |             |
+| `template_icon`             | string                                                               | false    |              |             |
+| `template_id`               | string                                                               | false    |              |             |
+| `template_name`             | string                                                               | false    |              |             |
+| `updated_at`                | string                                                               | false    |              |             |
+| `workspace_agent_health`    | [codersdk.WorkspaceAgentHealth](#codersdkworkspaceagenthealth)       | false    |              |             |
+| `workspace_agent_id`        | [uuid.NullUUID](#uuidnulluuid)                                       | false    |              |             |
+| `workspace_agent_lifecycle` | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle) | false    |              |             |
+| `workspace_app_id`          | [uuid.NullUUID](#uuidnulluuid)                                       | false    |              |             |
+| `workspace_build_number`    | integer                                                              | false    |              |             |
+| `workspace_id`              | [uuid.NullUUID](#uuidnulluuid)                                       | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value       |
+|----------|-------------|
+| `status` | `pending`   |
+| `status` | `starting`  |
+| `status` | `running`   |
+| `status` | `stopping`  |
+| `status` | `stopped`   |
+| `status` | `failed`    |
+| `status` | `canceling` |
+| `status` | `canceled`  |
+| `status` | `deleting`  |
+| `status` | `deleted`   |
+
+## codersdk.TaskLogEntry
+
+```json
+{
+  "content": "string",
+  "id": 0,
+  "time": "2019-08-24T14:15:22Z",
+  "type": "input"
+}
+```
+
+### Properties
+
+| Name      | Type                                         | Required | Restrictions | Description |
+|-----------|----------------------------------------------|----------|--------------|-------------|
+| `content` | string                                       | false    |              |             |
+| `id`      | integer                                      | false    |              |             |
+| `time`    | string                                       | false    |              |             |
+| `type`    | [codersdk.TaskLogType](#codersdktasklogtype) | false    |              |             |
+
+## codersdk.TaskLogType
+
+```json
+"input"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value    |
+|----------|
+| `input`  |
+| `output` |
+
+## codersdk.TaskLogsResponse
+
+```json
+{
+  "logs": [
+    {
+      "content": "string",
+      "id": 0,
+      "time": "2019-08-24T14:15:22Z",
+      "type": "input"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name   | Type                                                    | Required | Restrictions | Description |
+|--------|---------------------------------------------------------|----------|--------------|-------------|
+| `logs` | array of [codersdk.TaskLogEntry](#codersdktasklogentry) | false    |              |             |
+
+## codersdk.TaskSendRequest
+
+```json
+{
+  "input": "string"
+}
+```
+
+### Properties
+
+| Name    | Type   | Required | Restrictions | Description |
+|---------|--------|----------|--------------|-------------|
+| `input` | string | false    |              |             |
+
+## codersdk.TaskState
+
+```json
+"working"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value      |
+|------------|
+| `working`  |
+| `idle`     |
+| `complete` |
+| `failed`   |
+
+## codersdk.TaskStateEntry
+
+```json
+{
+  "message": "string",
+  "state": "working",
+  "timestamp": "2019-08-24T14:15:22Z",
+  "uri": "string"
+}
+```
+
+### Properties
+
+| Name        | Type                                     | Required | Restrictions | Description |
+|-------------|------------------------------------------|----------|--------------|-------------|
+| `message`   | string                                   | false    |              |             |
+| `state`     | [codersdk.TaskState](#codersdktaskstate) | false    |              |             |
+| `timestamp` | string                                   | false    |              |             |
+| `uri`       | string                                   | false    |              |             |
 
 ## codersdk.TelemetryConfig
 

@@ -30,15 +30,6 @@ const meta: Meta<typeof TasksPage> = {
 	},
 	beforeEach: () => {
 		spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([]);
-		spyOn(API, "getTemplates").mockResolvedValue([
-			MockTemplate,
-			{
-				...MockTemplate,
-				id: "test-template-2",
-				name: "template 2",
-				display_name: "Template 2",
-			},
-		]);
 		spyOn(API, "getTemplateVersions").mockResolvedValue([
 			{
 				...MockTemplateVersion,
@@ -78,6 +69,66 @@ export const ReadOnlyPresetPrompt: Story = {
 		spyOn(API, "getTemplateVersionPresets").mockResolvedValue(
 			MockAIPromptPresets,
 		);
+	},
+};
+
+export const SubmitEnabledWhenPromptNotEmpty: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const prompt = await canvas.findByLabelText(/prompt/i);
+		await userEvent.type(prompt, MockNewTaskData.prompt);
+
+		const submitButton = canvas.getByRole("button", { name: /run task/i });
+		expect(submitButton).toBeEnabled();
+	},
+};
+
+export const SubmitDisabledWhenPromptEmpty: Story = {
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+
+		await step("No prompt", async () => {
+			const submitButton = canvas.getByRole("button", { name: /run task/i });
+			expect(submitButton).toBeDisabled();
+		});
+
+		await step("Whitespace prompt", async () => {
+			const prompt = await canvas.findByLabelText(/prompt/i);
+			await userEvent.type(prompt, "   ");
+
+			const submitButton = canvas.getByRole("button", { name: /run task/i });
+			expect(submitButton).toBeDisabled();
+		});
+	},
+};
+
+export const Submitting: Story = {
+	decorators: [withGlobalSnackbar],
+	beforeEach: () => {
+		spyOn(API.experimental, "createTask").mockImplementation(
+			() =>
+				// Never resolve to keep the component in the submitting state for visual testing.
+				new Promise(() => {}),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const prompt = await canvas.findByLabelText(/prompt/i);
+		await userEvent.type(
+			prompt,
+			"Lorem ipsum dolor sit amet, consectetur adipiscing elit.{enter}{enter}Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+		);
+
+		const submitButton = canvas.getByRole("button", { name: /run task/i });
+		await waitFor(() => expect(submitButton).toBeEnabled());
+		await userEvent.click(submitButton);
+	},
+	parameters: {
+		chromatic: {
+			disableSnapshot: true,
+		},
 	},
 };
 
@@ -122,6 +173,75 @@ export const OnSuccess: Story = {
 			const body = within(canvasElement.ownerDocument.body);
 			const successMessage = await body.findByText(/task created/i);
 			expect(successMessage).toBeInTheDocument();
+		});
+
+		await step("Clears prompt", async () => {
+			const prompt = await canvas.findByLabelText(/prompt/i);
+			expect(prompt).toHaveValue("");
+		});
+	},
+};
+
+export const ChangeTemplate: Story = {
+	decorators: [withGlobalSnackbar],
+	args: {
+		templates: [
+			{
+				...MockTemplate,
+				id: "claude-code",
+				name: "claude-code",
+				display_name: "Claude Code",
+				active_version_id: "claude-code-version",
+			},
+			{
+				...MockTemplate,
+				id: "codex",
+				name: "codex",
+				display_name: "Codex",
+				active_version_id: "codex-version",
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API, "getTemplateVersions").mockImplementation((templateId) => {
+			if (templateId === "claude-code") {
+				return Promise.resolve([
+					{
+						...MockTemplateVersion,
+						id: "claude-code-version",
+						name: "claude-code-version",
+					},
+				]);
+			}
+			if (templateId === "codex") {
+				return Promise.resolve([
+					{
+						...MockTemplateVersion,
+						id: "codex-version",
+						name: "codex-version",
+					},
+				]);
+			}
+			return Promise.resolve([]);
+		});
+		spyOn(API.experimental, "createTask").mockResolvedValue(MockTask);
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+
+		await step("Change template", async () => {
+			const templateSelect = await canvas.findByLabelText(/select template/i);
+			await userEvent.click(templateSelect);
+			const templateOption = await body.findByRole("option", {
+				name: /codex/i,
+			});
+			await userEvent.click(templateOption);
+		});
+
+		await step("Default version is selected", async () => {
+			const versionSelect = await canvas.findByLabelText(/version/i);
+			expect(versionSelect).toHaveTextContent("codex-version");
 		});
 	},
 };
@@ -188,7 +308,6 @@ export const SelectTemplateVersion: Story = {
 export const OnError: Story = {
 	decorators: [withGlobalSnackbar],
 	beforeEach: () => {
-		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
 		spyOn(API, "getTemplate").mockResolvedValue(MockTemplate);
 		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
 		spyOn(API.experimental, "createTask").mockRejectedValue(
@@ -291,6 +410,65 @@ export const ExternalAuthError: Story = {
 
 		await step("Renders error", async () => {
 			await canvas.findByText(/failed to load external auth/i);
+		});
+	},
+};
+
+const tmplWithExternalAuth = {
+	...MockTemplateVersion,
+	id: "2",
+	name: "With external",
+};
+
+export const CheckExternalAuthOnChangingVersions: Story = {
+	args: {
+		templates: [
+			{
+				...MockTemplate,
+				active_version_id: tmplWithExternalAuth.id,
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API, "getTemplateVersions").mockResolvedValue([
+			{
+				...MockTemplateVersion,
+				id: "1",
+				name: "No external",
+			},
+			tmplWithExternalAuth,
+		]);
+		spyOn(API, "getTemplateVersionExternalAuth").mockImplementation(
+			(versionId: string) => {
+				return Promise.resolve(
+					versionId === tmplWithExternalAuth.id
+						? [MockTemplateVersionExternalAuthGithub]
+						: [],
+				);
+			},
+		);
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+
+		await step("Renders external authentication", async () => {
+			await canvas.findByRole("button", { name: /connect to github/i });
+		});
+
+		await step("Change into version without external auth", async () => {
+			const body = within(canvasElement.ownerDocument.body);
+			const versionSelect = await canvas.findByLabelText(/template version/i);
+			await userEvent.click(versionSelect);
+			const versionOption = await body.findByRole("option", {
+				name: /no external/i,
+			});
+			await userEvent.click(versionOption);
+		});
+
+		await step("Don't render external authentication", async () => {
+			expect(
+				canvas.queryByRole("button", { name: /connect to github/i }),
+			).not.toBeInTheDocument();
 		});
 	},
 };

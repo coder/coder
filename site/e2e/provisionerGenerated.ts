@@ -375,7 +375,8 @@ export interface AITaskSidebarApp {
 
 export interface AITask {
   id: string;
-  sidebarApp: AITaskSidebarApp | undefined;
+  sidebarApp?: AITaskSidebarApp | undefined;
+  appId: string;
 }
 
 /** Metadata is information about a workspace used in the execution of a build */
@@ -402,6 +403,8 @@ export interface Metadata {
   /** Indicates that a prebuilt workspace is being built. */
   prebuiltWorkspaceBuildStage: PrebuiltWorkspaceBuildStage;
   runningAgentAuthTokens: RunningAgentAuthToken[];
+  taskId: string;
+  taskPrompt: string;
 }
 
 /** Config represents execution configuration shared by all subsequent requests in the Session */
@@ -1217,6 +1220,9 @@ export const AITask = {
     if (message.sidebarApp !== undefined) {
       AITaskSidebarApp.encode(message.sidebarApp, writer.uint32(18).fork()).ldelim();
     }
+    if (message.appId !== "") {
+      writer.uint32(26).string(message.appId);
+    }
     return writer;
   },
 };
@@ -1285,6 +1291,12 @@ export const Metadata = {
     }
     for (const v of message.runningAgentAuthTokens) {
       RunningAgentAuthToken.encode(v!, writer.uint32(170).fork()).ldelim();
+    }
+    if (message.taskId !== "") {
+      writer.uint32(178).string(message.taskId);
+    }
+    if (message.taskPrompt !== "") {
+      writer.uint32(186).string(message.taskPrompt);
     }
     return writer;
   },

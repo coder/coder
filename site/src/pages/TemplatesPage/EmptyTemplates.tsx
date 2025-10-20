@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import Link from "@mui/material/Link";
 import type { TemplateExample } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
@@ -12,6 +11,7 @@ import { docs } from "utils/docs";
 
 // Those are from https://github.com/coder/coder/tree/main/examples/templates
 const featuredExampleIds = [
+	"tasks-docker",
 	"docker",
 	"kubernetes",
 	"aws-linux",
@@ -91,28 +91,9 @@ export const EmptyTemplates: FC<EmptyTemplatesProps> = ({
 
 	return (
 		<TableEmpty
-			className="pb-0"
 			message="Create a Template"
 			description="Contact your Coder administrator to create a template. You can share the code below."
 			cta={<CodeExample secret={false} code="coder templates init" />}
-			image={
-				<div css={styles.emptyImage}>
-					<img src="/featured/templates.webp" alt="" />
-				</div>
-			}
 		/>
 	);
 };
-
-const styles = {
-	emptyImage: {
-		maxWidth: "50%",
-		height: 320,
-		overflow: "hidden",
-		opacity: 0.85,
-
-		"& img": {
-			maxWidth: "100%",
-		},
-	},
-} satisfies Record<string, Interpolation<Theme>>;

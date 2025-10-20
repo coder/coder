@@ -12507,6 +12507,191 @@ func (q *sqlQuerier) UpsertTailnetTunnel(ctx context.Context, arg UpsertTailnetT
 	return i, err
 }
 
+const getTaskByID = `-- name: GetTaskByID :one
+SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, status, workspace_build_number, workspace_agent_id, workspace_app_id FROM tasks_with_status WHERE id = $1::uuid
+`
+
+func (q *sqlQuerier) GetTaskByID(ctx context.Context, id uuid.UUID) (Task, error) {
+	row := q.db.QueryRowContext(ctx, getTaskByID, id)
+	var i Task
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.Name,
+		&i.WorkspaceID,
+		&i.TemplateVersionID,
+		&i.TemplateParameters,
+		&i.Prompt,
+		&i.CreatedAt,
+		&i.DeletedAt,
+		&i.Status,
+		&i.WorkspaceBuildNumber,
+		&i.WorkspaceAgentID,
+		&i.WorkspaceAppID,
+	)
+	return i, err
+}
+
+const getTaskByWorkspaceID = `-- name: GetTaskByWorkspaceID :one
+SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, status, workspace_build_number, workspace_agent_id, workspace_app_id FROM tasks_with_status WHERE workspace_id = $1::uuid
+`
+
+func (q *sqlQuerier) GetTaskByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (Task, error) {
+	row := q.db.QueryRowContext(ctx, getTaskByWorkspaceID, workspaceID)
+	var i Task
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.Name,
+		&i.WorkspaceID,
+		&i.TemplateVersionID,
+		&i.TemplateParameters,
+		&i.Prompt,
+		&i.CreatedAt,
+		&i.DeletedAt,
+		&i.Status,
+		&i.WorkspaceBuildNumber,
+		&i.WorkspaceAgentID,
+		&i.WorkspaceAppID,
+	)
+	return i, err
+}
+
+const insertTask = `-- name: InsertTask :one
+INSERT INTO tasks
+	(id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at)
+VALUES
+	(gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at
+`
+
+type InsertTaskParams struct {
+	OrganizationID     uuid.UUID       `db:"organization_id" json:"organization_id"`
+	OwnerID            uuid.UUID       `db:"owner_id" json:"owner_id"`
+	Name               string          `db:"name" json:"name"`
+	WorkspaceID        uuid.NullUUID   `db:"workspace_id" json:"workspace_id"`
+	TemplateVersionID  uuid.UUID       `db:"template_version_id" json:"template_version_id"`
+	TemplateParameters json.RawMessage `db:"template_parameters" json:"template_parameters"`
+	Prompt             string          `db:"prompt" json:"prompt"`
+	CreatedAt          time.Time       `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) InsertTask(ctx context.Context, arg InsertTaskParams) (TaskTable, error) {
+	row := q.db.QueryRowContext(ctx, insertTask,
+		arg.OrganizationID,
+		arg.OwnerID,
+		arg.Name,
+		arg.WorkspaceID,
+		arg.TemplateVersionID,
+		arg.TemplateParameters,
+		arg.Prompt,
+		arg.CreatedAt,
+	)
+	var i TaskTable
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.Name,
+		&i.WorkspaceID,
+		&i.TemplateVersionID,
+		&i.TemplateParameters,
+		&i.Prompt,
+		&i.CreatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const listTasks = `-- name: ListTasks :many
+SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, status, workspace_build_number, workspace_agent_id, workspace_app_id FROM tasks_with_status tws
+WHERE tws.deleted_at IS NULL
+AND CASE WHEN $1::UUID != '00000000-0000-0000-0000-000000000000' THEN tws.owner_id = $1::UUID ELSE TRUE END
+AND CASE WHEN $2::UUID != '00000000-0000-0000-0000-000000000000' THEN tws.organization_id = $2::UUID ELSE TRUE END
+ORDER BY tws.created_at DESC
+`
+
+type ListTasksParams struct {
+	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *sqlQuerier) ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, error) {
+	rows, err := q.db.QueryContext(ctx, listTasks, arg.OwnerID, arg.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Task
+	for rows.Next() {
+		var i Task
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.OwnerID,
+			&i.Name,
+			&i.WorkspaceID,
+			&i.TemplateVersionID,
+			&i.TemplateParameters,
+			&i.Prompt,
+			&i.CreatedAt,
+			&i.DeletedAt,
+			&i.Status,
+			&i.WorkspaceBuildNumber,
+			&i.WorkspaceAgentID,
+			&i.WorkspaceAppID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const upsertTaskWorkspaceApp = `-- name: UpsertTaskWorkspaceApp :one
+INSERT INTO task_workspace_apps
+	(task_id, workspace_build_number, workspace_agent_id, workspace_app_id)
+VALUES
+	($1, $2, $3, $4)
+ON CONFLICT (task_id, workspace_build_number)
+DO UPDATE SET
+	workspace_agent_id = EXCLUDED.workspace_agent_id,
+	workspace_app_id = EXCLUDED.workspace_app_id
+RETURNING task_id, workspace_agent_id, workspace_app_id, workspace_build_number
+`
+
+type UpsertTaskWorkspaceAppParams struct {
+	TaskID               uuid.UUID     `db:"task_id" json:"task_id"`
+	WorkspaceBuildNumber int32         `db:"workspace_build_number" json:"workspace_build_number"`
+	WorkspaceAgentID     uuid.NullUUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	WorkspaceAppID       uuid.NullUUID `db:"workspace_app_id" json:"workspace_app_id"`
+}
+
+func (q *sqlQuerier) UpsertTaskWorkspaceApp(ctx context.Context, arg UpsertTaskWorkspaceAppParams) (TaskWorkspaceApp, error) {
+	row := q.db.QueryRowContext(ctx, upsertTaskWorkspaceApp,
+		arg.TaskID,
+		arg.WorkspaceBuildNumber,
+		arg.WorkspaceAgentID,
+		arg.WorkspaceAppID,
+	)
+	var i TaskWorkspaceApp
+	err := row.Scan(
+		&i.TaskID,
+		&i.WorkspaceAgentID,
+		&i.WorkspaceAppID,
+		&i.WorkspaceBuildNumber,
+	)
+	return i, err
+}
+
 const getTelemetryItem = `-- name: GetTelemetryItem :one
 SELECT key, value, created_at, updated_at FROM telemetry_items WHERE key = $1
 `
@@ -17460,6 +17645,102 @@ func (q *sqlQuerier) GetWorkspaceAgentsCreatedAfter(ctx context.Context, created
 	return items, nil
 }
 
+const getWorkspaceAgentsForMetrics = `-- name: GetWorkspaceAgentsForMetrics :many
+SELECT
+    w.id as workspace_id,
+    w.name as workspace_name,
+    u.username as owner_username,
+    t.name as template_name,
+    tv.name as template_version_name,
+    workspace_agents.id, workspace_agents.created_at, workspace_agents.updated_at, workspace_agents.name, workspace_agents.first_connected_at, workspace_agents.last_connected_at, workspace_agents.disconnected_at, workspace_agents.resource_id, workspace_agents.auth_token, workspace_agents.auth_instance_id, workspace_agents.architecture, workspace_agents.environment_variables, workspace_agents.operating_system, workspace_agents.instance_metadata, workspace_agents.resource_metadata, workspace_agents.directory, workspace_agents.version, workspace_agents.last_connected_replica_id, workspace_agents.connection_timeout_seconds, workspace_agents.troubleshooting_url, workspace_agents.motd_file, workspace_agents.lifecycle_state, workspace_agents.expanded_directory, workspace_agents.logs_length, workspace_agents.logs_overflowed, workspace_agents.started_at, workspace_agents.ready_at, workspace_agents.subsystems, workspace_agents.display_apps, workspace_agents.api_version, workspace_agents.display_order, workspace_agents.parent_id, workspace_agents.api_key_scope, workspace_agents.deleted
+FROM workspaces w
+JOIN users u ON w.owner_id = u.id
+JOIN templates t ON w.template_id = t.id
+JOIN workspace_builds wb ON w.id = wb.workspace_id
+LEFT JOIN template_versions tv ON wb.template_version_id = tv.id
+JOIN workspace_resources wr ON wb.job_id = wr.job_id
+JOIN workspace_agents ON wr.id = workspace_agents.resource_id
+WHERE w.deleted = false
+AND wb.build_number = (
+    SELECT MAX(wb2.build_number)
+    FROM workspace_builds wb2
+    WHERE wb2.workspace_id = w.id
+)
+AND workspace_agents.deleted = FALSE
+`
+
+type GetWorkspaceAgentsForMetricsRow struct {
+	WorkspaceID         uuid.UUID      `db:"workspace_id" json:"workspace_id"`
+	WorkspaceName       string         `db:"workspace_name" json:"workspace_name"`
+	OwnerUsername       string         `db:"owner_username" json:"owner_username"`
+	TemplateName        string         `db:"template_name" json:"template_name"`
+	TemplateVersionName sql.NullString `db:"template_version_name" json:"template_version_name"`
+	WorkspaceAgent      WorkspaceAgent `db:"workspace_agent" json:"workspace_agent"`
+}
+
+func (q *sqlQuerier) GetWorkspaceAgentsForMetrics(ctx context.Context) ([]GetWorkspaceAgentsForMetricsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentsForMetrics)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetWorkspaceAgentsForMetricsRow
+	for rows.Next() {
+		var i GetWorkspaceAgentsForMetricsRow
+		if err := rows.Scan(
+			&i.WorkspaceID,
+			&i.WorkspaceName,
+			&i.OwnerUsername,
+			&i.TemplateName,
+			&i.TemplateVersionName,
+			&i.WorkspaceAgent.ID,
+			&i.WorkspaceAgent.CreatedAt,
+			&i.WorkspaceAgent.UpdatedAt,
+			&i.WorkspaceAgent.Name,
+			&i.WorkspaceAgent.FirstConnectedAt,
+			&i.WorkspaceAgent.LastConnectedAt,
+			&i.WorkspaceAgent.DisconnectedAt,
+			&i.WorkspaceAgent.ResourceID,
+			&i.WorkspaceAgent.AuthToken,
+			&i.WorkspaceAgent.AuthInstanceID,
+			&i.WorkspaceAgent.Architecture,
+			&i.WorkspaceAgent.EnvironmentVariables,
+			&i.WorkspaceAgent.OperatingSystem,
+			&i.WorkspaceAgent.InstanceMetadata,
+			&i.WorkspaceAgent.ResourceMetadata,
+			&i.WorkspaceAgent.Directory,
+			&i.WorkspaceAgent.Version,
+			&i.WorkspaceAgent.LastConnectedReplicaID,
+			&i.WorkspaceAgent.ConnectionTimeoutSeconds,
+			&i.WorkspaceAgent.TroubleshootingURL,
+			&i.WorkspaceAgent.MOTDFile,
+			&i.WorkspaceAgent.LifecycleState,
+			&i.WorkspaceAgent.ExpandedDirectory,
+			&i.WorkspaceAgent.LogsLength,
+			&i.WorkspaceAgent.LogsOverflowed,
+			&i.WorkspaceAgent.StartedAt,
+			&i.WorkspaceAgent.ReadyAt,
+			pq.Array(&i.WorkspaceAgent.Subsystems),
+			pq.Array(&i.WorkspaceAgent.DisplayApps),
+			&i.WorkspaceAgent.APIVersion,
+			&i.WorkspaceAgent.DisplayOrder,
+			&i.WorkspaceAgent.ParentID,
+			&i.WorkspaceAgent.APIKeyScope,
+			&i.WorkspaceAgent.Deleted,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkspaceAgentsInLatestBuildByWorkspaceID = `-- name: GetWorkspaceAgentsInLatestBuildByWorkspaceID :many
 SELECT
 	workspace_agents.id, workspace_agents.created_at, workspace_agents.updated_at, workspace_agents.name, workspace_agents.first_connected_at, workspace_agents.last_connected_at, workspace_agents.disconnected_at, workspace_agents.resource_id, workspace_agents.auth_token, workspace_agents.auth_instance_id, workspace_agents.architecture, workspace_agents.environment_variables, workspace_agents.operating_system, workspace_agents.instance_metadata, workspace_agents.resource_metadata, workspace_agents.directory, workspace_agents.version, workspace_agents.last_connected_replica_id, workspace_agents.connection_timeout_seconds, workspace_agents.troubleshooting_url, workspace_agents.motd_file, workspace_agents.lifecycle_state, workspace_agents.expanded_directory, workspace_agents.logs_length, workspace_agents.logs_overflowed, workspace_agents.started_at, workspace_agents.ready_at, workspace_agents.subsystems, workspace_agents.display_apps, workspace_agents.api_version, workspace_agents.display_order, workspace_agents.parent_id, workspace_agents.api_key_scope, workspace_agents.deleted
@@ -22156,6 +22437,64 @@ func (q *sqlQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, now
 	for rows.Next() {
 		var i GetWorkspacesEligibleForTransitionRow
 		if err := rows.Scan(&i.ID, &i.Name, &i.BuildTemplateVersionID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getWorkspacesForWorkspaceMetrics = `-- name: GetWorkspacesForWorkspaceMetrics :many
+SELECT
+    u.username as owner_username,
+    t.name as template_name,
+    tv.name as template_version_name,
+    pj.job_status as latest_build_status,
+    wb.transition as latest_build_transition
+FROM workspaces w
+JOIN users u ON w.owner_id = u.id
+JOIN templates t ON w.template_id = t.id
+JOIN workspace_builds wb ON w.id = wb.workspace_id
+JOIN provisioner_jobs pj ON wb.job_id = pj.id
+LEFT JOIN template_versions tv ON wb.template_version_id = tv.id
+WHERE w.deleted = false
+AND wb.build_number = (
+    SELECT MAX(wb2.build_number)
+    FROM workspace_builds wb2
+    WHERE wb2.workspace_id = w.id
+)
+`
+
+type GetWorkspacesForWorkspaceMetricsRow struct {
+	OwnerUsername         string               `db:"owner_username" json:"owner_username"`
+	TemplateName          string               `db:"template_name" json:"template_name"`
+	TemplateVersionName   sql.NullString       `db:"template_version_name" json:"template_version_name"`
+	LatestBuildStatus     ProvisionerJobStatus `db:"latest_build_status" json:"latest_build_status"`
+	LatestBuildTransition WorkspaceTransition  `db:"latest_build_transition" json:"latest_build_transition"`
+}
+
+func (q *sqlQuerier) GetWorkspacesForWorkspaceMetrics(ctx context.Context) ([]GetWorkspacesForWorkspaceMetricsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspacesForWorkspaceMetrics)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetWorkspacesForWorkspaceMetricsRow
+	for rows.Next() {
+		var i GetWorkspacesForWorkspaceMetricsRow
+		if err := rows.Scan(
+			&i.OwnerUsername,
+			&i.TemplateName,
+			&i.TemplateVersionName,
+			&i.LatestBuildStatus,
+			&i.LatestBuildTransition,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
