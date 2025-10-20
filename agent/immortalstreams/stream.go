@@ -59,9 +59,7 @@ func NewStream(id uuid.UUID, name string, port uint16, logger slog.Logger) *Stre
 	}
 
 	// Track disconnection time via BackedPipe callback rather than read/write errors.
-	stream.pipe.SetDisconnectedCallback(func() {
-		stream.handleDisconnect()
-	})
+	stream.pipe.SetDisconnectedCallback(stream.handleDisconnect)
 
 	return stream
 }
