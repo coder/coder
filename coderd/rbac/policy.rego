@@ -59,8 +59,8 @@ check_user_permissions(roles) := vote if {
 	input.subject.id = input.object.owner
 
 	# If there is an org, use org_member permissions instead
-	input.object.org_owner == ""
-	not input.object.any_org
+	# input.object.org_owner == ""
+	# not input.object.any_org
 
 	allow := {is_allowed |
 		# Iterate over all user permissions in all roles, and check which ones match
@@ -229,6 +229,8 @@ role_allow if {
 # User level authorization
 role_allow if {
 	not site = -1
+	not org = -1
+	not org_member = -1
 
 	user = 1
 }
