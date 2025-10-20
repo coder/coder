@@ -22,7 +22,7 @@ import (
 func Test_TaskSend(t *testing.T) {
 	t.Parallel()
 
-	t.Skip("TODO(mafredri): Remove, fixed down-stack!")
+	t.Skip("TODO(mafredri): Remove, fixed up-stack!")
 
 	t.Run("ByWorkspaceName_WithArgument", func(t *testing.T) {
 		t.Parallel()
