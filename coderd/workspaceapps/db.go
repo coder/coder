@@ -324,11 +324,19 @@ func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *rbac.Subj
 		// rbacResourceOwned is for the level "authenticated". We still need to
 		// make sure the API key has permissions to connect to the actor's own
 		// workspace. Scopes would prevent this.
-		rbacResourceOwned rbac.Object = rbac.ResourceWorkspace.WithOwner(roles.ID)
+		// TODO: This is an odd repercussion of the org_member permission level.
+		// This Object used to not specify an org restriction, and `InOrg` would
+		// actually have a significantly different meaning (only sharing with
+		// other authenticated users in the same org, whereas the existing behavior
+		// is to share with any authenticated user). Because workspaces are always
+		// jointly owned by an organization, there _must_ be an org restriction on
+		// the object to check the proper permissions. AnyOrg is almost the same,
+		// but technically excludes users who are not in any organization. This is
+		// the closest we can get though without more significant refactoring.
+		rbacResourceOwned rbac.Object = rbac.ResourceWorkspace.WithOwner(roles.ID).AnyOrganization()
 	)
 	if dbReq.AccessMethod == AccessMethodTerminal {
 		rbacAction = policy.ActionSSH
-		rbacResourceOwned = rbac.ResourceWorkspace.WithOwner(roles.ID)
 	}
 
 	// Do a standard RBAC check. This accounts for share level "owner" and any
