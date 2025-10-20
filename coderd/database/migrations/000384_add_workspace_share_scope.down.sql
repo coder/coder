@@ -1,0 +1,3 @@
+-- No-op: keep enum values to avoid dependency churn.
+-- If strict removal is required, create a new enum type without these values,
+-- cast columns, drop the old type, and rename.

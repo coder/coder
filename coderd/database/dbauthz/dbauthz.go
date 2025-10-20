@@ -1792,7 +1792,7 @@ func (q *querier) DeleteWorkspaceACLByID(ctx context.Context, id uuid.UUID) erro
 		return w.WorkspaceTable(), nil
 	}
 
-	return fetchAndExec(q.log, q.auth, policy.ActionUpdate, fetch, q.db.DeleteWorkspaceACLByID)(ctx, id)
+	return fetchAndExec(q.log, q.auth, policy.ActionShare, fetch, q.db.DeleteWorkspaceACLByID)(ctx, id)
 }
 
 func (q *querier) DeleteWorkspaceAgentPortShare(ctx context.Context, arg database.DeleteWorkspaceAgentPortShareParams) error {
@@ -3388,7 +3388,7 @@ func (q *querier) GetWorkspaceACLByID(ctx context.Context, id uuid.UUID) (databa
 	if err != nil {
 		return database.GetWorkspaceACLByIDRow{}, err
 	}
-	if err := q.authorizeContext(ctx, policy.ActionCreate, workspace); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionShare, workspace); err != nil {
 		return database.GetWorkspaceACLByIDRow{}, err
 	}
 	return q.db.GetWorkspaceACLByID(ctx, id)
@@ -5312,7 +5312,7 @@ func (q *querier) UpdateWorkspaceACLByID(ctx context.Context, arg database.Updat
 		return w.WorkspaceTable(), nil
 	}
 
-	return fetchAndExec(q.log, q.auth, policy.ActionCreate, fetch, q.db.UpdateWorkspaceACLByID)(ctx, arg)
+	return fetchAndExec(q.log, q.auth, policy.ActionShare, fetch, q.db.UpdateWorkspaceACLByID)(ctx, arg)
 }
 
 func (q *querier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg database.UpdateWorkspaceAgentConnectionByIDParams) error {

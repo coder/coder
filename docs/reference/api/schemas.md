@@ -953,6 +953,7 @@
 | `workspace:delete`                        |
 | `workspace:delete_agent`                  |
 | `workspace:read`                          |
+| `workspace:share`                         |
 | `workspace:ssh`                           |
 | `workspace:start`                         |
 | `workspace:stop`                          |
@@ -970,6 +971,7 @@
 | `workspace_dormant:delete`                |
 | `workspace_dormant:delete_agent`          |
 | `workspace_dormant:read`                  |
+| `workspace_dormant:share`                 |
 | `workspace_dormant:ssh`                   |
 | `workspace_dormant:start`                 |
 | `workspace_dormant:stop`                  |
@@ -7069,6 +7071,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `read`                |
 | `read_personal`       |
 | `ssh`                 |
+| `share`               |
 | `unassign`            |
 | `update`              |
 | `update_personal`     |
