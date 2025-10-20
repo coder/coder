@@ -77,7 +77,7 @@ const TaskPage = () => {
 			<TaskPageLayout>
 				<title>{pageTitle("Error loading task")}</title>
 
-				<div className="w-full min-h-80 flex items-center justify-center">
+				<div className="w-full h-full flex items-center justify-center">
 					<div className="flex flex-col items-center">
 						<h3 className="m-0 font-medium text-content-primary text-base">
 							{getErrorMessage(error, "Failed to load task")}
@@ -119,7 +119,7 @@ const TaskPage = () => {
 		content = <TaskBuildingWorkspace task={task} />;
 	} else if (task.workspace.latest_build.status === "failed") {
 		content = (
-			<div className="w-full min-h-80 flex items-center justify-center">
+			<div className="w-full h-full flex items-center justify-center">
 				<div className="flex flex-col items-center">
 					<h3 className="m-0 font-medium text-content-primary text-base">
 						Task build failed
@@ -218,7 +218,7 @@ const WorkspaceNotRunning: FC<WorkspaceNotRunningProps> = ({ task }) => {
 
 	return (
 		<Margins>
-			<div className="w-full min-h-80 flex items-center justify-center">
+			<div className="w-full h-full flex items-center justify-center">
 				<div className="flex flex-col items-center">
 					<h3 className="m-0 font-medium text-content-primary text-base">
 						Workspace is not running
