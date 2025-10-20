@@ -25,7 +25,6 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/taskname"
-	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 
 	aiagentapi "github.com/coder/agentapi-sdk-go"
@@ -604,25 +603,22 @@ func (api *API) tasksList(rw http.ResponseWriter, r *http.Request) {
 func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
+	task := httpmw.TaskParam(r)
 
-	idStr := chi.URLParam(r, "task")
-	taskID, err := uuid.Parse(idStr)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Invalid UUID %q for task ID.", idStr),
+	if !task.WorkspaceID.Valid {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching task.",
+			Detail:  "Task workspace ID is invalid.",
 		})
 		return
 	}
 
-	// For now, taskID = workspaceID, once we have a task data model in
-	// the DB, we can change this lookup.
-	workspaceID := taskID
-	workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceID)
-	if httpapi.Is404Error(err) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
+	workspace, err := api.Database.GetWorkspaceByID(ctx, task.WorkspaceID.UUID)
 	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace.",
 			Detail:  err.Error(),
@@ -641,34 +637,6 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 	if len(data.builds) == 0 || len(data.templates) == 0 {
 		httpapi.ResourceNotFound(rw)
 		return
-	}
-	if data.builds[0].HasAITask == nil || !*data.builds[0].HasAITask {
-		// TODO(DanielleMaywood):
-		// This is a temporary workaround. When a task has just been created, but
-		// not yet provisioned, the workspace build will not have `HasAITask` set.
-		//
-		// When we reach this code flow, it is _either_ because the workspace is
-		// not a task, or it is a task that has not yet been provisioned. This
-		// endpoint should rarely be called with a non-task workspace so we
-		// should be fine with this extra database call to check if it has the
-		// special "AI Task" parameter.
-		parameters, err := api.Database.GetWorkspaceBuildParameters(ctx, data.builds[0].ID)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error fetching workspace build parameters.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-
-		_, hasAITask := slice.Find(parameters, func(t database.WorkspaceBuildParameter) bool {
-			return t.Name == codersdk.AITaskPromptParameterName
-		})
-
-		if !hasAITask {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
 	}
 
 	appStatus := codersdk.WorkspaceAppStatus{}
@@ -692,16 +660,8 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tasks, err := api.tasksFromWorkspaces(ctx, []codersdk.Workspace{ws})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching task prompt and state.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, tasks[0])
+	taskResp := taskFromDBTaskAndWorkspace(task, ws)
+	httpapi.Write(ctx, rw, http.StatusOK, taskResp)
 }
 
 // @Summary Delete AI task by ID
