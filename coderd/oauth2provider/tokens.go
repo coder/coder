@@ -22,7 +22,6 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/userpassword"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -197,11 +196,9 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 	if err != nil {
 		return oauth2.Token{}, err
 	}
-	equal, err := userpassword.Compare(string(dbSecret.HashedSecret), secret.secret)
-	if err != nil {
-		return oauth2.Token{}, xerrors.Errorf("unable to compare secret: %w", err)
-	}
-	if !equal {
+
+	equalSecret := apikey.ValidateHash(dbSecret.HashedSecret, secret.secret)
+	if !equalSecret {
 		return oauth2.Token{}, errBadSecret
 	}
 
@@ -218,11 +215,8 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 	if err != nil {
 		return oauth2.Token{}, err
 	}
-	equal, err = userpassword.Compare(string(dbCode.HashedSecret), code.secret)
-	if err != nil {
-		return oauth2.Token{}, xerrors.Errorf("unable to compare code: %w", err)
-	}
-	if !equal {
+	equalCode := apikey.ValidateHash(dbCode.HashedSecret, code.secret)
+	if !equalCode {
 		return oauth2.Token{}, errBadCode
 	}
 
@@ -356,10 +350,7 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 	if err != nil {
 		return oauth2.Token{}, err
 	}
-	equal, err := userpassword.Compare(string(dbToken.RefreshHash), token.secret)
-	if err != nil {
-		return oauth2.Token{}, xerrors.Errorf("unable to compare token: %w", err)
-	}
+	equal := apikey.ValidateHash(dbToken.RefreshHash, token.secret)
 	if !equal {
 		return oauth2.Token{}, errBadToken
 	}

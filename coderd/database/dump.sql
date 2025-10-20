@@ -1536,7 +1536,7 @@ CREATE TABLE oauth2_provider_apps (
     jwks jsonb,
     software_id text,
     software_version text,
-    registration_access_token text,
+    registration_access_token bytea,
     registration_client_uri text
 );
 

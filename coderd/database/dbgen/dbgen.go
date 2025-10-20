@@ -1259,7 +1259,7 @@ func OAuth2ProviderApp(t testing.TB, db database.Store, seed database.OAuth2Prov
 		Jwks:                    seed.Jwks, // pqtype.NullRawMessage{} is not comparable, use existing value
 		SoftwareID:              takeFirst(seed.SoftwareID, sql.NullString{}),
 		SoftwareVersion:         takeFirst(seed.SoftwareVersion, sql.NullString{}),
-		RegistrationAccessToken: takeFirst(seed.RegistrationAccessToken, sql.NullString{}),
+		RegistrationAccessToken: seed.RegistrationAccessToken,
 		RegistrationClientUri:   takeFirst(seed.RegistrationClientUri, sql.NullString{}),
 	})
 	require.NoError(t, err, "insert oauth2 app")
