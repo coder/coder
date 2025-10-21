@@ -172,10 +172,7 @@ export class CoderTaskAction {
 		core.debug(`Task name: ${taskName}`);
 
 		// 4. Check if task already exists
-		const existingTask = await this.coder.getTaskStatus(
-			coderUser.username,
-			taskName,
-		);
+		const existingTask = await this.coder.getTask(coderUser.username, taskName);
 
 		if (existingTask) {
 			core.debug(`Task already exists: ${existingTask.id}`);

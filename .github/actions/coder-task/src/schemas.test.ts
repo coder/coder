@@ -3,10 +3,10 @@ import {
 	ActionInputsSchema,
 	UserSchema,
 	TemplateSchema,
-	TaskStatusSchema,
+	TaskSchema,
 	CreateTaskParamsSchema,
 } from "./schemas";
-import { mockUser, mockTemplate, mockTaskStatus } from "./test-helpers";
+import { mockUser, mockTemplate, mockTask } from "./test-helpers";
 
 describe("ActionInputsSchema", () => {
 	describe("Valid Input Cases", () => {
@@ -249,11 +249,11 @@ describe("TemplateSchema", () => {
 
 describe("TaskStatusSchema", () => {
 	test("parses valid task status response", () => {
-		const result = TaskStatusSchema.parse(mockTaskStatus);
+		const result = TaskSchema.parse(mockTask);
 
-		expect(result.id).toBe(mockTaskStatus.id);
-		expect(result.name).toBe(mockTaskStatus.name);
-		expect(result.status).toBe(mockTaskStatus.status);
+		expect(result.id).toBe(mockTask.id);
+		expect(result.name).toBe(mockTask.name);
+		expect(result.status).toBe(mockTask.status);
 	});
 
 	test("rejects missing required fields", () => {
@@ -262,16 +262,16 @@ describe("TaskStatusSchema", () => {
 			// Missing name and other required fields
 		};
 
-		expect(() => TaskStatusSchema.parse(invalidTaskStatus)).toThrow();
+		expect(() => TaskSchema.parse(invalidTaskStatus)).toThrow();
 	});
 
 	test("validates UUID format for id", () => {
 		const invalidTaskStatus = {
-			...mockTaskStatus,
+			...mockTask,
 			id: "not-a-uuid",
 		};
 
-		expect(() => TaskStatusSchema.parse(invalidTaskStatus)).toThrow();
+		expect(() => TaskSchema.parse(invalidTaskStatus)).toThrow();
 	});
 });
 

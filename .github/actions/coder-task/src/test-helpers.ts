@@ -1,5 +1,12 @@
 import { CoderClient } from "./coder-client";
-import { ActionInputs, User, Template, TaskStatus } from "./schemas";
+import {
+	ActionInputs,
+	User,
+	UserList,
+	Template,
+	Task,
+	TaskList,
+} from "./schemas";
 
 /**
  * Mock data for tests
@@ -8,28 +15,53 @@ export const mockUser: User = {
 	id: "550e8400-e29b-41d4-a716-446655440000",
 	username: "testuser",
 	email: "test@example.com",
-	created_at: "2024-01-01T00:00:00Z",
-	status: "active",
 	organization_ids: ["660e8400-e29b-41d4-a716-446655440000"],
 	github_com_user_id: 12345,
 };
 
+export const mockUserList: UserList = {
+	users: [mockUser],
+};
+
+export const mockUserListEmpty: UserList = {
+	users: [],
+};
+
+export const mockUserListDuplicate: UserList = {
+	users: [
+		mockUser,
+		{
+			...mockUser,
+			id: "660e8400-e29b-41d4-a716-446655440001",
+			username: "testuser2",
+		},
+	],
+};
+
 export const mockTemplate: Template = {
 	id: "770e8400-e29b-41d4-a716-446655440000",
-	name: "traiage",
+	name: "my-template",
 	description: "AI triage template",
 	organization_id: "660e8400-e29b-41d4-a716-446655440000",
 	active_version_id: "880e8400-e29b-41d4-a716-446655440000",
 };
 
-export const mockTaskStatus: TaskStatus = {
+export const mockTask: Task = {
 	id: "990e8400-e29b-41d4-a716-446655440000",
-	name: "traiage-gh-123",
+	name: "task-123",
 	owner_id: "550e8400-e29b-41d4-a716-446655440000",
 	template_id: "770e8400-e29b-41d4-a716-446655440000",
 	created_at: "2024-01-01T00:00:00Z",
 	updated_at: "2024-01-01T00:00:00Z",
 	status: "running",
+};
+
+export const mockTaskList: TaskList = {
+	tasks: [mockTask],
+};
+
+export const mockTaskListEmpty: TaskList = {
+	tasks: [],
 };
 
 /**
@@ -41,7 +73,7 @@ export function createMockInputs(
 	return {
 		coderUrl: "https://coder.test",
 		coderToken: "test-token",
-		templateName: "traiage",
+		templateName: "my-template",
 		taskPrompt: "Test prompt",
 		githubToken: "github-token",
 		templatePreset: "Default",
@@ -82,14 +114,11 @@ export class MockCoderClient extends CoderClient {
 		return this.mockGetTemplateByName(organization, templateName);
 	}
 
-	async getTaskStatus(
-		username: string,
-		taskName: string,
-	): Promise<TaskStatus | null> {
+	async getTask(username: string, taskName: string): Promise<Task | null> {
 		return this.mockGetTaskStatus(username, taskName);
 	}
 
-	async createTask(params: any): Promise<TaskStatus> {
+	async createTask(params: any): Promise<Task> {
 		return this.mockCreateTask(params);
 	}
 

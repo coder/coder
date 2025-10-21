@@ -2,8 +2,12 @@ import { z } from "zod";
 import {
 	User,
 	UserSchema,
-	TaskStatus,
-	TaskStatusSchema,
+	UserList,
+	UserListSchema,
+	Task,
+	TaskSchema,
+	TaskList,
+	TaskListSchema,
 	Template,
 	TemplateSchema,
 	CreateTaskParams,
@@ -56,56 +60,59 @@ export class CoderClient {
 	}
 
 	/**
-	 * Get Coder user by GitHub user ID
+	 * getCoderUserByGitHubId retrieves an existing Coder user with the given GitHub user ID using Coder's stable API.
+	 * Throws an error if more than one user exists with the same GitHub user ID or if a GitHub user ID of 0 is provided.
 	 */
 	async getCoderUserByGitHubId(githubUserId: number): Promise<User> {
-		const endpoint = `/api/v2/users?q=github_com_user_id:${githubUserId}`;
+		if (githubUserId === 0) {
+			throw "GitHub user ID cannot be 0";
+		}
+		const endpoint = `/api/v2/users?q=${encodeURIComponent("github_com_user_id:" + githubUserId)}`;
 		const response = await this.request<unknown[]>(endpoint);
-
-		if (!Array.isArray(response) || response.length === 0) {
+		const userList = UserListSchema.parse(response);
+		if (userList.users.length === 0) {
 			throw new CoderAPIError(
 				`No Coder user found with GitHub user ID ${githubUserId}`,
 				404,
 			);
 		}
-
-		return UserSchema.parse(response[0]);
-	}
-
-	/**
-	 * Get user by username
-	 */
-	async getUserByUsername(username: string): Promise<User> {
-		const endpoint = `/api/v2/users/${username}`;
-		const response = await this.request<unknown>(endpoint);
-		return UserSchema.parse(response);
-	}
-
-	/**
-	 * Get template by name
-	 */
-	async getTemplateByName(templateName: string): Promise<Template> {
-		const endpoint = `/api/v2/templates?q=exact_name:${encodeURIComponent(templateName)}`;
-		const response = await this.request<unknown[]>(endpoint);
-
-		if (!Array.isArray(response) || response.length === 0) {
-			throw new CoderAPIError(`Template "${templateName}" not found`, 404);
+		if (userList.users.length > 1) {
+			throw new CoderAPIError(
+				`Multiple Coder users found with GitHub user ID ${githubUserId}`,
+				409,
+			);
 		}
-
-		return TemplateSchema.parse(response[0]);
+		return UserSchema.parse(userList.users[0]);
 	}
 
 	/**
-	 * Check if task exists and get its status
+	 * getTemplateByOrganizationAndName retrieves a template via Coder's stable API.
 	 */
-	async getTaskStatus(
-		ownerUsername: string,
-		taskName: string,
-	): Promise<TaskStatus | null> {
+	async getTemplateByOrganizationAndName(
+		organizationName: string,
+		templateName: string,
+	): Promise<Template> {
+		const endpoint = `/api/v2/organizations/${encodeURIComponent(organizationName)}/templates/${encodeURIComponent(templateName)}`;
+		const response = await this.request<typeof TemplateSchema>(endpoint);
+		return TemplateSchema.parse(response);
+	}
+
+	/**
+	 * getTask retrieves an existing task via Coder's experimental Tasks API.
+	 * Returns null if the task does not exist.
+	 */
+	async getTask(owner: string, taskName: string): Promise<Task | null> {
+		// TODO: needs taskByOwnerAndName endpoint, fake it for now.
 		try {
-			const endpoint = `/api/v2/users/${ownerUsername}/tasks/${taskName}`;
-			const response = await this.request<unknown>(endpoint);
-			return TaskStatusSchema.parse(response);
+			const allTasksResponse = await this.request<unknown>(
+				`/api/experimental/tasks?q=${encodeURIComponent(`owner:${owner}`)}`,
+			);
+			const allTasks = TaskListSchema.parse(allTasksResponse);
+			const task = allTasks.tasks.find((t) => t.name === taskName);
+			if (!task) {
+				return null;
+			}
+			return task;
 		} catch (error) {
 			if (error instanceof CoderAPIError && error.statusCode === 404) {
 				return null;
@@ -115,34 +122,29 @@ export class CoderClient {
 	}
 
 	/**
-	 * Create a new task
+	 * createTask creates a new task with the given parameters using Coder's experimental Tasks API.
 	 */
-	async createTask(params: CreateTaskParams): Promise<TaskStatus> {
-		// First, get the template to get its ID
-		const template = await this.getTemplateByName(params.templateName);
-
-		// Get the owner user to get their ID
-		const owner = await this.getUserByUsername(params.owner);
-
-		// Create the task
-		const endpoint = `/api/v2/organizations/${params.organization}/members/${params.owner}/tasks`;
+	async createTask(params: CreateTaskParams): Promise<Task> {
+		const template = await this.getTemplateByOrganizationAndName(
+			params.organization,
+			params.templateName,
+		);
+		const endpoint = `/api/experimental/tasks/${encodeURIComponent(params.owner)}`;
 		const body = {
 			name: params.name,
 			template_id: template.id,
 			template_version_preset_id: params.templatePreset,
 			prompt: params.prompt,
 		};
-
 		const response = await this.request<unknown>(endpoint, {
 			method: "POST",
 			body: JSON.stringify(body),
 		});
-
-		return TaskStatusSchema.parse(response);
+		return TaskSchema.parse(response);
 	}
 
 	/**
-	 * Send input/prompt to an existing task
+	 * sendTaskInput sends the given input to an existing task via Coder's experimental Tasks API.
 	 */
 	async sendTaskInput(
 		ownerUsername: string,
@@ -157,7 +159,7 @@ export class CoderClient {
 	}
 
 	/**
-	 * Get task logs
+	 * getTaskLogs retrieves the logs for an existing task via Coder's experimental Tasks API.
 	 */
 	async getTaskLogs(ownerUsername: string, taskName: string): Promise<unknown> {
 		const endpoint = `/api/v2/users/${ownerUsername}/tasks/${taskName}/logs`;

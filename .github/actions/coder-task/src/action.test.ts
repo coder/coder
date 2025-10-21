@@ -5,7 +5,7 @@ import {
 	createMockOctokit,
 	createMockInputs,
 	mockUser,
-	mockTaskStatus,
+	mockTask,
 } from "./test-helpers";
 
 describe("CoderTaskAction", () => {
@@ -486,7 +486,7 @@ describe("CoderTaskAction", () => {
 			// Setup
 			coderClient.mockGetCoderUserByGitHubId.mockResolvedValue(mockUser);
 			coderClient.mockGetTaskStatus.mockResolvedValue(null);
-			coderClient.mockCreateTask.mockResolvedValue(mockTaskStatus);
+			coderClient.mockCreateTask.mockResolvedValue(mockTask);
 
 			const inputs = createMockInputs({
 				githubUserId: 12345,
@@ -511,7 +511,7 @@ describe("CoderTaskAction", () => {
 		test("sends prompt to existing task", async () => {
 			// Setup
 			coderClient.mockGetCoderUserByGitHubId.mockResolvedValue(mockUser);
-			coderClient.mockGetTaskStatus.mockResolvedValue(mockTaskStatus);
+			coderClient.mockGetTaskStatus.mockResolvedValue(mockTask);
 			coderClient.mockSendTaskInput.mockResolvedValue(undefined);
 
 			const inputs = createMockInputs({
@@ -534,7 +534,7 @@ describe("CoderTaskAction", () => {
 			// Setup
 			coderClient.mockGetCoderUserByGitHubId.mockResolvedValue(mockUser);
 			coderClient.mockGetTaskStatus.mockResolvedValue(null);
-			coderClient.mockCreateTask.mockResolvedValue(mockTaskStatus);
+			coderClient.mockCreateTask.mockResolvedValue(mockTask);
 
 			const inputs = createMockInputs({
 				githubUserId: 12345,
@@ -554,7 +554,7 @@ describe("CoderTaskAction", () => {
 			// Setup
 			coderClient.mockGetCoderUserByGitHubId.mockResolvedValue(mockUser);
 			coderClient.mockGetTaskStatus.mockResolvedValue(null);
-			coderClient.mockCreateTask.mockResolvedValue(mockTaskStatus);
+			coderClient.mockCreateTask.mockResolvedValue(mockTask);
 
 			const inputs = createMockInputs({
 				githubUserId: 12345,
@@ -575,7 +575,7 @@ describe("CoderTaskAction", () => {
 			// Setup
 			coderClient.mockGetCoderUserByGitHubId.mockResolvedValue(mockUser);
 			coderClient.mockGetTaskStatus.mockResolvedValue(null);
-			coderClient.mockCreateTask.mockResolvedValue(mockTaskStatus);
+			coderClient.mockCreateTask.mockResolvedValue(mockTask);
 			octokit.rest.issues.listComments.mockResolvedValue({ data: [] } as any);
 			octokit.rest.issues.createComment.mockResolvedValue({} as any);
 
@@ -662,7 +662,7 @@ describe("CoderTaskAction", () => {
 			// Setup
 			coderClient.mockGetCoderUserByGitHubId.mockResolvedValue(mockUser);
 			coderClient.mockGetTaskStatus.mockResolvedValue(null);
-			coderClient.mockCreateTask.mockResolvedValue(mockTaskStatus);
+			coderClient.mockCreateTask.mockResolvedValue(mockTask);
 			octokit.rest.issues.listComments.mockResolvedValue({ data: [] } as any);
 			octokit.rest.issues.createComment.mockResolvedValue({} as any);
 
@@ -692,7 +692,7 @@ describe("CoderTaskAction", () => {
 
 			coderClient.mockGetCoderUserByGitHubId.mockResolvedValue(mockUser);
 			coderClient.mockGetTaskStatus.mockResolvedValue(null);
-			coderClient.mockCreateTask.mockResolvedValue(mockTaskStatus);
+			coderClient.mockCreateTask.mockResolvedValue(mockTask);
 
 			const inputs = createMockInputs({
 				githubUserId: 12345,
@@ -715,7 +715,7 @@ describe("CoderTaskAction", () => {
 		test("handles special characters in task names", async () => {
 			coderClient.mockGetCoderUserByGitHubId.mockResolvedValue(mockUser);
 			coderClient.mockGetTaskStatus.mockResolvedValue(null);
-			coderClient.mockCreateTask.mockResolvedValue(mockTaskStatus);
+			coderClient.mockCreateTask.mockResolvedValue(mockTask);
 
 			const inputs = createMockInputs({
 				githubUserId: 12345,

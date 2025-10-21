@@ -1,20 +1,22 @@
 import { z } from "zod";
 
-// User schema
 export const UserSchema = z.object({
 	id: z.string().uuid(),
 	username: z.string(),
 	email: z.string().email(),
-	created_at: z.string(),
-	status: z.string(),
 	organization_ids: z.array(z.string().uuid()),
 	github_com_user_id: z.number().optional(),
 });
 
 export type User = z.infer<typeof UserSchema>;
 
-// Task status schema
-export const TaskStatusSchema = z.object({
+export const UserListSchema = z.object({
+	users: z.array(UserSchema),
+});
+
+export type UserList = z.infer<typeof UserListSchema>;
+
+export const TaskSchema = z.object({
 	id: z.string().uuid(),
 	name: z.string(),
 	owner_id: z.string().uuid(),
@@ -24,9 +26,14 @@ export const TaskStatusSchema = z.object({
 	status: z.string(),
 });
 
-export type TaskStatus = z.infer<typeof TaskStatusSchema>;
+export type Task = z.infer<typeof TaskSchema>;
 
-// Template schema
+export const TaskListSchema = z.object({
+	tasks: z.array(TaskSchema),
+});
+
+export type TaskList = z.infer<typeof TaskListSchema>;
+
 export const TemplateSchema = z.object({
 	id: z.string().uuid(),
 	name: z.string(),
@@ -37,7 +44,6 @@ export const TemplateSchema = z.object({
 
 export type Template = z.infer<typeof TemplateSchema>;
 
-// Action inputs schema
 export const ActionInputsSchema = z.object({
 	coderUrl: z.string().url(),
 	coderToken: z.string().min(1),
@@ -64,7 +70,6 @@ export const ActionInputsSchema = z.object({
 
 export type ActionInputs = z.infer<typeof ActionInputsSchema>;
 
-// Action outputs schema
 export const ActionOutputsSchema = z.object({
 	coderUsername: z.string(),
 	taskName: z.string(),
@@ -74,7 +79,6 @@ export const ActionOutputsSchema = z.object({
 
 export type ActionOutputs = z.infer<typeof ActionOutputsSchema>;
 
-// Create task parameters
 export const CreateTaskParamsSchema = z.object({
 	name: z.string().min(1),
 	owner: z.string().min(1),
