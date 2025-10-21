@@ -620,7 +620,7 @@ func TestOAuth2ProviderTokenRefresh(t *testing.T) {
 				CreatedAt:   dbtime.Now(),
 				ExpiresAt:   expires,
 				HashPrefix:  []byte(token.Prefix),
-				RefreshHash: []byte(token.Hashed),
+				RefreshHash: token.Hashed,
 				AppSecretID: secret.ID,
 				APIKeyID:    newKey.ID,
 				UserID:      user.ID,

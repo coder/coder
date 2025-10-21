@@ -134,21 +134,6 @@ func Generate(params CreateParams) (database.InsertAPIKeyParams, string, error) 
 	}, token, nil
 }
 
-// generateKey a new ID and secret for an API key.
-func generateKey() (id string, secret string, err error) {
-	// Length of an API Key ID.
-	id, err = cryptorand.String(10)
-	if err != nil {
-		return "", "", err
-	}
-	// Length of an API Key secret.
-	secret, err = cryptorand.String(22)
-	if err != nil {
-		return "", "", err
-	}
-	return id, secret, nil
-}
-
 func GenerateSecret(length int) (secret string, hashed []byte, err error) {
 	secret, err = cryptorand.String(length)
 	if err != nil {
