@@ -41,19 +41,13 @@ const OAuth2ProviderPageView: FC<OAuth2ProviderPageViewProps> = ({
 					</TableRow>
 				</TableHeader>
 				<TableBody>
-					<ChooseOne>
-						<Cond condition={isLoading}>
-							<TableLoader />
-						</Cond>
-						<Cond condition={apps === null || apps?.length === 0}>
-							<TableEmpty message="No OAuth2 applications have been authorized" />
-						</Cond>
-						<Cond>
-							{apps?.map((app) => (
-								<OAuth2AppRow key={app.id} app={app} revoke={revoke} />
-							))}
-						</Cond>
-					</ChooseOne>
+					{isLoading && <TableLoader />}
+					{(apps === null || apps?.length === 0) && (
+						<TableEmpty message="No OAuth2 applications have been authorized" />
+					)}
+					{apps?.map((app) => (
+						<OAuth2AppRow key={app.id} app={app} revoke={revoke} />
+					))}
 				</TableBody>
 			</Table>
 		</>
