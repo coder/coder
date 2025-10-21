@@ -268,6 +268,14 @@ func taskFromWorkspace(ws codersdk.Workspace, initialPrompt string) codersdk.Tas
 		}
 	}
 
+	var appID uuid.NullUUID
+	if ws.LatestBuild.AITaskSidebarAppID != nil {
+		appID = uuid.NullUUID{
+			Valid: true,
+			UUID:  *ws.LatestBuild.AITaskSidebarAppID,
+		}
+	}
+
 	return codersdk.Task{
 		ID:                      ws.ID,
 		OrganizationID:          ws.OrganizationID,
@@ -279,9 +287,11 @@ func taskFromWorkspace(ws codersdk.Workspace, initialPrompt string) codersdk.Tas
 		TemplateDisplayName:     ws.TemplateDisplayName,
 		TemplateIcon:            ws.TemplateIcon,
 		WorkspaceID:             uuid.NullUUID{Valid: true, UUID: ws.ID},
+		WorkspaceBuildNumber:    ws.LatestBuild.BuildNumber,
 		WorkspaceAgentID:        taskAgentID,
 		WorkspaceAgentLifecycle: taskAgentLifecycle,
 		WorkspaceAgentHealth:    taskAgentHealth,
+		WorkspaceAppID:          appID,
 		CreatedAt:               ws.CreatedAt,
 		UpdatedAt:               ws.UpdatedAt,
 		InitialPrompt:           initialPrompt,

@@ -1,8 +1,3 @@
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableRow from "@mui/material/TableRow";
 import type { ConnectionLog } from "api/typesGenerated";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
@@ -18,6 +13,7 @@ import {
 } from "components/PaginationWidget/PaginationContainer";
 import { Paywall } from "components/Paywall/Paywall";
 import { Stack } from "components/Stack/Stack";
+import { Table, TableBody, TableCell, TableRow } from "components/Table/Table";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import { Timeline } from "components/Timeline/Timeline";
 import type { ComponentProps, FC } from "react";
@@ -75,61 +71,56 @@ export const ConnectionLogPageView: FC<ConnectionLogPageViewProps> = ({
 						query={paginationResult}
 						paginationUnitLabel="logs"
 					>
-						<TableContainer>
-							<Table>
-								<TableBody>
-									<ChooseOne>
-										{/* Error condition should just show an empty table. */}
-										<Cond condition={Boolean(error)}>
-											<TableRow>
-												<TableCell colSpan={999}>
-													<EmptyState message="An error occurred while loading connection logs" />
-												</TableCell>
-											</TableRow>
-										</Cond>
+						<Table>
+							<TableBody>
+								<ChooseOne>
+									{/* Error condition should just show an empty table. */}
+									<Cond condition={Boolean(error)}>
+										<TableRow>
+											<TableCell colSpan={999}>
+												<EmptyState message="An error occurred while loading connection logs" />
+											</TableCell>
+										</TableRow>
+									</Cond>
 
-										<Cond condition={isLoading}>
-											<TableLoader />
-										</Cond>
+									<Cond condition={isLoading}>
+										<TableLoader />
+									</Cond>
 
-										<Cond condition={isEmpty}>
-											<ChooseOne>
-												<Cond condition={isNonInitialPage}>
-													<TableRow>
-														<TableCell colSpan={999}>
-															<EmptyState message="No connection logs available on this page" />
-														</TableCell>
-													</TableRow>
-												</Cond>
+									<Cond condition={isEmpty}>
+										<ChooseOne>
+											<Cond condition={isNonInitialPage}>
+												<TableRow>
+													<TableCell colSpan={999}>
+														<EmptyState message="No connection logs available on this page" />
+													</TableCell>
+												</TableRow>
+											</Cond>
 
-												<Cond>
-													<TableRow>
-														<TableCell colSpan={999}>
-															<EmptyState message="No connection logs available" />
-														</TableCell>
-													</TableRow>
-												</Cond>
-											</ChooseOne>
-										</Cond>
+											<Cond>
+												<TableRow>
+													<TableCell colSpan={999}>
+														<EmptyState message="No connection logs available" />
+													</TableCell>
+												</TableRow>
+											</Cond>
+										</ChooseOne>
+									</Cond>
 
-										<Cond>
-											{connectionLogs && (
-												<Timeline
-													items={connectionLogs}
-													getDate={(log) => new Date(log.connect_time)}
-													row={(log) => (
-														<ConnectionLogRow
-															key={log.id}
-															connectionLog={log}
-														/>
-													)}
-												/>
-											)}
-										</Cond>
-									</ChooseOne>
-								</TableBody>
-							</Table>
-						</TableContainer>
+									<Cond>
+										{connectionLogs && (
+											<Timeline
+												items={connectionLogs}
+												getDate={(log) => new Date(log.connect_time)}
+												row={(log) => (
+													<ConnectionLogRow key={log.id} connectionLog={log} />
+												)}
+											/>
+										)}
+									</Cond>
+								</ChooseOne>
+							</TableBody>
+						</Table>
 					</PaginationContainer>
 				</Cond>
 

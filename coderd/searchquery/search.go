@@ -355,6 +355,8 @@ func AIBridgeInterceptions(ctx context.Context, db database.Store, query string,
 		AfterID: page.AfterID,
 		// #nosec G115 - Safe conversion for pagination limit which is expected to be within int32 range
 		Limit: int32(page.Limit),
+		// #nosec G115 - Safe conversion for pagination offset which is expected to be within int32 range
+		Offset: int32(page.Offset),
 	}
 
 	if query == "" {
@@ -363,7 +365,7 @@ func AIBridgeInterceptions(ctx context.Context, db database.Store, query string,
 
 	values, errors := searchTerms(query, func(term string, values url.Values) error {
 		// Default to the initiating user
-		values.Add("user", term)
+		values.Add("initiator", term)
 		return nil
 	})
 	if len(errors) > 0 {

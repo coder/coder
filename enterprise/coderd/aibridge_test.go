@@ -196,42 +196,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 			allInterceptionIDs = append(allInterceptionIDs, interception.ID)
 		}
 
-		// Get all interceptions one by one from the API using cursor
-		// pagination.
-		getAllInterceptionsOneByOne := func() []uuid.UUID {
-			interceptionIDs := []uuid.UUID{}
-			for {
-				afterID := uuid.Nil
-				if len(interceptionIDs) > 0 {
-					afterID = interceptionIDs[len(interceptionIDs)-1]
-				}
-				res, err := experimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{
-					Pagination: codersdk.Pagination{
-						AfterID: afterID,
-						Limit:   1,
-					},
-				})
-				require.NoError(t, err)
-				if len(res.Results) == 0 {
-					break
-				}
-				require.Len(t, res.Results, 1)
-				interceptionIDs = append(interceptionIDs, res.Results[0].ID)
-			}
-			return interceptionIDs
-		}
-
-		// First attempt: get all interceptions one by one.
-		gotInterceptionIDs1 := getAllInterceptionsOneByOne()
-		// We should have all of the interceptions returned:
-		require.ElementsMatch(t, allInterceptionIDs, gotInterceptionIDs1)
-
-		// Second attempt: get all interceptions one by one again.
-		gotInterceptionIDs2 := getAllInterceptionsOneByOne()
-		// They should be returned in the exact same order.
-		require.Equal(t, gotInterceptionIDs1, gotInterceptionIDs2)
-
-		// Try to get an invalid limit.
+		// Try to fetch with an invalid limit.
 		res, err := experimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{
 			Pagination: codersdk.Pagination{
 				Limit: 1001,
@@ -241,6 +206,66 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		require.ErrorAs(t, err, &sdkErr)
 		require.Contains(t, sdkErr.Message, "Invalid pagination limit value.")
 		require.Empty(t, res.Results)
+
+		// Try to fetch with both after_id and offset pagination.
+		res, err = experimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{
+			Pagination: codersdk.Pagination{
+				AfterID: allInterceptionIDs[0],
+				Offset:  1,
+			},
+		})
+		require.ErrorAs(t, err, &sdkErr)
+		require.Contains(t, sdkErr.Message, "Query parameters have invalid values")
+		require.Contains(t, sdkErr.Detail, "Cannot use both after_id and offset pagination in the same request.")
+
+		// Iterate over all interceptions using both cursor and offset
+		// pagination modes.
+		for _, paginationMode := range []string{"after_id", "offset"} {
+			t.Run(paginationMode, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t, testutil.WaitLong)
+
+				// Get all interceptions one by one using the given pagination
+				// mode.
+				getAllInterceptionsOneByOne := func() []uuid.UUID {
+					interceptionIDs := []uuid.UUID{}
+					for {
+						pagination := codersdk.Pagination{
+							Limit: 1,
+						}
+						if paginationMode == "after_id" {
+							if len(interceptionIDs) > 0 {
+								pagination.AfterID = interceptionIDs[len(interceptionIDs)-1]
+							}
+						} else {
+							pagination.Offset = len(interceptionIDs)
+						}
+						res, err := experimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{
+							Pagination: pagination,
+						})
+						require.NoError(t, err)
+						if len(res.Results) == 0 {
+							break
+						}
+						require.EqualValues(t, len(allInterceptionIDs), res.Total)
+						require.Len(t, res.Results, 1)
+						interceptionIDs = append(interceptionIDs, res.Results[0].ID)
+					}
+					return interceptionIDs
+				}
+
+				// First attempt: get all interceptions one by one.
+				gotInterceptionIDs1 := getAllInterceptionsOneByOne()
+				// We should have all of the interceptions returned:
+				require.ElementsMatch(t, allInterceptionIDs, gotInterceptionIDs1)
+
+				// Second attempt: get all interceptions one by one again.
+				gotInterceptionIDs2 := getAllInterceptionsOneByOne()
+				// They should be returned in the exact same order.
+				require.Equal(t, gotInterceptionIDs1, gotInterceptionIDs2)
+			})
+		}
 	})
 
 	t.Run("Authorized", func(t *testing.T) {
@@ -276,6 +301,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		// Admin can see all interceptions.
 		res, err := adminExperimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{})
 		require.NoError(t, err)
+		require.EqualValues(t, 2, res.Total)
 		require.Len(t, res.Results, 2)
 		require.Equal(t, i1.ID, res.Results[0].ID)
 		require.Equal(t, i2.ID, res.Results[1].ID)
@@ -283,6 +309,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		// Second user can only see their own interceptions.
 		res, err = secondUserExperimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{})
 		require.NoError(t, err)
+		require.EqualValues(t, 1, res.Total)
 		require.Len(t, res.Results, 1)
 		require.Equal(t, i2.ID, res.Results[0].ID)
 	})
@@ -436,6 +463,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 				ctx := testutil.Context(t, testutil.WaitLong)
 				res, err := experimentalClient.AIBridgeListInterceptions(ctx, tc.filter)
 				require.NoError(t, err)
+				require.EqualValues(t, len(tc.want), res.Total)
 				// We just compare UUID strings for the sake of this test.
 				wantIDs := make([]string, len(tc.want))
 				for i, r := range tc.want {

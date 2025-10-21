@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -47,6 +48,7 @@ type tokenParams struct {
 	refreshToken string
 	codeVerifier string // PKCE verifier
 	resource     string // RFC 8707 resource for token binding
+	scopes       []string
 }
 
 func extractTokenParams(r *http.Request, callbackURL *url.URL) (tokenParams, []codersdk.ValidationError, error) {
@@ -75,6 +77,7 @@ func extractTokenParams(r *http.Request, callbackURL *url.URL) (tokenParams, []c
 		refreshToken: p.String(vals, "", "refresh_token"),
 		codeVerifier: p.String(vals, "", "code_verifier"),
 		resource:     p.String(vals, "", "resource"),
+		scopes:       strings.Fields(strings.TrimSpace(p.String(vals, "", "scope"))),
 	}
 	// Validate resource parameter syntax (RFC 8707): must be absolute URI without fragment
 	if err := validateResourceParameter(params.resource); err != nil {
