@@ -26,7 +26,7 @@ export interface AIBridgeConfig {
 // From codersdk/aibridge.go
 export interface AIBridgeInterception {
 	readonly id: string;
-	readonly initiator: MinimalUser;
+	readonly initiator_id: string;
 	readonly provider: string;
 	readonly model: string;
 	// empty interface{} type, falling back to unknown
@@ -2889,9 +2889,13 @@ export interface NullHCLString {
 export interface OAuth2AppEndpoints {
 	readonly authorization: string;
 	readonly token: string;
+<<<<<<< HEAD
 	/**
 	 * DeviceAuth is optional.
 	 */
+=======
+	readonly token_revoke: string;
+>>>>>>> 31a1f6ff67 (fe test update)
 	readonly device_authorization: string;
 }
 
