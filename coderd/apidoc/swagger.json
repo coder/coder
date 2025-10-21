@@ -840,6 +840,126 @@
 				}
 			}
 		},
+		"/debug/metrics": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"tags": ["Debug"],
+				"summary": "Debug metrics",
+				"operationId": "debug-metrics",
+				"responses": {
+					"200": {
+						"description": "OK"
+					}
+				},
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
+		"/debug/pprof": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"tags": ["Debug"],
+				"summary": "Debug pprof index",
+				"operationId": "debug-pprof-index",
+				"responses": {
+					"200": {
+						"description": "OK"
+					}
+				},
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
+		"/debug/pprof/cmdline": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"tags": ["Debug"],
+				"summary": "Debug pprof cmdline",
+				"operationId": "debug-pprof-cmdline",
+				"responses": {
+					"200": {
+						"description": "OK"
+					}
+				},
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
+		"/debug/pprof/profile": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"tags": ["Debug"],
+				"summary": "Debug pprof profile",
+				"operationId": "debug-pprof-profile",
+				"responses": {
+					"200": {
+						"description": "OK"
+					}
+				},
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
+		"/debug/pprof/symbol": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"tags": ["Debug"],
+				"summary": "Debug pprof symbol",
+				"operationId": "debug-pprof-symbol",
+				"responses": {
+					"200": {
+						"description": "OK"
+					}
+				},
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
+		"/debug/pprof/trace": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"tags": ["Debug"],
+				"summary": "Debug pprof trace",
+				"operationId": "debug-pprof-trace",
+				"responses": {
+					"200": {
+						"description": "OK"
+					}
+				},
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
 		"/debug/tailnet": {
 			"get": {
 				"security": [
