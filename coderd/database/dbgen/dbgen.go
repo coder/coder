@@ -3,7 +3,6 @@ package dbgen
 import (
 	"context"
 	"crypto/rand"
-	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
@@ -162,8 +161,8 @@ func Template(t testing.TB, db database.Store, seed database.Template) database.
 
 func APIKey(t testing.TB, db database.Store, seed database.APIKey, munge ...func(*database.InsertAPIKeyParams)) (key database.APIKey, token string) {
 	id, _ := cryptorand.String(10)
-	secret, _ := cryptorand.String(22)
-	hashed := sha256.Sum256([]byte(secret))
+	secret, hashed, err := apikey.GenerateSecret(22)
+	require.NoError(t, err)
 
 	ip := seed.IPAddress
 	if !ip.Valid {
@@ -180,7 +179,7 @@ func APIKey(t testing.TB, db database.Store, seed database.APIKey, munge ...func
 		ID: takeFirst(seed.ID, id),
 		// 0 defaults to 86400 at the db layer
 		LifetimeSeconds: takeFirst(seed.LifetimeSeconds, 0),
-		HashedSecret:    takeFirstSlice(seed.HashedSecret, hashed[:]),
+		HashedSecret:    takeFirstSlice(seed.HashedSecret, hashed),
 		IPAddress:       ip,
 		UserID:          takeFirst(seed.UserID, uuid.New()),
 		LastUsed:        takeFirst(seed.LastUsed, dbtime.Now()),
@@ -195,7 +194,7 @@ func APIKey(t testing.TB, db database.Store, seed database.APIKey, munge ...func
 	for _, fn := range munge {
 		fn(&params)
 	}
-	key, err := db.InsertAPIKey(genCtx, params)
+	key, err = db.InsertAPIKey(genCtx, params)
 	require.NoError(t, err, "insert api key")
 	return key, fmt.Sprintf("%s-%s", key.ID, secret)
 }
