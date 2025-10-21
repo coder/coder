@@ -29,6 +29,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"testing"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
@@ -2143,7 +2144,7 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 	// If the port is not defined, an available port will be found dynamically.
 	maxAttempts := 1
 	_, err = cfg.PostgresPort().Read()
-	retryPortDiscovery := errors.Is(err, os.ErrNotExist) && os.Getenv("CI") == "true"
+	retryPortDiscovery := errors.Is(err, os.ErrNotExist) && testing.Testing()
 	if retryPortDiscovery {
 		// There is no way to tell Postgres to use an ephemeral port, so in order to avoid
 		// flaky tests in CI we need to retry EmbeddedPostgres.Start in case of a race
