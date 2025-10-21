@@ -21,12 +21,14 @@ func newAIBridgeDaemon(coderAPI *coderd.API) (*aibridged.Server, error) {
 	// Setup supported providers.
 	providers := []aibridge.Provider{
 		aibridge.NewOpenAIProvider(aibridge.ProviderConfig{
-			BaseURL: coderAPI.DeploymentValues.AI.BridgeConfig.OpenAI.BaseURL.String(),
-			Key:     coderAPI.DeploymentValues.AI.BridgeConfig.OpenAI.Key.String(),
+			BaseURL:               coderAPI.DeploymentValues.AI.BridgeConfig.OpenAI.BaseURL.String(),
+			Key:                   coderAPI.DeploymentValues.AI.BridgeConfig.OpenAI.Key.String(),
+			EnableUpstreamLogging: true,
 		}),
 		aibridge.NewAnthropicProvider(aibridge.ProviderConfig{
-			BaseURL: coderAPI.DeploymentValues.AI.BridgeConfig.Anthropic.BaseURL.String(),
-			Key:     coderAPI.DeploymentValues.AI.BridgeConfig.Anthropic.Key.String(),
+			BaseURL:               coderAPI.DeploymentValues.AI.BridgeConfig.Anthropic.BaseURL.String(),
+			Key:                   coderAPI.DeploymentValues.AI.BridgeConfig.Anthropic.Key.String(),
+			EnableUpstreamLogging: true,
 		}),
 	}
 

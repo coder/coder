@@ -555,3 +555,5 @@ require (
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	k8s.io/utils v0.0.0-20241210054802-24370beab758 // indirect
 )
+
+replace github.com/coder/aibridge v0.1.3 => /home/coder/aibridge
