@@ -31,7 +31,7 @@ describe("CoderClient", () => {
 				mockUser.github_com_user_id,
 			);
 			expect(mockFetch).toHaveBeenCalledWith(
-				`https://coder.test/api/v2/users?q=github_com_user_id%3A${mockUser.github_com_user_id}`,
+				`https://coder.test/api/v2/users?q=github_com_user_id%3A${mockUser.github_com_user_id!.toString()}`,
 				expect.objectContaining({
 					headers: expect.objectContaining({
 						"Coder-Session-Token": "test-token",
@@ -49,7 +49,7 @@ describe("CoderClient", () => {
 				client.getCoderUserByGitHubId(mockUser.github_com_user_id!),
 			).rejects.toThrow(CoderAPIError);
 			expect(mockFetch).toHaveBeenCalledWith(
-				`https://coder.test/api/v2/users?q=github_com_user_id%3A${mockUser.github_com_user_id}`,
+				`https://coder.test/api/v2/users?q=github_com_user_id%3A${mockUser.github_com_user_id!.toString()}`,
 				expect.objectContaining({
 					headers: expect.objectContaining({
 						"Coder-Session-Token": "test-token",
