@@ -3,26 +3,18 @@ import { z } from "zod";
 export type ActionInputs = z.infer<typeof ActionInputsSchema>;
 
 export const ActionInputsSchema = z.object({
-	coderUrl: z.string().url(),
+	// Required
+	coderTaskPrompt: z.string().min(1),
 	coderToken: z.string().min(1),
-	templateName: z.string().min(1),
-	taskPrompt: z.string().min(1),
-	githubUserId: z.number().optional(),
-	githubUsername: z.string().optional(),
-	templatePreset: z.string(),
-	taskNamePrefix: z.string(),
-	taskName: z.string().optional(),
-	organization: z.string(),
-	issueUrl: z.string().url(),
-	commentOnIssue: z
-		.union([z.boolean(), z.string()])
-		.transform((val) => {
-			if (typeof val === "boolean") return val;
-			if (val === "false" || val === "0" || val === "") return false;
-			return true;
-		})
-		.default(true),
+	coderURL: z.string().url(),
+	coderOrganization: z.string().min(1),
+	coderTaskNamePrefix: z.string().min(1),
+	coderTemplateName: z.string().min(1),
+	githubIssueURL: z.string().url(),
 	githubToken: z.string(),
+	githubUserID: z.number().min(1),
+	// Optional
+	coderTemplatePreset: z.string().optional(),
 });
 
 export const ActionOutputsSchema = z.object({
