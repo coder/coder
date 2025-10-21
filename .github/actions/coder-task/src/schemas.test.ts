@@ -104,7 +104,7 @@ describe("ActionInputsSchema", () => {
 				templateName: "test-template",
 				taskPrompt: "test prompt",
 				githubToken: "github-token",
-				commentOnIssue: "false" as any,
+				commentOnIssue: "false" as unknown,
 			};
 
 			const result = ActionInputsSchema.parse(input);

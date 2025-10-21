@@ -1,16 +1,10 @@
-import { z } from "zod";
+import type { User, Task, Template, CreateTaskParams } from "./schemas";
 import {
-	User,
 	UserSchema,
-	UserList,
 	UserListSchema,
-	Task,
 	TaskSchema,
-	TaskList,
 	TaskListSchema,
-	Template,
 	TemplateSchema,
-	CreateTaskParams,
 } from "./schemas";
 
 export class CoderAPIError extends Error {

@@ -21,13 +21,15 @@ describe("CoderClient", () => {
 		const mockInputs = createMockInputs();
 		client = new CoderClient(mockInputs.coderUrl, mockInputs.coderToken);
 		mockFetch = mock(() => Promise.resolve(createMockResponse([])));
-		global.fetch = mockFetch as any;
+		global.fetch = mockFetch as typeof fetch;
 	});
 
 	describe("getCoderUserByGitHubId", () => {
 		test("returns the user when found", async () => {
 			mockFetch.mockResolvedValue(createMockResponse(mockUserList));
-			const result = await client.getCoderUserByGitHubId(mockUser.github_com_user_id);
+			const result = await client.getCoderUserByGitHubId(
+				mockUser.github_com_user_id,
+			);
 			expect(mockFetch).toHaveBeenCalledWith(
 				`https://coder.test/api/v2/users?q=github_com_user_id%3A${mockUser.github_com_user_id}`,
 				expect.objectContaining({
@@ -42,11 +44,10 @@ describe("CoderClient", () => {
 		});
 
 		test("throws an error if multiple Coder users are found with the same GitHub ID", async () => {
-			const secondUser = { ...mockUser, id: "different-id" };
 			mockFetch.mockResolvedValue(createMockResponse(mockUserListDuplicate));
-			expect(client.getCoderUserByGitHubId(mockUser.github_com_user_id)).rejects.toThrow(
-				CoderAPIError,
-			);
+			expect(
+				client.getCoderUserByGitHubId(mockUser.github_com_user_id),
+			).rejects.toThrow(CoderAPIError);
 			expect(mockFetch).toHaveBeenCalledWith(
 				`https://coder.test/api/v2/users?q=github_com_user_id%3A${mockUser.github_com_user_id}`,
 				expect.objectContaining({
@@ -59,9 +60,9 @@ describe("CoderClient", () => {
 
 		test("throws an error if no Coder user is found with the given GitHub ID", async () => {
 			mockFetch.mockResolvedValue(createMockResponse(mockUserListEmpty));
-			expect(client.getCoderUserByGitHubId(mockUser.github_com_user_id)).rejects.toThrow(
-				CoderAPIError,
-			);
+			expect(
+				client.getCoderUserByGitHubId(mockUser.github_com_user_id),
+			).rejects.toThrow(CoderAPIError);
 			expect(mockFetch).toHaveBeenCalledWith(
 				`https://coder.test/api/v2/users?q=github_com_user_id%3A${mockUser.github_com_user_id}`,
 				expect.objectContaining({
@@ -79,9 +80,9 @@ describe("CoderClient", () => {
 					{ ok: false, status: 401, statusText: "Unauthorized" },
 				),
 			);
-			expect(client.getCoderUserByGitHubId(mockUser.github_com_user_id)).rejects.toThrow(
-				CoderAPIError,
-			);
+			expect(
+				client.getCoderUserByGitHubId(mockUser.github_com_user_id),
+			).rejects.toThrow(CoderAPIError);
 		});
 
 		test("throws error on 500 server error", async () => {
@@ -91,9 +92,9 @@ describe("CoderClient", () => {
 					{ ok: false, status: 500, statusText: "Internal Server Error" },
 				),
 			);
-			expect(client.getCoderUserByGitHubId(mockUser.github_com_user_id)).rejects.toThrow(
-				CoderAPIError,
-			);
+			expect(
+				client.getCoderUserByGitHubId(mockUser.github_com_user_id),
+			).rejects.toThrow(CoderAPIError);
 		});
 
 		test("throws an error when GitHub user ID is 0", async () => {
@@ -134,7 +135,10 @@ describe("CoderClient", () => {
 			);
 			const mockInputs = createMockInputs();
 			expect(
-				client.getTemplateByOrganizationAndName(mockInputs.organization, "nonexistent"),
+				client.getTemplateByOrganizationAndName(
+					mockInputs.organization,
+					"nonexistent",
+				),
 			).rejects.toThrow(CoderAPIError);
 		});
 	});

@@ -13,7 +13,7 @@ async function main() {
 			templateName: core.getInput("template-name", { required: true }),
 			taskPrompt: core.getInput("task-prompt", { required: true }),
 			githubUserId: core.getInput("github-user-id")
-				? parseInt(core.getInput("github-user-id"), 10)
+				? Number.parseInt(core.getInput("github-user-id"), 10)
 				: undefined,
 			githubUsername: core.getInput("github-username") || undefined,
 			templatePreset: core.getInput("template-preset") || "Default",

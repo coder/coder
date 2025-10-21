@@ -1,12 +1,13 @@
 import { mock } from "bun:test";
 import { CoderClient } from "./coder-client";
-import {
+import type {
 	ActionInputs,
 	User,
 	UserList,
 	Template,
 	Task,
 	TaskList,
+	CreateTaskParams,
 } from "./schemas";
 
 /**
@@ -119,7 +120,7 @@ export class MockCoderClient extends CoderClient {
 		return this.mockGetTaskStatus(username, taskName);
 	}
 
-	async createTask(params: any): Promise<Task> {
+	async createTask(params: CreateTaskParams): Promise<Task> {
 		return this.mockCreateTask(params);
 	}
 
@@ -161,7 +162,7 @@ export function createMockFetch() {
  * Create mock fetch response
  */
 export function createMockResponse(
-	body: any,
+	body: unknown,
 	options: { ok?: boolean; status?: number; statusText?: string } = {},
 ) {
 	return {

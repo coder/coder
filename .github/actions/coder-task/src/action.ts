@@ -1,7 +1,7 @@
 import * as core from "@actions/core";
-import { getOctokit } from "@actions/github";
-import { CoderClient } from "./coder-client";
-import { ActionInputs, ActionOutputs } from "./schemas";
+import type { getOctokit } from "@actions/github";
+import type { CoderClient } from "./coder-client";
+import type { ActionInputs, ActionOutputs } from "./schemas";
 
 type Octokit = ReturnType<typeof getOctokit>;
 
@@ -53,8 +53,8 @@ export class CoderTaskAction {
 		try {
 			// Parse issue URL: https://github.com/owner/repo/issues/123
 			const urlParts = this.inputs.issueUrl.split("/");
-			const issueNumber = parseInt(urlParts[urlParts.length - 1], 10);
-			if (!isNaN(issueNumber)) {
+			const issueNumber = Number.parseInt(urlParts[urlParts.length - 1], 10);
+			if (!Number.isNaN(issueNumber)) {
 				return issueNumber;
 			}
 		} catch (error) {
@@ -86,7 +86,9 @@ export class CoderTaskAction {
 			// Find the last comment that starts with "Task created:"
 			const existingComment = comments
 				.reverse()
-				.find((comment: any) => comment.body?.startsWith("Task created:"));
+				.find((comment: { body?: string }) =>
+					comment.body?.startsWith("Task created:"),
+				);
 
 			if (existingComment) {
 				// Update existing comment
@@ -136,7 +138,7 @@ export class CoderTaskAction {
 				return {
 					owner: pathParts[0],
 					repo: pathParts[1],
-					issueNumber: parseInt(pathParts[3], 10),
+					issueNumber: Number.parseInt(pathParts[3], 10),
 				};
 			}
 		} catch (error) {
