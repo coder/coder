@@ -78,13 +78,7 @@ const IconsPage: FC = () => {
 						<Tooltip
 							placement="bottom-end"
 							title={
-								<p
-									css={{
-										padding: 8,
-										fontSize: 13,
-										lineHeight: 1.5,
-									}}
-								>
+								<p className="p-2 leading-6 text-sm">
 									You can suggest a new icon by submitting a Pull Request to our
 									public GitHub repository. Just keep in mind that it should be
 									relevant to many Coder users, and redistributable under a
@@ -123,12 +117,7 @@ const IconsPage: FC = () => {
 						},
 						startAdornment: (
 							<InputAdornment position="start">
-								<SearchIcon
-									className="size-icon-xs"
-									css={{
-										color: theme.palette.text.secondary,
-									}}
-								/>
+								<SearchIcon className="size-icon-xs text-content-secondary" />
 							</InputAdornment>
 						),
 						endAdornment: searchInputText && (
@@ -146,19 +135,13 @@ const IconsPage: FC = () => {
 					}}
 				/>
 
-				<div
-					css={{ marginTop: 32 }}
-					className="flex flex-row gap-2 justify-center flex-wrap max-w-full"
-				>
+				<div className="flex flex-row gap-2 justify-center flex-wrap max-w-full mt-8">
 					{searchedIcons.length === 0 && (
 						<EmptyState message="No results matched your search" />
 					)}
 					{searchedIcons.map((icon) => (
 						<CopyableValue key={icon.url} value={icon.url}>
-							<div
-								css={{ margin: 12 }}
-								className="flex flex-col gap-4 items-center max-w-full"
-							>
+							<div className="flex flex-col gap-4 items-center max-w-full m-3">
 								<img
 									alt={icon.url}
 									src={icon.url}
