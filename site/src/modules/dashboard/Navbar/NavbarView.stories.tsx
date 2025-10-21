@@ -33,6 +33,7 @@ const meta: Meta<typeof NavbarView> = {
 		canViewDeployment: true,
 		canViewHealth: true,
 		canViewOrganizations: true,
+		supportLinks: [],
 	},
 	decorators: [withDashboardProvider],
 };
