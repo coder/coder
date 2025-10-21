@@ -4,9 +4,6 @@ Agent Boundaries are process-level firewalls that restrict and audit what autono
 
 ![Screenshot of Agent Boundaries blocking a process](../images/guides/ai-agents/boundary.png)Example of Agent Boundaries blocking a process.
 
-> [!NOTE]
-> The Coder Boundary CLI is free and open source. Integrations with the core product are available to Coder Premium customers.
-
 ## Supported Agents
 
 Agent Boundaries support the securing of any terminal-based agent, including your own custom agents.
@@ -21,7 +18,7 @@ The easiest way to use Agent Boundaries is through existing Coder modules, such 
 
 Below is an example of how to configure Agent Boundaries for usage in your workspace.
 
-```
+```tf
 module "claude-code" {
   source              = "dev.registry.coder.com/coder/claude-code/coder"
   enable_boundary     = true
@@ -31,7 +28,6 @@ module "claude-code" {
   boundary_additional_allowed_urls = ["GET *google.com"]
   boundary_proxy_port = "8087"
   version             = "3.2.1"
-  ...
 }
 ```
 
