@@ -371,15 +371,6 @@ func _debugPprofSymbol(http.ResponseWriter, *http.Request) {} //nolint:unused
 // @x-apidocgen {"skip": true}
 func _debugPprofTrace(http.ResponseWriter, *http.Request) {} //nolint:unused
 
-// @Summary Debug pprof wildcard
-// @ID debug-pprof-wildcard
-// @Security CoderSessionToken
-// @Success 200
-// @Tags Debug
-// @Router /debug/pprof/* [get]
-// @x-apidocgen {"skip": true}
-func _debugPprofWildcard(http.ResponseWriter, *http.Request) {} //nolint:unused
-
 // @Summary Debug metrics
 // @ID debug-metrics
 // @Security CoderSessionToken
