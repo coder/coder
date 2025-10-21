@@ -207,6 +207,17 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		require.Contains(t, sdkErr.Message, "Invalid pagination limit value.")
 		require.Empty(t, res.Results)
 
+		// Try to fetch with both after_id and offset pagination.
+		res, err = experimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{
+			Pagination: codersdk.Pagination{
+				AfterID: allInterceptionIDs[0],
+				Offset:  1,
+			},
+		})
+		require.ErrorAs(t, err, &sdkErr)
+		require.Contains(t, sdkErr.Message, "Query parameters have invalid values")
+		require.Contains(t, sdkErr.Detail, "Cannot use both after_id and offset pagination in the same request.")
+
 		// Iterate over all interceptions using both cursor and offset
 		// pagination modes.
 		for _, paginationMode := range []string{"after_id", "offset"} {
