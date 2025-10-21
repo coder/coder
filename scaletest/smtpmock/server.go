@@ -235,9 +235,7 @@ func parseEmailSummary(message string) (EmailSummary, error) {
 
 	// Extract notification ID from decoded email content
 	// Notification ID is present in the email footer like this
-	// <p><a href=3D"http://127.0.0.1:3000/settings/notifications?disabled=3D
-	// =3D4e19c0ac-94e1-4532-9515-d1801aa283b2" style=3D"color: #2563eb; text-deco=
-	// ration: none;">Stop receiving emails like this</a></p>
+	// <p><a href="http://127.0.0.1:3000/settings/notifications?disabled=4e19c0ac-94e1-4532-9515-d1801aa283b2" style="color: #2563eb; text-decoration: none;">Stop receiving emails like this</a></p>
 	if matches := notificationTemplateIDRegex.FindStringSubmatch(contentStr); len(matches) > 1 {
 		summary.NotificationTemplateID, err = uuid.Parse(matches[1])
 		if err != nil {
