@@ -146,7 +146,7 @@ func GenerateSecret(length int) (secret string, hashed []byte, err error) {
 // ValidateHash compares a secret against an expected hashed secret.
 func ValidateHash(hashedSecret []byte, secret string) bool {
 	hash := HashSecret(secret)
-	return subtle.ConstantTimeCompare(hashedSecret, hash[:]) == 1
+	return subtle.ConstantTimeCompare(hashedSecret, hash) == 1
 }
 
 // HashSecret is the single function used to hash API key secrets.

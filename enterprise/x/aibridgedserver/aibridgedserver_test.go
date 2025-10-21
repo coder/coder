@@ -143,7 +143,7 @@ func TestAuthorization(t *testing.T) {
 			apiKey := database.APIKey{
 				ID:              keyID,
 				LifetimeSeconds: 86400, // default in db
-				HashedSecret:    keySecretHashed[:],
+				HashedSecret:    keySecretHashed,
 				IPAddress: pqtype.Inet{
 					IPNet: net.IPNet{
 						IP:   net.IPv4(127, 0, 0, 1),

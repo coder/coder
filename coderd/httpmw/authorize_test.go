@@ -165,7 +165,7 @@ func addUser(t *testing.T, db database.Store, roles ...string) (database.User, s
 	_, err = db.InsertAPIKey(context.Background(), database.InsertAPIKeyParams{
 		ID:           id,
 		UserID:       user.ID,
-		HashedSecret: hashed[:],
+		HashedSecret: hashed,
 		LastUsed:     dbtime.Now(),
 		ExpiresAt:    dbtime.Now().Add(time.Minute),
 		LoginType:    database.LoginTypePassword,

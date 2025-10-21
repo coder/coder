@@ -939,7 +939,7 @@ func generateWorkspaceProxyToken(id uuid.UUID) (token string, hashed []byte, err
 	}
 
 	fullToken := fmt.Sprintf("%s:%s", id, secret)
-	return fullToken, hashedSecret[:], nil
+	return fullToken, hashedSecret, nil
 }
 
 func convertProxies(p []database.WorkspaceProxy, statuses map[uuid.UUID]proxyhealth.ProxyStatus) []codersdk.WorkspaceProxy {
