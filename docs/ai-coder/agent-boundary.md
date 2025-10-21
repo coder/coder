@@ -32,7 +32,7 @@ module "claude-code" {
 ```
 
 - `boundary_version` defines what version of Boundary is being applied. This is set to `main`, which points to the main branch of `coder/boundary`.
-- `boundary_log_dir` is the location of the file where requests are logged when the workspace spins up.
+- `boundary_log_dir` is the directory where log files are written to when the workspace spins up.
 - `boundary_log_level` defines the verbosity at which requests are logged. Boundary uses the following verbosity levels:
   - `WARN`: logs only requests that have been blocked by Boundary
   - `INFO`: logs all requests at a high level
@@ -41,6 +41,7 @@ module "claude-code" {
   - `github.com` means only the specific domain is allowed
   - `*.github.com` means only the subdomains are allowed - the specific domain is excluded
   - `*github.com` means both the specific domain and all subdomains are allowed
+  - You can also also filter on methods, hostnames, and paths - for example, `GET,HEAD *github.com/coder`.
 
 You can also run Agent Boundaries directly in your workspace and configure it per template. You can do so by installing the [binary](https://github.com/coder/boundary) into the workspace image or at start-up. You can do so with the following command:
 
