@@ -493,7 +493,7 @@ func New(options *Options) *API {
 	// We add this middleware early, to make sure that authorization checks made
 	// by other middleware get recorded.
 	if buildinfo.IsDev() {
-		r.Use(httpmw.RecordAuthzChecks)
+		r.Use(httpmw.RecordAuthzChecks(options.DeploymentValues.EnableAuthzRecording.Value()))
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
