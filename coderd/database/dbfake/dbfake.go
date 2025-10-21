@@ -55,12 +55,8 @@ type WorkspaceBuildBuilder struct {
 	resources  []*sdkproto.Resource
 	params     []database.WorkspaceBuildParameter
 	agentToken string
-	dispo      workspaceBuildDisposition
+	jobStatus  database.ProvisionerJobStatus
 	taskAppID  uuid.UUID
-}
-
-type workspaceBuildDisposition struct {
-	starting bool
 }
 
 // WorkspaceBuild generates a workspace build for the provided workspace.
@@ -141,8 +137,17 @@ func (b WorkspaceBuildBuilder) WithTask(seed *sdkproto.App) WorkspaceBuildBuilde
 }
 
 func (b WorkspaceBuildBuilder) Starting() WorkspaceBuildBuilder {
-	//nolint: revive // returns modified struct
-	b.dispo.starting = true
+	b.jobStatus = database.ProvisionerJobStatusRunning
+	return b
+}
+
+func (b WorkspaceBuildBuilder) Pending() WorkspaceBuildBuilder {
+	b.jobStatus = database.ProvisionerJobStatusPending
+	return b
+}
+
+func (b WorkspaceBuildBuilder) Canceled() WorkspaceBuildBuilder {
+	b.jobStatus = database.ProvisionerJobStatusCanceled
 	return b
 }
 
@@ -227,7 +232,11 @@ func (b WorkspaceBuildBuilder) Do() WorkspaceResponse {
 	require.NoError(b.t, err, "insert job")
 	b.logger.Debug(context.Background(), "inserted provisioner job", slog.F("job_id", job.ID))
 
-	if b.dispo.starting {
+	switch b.jobStatus {
+	case database.ProvisionerJobStatusPending:
+		// Created provisioner jobs are created in pending status
+		b.logger.Debug(context.Background(), "pending the provisioner job")
+	case database.ProvisionerJobStatusRunning:
 		// might need to do this multiple times if we got a template version
 		// import job as well
 		b.logger.Debug(context.Background(), "looping to acquire provisioner job")
@@ -251,7 +260,22 @@ func (b WorkspaceBuildBuilder) Do() WorkspaceResponse {
 				break
 			}
 		}
-	} else {
+	case database.ProvisionerJobStatusCanceled:
+		b.logger.Debug(context.Background(), "canceling the provisioner job")
+		err = b.db.UpdateProvisionerJobWithCancelByID(ownerCtx, database.UpdateProvisionerJobWithCancelByIDParams{
+			ID: jobID,
+			CanceledAt: sql.NullTime{
+				Time:  dbtime.Now(),
+				Valid: true,
+			},
+			CompletedAt: sql.NullTime{
+				Time:  dbtime.Now(),
+				Valid: true,
+			},
+		})
+		require.NoError(b.t, err, "cancel job")
+	default:
+		// By default, consider jobs in 'succeeded' status
 		b.logger.Debug(context.Background(), "completing the provisioner job")
 		err = b.db.UpdateProvisionerJobWithCompleteByID(ownerCtx, database.UpdateProvisionerJobWithCompleteByIDParams{
 			ID:        job.ID,
@@ -543,6 +567,12 @@ func (t TemplateVersionBuilder) Do() TemplateVersionResponse {
 		t.params[i] = dbgen.TemplateVersionParameter(t.t, t.db, param)
 	}
 
+	// Update response with template and version
+	if resp.Template.ID == uuid.Nil && version.TemplateID.Valid {
+		template, err := t.db.GetTemplateByID(ownerCtx, version.TemplateID.UUID)
+		require.NoError(t.t, err)
+		resp.Template = template
+	}
 	resp.TemplateVersion = version
 	return resp
 }
