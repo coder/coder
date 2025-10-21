@@ -58,19 +58,6 @@ func RevokeToken(db database.Store, logger slog.Logger) http.HandlerFunc {
 			return
 		}
 
-		// Extract client_id parameter - required for ownership verification
-		clientID := r.Form.Get("client_id")
-		if clientID == "" {
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, "invalid_request", "Missing client_id parameter")
-			return
-		}
-
-		// Verify the extracted app matches the client_id parameter
-		if app.ID.String() != clientID {
-			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, "invalid_client", "Invalid client_id")
-			return
-		}
-
 		// Determine if this is a refresh token (starts with "coder_") or API key
 		// APIKeys do not have the SecretIdentifier prefix.
 		const coderPrefix = SecretIdentifier + "_"
