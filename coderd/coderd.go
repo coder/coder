@@ -1514,7 +1514,8 @@ func New(options *Options) *API {
 		r.Route("/debug", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
-				// Ensure only owners can access debug endpoints.
+				// Ensure only users with the debug_info:read (e.g. only owners)
+				// can view debug endpoints.
 				func(next http.Handler) http.Handler {
 					return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 						if !api.Authorize(r, policy.ActionRead, rbac.ResourceDebugInfo) {
@@ -1574,7 +1575,8 @@ func New(options *Options) *API {
 				r.Get("/symbol", httppprof.Symbol)
 				r.Get("/trace", httppprof.Trace)
 
-				// Index will handle any custom runtime/pprof handlers as well.
+				// Index will handle any standard and custom runtime/pprof
+				// profiles.
 				r.Get("/*", httppprof.Index)
 			})
 
