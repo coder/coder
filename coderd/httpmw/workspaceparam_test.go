@@ -30,9 +30,7 @@ func TestWorkspaceParam(t *testing.T) {
 	t.Parallel()
 
 	setup := func(db database.Store) (*http.Request, database.User) {
-		var (
-			id, secret, hashed = randomAPIKeyParts()
-		)
+		id, secret, hashed := randomAPIKeyParts()
 		r := httptest.NewRequest("GET", "/", nil)
 		r.Header.Set(codersdk.SessionTokenHeader, fmt.Sprintf("%s-%s", id, secret))
 

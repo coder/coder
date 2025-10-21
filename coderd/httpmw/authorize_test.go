@@ -141,9 +141,7 @@ func TestExtractUserRoles(t *testing.T) {
 }
 
 func addUser(t *testing.T, db database.Store, roles ...string) (database.User, string) {
-	var (
-		id, secret, hashed = randomAPIKeyParts()
-	)
+	id, secret, hashed := randomAPIKeyParts()
 	if roles == nil {
 		roles = []string{}
 	}
