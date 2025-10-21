@@ -72,16 +72,15 @@ export const NavbarView: FC<NavbarViewProps> = ({
 			<NavItems className="ml-4" user={user} />
 
 			<div className="flex items-center gap-3 ml-auto">
-				<div className="hidden md:block">
-					{supportLinks.filter(isNavbarLink).map((link) => (
+				{supportLinks.filter(isNavbarLink).map((link) => (
+					<div key={link.name} className="hidden md:block">
 						<SupportButton
-							key={link.name}
 							name={link.name}
 							target={link.target}
 							icon={link.icon}
 						/>
-					))}
-				</div>
+					</div>
+				))}
 
 				{proxyContextValue && (
 					<div className="hidden md:block">

@@ -148,7 +148,7 @@ export const SupportLinks: Story = {
 				name: "This is a star",
 				icon: "star",
 				target: "#",
-				location: "dropdown",
+				location: "navbar",
 			},
 			{
 				name: "This is a chat",
