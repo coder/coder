@@ -2,7 +2,6 @@ package aibridgedserver_test
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -21,6 +20,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -138,9 +138,8 @@ func TestAuthorization(t *testing.T) {
 			}
 
 			keyID, _ := cryptorand.String(10)
-			keySecret, _ := cryptorand.String(22)
+			keySecret, keySecretHashed, _ := apikey.GenerateSecret(22)
 			token := fmt.Sprintf("%s-%s", keyID, keySecret)
-			keySecretHashed := sha256.Sum256([]byte(keySecret))
 			apiKey := database.APIKey{
 				ID:              keyID,
 				LifetimeSeconds: 86400, // default in db

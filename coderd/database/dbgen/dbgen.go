@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -980,9 +981,8 @@ func WorkspaceResourceMetadatums(t testing.TB, db database.Store, seed database.
 }
 
 func WorkspaceProxy(t testing.TB, db database.Store, orig database.WorkspaceProxy) (database.WorkspaceProxy, string) {
-	secret, err := cryptorand.HexString(64)
+	secret, hashedSecret, err := apikey.GenerateSecret(64)
 	require.NoError(t, err, "generate secret")
-	hashedSecret := sha256.Sum256([]byte(secret))
 
 	proxy, err := db.InsertWorkspaceProxy(genCtx, database.InsertWorkspaceProxyParams{
 		ID:                takeFirst(orig.ID, uuid.New()),

@@ -2,7 +2,6 @@ package httpmw_test
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -32,8 +31,7 @@ func TestWorkspaceParam(t *testing.T) {
 
 	setup := func(db database.Store) (*http.Request, database.User) {
 		var (
-			id, secret = randomAPIKeyParts()
-			hashed     = sha256.Sum256([]byte(secret))
+			id, secret, hashed = randomAPIKeyParts()
 		)
 		r := httptest.NewRequest("GET", "/", nil)
 		r.Header.Set(codersdk.SessionTokenHeader, fmt.Sprintf("%s-%s", id, secret))

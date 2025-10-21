@@ -2,7 +2,6 @@ package httpmw_test
 
 import (
 	"context"
-	"crypto/sha256"
 	"fmt"
 	"net"
 	"net/http"
@@ -143,8 +142,7 @@ func TestExtractUserRoles(t *testing.T) {
 
 func addUser(t *testing.T, db database.Store, roles ...string) (database.User, string) {
 	var (
-		id, secret = randomAPIKeyParts()
-		hashed     = sha256.Sum256([]byte(secret))
+		id, secret, hashed = randomAPIKeyParts()
 	)
 	if roles == nil {
 		roles = []string{}
