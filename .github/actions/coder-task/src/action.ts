@@ -13,7 +13,7 @@ export class CoderTaskAction {
 	) {}
 
 	/**
-	 * Resolve GitHub user ID from inputs or context
+	 * resolveGithubUserId returns either the provided GitHub user ID or resolves it from the GitHub username.
 	 */
 	async resolveGitHubUserId(): Promise<number> {
 		if (this.inputs.githubUserId) {
@@ -31,15 +31,35 @@ export class CoderTaskAction {
 	}
 
 	/**
-	 * Generate task name based on inputs
+	 * generateTaskName generates a task name based on inputs:
+	 * - If taskName is provided, it is returned as is.
+	 * - If taskName is not provided, a default name is generated based on inputs taskNamePrefix and issueURL.
 	 */
-	generateTaskName(issueNumber?: number): string {
+	generateTaskName(): string {
 		if (this.inputs.taskName) {
 			return this.inputs.taskName;
 		}
+		if (!this.inputs.taskNamePrefix || !this.inputs.issueUrl) {
+			throw new Error(
+				"either taskName or both taskNamePrefix and issueURL must be provided",
+			);
+		}
 
-		const contextKey = issueNumber ? `gh-${issueNumber}` : `run-${Date.now()}`;
-		return `${this.inputs.taskNamePrefix}-${contextKey}`;
+		// Extract the issue number from the issue URL.
+		try {
+			// Parse issue URL: https://github.com/owner/repo/issues/123
+			const urlParts = this.inputs.issueUrl.split("/");
+			const maybeNumber = urlParts[urlParts.length - 1];
+			const n = Number.parseInt(maybeNumber, 10);
+			if (!Number.isNaN(n)) {
+				return `${this.inputs.taskNamePrefix}-gh-${n}`;
+			}
+			throw new Error(
+				`Failed to parse issue number from URL: ${maybeNumber} is not a number`,
+			);
+		} catch (error) {
+			throw new Error(`Failed to parse issue number from URL: ${error}`);
+		}
 	}
 
 	/**

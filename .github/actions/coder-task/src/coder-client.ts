@@ -1,23 +1,6 @@
-import type { User, Task, Template, CreateTaskParams } from "./schemas";
-import {
-	UserSchema,
-	UserListSchema,
-	TaskSchema,
-	TaskListSchema,
-	TemplateSchema,
-} from "./schemas";
+import { z } from "zod";
 
-export class CoderAPIError extends Error {
-	constructor(
-		message: string,
-		public readonly statusCode: number,
-		public readonly response?: unknown,
-	) {
-		super(message);
-		this.name = "CoderAPIError";
-	}
-}
-
+// CoderClient provides a minimal set of methods for interacting with the Coder API.
 export class CoderClient {
 	private readonly headers: Record<string, string>;
 
@@ -59,8 +42,8 @@ export class CoderClient {
 	 */
 	async getCoderUserByGitHubId(
 		githubUserId: number | undefined,
-	): Promise<User> {
-		if (!githubUserId) {
+	): Promise<CoderSDKUser> {
+		if (githubUserId === undefined) {
 			throw new CoderAPIError("GitHub user ID cannot be undefined", 400);
 		}
 		if (githubUserId === 0) {
@@ -68,7 +51,7 @@ export class CoderClient {
 		}
 		const endpoint = `/api/v2/users?q=${encodeURIComponent(`github_com_user_id:"${githubUserId}"`)}`;
 		const response = await this.request<unknown[]>(endpoint);
-		const userList = UserListSchema.parse(response);
+		const userList = CoderSDKGetUsersResponseSchema.parse(response);
 		if (userList.users.length === 0) {
 			throw new CoderAPIError(
 				`No Coder user found with GitHub user ID ${githubUserId}`,
@@ -81,7 +64,7 @@ export class CoderClient {
 				409,
 			);
 		}
-		return UserSchema.parse(userList.users[0]);
+		return CoderSDKUserSchema.parse(userList.users[0]);
 	}
 
 	/**
@@ -90,23 +73,28 @@ export class CoderClient {
 	async getTemplateByOrganizationAndName(
 		organizationName: string,
 		templateName: string,
-	): Promise<Template> {
+	): Promise<CoderSDKTemplate> {
 		const endpoint = `/api/v2/organizations/${encodeURIComponent(organizationName)}/templates/${encodeURIComponent(templateName)}`;
-		const response = await this.request<typeof TemplateSchema>(endpoint);
-		return TemplateSchema.parse(response);
+		const response =
+			await this.request<typeof CoderSDKTemplateSchema>(endpoint);
+		return CoderSDKTemplateSchema.parse(response);
 	}
 
 	/**
 	 * getTask retrieves an existing task via Coder's experimental Tasks API.
 	 * Returns null if the task does not exist.
 	 */
-	async getTask(owner: string, taskName: string): Promise<Task | null> {
-		// TODO: needs taskByOwnerAndName endpoint, fake it for now.
+	async getTask(
+		owner: string,
+		taskName: string,
+	): Promise<ExperimentalCoderSDKTask | null> {
+		// TODO: needs taskByOwnerAndName endpoint, fake it for now with the list endpoint.
 		try {
 			const allTasksResponse = await this.request<unknown>(
 				`/api/experimental/tasks?q=${encodeURIComponent(`owner:${owner}`)}`,
 			);
-			const allTasks = TaskListSchema.parse(allTasksResponse);
+			const allTasks =
+				ExperimentalCoderSDKTaskListResponseSchema.parse(allTasksResponse);
 			const task = allTasks.tasks.find((t) => t.name === taskName);
 			if (!task) {
 				return null;
@@ -123,7 +111,9 @@ export class CoderClient {
 	/**
 	 * createTask creates a new task with the given parameters using Coder's experimental Tasks API.
 	 */
-	async createTask(params: CreateTaskParams): Promise<Task> {
+	async createTask(
+		params: ExperimentalCoderSDKCreateTaskRequest,
+	): Promise<ExperimentalCoderSDKTask> {
 		const template = await this.getTemplateByOrganizationAndName(
 			params.organization,
 			params.templateName,
@@ -139,7 +129,7 @@ export class CoderClient {
 			method: "POST",
 			body: JSON.stringify(body),
 		});
-		return TaskSchema.parse(response);
+		return ExperimentalCoderSDKTaskSchema.parse(response);
 	}
 
 	/**
@@ -156,12 +146,80 @@ export class CoderClient {
 			body: JSON.stringify({ input }),
 		});
 	}
+}
 
-	/**
-	 * getTaskLogs retrieves the logs for an existing task via Coder's experimental Tasks API.
-	 */
-	async getTaskLogs(ownerUsername: string, taskName: string): Promise<unknown> {
-		const endpoint = `/api/v2/users/${ownerUsername}/tasks/${taskName}/logs`;
-		return this.request<unknown>(endpoint);
+// CoderSDKUserSchema is the schema for codersdk.User.
+export const CoderSDKUserSchema = z.object({
+	id: z.string().uuid(),
+	username: z.string(),
+	email: z.string().email(),
+	organization_ids: z.array(z.string().uuid()),
+	github_com_user_id: z.number().optional(),
+});
+export type CoderSDKUser = z.infer<typeof CoderSDKUserSchema>;
+
+// CoderSDKUserListSchema is the schema for codersdk.GetUsersResponse.
+export const CoderSDKGetUsersResponseSchema = z.object({
+	users: z.array(CoderSDKUserSchema),
+});
+export type CoderSDKGetUsersResponse = z.infer<
+	typeof CoderSDKGetUsersResponseSchema
+>;
+
+// CoderSDKTemplateSchema is the schema for codersdk.Template.
+export const CoderSDKTemplateSchema = z.object({
+	id: z.string().uuid(),
+	name: z.string(),
+	description: z.string().optional(),
+	organization_id: z.string().uuid(),
+	active_version_id: z.string().uuid(),
+});
+export type CoderSDKTemplate = z.infer<typeof CoderSDKTemplateSchema>;
+
+// ExperimentalCoderSDKCreateTaskRequestSchema is the schema for experimental codersdk.CreateTaskRequest.
+export const ExperimentalCoderSDKCreateTaskRequestSchema = z.object({
+	name: z.string().min(1),
+	owner: z.string().min(1),
+	templateName: z.string().min(1),
+	templatePreset: z.string().min(1),
+	prompt: z.string().min(1),
+	organization: z.string().min(1),
+});
+export type ExperimentalCoderSDKCreateTaskRequest = z.infer<
+	typeof ExperimentalCoderSDKCreateTaskRequestSchema
+>;
+
+// ExperimentalCoderSDKTaskSchema is the schema for experimental codersdk.Task.
+export const ExperimentalCoderSDKTaskSchema = z.object({
+	id: z.string().uuid(),
+	name: z.string(),
+	owner_id: z.string().uuid(),
+	template_id: z.string().uuid(),
+	created_at: z.string(),
+	updated_at: z.string(),
+	status: z.string(),
+});
+export type ExperimentalCoderSDKTask = z.infer<
+	typeof ExperimentalCoderSDKTaskSchema
+>;
+
+// ExperimentalCoderSDKTaskListResponseSchema is the schema for Coder's GET /api/experimental/tasks endpoint.
+// At the time of writing, this type is not exported by github.com/coder/coder/v2/codersdk.
+export const ExperimentalCoderSDKTaskListResponseSchema = z.object({
+	tasks: z.array(ExperimentalCoderSDKTaskSchema),
+});
+export type ExperimentalCoderSDKTaskListResponse = z.infer<
+	typeof ExperimentalCoderSDKTaskListResponseSchema
+>;
+
+// CoderAPIError is a custom error class for Coder API errors.
+export class CoderAPIError extends Error {
+	constructor(
+		message: string,
+		public readonly statusCode: number,
+		public readonly response?: unknown,
+	) {
+		super(message);
+		this.name = "CoderAPIError";
 	}
 }
