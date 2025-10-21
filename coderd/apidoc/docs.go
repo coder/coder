@@ -11971,6 +11971,7 @@ const docTemplate = `{
                 "workspace:delete",
                 "workspace:delete_agent",
                 "workspace:read",
+                "workspace:share",
                 "workspace:ssh",
                 "workspace:start",
                 "workspace:stop",
@@ -11988,6 +11989,7 @@ const docTemplate = `{
                 "workspace_dormant:delete",
                 "workspace_dormant:delete_agent",
                 "workspace_dormant:read",
+                "workspace_dormant:share",
                 "workspace_dormant:ssh",
                 "workspace_dormant:start",
                 "workspace_dormant:stop",
@@ -12167,6 +12169,7 @@ const docTemplate = `{
                 "APIKeyScopeWorkspaceDelete",
                 "APIKeyScopeWorkspaceDeleteAgent",
                 "APIKeyScopeWorkspaceRead",
+                "APIKeyScopeWorkspaceShare",
                 "APIKeyScopeWorkspaceSsh",
                 "APIKeyScopeWorkspaceStart",
                 "APIKeyScopeWorkspaceStop",
@@ -12184,6 +12187,7 @@ const docTemplate = `{
                 "APIKeyScopeWorkspaceDormantDelete",
                 "APIKeyScopeWorkspaceDormantDeleteAgent",
                 "APIKeyScopeWorkspaceDormantRead",
+                "APIKeyScopeWorkspaceDormantShare",
                 "APIKeyScopeWorkspaceDormantSsh",
                 "APIKeyScopeWorkspaceDormantStart",
                 "APIKeyScopeWorkspaceDormantStop",
@@ -16926,6 +16930,7 @@ const docTemplate = `{
                 "read",
                 "read_personal",
                 "ssh",
+                "share",
                 "unassign",
                 "update",
                 "update_personal",
@@ -16944,6 +16949,7 @@ const docTemplate = `{
                 "ActionRead",
                 "ActionReadPersonal",
                 "ActionSSH",
+                "ActionShare",
                 "ActionUnassign",
                 "ActionUpdate",
                 "ActionUpdatePersonal",
@@ -17247,7 +17253,8 @@ const docTemplate = `{
                 "idp_sync_settings_group",
                 "idp_sync_settings_role",
                 "workspace_agent",
-                "workspace_app"
+                "workspace_app",
+                "task"
             ],
             "x-enum-varnames": [
                 "ResourceTypeTemplate",
@@ -17274,7 +17281,8 @@ const docTemplate = `{
                 "ResourceTypeIdpSyncSettingsGroup",
                 "ResourceTypeIdpSyncSettingsRole",
                 "ResourceTypeWorkspaceAgent",
-                "ResourceTypeWorkspaceApp"
+                "ResourceTypeWorkspaceApp",
+                "ResourceTypeTask"
             ]
         },
         "codersdk.Response": {
@@ -17610,6 +17618,17 @@ const docTemplate = `{
                 },
                 "workspace_agent_lifecycle": {
                     "$ref": "#/definitions/codersdk.WorkspaceAgentLifecycle"
+                },
+                "workspace_app_id": {
+                    "format": "uuid",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/uuid.NullUUID"
+                        }
+                    ]
+                },
+                "workspace_build_number": {
+                    "type": "integer"
                 },
                 "workspace_id": {
                     "format": "uuid",
