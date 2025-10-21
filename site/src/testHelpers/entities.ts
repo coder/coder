@@ -5060,7 +5060,11 @@ export const MockNewTaskData = {
 
 export const MockInterception: TypesGen.AIBridgeInterception = {
 	id: "5c1da48a-9eb0-440e-9c82-5bc5692a603d",
-	initiator_id: "1ebb7622-e6ea-45b4-b244-dda30afc7238",
+	initiator: {
+		id: "1ebb7622-e6ea-45b4-b244-dda30afc7238",
+		username: "testuser",
+		avatar_url: "https://example.com/avatar.png",
+	},
 	provider: "openai",
 	model: "gpt-4o",
 	started_at: "2022-05-17T17:39:01.382927298Z",
