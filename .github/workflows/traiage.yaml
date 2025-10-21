@@ -168,7 +168,7 @@ jobs:
           echo "coder_username=${coder_username}" >> "${GITHUB_OUTPUT}"
 
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           persist-credentials: false
           fetch-depth: 0
