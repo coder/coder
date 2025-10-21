@@ -1,5 +1,5 @@
 import { describe, expect, test, beforeEach } from "bun:test";
-import { CoderTaskAction } from "./action";
+import { CoderTaskAction, Octokit } from "./action";
 import {
 	MockCoderClient,
 	createMockOctokit,
@@ -21,9 +21,13 @@ describe("CoderTaskAction", () => {
 		describe("Success Cases", () => {
 			test("returns githubUserId when provided in inputs", async () => {
 				const inputs = createMockInputs({ githubUserId: 12345 });
-				const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+				const action = new CoderTaskAction(
+					coderClient,
+					octokit as unknown as Octokit,
+					inputs,
+				);
 
-				const result = await (action as any).resolveGitHubUserId();
+				const result = await action.resolveGitHubUserId();
 
 				expect(result).toBe(12345);
 			});
@@ -34,7 +38,11 @@ describe("CoderTaskAction", () => {
 				} as any);
 
 				const inputs = createMockInputs({ githubUsername: "testuser" });
-				const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+				const action = new CoderTaskAction(
+					coderClient,
+					octokit as unknown as Octokit,
+					inputs,
+				);
 
 				const result = await (action as any).resolveGitHubUserId();
 
@@ -51,7 +59,11 @@ describe("CoderTaskAction", () => {
 					githubUserId: undefined,
 					githubUsername: undefined,
 				});
-				const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+				const action = new CoderTaskAction(
+					coderClient,
+					octokit as unknown as Octokit,
+					inputs,
+				);
 
 				await expect((action as any).resolveGitHubUserId()).rejects.toThrow(
 					"Either githubUserId or githubUsername must be provided",
@@ -64,7 +76,11 @@ describe("CoderTaskAction", () => {
 				);
 
 				const inputs = createMockInputs({ githubUsername: "nonexistent" });
-				const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+				const action = new CoderTaskAction(
+					coderClient,
+					octokit as unknown as Octokit,
+					inputs,
+				);
 
 				await expect((action as any).resolveGitHubUserId()).rejects.toThrow();
 			});
@@ -74,7 +90,11 @@ describe("CoderTaskAction", () => {
 	describe("generateTaskName", () => {
 		test("uses provided task-name when specified", () => {
 			const inputs = createMockInputs({ taskName: "custom-name" });
-			const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+			const action = new CoderTaskAction(
+				coderClient,
+				octokit as unknown as Octokit,
+				inputs,
+			);
 
 			const result = (action as any).generateTaskName(123);
 
@@ -83,7 +103,11 @@ describe("CoderTaskAction", () => {
 
 		test("generates name with issue number", () => {
 			const inputs = createMockInputs();
-			const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+			const action = new CoderTaskAction(
+				coderClient,
+				octokit as unknown as Octokit,
+				inputs,
+			);
 
 			const result = (action as any).generateTaskName(123);
 
@@ -92,7 +116,11 @@ describe("CoderTaskAction", () => {
 
 		test("generates name without issue", () => {
 			const inputs = createMockInputs();
-			const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+			const action = new CoderTaskAction(
+				coderClient,
+				octokit as unknown as Octokit,
+				inputs,
+			);
 
 			const result = (action as any).generateTaskName(undefined);
 
@@ -101,7 +129,11 @@ describe("CoderTaskAction", () => {
 
 		test("respects task-name-prefix", () => {
 			const inputs = createMockInputs({ taskNamePrefix: "custom-prefix" });
-			const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+			const action = new CoderTaskAction(
+				coderClient,
+				octokit as unknown as Octokit,
+				inputs,
+			);
 
 			const result = (action as any).generateTaskName(123);
 
@@ -111,7 +143,11 @@ describe("CoderTaskAction", () => {
 		describe("Edge Cases", () => {
 			test("uses default prefix when empty", () => {
 				const inputs = createMockInputs({ taskNamePrefix: "" });
-				const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+				const action = new CoderTaskAction(
+					coderClient,
+					octokit as unknown as Octokit,
+					inputs,
+				);
 
 				const result = (action as any).generateTaskName(123);
 
@@ -122,7 +158,11 @@ describe("CoderTaskAction", () => {
 			test("handles very long prefix", () => {
 				const longPrefix = "x".repeat(100);
 				const inputs = createMockInputs({ taskNamePrefix: longPrefix });
-				const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+				const action = new CoderTaskAction(
+					coderClient,
+					octokit as unknown as Octokit,
+					inputs,
+				);
 
 				const result = (action as any).generateTaskName(123);
 
@@ -137,7 +177,11 @@ describe("CoderTaskAction", () => {
 				const inputs = createMockInputs({
 					issueUrl: "https://github.com/owner/repo/issues/123",
 				});
-				const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+				const action = new CoderTaskAction(
+					coderClient,
+					octokit as unknown as Octokit,
+					inputs,
+				);
 
 				const result = await (action as any).getIssueNumber();
 
@@ -146,7 +190,11 @@ describe("CoderTaskAction", () => {
 
 			test("returns undefined when no issue URL", async () => {
 				const inputs = createMockInputs({ issueUrl: undefined });
-				const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+				const action = new CoderTaskAction(
+					coderClient,
+					octokit as unknown as Octokit,
+					inputs,
+				);
 
 				const result = await (action as any).getIssueNumber();
 
@@ -157,7 +205,11 @@ describe("CoderTaskAction", () => {
 				const inputs = createMockInputs({
 					issueUrl: "https://github.com/owner/repo/issues/123#comment",
 				});
-				const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+				const action = new CoderTaskAction(
+					coderClient,
+					octokit as unknown as Octokit,
+					inputs,
+				);
 
 				const result = await (action as any).getIssueNumber();
 
@@ -168,7 +220,11 @@ describe("CoderTaskAction", () => {
 				const inputs = createMockInputs({
 					issueUrl: "https://github.com/owner/repo/issues/123?param=value",
 				});
-				const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+				const action = new CoderTaskAction(
+					coderClient,
+					octokit as unknown as Octokit,
+					inputs,
+				);
 
 				const result = await (action as any).getIssueNumber();
 
@@ -179,7 +235,11 @@ describe("CoderTaskAction", () => {
 		describe("Error Cases", () => {
 			test("returns undefined for invalid URL format", async () => {
 				const inputs = createMockInputs({ issueUrl: "not-a-url" });
-				const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+				const action = new CoderTaskAction(
+					coderClient,
+					octokit as unknown as Octokit,
+					inputs,
+				);
 
 				const result = await (action as any).getIssueNumber();
 
@@ -190,7 +250,11 @@ describe("CoderTaskAction", () => {
 				const inputs = createMockInputs({
 					issueUrl: "https://github.com/owner/repo/issues/abc",
 				});
-				const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+				const action = new CoderTaskAction(
+					coderClient,
+					octokit as unknown as Octokit,
+					inputs,
+				);
 
 				const result = await (action as any).getIssueNumber();
 
@@ -205,7 +269,11 @@ describe("CoderTaskAction", () => {
 				const inputs = createMockInputs({
 					issueUrl: "https://github.com/owner/repo/issues/123",
 				});
-				const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+				const action = new CoderTaskAction(
+					coderClient,
+					octokit as unknown as Octokit,
+					inputs,
+				);
 
 				const result = (action as any).parseIssueUrl();
 
@@ -218,7 +286,11 @@ describe("CoderTaskAction", () => {
 
 			test("returns null when no issue URL", () => {
 				const inputs = createMockInputs({ issueUrl: undefined });
-				const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+				const action = new CoderTaskAction(
+					coderClient,
+					octokit as unknown as Octokit,
+					inputs,
+				);
 
 				const result = (action as any).parseIssueUrl();
 
@@ -229,7 +301,11 @@ describe("CoderTaskAction", () => {
 		describe("Error Cases", () => {
 			test("returns null for invalid URL format", () => {
 				const inputs = createMockInputs({ issueUrl: "not-a-url" });
-				const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+				const action = new CoderTaskAction(
+					coderClient,
+					octokit as unknown as Octokit,
+					inputs,
+				);
 
 				const result = (action as any).parseIssueUrl();
 
@@ -240,7 +316,11 @@ describe("CoderTaskAction", () => {
 				const inputs = createMockInputs({
 					issueUrl: "https://example.com/issues/123",
 				});
-				const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+				const action = new CoderTaskAction(
+					coderClient,
+					octokit as unknown as Octokit,
+					inputs,
+				);
 
 				const result = (action as any).parseIssueUrl();
 
@@ -253,7 +333,11 @@ describe("CoderTaskAction", () => {
 				const inputs = createMockInputs({
 					issueUrl: "https://github.com/owner/repo/issues/123/",
 				});
-				const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+				const action = new CoderTaskAction(
+					coderClient,
+					octokit as unknown as Octokit,
+					inputs,
+				);
 
 				const result = (action as any).parseIssueUrl();
 
@@ -265,7 +349,11 @@ describe("CoderTaskAction", () => {
 				const inputs = createMockInputs({
 					issueUrl: "https://github.com/owner/repo/issues/123?param=value",
 				});
-				const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+				const action = new CoderTaskAction(
+					coderClient,
+					octokit as unknown as Octokit,
+					inputs,
+				);
 
 				const result = (action as any).parseIssueUrl();
 
@@ -276,7 +364,11 @@ describe("CoderTaskAction", () => {
 				const inputs = createMockInputs({
 					issueUrl: "https://github.com/owner/repo/issues/123#comment",
 				});
-				const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+				const action = new CoderTaskAction(
+					coderClient,
+					octokit as unknown as Octokit,
+					inputs,
+				);
 
 				const result = (action as any).parseIssueUrl();
 
@@ -291,7 +383,11 @@ describe("CoderTaskAction", () => {
 				coderUrl: "https://coder.test",
 				coderWebUrl: "https://coder-web.test",
 			});
-			const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+			const action = new CoderTaskAction(
+				coderClient,
+				octokit as unknown as Octokit,
+				inputs,
+			);
 
 			const result = (action as any).generateTaskUrl("testuser", "task-123");
 
@@ -303,7 +399,11 @@ describe("CoderTaskAction", () => {
 				coderUrl: "https://coder.test",
 				coderWebUrl: undefined,
 			});
-			const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+			const action = new CoderTaskAction(
+				coderClient,
+				octokit as unknown as Octokit,
+				inputs,
+			);
 
 			const result = (action as any).generateTaskUrl("testuser", "task-123");
 
@@ -315,7 +415,11 @@ describe("CoderTaskAction", () => {
 				const inputs = createMockInputs({
 					coderUrl: "https://coder.test/",
 				});
-				const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+				const action = new CoderTaskAction(
+					coderClient,
+					octokit as unknown as Octokit,
+					inputs,
+				);
 
 				const result = (action as any).generateTaskUrl("testuser", "task-123");
 
@@ -334,7 +438,11 @@ describe("CoderTaskAction", () => {
 				octokit.rest.issues.createComment.mockResolvedValue({} as any);
 
 				const inputs = createMockInputs();
-				const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+				const action = new CoderTaskAction(
+					coderClient,
+					octokit as unknown as Octokit,
+					inputs,
+				);
 
 				await (action as any).commentOnIssue(
 					"https://coder.test/tasks/testuser/task-123",
@@ -362,7 +470,11 @@ describe("CoderTaskAction", () => {
 				octokit.rest.issues.updateComment.mockResolvedValue({} as any);
 
 				const inputs = createMockInputs();
-				const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+				const action = new CoderTaskAction(
+					coderClient,
+					octokit as unknown as Octokit,
+					inputs,
+				);
 
 				await (action as any).commentOnIssue(
 					"https://coder.test/tasks/testuser/task-123",
@@ -387,7 +499,11 @@ describe("CoderTaskAction", () => {
 				octokit.rest.issues.createComment.mockResolvedValue({} as any);
 
 				const inputs = createMockInputs();
-				const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+				const action = new CoderTaskAction(
+					coderClient,
+					octokit as unknown as Octokit,
+					inputs,
+				);
 
 				await (action as any).commentOnIssue(
 					"https://coder.test/tasks/testuser/task-123",
@@ -412,7 +528,11 @@ describe("CoderTaskAction", () => {
 				);
 
 				const inputs = createMockInputs();
-				const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+				const action = new CoderTaskAction(
+					coderClient,
+					octokit as unknown as Octokit,
+					inputs,
+				);
 
 				// Should not throw
 				await expect(
@@ -434,7 +554,11 @@ describe("CoderTaskAction", () => {
 				);
 
 				const inputs = createMockInputs();
-				const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+				const action = new CoderTaskAction(
+					coderClient,
+					octokit as unknown as Octokit,
+					inputs,
+				);
 
 				// Should not throw
 				await expect(
@@ -462,7 +586,11 @@ describe("CoderTaskAction", () => {
 				octokit.rest.issues.updateComment.mockResolvedValue({} as any);
 
 				const inputs = createMockInputs();
-				const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+				const action = new CoderTaskAction(
+					coderClient,
+					octokit as unknown as Octokit,
+					inputs,
+				);
 
 				await (action as any).commentOnIssue(
 					"https://coder.test/tasks/testuser/task-123",
@@ -492,7 +620,11 @@ describe("CoderTaskAction", () => {
 				githubUserId: 12345,
 				issueUrl: undefined,
 			});
-			const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+			const action = new CoderTaskAction(
+				coderClient,
+				octokit as unknown as Octokit,
+				inputs,
+			);
 
 			// Execute
 			const result = await action.run();
@@ -518,7 +650,11 @@ describe("CoderTaskAction", () => {
 				githubUserId: 12345,
 				issueUrl: undefined,
 			});
-			const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+			const action = new CoderTaskAction(
+				coderClient,
+				octokit as unknown as Octokit,
+				inputs,
+			);
 
 			// Execute
 			const result = await action.run();
@@ -540,7 +676,11 @@ describe("CoderTaskAction", () => {
 				githubUserId: 12345,
 				issueUrl: undefined,
 			});
-			const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+			const action = new CoderTaskAction(
+				coderClient,
+				octokit as unknown as Octokit,
+				inputs,
+			);
 
 			// Execute
 			const result = await action.run();
@@ -561,7 +701,11 @@ describe("CoderTaskAction", () => {
 				issueUrl: "https://github.com/owner/repo/issues/123",
 				commentOnIssue: false,
 			});
-			const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+			const action = new CoderTaskAction(
+				coderClient,
+				octokit as unknown as Octokit,
+				inputs,
+			);
 
 			// Execute
 			const result = await action.run();
@@ -584,7 +728,11 @@ describe("CoderTaskAction", () => {
 				issueUrl: "https://github.com/owner/repo/issues/123",
 				commentOnIssue: true,
 			});
-			const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+			const action = new CoderTaskAction(
+				coderClient,
+				octokit as unknown as Octokit,
+				inputs,
+			);
 
 			// Execute
 			await action.run();
@@ -607,7 +755,11 @@ describe("CoderTaskAction", () => {
 			);
 
 			const inputs = createMockInputs({ githubUserId: 12345 });
-			const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+			const action = new CoderTaskAction(
+				coderClient,
+				octokit as unknown as Octokit,
+				inputs,
+			);
 
 			await expect(action.run()).rejects.toThrow(
 				"No Coder user found with GitHub user ID 12345",
@@ -625,7 +777,11 @@ describe("CoderTaskAction", () => {
 				githubUserId: 12345,
 				templateName: "nonexistent",
 			});
-			const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+			const action = new CoderTaskAction(
+				coderClient,
+				octokit as unknown as Octokit,
+				inputs,
+			);
 
 			await expect(action.run()).rejects.toThrow("Template not found");
 		});
@@ -638,7 +794,11 @@ describe("CoderTaskAction", () => {
 			);
 
 			const inputs = createMockInputs({ githubUserId: 12345 });
-			const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+			const action = new CoderTaskAction(
+				coderClient,
+				octokit as unknown as Octokit,
+				inputs,
+			);
 
 			await expect(action.run()).rejects.toThrow("Failed to create task");
 		});
@@ -651,7 +811,11 @@ describe("CoderTaskAction", () => {
 			);
 
 			const inputs = createMockInputs({ githubUserId: 12345 });
-			const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+			const action = new CoderTaskAction(
+				coderClient,
+				octokit as unknown as Octokit,
+				inputs,
+			);
 
 			await expect(action.run()).rejects.toThrow("Permission denied");
 		});
@@ -672,7 +836,11 @@ describe("CoderTaskAction", () => {
 					"https://github.com/different-owner/different-repo/issues/456",
 				commentOnIssue: true,
 			});
-			const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+			const action = new CoderTaskAction(
+				coderClient,
+				octokit as unknown as Octokit,
+				inputs,
+			);
 
 			// Execute
 			await action.run();
@@ -698,7 +866,11 @@ describe("CoderTaskAction", () => {
 				githubUserId: 12345,
 				taskPrompt: longPrompt,
 			});
-			const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+			const action = new CoderTaskAction(
+				coderClient,
+				octokit as unknown as Octokit,
+				inputs,
+			);
 
 			// Execute
 			const result = await action.run();
@@ -721,7 +893,11 @@ describe("CoderTaskAction", () => {
 				githubUserId: 12345,
 				taskName: "task-with-special-chars-123",
 			});
-			const action = new CoderTaskAction(coderClient, octokit as any, inputs);
+			const action = new CoderTaskAction(
+				coderClient,
+				octokit as unknown as Octokit,
+				inputs,
+			);
 
 			// Execute
 			const result = await action.run();

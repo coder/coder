@@ -3,7 +3,7 @@ import type { getOctokit } from "@actions/github";
 import type { CoderClient } from "./coder-client";
 import type { ActionInputs, ActionOutputs } from "./schemas";
 
-type Octokit = ReturnType<typeof getOctokit>;
+export type Octokit = ReturnType<typeof getOctokit>;
 
 export class CoderTaskAction {
 	constructor(
@@ -15,7 +15,7 @@ export class CoderTaskAction {
 	/**
 	 * Resolve GitHub user ID from inputs or context
 	 */
-	private async resolveGitHubUserId(): Promise<number> {
+	async resolveGitHubUserId(): Promise<number> {
 		if (this.inputs.githubUserId) {
 			return this.inputs.githubUserId;
 		}
@@ -33,7 +33,7 @@ export class CoderTaskAction {
 	/**
 	 * Generate task name based on inputs
 	 */
-	private generateTaskName(issueNumber?: number): string {
+	generateTaskName(issueNumber?: number): string {
 		if (this.inputs.taskName) {
 			return this.inputs.taskName;
 		}
@@ -45,7 +45,7 @@ export class CoderTaskAction {
 	/**
 	 * Extract issue number from issue URL
 	 */
-	private async getIssueNumber(): Promise<number | undefined> {
+	async getIssueNumber(): Promise<number | undefined> {
 		if (!this.inputs.issueUrl) {
 			return undefined;
 		}
@@ -67,7 +67,7 @@ export class CoderTaskAction {
 	/**
 	 * Comment on GitHub issue with task link
 	 */
-	private async commentOnIssue(
+	async commentOnIssue(
 		taskUrl: string,
 		owner: string,
 		repo: string,
@@ -116,7 +116,7 @@ export class CoderTaskAction {
 	/**
 	 * Parse owner and repo from issue URL
 	 */
-	private parseIssueUrl(): {
+	parseIssueUrl(): {
 		owner: string;
 		repo: string;
 		issueNumber: number;
@@ -151,7 +151,7 @@ export class CoderTaskAction {
 	/**
 	 * Generate task URL
 	 */
-	private generateTaskUrl(coderUsername: string, taskName: string): string {
+	generateTaskUrl(coderUsername: string, taskName: string): string {
 		const webUrl = this.inputs.coderWebUrl || this.inputs.coderUrl;
 		return `${webUrl}/tasks/${coderUsername}/${taskName}`;
 	}

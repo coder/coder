@@ -46,7 +46,7 @@ describe("CoderClient", () => {
 		test("throws an error if multiple Coder users are found with the same GitHub ID", async () => {
 			mockFetch.mockResolvedValue(createMockResponse(mockUserListDuplicate));
 			expect(
-				client.getCoderUserByGitHubId(mockUser.github_com_user_id),
+				client.getCoderUserByGitHubId(mockUser.github_com_user_id!),
 			).rejects.toThrow(CoderAPIError);
 			expect(mockFetch).toHaveBeenCalledWith(
 				`https://coder.test/api/v2/users?q=github_com_user_id%3A${mockUser.github_com_user_id}`,
@@ -61,7 +61,7 @@ describe("CoderClient", () => {
 		test("throws an error if no Coder user is found with the given GitHub ID", async () => {
 			mockFetch.mockResolvedValue(createMockResponse(mockUserListEmpty));
 			expect(
-				client.getCoderUserByGitHubId(mockUser.github_com_user_id),
+				client.getCoderUserByGitHubId(mockUser.github_com_user_id!),
 			).rejects.toThrow(CoderAPIError);
 			expect(mockFetch).toHaveBeenCalledWith(
 				`https://coder.test/api/v2/users?q=github_com_user_id%3A${mockUser.github_com_user_id}`,
@@ -81,7 +81,7 @@ describe("CoderClient", () => {
 				),
 			);
 			expect(
-				client.getCoderUserByGitHubId(mockUser.github_com_user_id),
+				client.getCoderUserByGitHubId(mockUser.github_com_user_id!),
 			).rejects.toThrow(CoderAPIError);
 		});
 
@@ -93,7 +93,7 @@ describe("CoderClient", () => {
 				),
 			);
 			expect(
-				client.getCoderUserByGitHubId(mockUser.github_com_user_id),
+				client.getCoderUserByGitHubId(mockUser.github_com_user_id!),
 			).rejects.toThrow(CoderAPIError);
 		});
 
