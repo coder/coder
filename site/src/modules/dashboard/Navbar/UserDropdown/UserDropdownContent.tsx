@@ -19,7 +19,6 @@ import {
 } from "lucide-react";
 import type { FC } from "react";
 import { Link } from "react-router";
-import { cn } from "utils/cn";
 import { SupportIcon } from "../SupportIcon";
 
 export const Language = {
@@ -31,7 +30,7 @@ export const Language = {
 interface UserDropdownContentProps {
 	user: TypesGen.User;
 	buildInfo?: TypesGen.BuildInfoResponse;
-	supportLinks?: readonly TypesGen.LinkConfig[];
+	supportLinks: readonly TypesGen.LinkConfig[];
 	onSignOut: () => void;
 }
 
@@ -53,9 +52,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 			<Link to="/install" css={styles.link}>
 				<PopoverClose asChild>
 					<MenuItem css={styles.menuItem}>
-						<MonitorDownIcon
-							className={cn(["text-content-secondary", "size-5"])}
-						/>
+						<MonitorDownIcon className="size-5 text-content-secondary" />
 						<span css={styles.menuItemText}>Install CLI</span>
 					</MenuItem>
 				</PopoverClose>
@@ -64,16 +61,14 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 			<Link to="/settings/account" css={styles.link}>
 				<PopoverClose asChild>
 					<MenuItem css={styles.menuItem}>
-						<CircleUserIcon
-							className={cn(["text-content-secondary", "size-5"])}
-						/>
+						<CircleUserIcon className="size-5 text-content-secondary" />
 						<span css={styles.menuItemText}>{Language.accountLabel}</span>
 					</MenuItem>
 				</PopoverClose>
 			</Link>
 
 			<MenuItem css={styles.menuItem} onClick={onSignOut}>
-				<LogOutIcon className={cn(["text-content-secondary", "size-5"])} />
+				<LogOutIcon className="size-5 text-content-secondary" />
 				<span css={styles.menuItemText}>{Language.signOutLabel}</span>
 			</MenuItem>
 
@@ -93,7 +88,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 									{link.icon && (
 										<SupportIcon
 											icon={link.icon}
-											className={cn(["text-content-secondary", "size-5"])}
+											className="size-5 text-content-secondary"
 										/>
 									)}
 									<span css={styles.menuItemText}>{link.name}</span>

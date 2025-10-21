@@ -28,7 +28,7 @@ interface NavbarViewProps {
 	logo_url?: string;
 	user: TypesGen.User;
 	buildInfo?: TypesGen.BuildInfoResponse;
-	supportLinks?: readonly TypesGen.LinkConfig[];
+	supportLinks: readonly TypesGen.LinkConfig[];
 	onSignOut: () => void;
 	canViewDeployment: boolean;
 	canViewOrganizations: boolean;
@@ -72,11 +72,16 @@ export const NavbarView: FC<NavbarViewProps> = ({
 			<NavItems className="ml-4" user={user} />
 
 			<div className="flex items-center gap-3 ml-auto">
-				{supportLinks && (
-					<div className="hidden md:block">
-						<SupportButtons supportLinks={supportLinks.filter(isNavbarLink)} />
-					</div>
-				)}
+				<div className="hidden md:block">
+					{supportLinks.filter(isNavbarLink).map((link) => (
+						<SupportButton
+							key={link.name}
+							name={link.name}
+							target={link.target}
+							icon={link.icon}
+						/>
+					))}
+				</div>
 
 				{proxyContextValue && (
 					<div className="hidden md:block">
@@ -252,32 +257,31 @@ function isNavbarLink(link: TypesGen.LinkConfig): boolean {
 	return link.location === "navbar";
 }
 
-interface SupportButtonsProps {
-	supportLinks: TypesGen.LinkConfig[];
+interface SupportButtonProps {
+	name: string;
+	target: string;
+	icon: string;
+	location?: string;
 }
 
-const SupportButtons: FC<SupportButtonsProps> = ({ supportLinks }) => {
+const SupportButton: FC<SupportButtonProps> = ({ name, target, icon }) => {
 	return (
-		<>
-			{supportLinks.map((link) => (
-				<Button asChild key={link.name} variant="outline">
-					<a
-						href={link.target}
-						target="_blank"
-						rel="noreferrer"
-						className="inline-block"
-					>
-						{link.icon && (
-							<SupportIcon
-								icon={link.icon}
-								className={cn(["text-content-secondary", "size-5"])}
-							/>
-						)}
-						{link.name}
-						<span className="sr-only"> (link opens in new tab)</span>
-					</a>
-				</Button>
-			))}
-		</>
+		<Button asChild variant="outline">
+			<a
+				href={target}
+				target="_blank"
+				rel="noreferrer"
+				className="inline-block"
+			>
+				{icon && (
+					<SupportIcon
+						icon={icon}
+						className={"size-5 text-content-secondary"}
+					/>
+				)}
+				{name}
+				<span className="sr-only"> (link opens in new tab)</span>
+			</a>
+		</Button>
 	);
 };
