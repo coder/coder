@@ -397,8 +397,8 @@ This keeps other provisioners available to handle user-initiated jobs.
     }
     ```
 
-Prebuild workspaces are a special type of workspace owned by the system user `prebuild`.
-The value `data.coder_workspace_owner.me.name` returns the name of the workspace owner, for prebuild workspaces, this value is `"prebuild"`.
+Prebuild workspaces are a special type of workspace owned by the system user `prebuilds`.
+The value `data.coder_workspace_owner.me.name` returns the name of the workspace owner, for prebuild workspaces, this value is `"prebuilds"`.
 Because the condition evaluates based on the workspace owner, provisioning or deprovisioning prebuilds automatically applies the prebuild tag, whereas regular jobs (like workspace creation or template import) do not.
 
 > [!NOTE]

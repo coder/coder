@@ -211,6 +211,8 @@ const (
 	ApiKeyScopeTaskUpdate                          APIKeyScope = "task:update"
 	ApiKeyScopeTaskDelete                          APIKeyScope = "task:delete"
 	ApiKeyScopeTask                                APIKeyScope = "task:*"
+	ApiKeyScopeWorkspaceShare                      APIKeyScope = "workspace:share"
+	ApiKeyScopeWorkspaceDormantShare               APIKeyScope = "workspace_dormant:share"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -441,7 +443,9 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeTaskRead,
 		ApiKeyScopeTaskUpdate,
 		ApiKeyScopeTaskDelete,
-		ApiKeyScopeTask:
+		ApiKeyScopeTask,
+		ApiKeyScopeWorkspaceShare,
+		ApiKeyScopeWorkspaceDormantShare:
 		return true
 	}
 	return false
@@ -641,6 +645,8 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeTaskUpdate,
 		ApiKeyScopeTaskDelete,
 		ApiKeyScopeTask,
+		ApiKeyScopeWorkspaceShare,
+		ApiKeyScopeWorkspaceDormantShare,
 	}
 }
 

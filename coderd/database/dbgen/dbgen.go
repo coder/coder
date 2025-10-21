@@ -1561,7 +1561,7 @@ func AIBridgeToolUsage(t testing.TB, db database.Store, seed database.InsertAIBr
 	return toolUsage
 }
 
-func Task(t testing.TB, db database.Store, orig database.TaskTable) database.TaskTable {
+func Task(t testing.TB, db database.Store, orig database.TaskTable) database.Task {
 	t.Helper()
 
 	parameters := orig.TemplateParameters
@@ -1581,7 +1581,12 @@ func Task(t testing.TB, db database.Store, orig database.TaskTable) database.Tas
 	})
 	require.NoError(t, err, "failed to insert task")
 
-	return task
+	// Return the Task from the view instead of the TaskTable
+	fetched, err := db.GetTaskByID(genCtx, task.ID)
+	require.NoError(t, err, "failed to fetch task")
+	require.Equal(t, task.ID, fetched.ID)
+
+	return fetched
 }
 
 func TaskWorkspaceApp(t testing.TB, db database.Store, orig database.TaskWorkspaceApp) database.TaskWorkspaceApp {

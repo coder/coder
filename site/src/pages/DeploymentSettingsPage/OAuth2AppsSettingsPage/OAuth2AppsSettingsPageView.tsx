@@ -2,6 +2,7 @@ import { useTheme } from "@emotion/react";
 import type * as TypesGen from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
+import { AvatarData } from "components/Avatar/AvatarData";
 import { Button } from "components/Button/Button";
 import {
 	SettingsHeader,
@@ -101,10 +102,10 @@ const OAuth2AppRow: FC<OAuth2AppRowProps> = ({ app }) => {
 	return (
 		<TableRow key={app.id} data-testid={`app-${app.id}`} {...clickableProps}>
 			<TableCell>
-				<Stack direction="row" spacing={1}>
-					<Avatar variant="icon" src={app.icon} fallback={app.name} />
-					<span className="font-semibold">{app.name}</span>
-				</Stack>
+				<AvatarData
+					avatar={<Avatar variant="icon" src={app.icon} fallback={app.name} />}
+					title={app.name}
+				/>
 			</TableCell>
 
 			<TableCell>
