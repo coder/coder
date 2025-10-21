@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"slices"
 
 	"golang.org/x/xerrors"
 	"storj.io/drpc/drpcmux"
@@ -12,8 +13,13 @@ import (
 
 	"cdr.dev/slog"
 
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
+	aibridgepkg "github.com/coder/coder/v2/enterprise/coderd/aibridge"
 	"github.com/coder/coder/v2/enterprise/x/aibridged"
 	aibridgedproto "github.com/coder/coder/v2/enterprise/x/aibridged/proto"
 	"github.com/coder/coder/v2/enterprise/x/aibridgedserver"
@@ -100,4 +106,53 @@ func (api *API) CreateInMemoryAIBridgeServer(dialCtx context.Context) (client ai
 		DRPCMCPConfiguratorClient: aibridgedproto.NewDRPCMCPConfiguratorClient(clientSession),
 		DRPCAuthorizerClient:      aibridgedproto.NewDRPCAuthorizerClient(clientSession),
 	}, nil
+}
+
+// aiBridgeSetRequestLogging toggles upstream request/response logging for AI Bridge providers.
+//
+// @Summary Set AI Bridge request logging
+// @ID set-aibridge-request-logging
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags AIBridge
+// @Param request body codersdk.AIBridgeSetRequestLoggingRequest true "Request body"
+// @Success 200 {object} codersdk.Response
+// @Router /api/experimental/aibridge/log-requests [post]
+func (api *API) aiBridgeSetRequestLogging(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+
+	// Check if user has owner role.
+	user, err := api.Database.GetUserByID(ctx, apiKey.UserID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get user.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	if !slices.Contains(user.RBACRoles, rbac.RoleOwner().String()) {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Only users with the 'owner' role can toggle request logging.",
+		})
+		return
+	}
+
+	var req codersdk.AIBridgeSetRequestLoggingRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	aibridgepkg.SetUpstreamLoggingEnabled(req.Enabled)
+
+	api.Logger.Info(ctx, "upstream request logging state changed",
+		slog.F("enabled", req.Enabled),
+		slog.F("user_id", apiKey.UserID),
+	)
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
+		Message: "Request logging state updated successfully.",
+	})
 }

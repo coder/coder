@@ -604,6 +604,20 @@
 | `base_url` | string | false    |              |             |
 | `key`      | string | false    |              |             |
 
+## codersdk.AIBridgeSetRequestLoggingRequest
+
+```json
+{
+  "enabled": true
+}
+```
+
+### Properties
+
+| Name      | Type    | Required | Restrictions | Description |
+|-----------|---------|----------|--------------|-------------|
+| `enabled` | boolean | false    |              |             |
+
 ## codersdk.AIBridgeTokenUsage
 
 ```json

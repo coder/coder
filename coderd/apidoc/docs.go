@@ -136,6 +136,45 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/aibridge/log-requests": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AIBridge"
+                ],
+                "summary": "Set AI Bridge request logging",
+                "operationId": "set-aibridge-request-logging",
+                "parameters": [
+                    {
+                        "description": "Request body",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AIBridgeSetRequestLoggingRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/api/experimental/tasks": {
             "get": {
                 "security": [
@@ -11746,6 +11785,14 @@ const docTemplate = `{
                 },
                 "key": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.AIBridgeSetRequestLoggingRequest": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
                 }
             }
         },

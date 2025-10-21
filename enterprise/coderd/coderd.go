@@ -235,6 +235,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Group(func(r chi.Router) {
 				r.Use(apiKeyMiddleware)
 				r.Get("/interceptions", api.aiBridgeListInterceptions)
+				r.Post("/log-requests", api.aiBridgeSetRequestLogging)
 			})
 
 			// This is a bit funky but since aibridge only exposes a HTTP

@@ -124,3 +124,21 @@ func (c *ExperimentalClient) AIBridgeListInterceptions(ctx context.Context, filt
 	var resp AIBridgeListInterceptionsResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
+
+type AIBridgeSetRequestLoggingRequest struct {
+	Enabled bool `json:"enabled"`
+}
+
+// AIBridgeSetRequestLogging toggles upstream request/response logging for AI Bridge providers.
+// Only users with the owner role can toggle request logging.
+func (c *ExperimentalClient) AIBridgeSetRequestLogging(ctx context.Context, req AIBridgeSetRequestLoggingRequest) error {
+	res, err := c.Request(ctx, http.MethodPost, "/api/experimental/aibridge/log-requests", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}

@@ -101,3 +101,56 @@ curl -X GET http://coder-server:8080/api/v2/api/experimental/aibridge/intercepti
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AIBridgeListInterceptionsResponse](schemas.md#codersdkaibridgelistinterceptionsresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Set AI Bridge request logging
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/api/experimental/aibridge/log-requests \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /api/experimental/aibridge/log-requests`
+
+> Body parameter
+
+```json
+{
+  "enabled": true
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                             | Required | Description  |
+|--------|------|--------------------------------------------------------------------------------------------------|----------|--------------|
+| `body` | body | [codersdk.AIBridgeSetRequestLoggingRequest](schemas.md#codersdkaibridgesetrequestloggingrequest) | true     | Request body |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                           |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).

@@ -9,6 +9,7 @@ import (
 
 	"github.com/coder/aibridge"
 	"github.com/coder/coder/v2/enterprise/coderd"
+	aibridgepkg "github.com/coder/coder/v2/enterprise/coderd/aibridge"
 	"github.com/coder/coder/v2/enterprise/x/aibridged"
 )
 
@@ -19,18 +20,22 @@ func newAIBridgeDaemon(coderAPI *coderd.API) (*aibridged.Server, error) {
 	logger := coderAPI.Logger.Named("aibridged")
 
 	// Setup supported providers.
-	providers := []aibridge.Provider{
-		aibridge.NewOpenAIProvider(aibridge.ProviderConfig{
-			BaseURL:               coderAPI.DeploymentValues.AI.BridgeConfig.OpenAI.BaseURL.String(),
-			Key:                   coderAPI.DeploymentValues.AI.BridgeConfig.OpenAI.Key.String(),
-			EnableUpstreamLogging: true,
-		}),
-		aibridge.NewAnthropicProvider(aibridge.ProviderConfig{
-			BaseURL:               coderAPI.DeploymentValues.AI.BridgeConfig.Anthropic.BaseURL.String(),
-			Key:                   coderAPI.DeploymentValues.AI.BridgeConfig.Anthropic.Key.String(),
-			EnableUpstreamLogging: true,
-		}),
+	openAIConfig := &aibridge.ProviderConfig{
+		BaseURL: coderAPI.DeploymentValues.AI.BridgeConfig.OpenAI.BaseURL.String(),
+		Key:     coderAPI.DeploymentValues.AI.BridgeConfig.OpenAI.Key.String(),
 	}
+	anthropicConfig := &aibridge.ProviderConfig{
+		BaseURL: coderAPI.DeploymentValues.AI.BridgeConfig.Anthropic.BaseURL.String(),
+		Key:     coderAPI.DeploymentValues.AI.BridgeConfig.Anthropic.Key.String(),
+	}
+
+	providers := []aibridge.Provider{
+		aibridge.NewOpenAIProvider(openAIConfig),
+		aibridge.NewAnthropicProvider(anthropicConfig),
+	}
+
+	// Store provider configs so we can update them when logging is toggled.
+	aibridgepkg.SetProviderConfigs([]*aibridge.ProviderConfig{openAIConfig, anthropicConfig})
 
 	// Create pool for reusable stateful [aibridge.RequestBridge] instances (one per user).
 	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger.Named("pool")) // TODO: configurable.

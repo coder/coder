@@ -23,6 +23,7 @@ func (r *RootCmd) aibridge() *serpent.Command {
 		},
 		Children: []*serpent.Command{
 			r.aibridgeInterceptions(),
+			r.aibridgeLogRequests(),
 		},
 	}
 	return cmd
