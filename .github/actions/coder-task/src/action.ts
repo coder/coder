@@ -1,7 +1,7 @@
 import * as core from "@actions/core";
-import type { getOctokit } from "@actions/github";
 import type { CoderClient } from "./coder-client";
 import type { ActionInputs, ActionOutputs } from "./schemas";
+import type { getOctokit } from "@actions/github";
 
 export type Octokit = ReturnType<typeof getOctokit>;
 

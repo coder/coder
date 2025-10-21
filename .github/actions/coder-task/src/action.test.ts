@@ -36,7 +36,7 @@ describe("CoderTaskAction", () => {
 			test("fetches user ID from API when username provided", async () => {
 				octokit.rest.users.getByUsername.mockResolvedValue({
 					data: { id: 67890 },
-				} as any);
+				} as ReturnType<typeof octokit.rest.users.getByUsername>);
 
 				const inputs = createMockInputs({ githubUsername: "testuser" });
 				const action = new CoderTaskAction(
@@ -474,8 +474,10 @@ describe("CoderTaskAction", () => {
 			test("creates new comment when none exists", async () => {
 				octokit.rest.issues.listComments.mockResolvedValue({
 					data: [],
-				} as any);
-				octokit.rest.issues.createComment.mockResolvedValue({} as any);
+				} as ReturnType<typeof octokit.rest.issues.listComments>);
+				octokit.rest.issues.createComment.mockResolvedValue(
+					{} as ReturnType<typeof octokit.rest.issues.createComment>,
+				);
 
 				const inputs = createMockInputs();
 				const action = new CoderTaskAction(
@@ -506,8 +508,10 @@ describe("CoderTaskAction", () => {
 						{ id: 2, body: "Other comment" },
 						{ id: 3, body: "Task created: another-old-url" },
 					],
-				} as any);
-				octokit.rest.issues.updateComment.mockResolvedValue({} as any);
+				} as ReturnType<typeof octokit.rest.issues.listComments>);
+				octokit.rest.issues.updateComment.mockResolvedValue(
+					{} as ReturnType<typeof octokit.rest.issues.updateComment>,
+				);
 
 				const inputs = createMockInputs();
 				const action = new CoderTaskAction(
@@ -535,8 +539,10 @@ describe("CoderTaskAction", () => {
 			test("parses owner/repo/issue from URL correctly", async () => {
 				octokit.rest.issues.listComments.mockResolvedValue({
 					data: [],
-				} as any);
-				octokit.rest.issues.createComment.mockResolvedValue({} as any);
+				} as ReturnType<typeof octokit.rest.issues.listComments>);
+				octokit.rest.issues.createComment.mockResolvedValue(
+					{} as ReturnType<typeof octokit.rest.issues.createComment>,
+				);
 
 				const inputs = createMockInputs();
 				const action = new CoderTaskAction(
@@ -588,7 +594,7 @@ describe("CoderTaskAction", () => {
 			test("warns but doesn't fail on permission error", async () => {
 				octokit.rest.issues.listComments.mockResolvedValue({
 					data: [],
-				} as any);
+				} as ReturnType<typeof octokit.rest.issues.listComments>);
 				octokit.rest.issues.createComment.mockRejectedValue(
 					new Error("Permission denied"),
 				);
@@ -622,8 +628,10 @@ describe("CoderTaskAction", () => {
 						{ id: 4, body: "Another comment" },
 						{ id: 5, body: "Task created: url3" },
 					],
-				} as any);
-				octokit.rest.issues.updateComment.mockResolvedValue({} as any);
+				} as ReturnType<typeof octokit.rest.issues.listComments>);
+				octokit.rest.issues.updateComment.mockResolvedValue(
+					{} as ReturnType<typeof octokit.rest.issues.updateComment>,
+				);
 
 				const inputs = createMockInputs();
 				const action = new CoderTaskAction(
@@ -760,8 +768,12 @@ describe("CoderTaskAction", () => {
 			coderClient.mockGetCoderUserByGitHubId.mockResolvedValue(mockUser);
 			coderClient.mockGetTaskStatus.mockResolvedValue(null);
 			coderClient.mockCreateTask.mockResolvedValue(mockTask);
-			octokit.rest.issues.listComments.mockResolvedValue({ data: [] } as any);
-			octokit.rest.issues.createComment.mockResolvedValue({} as any);
+			octokit.rest.issues.listComments.mockResolvedValue({
+				data: [],
+			} as ReturnType<typeof octokit.rest.issues.listComments>);
+			octokit.rest.issues.updateComment.mockResolvedValue(
+				{} as ReturnType<typeof octokit.rest.issues.updateComment>,
+			);
 
 			const inputs = createMockInputs({
 				githubUserId: 12345,
@@ -867,8 +879,12 @@ describe("CoderTaskAction", () => {
 			coderClient.mockGetCoderUserByGitHubId.mockResolvedValue(mockUser);
 			coderClient.mockGetTaskStatus.mockResolvedValue(null);
 			coderClient.mockCreateTask.mockResolvedValue(mockTask);
-			octokit.rest.issues.listComments.mockResolvedValue({ data: [] } as any);
-			octokit.rest.issues.createComment.mockResolvedValue({} as any);
+			octokit.rest.issues.listComments.mockResolvedValue({
+				data: [],
+			} as ReturnType<typeof octokit.rest.issues.listComments>);
+			octokit.rest.issues.createComment.mockResolvedValue(
+				{} as ReturnType<typeof octokit.rest.issues.createComment>,
+			);
 
 			const inputs = createMockInputs({
 				githubUserId: 12345,

@@ -21,7 +21,7 @@ describe("CoderClient", () => {
 		const mockInputs = createMockInputs();
 		client = new CoderClient(mockInputs.coderUrl, mockInputs.coderToken);
 		mockFetch = mock(() => Promise.resolve(createMockResponse([])));
-		global.fetch = mockFetch as typeof fetch;
+		global.fetch = mockFetch as unknown as typeof fetch;
 	});
 
 	describe("getCoderUserByGitHubId", () => {

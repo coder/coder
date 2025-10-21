@@ -57,11 +57,16 @@ export class CoderClient {
 	 * getCoderUserByGitHubId retrieves an existing Coder user with the given GitHub user ID using Coder's stable API.
 	 * Throws an error if more than one user exists with the same GitHub user ID or if a GitHub user ID of 0 is provided.
 	 */
-	async getCoderUserByGitHubId(githubUserId: number): Promise<User> {
+	async getCoderUserByGitHubId(
+		githubUserId: number | undefined,
+	): Promise<User> {
+		if (!githubUserId) {
+			throw new CoderAPIError("GitHub user ID cannot be undefined", 400);
+		}
 		if (githubUserId === 0) {
 			throw "GitHub user ID cannot be 0";
 		}
-		const endpoint = `/api/v2/users?q=${encodeURIComponent("github_com_user_id:" + githubUserId)}`;
+		const endpoint = `/api/v2/users?q=${encodeURIComponent(`github_com_user_id:"${githubUserId}"`)}`;
 		const response = await this.request<unknown[]>(endpoint);
 		const userList = UserListSchema.parse(response);
 		if (userList.users.length === 0) {

@@ -1,4 +1,5 @@
 import { mock } from "bun:test";
+import type { IOctokit } from "./action";
 import { CoderClient } from "./coder-client";
 import type {
 	ActionInputs,
@@ -136,7 +137,7 @@ export class MockCoderClient extends CoderClient {
 /**
  * Mock Octokit for testing
  */
-export function createMockOctokit() {
+export function createMockOctokit(): IOctokit {
 	return {
 		rest: {
 			users: {
