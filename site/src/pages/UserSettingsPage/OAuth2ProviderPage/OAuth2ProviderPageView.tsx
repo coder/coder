@@ -41,7 +41,7 @@ const OAuth2ProviderPageView: FC<OAuth2ProviderPageViewProps> = ({
 				</TableHeader>
 				<TableBody>
 					{isLoading && <TableLoader />}
-					{(apps === null || apps?.length === 0) && (
+					{(!apps || apps?.length === 0) && (
 						<TableEmpty message="No OAuth2 applications have been authorized" />
 					)}
 					{apps?.map((app) => (
