@@ -291,7 +291,6 @@ func TestWorkspaceLatestBuildTotals(t *testing.T) {
 					}
 
 					for _, metric := range m.Metric {
-						fmt.Printf("metric: %+v\n", metric)
 						count, ok := tc.Status[codersdk.ProvisionerJobStatus(metric.Label[0].GetValue())]
 						if metric.Gauge.GetValue() == 0 {
 							continue
