@@ -28,7 +28,7 @@ subdomains.
 		html,
 		body {
 			background-color: #05060b;
-			color: #f7f9fd;
+			color: #a1a1aa;
 			display: flex;
 			align-items: center;
 			justify-content: center;
@@ -37,12 +37,15 @@ subdomains.
 			height: 100%;
 		}
 
+		header {
+			text-align: center;
+		}
+
 		.container {
 			--side-padding: 24px;
 			width: 100%;
 			max-width: calc(500px + var(--side-padding) * 2);
 			padding: 0 var(--side-padding);
-			text-align: center;
 		}
 
 		.coder-svg {
@@ -54,12 +57,13 @@ subdomains.
 			font-size: 24px;
 			margin-bottom: 8px;
 			font-weight: 400;
+			color: #FFF;
 		}
 
 		p,
 		li {
-			color: rgb(161, 161, 170);
-			line-height: 22.4px;
+			line-height: 140%;
+			font-size: 14px;
 		}
 
 
@@ -99,7 +103,6 @@ subdomains.
 			background: rgb(13, 19, 33);
 			width: 100%;
 			padding: 24px;
-			text-align: left;
 		}
 
 		.warning-title {
@@ -108,50 +111,47 @@ subdomains.
 			align-items: center;
 		}
 
-		.svg-icon svg {
-			height: 1em;
-			width: 1em;
-		}
-
 		.warning-title h3 {
-			margin-left: 10px;
+			margin-left: 12px;
 			font-size: 16px;
 			font-weight: 500;
+			color: #FFF;
 		}
 
 		.warning li {
-			text-align: left;
 			padding-top: 10px;
 			margin-left: 30px;
-			font-size: 14px;
-			line-height: 25.6px;
 		}
 	</style>
 </head>
 
 <body>
 	<div class="container">
-		{{/*
-		DO NOT LOAD AN EXTERNAL IMAGE HERE. See the comment at the top of
-		this file for more details.
-		*/}}
-		<svg class="coder-svg" viewBox="0 0 66 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-			<path
-				d="M18.996 7C29.9934 7.00003 36.1588 12.5745 36.3671 20.7799L26.8691 21.0919C26.6191 16.5433 22.8492 13.5554 18.996 13.6445C13.7055 13.756 9.78938 17.5243 9.78934 23.5C9.78934 29.4757 13.7054 33.1773 18.996 33.1773C22.8492 33.177 26.5357 30.323 26.9524 25.7743L36.4503 25.9974C36.2004 34.3365 29.6602 40 18.996 40C8.33164 40 0 33.5338 0 23.5C3.90577e-05 13.4216 7.9984 7 18.996 7ZM66 7.97504V39.1914H41.0058V7.97504H66Z"
-				fill="white" />
-		</svg>
+		<header>
+			{{/*
+				DO NOT LOAD AN EXTERNAL IMAGE HERE. See the comment at the top of
+				this file for more details.
+			*/}}
+			<svg class="coder-svg" viewBox="0 0 66 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+				<path
+					d="M18.996 7C29.9934 7.00003 36.1588 12.5745 36.3671 20.7799L26.8691 21.0919C26.6191 16.5433 22.8492 13.5554 18.996 13.6445C13.7055 13.756 9.78938 17.5243 9.78934 23.5C9.78934 29.4757 13.7054 33.1773 18.996 33.1773C22.8492 33.177 26.5357 30.323 26.9524 25.7743L36.4503 25.9974C36.2004 34.3365 29.6602 40 18.996 40C8.33164 40 0 33.5338 0 23.5C3.90577e-05 13.4216 7.9984 7 18.996 7ZM66 7.97504V39.1914H41.0058V7.97504H66Z"
+					fill="white" />
+			</svg>
 
-		<h1>
-			{{- if not .Error.HideStatus }}{{ .Error.Status }} - {{end}}{{
-			.Error.Title }}
-		</h1>
-		{{- if .Error.RenderDescriptionMarkdown }} {{ .ErrorDescriptionHTML }} {{
-		else }}
-		<p>{{ .Error.Description }}</p>
-		{{ end }} {{- if .Error.AdditionalInfo }}
-		<br />
-		<p>{{ .Error.AdditionalInfo }}</p>
-		{{ end }} {{- if .Error.Warnings }}
+			<h1>
+				{{- if not .Error.HideStatus }}{{ .Error.Status }} - {{end}}{{
+				.Error.Title }}
+			</h1>
+			{{- if .Error.RenderDescriptionMarkdown }} {{ .ErrorDescriptionHTML }} {{
+			else }}
+			<p>{{ .Error.Description }}</p>
+			{{ end }} {{- if .Error.AdditionalInfo }}
+			<br />
+			<p>{{ .Error.AdditionalInfo }}</p>
+			{{ end }}
+		</header>
+
+		{{- if .Error.Warnings }}
 		<div class="warning">
 			<div class="warning-title">
 				<svg height="1em" width="auto" focusable="false" aria-hidden="true" viewBox="0 0 24 24">
