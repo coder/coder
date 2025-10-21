@@ -1379,7 +1379,7 @@ func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 		}
 
 		// Validate template version
-		version, err := api.Database.GetTemplateVersionByID(ctx, req.ID)
+		version, err := store.GetTemplateVersionByID(ctx, req.ID)
 		if httpapi.Is404Error(err) {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: "Template version not found.",
@@ -1407,7 +1407,7 @@ func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 		}
 
 		// Validate provisioner job
-		job, err := api.Database.GetProvisionerJobByID(ctx, version.JobID)
+		job, err := store.GetProvisionerJobByID(ctx, version.JobID)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching template version job status.",
@@ -1432,6 +1432,10 @@ func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 			UpdatedAt:       api.Clock.Now(),
 		})
 		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error updating active template version.",
+				Detail:  err.Error(),
+			})
 			return xerrors.Errorf("update active version: %w", err)
 		}
 
@@ -1447,8 +1451,8 @@ func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 				slog.F("template_id", currentTemplate.ID),
 				slog.F("template_version_id", previousVersion.ID()),
 				slog.Error(err))
-		} else if len(canceledJobs) > 0 {
-			api.Logger.Info(ctx, "canceled pending prebuild jobs for previous template version",
+		} else {
+			api.Logger.Debug(ctx, "canceled pending prebuild jobs for previous template version",
 				slog.F("template_id", currentTemplate.ID),
 				slog.F("template_version_id", previousVersion.ID()),
 				slog.F("count", len(canceledJobs)))

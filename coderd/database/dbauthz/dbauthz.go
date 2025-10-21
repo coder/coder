@@ -2942,9 +2942,9 @@ func (q *querier) GetTemplateByID(ctx context.Context, id uuid.UUID) (database.T
 	return fetch(q.log, q.auth, q.db.GetTemplateByID)(ctx, id)
 }
 
-// GetTemplateByIDWithLock acquires an exclusive lock on the template and returns it.
-// This method MUST be called within a transaction, otherwise the lock
-// will be released immediately after acquisition, defeating its purpose.
+// GetTemplateByIDWithLock acquires an exclusive lock on the template row and returns the template data.
+// This method MUST be called within a transaction, otherwise the lock will be released immediately after
+// acquisition, defeating its purpose.
 func (q *querier) GetTemplateByIDWithLock(ctx context.Context, id uuid.UUID) (database.TemplateTable, error) {
 	act, ok := ActorFromContext(ctx)
 	if !ok {
@@ -4855,7 +4855,6 @@ func (q *querier) UpdateOrganizationDeletedByID(ctx context.Context, arg databas
 func (q *querier) UpdatePrebuildProvisionerJobWithCancel(ctx context.Context, arg database.UpdatePrebuildProvisionerJobWithCancelParams) ([]uuid.UUID, error) {
 	// This is a system-only operation for canceling pending prebuild-related jobs
 	// when a new template version is promoted.
-	// User authorization is checked at the template promotion level.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return []uuid.UUID{}, err
 	}

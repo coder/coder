@@ -1349,8 +1349,8 @@ func TestPatchActiveTemplateVersion(t *testing.T) {
 				// Setup
 				db, ps := dbtestutil.NewDB(t)
 				client, _, _ := coderdtest.NewWithAPI(t, &coderdtest.Options{
-					// Explicitly not including provisioner daemons, as we don't want the jobs to be processed
-					// Jobs operations will be simulated via the database model
+					// Exclude provisioner daemons to prevent automatic job processing.
+					// Job operations will be simulated directly through the database model.
 					IncludeProvisionerDaemon: false,
 					Database:                 db,
 					Pubsub:                   ps,

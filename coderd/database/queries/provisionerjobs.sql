@@ -300,7 +300,7 @@ WHERE id IN (
 		-- Prebuilds system user: prebuild-related provisioner jobs
         AND w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
         AND wb.transition = 'start'::workspace_transition
-  		AND pj.job_status = 'pending'::provisioner_job_status
+        AND pj.job_status = 'pending'::provisioner_job_status
 		-- Pending jobs that have not yet been picked up by a provisioner
 		AND pj.worker_id IS NULL
         AND pj.canceled_at IS NULL

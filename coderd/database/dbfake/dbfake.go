@@ -234,7 +234,7 @@ func (b WorkspaceBuildBuilder) Do() WorkspaceResponse {
 
 	switch b.jobStatus {
 	case database.ProvisionerJobStatusPending:
-		// Created provisioner jobs are created in pending status
+		// Provisioner jobs are created in 'pending' status
 		b.logger.Debug(context.Background(), "pending the provisioner job")
 	case database.ProvisionerJobStatusRunning:
 		// might need to do this multiple times if we got a template version
@@ -261,6 +261,7 @@ func (b WorkspaceBuildBuilder) Do() WorkspaceResponse {
 			}
 		}
 	case database.ProvisionerJobStatusCanceled:
+		// Set provisioner job status to 'canceled'
 		b.logger.Debug(context.Background(), "canceling the provisioner job")
 		err = b.db.UpdateProvisionerJobWithCancelByID(ownerCtx, database.UpdateProvisionerJobWithCancelByIDParams{
 			ID: jobID,
