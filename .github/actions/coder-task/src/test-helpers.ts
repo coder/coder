@@ -1,3 +1,4 @@
+import { mock } from "bun:test";
 import { CoderClient } from "./coder-client";
 import {
 	ActionInputs,
@@ -88,12 +89,12 @@ export function createMockInputs(
  * Mock CoderClient for testing
  */
 export class MockCoderClient extends CoderClient {
-	public mockGetCoderUserByGitHubId = jest.fn();
-	public mockGetUserByUsername = jest.fn();
-	public mockGetTemplateByName = jest.fn();
-	public mockGetTaskStatus = jest.fn();
-	public mockCreateTask = jest.fn();
-	public mockSendTaskInput = jest.fn();
+	public mockGetCoderUserByGitHubId = mock();
+	public mockGetUserByUsername = mock();
+	public mockGetTemplateByName = mock();
+	public mockGetTaskStatus = mock();
+	public mockCreateTask = mock();
+	public mockSendTaskInput = mock();
 
 	constructor() {
 		super("https://coder.test", "test-token");
@@ -138,12 +139,12 @@ export function createMockOctokit() {
 	return {
 		rest: {
 			users: {
-				getByUsername: jest.fn(),
+				getByUsername: mock(),
 			},
 			issues: {
-				listComments: jest.fn(),
-				createComment: jest.fn(),
-				updateComment: jest.fn(),
+				listComments: mock(),
+				createComment: mock(),
+				updateComment: mock(),
 			},
 		},
 	};
@@ -153,7 +154,7 @@ export function createMockOctokit() {
  * Mock fetch for testing
  */
 export function createMockFetch() {
-	return jest.fn();
+	return mock();
 }
 
 /**
