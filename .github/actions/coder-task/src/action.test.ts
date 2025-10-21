@@ -1,5 +1,6 @@
 import { describe, expect, test, beforeEach } from "bun:test";
-import { CoderTaskAction, Octokit } from "./action";
+import { CoderTaskAction } from "./action";
+import type { Octokit } from "./action";
 import {
 	MockCoderClient,
 	createMockOctokit,
@@ -44,7 +45,9 @@ describe("CoderTaskAction", () => {
 					inputs,
 				);
 
-				const result = await (action as any).resolveGitHubUserId();
+				const result = await (
+					action as unknown as CoderTaskAction
+				).resolveGitHubUserId();
 
 				expect(result).toBe(67890);
 				expect(octokit.rest.users.getByUsername).toHaveBeenCalledWith({
@@ -65,7 +68,9 @@ describe("CoderTaskAction", () => {
 					inputs,
 				);
 
-				await expect((action as any).resolveGitHubUserId()).rejects.toThrow(
+				expect(
+					(action as unknown as CoderTaskAction).resolveGitHubUserId(),
+				).rejects.toThrow(
 					"Either githubUserId or githubUsername must be provided",
 				);
 			});
@@ -82,7 +87,9 @@ describe("CoderTaskAction", () => {
 					inputs,
 				);
 
-				await expect((action as any).resolveGitHubUserId()).rejects.toThrow();
+				expect(
+					(action as unknown as CoderTaskAction).resolveGitHubUserId(),
+				).rejects.toThrow();
 			});
 		});
 	});
@@ -96,7 +103,9 @@ describe("CoderTaskAction", () => {
 				inputs,
 			);
 
-			const result = (action as any).generateTaskName(123);
+			const result = (action as unknown as CoderTaskAction).generateTaskName(
+				123,
+			);
 
 			expect(result).toBe("custom-name");
 		});
@@ -109,7 +118,9 @@ describe("CoderTaskAction", () => {
 				inputs,
 			);
 
-			const result = (action as any).generateTaskName(123);
+			const result = (action as unknown as CoderTaskAction).generateTaskName(
+				123,
+			);
 
 			expect(result).toMatch(/^task-gh-123$/);
 		});
@@ -122,7 +133,9 @@ describe("CoderTaskAction", () => {
 				inputs,
 			);
 
-			const result = (action as any).generateTaskName(undefined);
+			const result = (action as unknown as CoderTaskAction).generateTaskName(
+				undefined,
+			);
 
 			expect(result).toMatch(/^task-run-\d+$/);
 		});
@@ -135,7 +148,9 @@ describe("CoderTaskAction", () => {
 				inputs,
 			);
 
-			const result = (action as any).generateTaskName(123);
+			const result = (action as unknown as CoderTaskAction).generateTaskName(
+				123,
+			);
 
 			expect(result).toMatch(/^custom-prefix-gh-123$/);
 		});
@@ -149,7 +164,9 @@ describe("CoderTaskAction", () => {
 					inputs,
 				);
 
-				const result = (action as any).generateTaskName(123);
+				const result = (action as unknown as CoderTaskAction).generateTaskName(
+					123,
+				);
 
 				// Empty prefix should still work
 				expect(result).toBe("-gh-123");
@@ -164,7 +181,9 @@ describe("CoderTaskAction", () => {
 					inputs,
 				);
 
-				const result = (action as any).generateTaskName(123);
+				const result = (action as unknown as CoderTaskAction).generateTaskName(
+					123,
+				);
 
 				expect(result).toStartWith(longPrefix);
 			});
@@ -183,7 +202,9 @@ describe("CoderTaskAction", () => {
 					inputs,
 				);
 
-				const result = await (action as any).getIssueNumber();
+				const result = await (
+					action as unknown as CoderTaskAction
+				).getIssueNumber();
 
 				expect(result).toBe(123);
 			});
@@ -196,7 +217,9 @@ describe("CoderTaskAction", () => {
 					inputs,
 				);
 
-				const result = await (action as any).getIssueNumber();
+				const result = await (
+					action as unknown as CoderTaskAction
+				).getIssueNumber();
 
 				expect(result).toBeUndefined();
 			});
@@ -211,7 +234,9 @@ describe("CoderTaskAction", () => {
 					inputs,
 				);
 
-				const result = await (action as any).getIssueNumber();
+				const result = await (
+					action as unknown as CoderTaskAction
+				).getIssueNumber();
 
 				expect(result).toBe(123);
 			});
@@ -226,7 +251,9 @@ describe("CoderTaskAction", () => {
 					inputs,
 				);
 
-				const result = await (action as any).getIssueNumber();
+				const result = await (
+					action as unknown as CoderTaskAction
+				).getIssueNumber();
 
 				expect(result).toBe(123);
 			});
@@ -241,7 +268,9 @@ describe("CoderTaskAction", () => {
 					inputs,
 				);
 
-				const result = await (action as any).getIssueNumber();
+				const result = await (
+					action as unknown as CoderTaskAction
+				).getIssueNumber();
 
 				expect(result).toBeUndefined();
 			});
@@ -256,7 +285,9 @@ describe("CoderTaskAction", () => {
 					inputs,
 				);
 
-				const result = await (action as any).getIssueNumber();
+				const result = await (
+					action as unknown as CoderTaskAction
+				).getIssueNumber();
 
 				expect(result).toBeUndefined();
 			});
@@ -275,7 +306,7 @@ describe("CoderTaskAction", () => {
 					inputs,
 				);
 
-				const result = (action as any).parseIssueUrl();
+				const result = (action as unknown as CoderTaskAction).parseIssueUrl();
 
 				expect(result).toEqual({
 					owner: "owner",
@@ -292,7 +323,7 @@ describe("CoderTaskAction", () => {
 					inputs,
 				);
 
-				const result = (action as any).parseIssueUrl();
+				const result = (action as unknown as CoderTaskAction).parseIssueUrl();
 
 				expect(result).toBeNull();
 			});
@@ -307,7 +338,7 @@ describe("CoderTaskAction", () => {
 					inputs,
 				);
 
-				const result = (action as any).parseIssueUrl();
+				const result = (action as unknown as CoderTaskAction).parseIssueUrl();
 
 				expect(result).toBeNull();
 			});
@@ -322,7 +353,7 @@ describe("CoderTaskAction", () => {
 					inputs,
 				);
 
-				const result = (action as any).parseIssueUrl();
+				const result = (action as unknown as CoderTaskAction).parseIssueUrl();
 
 				expect(result).toBeNull();
 			});
@@ -339,7 +370,7 @@ describe("CoderTaskAction", () => {
 					inputs,
 				);
 
-				const result = (action as any).parseIssueUrl();
+				const result = (action as unknown as CoderTaskAction).parseIssueUrl();
 
 				// Should still parse correctly
 				expect(result?.issueNumber).toBe(123);
@@ -355,7 +386,7 @@ describe("CoderTaskAction", () => {
 					inputs,
 				);
 
-				const result = (action as any).parseIssueUrl();
+				const result = (action as unknown as CoderTaskAction).parseIssueUrl();
 
 				expect(result?.issueNumber).toBe(123);
 			});
@@ -370,7 +401,7 @@ describe("CoderTaskAction", () => {
 					inputs,
 				);
 
-				const result = (action as any).parseIssueUrl();
+				const result = (action as unknown as CoderTaskAction).parseIssueUrl();
 
 				expect(result?.issueNumber).toBe(123);
 			});
@@ -389,7 +420,10 @@ describe("CoderTaskAction", () => {
 				inputs,
 			);
 
-			const result = (action as any).generateTaskUrl("testuser", "task-123");
+			const result = (action as unknown as CoderTaskAction).generateTaskUrl(
+				"testuser",
+				"task-123",
+			);
 
 			expect(result).toBe("https://coder-web.test/tasks/testuser/task-123");
 		});
@@ -405,7 +439,10 @@ describe("CoderTaskAction", () => {
 				inputs,
 			);
 
-			const result = (action as any).generateTaskUrl("testuser", "task-123");
+			const result = (action as unknown as CoderTaskAction).generateTaskUrl(
+				"testuser",
+				"task-123",
+			);
 
 			expect(result).toBe("https://coder.test/tasks/testuser/task-123");
 		});
@@ -421,7 +458,10 @@ describe("CoderTaskAction", () => {
 					inputs,
 				);
 
-				const result = (action as any).generateTaskUrl("testuser", "task-123");
+				const result = (action as unknown as CoderTaskAction).generateTaskUrl(
+					"testuser",
+					"task-123",
+				);
 
 				// Should not have double slash
 				expect(result).toBe("https://coder.test//tasks/testuser/task-123");
@@ -444,7 +484,7 @@ describe("CoderTaskAction", () => {
 					inputs,
 				);
 
-				await (action as any).commentOnIssue(
+				await (action as unknown as CoderTaskAction).commentOnIssue(
 					"https://coder.test/tasks/testuser/task-123",
 					"owner",
 					"repo",
@@ -476,7 +516,7 @@ describe("CoderTaskAction", () => {
 					inputs,
 				);
 
-				await (action as any).commentOnIssue(
+				await (action as unknown as CoderTaskAction).commentOnIssue(
 					"https://coder.test/tasks/testuser/task-123",
 					"owner",
 					"repo",
@@ -505,7 +545,7 @@ describe("CoderTaskAction", () => {
 					inputs,
 				);
 
-				await (action as any).commentOnIssue(
+				await (action as unknown as CoderTaskAction).commentOnIssue(
 					"https://coder.test/tasks/testuser/task-123",
 					"different-owner",
 					"different-repo",
@@ -535,8 +575,8 @@ describe("CoderTaskAction", () => {
 				);
 
 				// Should not throw
-				await expect(
-					(action as any).commentOnIssue(
+				expect(
+					(action as unknown as CoderTaskAction).commentOnIssue(
 						"https://coder.test/tasks/testuser/task-123",
 						"owner",
 						"repo",
@@ -561,8 +601,8 @@ describe("CoderTaskAction", () => {
 				);
 
 				// Should not throw
-				await expect(
-					(action as any).commentOnIssue(
+				expect(
+					(action as unknown as CoderTaskAction).commentOnIssue(
 						"https://coder.test/tasks/testuser/task-123",
 						"owner",
 						"repo",
@@ -592,7 +632,7 @@ describe("CoderTaskAction", () => {
 					inputs,
 				);
 
-				await (action as any).commentOnIssue(
+				await (action as unknown as CoderTaskAction).commentOnIssue(
 					"https://coder.test/tasks/testuser/task-123",
 					"owner",
 					"repo",
@@ -761,7 +801,7 @@ describe("CoderTaskAction", () => {
 				inputs,
 			);
 
-			await expect(action.run()).rejects.toThrow(
+			expect(action.run()).rejects.toThrow(
 				"No Coder user found with GitHub user ID 12345",
 			);
 		});
@@ -783,7 +823,7 @@ describe("CoderTaskAction", () => {
 				inputs,
 			);
 
-			await expect(action.run()).rejects.toThrow("Template not found");
+			expect(action.run()).rejects.toThrow("Template not found");
 		});
 
 		test("throws error when task creation fails", async () => {
@@ -800,7 +840,7 @@ describe("CoderTaskAction", () => {
 				inputs,
 			);
 
-			await expect(action.run()).rejects.toThrow("Failed to create task");
+			expect(action.run()).rejects.toThrow("Failed to create task");
 		});
 
 		test("throws error on permission denied", async () => {
@@ -817,7 +857,7 @@ describe("CoderTaskAction", () => {
 				inputs,
 			);
 
-			await expect(action.run()).rejects.toThrow("Permission denied");
+			expect(action.run()).rejects.toThrow("Permission denied");
 		});
 	});
 
