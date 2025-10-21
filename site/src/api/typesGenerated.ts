@@ -39,6 +39,7 @@ export interface AIBridgeInterception {
 
 // From codersdk/aibridge.go
 export interface AIBridgeListInterceptionsResponse {
+	readonly total: number;
 	readonly results: readonly AIBridgeInterception[];
 }
 
