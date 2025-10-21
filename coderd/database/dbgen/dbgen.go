@@ -988,7 +988,7 @@ func WorkspaceProxy(t testing.TB, db database.Store, orig database.WorkspaceProx
 		Name:              takeFirst(orig.Name, testutil.GetRandomName(t)),
 		DisplayName:       takeFirst(orig.DisplayName, testutil.GetRandomName(t)),
 		Icon:              takeFirst(orig.Icon, testutil.GetRandomName(t)),
-		TokenHashedSecret: hashedSecret[:],
+		TokenHashedSecret: hashedSecret,
 		CreatedAt:         takeFirst(orig.CreatedAt, dbtime.Now()),
 		UpdatedAt:         takeFirst(orig.UpdatedAt, dbtime.Now()),
 		DerpEnabled:       takeFirst(orig.DerpEnabled, false),

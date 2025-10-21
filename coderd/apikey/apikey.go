@@ -126,7 +126,7 @@ func Generate(params CreateParams) (database.InsertAPIKeyParams, string, error) 
 		ExpiresAt:    params.ExpiresAt.UTC(),
 		CreatedAt:    dbtime.Now(),
 		UpdatedAt:    dbtime.Now(),
-		HashedSecret: hashedSecret[:],
+		HashedSecret: hashedSecret,
 		LoginType:    params.LoginType,
 		Scopes:       scopes,
 		AllowList:    params.AllowList,
@@ -140,7 +140,7 @@ func GenerateSecret(length int) (secret string, hashed []byte, err error) {
 		return "", nil, err
 	}
 	hash := HashSecret(secret)
-	return secret, hash[:], nil
+	return secret, hash, nil
 }
 
 // ValidateHash compares a secret against an expected hashed secret.
