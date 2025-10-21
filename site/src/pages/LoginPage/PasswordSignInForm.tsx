@@ -1,6 +1,6 @@
-import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
 import { Button } from "components/Button/Button";
+import { Link } from "components/Link/Link";
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import { useFormik } from "formik";
@@ -69,16 +69,8 @@ export const PasswordSignInForm: FC<PasswordSignInFormProps> = ({
 					<Spinner loading={isSigningIn} />
 					{Language.passwordSignIn}
 				</Button>
-				<Link
-					component={RouterLink}
-					to="/reset-password"
-					css={{
-						fontSize: 12,
-						fontWeight: 500,
-						lineHeight: "16px",
-					}}
-				>
-					Forgot password?
+				<Link asChild size="sm">
+					<RouterLink to="/reset-password">Forgot password?</RouterLink>
 				</Link>
 			</Stack>
 		</form>

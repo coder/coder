@@ -1,7 +1,7 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import Link from "@mui/material/Link";
 import { PremiumBadge } from "components/Badges/Badges";
 import { Button } from "components/Button/Button";
+import { Link } from "components/Link/Link";
 import { Stack } from "components/Stack/Stack";
 import { CircleCheckBigIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
@@ -33,6 +33,7 @@ export const Paywall: FC<PaywallProps> = ({
 					target="_blank"
 					rel="noreferrer"
 					className="font-semibold"
+					size="sm"
 				>
 					Read the documentation
 				</Link>

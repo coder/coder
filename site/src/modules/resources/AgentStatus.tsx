@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
 import type {
 	WorkspaceAgent,
@@ -13,6 +12,7 @@ import {
 	HelpTooltipTitle,
 	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
+import { Link } from "components/Link/Link";
 import { TriangleAlertIcon } from "lucide-react";
 import type { FC } from "react";
 
@@ -74,6 +74,7 @@ const StartTimeoutLifecycle: FC<AgentStatusProps> = ({ agent }) => {
 						target="_blank"
 						rel="noreferrer"
 						href={agent.troubleshooting_url}
+						size="sm"
 					>
 						Troubleshoot
 					</Link>
