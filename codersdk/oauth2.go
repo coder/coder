@@ -27,6 +27,7 @@ type OAuth2ProviderApp struct {
 type OAuth2AppEndpoints struct {
 	Authorization string `json:"authorization"`
 	Token         string `json:"token"`
+	TokenRevoke   string `json:"token_revoke"`
 	// DeviceAuth is optional.
 	DeviceAuth string `json:"device_authorization"`
 }

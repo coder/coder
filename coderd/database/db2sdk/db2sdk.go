@@ -383,6 +383,9 @@ func OAuth2ProviderApp(accessURL *url.URL, dbApp database.OAuth2ProviderApp) cod
 			}).String(),
 			// We do not currently support DeviceAuth.
 			DeviceAuth: "",
+			TokenRevoke: accessURL.ResolveReference(&url.URL{
+				Path: "/oauth2/revoke",
+			}).String(),
 		},
 	}
 }

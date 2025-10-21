@@ -161,7 +161,6 @@ func revokeAPIKeyInTx(ctx context.Context, db database.Store, token string, appI
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			// API key not found - return success per RFC 7009 (don't reveal token existence)
-			// Note: This covers both non-existent keys and invalid key ID formats
 			return nil
 		}
 		return xerrors.Errorf("get api key by id: %w", err)
@@ -175,7 +174,7 @@ func revokeAPIKeyInTx(ctx context.Context, db database.Store, token string, appI
 
 	// Verify the API key was created by OAuth2
 	if apiKey.LoginType != database.LoginTypeOAuth2ProviderApp {
-		return xerrors.New("API key is not an OAuth2 token")
+		return xerrors.New("api key is not an oauth2 token")
 	}
 
 	// Find the associated OAuth2 token to verify ownership
