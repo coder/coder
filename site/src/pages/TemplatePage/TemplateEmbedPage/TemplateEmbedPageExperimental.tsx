@@ -1,5 +1,3 @@
-import CheckOutlined from "@mui/icons-material/CheckOutlined";
-import FileCopyOutlined from "@mui/icons-material/FileCopyOutlined";
 import { API } from "api/api";
 import { DetailedError } from "api/errors";
 import type {
@@ -18,6 +16,7 @@ import { Skeleton } from "components/Skeleton/Skeleton";
 import { useAuthenticated } from "hooks";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { useClipboard } from "hooks/useClipboard";
+import { CheckIcon, CopyIcon } from "lucide-react";
 import {
 	Diagnostics,
 	DynamicParameter,
@@ -308,8 +307,8 @@ const ButtonPreview: FC<ButtonPreviewProps> = ({ template, buttonValues }) => {
 					clipboard.copyToClipboard(textToCopy);
 				}}
 			>
-				{clipboard.showCopiedSuccess ? <CheckOutlined /> : <FileCopyOutlined />}{" "}
-				Copy button code
+				{clipboard.showCopiedSuccess ? <CheckIcon /> : <CopyIcon />} Copy button
+				code
 			</Button>
 		</div>
 	);

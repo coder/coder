@@ -108,67 +108,6 @@ const muiTheme = createTheme({
 				},
 			},
 		},
-		MuiButton: {
-			...components.MuiButton,
-			styleOverrides: {
-				...components.MuiButton.styleOverrides,
-				outlined: ({ theme }) => ({
-					boxShadow: "0 1px 4px #0001",
-					":hover": {
-						boxShadow: "0 1px 4px #0001",
-						border: `1px solid ${theme.palette.secondary.main}`,
-					},
-					"&.Mui-disabled": {
-						boxShadow: "none !important",
-					},
-				}),
-				["outlinedNeutral" as MuiStyle]: {
-					borderColor: tw.zinc[300],
-
-					"&.Mui-disabled": {
-						borderColor: tw.zinc[200],
-						color: tw.zinc[500],
-
-						"& > .MuiLoadingButton-loadingIndicator": {
-							color: tw.zinc[500],
-						},
-					},
-				},
-				contained: {
-					boxShadow: "0 1px 4px #0001",
-					"&.Mui-disabled": {
-						boxShadow: "none !important",
-					},
-					":hover": {
-						boxShadow: "0 1px 4px #0001",
-					},
-				},
-				["containedNeutral" as MuiStyle]: {
-					backgroundColor: tw.zinc[100],
-					border: `1px solid ${tw.zinc[200]}`,
-
-					"&.Mui-disabled": {
-						backgroundColor: tw.zinc[50],
-						border: `1px solid ${tw.zinc[100]}`,
-					},
-
-					"&:hover": {
-						backgroundColor: tw.zinc[200],
-						border: `1px solid ${tw.zinc[300]}`,
-					},
-				},
-			},
-		},
-		MuiButtonGroup: {
-			styleOverrides: {
-				root: {
-					">button:hover+button": {
-						// The !important is unfortunate, but necessary for the border.
-						borderLeftColor: `${tw.zinc[300]} !important`,
-					},
-				},
-			},
-		},
 		MuiChip: {
 			styleOverrides: {
 				root: {
@@ -245,15 +184,6 @@ const muiTheme = createTheme({
 					padding: "8px 16px",
 					boxShadow: "0 1px 4px #0001",
 				}),
-			},
-		},
-		MuiIconButton: {
-			styleOverrides: {
-				root: {
-					"&.Mui-focusVisible": {
-						boxShadow: `0 0 0 2px ${tw.blue[600]}`,
-					},
-				},
 			},
 		},
 	},

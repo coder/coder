@@ -1,5 +1,5 @@
-import GitHub from "@mui/icons-material/GitHub";
 import { Button } from "components/Button/Button";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import {
 	BugIcon,
 	ExternalLinkIcon,
@@ -41,7 +41,7 @@ export const TaskStatusLink: FC<TaskStatusLinkProps> = ({ uri }) => {
 								: `${org}/${repo} issue`;
 							break;
 						default:
-							icon = <GitHub />;
+							icon = <ExternalImage src="/icon/github.svg" />;
 							if (org && repo) {
 								label = `${org}/${repo}`;
 							}

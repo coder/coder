@@ -355,7 +355,7 @@ func (r *remoteReporter) deployment() error {
 		return xerrors.Errorf("create deployment request: %w", err)
 	}
 	req.Header.Set(VersionHeader, buildinfo.Version())
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := r.client.Do(req)
 	if err != nil {
 		return xerrors.Errorf("perform request: %w", err)
 	}
@@ -727,6 +727,19 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 				EventType: PrebuiltWorkspaceEventTypeClaimed,
 				Count:     int(totalClaimed),
 			})
+		}
+		return nil
+	})
+	eg.Go(func() error {
+		dbTasks, err := r.options.Database.ListTasks(ctx, database.ListTasksParams{
+			OwnerID:        uuid.Nil,
+			OrganizationID: uuid.Nil,
+		})
+		if err != nil {
+			return err
+		}
+		for _, dbTask := range dbTasks {
+			snapshot.Tasks = append(snapshot.Tasks, ConvertTask(dbTask))
 		}
 		return nil
 	})
@@ -1205,6 +1218,7 @@ type Snapshot struct {
 	Workspaces                           []Workspace                           `json:"workspaces"`
 	NetworkEvents                        []NetworkEvent                        `json:"network_events"`
 	Organizations                        []Organization                        `json:"organizations"`
+	Tasks                                []Task                                `json:"tasks"`
 	TelemetryItems                       []TelemetryItem                       `json:"telemetry_items"`
 	UserTailnetConnections               []UserTailnetConnection               `json:"user_tailnet_connections"`
 	PrebuiltWorkspaces                   []PrebuiltWorkspace                   `json:"prebuilt_workspaces"`
@@ -1751,6 +1765,52 @@ type Organization struct {
 	ID        uuid.UUID `json:"id"`
 	IsDefault bool      `json:"is_default"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+type Task struct {
+	ID                   string    `json:"id"`
+	OrganizationID       string    `json:"organization_id"`
+	OwnerID              string    `json:"owner_id"`
+	Name                 string    `json:"name"`
+	WorkspaceID          *string   `json:"workspace_id"`
+	WorkspaceBuildNumber *int64    `json:"workspace_build_number"`
+	WorkspaceAgentID     *string   `json:"workspace_agent_id"`
+	WorkspaceAppID       *string   `json:"workspace_app_id"`
+	TemplateVersionID    string    `json:"template_version_id"`
+	PromptHash           string    `json:"prompt_hash"` // Prompt is hashed for privacy.
+	CreatedAt            time.Time `json:"created_at"`
+	Status               string    `json:"status"`
+}
+
+// ConvertTask anonymizes a Task.
+func ConvertTask(task database.Task) Task {
+	t := &Task{
+		ID:                   task.ID.String(),
+		OrganizationID:       task.OrganizationID.String(),
+		OwnerID:              task.OwnerID.String(),
+		Name:                 task.Name,
+		WorkspaceID:          nil,
+		WorkspaceBuildNumber: nil,
+		WorkspaceAgentID:     nil,
+		WorkspaceAppID:       nil,
+		TemplateVersionID:    task.TemplateVersionID.String(),
+		PromptHash:           fmt.Sprintf("%x", sha256.Sum256([]byte(task.Prompt))),
+		CreatedAt:            task.CreatedAt,
+		Status:               string(task.Status),
+	}
+	if task.WorkspaceID.Valid {
+		t.WorkspaceID = ptr.Ref(task.WorkspaceID.UUID.String())
+	}
+	if task.WorkspaceBuildNumber.Valid {
+		t.WorkspaceBuildNumber = ptr.Ref(int64(task.WorkspaceBuildNumber.Int32))
+	}
+	if task.WorkspaceAgentID.Valid {
+		t.WorkspaceAgentID = ptr.Ref(task.WorkspaceAgentID.UUID.String())
+	}
+	if task.WorkspaceAppID.Valid {
+		t.WorkspaceAppID = ptr.Ref(task.WorkspaceAppID.UUID.String())
+	}
+	return *t
 }
 
 type telemetryItemKey string

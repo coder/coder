@@ -61,6 +61,14 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 		return nil, xerrors.Errorf("get workspace by agent id: %w", err)
 	}
 
+	// Some older clients may incorrectly report "localhost" as the IP address.
+	// Related to https://github.com/coder/coder/issues/20194
+	logIPRaw := req.GetConnection().GetIp()
+	if logIPRaw == "localhost" {
+		logIPRaw = "127.0.0.1"
+	}
+	logIP := database.ParseIP(logIPRaw) // will return null if invalid
+
 	reason := req.GetConnection().GetReason()
 	connLogger := *a.ConnectionLogger.Load()
 	err = connLogger.Upsert(ctx, database.UpsertConnectionLogParams{
@@ -73,7 +81,7 @@ func (a *ConnLogAPI) ReportConnection(ctx context.Context, req *agentproto.Repor
 		AgentName:        workspaceAgent.Name,
 		Type:             connectionType,
 		Code:             code,
-		Ip:               database.ParseIP(req.GetConnection().GetIp()),
+		Ip:               logIP,
 		ConnectionID: uuid.NullUUID{
 			UUID:  connectionID,
 			Valid: true,

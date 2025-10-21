@@ -1,11 +1,11 @@
 import { useTheme } from "@emotion/react";
-import Button from "@mui/material/Button";
 import type {
 	HealthcheckReport,
 	HealthSeverity,
 	NetcheckReport,
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
+import { Button } from "components/Button/Button";
 import { MapPinIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link, useOutletContext } from "react-router";
@@ -100,10 +100,9 @@ const DERPPage: FC = () => {
 							})
 							.map(({ severity, region }) => {
 								return (
-									<Button
-										startIcon={
+									<Button variant="outline" key={region!.RegionID} asChild>
+										<Link to={`/health/derp/regions/${region!.RegionID}`}>
 											<MapPinIcon
-												className="size-4"
 												style={{
 													color: healthyColor(
 														theme,
@@ -111,12 +110,8 @@ const DERPPage: FC = () => {
 													),
 												}}
 											/>
-										}
-										component={Link}
-										to={`/health/derp/regions/${region!.RegionID}`}
-										key={region!.RegionID}
-									>
-										{region!.RegionName}
+											{region!.RegionName}
+										</Link>
 									</Button>
 								);
 							})}

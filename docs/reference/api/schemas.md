@@ -312,6 +312,11 @@
         "valid": true
       },
       "workspace_agent_lifecycle": "created",
+      "workspace_app_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "workspace_build_number": 0,
       "workspace_id": {
         "uuid": "string",
         "valid": true
@@ -561,7 +566,8 @@
         }
       ]
     }
-  ]
+  ],
+  "total": 0
 }
 ```
 
@@ -570,6 +576,7 @@
 | Name      | Type                                                                    | Required | Restrictions | Description |
 |-----------|-------------------------------------------------------------------------|----------|--------------|-------------|
 | `results` | array of [codersdk.AIBridgeInterception](#codersdkaibridgeinterception) | false    |              |             |
+| `total`   | integer                                                                 | false    |              |             |
 
 ## codersdk.AIBridgeOpenAIConfig
 
@@ -704,6 +711,22 @@
 | Name     | Type                                               | Required | Restrictions | Description |
 |----------|----------------------------------------------------|----------|--------------|-------------|
 | `bridge` | [codersdk.AIBridgeConfig](#codersdkaibridgeconfig) | false    |              |             |
+
+## codersdk.APIAllowListTarget
+
+```json
+{
+  "id": "string",
+  "type": "*"
+}
+```
+
+### Properties
+
+| Name   | Type                                           | Required | Restrictions | Description |
+|--------|------------------------------------------------|----------|--------------|-------------|
+| `id`   | string                                         | false    |              |             |
+| `type` | [codersdk.RBACResource](#codersdkrbacresource) | false    |              |             |
 
 ## codersdk.APIKey
 
@@ -893,6 +916,11 @@
 | `tailnet_coordinator:delete`              |
 | `tailnet_coordinator:read`                |
 | `tailnet_coordinator:update`              |
+| `task:*`                                  |
+| `task:create`                             |
+| `task:delete`                             |
+| `task:read`                               |
+| `task:update`                             |
 | `template:*`                              |
 | `template:create`                         |
 | `template:delete`                         |
@@ -927,6 +955,7 @@
 | `workspace:delete`                        |
 | `workspace:delete_agent`                  |
 | `workspace:read`                          |
+| `workspace:share`                         |
 | `workspace:ssh`                           |
 | `workspace:start`                         |
 | `workspace:stop`                          |
@@ -944,6 +973,7 @@
 | `workspace_dormant:delete`                |
 | `workspace_dormant:delete_agent`          |
 | `workspace_dormant:read`                  |
+| `workspace_dormant:share`                 |
 | `workspace_dormant:ssh`                   |
 | `workspace_dormant:start`                 |
 | `workspace_dormant:stop`                  |
@@ -2243,6 +2273,12 @@ This is required on creation to enable a user-flow of validating a template work
 
 ```json
 {
+  "allow_list": [
+    {
+      "id": "string",
+      "type": "*"
+    }
+  ],
   "lifetime": 0,
   "scope": "all",
   "scopes": [
@@ -2254,12 +2290,13 @@ This is required on creation to enable a user-flow of validating a template work
 
 ### Properties
 
-| Name         | Type                                                  | Required | Restrictions | Description                     |
-|--------------|-------------------------------------------------------|----------|--------------|---------------------------------|
-| `lifetime`   | integer                                               | false    |              |                                 |
-| `scope`      | [codersdk.APIKeyScope](#codersdkapikeyscope)          | false    |              | Deprecated: use Scopes instead. |
-| `scopes`     | array of [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              |                                 |
-| `token_name` | string                                                | false    |              |                                 |
+| Name         | Type                                                                | Required | Restrictions | Description                     |
+|--------------|---------------------------------------------------------------------|----------|--------------|---------------------------------|
+| `allow_list` | array of [codersdk.APIAllowListTarget](#codersdkapiallowlisttarget) | false    |              |                                 |
+| `lifetime`   | integer                                                             | false    |              |                                 |
+| `scope`      | [codersdk.APIKeyScope](#codersdkapikeyscope)                        | false    |              | Deprecated: use Scopes instead. |
+| `scopes`     | array of [codersdk.APIKeyScope](#codersdkapikeyscope)               | false    |              |                                 |
+| `token_name` | string                                                              | false    |              |                                 |
 
 ## codersdk.CreateUserRequestWithOrgs
 
@@ -2855,6 +2892,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "scheme": "string",
       "user": {}
     },
+    "enable_authz_recording": true,
     "enable_terraform_debug_mode": true,
     "ephemeral_deployment": true,
     "experiments": [
@@ -3360,6 +3398,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "scheme": "string",
     "user": {}
   },
+  "enable_authz_recording": true,
   "enable_terraform_debug_mode": true,
   "ephemeral_deployment": true,
   "experiments": [
@@ -3694,6 +3733,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `disable_password_auth`              | boolean                                                                                              | false    |              |                                                                    |
 | `disable_path_apps`                  | boolean                                                                                              | false    |              |                                                                    |
 | `docs_url`                           | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
+| `enable_authz_recording`             | boolean                                                                                              | false    |              |                                                                    |
 | `enable_terraform_debug_mode`        | boolean                                                                                              | false    |              |                                                                    |
 | `ephemeral_deployment`               | boolean                                                                                              | false    |              |                                                                    |
 | `experiments`                        | array of string                                                                                      | false    |              |                                                                    |
@@ -7036,6 +7076,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `read`                |
 | `read_personal`       |
 | `ssh`                 |
+| `share`               |
 | `unassign`            |
 | `update`              |
 | `update_personal`     |
@@ -7087,6 +7128,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `replicas`                         |
 | `system`                           |
 | `tailnet_coordinator`              |
+| `task`                             |
 | `template`                         |
 | `usage_event`                      |
 | `user`                             |
@@ -7338,6 +7380,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `idp_sync_settings_role`         |
 | `workspace_agent`                |
 | `workspace_app`                  |
+| `task`                           |
 
 ## codersdk.Response
 
@@ -7675,6 +7718,11 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
     "valid": true
   },
   "workspace_agent_lifecycle": "created",
+  "workspace_app_id": {
+    "uuid": "string",
+    "valid": true
+  },
+  "workspace_build_number": 0,
   "workspace_id": {
     "uuid": "string",
     "valid": true
@@ -7703,6 +7751,8 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `workspace_agent_health`    | [codersdk.WorkspaceAgentHealth](#codersdkworkspaceagenthealth)       | false    |              |             |
 | `workspace_agent_id`        | [uuid.NullUUID](#uuidnulluuid)                                       | false    |              |             |
 | `workspace_agent_lifecycle` | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle) | false    |              |             |
+| `workspace_app_id`          | [uuid.NullUUID](#uuidnulluuid)                                       | false    |              |             |
+| `workspace_build_number`    | integer                                                              | false    |              |             |
 | `workspace_id`              | [uuid.NullUUID](#uuidnulluuid)                                       | false    |              |             |
 
 #### Enumerated Values

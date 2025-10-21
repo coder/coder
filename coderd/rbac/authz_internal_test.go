@@ -633,18 +633,20 @@ func TestAuthorizeDomain(t *testing.T) {
 			{
 				Identifier: RoleIdentifier{Name: "ReadOnlyOrgAndUser"},
 				Site:       []Permission{},
-				Org: map[string][]Permission{
-					defOrg.String(): {{
-						Negate:       false,
-						ResourceType: "*",
-						Action:       policy.ActionRead,
-					}},
-				},
 				User: []Permission{
 					{
 						Negate:       false,
 						ResourceType: "*",
 						Action:       policy.ActionRead,
+					},
+				},
+				ByOrgID: map[string]OrgPermissions{
+					defOrg.String(): {
+						Org: []Permission{{
+							Negate:       false,
+							ResourceType: "*",
+							Action:       policy.ActionRead,
+						}},
 					},
 				},
 			},
@@ -726,12 +728,14 @@ func TestAuthorizeLevels(t *testing.T) {
 			must(RoleByName(RoleOwner())),
 			{
 				Identifier: RoleIdentifier{Name: "org-deny:", OrganizationID: defOrg},
-				Org: map[string][]Permission{
+				ByOrgID: map[string]OrgPermissions{
 					defOrg.String(): {
-						{
-							Negate:       true,
-							ResourceType: "*",
-							Action:       "*",
+						Org: []Permission{
+							{
+								Negate:       true,
+								ResourceType: "*",
+								Action:       "*",
+							},
 						},
 					},
 				},
@@ -926,8 +930,8 @@ func TestAuthorizeScope(t *testing.T) {
 					// Only read access for workspaces.
 					ResourceWorkspace.Type: {policy.ActionRead},
 				}),
-				Org:  map[string][]Permission{},
-				User: []Permission{},
+				User:    []Permission{},
+				ByOrgID: map[string]OrgPermissions{},
 			},
 			AllowIDList: []AllowListElement{{Type: ResourceWorkspace.Type, ID: workspaceID.String()}},
 		},
@@ -1015,8 +1019,8 @@ func TestAuthorizeScope(t *testing.T) {
 					// Only read access for workspaces.
 					ResourceWorkspace.Type: {policy.ActionCreate},
 				}),
-				Org:  map[string][]Permission{},
-				User: []Permission{},
+				User:    []Permission{},
+				ByOrgID: map[string]OrgPermissions{},
 			},
 			// Empty string allow_list is allowed for actions like 'create'
 			AllowIDList: []AllowListElement{{
@@ -1138,14 +1142,16 @@ func TestAuthorizeScope(t *testing.T) {
 				},
 				DisplayName: "OrgAndUserScope",
 				Site:        nil,
-				Org: map[string][]Permission{
-					defOrg.String(): Permissions(map[string][]policy.Action{
-						ResourceWorkspace.Type: {policy.ActionRead},
-					}),
-				},
 				User: Permissions(map[string][]policy.Action{
 					ResourceUser.Type: {policy.ActionRead},
 				}),
+				ByOrgID: map[string]OrgPermissions{
+					defOrg.String(): {
+						Org: Permissions(map[string][]policy.Action{
+							ResourceWorkspace.Type: {policy.ActionRead},
+						}),
+					},
+				},
 			},
 			AllowIDList: []AllowListElement{AllowListAll()},
 		},
