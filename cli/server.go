@@ -1378,6 +1378,7 @@ func IsLocalURL(ctx context.Context, u *url.URL) (bool, error) {
 }
 
 func shutdownWithTimeout(shutdown func(context.Context) error, timeout time.Duration) error {
+	// nolint:gocritic // The magic number is parameterized.
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	return shutdown(ctx)
@@ -2320,7 +2321,7 @@ func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, d
 	var err error
 	var sqlDB *sql.DB
 	dbNeedsClosing := true
-	// Try to connect for 30 seconds.
+	// nolint:gocritic // Try to connect for 30 seconds.
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
@@ -2416,6 +2417,7 @@ func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, d
 }
 
 func pingPostgres(ctx context.Context, db *sql.DB) error {
+	// nolint:gocritic // This is a reasonable magic number for a ping timeout.
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	return db.PingContext(ctx)
