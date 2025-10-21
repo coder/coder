@@ -1569,23 +1569,18 @@ func New(options *Options) *API {
 
 				// Handle any out of the box pprof handlers that don't get
 				// dealt with by the default index handler. See httppprof.init.
-				r.Get("/cmdline", func(w http.ResponseWriter, r *http.Request) {
-					httpapi.Write(r.Context(), w, http.StatusNotFound, codersdk.Response{
-						Message: "cmdline pprof is not exposed on this endpoint as it could contain secret values.",
-						Detail:  "Enable and use the separate pprof localhost server to access this endpoint.",
-					})
-				})
+				r.Get("/cmdline", httppprof.Cmdline)
 				r.Get("/profile", httppprof.Profile)
 				r.Get("/symbol", httppprof.Symbol)
 				r.Get("/trace", httppprof.Trace)
 
 				// Index will handle any custom runtime/pprof handlers as well.
-				r.Mount("/", http.HandlerFunc(httppprof.Index))
+				r.Get("/*", httppprof.Index)
 			})
 
-			r.Handle("/metrics", promhttp.InstrumentMetricHandler(
+			r.Get("/metrics", promhttp.InstrumentMetricHandler(
 				options.PrometheusRegistry, promhttp.HandlerFor(options.PrometheusRegistry, promhttp.HandlerOpts{}),
-			))
+			).ServeHTTP)
 		})
 		// Manage OAuth2 applications that can use Coder as an OAuth2 provider.
 		r.Route("/oauth2-provider", func(r chi.Router) {
