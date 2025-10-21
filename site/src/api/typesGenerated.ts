@@ -26,7 +26,7 @@ export interface AIBridgeConfig {
 // From codersdk/aibridge.go
 export interface AIBridgeInterception {
 	readonly id: string;
-	readonly initiator_id: string;
+	readonly initiator: MinimalUser;
 	readonly provider: string;
 	readonly model: string;
 	// empty interface{} type, falling back to unknown
@@ -2637,6 +2637,7 @@ export interface MinimalOrganization {
 export interface MinimalUser {
 	readonly id: string;
 	readonly username: string;
+	readonly name?: string;
 	readonly avatar_url?: string;
 }
 
@@ -3950,7 +3951,6 @@ export interface RateLimitConfig {
  * required by the frontend.
  */
 export interface ReducedUser extends MinimalUser {
-	readonly name?: string;
 	readonly email: string;
 	readonly created_at: string;
 	readonly updated_at: string;

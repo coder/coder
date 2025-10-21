@@ -111,9 +111,12 @@ WHERE
 
 -- name: ListAIBridgeInterceptions :many
 SELECT
-	*
+	sqlc.embed(aibridge_interceptions),
+	sqlc.embed(visible_users)
 FROM
 	aibridge_interceptions
+LEFT JOIN
+	visible_users ON visible_users.id = aibridge_interceptions.initiator_id
 WHERE
 	-- Filter by time frame
 	CASE

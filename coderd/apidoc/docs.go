@@ -11687,9 +11687,8 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
-                "initiator_id": {
-                    "type": "string",
-                    "format": "uuid"
+                "initiator": {
+                    "$ref": "#/definitions/codersdk.MinimalUser"
                 },
                 "metadata": {
                     "type": "object",
@@ -15067,6 +15066,9 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
                 },
                 "username": {
                     "type": "string"
@@ -20891,6 +20893,9 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
                 },
                 "role": {
                     "enum": [

@@ -436,7 +436,12 @@
 ```json
 {
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
+  "initiator": {
+    "avatar_url": "http://example.com",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "username": "string"
+  },
   "metadata": {
     "property1": null,
     "property2": null
@@ -496,7 +501,7 @@
 | Name               | Type                                                                | Required | Restrictions | Description |
 |--------------------|---------------------------------------------------------------------|----------|--------------|-------------|
 | `id`               | string                                                              | false    |              |             |
-| `initiator_id`     | string                                                              | false    |              |             |
+| `initiator`        | [codersdk.MinimalUser](#codersdkminimaluser)                        | false    |              |             |
 | `metadata`         | object                                                              | false    |              |             |
 | » `[any property]` | any                                                                 | false    |              |             |
 | `model`            | string                                                              | false    |              |             |
@@ -513,7 +518,12 @@
   "results": [
     {
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
+      "initiator": {
+        "avatar_url": "http://example.com",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string",
+        "username": "string"
+      },
       "metadata": {
         "property1": null,
         "property2": null
@@ -4944,6 +4954,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 {
   "avatar_url": "http://example.com",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
   "username": "string"
 }
 ```
@@ -4954,6 +4965,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 |--------------|--------|----------|--------------|-------------|
 | `avatar_url` | string | false    |              |             |
 | `id`         | string | true     |              |             |
+| `name`       | string | false    |              |             |
 | `username`   | string | true     |              |             |
 
 ## codersdk.NotificationMethodsResponse
@@ -8555,6 +8567,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "created_by": {
     "avatar_url": "http://example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
     "username": "string"
   },
   "has_external_agent": true,
@@ -10126,6 +10139,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     {
       "avatar_url": "http://example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
       "role": "admin",
       "username": "string"
     }
@@ -11766,6 +11780,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 {
   "avatar_url": "http://example.com",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
   "role": "admin",
   "username": "string"
 }
@@ -11777,6 +11792,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |--------------|--------------------------------------------------|----------|--------------|-------------|
 | `avatar_url` | string                                           | false    |              |             |
 | `id`         | string                                           | true     |              |             |
+| `name`       | string                                           | false    |              |             |
 | `role`       | [codersdk.WorkspaceRole](#codersdkworkspacerole) | false    |              |             |
 | `username`   | string                                           | true     |              |             |
 
