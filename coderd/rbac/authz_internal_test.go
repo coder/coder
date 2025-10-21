@@ -718,6 +718,62 @@ func TestAuthorizeDomain(t *testing.T) {
 
 			{resource: ResourceWorkspace.WithOwner("not-me")},
 		}))
+
+	// Org member vs user permissions
+	user = Subject{
+		ID:    "me",
+		Scope: must(ExpandScope(ScopeAll)),
+		Roles: Roles{
+			{
+				Identifier: RoleIdentifier{Name: "OrgMemberVsUser"},
+				Site:       []Permission{},
+				User: []Permission{
+					{
+						Negate:       false,
+						ResourceType: ResourceApiKey.Type,
+						Action:       policy.ActionRead,
+					},
+				},
+				ByOrgID: map[string]OrgPermissions{
+					defOrg.String(): {
+						Org: []Permission{
+							{
+								Negate:       false,
+								ResourceType: ResourceTemplate.Type,
+								Action:       policy.ActionRead,
+							},
+						},
+						Member: []Permission{
+							{
+								Negate:       false,
+								ResourceType: ResourceWorkspace.Type,
+								Action:       policy.ActionRead,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	testAuthorize(t, "OrgMemberVsUser", user, []authTestCase{
+		// AnyOrg can read because of the default
+		{resource: ResourceTemplate.AnyOrganization(), actions: []policy.Action{policy.ActionRead}, allow: true},
+		{resource: ResourceTemplate.InOrg(defOrg), actions: []policy.Action{policy.ActionRead}, allow: true},
+
+		// Cannot read workspace in AnyOrganization, because it must also be owned by the user
+		{resource: ResourceWorkspace.AnyOrganization(), actions: []policy.Action{policy.ActionRead}, allow: false},
+		// AnyOrg + I am the owner, it is true. Albeit a bit of a weird case.
+		{resource: ResourceWorkspace.WithOwner("me").AnyOrganization(), actions: []policy.Action{policy.ActionRead}, allow: true},
+		// AnyOrg + not the owner
+		{resource: ResourceWorkspace.WithOwner(uuid.NewString()).AnyOrganization(), actions: []policy.Action{policy.ActionRead}, allow: false},
+
+		// User based permission
+		{resource: ResourceApiKey.WithOwner("me"), actions: []policy.Action{policy.ActionRead}, allow: true},
+		// User perms cannot be used for org based resources
+		{resource: ResourceApiKey.WithOwner("me").InOrg(defOrg), actions: []policy.Action{policy.ActionRead}, allow: false},
+		{resource: ResourceApiKey.WithOwner("me").AnyOrganization(), actions: []policy.Action{policy.ActionRead}, allow: false},
+	})
 }
 
 // TestAuthorizeLevels ensures level overrides are acting appropriately
