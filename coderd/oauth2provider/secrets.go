@@ -24,7 +24,6 @@ type AppSecret struct {
 // GenerateSecret generates a secret to be used as a client secret, refresh
 // token, or authorization code.
 func GenerateSecret() (AppSecret, error) {
-
 	// 40 characters matches the length of GitHub's client secrets.
 	secret, hashedSecret, err := apikey.GenerateSecret(40)
 	if err != nil {
