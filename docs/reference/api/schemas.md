@@ -566,7 +566,8 @@
         }
       ]
     }
-  ]
+  ],
+  "total": 0
 }
 ```
 
@@ -575,6 +576,7 @@
 | Name      | Type                                                                    | Required | Restrictions | Description |
 |-----------|-------------------------------------------------------------------------|----------|--------------|-------------|
 | `results` | array of [codersdk.AIBridgeInterception](#codersdkaibridgeinterception) | false    |              |             |
+| `total`   | integer                                                                 | false    |              |             |
 
 ## codersdk.AIBridgeOpenAIConfig
 

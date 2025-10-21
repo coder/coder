@@ -115,8 +115,14 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Cursor pagination after ID",
+                        "description": "Cursor pagination after ID (cannot be used with offset)",
                         "name": "after_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Offset pagination (cannot be used with after_id)",
+                        "name": "offset",
                         "in": "query"
                     }
                 ],
@@ -11595,6 +11601,9 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.AIBridgeInterception"
                     }
+                },
+                "total": {
+                    "type": "integer"
                 }
             }
         },
