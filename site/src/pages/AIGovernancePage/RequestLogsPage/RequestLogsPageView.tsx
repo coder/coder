@@ -1,4 +1,8 @@
 import type { AIBridgeInterception } from "api/typesGenerated";
+import {
+	PaginationContainer,
+	type PaginationResult,
+} from "components/PaginationWidget/PaginationContainer";
 import { Paywall } from "components/Paywall/Paywall";
 import {
 	Table,
@@ -17,12 +21,14 @@ interface RequestLogsPageViewProps {
 	isLoading: boolean;
 	isRequestLogsVisible: boolean;
 	interceptions?: readonly AIBridgeInterception[];
+	interceptionsQuery: PaginationResult;
 }
 
 export const RequestLogsPageView: FC<RequestLogsPageViewProps> = ({
 	isLoading,
 	isRequestLogsVisible,
 	interceptions,
+	interceptionsQuery,
 }) => {
 	if (!isRequestLogsVisible) {
 		return (
@@ -35,26 +41,31 @@ export const RequestLogsPageView: FC<RequestLogsPageViewProps> = ({
 	}
 
 	return (
-		<Table>
-			<TableHeader>
-				<TableRow>
-					<TableHead></TableHead>
-					<TableHead>Timestamp</TableHead>
-					<TableHead>User</TableHead>
-					<TableHead>Prompt</TableHead>
-					<TableHead>Tokens</TableHead>
-					<TableHead>Tool Calls</TableHead>
-				</TableRow>
-			</TableHeader>
-			<TableBody>
-				{isLoading && <TableLoader />}
-				{interceptions?.length === 0 && (
-					<TableEmpty message={"No request logs available"} />
-				)}
-				{interceptions?.map((interception) => (
-					<RequestLogsRow interception={interception} key={interception.id} />
-				))}
-			</TableBody>
-		</Table>
+		<PaginationContainer
+			query={interceptionsQuery}
+			paginationUnitLabel="interceptions"
+		>
+			<Table>
+				<TableHeader>
+					<TableRow>
+						<TableHead></TableHead>
+						<TableHead>Timestamp</TableHead>
+						<TableHead>User</TableHead>
+						<TableHead>Prompt</TableHead>
+						<TableHead>Tokens</TableHead>
+						<TableHead>Tool Calls</TableHead>
+					</TableRow>
+				</TableHeader>
+				<TableBody>
+					{isLoading && <TableLoader />}
+					{interceptions?.length === 0 && (
+						<TableEmpty message={"No request logs available"} />
+					)}
+					{interceptions?.map((interception) => (
+						<RequestLogsRow interception={interception} key={interception.id} />
+					))}
+				</TableBody>
+			</Table>
+		</PaginationContainer>
 	);
 };
