@@ -228,7 +228,7 @@ func TestAPIKey(t *testing.T) {
 			hashed   = sha256.Sum256([]byte("differentsecret"))
 			_, token = dbgen.APIKey(t, db, database.APIKey{
 				UserID:       user.ID,
-				HashedSecret: hashed,
+				HashedSecret: hashed[:],
 			})
 		)
 		r.Header.Set(codersdk.SessionTokenHeader, token)
