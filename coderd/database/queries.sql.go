@@ -532,7 +532,7 @@ SELECT
 	visible_users.id, visible_users.username, visible_users.name, visible_users.avatar_url
 FROM
 	aibridge_interceptions
-LEFT JOIN
+JOIN
 	visible_users ON visible_users.id = aibridge_interceptions.initiator_id
 WHERE
 	-- Filter by time frame

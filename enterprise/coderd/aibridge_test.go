@@ -8,9 +8,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
-
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -88,9 +85,6 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		experimentalClient := codersdk.NewExperimentalClient(client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		client.SetLogger(slogtest.Make(t, nil).Leveled(slog.LevelDebug))
-		client.SetLogBodies(true)
-
 		user1, err := client.User(ctx, codersdk.Me)
 		require.NoError(t, err)
 		user1Visible := database.VisibleUser{
@@ -139,8 +133,6 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 			CreatedAt:      now.Add(-time.Minute),
 		})
 		i2 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			// Use a random ID. This should result in an "unknown" user being
-			// returned by the API.
 			InitiatorID: user2.ID,
 			StartedAt:   now,
 		})
