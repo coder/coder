@@ -87,7 +87,7 @@ Once AI Bridge is enabled on the server, your users need to configure their AI c
 
 ### Setting Base URLs
 
-Configure your AI client to point to your Coder deployment's AI Bridge endpoints. The exact configuration method varies by client—some use environment variables, others use configuration files or UI settings:
+The exact configuration method varies by client — some use environment variables, others use configuration files or UI settings:
 
 - **OpenAI-compatible clients**: Set the base URL (commonly via the `OPENAI_BASE_URL` environment variable) to `https://coder.example.com/api/experimental/aibridge/openai/v1`
 - **Anthropic-compatible clients**: Set the base URL (commonly via the `ANTHROPIC_BASE_URL` environment variable) to `https://coder.example.com/api/experimental/aibridge/anthropic`
