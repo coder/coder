@@ -37,7 +37,7 @@ locals {
   repo_base_dir  = data.coder_parameter.repo_base_dir.value == "~" ? "/home/coder" : replace(data.coder_parameter.repo_base_dir.value, "/^~\\//", "/home/coder/")
   repo_dir       = replace(try(module.git-clone[0].repo_dir, ""), "/^~\\//", "/home/coder/")
   container_name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
-  is_task        = coder_task.task.id != ""
+  is_task        = coder_task.task.prompt != "default"
 }
 
 data "coder_workspace_preset" "cpt" {
