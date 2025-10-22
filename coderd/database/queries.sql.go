@@ -528,9 +528,12 @@ func (q *sqlQuerier) InsertAIBridgeUserPrompt(ctx context.Context, arg InsertAIB
 
 const listAIBridgeInterceptions = `-- name: ListAIBridgeInterceptions :many
 SELECT
-	id, initiator_id, provider, model, started_at, metadata
+	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata,
+	visible_users.id, visible_users.username, visible_users.name, visible_users.avatar_url
 FROM
 	aibridge_interceptions
+JOIN
+	visible_users ON visible_users.id = aibridge_interceptions.initiator_id
 WHERE
 	-- Filter by time frame
 	CASE
@@ -592,7 +595,12 @@ type ListAIBridgeInterceptionsParams struct {
 	Limit         int32     `db:"limit_" json:"limit_"`
 }
 
-func (q *sqlQuerier) ListAIBridgeInterceptions(ctx context.Context, arg ListAIBridgeInterceptionsParams) ([]AIBridgeInterception, error) {
+type ListAIBridgeInterceptionsRow struct {
+	AIBridgeInterception AIBridgeInterception `db:"aibridge_interception" json:"aibridge_interception"`
+	VisibleUser          VisibleUser          `db:"visible_user" json:"visible_user"`
+}
+
+func (q *sqlQuerier) ListAIBridgeInterceptions(ctx context.Context, arg ListAIBridgeInterceptionsParams) ([]ListAIBridgeInterceptionsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listAIBridgeInterceptions,
 		arg.StartedAfter,
 		arg.StartedBefore,
@@ -607,16 +615,20 @@ func (q *sqlQuerier) ListAIBridgeInterceptions(ctx context.Context, arg ListAIBr
 		return nil, err
 	}
 	defer rows.Close()
-	var items []AIBridgeInterception
+	var items []ListAIBridgeInterceptionsRow
 	for rows.Next() {
-		var i AIBridgeInterception
+		var i ListAIBridgeInterceptionsRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.InitiatorID,
-			&i.Provider,
-			&i.Model,
-			&i.StartedAt,
-			&i.Metadata,
+			&i.AIBridgeInterception.ID,
+			&i.AIBridgeInterception.InitiatorID,
+			&i.AIBridgeInterception.Provider,
+			&i.AIBridgeInterception.Model,
+			&i.AIBridgeInterception.StartedAt,
+			&i.AIBridgeInterception.Metadata,
+			&i.VisibleUser.ID,
+			&i.VisibleUser.Username,
+			&i.VisibleUser.Name,
+			&i.VisibleUser.AvatarURL,
 		); err != nil {
 			return nil, err
 		}
