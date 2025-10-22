@@ -8,27 +8,47 @@ import (
 	"github.com/jedib0t/go-pretty/v6/table"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) userList() *clibase.Cmd {
+func (r *RootCmd) userList() *serpent.Command {
 	formatter := cliui.NewOutputFormatter(
-		cliui.TableFormat([]codersdk.User{}, []string{"username", "email", "created_at", "status"}),
+		cliui.TableFormat([]codersdk.User{}, []string{"username", "email", "created at", "status"}),
 		cliui.JSONFormat(),
 	)
-	client := new(codersdk.Client)
+	var githubUserID int64
 
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Command{
 		Use:     "list",
+		Short:   "Prints the list of users.",
 		Aliases: []string{"ls"},
-		Middleware: clibase.Chain(
-			clibase.RequireNArgs(0),
-			r.InitClient(client),
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(0),
 		),
-		Handler: func(inv *clibase.Invocation) error {
-			res, err := client.Users(inv.Context(), codersdk.UsersRequest{})
+		Options: serpent.OptionSet{
+			{
+				Name:        "github-user-id",
+				Description: "Filter users by their GitHub user ID.",
+				Default:     "",
+				Flag:        "github-user-id",
+				Required:    false,
+				Value:       serpent.Int64Of(&githubUserID),
+			},
+		},
+		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
+			req := codersdk.UsersRequest{}
+			if githubUserID != 0 {
+				req.Search = fmt.Sprintf("github_com_user_id:%d", githubUserID)
+			}
+
+			res, err := client.Users(inv.Context(), req)
 			if err != nil {
 				return err
 			}
@@ -47,26 +67,29 @@ func (r *RootCmd) userList() *clibase.Cmd {
 	return cmd
 }
 
-func (r *RootCmd) userSingle() *clibase.Cmd {
+func (r *RootCmd) userSingle() *serpent.Command {
 	formatter := cliui.NewOutputFormatter(
 		&userShowFormat{},
 		cliui.JSONFormat(),
 	)
-	client := new(codersdk.Client)
 
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Command{
 		Use:   "show <username|user_id|'me'>",
 		Short: "Show a single user. Use 'me' to indicate the currently authenticated user.",
-		Long: formatExamples(
-			example{
+		Long: FormatExamples(
+			Example{
 				Command: "coder users show me",
 			},
 		),
-		Middleware: clibase.Chain(
-			clibase.RequireNArgs(1),
-			r.InitClient(client),
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(1),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			user, err := client.User(inv.Context(), inv.Args[0])
 			if err != nil {
 				return err
@@ -114,7 +137,7 @@ func (*userShowFormat) ID() string {
 }
 
 // AttachOptions implements OutputFormat.
-func (*userShowFormat) AttachOptions(_ *clibase.OptionSet) {}
+func (*userShowFormat) AttachOptions(_ *serpent.OptionSet) {}
 
 // Format implements OutputFormat.
 func (*userShowFormat) Format(_ context.Context, out interface{}) (string, error) {
@@ -137,6 +160,7 @@ func (*userShowFormat) Format(_ context.Context, out interface{}) (string, error
 	// Add rows for each of the user's fields.
 	addRow("ID", user.ID.String())
 	addRow("Username", user.Username)
+	addRow("Full name", user.Name)
 	addRow("Email", user.Email)
 	addRow("Status", user.Status)
 	addRow("Created At", user.CreatedAt.Format(time.Stamp))

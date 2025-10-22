@@ -3,6 +3,7 @@
 package pty_test
 
 import (
+	"os"
 	"os/exec"
 	"testing"
 
@@ -14,10 +15,11 @@ import (
 
 	"github.com/coder/coder/v2/pty"
 	"github.com/coder/coder/v2/pty/ptytest"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
 func TestStart(t *testing.T) {
@@ -37,6 +39,19 @@ func TestStart(t *testing.T) {
 		t.Parallel()
 		pty, ps := ptytest.Start(t, pty.Command("sleep", "30"))
 		err := ps.Kill()
+		assert.NoError(t, err)
+		err = ps.Wait()
+		var exitErr *exec.ExitError
+		require.True(t, xerrors.As(err, &exitErr))
+		assert.NotEqual(t, 0, exitErr.ExitCode())
+		err = pty.Close()
+		require.NoError(t, err)
+	})
+
+	t.Run("Interrupt", func(t *testing.T) {
+		t.Parallel()
+		pty, ps := ptytest.Start(t, pty.Command("sleep", "30"))
+		err := ps.Signal(os.Interrupt)
 		assert.NoError(t, err)
 		err = ps.Wait()
 		var exitErr *exec.ExitError

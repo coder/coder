@@ -50,10 +50,13 @@ if [[ "$version" == "" ]]; then
 fi
 
 image="${CODER_IMAGE_BASE:-ghcr.io/coder/coder}"
+
 tag="v$version"
+
 if [[ "$version" == "latest" ]]; then
 	tag="latest"
 fi
+
 if [[ "$arch" != "" ]]; then
 	tag+="-$arch"
 fi

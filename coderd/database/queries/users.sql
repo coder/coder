@@ -11,7 +11,9 @@ SET
 		'':: bytea
 	END
 WHERE
-	id = @user_id RETURNING *;
+	id = @user_id
+	AND NOT is_system
+RETURNING *;
 
 -- name: GetUserByID :one
 SELECT
@@ -22,6 +24,26 @@ WHERE
 	id = $1
 LIMIT
 	1;
+
+-- name: ValidateUserIDs :one
+WITH input AS (
+	SELECT
+		unnest(@user_ids::uuid[]) AS id
+)
+SELECT
+	array_agg(input.id)::uuid[] as invalid_user_ids,
+	COUNT(*) = 0 as ok
+FROM
+	-- Preserve rows where there is not a matching left (users) row for each
+	-- right (input) row...
+	users
+	RIGHT JOIN input ON users.id = input.id
+WHERE
+	-- ...so that we can retain exactly those rows where an input ID does not
+	-- match an existing user...
+	users.id IS NULL OR
+	-- ...or that only matches a user that was deleted.
+	users.deleted = true;
 
 -- name: GetUsersByIDs :many
 -- This shouldn't check for deleted, because it's frequently used
@@ -46,7 +68,8 @@ SELECT
 FROM
 	users
 WHERE
-	deleted = false;
+	deleted = false
+  	AND CASE WHEN @include_system::bool THEN TRUE ELSE is_system = false END;
 
 -- name: GetActiveUserCount :one
 SELECT
@@ -54,7 +77,8 @@ SELECT
 FROM
 	users
 WHERE
-	status = 'active'::user_status AND deleted = false;
+	status = 'active'::user_status AND deleted = false
+	AND CASE WHEN @include_system::bool THEN TRUE ELSE is_system = false END;
 
 -- name: InsertUser :one
 INSERT INTO
@@ -62,14 +86,20 @@ INSERT INTO
 		id,
 		email,
 		username,
+		name,
 		hashed_password,
 		created_at,
 		updated_at,
 		rbac_roles,
-		login_type
+		login_type,
+		status
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9,
+		-- if the status passed in is empty, fallback to dormant, which is what
+		-- we were doing before.
+		COALESCE(NULLIF(@status::text, '')::user_status, 'dormant'::user_status)
+	) RETURNING *;
 
 -- name: UpdateUserProfile :one
 UPDATE
@@ -78,9 +108,65 @@ SET
 	email = $2,
 	username = $3,
 	avatar_url = $4,
-	updated_at = $5
+	updated_at = $5,
+	name = $6
 WHERE
-	id = $1 RETURNING *;
+	id = $1
+RETURNING *;
+
+-- name: UpdateUserGithubComUserID :exec
+UPDATE
+	users
+SET
+	github_com_user_id = $2
+WHERE
+	id = $1;
+
+-- name: GetUserThemePreference :one
+SELECT
+	value as theme_preference
+FROM
+	user_configs
+WHERE
+	user_id = @user_id
+	AND key = 'theme_preference';
+
+-- name: UpdateUserThemePreference :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'theme_preference', @theme_preference)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @theme_preference
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'theme_preference'
+RETURNING *;
+
+-- name: GetUserTerminalFont :one
+SELECT
+	value as terminal_font
+FROM
+	user_configs
+WHERE
+	user_id = @user_id
+	AND key = 'terminal_font';
+
+-- name: UpdateUserTerminalFont :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'terminal_font', @terminal_font)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @terminal_font
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'terminal_font'
+RETURNING *;
 
 -- name: UpdateUserRoles :one
 UPDATE
@@ -96,7 +182,9 @@ RETURNING *;
 UPDATE
 	users
 SET
-	hashed_password = $2
+	hashed_password = $2,
+	hashed_one_time_passcode = NULL,
+	one_time_passcode_expires_at = NULL
 WHERE
 	id = $1;
 
@@ -104,7 +192,7 @@ WHERE
 UPDATE
 	users
 SET
-	deleted = $2
+	deleted = true
 WHERE
 	id = $1;
 
@@ -171,6 +259,33 @@ WHERE
 			last_seen_at >= @last_seen_after
 		ELSE true
 	END
+	-- Filter by created_at
+	AND CASE
+		WHEN @created_before :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			created_at <= @created_before
+		ELSE true
+	END
+	AND CASE
+		WHEN @created_after :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			created_at >= @created_after
+		ELSE true
+	END
+  	AND CASE
+  	    WHEN @include_system::bool THEN TRUE
+  	    ELSE
+			is_system = false
+	END
+	AND CASE
+		WHEN @github_com_user_id :: bigint != 0 THEN
+			github_com_user_id = @github_com_user_id
+		ELSE true
+	END
+	-- Filter by login_type
+	AND CASE
+		WHEN cardinality(@login_type :: login_type[]) > 0 THEN
+			login_type = ANY(@login_type :: login_type[])
+		ELSE true
+	END
 	-- End of filters
 
 	-- Authorize Filter clause will be injected below in GetAuthorizedUsers
@@ -205,22 +320,24 @@ WHERE
 -- This function returns roles for authorization purposes. Implied member roles
 -- are included.
 SELECT
-	-- username is returned just to help for logging purposes
+	-- username and email are returned just to help for logging purposes
 	-- status is used to enforce 'suspended' users, as all roles are ignored
 	--	when suspended.
-	id, username, status,
+	id, username, status, email,
 	-- All user roles, including their org roles.
 	array_cat(
 		-- All users are members
 		array_append(users.rbac_roles, 'member'),
 		(
 			SELECT
-				array_agg(org_roles)
+				-- The roles are returned as a flat array, org scoped and site side.
+				-- Concatenating the organization id scopes the organization roles.
+				array_agg(org_roles || ':' || organization_members.organization_id::text)
 			FROM
 				organization_members,
-				-- All org_members get the org-member role for their orgs
+				-- All org_members get the organization-member role for their orgs
 				unnest(
-					array_append(roles, 'organization-member:' || organization_members.organization_id::text)
+					array_append(roles, 'organization-member')
 				) AS org_roles
 			WHERE
 				user_id = users.id
@@ -257,13 +374,24 @@ UPDATE
     users
 SET
     status = 'dormant'::user_status,
-	updated_at = @updated_at
+    updated_at = @updated_at
 WHERE
     last_seen_at < @last_seen_after :: timestamp
     AND status = 'active'::user_status
-RETURNING id, email, last_seen_at;
+		AND NOT is_system
+RETURNING id, email, username, last_seen_at;
 
 -- AllUserIDs returns all UserIDs regardless of user status or deletion.
 -- name: AllUserIDs :many
-SELECT DISTINCT id FROM USERS;
+SELECT DISTINCT id FROM USERS
+	WHERE CASE WHEN @include_system::bool THEN TRUE ELSE is_system = false END;
 
+-- name: UpdateUserHashedOneTimePasscode :exec
+UPDATE
+    users
+SET
+    hashed_one_time_passcode = $2,
+    one_time_passcode_expires_at = $3
+WHERE
+    id = $1
+;

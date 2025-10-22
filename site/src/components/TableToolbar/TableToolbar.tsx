@@ -1,48 +1,45 @@
-import { styled } from "@mui/material/styles";
-import Box from "@mui/material/Box";
 import Skeleton from "@mui/material/Skeleton";
+import type { FC, PropsWithChildren } from "react";
+export const TableToolbar: FC<PropsWithChildren> = ({ children }) => {
+	return (
+		<div className="text-sm mb-2 mt-0 h-9 text-content-secondary flex items-center [&_strong]:text-content-primary">
+			{children}
+		</div>
+	);
+};
 
-export const TableToolbar = styled(Box)(({ theme }) => ({
-  fontSize: 13,
-  marginBottom: theme.spacing(1),
-  marginTop: theme.spacing(0),
-  height: 36, // The size of a small button
-  color: theme.palette.text.secondary,
-  "& strong": { color: theme.palette.text.primary },
-  display: "flex",
-  alignItems: "center",
-}));
+type PaginationStatusProps =
+	| BasePaginationStatusProps
+	| LoadedPaginationStatusProps;
 
 type BasePaginationStatusProps = {
-  label: string;
-  isLoading: boolean;
-  showing?: number;
-  total?: number;
+	isLoading: true;
 };
 
-type LoadedPaginationStatusProps = BasePaginationStatusProps & {
-  isLoading: false;
-  showing: number;
-  total: number;
+type LoadedPaginationStatusProps = {
+	isLoading: false;
+	label: string;
+	showing: number;
+	total: number;
 };
 
-export const PaginationStatus = ({
-  isLoading,
-  showing,
-  total,
-  label,
-}: BasePaginationStatusProps | LoadedPaginationStatusProps) => {
-  if (isLoading) {
-    return (
-      <Box sx={{ height: 24, display: "flex", alignItems: "center" }}>
-        <Skeleton variant="text" width={160} height={16} />
-      </Box>
-    );
-  }
-  return (
-    <Box>
-      Showing <strong>{showing}</strong> of{" "}
-      <strong>{total?.toLocaleString()}</strong> {label}
-    </Box>
-  );
+export const PaginationStatus: FC<PaginationStatusProps> = (props) => {
+	const { isLoading } = props;
+
+	if (isLoading) {
+		return (
+			<div className="h-6 flex items-center">
+				<Skeleton variant="text" width={160} height={16} />
+			</div>
+		);
+	}
+
+	const { showing, total, label } = props;
+
+	return (
+		<div>
+			Showing <strong>{showing}</strong> of{" "}
+			<strong>{total?.toLocaleString()}</strong> {label}
+		</div>
+	);
 };

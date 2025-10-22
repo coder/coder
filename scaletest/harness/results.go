@@ -35,6 +35,7 @@ type RunResult struct {
 	StartedAt  time.Time        `json:"started_at"`
 	Duration   httpapi.Duration `json:"duration"`
 	DurationMS int64            `json:"duration_ms"`
+	Metrics    map[string]any   `json:"metrics,omitempty"`
 }
 
 // MarshalJSON implements json.Marhshaler for RunResult.
@@ -67,6 +68,7 @@ func (r *TestRun) Result() RunResult {
 		StartedAt:  r.started,
 		Duration:   httpapi.Duration(r.duration),
 		DurationMS: r.duration.Milliseconds(),
+		Metrics:    r.metrics,
 	}
 }
 

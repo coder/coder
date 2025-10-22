@@ -1,5 +1,3 @@
-BEGIN;
-
 CREATE TABLE IF NOT EXISTS user_links (
 	user_id uuid NOT NULL,
 	login_type login_type NOT NULL,
@@ -70,5 +68,3 @@ FROM
 	user_links
 WHERE
 	user_links.user_id = users.id;
-
-COMMIT;

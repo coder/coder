@@ -1,8 +1,10 @@
 package httpmw
 
 import (
+	"fmt"
 	"net/http"
 	"regexp"
+	"strings"
 
 	"github.com/justinas/nosurf"
 	"golang.org/x/xerrors"
@@ -12,31 +14,58 @@ import (
 
 // CSRF is a middleware that verifies that a CSRF token is present in the request
 // for non-GET requests.
-func CSRF(secureCookie bool) func(next http.Handler) http.Handler {
+// If enforce is false, then CSRF enforcement is disabled. We still want
+// to include the CSRF middleware because it will set the CSRF cookie.
+func CSRF(cookieCfg codersdk.HTTPCookieConfig) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		mw := nosurf.New(next)
-		mw.SetBaseCookie(http.Cookie{Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: secureCookie})
+		mw.SetBaseCookie(*cookieCfg.Apply(&http.Cookie{Path: "/", HttpOnly: true}))
 		mw.SetFailureHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			sessCookie, err := r.Cookie(codersdk.SessionTokenCookie)
+			if err == nil &&
+				r.Header.Get(codersdk.SessionTokenHeader) != "" &&
+				r.Header.Get(codersdk.SessionTokenHeader) != sessCookie.Value {
+				// If a user is using header authentication and cookie auth, but the values
+				// do not match, the cookie value takes priority.
+				// At the very least, return a more helpful error to the user.
+				http.Error(w,
+					fmt.Sprintf("CSRF error encountered. Authentication via %q cookie and %q header detected, but the values do not match. "+
+						"To resolve this issue ensure the values used in both match, or only use one of the authentication methods. "+
+						"You can also try clearing your cookies if this error persists.",
+						codersdk.SessionTokenCookie, codersdk.SessionTokenHeader),
+					http.StatusBadRequest)
+				return
+			}
+
 			http.Error(w, "Something is wrong with your CSRF token. Please refresh the page. If this error persists, try clearing your cookies.", http.StatusBadRequest)
 		}))
+
+		mw.ExemptRegexp(regexp.MustCompile("/api/v2/users/first"))
 
 		// Exempt all requests that do not require CSRF protection.
 		// All GET requests are exempt by default.
 		mw.ExemptPath("/api/v2/csp/reports")
 
-		// Top level agent routes.
-		mw.ExemptRegexp(regexp.MustCompile("api/v2/workspaceagents/[^/]*$"))
+		// This should not be required?
+		mw.ExemptRegexp(regexp.MustCompile("/api/v2/users/first"))
+
 		// Agent authenticated routes
 		mw.ExemptRegexp(regexp.MustCompile("api/v2/workspaceagents/me/*"))
+		mw.ExemptRegexp(regexp.MustCompile("api/v2/workspaceagents/*"))
+		// Workspace Proxy routes
+		mw.ExemptRegexp(regexp.MustCompile("api/v2/workspaceproxies/me/*"))
 		// Derp routes
 		mw.ExemptRegexp(regexp.MustCompile("derp/*"))
+		// Scim
+		mw.ExemptRegexp(regexp.MustCompile("api/v2/scim/*"))
+		// Provisioner daemon routes
+		mw.ExemptRegexp(regexp.MustCompile("/organizations/[^/]+/provisionerdaemons/*"))
 
 		mw.ExemptFunc(func(r *http.Request) bool {
-			// Enable CSRF in November 2022 by deleting this "return true" line.
-			// CSRF is not enforced to ensure backwards compatibility with older
-			// cli versions.
-			//nolint:revive
-			return true
+			// Only enforce CSRF on API routes.
+			if !strings.HasPrefix(r.URL.Path, "/api") {
+				return true
+			}
 
 			// CSRF only affects requests that automatically attach credentials via a cookie.
 			// If no cookie is present, then there is no risk of CSRF.
@@ -56,6 +85,26 @@ func CSRF(secureCookie bool) func(next http.Handler) http.Handler {
 			if token := r.URL.Query().Get(codersdk.SessionTokenCookie); token == sessCookie.Value {
 				// If the auth is set in a url param and matches the cookie, it
 				// is the same as just using the url param.
+				return true
+			}
+
+			if r.Header.Get(codersdk.ProvisionerDaemonPSK) != "" {
+				// If present, the provisioner daemon also is providing an api key
+				// that will make them exempt from CSRF. But this is still useful
+				// for enumerating the external auths.
+				return true
+			}
+
+			if r.Header.Get(codersdk.ProvisionerDaemonKey) != "" {
+				// If present, the provisioner daemon also is providing an api key
+				// that will make them exempt from CSRF. But this is still useful
+				// for enumerating the external auths.
+				return true
+			}
+
+			// RFC 6750 Bearer Token authentication is exempt from CSRF
+			// as it uses custom headers that cannot be set by malicious sites
+			if authHeader := r.Header.Get("Authorization"); strings.HasPrefix(strings.ToLower(authHeader), "bearer ") {
 				return true
 			}
 

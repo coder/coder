@@ -1,80 +1,88 @@
-import Link from "@mui/material/Link";
-import Button from "@mui/material/Button";
-import GitHubIcon from "@mui/icons-material/GitHub";
-import KeyIcon from "@mui/icons-material/VpnKey";
-import Box from "@mui/material/Box";
-import { Language } from "./SignInForm";
-import { AuthMethods } from "api/typesGenerated";
-import { FC } from "react";
-import { makeStyles } from "@mui/styles";
+import { visuallyHidden } from "@mui/utils";
+import type { AuthMethods } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { KeyIcon } from "lucide-react";
+import { type FC, useId } from "react";
+import { Language } from "./Language";
 
 type OAuthSignInFormProps = {
-  isSigningIn: boolean;
-  redirectTo: string;
-  authMethods?: AuthMethods;
+	isSigningIn: boolean;
+	redirectTo: string;
+	authMethods?: AuthMethods;
 };
 
-const useStyles = makeStyles((theme) => ({
-  buttonIcon: {
-    width: theme.spacing(2),
-    height: theme.spacing(2),
-  },
-}));
-
 export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
-  isSigningIn,
-  redirectTo,
-  authMethods,
+	isSigningIn,
+	redirectTo,
+	authMethods,
 }) => {
-  const styles = useStyles();
+	return (
+		<div css={{ display: "grid", gap: "16px" }}>
+			{authMethods?.github.enabled && (
+				<Button
+					variant="outline"
+					asChild
+					disabled={isSigningIn}
+					className="w-full"
+					type="submit"
+					size="lg"
+				>
+					<a
+						href={`/api/v2/users/oauth2/github/callback?redirect=${encodeURIComponent(
+							redirectTo,
+						)}`}
+					>
+						<ExternalImage src="/icon/github.svg" />
+						{Language.githubSignIn}
+					</a>
+				</Button>
+			)}
 
-  return (
-    <Box display="grid" gap="16px">
-      {authMethods?.github.enabled && (
-        <Link
-          href={`/api/v2/users/oauth2/github/callback?redirect=${encodeURIComponent(
-            redirectTo,
-          )}`}
-        >
-          <Button
-            startIcon={<GitHubIcon className={styles.buttonIcon} />}
-            disabled={isSigningIn}
-            fullWidth
-            type="submit"
-            size="large"
-          >
-            {Language.githubSignIn}
-          </Button>
-        </Link>
-      )}
+			{authMethods?.oidc.enabled && (
+				<Button
+					variant="outline"
+					asChild
+					className="w-full"
+					size="lg"
+					disabled={isSigningIn}
+					type="submit"
+				>
+					<a
+						href={`/api/v2/users/oidc/callback?redirect=${encodeURIComponent(
+							redirectTo,
+						)}`}
+					>
+						{authMethods.oidc.iconUrl ? (
+							<OidcIcon iconUrl={authMethods.oidc.iconUrl} />
+						) : (
+							<KeyIcon />
+						)}
+						{authMethods.oidc.signInText || Language.oidcSignIn}
+					</a>
+				</Button>
+			)}
+		</div>
+	);
+};
 
-      {authMethods?.oidc.enabled && (
-        <Link
-          href={`/api/v2/users/oidc/callback?redirect=${encodeURIComponent(
-            redirectTo,
-          )}`}
-        >
-          <Button
-            size="large"
-            startIcon={
-              authMethods.oidc.iconUrl ? (
-                <img
-                  alt="Open ID Connect icon"
-                  src={authMethods.oidc.iconUrl}
-                  className={styles.buttonIcon}
-                />
-              ) : (
-                <KeyIcon className={styles.buttonIcon} />
-              )
-            }
-            disabled={isSigningIn}
-            fullWidth
-            type="submit"
-          >
-            {authMethods.oidc.signInText || Language.oidcSignIn}
-          </Button>
-        </Link>
-      )}
-    </Box>
-  );
+type OidcIconProps = {
+	iconUrl: string;
+};
+
+const OidcIcon: FC<OidcIconProps> = ({ iconUrl }) => {
+	const hookId = useId();
+	const oidcId = `${hookId}-oidc`;
+
+	// Even if the URL is defined, there is a chance that the request for the
+	// image fails. Have to use blank alt text to avoid button from getting ugly
+	// if that happens, but also still need a way to inject accessible text
+	return (
+		<>
+			<img alt="" src={iconUrl} aria-labelledby={oidcId} />
+			<div id={oidcId} css={{ ...visuallyHidden }}>
+				Open ID Connect
+			</div>
+		</>
+	);
 };

@@ -1,112 +1,155 @@
-import { DialogProps } from "components/Dialogs/Dialog";
-import { FC } from "react";
-import { getFormHelpers } from "utils/formUtils";
-import { FormFields } from "components/Form/Form";
-import { useFormik } from "formik";
-import * as Yup from "yup";
-import { PublishVersionData } from "pages/TemplateVersionEditorPage/types";
-import TextField from "@mui/material/TextField";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
+import TextField from "@mui/material/TextField";
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import type { DialogProps } from "components/Dialogs/Dialog";
+import { FormFields } from "components/Form/Form";
 import { Stack } from "components/Stack/Stack";
+import { useFormik } from "formik";
+import type { PublishVersionData } from "pages/TemplateVersionEditorPage/types";
+import type { FC } from "react";
+import { getFormHelpers } from "utils/formUtils";
+import * as Yup from "yup";
+import {
+	HelpTooltip,
+	HelpTooltipContent,
+	HelpTooltipIconTrigger,
+	HelpTooltipLink,
+	HelpTooltipLinksGroup,
+	HelpTooltipText,
+	HelpTooltipTitle,
+} from "../../components/HelpTooltip/HelpTooltip";
+import { docs } from "../../utils/docs";
 
 export const Language = {
-  versionNameLabel: "Version name",
-  messagePlaceholder: "Write a short message about the changes you made...",
-  defaultCheckboxLabel: "Promote to default version",
+	versionNameLabel: "Version name",
+	messagePlaceholder: "Write a short message about the changes you made...",
+	defaultCheckboxLabel: "Promote to active version",
+	activeVersionHelpTitle: "Active versions",
+	activeVersionHelpText:
+		"Templates can enforce that the active version be used for all workspaces (enterprise-only)",
+	activeVersionHelpBody: "Review the documentation",
 };
 
-export type PublishTemplateVersionDialogProps = DialogProps & {
-  defaultName: string;
-  isPublishing: boolean;
-  publishingError?: unknown;
-  onClose: () => void;
-  onConfirm: (data: PublishVersionData) => void;
+type PublishTemplateVersionDialogProps = DialogProps & {
+	defaultName: string;
+	isPublishing: boolean;
+	publishingError?: unknown;
+	onClose: () => void;
+	onConfirm: (data: PublishVersionData) => void;
 };
 
 export const PublishTemplateVersionDialog: FC<
-  PublishTemplateVersionDialogProps
+	PublishTemplateVersionDialogProps
 > = ({
-  onConfirm,
-  isPublishing,
-  onClose,
-  defaultName,
-  publishingError,
-  ...dialogProps
+	onConfirm,
+	isPublishing,
+	onClose,
+	defaultName,
+	publishingError,
+	...dialogProps
 }) => {
-  const form = useFormik({
-    initialValues: {
-      name: defaultName,
-      message: "",
-      isActiveVersion: true,
-    },
-    validationSchema: Yup.object({
-      name: Yup.string().required(),
-      message: Yup.string(),
-      isActiveVersion: Yup.boolean(),
-    }),
-    onSubmit: onConfirm,
-  });
-  const getFieldHelpers = getFormHelpers(form, publishingError);
-  const handleClose = () => {
-    form.resetForm();
-    onClose();
-  };
+	const form = useFormik({
+		initialValues: {
+			name: defaultName,
+			message: "",
+			isActiveVersion: true,
+		},
+		validationSchema: Yup.object({
+			name: Yup.string().required(),
+			message: Yup.string(),
+			isActiveVersion: Yup.boolean(),
+		}),
+		onSubmit: onConfirm,
+	});
+	const getFieldHelpers = getFormHelpers(form, publishingError);
+	const handleClose = () => {
+		form.resetForm();
+		onClose();
+	};
 
-  return (
-    <ConfirmDialog
-      {...dialogProps}
-      confirmLoading={isPublishing}
-      onClose={handleClose}
-      onConfirm={async () => {
-        await form.submitForm();
-      }}
-      hideCancel={false}
-      type="success"
-      cancelText="Cancel"
-      confirmText="Publish"
-      title="Publish new version"
-      description={
-        <Stack>
-          <p>You are about to publish a new version of this template.</p>
-          <FormFields>
-            <TextField
-              {...getFieldHelpers("name")}
-              label={Language.versionNameLabel}
-              autoFocus
-              disabled={isPublishing}
-            />
+	return (
+		<ConfirmDialog
+			{...dialogProps}
+			confirmLoading={isPublishing}
+			onClose={handleClose}
+			onConfirm={async () => {
+				await form.submitForm();
+			}}
+			hideCancel={false}
+			type="success"
+			cancelText="Cancel"
+			confirmText="Publish"
+			title="Publish new version"
+			description={
+				<form id="publish-version" onSubmit={form.handleSubmit}>
+					<Stack>
+						<p>You are about to publish a new version of this template.</p>
+						<FormFields>
+							<TextField
+								{...getFieldHelpers("name")}
+								label={Language.versionNameLabel}
+								autoFocus
+								disabled={isPublishing}
+							/>
 
-            <TextField
-              {...getFieldHelpers("message")}
-              label="Message"
-              placeholder={Language.messagePlaceholder}
-              autoFocus
-              disabled={isPublishing}
-              multiline
-              rows={5}
-            />
+							<TextField
+								{...getFieldHelpers("message")}
+								label="Message"
+								placeholder={Language.messagePlaceholder}
+								disabled={isPublishing}
+								multiline
+								rows={5}
+							/>
 
-            <FormControlLabel
-              label={Language.defaultCheckboxLabel}
-              control={
-                <Checkbox
-                  size="small"
-                  checked={form.values.isActiveVersion}
-                  onChange={async (e) => {
-                    await form.setFieldValue(
-                      "isActiveVersion",
-                      e.target.checked,
-                    );
-                  }}
-                  name="isActiveVersion"
-                />
-              }
-            />
-          </FormFields>
-        </Stack>
-      }
-    />
-  );
+							<Stack direction={"row"}>
+								<FormControlLabel
+									label={Language.defaultCheckboxLabel}
+									control={
+										<Checkbox
+											size="small"
+											checked={form.values.isActiveVersion}
+											onChange={async (e) => {
+												await form.setFieldValue(
+													"isActiveVersion",
+													e.target.checked,
+												);
+											}}
+											name="isActiveVersion"
+										/>
+									}
+								/>
+
+								<HelpTooltip>
+									<HelpTooltipIconTrigger />
+
+									{/**
+									 * 2025-09-03 - Without disablePortal, the tooltip will render under the dialog;
+									 * this prop may not need to be set when we switch away from MuiDialog
+									 */}
+									<HelpTooltipContent disablePortal>
+										<HelpTooltipTitle>
+											{Language.activeVersionHelpTitle}
+										</HelpTooltipTitle>
+										<HelpTooltipText>
+											{Language.activeVersionHelpText}
+										</HelpTooltipText>
+										<HelpTooltipLinksGroup>
+											<HelpTooltipLink
+												href={docs(
+													"/admin/templates/managing-templates#template-update-policies",
+												)}
+											>
+												{Language.activeVersionHelpBody}
+											</HelpTooltipLink>
+										</HelpTooltipLinksGroup>
+									</HelpTooltipContent>
+								</HelpTooltip>
+							</Stack>
+						</FormFields>
+					</Stack>
+				</form>
+			}
+		/>
+	);
 };

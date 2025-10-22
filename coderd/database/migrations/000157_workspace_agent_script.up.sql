@@ -1,4 +1,3 @@
-BEGIN;
 CREATE TABLE workspace_agent_log_sources (
 	workspace_agent_id uuid NOT NULL REFERENCES workspace_agents(id) ON DELETE CASCADE,
 	id uuid NOT NULL,
@@ -33,4 +32,3 @@ ALTER TABLE workspace_agents DROP COLUMN startup_script;
 
 -- Set the table to unlogged to speed up the inserts
 ALTER TABLE workspace_agent_logs SET UNLOGGED;
-COMMIT;

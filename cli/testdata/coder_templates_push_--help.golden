@@ -3,18 +3,18 @@ coder v0.0.0-devel
 USAGE:
   coder templates push [flags] [template]
 
-  Push a new template version from the current directory or as specified by flag
+  Create or update a template from the current directory or as specified by flag
 
 OPTIONS:
+  -O, --org string, $CODER_ORGANIZATION
+          Select which organization (uuid or name) to use.
+
       --activate bool (default: true)
           Whether the new template will be marked active.
 
       --always-prompt bool
           Always prompt all parameters. Does not pull parameter values from
           active template version.
-
-      --create bool (default: false)
-          Create the template if it does not exist.
 
   -d, --directory string (default: .)
           Specify the directory to create from, use '-' to read tar from stdin.
@@ -33,7 +33,10 @@ OPTIONS:
           generated if not provided.
 
       --provisioner-tag string-array
-          Specify a set of tags to target provisioner daemons.
+          Specify a set of tags to target provisioner daemons. If you do not
+          specify any tags, the tags from the active template version will be
+          reused, if available. To remove existing tags, use
+          --provisioner-tag="-".
 
       --var string-array
           Alias of --variable.

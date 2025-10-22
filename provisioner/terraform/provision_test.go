@@ -3,15 +3,18 @@
 package terraform_test
 
 import (
-	"archive/tar"
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
+	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
 	"testing"
@@ -20,16 +23,24 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/terraform-provider-coder/v2/provider"
+
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/provisioner/terraform"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/testutil"
 )
 
 type provisionerServeOptions struct {
-	binaryPath  string
-	exitTimeout time.Duration
+	binaryPath    string
+	cliConfigPath string
+	exitTimeout   time.Duration
+	workDir       string
+	logger        *slog.Logger
 }
 
 func setupProvisioner(t *testing.T, opts *provisionerServeOptions) (context.Context, proto.DRPCProvisionerClient) {
@@ -37,8 +48,14 @@ func setupProvisioner(t *testing.T, opts *provisionerServeOptions) (context.Cont
 		opts = &provisionerServeOptions{}
 	}
 	cachePath := t.TempDir()
-	workDir := t.TempDir()
-	client, server := provisionersdk.MemTransportPipe()
+	if opts.workDir == "" {
+		opts.workDir = t.TempDir()
+	}
+	if opts.logger == nil {
+		logger := testutil.Logger(t)
+		opts.logger = &logger
+	}
+	client, server := drpcsdk.MemTransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	serverErr := make(chan error, 1)
 	t.Cleanup(func() {
@@ -54,36 +71,18 @@ func setupProvisioner(t *testing.T, opts *provisionerServeOptions) (context.Cont
 		serverErr <- terraform.Serve(ctx, &terraform.ServeOptions{
 			ServeOptions: &provisionersdk.ServeOptions{
 				Listener:      server,
-				Logger:        slogtest.Make(t, nil).Leveled(slog.LevelDebug),
-				WorkDirectory: workDir,
+				Logger:        *opts.logger,
+				WorkDirectory: opts.workDir,
 			},
-			BinaryPath:  opts.binaryPath,
-			CachePath:   cachePath,
-			ExitTimeout: opts.exitTimeout,
+			BinaryPath:    opts.binaryPath,
+			CachePath:     cachePath,
+			ExitTimeout:   opts.exitTimeout,
+			CliConfigPath: opts.cliConfigPath,
 		})
 	}()
 	api := proto.NewDRPCProvisionerClient(client)
 
 	return ctx, api
-}
-
-func makeTar(t *testing.T, files map[string]string) []byte {
-	t.Helper()
-	var buffer bytes.Buffer
-	writer := tar.NewWriter(&buffer)
-	for name, content := range files {
-		err := writer.WriteHeader(&tar.Header{
-			Name: name,
-			Size: int64(len(content)),
-			Mode: 0o644,
-		})
-		require.NoError(t, err)
-		_, err = writer.Write([]byte(content))
-		require.NoError(t, err)
-	}
-	err := writer.Flush()
-	require.NoError(t, err)
-	return buffer.Bytes()
 }
 
 func configure(ctx context.Context, t *testing.T, client proto.DRPCProvisionerClient, config *proto.Config) proto.DRPCProvisioner_SessionClient {
@@ -93,6 +92,168 @@ func configure(ctx context.Context, t *testing.T, client proto.DRPCProvisionerCl
 	err = sess.Send(&proto.Request{Type: &proto.Request_Config{Config: config}})
 	require.NoError(t, err)
 	return sess
+}
+
+func hashTemplateFilesAndTestName(t *testing.T, testName string, templateFiles map[string]string) string {
+	t.Helper()
+
+	sortedFileNames := make([]string, 0, len(templateFiles))
+	for fileName := range templateFiles {
+		sortedFileNames = append(sortedFileNames, fileName)
+	}
+	sort.Strings(sortedFileNames)
+
+	// Inserting a delimiter between the file name and the file content
+	// ensures that a file named `ab` with content `cd`
+	// will not hash to the same value as a file named `abc` with content `d`.
+	// This can still happen if the file name or content include the delimiter,
+	// but hopefully they won't.
+	delimiter := []byte("🎉 🌱 🌷")
+
+	hasher := sha256.New()
+	for _, fileName := range sortedFileNames {
+		file := templateFiles[fileName]
+		_, err := hasher.Write([]byte(fileName))
+		require.NoError(t, err)
+		_, err = hasher.Write(delimiter)
+		require.NoError(t, err)
+		_, err = hasher.Write([]byte(file))
+		require.NoError(t, err)
+	}
+	_, err := hasher.Write(delimiter)
+	require.NoError(t, err)
+	_, err = hasher.Write([]byte(testName))
+	require.NoError(t, err)
+
+	return hex.EncodeToString(hasher.Sum(nil))
+}
+
+const (
+	terraformConfigFileName   = "terraform.rc"
+	cacheProvidersDirName     = "providers"
+	cacheTemplateFilesDirName = "files"
+)
+
+// Writes a Terraform CLI config file (`terraform.rc`) in `dir` to enforce using the local provider mirror.
+// This blocks network access for providers, forcing Terraform to use only what's cached in `dir`.
+// Returns the path to the generated config file.
+func writeCliConfig(t *testing.T, dir string) string {
+	t.Helper()
+
+	cliConfigPath := filepath.Join(dir, terraformConfigFileName)
+	require.NoError(t, os.MkdirAll(filepath.Dir(cliConfigPath), 0o700))
+
+	content := fmt.Sprintf(`
+		provider_installation {
+			filesystem_mirror {
+				path    = "%s"
+				include = ["*/*"]
+			}
+			direct {
+				exclude = ["*/*"]
+			}
+		}
+	`, filepath.Join(dir, cacheProvidersDirName))
+	require.NoError(t, os.WriteFile(cliConfigPath, []byte(content), 0o600))
+	return cliConfigPath
+}
+
+func runCmd(t *testing.T, dir string, args ...string) {
+	t.Helper()
+
+	stdout, stderr := bytes.NewBuffer(nil), bytes.NewBuffer(nil)
+	cmd := exec.Command(args[0], args[1:]...) //#nosec
+	cmd.Dir = dir
+	cmd.Stdout = stdout
+	cmd.Stderr = stderr
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to run %s: %s\nstdout: %s\nstderr: %s", strings.Join(args, " "), err, stdout.String(), stderr.String())
+	}
+}
+
+// Each test gets a unique cache dir based on its name and template files.
+// This ensures that tests can download providers in parallel and that they
+// will redownload providers if the template files change.
+func getTestCacheDir(t *testing.T, rootDir string, testName string, templateFiles map[string]string) string {
+	t.Helper()
+
+	hash := hashTemplateFilesAndTestName(t, testName, templateFiles)
+	dir := filepath.Join(rootDir, hash[:12])
+	return dir
+}
+
+// Ensures Terraform providers are downloaded and cached locally in a unique directory for the test.
+// Uses `terraform init` then `mirror` to populate the cache if needed.
+// Returns the cache directory path.
+func downloadProviders(t *testing.T, rootDir string, testName string, templateFiles map[string]string) string {
+	t.Helper()
+
+	dir := getTestCacheDir(t, rootDir, testName, templateFiles)
+	if _, err := os.Stat(dir); err == nil {
+		t.Logf("%s: using cached terraform providers", testName)
+		return dir
+	}
+	filesDir := filepath.Join(dir, cacheTemplateFilesDirName)
+	defer func() {
+		// The files dir will contain a copy of terraform providers generated
+		// by the terraform init command. We don't want to persist them since
+		// we already have a registry mirror in the providers dir.
+		if err := os.RemoveAll(filesDir); err != nil {
+			t.Logf("failed to remove files dir %s: %s", filesDir, err)
+		}
+		if !t.Failed() {
+			return
+		}
+		// If `downloadProviders` function failed, clean up the cache dir.
+		// We don't want to leave it around because it may be incomplete or corrupted.
+		if err := os.RemoveAll(dir); err != nil {
+			t.Logf("failed to remove dir %s: %s", dir, err)
+		}
+	}()
+
+	require.NoError(t, os.MkdirAll(filesDir, 0o700))
+
+	for fileName, file := range templateFiles {
+		filePath := filepath.Join(filesDir, fileName)
+		require.NoError(t, os.MkdirAll(filepath.Dir(filePath), 0o700))
+		require.NoError(t, os.WriteFile(filePath, []byte(file), 0o600))
+	}
+
+	providersDir := filepath.Join(dir, cacheProvidersDirName)
+	require.NoError(t, os.MkdirAll(providersDir, 0o700))
+
+	// We need to run init because if a test uses modules in its template,
+	// the mirror command will fail without it.
+	runCmd(t, filesDir, "terraform", "init")
+	// Now, mirror the providers into `providersDir`. We use this explicit mirror
+	// instead of relying only on the standard Terraform plugin cache.
+	//
+	// Why? Because this mirror, when used with the CLI config from `writeCliConfig`,
+	// prevents Terraform from hitting the network registry during `plan`. This cuts
+	// down on network calls, making CI tests less flaky.
+	//
+	// In contrast, the standard cache *still* contacts the registry for metadata
+	// during `init`, even if the plugins are already cached locally - see link below.
+	//
+	// Ref: https://developer.hashicorp.com/terraform/cli/config/config-file#provider-plugin-cache
+	// > When a plugin cache directory is enabled, the terraform init command will
+	// > still use the configured or implied installation methods to obtain metadata
+	// > about which plugins are available
+	runCmd(t, filesDir, "terraform", "providers", "mirror", providersDir)
+
+	return dir
+}
+
+// Caches providers locally and generates a Terraform CLI config to use *only* that cache.
+// This setup prevents network access for providers during `terraform init`, improving reliability
+// in subsequent test runs.
+// Returns the path to the generated CLI config file.
+func cacheProviders(t *testing.T, rootDir string, testName string, templateFiles map[string]string) string {
+	t.Helper()
+
+	providersParentDir := downloadProviders(t, rootDir, testName, templateFiles)
+	cliConfigPath := writeCliConfig(t, providersParentDir)
+	return cliConfigPath
 }
 
 func readProvisionLog(t *testing.T, response proto.DRPCProvisioner_SessionClient) string {
@@ -124,12 +285,10 @@ func sendApply(sess proto.DRPCProvisioner_SessionClient, transition proto.Worksp
 	}}})
 }
 
+// below we exec fake_cancel.sh, which causes the kernel to execute it, and if more than
+// one process tries to do this simultaneously, it can cause "text file busy"
+// nolint: paralleltest
 func TestProvision_Cancel(t *testing.T) {
-	t.Parallel()
-	if runtime.GOOS == "windows" {
-		t.Skip("This test uses interrupts and is not supported on Windows")
-	}
-
 	cwd, err := os.Getwd()
 	require.NoError(t, err)
 	fakeBin := filepath.Join(cwd, "testdata", "fake_cancel.sh")
@@ -155,10 +314,10 @@ func TestProvision_Cancel(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
+		// below we exec fake_cancel.sh, which causes the kernel to execute it, and if more than
+		// one process tries to do this, it can cause "text file busy"
+		// nolint: paralleltest
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			dir := t.TempDir()
 			binPath := filepath.Join(dir, "terraform")
 
@@ -166,12 +325,13 @@ func TestProvision_Cancel(t *testing.T) {
 			content := fmt.Sprintf("#!/bin/sh\nexec %q %s %s \"$@\"\n", fakeBin, terraform.TerraformVersion.String(), tt.mode)
 			err := os.WriteFile(binPath, []byte(content), 0o755) //#nosec
 			require.NoError(t, err)
+			t.Logf("wrote fake terraform script to %s", binPath)
 
 			ctx, api := setupProvisioner(t, &provisionerServeOptions{
 				binaryPath: binPath,
 			})
 			sess := configure(ctx, t, api, &proto.Config{
-				TemplateSourceArchive: makeTar(t, nil),
+				TemplateSourceArchive: testutil.CreateTar(t, nil),
 			})
 
 			err = sendPlan(sess, proto.WorkspaceTransition_START)
@@ -216,12 +376,10 @@ func TestProvision_Cancel(t *testing.T) {
 	}
 }
 
+// below we exec fake_cancel_hang.sh, which causes the kernel to execute it, and if more than
+// one process tries to do this, it can cause "text file busy"
+// nolint: paralleltest
 func TestProvision_CancelTimeout(t *testing.T) {
-	t.Parallel()
-	if runtime.GOOS == "windows" {
-		t.Skip("This test uses interrupts and is not supported on Windows")
-	}
-
 	cwd, err := os.Getwd()
 	require.NoError(t, err)
 	fakeBin := filepath.Join(cwd, "testdata", "fake_cancel_hang.sh")
@@ -229,7 +387,7 @@ func TestProvision_CancelTimeout(t *testing.T) {
 	dir := t.TempDir()
 	binPath := filepath.Join(dir, "terraform")
 
-	// Example: exec /path/to/terrafork_fake_cancel.sh 1.2.1 apply "$@"
+	// Example: exec /path/to/terraform_fake_cancel.sh 1.2.1 apply "$@"
 	content := fmt.Sprintf("#!/bin/sh\nexec %q %s \"$@\"\n", fakeBin, terraform.TerraformVersion.String())
 	err = os.WriteFile(binPath, []byte(content), 0o755) //#nosec
 	require.NoError(t, err)
@@ -240,7 +398,7 @@ func TestProvision_CancelTimeout(t *testing.T) {
 	})
 
 	sess := configure(ctx, t, api, &proto.Config{
-		TemplateSourceArchive: makeTar(t, nil),
+		TemplateSourceArchive: testutil.CreateTar(t, nil),
 	})
 
 	// provisioner requires plan before apply, so test cancel with plan.
@@ -275,6 +433,77 @@ func TestProvision_CancelTimeout(t *testing.T) {
 	}
 }
 
+// below we exec fake_text_file_busy.sh, which causes the kernel to execute it, and if more than
+// one process tries to do this, it can cause "text file busy" to be returned to us. In this test
+// we want to simulate "text file busy" getting logged by terraform, due to an issue with the
+// terraform-provider-coder
+// nolint: paralleltest
+func TestProvision_TextFileBusy(t *testing.T) {
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+	fakeBin := filepath.Join(cwd, "testdata", "fake_text_file_busy.sh")
+
+	dir := t.TempDir()
+	binPath := filepath.Join(dir, "terraform")
+
+	// Example: exec /path/to/terraform_fake_cancel.sh 1.2.1 apply "$@"
+	content := fmt.Sprintf("#!/bin/sh\nexec %q %s \"$@\"\n", fakeBin, terraform.TerraformVersion.String())
+	err = os.WriteFile(binPath, []byte(content), 0o755) //#nosec
+	require.NoError(t, err)
+
+	workDir := t.TempDir()
+
+	err = os.Mkdir(filepath.Join(workDir, ".coder"), 0o700)
+	require.NoError(t, err)
+	l, err := net.Listen("unix", filepath.Join(workDir, ".coder", "pprof"))
+	require.NoError(t, err)
+	defer l.Close()
+	handlerCalled := 0
+	// nolint: gosec
+	srv := &http.Server{
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "/debug/pprof/goroutine", r.URL.Path)
+			w.WriteHeader(http.StatusOK)
+			_, err := w.Write([]byte("thestacks\n"))
+			assert.NoError(t, err)
+			handlerCalled++
+		}),
+	}
+	srvErr := make(chan error, 1)
+	go func() {
+		srvErr <- srv.Serve(l)
+	}()
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	ctx, api := setupProvisioner(t, &provisionerServeOptions{
+		binaryPath:  binPath,
+		exitTimeout: time.Second,
+		workDir:     workDir,
+		logger:      &logger,
+	})
+
+	sess := configure(ctx, t, api, &proto.Config{
+		TemplateSourceArchive: testutil.CreateTar(t, nil),
+	})
+
+	err = sendPlan(sess, proto.WorkspaceTransition_START)
+	require.NoError(t, err)
+
+	found := false
+	for {
+		msg, err := sess.Recv()
+		require.NoError(t, err)
+
+		if c := msg.GetPlan(); c != nil {
+			require.Contains(t, c.Error, "exit status 1")
+			found = true
+			break
+		}
+	}
+	require.True(t, found)
+	require.EqualValues(t, 1, handlerCalled)
+}
+
 func TestProvision(t *testing.T) {
 	t.Parallel()
 
@@ -291,6 +520,10 @@ func TestProvision(t *testing.T) {
 		ExpectLogContains string
 		// If Apply is true, then send an Apply request and check we get the same Resources as in Response.
 		Apply bool
+		// Some tests may need to be skipped until the relevant provider version is released.
+		SkipReason string
+		// If SkipCacheProviders is true, then skip caching the terraform providers for this test.
+		SkipCacheProviders bool
 	}{
 		{
 			Name: "missing-variable",
@@ -361,16 +594,18 @@ func TestProvision(t *testing.T) {
 			Files: map[string]string{
 				"main.tf": `a`,
 			},
-			ErrorContains:     "initialize terraform",
-			ExpectLogContains: "Argument or block definition required",
+			ErrorContains:      "initialize terraform",
+			ExpectLogContains:  "Argument or block definition required",
+			SkipCacheProviders: true,
 		},
 		{
 			Name: "bad-syntax-2",
 			Files: map[string]string{
 				"main.tf": `;asdf;`,
 			},
-			ErrorContains:     "initialize terraform",
-			ExpectLogContains: `The ";" character is not valid.`,
+			ErrorContains:      "initialize terraform",
+			ExpectLogContains:  `The ";" character is not valid.`,
+			SkipCacheProviders: true,
 		},
 		{
 			Name: "destroy-no-state",
@@ -565,16 +800,417 @@ func TestProvision(t *testing.T) {
 				}},
 			},
 		},
+		{
+			Name: "ssh-key",
+			Files: map[string]string{
+				"main.tf": `terraform {
+					required_providers {
+					  coder = {
+						source  = "coder/coder"
+					  }
+					}
+				}
+
+				resource "null_resource" "example" {}
+				data "coder_workspace_owner" "me" {}
+				resource "coder_metadata" "example" {
+					resource_id = null_resource.example.id
+					item {
+						key = "pubkey"
+						value = data.coder_workspace_owner.me.ssh_public_key
+					}
+					item {
+						key = "privkey"
+						value = data.coder_workspace_owner.me.ssh_private_key
+					}
+				}
+				`,
+			},
+			Request: &proto.PlanRequest{
+				Metadata: &proto.Metadata{
+					WorkspaceOwnerSshPublicKey:  "fake public key",
+					WorkspaceOwnerSshPrivateKey: "fake private key",
+				},
+			},
+			Response: &proto.PlanComplete{
+				Resources: []*proto.Resource{{
+					Name: "example",
+					Type: "null_resource",
+					Metadata: []*proto.Resource_Metadata{{
+						Key:   "pubkey",
+						Value: "fake public key",
+					}, {
+						Key:   "privkey",
+						Value: "fake private key",
+					}},
+				}},
+			},
+		},
+		{
+			Name:       "workspace-owner-login-type",
+			SkipReason: "field will be added in provider version 1.1.0",
+			Files: map[string]string{
+				"main.tf": `terraform {
+					required_providers {
+					  coder = {
+						source  = "coder/coder"
+						version = "1.1.0"
+					  }
+					}
+				}
+
+				resource "null_resource" "example" {}
+				data "coder_workspace_owner" "me" {}
+				resource "coder_metadata" "example" {
+					resource_id = null_resource.example.id
+					item {
+						key = "login_type"
+						value = data.coder_workspace_owner.me.login_type
+					}
+				}
+				`,
+			},
+			Request: &proto.PlanRequest{
+				Metadata: &proto.Metadata{
+					WorkspaceOwnerLoginType: "github",
+				},
+			},
+			Response: &proto.PlanComplete{
+				Resources: []*proto.Resource{{
+					Name: "example",
+					Type: "null_resource",
+					Metadata: []*proto.Resource_Metadata{{
+						Key:   "login_type",
+						Value: "github",
+					}},
+				}},
+			},
+		},
+		{
+			Name: "returns-modules",
+			Files: map[string]string{
+				"main.tf": `module "hello" {
+                    source = "./module"
+                  }`,
+				"module/module.tf": `
+				  resource "null_resource" "example" {}
+
+				  module "there" {
+					source = "./inner_module"
+				  }
+				`,
+				"module/inner_module/inner_module.tf": `
+				  resource "null_resource" "inner_example" {}
+				`,
+			},
+			Request: &proto.PlanRequest{},
+			Response: &proto.PlanComplete{
+				Resources: []*proto.Resource{{
+					Name:       "example",
+					Type:       "null_resource",
+					ModulePath: "module.hello",
+				}, {
+					Name:       "inner_example",
+					Type:       "null_resource",
+					ModulePath: "module.hello.module.there",
+				}},
+				Modules: []*proto.Module{{
+					Key:     "hello",
+					Version: "",
+					Source:  "./module",
+				}, {
+					Key:     "hello.there",
+					Version: "",
+					Source:  "./inner_module",
+				}},
+			},
+		},
+		{
+			Name:       "workspace-owner-rbac-roles",
+			SkipReason: "field will be added in provider version 2.2.0",
+			Files: map[string]string{
+				"main.tf": `terraform {
+					required_providers {
+					  coder = {
+						source  = "coder/coder"
+						version = "2.2.0"
+					  }
+					}
+				}
+
+				resource "null_resource" "example" {}
+				data "coder_workspace_owner" "me" {}
+				resource "coder_metadata" "example" {
+					resource_id = null_resource.example.id
+					item {
+						key = "rbac_roles_name"
+						value = data.coder_workspace_owner.me.rbac_roles[0].name
+					}
+					item {
+						key = "rbac_roles_org_id"
+						value = data.coder_workspace_owner.me.rbac_roles[0].org_id
+					}
+				}
+				`,
+			},
+			Request: &proto.PlanRequest{
+				Metadata: &proto.Metadata{
+					WorkspaceOwnerRbacRoles: []*proto.Role{{Name: "member", OrgId: ""}},
+				},
+			},
+			Response: &proto.PlanComplete{
+				Resources: []*proto.Resource{{
+					Name: "example",
+					Type: "null_resource",
+					Metadata: []*proto.Resource_Metadata{{
+						Key:   "rbac_roles_name",
+						Value: "member",
+					}, {
+						Key:   "rbac_roles_org_id",
+						Value: "",
+					}},
+				}},
+			},
+		},
+		{
+			Name: "is-prebuild",
+			Files: map[string]string{
+				"main.tf": `terraform {
+					required_providers {
+					  coder = {
+						source  = "coder/coder"
+						version = ">= 2.4.1"
+					  }
+					}
+				}
+				data "coder_workspace" "me" {}
+				resource "null_resource" "example" {}
+				resource "coder_metadata" "example" {
+					resource_id = null_resource.example.id
+					item {
+						key = "is_prebuild"
+						value = data.coder_workspace.me.is_prebuild
+					}
+				}
+				`,
+			},
+			Request: &proto.PlanRequest{
+				Metadata: &proto.Metadata{
+					PrebuiltWorkspaceBuildStage: proto.PrebuiltWorkspaceBuildStage_CREATE,
+				},
+			},
+			Response: &proto.PlanComplete{
+				Resources: []*proto.Resource{{
+					Name: "example",
+					Type: "null_resource",
+					Metadata: []*proto.Resource_Metadata{{
+						Key:   "is_prebuild",
+						Value: "true",
+					}},
+				}},
+			},
+		},
+		{
+			Name: "is-prebuild-claim",
+			Files: map[string]string{
+				"main.tf": `terraform {
+					required_providers {
+					  coder = {
+						source  = "coder/coder"
+						version = ">= 2.4.1"
+					  }
+					}
+				}
+				data "coder_workspace" "me" {}
+				resource "null_resource" "example" {}
+				resource "coder_metadata" "example" {
+					resource_id = null_resource.example.id
+					item {
+						key = "is_prebuild_claim"
+						value = data.coder_workspace.me.is_prebuild_claim
+					}
+				}
+				`,
+			},
+			Request: &proto.PlanRequest{
+				Metadata: &proto.Metadata{
+					PrebuiltWorkspaceBuildStage: proto.PrebuiltWorkspaceBuildStage_CLAIM,
+				},
+			},
+			Response: &proto.PlanComplete{
+				Resources: []*proto.Resource{{
+					Name: "example",
+					Type: "null_resource",
+					Metadata: []*proto.Resource_Metadata{{
+						Key:   "is_prebuild_claim",
+						Value: "true",
+					}},
+				}},
+			},
+		},
+		{
+			Name: "ai-task-multiple-allowed-in-plan",
+			Files: map[string]string{
+				"main.tf": fmt.Sprintf(`terraform {
+					required_providers {
+					  coder = {
+						source  = "coder/coder"
+						version = ">= 2.7.0"
+					  }
+					}
+				}
+				data "coder_parameter" "prompt" {
+					name = "%s"
+					type = "string"
+				}
+				resource "coder_ai_task" "a" {
+				  sidebar_app {
+					id = "7128be08-8722-44cb-bbe1-b5a391c4d94b" # fake ID, irrelevant here anyway but needed for validation
+				  }
+				}
+				resource "coder_ai_task" "b" {
+				  sidebar_app {
+					id = "7128be08-8722-44cb-bbe1-b5a391c4d94b" # fake ID, irrelevant here anyway but needed for validation
+				  }
+				}
+				`, provider.TaskPromptParameterName),
+			},
+			Request: &proto.PlanRequest{},
+			Response: &proto.PlanComplete{
+				Resources: []*proto.Resource{
+					{
+						Name: "a",
+						Type: "coder_ai_task",
+					},
+					{
+						Name: "b",
+						Type: "coder_ai_task",
+					},
+				},
+				Parameters: []*proto.RichParameter{
+					{
+						Name:     provider.TaskPromptParameterName,
+						Type:     "string",
+						Required: true,
+						FormType: proto.ParameterFormType_INPUT,
+					},
+				},
+				AiTasks: []*proto.AITask{
+					{
+						Id: "a",
+						SidebarApp: &proto.AITaskSidebarApp{
+							Id: "7128be08-8722-44cb-bbe1-b5a391c4d94b",
+						},
+					},
+					{
+						Id: "b",
+						SidebarApp: &proto.AITaskSidebarApp{
+							Id: "7128be08-8722-44cb-bbe1-b5a391c4d94b",
+						},
+					},
+				},
+				HasAiTasks: true,
+			},
+		},
+		{
+			Name: "external-agent",
+			Files: map[string]string{
+				"main.tf": `terraform {
+					required_providers {
+					  coder = {
+						source  = "coder/coder"
+						version = ">= 2.7.0"
+					  }
+					}
+				}
+				resource "coder_external_agent" "example" {
+					agent_id = "123"
+				}
+				`,
+			},
+			Response: &proto.PlanComplete{
+				Resources: []*proto.Resource{{
+					Name: "example",
+					Type: "coder_external_agent",
+				}},
+				HasExternalAgents: true,
+			},
+			SkipCacheProviders: true,
+		},
+		{
+			Name: "ai-task-app-id",
+			Files: map[string]string{
+				"main.tf": `terraform {
+					required_providers {
+						coder = {
+							source  = "coder/coder"
+							version = ">= 2.12.0"
+						}
+					}
+				}
+				resource "coder_ai_task" "my-task" {
+				  app_id = "7128be08-8722-44cb-bbe1-b5a391c4d94b" # fake ID, irrelevant here anyway but needed for validation
+				}
+				`,
+			},
+			Response: &proto.PlanComplete{
+				Resources: []*proto.Resource{
+					{
+						Name: "my-task",
+						Type: "coder_ai_task",
+					},
+				},
+				AiTasks: []*proto.AITask{
+					{
+						Id:    "my-task",
+						AppId: "7128be08-8722-44cb-bbe1-b5a391c4d94b",
+					},
+				},
+				HasAiTasks: true,
+			},
+			SkipCacheProviders: true,
+		},
+	}
+
+	// Remove unused cache dirs before running tests.
+	// This cleans up any cache dirs that were created by tests that no longer exist.
+	cacheRootDir := filepath.Join(testutil.PersistentCacheDir(t), "terraform_provision_test")
+	expectedCacheDirs := make(map[string]bool)
+	for _, testCase := range testCases {
+		cacheDir := getTestCacheDir(t, cacheRootDir, testCase.Name, testCase.Files)
+		expectedCacheDirs[cacheDir] = true
+	}
+	currentCacheDirs, err := filepath.Glob(filepath.Join(cacheRootDir, "*"))
+	require.NoError(t, err)
+	for _, cacheDir := range currentCacheDirs {
+		if _, ok := expectedCacheDirs[cacheDir]; !ok {
+			t.Logf("removing unused cache dir: %s", cacheDir)
+			require.NoError(t, os.RemoveAll(cacheDir))
+		}
 	}
 
 	for _, testCase := range testCases {
-		testCase := testCase
 		t.Run(testCase.Name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx, api := setupProvisioner(t, nil)
+			if testCase.SkipReason != "" {
+				t.Skip(testCase.SkipReason)
+			}
+
+			cliConfigPath := ""
+			if !testCase.SkipCacheProviders {
+				cliConfigPath = cacheProviders(
+					t,
+					cacheRootDir,
+					testCase.Name,
+					testCase.Files,
+				)
+			}
+			ctx, api := setupProvisioner(t, &provisionerServeOptions{
+				cliConfigPath: cliConfigPath,
+			})
 			sess := configure(ctx, t, api, &proto.Config{
-				TemplateSourceArchive: makeTar(t, testCase.Files),
+				TemplateSourceArchive: testutil.CreateTar(t, testCase.Files),
 			})
 
 			planRequest := &proto.Request{Type: &proto.Request_Plan{Plan: &proto.PlanRequest{
@@ -615,7 +1251,7 @@ func TestProvision(t *testing.T) {
 			if testCase.Response != nil {
 				require.Equal(t, testCase.Response.Error, planComplete.Error)
 
-				// Remove randomly generated data.
+				// Remove randomly generated data and sort by name.
 				normalizeResources(planComplete.Resources)
 				resourcesGot, err := json.Marshal(planComplete.Resources)
 				require.NoError(t, err)
@@ -628,6 +1264,15 @@ func TestProvision(t *testing.T) {
 				parametersWant, err := json.Marshal(testCase.Response.Parameters)
 				require.NoError(t, err)
 				require.Equal(t, string(parametersWant), string(parametersGot))
+
+				modulesGot, err := json.Marshal(planComplete.Modules)
+				require.NoError(t, err)
+				modulesWant, err := json.Marshal(testCase.Response.Modules)
+				require.NoError(t, err)
+				require.Equal(t, string(modulesWant), string(modulesGot))
+
+				require.Equal(t, planComplete.HasAiTasks, testCase.Response.HasAiTasks)
+				require.Equal(t, planComplete.HasExternalAgents, testCase.Response.HasExternalAgents)
 			}
 
 			if testCase.Apply {
@@ -668,6 +1313,9 @@ func normalizeResources(resources []*proto.Resource) {
 			agent.Auth = &proto.Agent_Token{}
 		}
 	}
+	sort.Slice(resources, func(i, j int) bool {
+		return resources[i].Name < resources[j].Name
+	})
 }
 
 // nolint:paralleltest
@@ -679,7 +1327,7 @@ func TestProvision_ExtraEnv(t *testing.T) {
 
 	ctx, api := setupProvisioner(t, nil)
 	sess := configure(ctx, t, api, &proto.Config{
-		TemplateSourceArchive: makeTar(t, map[string]string{"main.tf": `resource "null_resource" "A" {}`}),
+		TemplateSourceArchive: testutil.CreateTar(t, map[string]string{"main.tf": `resource "null_resource" "A" {}`}),
 	})
 
 	err := sendPlan(sess, proto.WorkspaceTransition_START)
@@ -729,7 +1377,7 @@ func TestProvision_SafeEnv(t *testing.T) {
 
 	ctx, api := setupProvisioner(t, nil)
 	sess := configure(ctx, t, api, &proto.Config{
-		TemplateSourceArchive: makeTar(t, map[string]string{"main.tf": echoResource}),
+		TemplateSourceArchive: testutil.CreateTar(t, map[string]string{"main.tf": echoResource}),
 	})
 
 	err := sendPlan(sess, proto.WorkspaceTransition_START)
@@ -744,4 +1392,21 @@ func TestProvision_SafeEnv(t *testing.T) {
 	require.Contains(t, log, passedValue)
 	require.NotContains(t, log, secretValue)
 	require.Contains(t, log, "CODER_")
+}
+
+func TestProvision_MalformedModules(t *testing.T) {
+	t.Parallel()
+
+	ctx, api := setupProvisioner(t, nil)
+	sess := configure(ctx, t, api, &proto.Config{
+		TemplateSourceArchive: testutil.CreateTar(t, map[string]string{
+			"main.tf":          `module "hello" { source = "./module" }`,
+			"module/module.tf": `resource "null_`,
+		}),
+	})
+
+	err := sendPlan(sess, proto.WorkspaceTransition_START)
+	require.NoError(t, err)
+	log := readProvisionLog(t, sess)
+	require.Contains(t, log, "Invalid block definition")
 }

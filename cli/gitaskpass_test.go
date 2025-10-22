@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/pty/ptytest"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestGitAskpass(t *testing.T) {
@@ -23,7 +24,7 @@ func TestGitAskpass(t *testing.T) {
 	t.Run("UsernameAndPassword", func(t *testing.T) {
 		t.Parallel()
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			httpapi.Write(context.Background(), w, http.StatusOK, agentsdk.GitAuthResponse{
+			httpapi.Write(context.Background(), w, http.StatusOK, agentsdk.ExternalAuthResponse{
 				Username: "something",
 				Password: "bananas",
 			})
@@ -32,6 +33,7 @@ func TestGitAskpass(t *testing.T) {
 		url := srv.URL
 		inv, _ := clitest.New(t, "--agent-url", url, "Username for 'https://github.com':")
 		inv.Environ.Set("GIT_PREFIX", "/")
+		inv.Environ.Set("CODER_AGENT_TOKEN", "fake-token")
 		pty := ptytest.New(t)
 		inv.Stdout = pty.Output()
 		clitest.Start(t, inv)
@@ -39,6 +41,7 @@ func TestGitAskpass(t *testing.T) {
 
 		inv, _ = clitest.New(t, "--agent-url", url, "Password for 'https://potato@github.com':")
 		inv.Environ.Set("GIT_PREFIX", "/")
+		inv.Environ.Set("CODER_AGENT_TOKEN", "fake-token")
 		pty = ptytest.New(t)
 		inv.Stdout = pty.Output()
 		clitest.Start(t, inv)
@@ -56,17 +59,19 @@ func TestGitAskpass(t *testing.T) {
 		url := srv.URL
 		inv, _ := clitest.New(t, "--agent-url", url, "--no-open", "Username for 'https://github.com':")
 		inv.Environ.Set("GIT_PREFIX", "/")
+		inv.Environ.Set("CODER_AGENT_TOKEN", "fake-token")
 		pty := ptytest.New(t)
 		inv.Stderr = pty.Output()
 		err := inv.Run()
-		require.ErrorIs(t, err, cliui.Canceled)
+		require.ErrorIs(t, err, cliui.ErrCanceled)
 		pty.ExpectMatch("Nope!")
 	})
 
 	t.Run("Poll", func(t *testing.T) {
 		t.Parallel()
-		resp := atomic.Pointer[agentsdk.GitAuthResponse]{}
-		resp.Store(&agentsdk.GitAuthResponse{
+		ctx := testutil.Context(t, testutil.WaitShort)
+		resp := atomic.Pointer[agentsdk.ExternalAuthResponse]{}
+		resp.Store(&agentsdk.ExternalAuthResponse{
 			URL: "https://something.org",
 		})
 		poll := make(chan struct{}, 10)
@@ -86,6 +91,7 @@ func TestGitAskpass(t *testing.T) {
 
 		inv, _ := clitest.New(t, "--agent-url", url, "--no-open", "Username for 'https://github.com':")
 		inv.Environ.Set("GIT_PREFIX", "/")
+		inv.Environ.Set("CODER_AGENT_TOKEN", "fake-token")
 		stdout := ptytest.New(t)
 		inv.Stdout = stdout.Output()
 		stderr := ptytest.New(t)
@@ -94,9 +100,9 @@ func TestGitAskpass(t *testing.T) {
 			err := inv.Run()
 			assert.NoError(t, err)
 		}()
-		<-poll
+		testutil.RequireReceive(ctx, t, poll)
 		stderr.ExpectMatch("Open the following URL to authenticate")
-		resp.Store(&agentsdk.GitAuthResponse{
+		resp.Store(&agentsdk.ExternalAuthResponse{
 			Username: "username",
 			Password: "password",
 		})

@@ -1,0 +1,56 @@
+name: Docs CI
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "docs/**"
+      - "**.md"
+      - ".github/workflows/docs-ci.yaml"
+
+  pull_request:
+    paths:
+      - "docs/**"
+      - "**.md"
+      - ".github/workflows/docs-ci.yaml"
+
+permissions:
+  contents: read
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+
+      - uses: tj-actions/changed-files@4563c729c555b4141fac99c80f699f571219b836 # v45.0.7
+        id: changed-files
+        with:
+          files: |
+            docs/**
+            **.md
+          separator: ","
+
+      - name: lint
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          # shellcheck disable=SC2086
+          pnpm exec markdownlint-cli2 $ALL_CHANGED_FILES
+        env:
+          ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
+
+      - name: fmt
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          # markdown-table-formatter requires a space separated list of files
+          # shellcheck disable=SC2086
+          echo $ALL_CHANGED_FILES | tr ',' '\n' | pnpm exec markdown-table-formatter --check
+        env:
+          ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}

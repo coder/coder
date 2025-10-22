@@ -1,86 +1,38 @@
-import fs from "fs";
-import type {
-  FullConfig,
-  Suite,
-  TestCase,
-  TestResult,
-  FullResult,
-  Reporter,
-} from "@playwright/test/reporter";
-import axios from "axios";
+import * as fs from "node:fs/promises";
+import type { Reporter, TestCase, TestResult } from "@playwright/test/reporter";
+import { API } from "api/api";
+import { coderdPProfPort } from "./constants";
 
 class CoderReporter implements Reporter {
-  onBegin(config: FullConfig, suite: Suite) {
-    // eslint-disable-next-line no-console -- Helpful for debugging
-    console.log(`Starting the run with ${suite.allTests().length} tests`);
-  }
+	async onTestEnd(test: TestCase, result: TestResult) {
+		if (test.expectedStatus === "skipped") {
+			return;
+		}
 
-  onTestBegin(test: TestCase) {
-    // eslint-disable-next-line no-console -- Helpful for debugging
-    console.log(`Starting test ${test.title}`);
-  }
+		if (result.status === "passed") {
+			return;
+		}
 
-  onStdOut(chunk: string, test: TestCase, _: TestResult): void {
-    // eslint-disable-next-line no-console -- Helpful for debugging
-    console.log(
-      `[stdout] [${test ? test.title : "unknown"}]: ${chunk.replace(
-        /\n$/g,
-        "",
-      )}`,
-    );
-  }
+		const fsTestTitle = test.title.replaceAll(" ", "-");
+		const outputFile = `test-results/debug-pprof-goroutine-${fsTestTitle}.txt`;
+		await exportDebugPprof(outputFile);
 
-  onStdErr(chunk: string, test: TestCase, _: TestResult): void {
-    // eslint-disable-next-line no-console -- Helpful for debugging
-    console.log(
-      `[stderr] [${test ? test.title : "unknown"}]: ${chunk.replace(
-        /\n$/g,
-        "",
-      )}`,
-    );
-  }
-
-  async onTestEnd(test: TestCase, result: TestResult) {
-    // eslint-disable-next-line no-console -- Helpful for debugging
-    console.log(`Finished test ${test.title}: ${result.status}`);
-
-    if (result.status !== "passed") {
-      // eslint-disable-next-line no-console -- Helpful for debugging
-      console.log("errors", result.errors, "attachments", result.attachments);
-    }
-    await exportDebugPprof(test.title);
-  }
-
-  onEnd(result: FullResult) {
-    // eslint-disable-next-line no-console -- Helpful for debugging
-    console.log(`Finished the run: ${result.status}`);
-  }
+		console.info(`Data from pprof has been saved to ${outputFile}`);
+		console.info("==> Output");
+	}
 }
 
-const exportDebugPprof = async (testName: string) => {
-  const url = "http://127.0.0.1:6060/debug/pprof/goroutine?debug=1";
-  const outputFile = `test-results/debug-pprof-goroutine-${testName}.txt`;
+const exportDebugPprof = async (outputFile: string) => {
+	const axiosInstance = API.getAxiosInstance();
+	const response = await axiosInstance.get(
+		`http://127.0.0.1:${coderdPProfPort}/debug/pprof/goroutine?debug=1`,
+	);
 
-  await axios
-    .get(url)
-    .then((response) => {
-      if (response.status !== 200) {
-        throw new Error(`Error: Received status code ${response.status}`);
-      }
+	if (response.status !== 200) {
+		throw new Error(`Error: Received status code ${response.status}`);
+	}
 
-      fs.writeFile(outputFile, response.data, (err) => {
-        if (err) {
-          throw new Error(`Error writing to ${outputFile}: ${err.message}`);
-        } else {
-          // eslint-disable-next-line no-console -- Helpful for debugging
-          console.log(`Data from ${url} has been saved to ${outputFile}`);
-        }
-      });
-    })
-    .catch((error) => {
-      throw new Error(`Error: ${error.message}`);
-    });
+	await fs.writeFile(outputFile, response.data);
 };
 
-// eslint-disable-next-line no-unused-vars -- Playwright config uses it
 export default CoderReporter;

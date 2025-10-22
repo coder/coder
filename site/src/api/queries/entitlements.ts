@@ -1,25 +1,26 @@
-import { QueryClient } from "react-query";
-import * as API from "api/api";
-import { Entitlements } from "api/typesGenerated";
-import { getMetadataAsJSON } from "utils/metadata";
+import { API } from "api/api";
+import type { Entitlements } from "api/typesGenerated";
+import type { MetadataState } from "hooks/useEmbeddedMetadata";
+import type { QueryClient } from "react-query";
+import { cachedQuery } from "./util";
 
-const ENTITLEMENTS_QUERY_KEY = ["entitlements"];
+const entitlementsQueryKey = ["entitlements"] as const;
 
-export const entitlements = () => {
-  return {
-    queryKey: ENTITLEMENTS_QUERY_KEY,
-    queryFn: async () =>
-      getMetadataAsJSON<Entitlements>("entitlements") ?? API.getEntitlements(),
-  };
+export const entitlements = (metadata: MetadataState<Entitlements>) => {
+	return cachedQuery({
+		metadata,
+		queryKey: entitlementsQueryKey,
+		queryFn: () => API.getEntitlements(),
+	});
 };
 
 export const refreshEntitlements = (queryClient: QueryClient) => {
-  return {
-    mutationFn: API.refreshEntitlements,
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: ENTITLEMENTS_QUERY_KEY,
-      });
-    },
-  };
+	return {
+		mutationFn: API.refreshEntitlements,
+		onSuccess: async () => {
+			await queryClient.invalidateQueries({
+				queryKey: entitlementsQueryKey,
+			});
+		},
+	};
 };

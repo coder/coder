@@ -7,19 +7,19 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/enterprise/cli"
 	"github.com/coder/flog"
+	"github.com/coder/serpent"
 )
 
 // route is an individual page object in the docs manifest.json.
 type route struct {
-	Title       string  `json:"title,omitempty"`
-	Description string  `json:"description,omitempty"`
-	Path        string  `json:"path,omitempty"`
-	IconPath    string  `json:"icon_path,omitempty"`
-	State       string  `json:"state,omitempty"`
-	Children    []route `json:"children,omitempty"`
+	Title       string   `json:"title,omitempty"`
+	Description string   `json:"description,omitempty"`
+	Path        string   `json:"path,omitempty"`
+	IconPath    string   `json:"icon_path,omitempty"`
+	State       []string `json:"state,omitempty"`
+	Children    []route  `json:"children,omitempty"`
 }
 
 // manifest describes the entire documentation index.
@@ -83,11 +83,11 @@ func main() {
 	root := (&cli.RootCmd{})
 
 	// wroteMap indexes file paths to commands.
-	wroteMap := make(map[string]*clibase.Cmd)
+	wroteMap := make(map[string]*serpent.Command)
 
 	var (
 		docsDir        = filepath.Join(workdir, "docs")
-		cliMarkdownDir = filepath.Join(docsDir, "cli")
+		cliMarkdownDir = filepath.Join(docsDir, "reference/cli")
 	)
 
 	cmd, err := root.Command(root.EnterpriseSubcommands())
@@ -146,27 +146,33 @@ func main() {
 	var found bool
 	for i := range manifest.Routes {
 		rt := &manifest.Routes[i]
-		if rt.Title != "Command Line" {
+		if rt.Title != "Reference" {
 			continue
 		}
-		rt.Children = nil
-		found = true
-		for path, cmd := range wroteMap {
-			relPath, err := filepath.Rel(docsDir, path)
-			if err != nil {
-				flog.Fatalf("getting relative path: %v", err)
+		for j := range rt.Children {
+			child := &rt.Children[j]
+			if child.Title != "Command Line" {
+				continue
 			}
-			rt.Children = append(rt.Children, route{
-				Title:       fullName(cmd),
-				Description: cmd.Short,
-				Path:        relPath,
+			child.Children = nil
+			found = true
+			for path, cmd := range wroteMap {
+				relPath, err := filepath.Rel(docsDir, path)
+				if err != nil {
+					flog.Fatalf("getting relative path: %v", err)
+				}
+				child.Children = append(child.Children, route{
+					Title:       fullName(cmd),
+					Description: cmd.Short,
+					Path:        relPath,
+				})
+			}
+			// Sort children by title because wroteMap iteration is
+			// non-deterministic.
+			sort.Slice(child.Children, func(i, j int) bool {
+				return child.Children[i].Title < child.Children[j].Title
 			})
 		}
-		// Sort children by title because wroteMap iteration is
-		// non-deterministic.
-		sort.Slice(rt.Children, func(i, j int) bool {
-			return rt.Children[i].Title < rt.Children[j].Title
-		})
 	}
 
 	if !found {

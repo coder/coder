@@ -15,14 +15,18 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
+	"golang.org/x/net/idna"
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/rolestore"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -43,28 +47,16 @@ func APIKey(r *http.Request) database.APIKey {
 	return key
 }
 
-// User roles are the 'subject' field of Authorize()
-type userAuthKey struct{}
-
-type Authorization struct {
-	Actor rbac.Subject
-	// ActorName is required for logging and human friendly related identification.
-	// It is usually the "username" of the user, but it can be the name of the
-	// external workspace proxy or other service type actor.
-	ActorName string
-}
-
 // UserAuthorizationOptional may return the roles and scope used for
 // authorization. Depends on the ExtractAPIKey handler.
-func UserAuthorizationOptional(r *http.Request) (Authorization, bool) {
-	auth, ok := r.Context().Value(userAuthKey{}).(Authorization)
-	return auth, ok
+func UserAuthorizationOptional(ctx context.Context) (rbac.Subject, bool) {
+	return dbauthz.ActorFromContext(ctx)
 }
 
 // UserAuthorization returns the roles and scope used for authorization. Depends
 // on the ExtractAPIKey handler.
-func UserAuthorization(r *http.Request) Authorization {
-	auth, ok := UserAuthorizationOptional(r)
+func UserAuthorization(ctx context.Context) rbac.Subject {
+	auth, ok := UserAuthorizationOptional(ctx)
 	if !ok {
 		panic("developer error: ExtractAPIKey middleware not provided")
 	}
@@ -74,8 +66,8 @@ func UserAuthorization(r *http.Request) Authorization {
 // OAuth2Configs is a collection of configurations for OAuth-based authentication.
 // This should be extended to support other authentication types in the future.
 type OAuth2Configs struct {
-	Github OAuth2Config
-	OIDC   OAuth2Config
+	Github promoauth.OAuth2Config
+	OIDC   promoauth.OAuth2Config
 }
 
 func (c *OAuth2Configs) IsZero() bool {
@@ -92,6 +84,7 @@ const (
 
 type ExtractAPIKeyConfig struct {
 	DB                          database.Store
+	ActivateDormantUser         func(ctx context.Context, u database.User) (database.User, error)
 	OAuth2Configs               *OAuth2Configs
 	RedirectToLogin             bool
 	DisableSessionExpiryRefresh bool
@@ -112,6 +105,20 @@ type ExtractAPIKeyConfig struct {
 	// SessionTokenFunc is a custom function that can be used to extract the API
 	// key. If nil, the default behavior is used.
 	SessionTokenFunc func(r *http.Request) string
+
+	// PostAuthAdditionalHeadersFunc is a function that can be used to add
+	// headers to the response after the user has been authenticated.
+	//
+	// This is originally implemented to send entitlement warning headers after
+	// a user is authenticated to prevent additional CLI invocations.
+	PostAuthAdditionalHeadersFunc func(a rbac.Subject, header http.Header)
+
+	// AccessURL is the configured access URL for this Coder deployment.
+	// Used for generating OAuth2 resource metadata URLs in WWW-Authenticate headers.
+	AccessURL *url.URL
+
+	// Logger is used for logging middleware operations.
+	Logger slog.Logger
 }
 
 // ExtractAPIKeyMW calls ExtractAPIKey with the given config on each request,
@@ -134,9 +141,8 @@ func ExtractAPIKeyMW(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 			// Actor is the user's authorization context.
 			ctx := r.Context()
 			ctx = context.WithValue(ctx, apiKeyContextKey{}, key)
-			ctx = context.WithValue(ctx, userAuthKey{}, authz)
-			// Set the auth context for the authzquerier as well.
-			ctx = dbauthz.As(ctx, authz.Actor)
+			// Set the auth context for the user.
+			ctx = dbauthz.As(ctx, authz)
 
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
@@ -201,15 +207,20 @@ func APIKeyFromRequest(ctx context.Context, db database.Store, sessionTokenFunc 
 // and authz object may be returned. False is returned if a response was written
 // to the request and the caller should give up.
 // nolint:revive
-func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyConfig) (*database.APIKey, *Authorization, bool) {
+func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyConfig) (*database.APIKey, *rbac.Subject, bool) {
 	ctx := r.Context()
 	// Write wraps writing a response to redirect if the handler
 	// specified it should. This redirect is used for user-facing pages
 	// like workspace applications.
-	write := func(code int, response codersdk.Response) (*database.APIKey, *Authorization, bool) {
+	write := func(code int, response codersdk.Response) (apiKey *database.APIKey, subject *rbac.Subject, ok bool) {
 		if cfg.RedirectToLogin {
 			RedirectToLogin(rw, r, nil, response.Message)
 			return nil, nil, false
+		}
+
+		// Add WWW-Authenticate header for 401/403 responses (RFC 6750 + RFC 9728)
+		if code == http.StatusUnauthorized || code == http.StatusForbidden {
+			rw.Header().Set("WWW-Authenticate", buildWWWAuthenticateHeader(cfg.AccessURL, r, code, response))
 		}
 
 		httpapi.Write(ctx, rw, code, response)
@@ -221,7 +232,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 	//
 	// It should be used when the API key is not provided or is invalid,
 	// but not when there are other errors.
-	optionalWrite := func(code int, response codersdk.Response) (*database.APIKey, *Authorization, bool) {
+	optionalWrite := func(code int, response codersdk.Response) (*database.APIKey, *rbac.Subject, bool) {
 		if cfg.Optional {
 			return nil, nil, true
 		}
@@ -235,16 +246,32 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 		return optionalWrite(http.StatusUnauthorized, resp)
 	}
 
-	var (
-		link database.UserLink
-		now  = dbtime.Now()
-		// Tracks if the API key has properties updated
-		changed = false
-	)
+	now := dbtime.Now()
+	if key.ExpiresAt.Before(now) {
+		return optionalWrite(http.StatusUnauthorized, codersdk.Response{
+			Message: SignedOutErrorMessage,
+			Detail:  fmt.Sprintf("API key expired at %q.", key.ExpiresAt.String()),
+		})
+	}
+
+	// Validate OAuth2 provider app token audience (RFC 8707) if applicable
+	if key.LoginType == database.LoginTypeOAuth2ProviderApp {
+		if err := validateOAuth2ProviderAppTokenAudience(ctx, cfg.DB, *key, cfg.AccessURL, r); err != nil {
+			// Log the detailed error for debugging but don't expose it to the client
+			cfg.Logger.Debug(ctx, "oauth2 token audience validation failed", slog.Error(err))
+			return optionalWrite(http.StatusForbidden, codersdk.Response{
+				Message: "Token audience validation failed",
+			})
+		}
+	}
+
+	// We only check OIDC stuff if we have a valid APIKey. An expired key means we don't trust the requestor
+	// really is the user whose key they have, and so we shouldn't be doing anything on their behalf including possibly
+	// refreshing the OIDC token.
 	if key.LoginType == database.LoginTypeGithub || key.LoginType == database.LoginTypeOIDC {
 		var err error
 		//nolint:gocritic // System needs to fetch UserLink to check if it's valid.
-		link, err = cfg.DB.GetUserLinkByUserIDLoginType(dbauthz.AsSystemRestricted(ctx), database.GetUserLinkByUserIDLoginTypeParams{
+		link, err := cfg.DB.GetUserLinkByUserIDLoginType(dbauthz.AsSystemRestricted(ctx), database.GetUserLinkByUserIDLoginTypeParams{
 			UserID:    key.UserID,
 			LoginType: key.LoginType,
 		})
@@ -261,7 +288,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 			})
 		}
 		// Check if the OAuth token is expired
-		if link.OAuthExpiry.Before(now) && !link.OAuthExpiry.IsZero() && link.OAuthRefreshToken != "" {
+		if !link.OAuthExpiry.IsZero() && link.OAuthExpiry.Before(now) {
 			if cfg.OAuth2Configs.IsZero() {
 				return write(http.StatusInternalServerError, codersdk.Response{
 					Message: internalErrorMessage,
@@ -270,12 +297,15 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 				})
 			}
 
-			var oauthConfig OAuth2Config
+			var friendlyName string
+			var oauthConfig promoauth.OAuth2Config
 			switch key.LoginType {
 			case database.LoginTypeGithub:
 				oauthConfig = cfg.OAuth2Configs.Github
+				friendlyName = "GitHub"
 			case database.LoginTypeOIDC:
 				oauthConfig = cfg.OAuth2Configs.OIDC
+				friendlyName = "OpenID Connect"
 			default:
 				return write(http.StatusInternalServerError, codersdk.Response{
 					Message: internalErrorMessage,
@@ -295,7 +325,13 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 				})
 			}
 
-			// If it is, let's refresh it from the provided config
+			if link.OAuthRefreshToken == "" {
+				return optionalWrite(http.StatusUnauthorized, codersdk.Response{
+					Message: SignedOutErrorMessage,
+					Detail:  fmt.Sprintf("%s session expired at %q. Try signing in again.", friendlyName, link.OAuthExpiry.String()),
+				})
+			}
+			// We have a refresh token, so let's try it
 			token, err := oauthConfig.TokenSource(r.Context(), &oauth2.Token{
 				AccessToken:  link.OAuthAccessToken,
 				RefreshToken: link.OAuthRefreshToken,
@@ -303,28 +339,39 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 			}).Token()
 			if err != nil {
 				return write(http.StatusUnauthorized, codersdk.Response{
-					Message: "Could not refresh expired Oauth token. Try re-authenticating to resolve this issue.",
-					Detail:  err.Error(),
+					Message: fmt.Sprintf(
+						"Could not refresh expired %s token. Try re-authenticating to resolve this issue.",
+						friendlyName),
+					Detail: err.Error(),
 				})
 			}
 			link.OAuthAccessToken = token.AccessToken
 			link.OAuthRefreshToken = token.RefreshToken
 			link.OAuthExpiry = token.Expiry
-			key.ExpiresAt = token.Expiry
-			changed = true
+			//nolint:gocritic // system needs to update user link
+			link, err = cfg.DB.UpdateUserLink(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLinkParams{
+				UserID:                 link.UserID,
+				LoginType:              link.LoginType,
+				OAuthAccessToken:       link.OAuthAccessToken,
+				OAuthAccessTokenKeyID:  sql.NullString{}, // dbcrypt will update as required
+				OAuthRefreshToken:      link.OAuthRefreshToken,
+				OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
+				OAuthExpiry:            link.OAuthExpiry,
+				// Refresh should keep the same debug context because we use
+				// the original claims for the group/role sync.
+				Claims: link.Claims,
+			})
+			if err != nil {
+				return write(http.StatusInternalServerError, codersdk.Response{
+					Message: internalErrorMessage,
+					Detail:  fmt.Sprintf("update user_link: %s.", err.Error()),
+				})
+			}
 		}
 	}
 
-	// Checking if the key is expired.
-	// NOTE: The `RequireAuth` React component depends on this `Detail` to detect when
-	// the users token has expired. If you change the text here, make sure to update it
-	// in site/src/components/RequireAuth/RequireAuth.tsx as well.
-	if key.ExpiresAt.Before(now) {
-		return optionalWrite(http.StatusUnauthorized, codersdk.Response{
-			Message: SignedOutErrorMessage,
-			Detail:  fmt.Sprintf("API key expired at %q.", key.ExpiresAt.String()),
-		})
-	}
+	// Tracks if the API key has properties updated
+	changed := false
 
 	// Only update LastUsed once an hour to prevent database spam.
 	if now.Sub(key.LastUsed) > time.Hour {
@@ -366,26 +413,6 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 				Detail:  fmt.Sprintf("API key couldn't update: %s.", err.Error()),
 			})
 		}
-		// If the API Key is associated with a user_link (e.g. Github/OIDC)
-		// then we want to update the relevant oauth fields.
-		if link.UserID != uuid.Nil {
-			//nolint:gocritic // system needs to update user link
-			link, err = cfg.DB.UpdateUserLink(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLinkParams{
-				UserID:                 link.UserID,
-				LoginType:              link.LoginType,
-				OAuthAccessToken:       link.OAuthAccessToken,
-				OAuthAccessTokenKeyID:  sql.NullString{}, // dbcrypt will update as required
-				OAuthRefreshToken:      link.OAuthRefreshToken,
-				OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
-				OAuthExpiry:            link.OAuthExpiry,
-			})
-			if err != nil {
-				return write(http.StatusInternalServerError, codersdk.Response{
-					Message: internalErrorMessage,
-					Detail:  fmt.Sprintf("update user_link: %s.", err.Error()),
-				})
-			}
-		}
 
 		// We only want to update this occasionally to reduce DB write
 		// load. We update alongside the UserLink and APIKey since it's
@@ -407,8 +434,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 	// If the key is valid, we also fetch the user roles and status.
 	// The roles are used for RBAC authorize checks, and the status
 	// is to block 'suspended' users from accessing the platform.
-	//nolint:gocritic // system needs to update user roles
-	roles, err := cfg.DB.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), key.UserID)
+	actor, userStatus, err := UserRBACSubject(ctx, cfg.DB, key.UserID, key.ScopeSet())
 	if err != nil {
 		return write(http.StatusUnauthorized, codersdk.Response{
 			Message: internalErrorMessage,
@@ -416,41 +442,260 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 		})
 	}
 
-	if roles.Status == database.UserStatusDormant {
-		// If coder confirms that the dormant user is valid, it can switch their account to active.
-		// nolint:gocritic
-		u, err := cfg.DB.UpdateUserStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateUserStatusParams{
-			ID:        key.UserID,
-			Status:    database.UserStatusActive,
-			UpdatedAt: dbtime.Now(),
+	if userStatus == database.UserStatusDormant && cfg.ActivateDormantUser != nil {
+		id, _ := uuid.Parse(actor.ID)
+		user, err := cfg.ActivateDormantUser(ctx, database.User{
+			ID:       id,
+			Username: actor.FriendlyName,
+			Status:   userStatus,
 		})
 		if err != nil {
 			return write(http.StatusInternalServerError, codersdk.Response{
 				Message: internalErrorMessage,
-				Detail:  fmt.Sprintf("can't activate a dormant user: %s", err.Error()),
+				Detail:  fmt.Sprintf("update user status: %s", err.Error()),
 			})
 		}
-		roles.Status = u.Status
+		userStatus = user.Status
 	}
 
-	if roles.Status != database.UserStatusActive {
+	if userStatus != database.UserStatusActive {
 		return write(http.StatusUnauthorized, codersdk.Response{
-			Message: fmt.Sprintf("User is not active (status = %q). Contact an admin to reactivate your account.", roles.Status),
+			Message: fmt.Sprintf("User is not active (status = %q). Contact an admin to reactivate your account.", userStatus),
 		})
 	}
 
-	// Actor is the user's authorization context.
-	authz := Authorization{
-		ActorName: roles.Username,
-		Actor: rbac.Subject{
-			ID:     key.UserID.String(),
-			Roles:  rbac.RoleNames(roles.Roles),
-			Groups: roles.Groups,
-			Scope:  rbac.ScopeName(key.Scope),
-		}.WithCachedASTValue(),
+	if cfg.PostAuthAdditionalHeadersFunc != nil {
+		cfg.PostAuthAdditionalHeadersFunc(actor, rw.Header())
 	}
 
-	return key, &authz, true
+	return key, &actor, true
+}
+
+// validateOAuth2ProviderAppTokenAudience validates that an OAuth2 provider app token
+// is being used with the correct audience/resource server (RFC 8707).
+func validateOAuth2ProviderAppTokenAudience(ctx context.Context, db database.Store, key database.APIKey, accessURL *url.URL, r *http.Request) error {
+	// Get the OAuth2 provider app token to check its audience
+	//nolint:gocritic // System needs to access token for audience validation
+	token, err := db.GetOAuth2ProviderAppTokenByAPIKeyID(dbauthz.AsSystemRestricted(ctx), key.ID)
+	if err != nil {
+		return xerrors.Errorf("failed to get OAuth2 token: %w", err)
+	}
+
+	// If no audience is set, allow the request (for backward compatibility)
+	if !token.Audience.Valid || token.Audience.String == "" {
+		return nil
+	}
+
+	// Extract the expected audience from the access URL
+	expectedAudience := extractExpectedAudience(accessURL, r)
+
+	// Normalize both audience values for RFC 3986 compliant comparison
+	normalizedTokenAudience := normalizeAudienceURI(token.Audience.String)
+	normalizedExpectedAudience := normalizeAudienceURI(expectedAudience)
+
+	// Validate that the token's audience matches the expected audience
+	if normalizedTokenAudience != normalizedExpectedAudience {
+		return xerrors.Errorf("token audience %q does not match expected audience %q",
+			token.Audience.String, expectedAudience)
+	}
+
+	return nil
+}
+
+// normalizeAudienceURI implements RFC 3986 URI normalization for OAuth2 audience comparison.
+// This ensures consistent audience matching between authorization and token validation.
+func normalizeAudienceURI(audienceURI string) string {
+	if audienceURI == "" {
+		return ""
+	}
+
+	u, err := url.Parse(audienceURI)
+	if err != nil {
+		// If parsing fails, return as-is to avoid breaking existing functionality
+		return audienceURI
+	}
+
+	// Apply RFC 3986 syntax-based normalization:
+
+	// 1. Scheme normalization - case-insensitive
+	u.Scheme = strings.ToLower(u.Scheme)
+
+	// 2. Host normalization - case-insensitive and IDN (punnycode) normalization
+	u.Host = normalizeHost(u.Host)
+
+	// 3. Remove default ports for HTTP/HTTPS
+	if (u.Scheme == "http" && strings.HasSuffix(u.Host, ":80")) ||
+		(u.Scheme == "https" && strings.HasSuffix(u.Host, ":443")) {
+		// Extract host without default port
+		if idx := strings.LastIndex(u.Host, ":"); idx > 0 {
+			u.Host = u.Host[:idx]
+		}
+	}
+
+	// 4. Path normalization including dot-segment removal (RFC 3986 Section 6.2.2.3)
+	u.Path = normalizePathSegments(u.Path)
+
+	// 5. Remove fragment - should already be empty due to earlier validation,
+	// but clear it as a safety measure in case validation was bypassed
+	if u.Fragment != "" {
+		// This should not happen if validation is working correctly
+		u.Fragment = ""
+	}
+
+	// 6. Keep query parameters as-is (rarely used in audience URIs but preserved for compatibility)
+
+	return u.String()
+}
+
+// normalizeHost performs host normalization including case-insensitive conversion
+// and IDN (Internationalized Domain Name) punnycode normalization.
+func normalizeHost(host string) string {
+	if host == "" {
+		return host
+	}
+
+	// Handle IPv6 addresses - they are enclosed in brackets
+	if strings.HasPrefix(host, "[") && strings.HasSuffix(host, "]") {
+		// IPv6 addresses should be normalized to lowercase
+		return strings.ToLower(host)
+	}
+
+	// Extract port if present
+	var port string
+	if idx := strings.LastIndex(host, ":"); idx > 0 {
+		// Check if this is actually a port (not part of IPv6)
+		if !strings.Contains(host[idx+1:], ":") {
+			port = host[idx:]
+			host = host[:idx]
+		}
+	}
+
+	// Convert to lowercase for case-insensitive comparison
+	host = strings.ToLower(host)
+
+	// Apply IDN normalization - convert Unicode domain names to ASCII (punnycode)
+	if normalizedHost, err := idna.ToASCII(host); err == nil {
+		host = normalizedHost
+	}
+	// If IDN conversion fails, continue with lowercase version
+
+	return host + port
+}
+
+// normalizePathSegments normalizes path segments for consistent OAuth2 audience matching.
+// Uses url.URL.ResolveReference() which implements RFC 3986 dot-segment removal.
+func normalizePathSegments(path string) string {
+	if path == "" {
+		// If no path is specified, use "/" for consistency with RFC 8707 examples
+		return "/"
+	}
+
+	// Use url.URL.ResolveReference() to handle dot-segment removal per RFC 3986
+	base := &url.URL{Path: "/"}
+	ref := &url.URL{Path: path}
+	resolved := base.ResolveReference(ref)
+
+	normalizedPath := resolved.Path
+
+	// Remove trailing slash from paths longer than "/" to normalize
+	// This ensures "/api/" and "/api" are treated as equivalent
+	if len(normalizedPath) > 1 && strings.HasSuffix(normalizedPath, "/") {
+		normalizedPath = strings.TrimSuffix(normalizedPath, "/")
+	}
+
+	return normalizedPath
+}
+
+// Test export functions for testing package access
+
+// buildWWWAuthenticateHeader constructs RFC 6750 + RFC 9728 compliant WWW-Authenticate header
+func buildWWWAuthenticateHeader(accessURL *url.URL, r *http.Request, code int, response codersdk.Response) string {
+	// Use the configured access URL for resource metadata
+	if accessURL == nil {
+		scheme := "https"
+		if r.TLS == nil {
+			scheme = "http"
+		}
+
+		// Use the Host header to construct the canonical audience URI
+		accessURL = &url.URL{
+			Scheme: scheme,
+			Host:   r.Host,
+		}
+	}
+
+	resourceMetadata := accessURL.JoinPath("/.well-known/oauth-protected-resource").String()
+
+	switch code {
+	case http.StatusUnauthorized:
+		switch {
+		case strings.Contains(response.Message, "expired") || strings.Contains(response.Detail, "expired"):
+			return fmt.Sprintf(`Bearer realm="coder", error="invalid_token", error_description="The access token has expired", resource_metadata=%q`, resourceMetadata)
+		case strings.Contains(response.Message, "audience") || strings.Contains(response.Message, "mismatch"):
+			return fmt.Sprintf(`Bearer realm="coder", error="invalid_token", error_description="The access token audience does not match this resource", resource_metadata=%q`, resourceMetadata)
+		default:
+			return fmt.Sprintf(`Bearer realm="coder", error="invalid_token", error_description="The access token is invalid", resource_metadata=%q`, resourceMetadata)
+		}
+	case http.StatusForbidden:
+		return fmt.Sprintf(`Bearer realm="coder", error="insufficient_scope", error_description="The request requires higher privileges than provided by the access token", resource_metadata=%q`, resourceMetadata)
+	default:
+		return fmt.Sprintf(`Bearer realm="coder", resource_metadata=%q`, resourceMetadata)
+	}
+}
+
+// extractExpectedAudience determines the expected audience for the current request.
+// This should match the resource parameter used during authorization.
+func extractExpectedAudience(accessURL *url.URL, r *http.Request) string {
+	// For MCP compliance, the audience should be the canonical URI of the resource server
+	// This typically matches the access URL of the Coder deployment
+	var audience string
+
+	if accessURL != nil {
+		audience = accessURL.String()
+	} else {
+		scheme := "https"
+		if r.TLS == nil {
+			scheme = "http"
+		}
+
+		// Use the Host header to construct the canonical audience URI
+		audience = fmt.Sprintf("%s://%s", scheme, r.Host)
+	}
+
+	// Normalize the URI according to RFC 3986 for consistent comparison
+	return normalizeAudienceURI(audience)
+}
+
+// UserRBACSubject fetches a user's rbac.Subject from the database. It pulls all roles from both
+// site and organization scopes. It also pulls the groups, and the user's status.
+func UserRBACSubject(ctx context.Context, db database.Store, userID uuid.UUID, scope rbac.ExpandableScope) (rbac.Subject, database.UserStatus, error) {
+	//nolint:gocritic // system needs to update user roles
+	roles, err := db.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), userID)
+	if err != nil {
+		return rbac.Subject{}, "", xerrors.Errorf("get authorization user roles: %w", err)
+	}
+
+	roleNames, err := roles.RoleNames()
+	if err != nil {
+		return rbac.Subject{}, "", xerrors.Errorf("expand role names: %w", err)
+	}
+
+	//nolint:gocritic // Permission to lookup custom roles the user has assigned.
+	rbacRoles, err := rolestore.Expand(dbauthz.AsSystemRestricted(ctx), db, roleNames)
+	if err != nil {
+		return rbac.Subject{}, "", xerrors.Errorf("expand role names: %w", err)
+	}
+
+	actor := rbac.Subject{
+		Type:         rbac.SubjectTypeUser,
+		FriendlyName: roles.Username,
+		Email:        roles.Email,
+		ID:           userID.String(),
+		Roles:        rbacRoles,
+		Groups:       roles.Groups,
+		Scope:        scope,
+	}.WithCachedASTValue()
+	return actor, roles.Status, nil
 }
 
 // APITokenFromRequest returns the api token from the request.
@@ -458,9 +703,14 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 // 1: The cookie
 // 2. The coder_session_token query parameter
 // 3. The custom auth header
+// 4. RFC 6750 Authorization: Bearer header
+// 5. RFC 6750 access_token query parameter
 //
 // API tokens for apps are read from workspaceapps/cookies.go.
 func APITokenFromRequest(r *http.Request) string {
+	// Prioritize existing Coder custom authentication methods first
+	// to maintain backward compatibility and existing behavior
+
 	cookie, err := r.Cookie(codersdk.SessionTokenCookie)
 	if err == nil && cookie.Value != "" {
 		return cookie.Value
@@ -474,6 +724,20 @@ func APITokenFromRequest(r *http.Request) string {
 	headerValue := r.Header.Get(codersdk.SessionTokenHeader)
 	if headerValue != "" {
 		return headerValue
+	}
+
+	// RFC 6750 Bearer Token support (added as fallback methods)
+	// Check Authorization: Bearer <token> header (case-insensitive per RFC 6750)
+	authHeader := r.Header.Get("Authorization")
+	if strings.HasPrefix(strings.ToLower(authHeader), "bearer ") {
+		// Skip "Bearer " (7 characters) and trim surrounding whitespace
+		return strings.TrimSpace(authHeader[7:])
+	}
+
+	// Check access_token query parameter
+	accessToken := r.URL.Query().Get("access_token")
+	if accessToken != "" {
+		return strings.TrimSpace(accessToken)
 	}
 
 	return ""
@@ -534,4 +798,19 @@ func RedirectToLogin(rw http.ResponseWriter, r *http.Request, dashboardURL *url.
 	// See other forces a GET request rather than keeping the current method
 	// (like temporary redirect does).
 	http.Redirect(rw, r, u.String(), http.StatusSeeOther)
+}
+
+// CustomRedirectToLogin redirects the user to the login page with the `message` and
+// `redirect` query parameters set, with a provided code
+func CustomRedirectToLogin(rw http.ResponseWriter, r *http.Request, redirect string, message string, code int) {
+	q := url.Values{}
+	q.Add("message", message)
+	q.Add("redirect", redirect)
+
+	u := &url.URL{
+		Path:     "/login",
+		RawQuery: q.Encode(),
+	}
+
+	http.Redirect(rw, r, u.String(), code)
 }

@@ -2,17 +2,20 @@ package coderd_test
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/coderd/healthcheck"
-	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
+	"github.com/coder/coder/v2/codersdk/healthsdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -22,42 +25,87 @@ func TestDebugHealth(t *testing.T) {
 		t.Parallel()
 
 		var (
+			calls        = atomic.Int64{}
 			ctx, cancel  = context.WithTimeout(context.Background(), testutil.WaitShort)
 			sessionToken string
 			client       = coderdtest.New(t, &coderdtest.Options{
-				HealthcheckFunc: func(_ context.Context, apiKey string) *healthcheck.Report {
+				HealthcheckFunc: func(_ context.Context, apiKey string) *healthsdk.HealthcheckReport {
+					calls.Add(1)
 					assert.Equal(t, sessionToken, apiKey)
-					return &healthcheck.Report{}
+					return &healthsdk.HealthcheckReport{
+						Time: time.Now(),
+					}
 				},
+				HealthcheckRefresh: time.Hour, // Avoid flakes.
 			})
 			_ = coderdtest.CreateFirstUser(t, client)
 		)
 		defer cancel()
 
 		sessionToken = client.SessionToken()
-		res, err := client.Request(ctx, "GET", "/api/v2/debug/health", nil)
-		require.NoError(t, err)
-		defer res.Body.Close()
-		_, _ = io.ReadAll(res.Body)
-		require.Equal(t, http.StatusOK, res.StatusCode)
+		for i := 0; i < 10; i++ {
+			res, err := client.Request(ctx, "GET", "/api/v2/debug/health", nil)
+			require.NoError(t, err)
+			_, _ = io.ReadAll(res.Body)
+			res.Body.Close()
+			require.Equal(t, http.StatusOK, res.StatusCode)
+		}
+		// The healthcheck should only have been called once.
+		require.EqualValues(t, 1, calls.Load())
+	})
+
+	t.Run("Forced", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			calls        = atomic.Int64{}
+			ctx, cancel  = context.WithTimeout(context.Background(), testutil.WaitShort)
+			sessionToken string
+			client       = coderdtest.New(t, &coderdtest.Options{
+				HealthcheckFunc: func(_ context.Context, apiKey string) *healthsdk.HealthcheckReport {
+					calls.Add(1)
+					assert.Equal(t, sessionToken, apiKey)
+					return &healthsdk.HealthcheckReport{
+						Time: time.Now(),
+					}
+				},
+				HealthcheckRefresh: time.Hour, // Avoid flakes.
+			})
+			_ = coderdtest.CreateFirstUser(t, client)
+		)
+		defer cancel()
+
+		sessionToken = client.SessionToken()
+		for i := 0; i < 10; i++ {
+			res, err := client.Request(ctx, "GET", "/api/v2/debug/health?force=true", nil)
+			require.NoError(t, err)
+			_, _ = io.ReadAll(res.Body)
+			res.Body.Close()
+			require.Equal(t, http.StatusOK, res.StatusCode)
+		}
+		// The healthcheck func should have been called each time.
+		require.EqualValues(t, 10, calls.Load())
 	})
 
 	t.Run("Timeout", func(t *testing.T) {
 		t.Parallel()
 
 		var (
+			// Need to ignore errors due to ctx timeout
+			logger      = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 			ctx, cancel = context.WithTimeout(context.Background(), testutil.WaitShort)
 			client      = coderdtest.New(t, &coderdtest.Options{
+				Logger:             &logger,
 				HealthcheckTimeout: time.Microsecond,
-				HealthcheckFunc: func(context.Context, string) *healthcheck.Report {
+				HealthcheckFunc: func(context.Context, string) *healthsdk.HealthcheckReport {
 					t := time.NewTimer(time.Second)
 					defer t.Stop()
 
 					select {
 					case <-ctx.Done():
-						return &healthcheck.Report{}
+						return &healthsdk.HealthcheckReport{}
 					case <-t.C:
-						return &healthcheck.Report{}
+						return &healthsdk.HealthcheckReport{}
 					}
 				},
 			})
@@ -69,7 +117,52 @@ func TestDebugHealth(t *testing.T) {
 		require.NoError(t, err)
 		defer res.Body.Close()
 		_, _ = io.ReadAll(res.Body)
-		require.Equal(t, http.StatusNotFound, res.StatusCode)
+		require.Equal(t, http.StatusServiceUnavailable, res.StatusCode)
+	})
+
+	t.Run("Refresh", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			calls       = make(chan struct{})
+			callsDone   = make(chan struct{})
+			ctx, cancel = context.WithTimeout(context.Background(), testutil.WaitShort)
+			client      = coderdtest.New(t, &coderdtest.Options{
+				HealthcheckRefresh: time.Microsecond,
+				HealthcheckFunc: func(context.Context, string) *healthsdk.HealthcheckReport {
+					calls <- struct{}{}
+					return &healthsdk.HealthcheckReport{}
+				},
+			})
+			_ = coderdtest.CreateFirstUser(t, client)
+		)
+
+		defer cancel()
+
+		go func() {
+			defer close(callsDone)
+			<-calls
+			<-time.After(testutil.IntervalFast)
+			<-calls
+		}()
+
+		res, err := client.Request(ctx, "GET", "/api/v2/debug/health", nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		_, _ = io.ReadAll(res.Body)
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		res, err = client.Request(ctx, "GET", "/api/v2/debug/health", nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		_, _ = io.ReadAll(res.Body)
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		select {
+		case <-callsDone:
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for calls to finish")
+		}
 	})
 
 	t.Run("Deduplicated", func(t *testing.T) {
@@ -81,9 +174,9 @@ func TestDebugHealth(t *testing.T) {
 			client      = coderdtest.New(t, &coderdtest.Options{
 				HealthcheckRefresh: time.Hour,
 				HealthcheckTimeout: time.Hour,
-				HealthcheckFunc: func(context.Context, string) *healthcheck.Report {
+				HealthcheckFunc: func(context.Context, string) *healthsdk.HealthcheckReport {
 					calls++
-					return &healthcheck.Report{
+					return &healthsdk.HealthcheckReport{
 						Time: time.Now(),
 					}
 				},
@@ -115,12 +208,12 @@ func TestDebugHealth(t *testing.T) {
 			ctx, cancel  = context.WithTimeout(context.Background(), testutil.WaitShort)
 			sessionToken string
 			client       = coderdtest.New(t, &coderdtest.Options{
-				HealthcheckFunc: func(_ context.Context, apiKey string) *healthcheck.Report {
+				HealthcheckFunc: func(_ context.Context, apiKey string) *healthsdk.HealthcheckReport {
 					assert.Equal(t, sessionToken, apiKey)
-					return &healthcheck.Report{
+					return &healthsdk.HealthcheckReport{
 						Time:    time.Now(),
 						Healthy: true,
-						DERP:    derphealth.Report{Healthy: true},
+						DERP:    healthsdk.DERPHealthReport{Healthy: true},
 					}
 				},
 			})
@@ -141,6 +234,130 @@ func TestDebugHealth(t *testing.T) {
 		assert.Contains(t, resStr, "access_url: false")
 		assert.Contains(t, resStr, "websocket: false")
 		assert.Contains(t, resStr, "database: false")
+	})
+}
+
+func TestHealthSettings(t *testing.T) {
+	t.Parallel()
+
+	t.Run("InitialState", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		// given
+		adminClient := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, adminClient)
+
+		// when
+		settings, err := healthsdk.New(adminClient).HealthSettings(ctx)
+		require.NoError(t, err)
+
+		// then
+		require.Equal(t, healthsdk.HealthSettings{DismissedHealthchecks: []healthsdk.HealthSection{}}, settings)
+	})
+
+	t.Run("DismissSection", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		// given
+		adminClient := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, adminClient)
+
+		expected := healthsdk.HealthSettings{
+			DismissedHealthchecks: []healthsdk.HealthSection{healthsdk.HealthSectionDERP, healthsdk.HealthSectionWebsocket},
+		}
+
+		// when: dismiss "derp" and "websocket"
+		err := healthsdk.New(adminClient).PutHealthSettings(ctx, expected)
+		require.NoError(t, err)
+
+		// then
+		settings, err := healthsdk.New(adminClient).HealthSettings(ctx)
+		require.NoError(t, err)
+		require.Equal(t, expected, settings)
+
+		// then
+		res, err := adminClient.Request(ctx, "GET", "/api/v2/debug/health", nil)
+		require.NoError(t, err)
+		bs, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		var hc healthsdk.HealthcheckReport
+		require.NoError(t, json.Unmarshal(bs, &hc))
+		require.True(t, hc.DERP.Dismissed)
+		require.True(t, hc.Websocket.Dismissed)
+	})
+
+	t.Run("UnDismissSection", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		// given
+		adminClient := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, adminClient)
+
+		initial := healthsdk.HealthSettings{
+			DismissedHealthchecks: []healthsdk.HealthSection{healthsdk.HealthSectionDERP, healthsdk.HealthSectionWebsocket},
+		}
+
+		err := healthsdk.New(adminClient).PutHealthSettings(ctx, initial)
+		require.NoError(t, err)
+
+		expected := healthsdk.HealthSettings{
+			DismissedHealthchecks: []healthsdk.HealthSection{healthsdk.HealthSectionDERP},
+		}
+
+		// when: undismiss "websocket"
+		err = healthsdk.New(adminClient).PutHealthSettings(ctx, expected)
+		require.NoError(t, err)
+
+		// then
+		settings, err := healthsdk.New(adminClient).HealthSettings(ctx)
+		require.NoError(t, err)
+		require.Equal(t, expected, settings)
+
+		// then
+		res, err := adminClient.Request(ctx, "GET", "/api/v2/debug/health", nil)
+		require.NoError(t, err)
+		bs, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		var hc healthsdk.HealthcheckReport
+		require.NoError(t, json.Unmarshal(bs, &hc))
+		require.True(t, hc.DERP.Dismissed)
+		require.False(t, hc.Websocket.Dismissed)
+	})
+
+	t.Run("NotModified", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		// given
+		adminClient := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, adminClient)
+
+		expected := healthsdk.HealthSettings{
+			DismissedHealthchecks: []healthsdk.HealthSection{healthsdk.HealthSectionDERP, healthsdk.HealthSectionWebsocket},
+		}
+
+		err := healthsdk.New(adminClient).PutHealthSettings(ctx, expected)
+		require.NoError(t, err)
+
+		// when
+		err = healthsdk.New(adminClient).PutHealthSettings(ctx, expected)
+
+		// then
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "health settings not modified")
 	})
 }
 

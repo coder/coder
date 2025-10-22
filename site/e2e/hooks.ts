@@ -1,53 +1,84 @@
-import { Page } from "@playwright/test";
+import http from "node:http";
+import type { BrowserContext, Page } from "@playwright/test";
+import { coderPort, gitAuth } from "./constants";
 
-export const beforeCoderTest = async (page: Page) => {
-  // eslint-disable-next-line no-console -- Show everything that was printed with console.log()
-  page.on("console", (msg) => console.log("[onConsole] " + msg.text()));
+export const beforeCoderTest = (page: Page) => {
+	page.on("console", (msg) => {
+		const location = msg.location();
+		// Filters out a bunch of junk warnings the browser produces.
+		if (!location.url) {
+			return;
+		}
+		// Filters out the gigantic CODER logo we print on every page load, as well
+		// as some other noise.
+		if (msg.type() === "info") {
+			return;
+		}
+		console.info(`[console][${msg.type()}] ${msg.text()}`);
+	});
 
-  page.on("request", (request) => {
-    if (!isApiCall(request.url())) {
-      return;
-    }
+	page.on("response", async (response) => {
+		// Don't log responses for static assets.
+		if (!isApiCall(response.url())) {
+			return;
+		}
+		// Don't log successful responses. Those are almost always less interesting.
+		if (response.ok()) {
+			return;
+		}
 
-    // eslint-disable-next-line no-console -- Log HTTP requests for debugging purposes
-    console.log(
-      `[onRequest] method=${request.method()} url=${request.url()} postData=${
-        request.postData() ? request.postData() : ""
-      }`,
-    );
-  });
-  page.on("response", async (response) => {
-    if (!isApiCall(response.url())) {
-      return;
-    }
+		let responseText: string;
+		try {
+			responseText = await response.text();
+			responseText = responseText.replaceAll("\n", "");
+		} catch {
+			responseText = "<n/a>";
+		}
 
-    const shouldLogResponse =
-      !response.url().endsWith("/api/v2/deployment/config") &&
-      !response.url().endsWith("/api/v2/debug/health");
+		console.info(
+			`[response] url=${response.url()} status=${response.status()} body=${responseText}`,
+		);
+	});
+};
 
-    let responseText = "";
-    try {
-      if (shouldLogResponse) {
-        const buffer = await response.body();
-        responseText = buffer.toString("utf-8");
-        responseText = responseText.replace(/\n$/g, "");
-      } else {
-        responseText = "skipped...";
-      }
-    } catch (error) {
-      responseText = "not_available";
-    }
+export const resetExternalAuthKey = async (context: BrowserContext) => {
+	// Find the session token so we can destroy the external auth link between tests, to ensure valid authentication happens each time.
+	const cookies = await context.cookies();
+	const sessionCookie = cookies.find((c) => c.name === "coder_session_token");
+	const options = {
+		method: "DELETE",
+		hostname: "127.0.0.1",
+		port: coderPort,
+		path: `/api/v2/external-auth/${gitAuth.webProvider}?coder_session_token=${sessionCookie?.value}`,
+	};
 
-    // eslint-disable-next-line no-console -- Log HTTP requests for debugging purposes
-    console.log(
-      `[onResponse] url=${response.url()} status=${response.status()} body=${responseText}`,
-    );
-  });
+	const req = http.request(options, (res) => {
+		let data = "";
+		res.on("data", (chunk) => {
+			data += chunk;
+		});
+
+		res.on("end", () => {
+			// Both 200 (key deleted successfully) and 500 (key was not found) are valid responses.
+			if (res.statusCode !== 200 && res.statusCode !== 500) {
+				console.error("failed to delete external auth link", data);
+				throw new Error(
+					`failed to delete external auth link: HTTP response ${res.statusCode}`,
+				);
+			}
+		});
+	});
+
+	req.on("error", (err) => {
+		throw err.message;
+	});
+
+	req.end();
 };
 
 const isApiCall = (urlString: string): boolean => {
-  const url = new URL(urlString);
-  const apiPath = "/api/v2";
+	const url = new URL(urlString);
+	const apiPath = "/api/v2";
 
-  return url.pathname.startsWith(apiPath);
+	return url.pathname.startsWith(apiPath);
 };

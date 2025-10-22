@@ -1,5 +1,3 @@
-BEGIN;
-
 ALTER TABLE templates ADD COLUMN user_acl jsonb NOT NULL default '{}';
 ALTER TABLE templates ADD COLUMN group_acl jsonb NOT NULL default '{}';
 
@@ -44,5 +42,3 @@ SET
 		WHERE
 			templates.organization_id = organizations.id
 	);
-
-COMMIT;

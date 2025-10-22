@@ -112,7 +112,7 @@ func Test_TestHarness(t *testing.T) {
 				RunFn: func(_ context.Context, _ string, _ io.Writer) error {
 					return nil
 				},
-				CleanupFn: func(_ context.Context, _ string) error {
+				CleanupFn: func(_ context.Context, _ string, _ io.Writer) error {
 					panic(testPanicMessage)
 				},
 			})
@@ -150,7 +150,7 @@ func Test_TestHarness(t *testing.T) {
 				RunFn: func(_ context.Context, _ string, _ io.Writer) error {
 					return nil
 				},
-				CleanupFn: func(_ context.Context, _ string) error {
+				CleanupFn: func(_ context.Context, _ string, _ io.Writer) error {
 					return nil
 				},
 			})
@@ -295,7 +295,7 @@ func fakeTestFns(err, cleanupErr error) testFns {
 		RunFn: func(_ context.Context, _ string, _ io.Writer) error {
 			return err
 		},
-		CleanupFn: func(_ context.Context, _ string) error {
+		CleanupFn: func(_ context.Context, _ string, _ io.Writer) error {
 			return cleanupErr
 		},
 	}

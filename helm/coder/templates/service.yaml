@@ -4,6 +4,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: coder
+  namespace: {{ .Release.Namespace }}
   labels:
     {{- include "coder.labels" . | nindent 4 }}
   annotations:
@@ -16,17 +17,17 @@ spec:
       port: 80
       targetPort: "http"
       protocol: TCP
-      {{ if eq .Values.coder.service.type "NodePort" }}
+      {{- if or (eq .Values.coder.service.type "NodePort") (eq .Values.coder.service.type "LoadBalancer") }}
       nodePort: {{ .Values.coder.service.httpNodePort }}
-      {{ end }}
+      {{- end }}
     {{- if eq (include "coder.tlsEnabled" .) "true" }}
     - name: "https"
       port: 443
       targetPort: "https"
       protocol: TCP
-      {{ if eq .Values.coder.service.type "NodePort" }}
+      {{- if or (eq .Values.coder.service.type "NodePort") (eq .Values.coder.service.type "LoadBalancer") }}
       nodePort: {{ .Values.coder.service.httpsNodePort }}
-      {{ end }}
+      {{- end }}
     {{- end }}
   {{- if eq "LoadBalancer" .Values.coder.service.type }}
   {{- with .Values.coder.service.loadBalancerIP }}
@@ -34,6 +35,9 @@ spec:
   {{- end }}
   {{- with .Values.coder.service.externalTrafficPolicy }}
   externalTrafficPolicy: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.coder.service.loadBalancerClass }}
+  loadBalancerClass: {{ . | quote }}
   {{- end }}
   {{- end }}
   selector:

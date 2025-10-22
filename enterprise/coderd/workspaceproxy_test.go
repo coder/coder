@@ -1,24 +1,32 @@
 package coderd_test
 
 import (
+	"database/sql"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
 	"net/url"
+	"runtime"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/moby/moby/pkg/namesgenerator"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -36,20 +44,13 @@ func TestRegions(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{
-			string(codersdk.ExperimentMoons),
-			"*",
-		}
-
 		db, pubsub := dbtestutil.NewDB(t)
 
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				AppHostname:      appHostname,
-				Database:         db,
-				Pubsub:           pubsub,
-				DeploymentValues: dv,
+				AppHostname: appHostname,
+				Database:    db,
+				Pubsub:      pubsub,
 			},
 		})
 
@@ -68,7 +69,7 @@ func TestRegions(t *testing.T) {
 		require.NotEmpty(t, regions[0].IconURL)
 		require.True(t, regions[0].Healthy)
 		require.Equal(t, client.URL.String(), regions[0].PathAppURL)
-		require.Equal(t, appHostname, regions[0].WildcardHostname)
+		require.Equal(t, fmt.Sprintf("%s:%s", appHostname, client.URL.Port()), regions[0].WildcardHostname)
 
 		// Ensure the primary region ID is constant.
 		regions2, err := client.Regions(ctx)
@@ -79,20 +80,13 @@ func TestRegions(t *testing.T) {
 	t.Run("WithProxies", func(t *testing.T) {
 		t.Parallel()
 
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{
-			string(codersdk.ExperimentMoons),
-			"*",
-		}
-
 		db, pubsub := dbtestutil.NewDB(t)
 
 		client, closer, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				AppHostname:      appHostname,
-				Database:         db,
-				Pubsub:           pubsub,
-				DeploymentValues: dv,
+				AppHostname: appHostname,
+				Database:    db,
+				Pubsub:      pubsub,
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -107,23 +101,54 @@ func TestRegions(t *testing.T) {
 		deploymentID, err := db.GetDeploymentID(ctx)
 		require.NoError(t, err, "get deployment ID")
 
+		// The default proxy is always called "primary".
+		primary, err := client.WorkspaceProxyByName(ctx, "primary")
+		require.NoError(t, err)
+
 		const proxyName = "hello"
-		_ = coderdenttest.NewWorkspaceProxy(t, api, client, &coderdenttest.ProxyOptions{
+		_ = coderdenttest.NewWorkspaceProxyReplica(t, api, client, &coderdenttest.ProxyOptions{
 			Name:        proxyName,
 			AppHostname: appHostname + ".proxy",
 		})
+		approxCreateTime := dbtime.Now()
 		proxy, err := db.GetWorkspaceProxyByName(ctx, proxyName)
 		require.NoError(t, err)
 
-		// Refresh proxy health.
-		err = api.ProxyHealth.ForceUpdate(ctx)
-		require.NoError(t, err)
+		// Wait for the proxy to become healthy.
+		require.Eventually(t, func() bool {
+			healthCtx := testutil.Context(t, testutil.WaitLong)
+			err := api.ProxyHealth.ForceUpdate(healthCtx)
+			if !assert.NoError(t, err) {
+				return false
+			}
+
+			wps, err := client.WorkspaceProxies(ctx)
+			if !assert.NoError(t, err) {
+				return false
+			}
+			if !assert.Len(t, wps.Regions, 2) {
+				return false
+			}
+			for _, wp := range wps.Regions {
+				if !wp.Healthy {
+					t.Logf("region %q is not healthy yet, retrying healthcheck", wp.Name)
+					for _, errMsg := range wp.Status.Report.Errors {
+						t.Logf(" - error: %s", errMsg)
+					}
+					for _, warnMsg := range wp.Status.Report.Warnings {
+						t.Logf(" - warning: %s", warnMsg)
+					}
+					return false
+				}
+			}
+			return true
+		}, testutil.WaitLong, testutil.IntervalMedium)
 
 		regions, err := client.Regions(ctx)
 		require.NoError(t, err)
 		require.Len(t, regions, 2)
 
-		// Region 0 is the primary	require.Len(t, regions, 1)
+		// Region 0 is the primary
 		require.NotEqual(t, uuid.Nil, regions[0].ID)
 		require.Equal(t, regions[0].ID.String(), deploymentID)
 		require.Equal(t, "primary", regions[0].Name)
@@ -131,7 +156,12 @@ func TestRegions(t *testing.T) {
 		require.NotEmpty(t, regions[0].IconURL)
 		require.True(t, regions[0].Healthy)
 		require.Equal(t, client.URL.String(), regions[0].PathAppURL)
-		require.Equal(t, appHostname, regions[0].WildcardHostname)
+		require.Equal(t, fmt.Sprintf("%s:%s", appHostname, client.URL.Port()), regions[0].WildcardHostname)
+
+		// Ensure non-zero fields of the default proxy
+		require.NotZero(t, primary.Name)
+		require.NotZero(t, primary.CreatedAt)
+		require.NotZero(t, primary.UpdatedAt)
 
 		// Region 1 is the proxy.
 		require.NotEqual(t, uuid.Nil, regions[1].ID)
@@ -142,22 +172,26 @@ func TestRegions(t *testing.T) {
 		require.True(t, regions[1].Healthy)
 		require.Equal(t, proxy.Url, regions[1].PathAppURL)
 		require.Equal(t, proxy.WildcardHostname, regions[1].WildcardHostname)
+
+		waitTime := testutil.WaitShort / 10
+		// windows needs more time
+		if runtime.GOOS == "windows" {
+			waitTime = testutil.WaitShort / 5
+		}
+
+		// Unfortunately need to wait to assert createdAt/updatedAt
+		<-time.After(waitTime)
+		require.WithinDuration(t, approxCreateTime, proxy.CreatedAt, waitTime)
+		require.WithinDuration(t, approxCreateTime, proxy.UpdatedAt, waitTime)
 	})
 
 	t.Run("RequireAuth", func(t *testing.T) {
 		t.Parallel()
 
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{
-			string(codersdk.ExperimentMoons),
-			"*",
-		}
-
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				AppHostname:      appHostname,
-				DeploymentValues: dv,
+				AppHostname: appHostname,
 			},
 		})
 
@@ -174,15 +208,7 @@ func TestWorkspaceProxyCRUD(t *testing.T) {
 	t.Run("CreateAndUpdate", func(t *testing.T) {
 		t.Parallel()
 
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{
-			string(codersdk.ExperimentMoons),
-			"*",
-		}
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
 					codersdk.FeatureWorkspaceProxy: 1,
@@ -191,7 +217,7 @@ func TestWorkspaceProxyCRUD(t *testing.T) {
 		})
 		ctx := testutil.Context(t, testutil.WaitLong)
 		proxyRes, err := client.CreateWorkspaceProxy(ctx, codersdk.CreateWorkspaceProxyRequest{
-			Name: namesgenerator.GetRandomName(1),
+			Name: testutil.GetRandomName(t),
 			Icon: "/emojis/flag.png",
 		})
 		require.NoError(t, err)
@@ -204,9 +230,9 @@ func TestWorkspaceProxyCRUD(t *testing.T) {
 		require.NotEmpty(t, proxyRes.ProxyToken)
 
 		// Update the proxy
-		expName := namesgenerator.GetRandomName(1)
-		expDisplayName := namesgenerator.GetRandomName(1)
-		expIcon := namesgenerator.GetRandomName(1)
+		expName := testutil.GetRandomName(t)
+		expDisplayName := testutil.GetRandomName(t)
+		expIcon := testutil.GetRandomName(t)
 		_, err = client.PatchWorkspaceProxy(ctx, codersdk.PatchWorkspaceProxy{
 			ID:          proxyRes.Proxy.ID,
 			Name:        expName,
@@ -225,15 +251,7 @@ func TestWorkspaceProxyCRUD(t *testing.T) {
 	t.Run("Delete", func(t *testing.T) {
 		t.Parallel()
 
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{
-			string(codersdk.ExperimentMoons),
-			"*",
-		}
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
 					codersdk.FeatureWorkspaceProxy: 1,
@@ -242,7 +260,7 @@ func TestWorkspaceProxyCRUD(t *testing.T) {
 		})
 		ctx := testutil.Context(t, testutil.WaitLong)
 		proxyRes, err := client.CreateWorkspaceProxy(ctx, codersdk.CreateWorkspaceProxyRequest{
-			Name: namesgenerator.GetRandomName(1),
+			Name: testutil.GetRandomName(t),
 			Icon: "/emojis/flag.png",
 		})
 		require.NoError(t, err)
@@ -261,16 +279,9 @@ func TestProxyRegisterDeregister(t *testing.T) {
 	t.Parallel()
 
 	setup := func(t *testing.T) (*codersdk.Client, database.Store) {
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{
-			string(codersdk.ExperimentMoons),
-			"*",
-		}
-
 		db, pubsub := dbtestutil.NewDB(t)
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				DeploymentValues:         dv,
 				Database:                 db,
 				Pubsub:                   pubsub,
 				IncludeProvisionerDaemon: true,
@@ -304,8 +315,7 @@ func TestProxyRegisterDeregister(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		proxyClient := wsproxysdk.New(client.URL)
-		proxyClient.SetSessionToken(createRes.ProxyToken)
+		proxyClient := wsproxysdk.New(client.URL, createRes.ProxyToken)
 
 		// Register
 		req := wsproxysdk.RegisterWorkspaceProxyRequest{
@@ -320,7 +330,6 @@ func TestProxyRegisterDeregister(t *testing.T) {
 		}
 		registerRes1, err := proxyClient.RegisterWorkspaceProxy(ctx, req)
 		require.NoError(t, err)
-		require.NotEmpty(t, registerRes1.AppSecurityKey)
 		require.NotEmpty(t, registerRes1.DERPMeshKey)
 		require.EqualValues(t, 10001, registerRes1.DERPRegionID)
 		require.Empty(t, registerRes1.SiblingReplicas)
@@ -420,8 +429,7 @@ func TestProxyRegisterDeregister(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		proxyClient := wsproxysdk.New(client.URL)
-		proxyClient.SetSessionToken(createRes.ProxyToken)
+		proxyClient := wsproxysdk.New(client.URL, createRes.ProxyToken)
 
 		req := wsproxysdk.RegisterWorkspaceProxyRequest{
 			AccessURL:           "https://proxy.coder.test",
@@ -465,8 +473,7 @@ func TestProxyRegisterDeregister(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		proxyClient := wsproxysdk.New(client.URL)
-		proxyClient.SetSessionToken(createRes.ProxyToken)
+		proxyClient := wsproxysdk.New(client.URL, createRes.ProxyToken)
 
 		err = proxyClient.DeregisterWorkspaceProxy(ctx, wsproxysdk.DeregisterWorkspaceProxyRequest{
 			ReplicaID: uuid.New(),
@@ -494,8 +501,7 @@ func TestProxyRegisterDeregister(t *testing.T) {
 
 		// Register a replica on proxy 2. This shouldn't be returned by replicas
 		// for proxy 1.
-		proxyClient2 := wsproxysdk.New(client.URL)
-		proxyClient2.SetSessionToken(createRes2.ProxyToken)
+		proxyClient2 := wsproxysdk.New(client.URL, createRes2.ProxyToken)
 		_, err = proxyClient2.RegisterWorkspaceProxy(ctx, wsproxysdk.RegisterWorkspaceProxyRequest{
 			AccessURL:           "https://other.proxy.coder.test",
 			WildcardHostname:    "*.other.proxy.coder.test",
@@ -509,8 +515,7 @@ func TestProxyRegisterDeregister(t *testing.T) {
 		require.NoError(t, err)
 
 		// Register replica 1.
-		proxyClient1 := wsproxysdk.New(client.URL)
-		proxyClient1.SetSessionToken(createRes1.ProxyToken)
+		proxyClient1 := wsproxysdk.New(client.URL, createRes1.ProxyToken)
 		req1 := wsproxysdk.RegisterWorkspaceProxyRequest{
 			AccessURL:           "https://one.proxy.coder.test",
 			WildcardHostname:    "*.one.proxy.coder.test",
@@ -567,8 +572,7 @@ func TestProxyRegisterDeregister(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		proxyClient := wsproxysdk.New(client.URL)
-		proxyClient.SetSessionToken(createRes.ProxyToken)
+		proxyClient := wsproxysdk.New(client.URL, createRes.ProxyToken)
 
 		for i := 0; i < 100; i++ {
 			ok := false
@@ -609,23 +613,18 @@ func TestProxyRegisterDeregister(t *testing.T) {
 func TestIssueSignedAppToken(t *testing.T) {
 	t.Parallel()
 
-	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{
-		string(codersdk.ExperimentMoons),
-		"*",
-	}
+	connectionLogger := connectionlog.NewFake()
 
-	db, pubsub := dbtestutil.NewDB(t)
 	client, user := coderdenttest.New(t, &coderdenttest.Options{
+		ConnectionLogging: true,
 		Options: &coderdtest.Options{
-			DeploymentValues:         dv,
-			Database:                 db,
-			Pubsub:                   pubsub,
 			IncludeProvisionerDaemon: true,
+			ConnectionLogger:         connectionLogger,
 		},
 		LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
 				codersdk.FeatureWorkspaceProxy: 1,
+				codersdk.FeatureConnectionLog:  1,
 			},
 		},
 	})
@@ -638,7 +637,7 @@ func TestIssueSignedAppToken(t *testing.T) {
 	})
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 	build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 	workspace.LatestBuild = build
 
@@ -648,22 +647,21 @@ func TestIssueSignedAppToken(t *testing.T) {
 
 	createProxyCtx := testutil.Context(t, testutil.WaitLong)
 	proxyRes, err := client.CreateWorkspaceProxy(createProxyCtx, codersdk.CreateWorkspaceProxyRequest{
-		Name: namesgenerator.GetRandomName(1),
+		Name: testutil.GetRandomName(t),
 		Icon: "/emojis/flag.png",
 	})
 	require.NoError(t, err)
 
 	t.Run("BadAppRequest", func(t *testing.T) {
 		t.Parallel()
-		proxyClient := wsproxysdk.New(client.URL)
-		proxyClient.SetSessionToken(proxyRes.ProxyToken)
+		proxyClient := wsproxysdk.New(client.URL, proxyRes.ProxyToken)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		_, err := proxyClient.IssueSignedAppToken(ctx, workspaceapps.IssueTokenRequest{
 			// Invalid request.
 			AppRequest:   workspaceapps.Request{},
 			SessionToken: client.SessionToken(),
-		})
+		}, "127.0.0.1")
 		require.Error(t, err)
 	})
 
@@ -677,22 +675,40 @@ func TestIssueSignedAppToken(t *testing.T) {
 	}
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
-		proxyClient := wsproxysdk.New(client.URL)
-		proxyClient.SetSessionToken(proxyRes.ProxyToken)
+		proxyClient := wsproxysdk.New(client.URL, proxyRes.ProxyToken)
+
+		fakeClientIP := "13.37.13.37"
+		parsedFakeClientIP := pqtype.Inet{
+			Valid: true, IPNet: net.IPNet{
+				IP:   net.ParseIP(fakeClientIP),
+				Mask: net.CIDRMask(32, 32),
+			},
+		}
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		_, err := proxyClient.IssueSignedAppToken(ctx, goodRequest)
+		_, err := proxyClient.IssueSignedAppToken(ctx, goodRequest, fakeClientIP)
 		require.NoError(t, err)
+
+		require.True(t, connectionLogger.Contains(t, database.UpsertConnectionLogParams{
+			Ip: parsedFakeClientIP,
+		}))
 	})
 
 	t.Run("OKHTML", func(t *testing.T) {
 		t.Parallel()
-		proxyClient := wsproxysdk.New(client.URL)
-		proxyClient.SetSessionToken(proxyRes.ProxyToken)
+		proxyClient := wsproxysdk.New(client.URL, proxyRes.ProxyToken)
+
+		fakeClientIP := "192.168.1.100"
+		parsedFakeClientIP := pqtype.Inet{
+			Valid: true, IPNet: net.IPNet{
+				IP:   net.ParseIP(fakeClientIP),
+				Mask: net.CIDRMask(32, 32),
+			},
+		}
 
 		rw := httptest.NewRecorder()
 		ctx := testutil.Context(t, testutil.WaitLong)
-		_, ok := proxyClient.IssueSignedAppTokenHTML(ctx, rw, goodRequest)
+		_, ok := proxyClient.IssueSignedAppTokenHTML(ctx, rw, goodRequest, fakeClientIP)
 		if !assert.True(t, ok, "expected true") {
 			resp := rw.Result()
 			defer resp.Body.Close()
@@ -700,34 +716,40 @@ func TestIssueSignedAppToken(t *testing.T) {
 			require.NoError(t, err)
 			t.Log(string(dump))
 		}
+
+		require.True(t, connectionLogger.Contains(t, database.UpsertConnectionLogParams{
+			Ip: parsedFakeClientIP,
+		}))
 	})
 }
 
 func TestReconnectingPTYSignedToken(t *testing.T) {
 	t.Parallel()
 
-	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{
-		string(codersdk.ExperimentMoons),
-		"*",
-	}
+	connectionLogger := connectionlog.NewFake()
 
 	db, pubsub := dbtestutil.NewDB(t)
 	client, closer, api, user := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		ConnectionLogging: true,
 		Options: &coderdtest.Options{
-			DeploymentValues:         dv,
 			Database:                 db,
 			Pubsub:                   pubsub,
 			IncludeProvisionerDaemon: true,
+			ConnectionLogger:         connectionLogger,
 		},
 		LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
 				codersdk.FeatureWorkspaceProxy: 1,
+				codersdk.FeatureConnectionLog:  1,
 			},
 		},
 	})
 	t.Cleanup(func() {
 		closer.Close()
+	})
+
+	_ = dbgen.CryptoKey(t, db, database.CryptoKey{
+		Feature: database.CryptoKeyFeatureWorkspaceAppsToken,
 	})
 
 	// Create a workspace + apps
@@ -738,7 +760,7 @@ func TestReconnectingPTYSignedToken(t *testing.T) {
 	})
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 	build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 	workspace.LatestBuild = build
 
@@ -747,11 +769,11 @@ func TestReconnectingPTYSignedToken(t *testing.T) {
 	_ = agenttest.New(t, client.URL, authToken)
 	_ = coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
-	proxyURL, err := url.Parse(fmt.Sprintf("https://%s.com", namesgenerator.GetRandomName(1)))
+	proxyURL, err := url.Parse(fmt.Sprintf("https://%s.com", testutil.GetRandomName(t)))
 	require.NoError(t, err)
 
-	_ = coderdenttest.NewWorkspaceProxy(t, api, client, &coderdenttest.ProxyOptions{
-		Name:        namesgenerator.GetRandomName(1),
+	_ = coderdenttest.NewWorkspaceProxyReplica(t, api, client, &coderdenttest.ProxyOptions{
+		Name:        testutil.GetRandomName(t),
 		ProxyURL:    proxyURL,
 		AppHostname: "*.sub.example.com",
 	})
@@ -902,5 +924,186 @@ func TestReconnectingPTYSignedToken(t *testing.T) {
 
 		// The token is validated in the apptest suite, so we don't need to
 		// validate it here.
+
+		require.True(t, connectionLogger.Contains(t, database.UpsertConnectionLogParams{
+			Ip: pqtype.Inet{
+				Valid: true, IPNet: net.IPNet{
+					IP:   net.ParseIP("127.0.0.1"),
+					Mask: net.CIDRMask(32, 32),
+				},
+			},
+		}))
 	})
+}
+
+func TestGetCryptoKeys(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		db, pubsub := dbtestutil.NewDB(t)
+		cclient, _, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				Database:                 db,
+				Pubsub:                   pubsub,
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureWorkspaceProxy: 1,
+				},
+			},
+		})
+
+		now := time.Now()
+
+		expectedKey1 := dbgen.CryptoKey(t, db, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
+			StartsAt: now.Add(-time.Hour),
+			Sequence: 2,
+		})
+		encryptionKey := db2sdk.CryptoKey(expectedKey1)
+
+		expectedKey2 := dbgen.CryptoKey(t, db, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsToken,
+			StartsAt: now,
+			Sequence: 3,
+		})
+		signingKey := db2sdk.CryptoKey(expectedKey2)
+
+		// Create a deleted key.
+		_ = dbgen.CryptoKey(t, db, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
+			StartsAt: now.Add(-time.Hour),
+			Secret: sql.NullString{
+				String: "secret1",
+				Valid:  false,
+			},
+			Sequence: 4,
+		})
+
+		proxy := coderdenttest.NewWorkspaceProxyReplica(t, api, cclient, &coderdenttest.ProxyOptions{
+			Name: testutil.GetRandomName(t),
+		})
+
+		keys, err := proxy.SDKClient.CryptoKeys(ctx, codersdk.CryptoKeyFeatureWorkspaceAppsAPIKey)
+		require.NoError(t, err)
+		require.NotEmpty(t, keys)
+		// 1 key is generated on startup, the other we manually generated.
+		require.Equal(t, 2, len(keys.CryptoKeys))
+		requireContainsKeys(t, keys.CryptoKeys, encryptionKey)
+		requireNotContainsKeys(t, keys.CryptoKeys, signingKey)
+
+		keys, err = proxy.SDKClient.CryptoKeys(ctx, codersdk.CryptoKeyFeatureWorkspaceAppsToken)
+		require.NoError(t, err)
+		require.NotEmpty(t, keys)
+		// 1 key is generated on startup, the other we manually generated.
+		require.Equal(t, 2, len(keys.CryptoKeys))
+		requireContainsKeys(t, keys.CryptoKeys, signingKey)
+		requireNotContainsKeys(t, keys.CryptoKeys, encryptionKey)
+	})
+
+	t.Run("InvalidFeature", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		db, pubsub := dbtestutil.NewDB(t)
+		cclient, _, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				Database:                 db,
+				Pubsub:                   pubsub,
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureWorkspaceProxy: 1,
+				},
+			},
+		})
+
+		proxy := coderdenttest.NewWorkspaceProxyReplica(t, api, cclient, &coderdenttest.ProxyOptions{
+			Name: testutil.GetRandomName(t),
+		})
+
+		_, err := proxy.SDKClient.CryptoKeys(ctx, codersdk.CryptoKeyFeatureOIDCConvert)
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		_, err = proxy.SDKClient.CryptoKeys(ctx, codersdk.CryptoKeyFeatureTailnetResume)
+		require.Error(t, err)
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		_, err = proxy.SDKClient.CryptoKeys(ctx, "invalid")
+		require.Error(t, err)
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+
+	t.Run("Unauthorized", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		db, pubsub := dbtestutil.NewDB(t)
+		// IgnoreErrors is set here to avoid a test failure due to "used of closed network connection".
+		logger := slogtest.Make(t, &slogtest.Options{
+			IgnoreErrors: true,
+		})
+		cclient, _, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				Database:                 db,
+				Pubsub:                   pubsub,
+				IncludeProvisionerDaemon: true,
+				Logger:                   &logger,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureWorkspaceProxy: 1,
+				},
+			},
+		})
+
+		_ = coderdenttest.NewWorkspaceProxyReplica(t, api, cclient, &coderdenttest.ProxyOptions{
+			Name: testutil.GetRandomName(t),
+		})
+
+		client := wsproxysdk.New(cclient.URL, cclient.SessionToken())
+
+		_, err := client.CryptoKeys(ctx, codersdk.CryptoKeyFeatureWorkspaceAppsAPIKey)
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode())
+	})
+}
+
+func requireNotContainsKeys(t *testing.T, keys []codersdk.CryptoKey, unexpected ...codersdk.CryptoKey) {
+	t.Helper()
+
+	for _, unexpectedKey := range unexpected {
+		for _, key := range keys {
+			if key.Feature == unexpectedKey.Feature && key.Sequence == unexpectedKey.Sequence {
+				t.Fatalf("unexpected key %+v found", unexpectedKey)
+			}
+		}
+	}
+}
+
+func requireContainsKeys(t *testing.T, keys []codersdk.CryptoKey, expected ...codersdk.CryptoKey) {
+	t.Helper()
+
+	for _, expectedKey := range expected {
+		var found bool
+		for _, key := range keys {
+			if key.Feature == expectedKey.Feature && key.Sequence == expectedKey.Sequence {
+				require.True(t, expectedKey.StartsAt.Equal(key.StartsAt), "expected starts at %s, got %s", expectedKey.StartsAt, key.StartsAt)
+				require.Equal(t, expectedKey.Secret, key.Secret)
+				require.True(t, expectedKey.DeletesAt.Equal(key.DeletesAt), "expected deletes at %s, got %s", expectedKey.DeletesAt, key.DeletesAt)
+				found = true
+			}
+		}
+		require.True(t, found, "expected key %+v not found", expectedKey)
+	}
 }

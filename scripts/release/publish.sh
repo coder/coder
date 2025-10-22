@@ -33,14 +33,19 @@ if [[ "${CI:-}" == "" ]]; then
 	error "This script must be run in CI"
 fi
 
+stable=0
 version=""
 release_notes_file=""
 dry_run=0
 
-args="$(getopt -o "" -l version:,release-notes-file:,dry-run -- "$@")"
+args="$(getopt -o "" -l stable,version:,release-notes-file:,dry-run -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
+	--stable)
+		stable=1
+		shift
+		;;
 	--version)
 		version="$2"
 		shift 2
@@ -124,26 +129,9 @@ if [[ "$dry_run" == 0 ]] && [[ "${CODER_GPG_RELEASE_KEY_BASE64:-}" != "" ]]; the
 	log "--- Signing checksums file"
 	log
 
-	# Import the GPG key.
-	old_gnupg_home="${GNUPGHOME:-}"
-	gnupg_home_temp="$(mktemp -d)"
-	export GNUPGHOME="$gnupg_home_temp"
-	echo "$CODER_GPG_RELEASE_KEY_BASE64" | base64 -d | gpg --import 1>&2
-
-	# Sign the checksums file. This generates a file in the same directory and
-	# with the same name as the checksums file but ending in ".asc".
-	#
-	# We pipe `true` into `gpg` so that it never tries to be interactive (i.e.
-	# ask for a passphrase). The key we import above is not password protected.
-	true | gpg --detach-sign --armor "${temp_dir}/${checksum_file}" 1>&2
-
-	rm -rf "$gnupg_home_temp"
-	unset GNUPGHOME
-	if [[ "$old_gnupg_home" != "" ]]; then
-		export GNUPGHOME="$old_gnupg_home"
-	fi
-
+	execrelative ../sign_with_gpg.sh "${temp_dir}/${checksum_file}"
 	signed_checksum_path="${temp_dir}/${checksum_file}.asc"
+
 	if [[ ! -e "$signed_checksum_path" ]]; then
 		log "Signed checksum file not found: ${signed_checksum_path}"
 		log
@@ -169,10 +157,27 @@ popd
 log
 log
 
+latest=false
+if [[ "$stable" == 1 ]]; then
+	latest=true
+fi
+
+target_commitish=main # This is the default.
+# Skip during dry-runs
+if [[ "$dry_run" == 0 ]]; then
+	release_branch_refname=$(git branch --remotes --contains "${new_tag}" --format '%(refname)' '*/release/*')
+	if [[ -n "${release_branch_refname}" ]]; then
+		# refs/remotes/origin/release/2.9 -> release/2.9
+		target_commitish="release/${release_branch_refname#*release/}"
+	fi
+fi
+
 # We pipe `true` into `gh` so that it never tries to be interactive.
 true |
 	maybedryrun "$dry_run" gh release create \
+		--latest="$latest" \
 		--title "$new_tag" \
+		--target "$target_commitish" \
 		--notes-file "$release_notes_file" \
 		"$new_tag" \
 		"$temp_dir"/*

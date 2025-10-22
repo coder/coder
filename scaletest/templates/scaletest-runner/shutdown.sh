@@ -14,7 +14,11 @@ trap cleanup EXIT
 
 annotate_grafana "workspace" "Agent stopping..."
 
-"${SCRIPTS_DIR}/cleanup.sh" shutdown
+shutdown_event=shutdown_scale_down_only
+if [[ ${SCALETEST_PARAM_CLEANUP_STRATEGY} == on_stop ]]; then
+	shutdown_event=shutdown
+fi
+"${SCRIPTS_DIR}/cleanup.sh" "${shutdown_event}"
 
 annotate_grafana_end "workspace" "Agent running"
 

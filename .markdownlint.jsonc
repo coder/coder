@@ -1,0 +1,31 @@
+// Example markdownlint configuration with all properties set to their default value
+{
+	"MD010": { "spaces_per_tab": 4}, // No hard tabs: we use 4 spaces per tab
+
+	"MD013": false, // Line length: we are not following a strict line lnegth in markdown files
+
+	"MD024": { "siblings_only": true }, // Multiple headings with the same content:
+
+	"MD033": false, // Inline HTML: we use it in some places
+
+	"MD034": false, // Bare URL: we use it in some places in generated docs e.g.
+	// codersdk/deployment.go L597, L1177, L2287, L2495, L2533
+	// codersdk/workspaceproxy.go L196, L200-L201
+	// coderd/tracing/exporter.go L26
+	// cli/exp_scaletest.go L-9
+
+	"MD041": false, // First line in file should be a top level heading: All of our changelogs do not start with a top level heading
+	// TODO: We need to update /home/coder/repos/coder/coder/scripts/release/generate_release_notes.sh to generate changelogs that follow this rule
+
+	"MD052": false, // Image reference: Not a valid reference in generated docs
+	// docs/reference/cli/server.md L628
+
+	"MD055": false, // Table pipe style: Some of the generated tables do not have ending pipes
+	// docs/reference/api/schema.md
+	// docs/reference/api/templates.md
+	// docs/reference/cli/server.md
+
+	"MD056": false // Table column count: Some of the auto-generated tables have issues. TODO: This is probably because of splitting cell content to multiple lines.
+	// docs/reference/api/schema.md
+	// docs/reference/api/templates.md
+}

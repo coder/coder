@@ -5,43 +5,31 @@ import (
 	"crypto/sha256"
 	_ "embed"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/ammario/tlru"
 	"github.com/open-policy-agent/opa/ast"
-	"github.com/open-policy-agent/opa/rego"
+	"github.com/open-policy-agent/opa/v1/rego"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/rbac/regosql"
 	"github.com/coder/coder/v2/coderd/rbac/regosql/sqltypes"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
-// Action represents the allowed actions to be done on an object.
-type Action string
-
-const (
-	ActionCreate Action = "create"
-	ActionRead   Action = "read"
-	ActionUpdate Action = "update"
-	ActionDelete Action = "delete"
-)
-
-// AllActions is a helper function to return all the possible actions types.
-func AllActions() []Action {
-	return []Action{ActionCreate, ActionRead, ActionUpdate, ActionDelete}
-}
-
 type AuthCall struct {
 	Actor  Subject
-	Action Action
+	Action policy.Action
 	Object Object
 }
 
@@ -51,7 +39,7 @@ type AuthCall struct {
 //
 // Note that this ignores some fields such as the permissions within a given
 // role, as this assumes all roles are static to a given role name.
-func hashAuthorizeCall(actor Subject, action Action, object Object) [32]byte {
+func hashAuthorizeCall(actor Subject, action policy.Action, object Object) [32]byte {
 	var hashOut [32]byte
 	hash := sha256.New()
 
@@ -70,9 +58,49 @@ func hashAuthorizeCall(actor Subject, action Action, object Object) [32]byte {
 	return hashOut
 }
 
+// SubjectType represents the type of subject in the RBAC system.
+type SubjectType string
+
+const (
+	SubjectTypeUser                         SubjectType = "user"
+	SubjectTypeProvisionerd                 SubjectType = "provisionerd"
+	SubjectTypeAutostart                    SubjectType = "autostart"
+	SubjectTypeConnectionLogger             SubjectType = "connection_logger"
+	SubjectTypeJobReaper                    SubjectType = "job_reaper"
+	SubjectTypeResourceMonitor              SubjectType = "resource_monitor"
+	SubjectTypeCryptoKeyRotator             SubjectType = "crypto_key_rotator"
+	SubjectTypeCryptoKeyReader              SubjectType = "crypto_key_reader"
+	SubjectTypePrebuildsOrchestrator        SubjectType = "prebuilds_orchestrator"
+	SubjectTypeSystemReadProvisionerDaemons SubjectType = "system_read_provisioner_daemons"
+	SubjectTypeSystemRestricted             SubjectType = "system_restricted"
+	SubjectTypeNotifier                     SubjectType = "notifier"
+	SubjectTypeSubAgentAPI                  SubjectType = "sub_agent_api"
+	SubjectTypeFileReader                   SubjectType = "file_reader"
+	SubjectTypeUsagePublisher               SubjectType = "usage_publisher"
+	SubjectAibridged                        SubjectType = "aibridged"
+)
+
+const (
+	SubjectTypeFileReaderID = "acbf0be6-6fed-47b6-8c43-962cb5cab994"
+)
+
 // Subject is a struct that contains all the elements of a subject in an rbac
 // authorize.
 type Subject struct {
+	// FriendlyName is entirely optional and is used for logging and debugging
+	// It is not used in any functional way.
+	// It is usually the "username" of the user, but it can be the name of the
+	// external workspace proxy or other service type actor.
+	FriendlyName string
+
+	// Email is entirely optional and is used for logging and debugging
+	// It is not used in any functional way.
+	Email string
+
+	// Type indicates what kind of subject this is (user, system, provisioner, etc.)
+	// It is not used in any functional way, only for logging.
+	Type SubjectType
+
 	ID     string
 	Roles  ExpandableRoles
 	Groups []string
@@ -80,6 +108,17 @@ type Subject struct {
 
 	// cachedASTValue is the cached ast value for this subject.
 	cachedASTValue ast.Value
+}
+
+// RegoValueOk is only used for unit testing. There is no easy way
+// to get the error for the unexported method, and this is intentional.
+// Failed rego values can default to the backup json marshal method,
+// so errors are not fatal. Unit tests should be aware when the custom
+// rego marshaller fails.
+func (s Subject) RegoValueOk() error {
+	tmp := s
+	_, err := tmp.regoValue()
+	return err
 }
 
 // WithCachedASTValue can be called if the subject is static. This will compute
@@ -117,13 +156,13 @@ func (s Subject) SafeScopeName() string {
 	if s.Scope == nil {
 		return "no-scope"
 	}
-	return s.Scope.Name()
+	return s.Scope.Name().String()
 }
 
 // SafeRoleNames prevent nil pointer dereference.
-func (s Subject) SafeRoleNames() []string {
+func (s Subject) SafeRoleNames() []RoleIdentifier {
 	if s.Roles == nil {
-		return []string{}
+		return []RoleIdentifier{}
 	}
 	return s.Roles.Names()
 }
@@ -132,8 +171,8 @@ type Authorizer interface {
 	// Authorize will authorize the given subject to perform the given action
 	// on the given object. Authorize is pure and deterministic with respect to
 	// its arguments and the surrounding object.
-	Authorize(ctx context.Context, subject Subject, action Action, object Object) error
-	Prepare(ctx context.Context, subject Subject, action Action, objectType string) (PreparedAuthorized, error)
+	Authorize(ctx context.Context, subject Subject, action policy.Action, object Object) error
+	Prepare(ctx context.Context, subject Subject, action policy.Action, objectType string) (PreparedAuthorized, error)
 }
 
 type PreparedAuthorized interface {
@@ -147,7 +186,7 @@ type PreparedAuthorized interface {
 //
 // Ideally the 'CompileToSQL' is used instead for large sets. This cost scales
 // linearly with the number of objects passed in.
-func Filter[O Objecter](ctx context.Context, auth Authorizer, subject Subject, action Action, objects []O) ([]O, error) {
+func Filter[O Objecter](ctx context.Context, auth Authorizer, subject Subject, action policy.Action, objects []O) ([]O, error) {
 	if len(objects) == 0 {
 		// Nothing to filter
 		return objects, nil
@@ -177,7 +216,7 @@ func Filter[O Objecter](ctx context.Context, auth Authorizer, subject Subject, a
 		for _, o := range objects {
 			rbacObj := o.RBACObject()
 			if rbacObj.Type != objectType {
-				return nil, xerrors.Errorf("object types must be uniform across the set (%s), found %s", objectType, rbacObj)
+				return nil, xerrors.Errorf("object types must be uniform across the set (%s), found %s", objectType, rbacObj.Type)
 			}
 			err := auth.Authorize(ctx, subject, action, o.RBACObject())
 			if err == nil {
@@ -221,6 +260,10 @@ type RegoAuthorizer struct {
 
 	authorizeHist *prometheus.HistogramVec
 	prepareHist   prometheus.Histogram
+
+	// strict checking also verifies the inputs to the authorizer. Making sure
+	// the action make sense for the input object.
+	strict bool
 }
 
 var _ Authorizer = (*RegoAuthorizer)(nil)
@@ -229,7 +272,7 @@ var (
 	// Load the policy from policy.rego in this directory.
 	//
 	//go:embed policy.rego
-	policy       string
+	regoPolicy   string
 	queryOnce    sync.Once
 	query        rego.PreparedEvalQuery
 	partialQuery rego.PreparedPartialQuery
@@ -242,12 +285,19 @@ func NewCachingAuthorizer(registry prometheus.Registerer) Authorizer {
 	return Cacher(NewAuthorizer(registry))
 }
 
+// NewStrictCachingAuthorizer is mainly just for testing.
+func NewStrictCachingAuthorizer(registry prometheus.Registerer) Authorizer {
+	auth := NewAuthorizer(registry)
+	auth.strict = true
+	return Cacher(auth)
+}
+
 func NewAuthorizer(registry prometheus.Registerer) *RegoAuthorizer {
 	queryOnce.Do(func() {
 		var err error
 		query, err = rego.New(
 			rego.Query("data.authz.allow"),
-			rego.Module("policy.rego", policy),
+			rego.Module("policy.rego", regoPolicy),
 		).PrepareForEval(context.Background())
 		if err != nil {
 			panic(xerrors.Errorf("compile rego: %w", err))
@@ -262,7 +312,7 @@ func NewAuthorizer(registry prometheus.Registerer) *RegoAuthorizer {
 				"input.object.acl_group_list",
 			}),
 			rego.Query("data.authz.allow = true"),
-			rego.Module("policy.rego", policy),
+			rego.Module("policy.rego", regoPolicy),
 		).PrepareForPartial(context.Background())
 		if err != nil {
 			panic(xerrors.Errorf("compile partial rego: %w", err))
@@ -327,7 +377,13 @@ type authSubject struct {
 // It returns `nil` if the subject is authorized to perform the action on
 // the object.
 // If an error is returned, the authorization is denied.
-func (a RegoAuthorizer) Authorize(ctx context.Context, subject Subject, action Action, object Object) error {
+func (a RegoAuthorizer) Authorize(ctx context.Context, subject Subject, action policy.Action, object Object) error {
+	if a.strict {
+		if err := object.ValidAction(action); err != nil {
+			return xerrors.Errorf("strict authz check: %w", err)
+		}
+	}
+
 	start := time.Now()
 	ctx, span := tracing.StartSpan(ctx,
 		trace.WithTimestamp(start), // Reuse the time.Now for metric and trace
@@ -341,11 +397,11 @@ func (a RegoAuthorizer) Authorize(ctx context.Context, subject Subject, action A
 	defer span.End()
 
 	err := a.authorize(ctx, subject, action, object)
-
-	span.SetAttributes(attribute.Bool("authorized", err == nil))
+	authorized := err == nil
+	span.SetAttributes(attribute.Bool("authorized", authorized))
 
 	dur := time.Since(start)
-	if err != nil {
+	if !authorized {
 		a.authorizeHist.WithLabelValues("false").Observe(dur.Seconds())
 		return err
 	}
@@ -358,12 +414,19 @@ func (a RegoAuthorizer) Authorize(ctx context.Context, subject Subject, action A
 // It is a different function so the exported one can add tracing + metrics.
 // That code tends to clutter up the actual logic, so it's separated out.
 // nolint:revive
-func (a RegoAuthorizer) authorize(ctx context.Context, subject Subject, action Action, object Object) error {
+func (a RegoAuthorizer) authorize(ctx context.Context, subject Subject, action policy.Action, object Object) error {
 	if subject.Roles == nil {
 		return xerrors.Errorf("subject must have roles")
 	}
 	if subject.Scope == nil {
 		return xerrors.Errorf("subject must have a scope")
+	}
+
+	// The caller should use either 1 or the other (or none).
+	// Using "AnyOrgOwner" and an OrgID is a contradiction.
+	// An empty uuid or a nil uuid means "no org owner".
+	if object.AnyOrgOwner && !(object.OrgID == "" || object.OrgID == "00000000-0000-0000-0000-000000000000") {
+		return xerrors.Errorf("object cannot have 'any_org' and an 'org_id' specified, values are mutually exclusive")
 	}
 
 	astV, err := regoInputValue(subject, action, object)
@@ -385,7 +448,7 @@ func (a RegoAuthorizer) authorize(ctx context.Context, subject Subject, action A
 
 // Prepare will partially execute the rego policy leaving the object fields unknown (except for the type).
 // This will vastly speed up performance if batch authorization on the same type of objects is needed.
-func (a RegoAuthorizer) Prepare(ctx context.Context, subject Subject, action Action, objectType string) (PreparedAuthorized, error) {
+func (a RegoAuthorizer) Prepare(ctx context.Context, subject Subject, action policy.Action, objectType string) (PreparedAuthorized, error) {
 	start := time.Now()
 	ctx, span := tracing.StartSpan(ctx,
 		trace.WithTimestamp(start),
@@ -395,6 +458,7 @@ func (a RegoAuthorizer) Prepare(ctx context.Context, subject Subject, action Act
 
 	prepared, err := a.newPartialAuthorizer(ctx, subject, action, objectType)
 	if err != nil {
+		err = correctCancelError(err)
 		return nil, xerrors.Errorf("new partial authorizer: %w", err)
 	}
 
@@ -420,7 +484,7 @@ type PartialAuthorizer struct {
 
 	// input is used purely for debugging and logging.
 	subjectInput        Subject
-	subjectAction       Action
+	subjectAction       policy.Action
 	subjectResourceType Object
 
 	// preparedQueries are the compiled set of queries after partial evaluation.
@@ -529,7 +593,7 @@ EachQueryLoop:
 		pa.subjectInput, pa.subjectAction, pa.subjectResourceType, nil)
 }
 
-func (a RegoAuthorizer) newPartialAuthorizer(ctx context.Context, subject Subject, action Action, objectType string) (*PartialAuthorizer, error) {
+func (a RegoAuthorizer) newPartialAuthorizer(ctx context.Context, subject Subject, action policy.Action, objectType string) (*PartialAuthorizer, error) {
 	if subject.Roles == nil {
 		return nil, xerrors.Errorf("subject must have roles")
 	}
@@ -610,6 +674,12 @@ func ConfigWithoutACL() regosql.ConvertConfig {
 	}
 }
 
+func ConfigWorkspaces() regosql.ConvertConfig {
+	return regosql.ConvertConfig{
+		VariableConverter: regosql.WorkspaceConverter(),
+	}
+}
+
 func Compile(cfg regosql.ConvertConfig, pa *PartialAuthorizer) (AuthorizeFilter, error) {
 	root, err := regosql.ConvertRegoAst(cfg, pa.partialQueries)
 	if err != nil {
@@ -646,10 +716,10 @@ type authCache struct {
 	authz Authorizer
 }
 
-// Cacher returns an Authorizer that can use a cache stored on a context
-// to short circuit duplicate calls to the Authorizer. This is useful when
-// multiple calls are made to the Authorizer for the same subject, action, and
-// object. The cache is on each `ctx` and is not shared between requests.
+// Cacher returns an Authorizer that can use a cache to short circuit duplicate
+// calls to the Authorizer. This is useful when multiple calls are made to the
+// Authorizer for the same subject, action, and object.
+// This is a GLOBAL cache shared between all requests.
 // If no cache is found on the context, the Authorizer is called as normal.
 //
 // Cacher is safe for multiple actors.
@@ -662,15 +732,19 @@ func Cacher(authz Authorizer) Authorizer {
 	}
 }
 
-func (c *authCache) Authorize(ctx context.Context, subject Subject, action Action, object Object) error {
+func (c *authCache) Authorize(ctx context.Context, subject Subject, action policy.Action, object Object) error {
 	authorizeCacheKey := hashAuthorizeCall(subject, action, object)
 
 	var err error
 	err, _, ok := c.cache.Get(authorizeCacheKey)
 	if !ok {
 		err = c.authz.Authorize(ctx, subject, action, object)
-		// In case there is a caching bug, bound the TTL to 1 minute.
-		c.cache.Set(authorizeCacheKey, err, time.Minute)
+		// If there is a transient error such as a context cancellation, do not
+		// cache it.
+		if !errors.Is(err, context.Canceled) {
+			// In case there is a caching bug, bound the TTL to 1 minute.
+			c.cache.Set(authorizeCacheKey, err, time.Minute)
+		}
 	}
 
 	return err
@@ -679,20 +753,134 @@ func (c *authCache) Authorize(ctx context.Context, subject Subject, action Actio
 // Prepare returns the underlying PreparedAuthorized. The cache does not apply
 // to prepared authorizations. These should be using a SQL filter, and
 // therefore the cache is not needed.
-func (c *authCache) Prepare(ctx context.Context, subject Subject, action Action, objectType string) (PreparedAuthorized, error) {
+func (c *authCache) Prepare(ctx context.Context, subject Subject, action policy.Action, objectType string) (PreparedAuthorized, error) {
 	return c.authz.Prepare(ctx, subject, action, objectType)
 }
 
 // rbacTraceAttributes are the attributes that are added to all spans created by
 // the rbac package. These attributes should help to debug slow spans.
-func rbacTraceAttributes(actor Subject, action Action, objectType string, extra ...attribute.KeyValue) trace.SpanStartOption {
+func rbacTraceAttributes(actor Subject, action policy.Action, objectType string, extra ...attribute.KeyValue) trace.SpanStartOption {
+	uniqueRoleNames := actor.SafeRoleNames()
+	roleStrings := make([]string, 0, len(uniqueRoleNames))
+	for _, roleName := range uniqueRoleNames {
+		roleStrings = append(roleStrings, roleName.String())
+	}
 	return trace.WithAttributes(
 		append(extra,
-			attribute.StringSlice("subject_roles", actor.SafeRoleNames()),
+			attribute.StringSlice("subject_roles", roleStrings),
 			attribute.Int("num_subject_roles", len(actor.SafeRoleNames())),
 			attribute.Int("num_groups", len(actor.Groups)),
 			attribute.String("scope", actor.SafeScopeName()),
 			attribute.String("action", string(action)),
 			attribute.String("object_type", objectType),
 		)...)
+}
+
+type authRecorder struct {
+	authz Authorizer
+}
+
+// Recorder returns an Authorizer that records any authorization checks made
+// on the Context provided for the authorization check.
+//
+// Requires using the RecordAuthzChecks middleware.
+func Recorder(authz Authorizer) Authorizer {
+	return &authRecorder{authz: authz}
+}
+
+func (c *authRecorder) Authorize(ctx context.Context, subject Subject, action policy.Action, object Object) error {
+	err := c.authz.Authorize(ctx, subject, action, object)
+	authorized := err == nil
+	recordAuthzCheck(ctx, action, object, authorized)
+	return err
+}
+
+func (c *authRecorder) Prepare(ctx context.Context, subject Subject, action policy.Action, objectType string) (PreparedAuthorized, error) {
+	return c.authz.Prepare(ctx, subject, action, objectType)
+}
+
+type authzCheckRecorderKey struct{}
+
+type AuthzCheckRecorder struct {
+	// lock guards checks
+	lock sync.Mutex
+	// checks is a list preformatted authz check IDs and their result
+	checks []recordedCheck
+}
+
+type recordedCheck struct {
+	name string
+	// true => authorized, false => not authorized
+	result bool
+}
+
+func WithAuthzCheckRecorder(ctx context.Context) context.Context {
+	return context.WithValue(ctx, authzCheckRecorderKey{}, &AuthzCheckRecorder{})
+}
+
+func recordAuthzCheck(ctx context.Context, action policy.Action, object Object, authorized bool) {
+	r, ok := ctx.Value(authzCheckRecorderKey{}).(*AuthzCheckRecorder)
+	if !ok {
+		return
+	}
+
+	// We serialize the check using the following syntax
+	var b strings.Builder
+	if object.OrgID != "" {
+		_, err := fmt.Fprintf(&b, "organization:%v::", object.OrgID)
+		if err != nil {
+			return
+		}
+	}
+	if object.AnyOrgOwner {
+		_, err := fmt.Fprint(&b, "organization:any::")
+		if err != nil {
+			return
+		}
+	}
+	if object.Owner != "" {
+		_, err := fmt.Fprintf(&b, "owner:%v::", object.Owner)
+		if err != nil {
+			return
+		}
+	}
+	if object.ID != "" {
+		_, err := fmt.Fprintf(&b, "id:%v::", object.ID)
+		if err != nil {
+			return
+		}
+	}
+	_, err := fmt.Fprintf(&b, "%v.%v", object.RBACObject().Type, action)
+	if err != nil {
+		return
+	}
+
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	r.checks = append(r.checks, recordedCheck{name: b.String(), result: authorized})
+}
+
+func GetAuthzCheckRecorder(ctx context.Context) (*AuthzCheckRecorder, bool) {
+	checks, ok := ctx.Value(authzCheckRecorderKey{}).(*AuthzCheckRecorder)
+	if !ok {
+		return nil, false
+	}
+
+	return checks, true
+}
+
+// String serializes all of the checks recorded, using the following syntax:
+func (r *AuthzCheckRecorder) String() string {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+
+	if len(r.checks) == 0 {
+		return "nil"
+	}
+
+	checks := make([]string, 0, len(r.checks))
+	for _, check := range r.checks {
+		checks = append(checks, fmt.Sprintf("%v=%v", check.name, check.result))
+	}
+	return strings.Join(checks, "; ")
 }

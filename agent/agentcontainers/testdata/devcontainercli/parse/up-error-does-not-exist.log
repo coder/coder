@@ -1,0 +1,15 @@
+{"type":"text","level":3,"timestamp":1744102555495,"text":"@devcontainers/cli 0.75.0. Node.js v23.9.0. darwin 24.4.0 arm64."}
+{"type":"start","level":2,"timestamp":1744102555495,"text":"Run: docker buildx version"}
+{"type":"stop","level":2,"timestamp":1744102555539,"text":"Run: docker buildx version","startTimestamp":1744102555495}
+{"type":"text","level":2,"timestamp":1744102555539,"text":"github.com/docker/buildx v0.21.2 1360a9e8d25a2c3d03c2776d53ae62e6ff0a843d\r\n"}
+{"type":"text","level":2,"timestamp":1744102555539,"text":"\u001b[1m\u001b[31m\u001b[39m\u001b[22m\r\n"}
+{"type":"start","level":2,"timestamp":1744102555539,"text":"Run: docker -v"}
+{"type":"stop","level":2,"timestamp":1744102555548,"text":"Run: docker -v","startTimestamp":1744102555539}
+{"type":"start","level":2,"timestamp":1744102555548,"text":"Resolving Remote"}
+Error: Dev container config (/code/devcontainers-template-starter/foo/.devcontainer/devcontainer.json) not found.
+    at H6 (/opt/homebrew/Cellar/devcontainer/0.75.0/libexec/lib/node_modules/@devcontainers/cli/dist/spec-node/devContainersSpecCLI.js:484:3219)
+    at async BC (/opt/homebrew/Cellar/devcontainer/0.75.0/libexec/lib/node_modules/@devcontainers/cli/dist/spec-node/devContainersSpecCLI.js:484:4957)
+    at async d7 (/opt/homebrew/Cellar/devcontainer/0.75.0/libexec/lib/node_modules/@devcontainers/cli/dist/spec-node/devContainersSpecCLI.js:665:202)
+    at async f7 (/opt/homebrew/Cellar/devcontainer/0.75.0/libexec/lib/node_modules/@devcontainers/cli/dist/spec-node/devContainersSpecCLI.js:664:14804)
+    at async /opt/homebrew/Cellar/devcontainer/0.75.0/libexec/lib/node_modules/@devcontainers/cli/dist/spec-node/devContainersSpecCLI.js:484:1188
+{"outcome":"error","message":"Dev container config (/code/devcontainers-template-starter/foo/.devcontainer/devcontainer.json) not found.","description":"Dev container config (/code/devcontainers-template-starter/foo/.devcontainer/devcontainer.json) not found."}

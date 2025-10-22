@@ -33,6 +33,7 @@ func TestPostWorkspaceAuthAzureInstanceIdentity(t *testing.T) {
 						Name: "somename",
 						Type: "someinstance",
 						Agents: []*proto.Agent{{
+							Name: "dev",
 							Auth: &proto.Agent_InstanceId{
 								InstanceId: instanceID,
 							},
@@ -44,17 +45,15 @@ func TestPostWorkspaceAuthAzureInstanceIdentity(t *testing.T) {
 	})
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	client.HTTPClient = metadataClient
-	agentClient := &agentsdk.Client{
-		SDK: client,
-	}
-	_, err := agentClient.AuthAzureInstanceIdentity(ctx)
+	agentClient := agentsdk.New(client.URL, agentsdk.WithAzureInstanceIdentity())
+	agentClient.SDK.HTTPClient = metadataClient
+	err := agentClient.RefreshToken(ctx)
 	require.NoError(t, err)
 }
 
@@ -78,6 +77,7 @@ func TestPostWorkspaceAuthAWSInstanceIdentity(t *testing.T) {
 							Name: "somename",
 							Type: "someinstance",
 							Agents: []*proto.Agent{{
+								Name: "dev",
 								Auth: &proto.Agent_InstanceId{
 									InstanceId: instanceID,
 								},
@@ -89,17 +89,15 @@ func TestPostWorkspaceAuthAWSInstanceIdentity(t *testing.T) {
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		client.HTTPClient = metadataClient
-		agentClient := &agentsdk.Client{
-			SDK: client,
-		}
-		_, err := agentClient.AuthAWSInstanceIdentity(ctx)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithAWSInstanceIdentity())
+		agentClient.SDK.HTTPClient = metadataClient
+		err := agentClient.RefreshToken(ctx)
 		require.NoError(t, err)
 	})
 }
@@ -117,10 +115,8 @@ func TestPostWorkspaceAuthGoogleInstanceIdentity(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		agentClient := &agentsdk.Client{
-			SDK: client,
-		}
-		_, err := agentClient.AuthGoogleInstanceIdentity(ctx, "", metadata)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithGoogleInstanceIdentity("", metadata))
+		err := agentClient.RefreshToken(ctx)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
@@ -137,10 +133,8 @@ func TestPostWorkspaceAuthGoogleInstanceIdentity(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		agentClient := &agentsdk.Client{
-			SDK: client,
-		}
-		_, err := agentClient.AuthGoogleInstanceIdentity(ctx, "", metadata)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithGoogleInstanceIdentity("", metadata))
+		err := agentClient.RefreshToken(ctx)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
@@ -164,6 +158,7 @@ func TestPostWorkspaceAuthGoogleInstanceIdentity(t *testing.T) {
 							Name: "somename",
 							Type: "someinstance",
 							Agents: []*proto.Agent{{
+								Name: "dev",
 								Auth: &proto.Agent_InstanceId{
 									InstanceId: instanceID,
 								},
@@ -175,16 +170,14 @@ func TestPostWorkspaceAuthGoogleInstanceIdentity(t *testing.T) {
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		agentClient := &agentsdk.Client{
-			SDK: client,
-		}
-		_, err := agentClient.AuthGoogleInstanceIdentity(ctx, "", metadata)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithGoogleInstanceIdentity("", metadata))
+		err := agentClient.RefreshToken(ctx)
 		require.NoError(t, err)
 	})
 }

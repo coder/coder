@@ -3,26 +3,19 @@ package codersdk
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/http/cookiejar"
-	"net/netip"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
-	"tailscale.com/tailcfg"
 
-	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/tracing"
-	"github.com/coder/coder/v2/tailnet"
-	"github.com/coder/retry"
+	"github.com/coder/coder/v2/codersdk/wsjson"
+	"github.com/coder/websocket"
 )
 
 type WorkspaceAgentStatus string
@@ -146,6 +139,7 @@ const (
 
 type WorkspaceAgent struct {
 	ID                   uuid.UUID               `json:"id" format:"uuid"`
+	ParentID             uuid.NullUUID           `json:"parent_id" format:"uuid"`
 	CreatedAt            time.Time               `json:"created_at" format:"date-time"`
 	UpdatedAt            time.Time               `json:"updated_at" format:"date-time"`
 	FirstConnectedAt     *time.Time              `json:"first_connected_at,omitempty" format:"date-time"`
@@ -166,6 +160,7 @@ type WorkspaceAgent struct {
 	Directory            string                  `json:"directory,omitempty"`
 	ExpandedDirectory    string                  `json:"expanded_directory,omitempty"`
 	Version              string                  `json:"version"`
+	APIVersion           string                  `json:"api_version"`
 	Apps                 []WorkspaceApp          `json:"apps"`
 	// DERPLatency is mapped by region name (e.g. "New York City", "Seattle").
 	DERPLatency              map[string]DERPRegion     `json:"latency,omitempty"`
@@ -192,6 +187,7 @@ type WorkspaceAgentLogSource struct {
 }
 
 type WorkspaceAgentScript struct {
+	ID               uuid.UUID     `json:"id" format:"uuid"`
 	LogSourceID      uuid.UUID     `json:"log_source_id" format:"uuid"`
 	LogPath          string        `json:"log_path"`
 	Script           string        `json:"script"`
@@ -200,6 +196,7 @@ type WorkspaceAgentScript struct {
 	RunOnStop        bool          `json:"run_on_stop"`
 	StartBlocksLogin bool          `json:"start_blocks_login"`
 	Timeout          time.Duration `json:"timeout"`
+	DisplayName      string        `json:"display_name"`
 }
 
 type WorkspaceAgentHealth struct {
@@ -212,243 +209,29 @@ type DERPRegion struct {
 	LatencyMilliseconds float64 `json:"latency_ms"`
 }
 
-// WorkspaceAgentConnectionInfo returns required information for establishing
-// a connection with a workspace.
-// @typescript-ignore WorkspaceAgentConnectionInfo
-type WorkspaceAgentConnectionInfo struct {
-	DERPMap                  *tailcfg.DERPMap `json:"derp_map"`
-	DERPForceWebSockets      bool             `json:"derp_force_websockets"`
-	DisableDirectConnections bool             `json:"disable_direct_connections"`
+type WorkspaceAgentLog struct {
+	ID        int64     `json:"id"`
+	CreatedAt time.Time `json:"created_at" format:"date-time"`
+	Output    string    `json:"output"`
+	Level     LogLevel  `json:"level"`
+	SourceID  uuid.UUID `json:"source_id" format:"uuid"`
 }
 
-func (c *Client) WorkspaceAgentConnectionInfoGeneric(ctx context.Context) (WorkspaceAgentConnectionInfo, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/workspaceagents/connection", nil)
-	if err != nil {
-		return WorkspaceAgentConnectionInfo{}, err
+type AgentSubsystem string
+
+const (
+	AgentSubsystemEnvbox     AgentSubsystem = "envbox"
+	AgentSubsystemEnvbuilder AgentSubsystem = "envbuilder"
+	AgentSubsystemExectrace  AgentSubsystem = "exectrace"
+)
+
+func (s AgentSubsystem) Valid() bool {
+	switch s {
+	case AgentSubsystemEnvbox, AgentSubsystemEnvbuilder, AgentSubsystemExectrace:
+		return true
+	default:
+		return false
 	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return WorkspaceAgentConnectionInfo{}, ReadBodyAsError(res)
-	}
-
-	var connInfo WorkspaceAgentConnectionInfo
-	return connInfo, json.NewDecoder(res.Body).Decode(&connInfo)
-}
-
-func (c *Client) WorkspaceAgentConnectionInfo(ctx context.Context, agentID uuid.UUID) (WorkspaceAgentConnectionInfo, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/connection", agentID), nil)
-	if err != nil {
-		return WorkspaceAgentConnectionInfo{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return WorkspaceAgentConnectionInfo{}, ReadBodyAsError(res)
-	}
-
-	var connInfo WorkspaceAgentConnectionInfo
-	return connInfo, json.NewDecoder(res.Body).Decode(&connInfo)
-}
-
-// @typescript-ignore DialWorkspaceAgentOptions
-type DialWorkspaceAgentOptions struct {
-	Logger slog.Logger
-	// BlockEndpoints forced a direct connection through DERP. The Client may
-	// have DisableDirect set which will override this value.
-	BlockEndpoints bool
-}
-
-func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, options *DialWorkspaceAgentOptions) (agentConn *WorkspaceAgentConn, err error) {
-	if options == nil {
-		options = &DialWorkspaceAgentOptions{}
-	}
-
-	connInfo, err := c.WorkspaceAgentConnectionInfo(ctx, agentID)
-	if err != nil {
-		return nil, xerrors.Errorf("get connection info: %w", err)
-	}
-	if connInfo.DisableDirectConnections {
-		options.BlockEndpoints = true
-	}
-
-	ip := tailnet.IP()
-	var header http.Header
-	headerTransport, ok := c.HTTPClient.Transport.(interface {
-		Header() http.Header
-	})
-	if ok {
-		header = headerTransport.Header()
-	}
-	conn, err := tailnet.NewConn(&tailnet.Options{
-		Addresses:           []netip.Prefix{netip.PrefixFrom(ip, 128)},
-		DERPMap:             connInfo.DERPMap,
-		DERPHeader:          &header,
-		DERPForceWebSockets: connInfo.DERPForceWebSockets,
-		Logger:              options.Logger,
-		BlockEndpoints:      c.DisableDirectConnections || options.BlockEndpoints,
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("create tailnet: %w", err)
-	}
-	defer func() {
-		if err != nil {
-			_ = conn.Close()
-		}
-	}()
-
-	headers := make(http.Header)
-	tokenHeader := SessionTokenHeader
-	if c.SessionTokenHeader != "" {
-		tokenHeader = c.SessionTokenHeader
-	}
-	headers.Set(tokenHeader, c.SessionToken())
-	ctx, cancel := context.WithCancel(ctx)
-	defer func() {
-		if err != nil {
-			cancel()
-		}
-	}()
-
-	coordinateURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/coordinate", agentID))
-	if err != nil {
-		return nil, xerrors.Errorf("parse url: %w", err)
-	}
-	closedCoordinator := make(chan struct{})
-	firstCoordinator := make(chan error)
-	go func() {
-		defer close(closedCoordinator)
-		isFirst := true
-		for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
-			options.Logger.Debug(ctx, "connecting")
-			// nolint:bodyclose
-			ws, res, err := websocket.Dial(ctx, coordinateURL.String(), &websocket.DialOptions{
-				HTTPClient: c.HTTPClient,
-				HTTPHeader: headers,
-				// Need to disable compression to avoid a data-race.
-				CompressionMode: websocket.CompressionDisabled,
-			})
-			if isFirst {
-				if res != nil && res.StatusCode == http.StatusConflict {
-					firstCoordinator <- ReadBodyAsError(res)
-					return
-				}
-				isFirst = false
-				close(firstCoordinator)
-			}
-			if err != nil {
-				if errors.Is(err, context.Canceled) {
-					return
-				}
-				options.Logger.Debug(ctx, "failed to dial", slog.Error(err))
-				continue
-			}
-			sendNode, errChan := tailnet.ServeCoordinator(websocket.NetConn(ctx, ws, websocket.MessageBinary), func(nodes []*tailnet.Node) error {
-				return conn.UpdateNodes(nodes, false)
-			})
-			conn.SetNodeCallback(sendNode)
-			options.Logger.Debug(ctx, "serving coordinator")
-			err = <-errChan
-			if errors.Is(err, context.Canceled) {
-				_ = ws.Close(websocket.StatusGoingAway, "")
-				return
-			}
-			if err != nil {
-				options.Logger.Debug(ctx, "error serving coordinator", slog.Error(err))
-				_ = ws.Close(websocket.StatusGoingAway, "")
-				continue
-			}
-			_ = ws.Close(websocket.StatusGoingAway, "")
-		}
-	}()
-
-	derpMapURL, err := c.URL.Parse("/api/v2/derp-map")
-	if err != nil {
-		return nil, xerrors.Errorf("parse url: %w", err)
-	}
-	closedDerpMap := make(chan struct{})
-	firstDerpMap := make(chan error)
-	go func() {
-		defer close(closedDerpMap)
-		isFirst := true
-		for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
-			options.Logger.Debug(ctx, "connecting to server for derp map updates")
-			// nolint:bodyclose
-			ws, res, err := websocket.Dial(ctx, derpMapURL.String(), &websocket.DialOptions{
-				HTTPClient: c.HTTPClient,
-				HTTPHeader: headers,
-				// Need to disable compression to avoid a data-race.
-				CompressionMode: websocket.CompressionDisabled,
-			})
-			if isFirst {
-				if res != nil && res.StatusCode == http.StatusConflict {
-					firstDerpMap <- ReadBodyAsError(res)
-					return
-				}
-				isFirst = false
-				close(firstDerpMap)
-			}
-			if err != nil {
-				if errors.Is(err, context.Canceled) {
-					return
-				}
-				options.Logger.Debug(ctx, "failed to dial", slog.Error(err))
-				continue
-			}
-
-			var (
-				nconn = websocket.NetConn(ctx, ws, websocket.MessageBinary)
-				dec   = json.NewDecoder(nconn)
-			)
-			for {
-				var derpMap tailcfg.DERPMap
-				err := dec.Decode(&derpMap)
-				if xerrors.Is(err, context.Canceled) {
-					_ = ws.Close(websocket.StatusGoingAway, "")
-					return
-				}
-				if err != nil {
-					options.Logger.Debug(ctx, "failed to decode derp map", slog.Error(err))
-					_ = ws.Close(websocket.StatusGoingAway, "")
-					return
-				}
-
-				if !tailnet.CompareDERPMaps(conn.DERPMap(), &derpMap) {
-					options.Logger.Debug(ctx, "updating derp map due to detected changes")
-					conn.SetDERPMap(&derpMap)
-				}
-			}
-		}
-	}()
-
-	err = <-firstCoordinator
-	if err != nil {
-		return nil, err
-	}
-	err = <-firstDerpMap
-	if err != nil {
-		return nil, err
-	}
-
-	agentConn = NewWorkspaceAgentConn(conn, WorkspaceAgentConnOptions{
-		AgentID: agentID,
-		// Newer agents will listen on two IPs: WorkspaceAgentIP and an IP
-		// derived from the agents UUID. We need to use the legacy
-		// WorkspaceAgentIP here since we don't know if the agent is listening
-		// on the new IP.
-		AgentIP: WorkspaceAgentIP,
-		CloseFunc: func() error {
-			cancel()
-			<-closedCoordinator
-			<-closedDerpMap
-			return conn.Close()
-		},
-	})
-
-	if !agentConn.AwaitReachable(ctx) {
-		_ = agentConn.Close()
-		return nil, xerrors.Errorf("timed out waiting for agent to become reachable: %w", ctx.Err())
-	}
-
-	return agentConn, nil
 }
 
 // WatchWorkspaceAgentMetadata watches the metadata of a workspace agent.
@@ -489,6 +272,11 @@ func (c *Client) WatchWorkspaceAgentMetadata(ctx context.Context, id uuid.UUID) 
 			if firstEvent {
 				close(ready) // Only close ready after the first event is received.
 				firstEvent = false
+			}
+
+			// Ignore pings.
+			if sse.Type == ServerSentEventTypePing {
+				continue
 			}
 
 			b, ok := sse.Data.([]byte)
@@ -576,66 +364,18 @@ func (c *Client) IssueReconnectingPTYSignedToken(ctx context.Context, req IssueR
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-// @typescript-ignore:WorkspaceAgentReconnectingPTYOpts
-type WorkspaceAgentReconnectingPTYOpts struct {
-	AgentID   uuid.UUID
-	Reconnect uuid.UUID
-	Width     uint16
-	Height    uint16
-	Command   string
-
-	// SignedToken is an optional signed token from the
-	// issue-reconnecting-pty-signed-token endpoint. If set, the session token
-	// on the client will not be sent.
-	SignedToken string
+type WorkspaceAgentListeningPortsResponse struct {
+	// If there are no ports in the list, nothing should be displayed in the UI.
+	// There must not be a "no ports available" message or anything similar, as
+	// there will always be no ports displayed on platforms where our port
+	// detection logic is unsupported.
+	Ports []WorkspaceAgentListeningPort `json:"ports"`
 }
 
-// WorkspaceAgentReconnectingPTY spawns a PTY that reconnects using the token provided.
-// It communicates using `agent.ReconnectingPTYRequest` marshaled as JSON.
-// Responses are PTY output that can be rendered.
-func (c *Client) WorkspaceAgentReconnectingPTY(ctx context.Context, opts WorkspaceAgentReconnectingPTYOpts) (net.Conn, error) {
-	serverURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/pty", opts.AgentID))
-	if err != nil {
-		return nil, xerrors.Errorf("parse url: %w", err)
-	}
-	q := serverURL.Query()
-	q.Set("reconnect", opts.Reconnect.String())
-	q.Set("width", strconv.Itoa(int(opts.Width)))
-	q.Set("height", strconv.Itoa(int(opts.Height)))
-	q.Set("command", opts.Command)
-	// If we're using a signed token, set the query parameter.
-	if opts.SignedToken != "" {
-		q.Set(SignedAppTokenQueryParameter, opts.SignedToken)
-	}
-	serverURL.RawQuery = q.Encode()
-
-	// If we're not using a signed token, we need to set the session token as a
-	// cookie.
-	httpClient := c.HTTPClient
-	if opts.SignedToken == "" {
-		jar, err := cookiejar.New(nil)
-		if err != nil {
-			return nil, xerrors.Errorf("create cookie jar: %w", err)
-		}
-		jar.SetCookies(serverURL, []*http.Cookie{{
-			Name:  SessionTokenCookie,
-			Value: c.SessionToken(),
-		}})
-		httpClient = &http.Client{
-			Jar:       jar,
-			Transport: c.HTTPClient.Transport,
-		}
-	}
-	conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{
-		HTTPClient: httpClient,
-	})
-	if err != nil {
-		if res == nil {
-			return nil, err
-		}
-		return nil, ReadBodyAsError(res)
-	}
-	return websocket.NetConn(context.Background(), conn, websocket.MessageBinary), nil
+type WorkspaceAgentListeningPort struct {
+	ProcessName string `json:"process_name"` // may be empty
+	Network     string `json:"network"`      // only "tcp" at the moment
+	Port        uint16 `json:"port"`
 }
 
 // WorkspaceAgentListeningPorts returns a list of ports that are currently being
@@ -651,6 +391,205 @@ func (c *Client) WorkspaceAgentListeningPorts(ctx context.Context, agentID uuid.
 	}
 	var listeningPorts WorkspaceAgentListeningPortsResponse
 	return listeningPorts, json.NewDecoder(res.Body).Decode(&listeningPorts)
+}
+
+// WorkspaceAgentDevcontainerStatus is the status of a devcontainer.
+type WorkspaceAgentDevcontainerStatus string
+
+// WorkspaceAgentDevcontainerStatus enums.
+const (
+	WorkspaceAgentDevcontainerStatusRunning  WorkspaceAgentDevcontainerStatus = "running"
+	WorkspaceAgentDevcontainerStatusStopped  WorkspaceAgentDevcontainerStatus = "stopped"
+	WorkspaceAgentDevcontainerStatusStarting WorkspaceAgentDevcontainerStatus = "starting"
+	WorkspaceAgentDevcontainerStatusError    WorkspaceAgentDevcontainerStatus = "error"
+)
+
+// WorkspaceAgentDevcontainer defines the location of a devcontainer
+// configuration in a workspace that is visible to the workspace agent.
+type WorkspaceAgentDevcontainer struct {
+	ID              uuid.UUID `json:"id" format:"uuid"`
+	Name            string    `json:"name"`
+	WorkspaceFolder string    `json:"workspace_folder"`
+	ConfigPath      string    `json:"config_path,omitempty"`
+
+	// Additional runtime fields.
+	Status    WorkspaceAgentDevcontainerStatus `json:"status"`
+	Dirty     bool                             `json:"dirty"`
+	Container *WorkspaceAgentContainer         `json:"container,omitempty"`
+	Agent     *WorkspaceAgentDevcontainerAgent `json:"agent,omitempty"`
+
+	Error string `json:"error,omitempty"`
+}
+
+func (d WorkspaceAgentDevcontainer) Equals(other WorkspaceAgentDevcontainer) bool {
+	return d.ID == other.ID &&
+		d.Name == other.Name &&
+		d.WorkspaceFolder == other.WorkspaceFolder &&
+		d.Status == other.Status &&
+		d.Dirty == other.Dirty &&
+		(d.Container == nil && other.Container == nil ||
+			(d.Container != nil && other.Container != nil && d.Container.ID == other.Container.ID)) &&
+		(d.Agent == nil && other.Agent == nil ||
+			(d.Agent != nil && other.Agent != nil && *d.Agent == *other.Agent)) &&
+		d.Error == other.Error
+}
+
+// WorkspaceAgentDevcontainerAgent represents the sub agent for a
+// devcontainer.
+type WorkspaceAgentDevcontainerAgent struct {
+	ID        uuid.UUID `json:"id" format:"uuid"`
+	Name      string    `json:"name"`
+	Directory string    `json:"directory"`
+}
+
+// WorkspaceAgentContainer describes a devcontainer of some sort
+// that is visible to the workspace agent. This struct is an abstraction
+// of potentially multiple implementations, and the fields will be
+// somewhat implementation-dependent.
+type WorkspaceAgentContainer struct {
+	// CreatedAt is the time the container was created.
+	CreatedAt time.Time `json:"created_at" format:"date-time"`
+	// ID is the unique identifier of the container.
+	ID string `json:"id"`
+	// FriendlyName is the human-readable name of the container.
+	FriendlyName string `json:"name"`
+	// Image is the name of the container image.
+	Image string `json:"image"`
+	// Labels is a map of key-value pairs of container labels.
+	Labels map[string]string `json:"labels"`
+	// Running is true if the container is currently running.
+	Running bool `json:"running"`
+	// Ports includes ports exposed by the container.
+	Ports []WorkspaceAgentContainerPort `json:"ports"`
+	// Status is the current status of the container. This is somewhat
+	// implementation-dependent, but should generally be a human-readable
+	// string.
+	Status string `json:"status"`
+	// Volumes is a map of "things" mounted into the container. Again, this
+	// is somewhat implementation-dependent.
+	Volumes map[string]string `json:"volumes"`
+}
+
+func (c *WorkspaceAgentContainer) Match(idOrName string) bool {
+	if c.ID == idOrName {
+		return true
+	}
+	if c.FriendlyName == idOrName {
+		return true
+	}
+	return false
+}
+
+// WorkspaceAgentContainerPort describes a port as exposed by a container.
+type WorkspaceAgentContainerPort struct {
+	// Port is the port number *inside* the container.
+	Port uint16 `json:"port"`
+	// Network is the network protocol used by the port (tcp, udp, etc).
+	Network string `json:"network"`
+	// HostIP is the IP address of the host interface to which the port is
+	// bound. Note that this can be an IPv4 or IPv6 address.
+	HostIP string `json:"host_ip,omitempty"`
+	// HostPort is the port number *outside* the container.
+	HostPort uint16 `json:"host_port,omitempty"`
+}
+
+// WorkspaceAgentListContainersResponse is the response to the list containers
+// request.
+type WorkspaceAgentListContainersResponse struct {
+	// Devcontainers is a list of devcontainers visible to the workspace agent.
+	Devcontainers []WorkspaceAgentDevcontainer `json:"devcontainers"`
+	// Containers is a list of containers visible to the workspace agent.
+	Containers []WorkspaceAgentContainer `json:"containers"`
+	// Warnings is a list of warnings that may have occurred during the
+	// process of listing containers. This should not include fatal errors.
+	Warnings []string `json:"warnings,omitempty"`
+}
+
+func workspaceAgentContainersLabelFilter(kvs map[string]string) RequestOption {
+	return func(r *http.Request) {
+		q := r.URL.Query()
+		for k, v := range kvs {
+			kv := fmt.Sprintf("%s=%s", k, v)
+			q.Add("label", kv)
+		}
+		r.URL.RawQuery = q.Encode()
+	}
+}
+
+// WorkspaceAgentListContainers returns a list of containers that are currently
+// running on a Docker daemon accessible to the workspace agent.
+func (c *Client) WorkspaceAgentListContainers(ctx context.Context, agentID uuid.UUID, labels map[string]string) (WorkspaceAgentListContainersResponse, error) {
+	lf := workspaceAgentContainersLabelFilter(labels)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/containers", agentID), nil, lf)
+	if err != nil {
+		return WorkspaceAgentListContainersResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return WorkspaceAgentListContainersResponse{}, ReadBodyAsError(res)
+	}
+	var cr WorkspaceAgentListContainersResponse
+
+	return cr, json.NewDecoder(res.Body).Decode(&cr)
+}
+
+func (c *Client) WatchWorkspaceAgentContainers(ctx context.Context, agentID uuid.UUID) (<-chan WorkspaceAgentListContainersResponse, io.Closer, error) {
+	reqURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaceagents/%s/containers/watch", agentID))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return nil, nil, xerrors.Errorf("create cookie jar: %w", err)
+	}
+
+	jar.SetCookies(reqURL, []*http.Cookie{{
+		Name:  SessionTokenCookie,
+		Value: c.SessionToken(),
+	}})
+
+	conn, res, err := websocket.Dial(ctx, reqURL.String(), &websocket.DialOptions{
+		// We want `NoContextTakeover` compression to balance improving
+		// bandwidth cost/latency with minimal memory usage overhead.
+		CompressionMode: websocket.CompressionNoContextTakeover,
+		HTTPClient: &http.Client{
+			Jar:       jar,
+			Transport: c.HTTPClient.Transport,
+		},
+	})
+	if err != nil {
+		if res == nil {
+			return nil, nil, err
+		}
+		return nil, nil, ReadBodyAsError(res)
+	}
+
+	// When a workspace has a few devcontainers running, or a single devcontainer
+	// has a large amount of apps, then each payload can easily exceed 32KiB.
+	// We up the limit to 4MiB to give us plenty of headroom for workspaces that
+	// have lots of dev containers with lots of apps.
+	conn.SetReadLimit(1 << 22) // 4MiB
+
+	d := wsjson.NewDecoder[WorkspaceAgentListContainersResponse](conn, websocket.MessageText, c.logger)
+	return d.Chan(), d, nil
+}
+
+// WorkspaceAgentRecreateDevcontainer recreates the devcontainer with the given ID.
+func (c *Client) WorkspaceAgentRecreateDevcontainer(ctx context.Context, agentID uuid.UUID, devcontainerID string) (Response, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaceagents/%s/containers/devcontainers/%s/recreate", agentID, devcontainerID), nil)
+	if err != nil {
+		return Response{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusAccepted {
+		return Response{}, ReadBodyAsError(res)
+	}
+	var m Response
+	if err := json.NewDecoder(res.Body).Decode(&m); err != nil {
+		return Response{}, xerrors.Errorf("decode response body: %w", err)
+	}
+	return m, nil
 }
 
 //nolint:revive // Follow is a control flag on the server as well.
@@ -716,55 +655,6 @@ func (c *Client) WorkspaceAgentLogsAfter(ctx context.Context, agentID uuid.UUID,
 		}
 		return nil, nil, ReadBodyAsError(res)
 	}
-	logChunks := make(chan []WorkspaceAgentLog, 1)
-	closed := make(chan struct{})
-	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageText)
-	decoder := json.NewDecoder(wsNetConn)
-	go func() {
-		defer close(closed)
-		defer close(logChunks)
-		defer conn.Close(websocket.StatusGoingAway, "")
-		for {
-			var logs []WorkspaceAgentLog
-			err = decoder.Decode(&logs)
-			if err != nil {
-				return
-			}
-			select {
-			case <-ctx.Done():
-				return
-			case logChunks <- logs:
-			}
-		}
-	}()
-	return logChunks, closeFunc(func() error {
-		_ = wsNetConn.Close()
-		<-closed
-		return nil
-	}), nil
-}
-
-type WorkspaceAgentLog struct {
-	ID        int64     `json:"id"`
-	CreatedAt time.Time `json:"created_at" format:"date-time"`
-	Output    string    `json:"output"`
-	Level     LogLevel  `json:"level"`
-	SourceID  uuid.UUID `json:"source_id" format:"uuid"`
-}
-
-type AgentSubsystem string
-
-const (
-	AgentSubsystemEnvbox     AgentSubsystem = "envbox"
-	AgentSubsystemEnvbuilder AgentSubsystem = "envbuilder"
-	AgentSubsystemExectrace  AgentSubsystem = "exectrace"
-)
-
-func (s AgentSubsystem) Valid() bool {
-	switch s {
-	case AgentSubsystemEnvbox, AgentSubsystemEnvbuilder, AgentSubsystemExectrace:
-		return true
-	default:
-		return false
-	}
+	d := wsjson.NewDecoder[[]WorkspaceAgentLog](conn, websocket.MessageText, c.logger)
+	return d.Chan(), d, nil
 }

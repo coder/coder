@@ -8,29 +8,29 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"os/signal"
 	"path/filepath"
 	"strings"
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/pretty"
+	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) gitssh() *clibase.Cmd {
-	cmd := &clibase.Cmd{
+func gitssh() *serpent.Command {
+	agentAuth := &AgentAuth{}
+	cmd := &serpent.Command{
 		Use:    "gitssh",
 		Hidden: true,
 		Short:  `Wraps the "ssh" command and uses the coder gitssh key for authentication`,
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
 			env := os.Environ()
 
 			// Catch interrupt signals to ensure the temporary private
 			// key file is cleaned up on most cases.
-			ctx, stop := signal.NotifyContext(ctx, InterruptSignals...)
+			ctx, stop := inv.SignalNotifyContext(ctx, StopSignals...)
 			defer stop()
 
 			// Early check so errors are reported immediately.
@@ -39,7 +39,7 @@ func (r *RootCmd) gitssh() *clibase.Cmd {
 				return err
 			}
 
-			client, err := r.createAgentClient()
+			client, err := agentAuth.CreateClient()
 			if err != nil {
 				return xerrors.Errorf("create agent client: %w", err)
 			}
@@ -92,7 +92,7 @@ func (r *RootCmd) gitssh() *clibase.Cmd {
 				if xerrors.As(err, &exitErr) && exitErr.ExitCode() == 255 {
 					_, _ = fmt.Fprintln(inv.Stderr,
 						"\n"+pretty.Sprintf(
-							cliui.DefaultStyles.Wrap,
+							cliui.DefaultStyles.Wrap, "%s",
 							"Coder authenticates with "+pretty.Sprint(cliui.DefaultStyles.Field, "git")+
 								" using the public key below. All clones with SSH are authenticated automatically 🪄.")+"\n",
 					)
@@ -109,7 +109,7 @@ func (r *RootCmd) gitssh() *clibase.Cmd {
 			return nil
 		},
 	}
-
+	agentAuth.AttachOptions(cmd, false)
 	return cmd
 }
 
@@ -139,7 +139,7 @@ var fallbackIdentityFiles = strings.Join([]string{
 //
 // The extra arguments work without issue and lets us run the command
 // as-is without stripping out the excess (git-upload-pack 'coder/coder').
-func parseIdentityFilesForHost(ctx context.Context, args, env []string) (identityFiles []string, error error) {
+func parseIdentityFilesForHost(ctx context.Context, args, env []string) (identityFiles []string, err error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil, xerrors.Errorf("get user home dir failed: %w", err)

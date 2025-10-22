@@ -186,8 +186,6 @@ func strategyTestData(count int, runFn func(ctx context.Context, i int, logs io.
 		fns  = make([]harness.TestFn, count)
 	)
 	for i := 0; i < count; i++ {
-		i := i
-
 		runs[i] = harness.NewTestRun("test", strconv.Itoa(i), testFns{
 			RunFn: func(ctx context.Context, id string, logs io.Writer) error {
 				if runFn != nil {

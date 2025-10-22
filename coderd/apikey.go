@@ -12,6 +12,8 @@ import (
 	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -19,11 +21,12 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// Creates a new token API key that effectively doesn't expire.
+// Creates a new token API key with the given scope and lifetime.
 //
 // @Summary Create token API key
 // @ID create-token-api-key
@@ -55,15 +58,48 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	scope := database.APIKeyScopeAll
-	if scope != "" {
-		scope = database.APIKeyScope(createToken.Scope)
+	// TODO(Cian): System users technically just have the 'member' role
+	// and we don't want to disallow all members from creating API keys.
+	if user.IsSystem {
+		api.Logger.Warn(ctx, "disallowed creating api key for system user", slog.F("user_id", user.ID))
+		httpapi.Forbidden(rw)
+		return
 	}
 
-	// default lifetime is 30 days
-	lifeTime := 30 * 24 * time.Hour
-	if createToken.Lifetime != 0 {
-		lifeTime = createToken.Lifetime
+	// Map and validate requested scope.
+	// Accept legacy special scopes (all, application_connect) and external scopes.
+	// Default to coder:all scopes for backward compatibility.
+	scopes := database.APIKeyScopes{database.ApiKeyScopeCoderAll}
+	if len(createToken.Scopes) > 0 {
+		scopes = make(database.APIKeyScopes, 0, len(createToken.Scopes))
+		for _, s := range createToken.Scopes {
+			name := string(s)
+			if !rbac.IsExternalScope(rbac.ScopeName(name)) {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Failed to create API key.",
+					Detail:  fmt.Sprintf("invalid or unsupported API key scope: %q", name),
+				})
+				return
+			}
+			scopes = append(scopes, database.APIKeyScope(name))
+		}
+	} else if string(createToken.Scope) != "" {
+		name := string(createToken.Scope)
+		if !rbac.IsExternalScope(rbac.ScopeName(name)) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Failed to create API key.",
+				Detail:  fmt.Sprintf("invalid or unsupported API key scope: %q", name),
+			})
+			return
+		}
+		switch name {
+		case "all":
+			scopes = database.APIKeyScopes{database.ApiKeyScopeCoderAll}
+		case "application_connect":
+			scopes = database.APIKeyScopes{database.ApiKeyScopeCoderApplicationConnect}
+		default:
+			scopes = database.APIKeyScopes{database.APIKeyScope(name)}
+		}
 	}
 
 	tokenName := namesgenerator.GetRandomName(1)
@@ -72,24 +108,59 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 		tokenName = createToken.TokenName
 	}
 
-	err := api.validateAPIKeyLifetime(lifeTime)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Failed to validate create API key request.",
-			Detail:  err.Error(),
-		})
-		return
+	params := apikey.CreateParams{
+		UserID:          user.ID,
+		LoginType:       database.LoginTypeToken,
+		DefaultLifetime: api.DeploymentValues.Sessions.DefaultTokenDuration.Value(),
+		Scopes:          scopes,
+		TokenName:       tokenName,
 	}
 
-	cookie, key, err := api.createAPIKey(ctx, apikey.CreateParams{
-		UserID:           user.ID,
-		LoginType:        database.LoginTypeToken,
-		DeploymentValues: api.DeploymentValues,
-		ExpiresAt:        dbtime.Now().Add(lifeTime),
-		Scope:            scope,
-		LifetimeSeconds:  int64(lifeTime.Seconds()),
-		TokenName:        tokenName,
-	})
+	if len(createToken.AllowList) > 0 {
+		rbacAllowListElements := make([]rbac.AllowListElement, 0, len(createToken.AllowList))
+		for _, t := range createToken.AllowList {
+			entry, err := rbac.NewAllowListElement(string(t.Type), t.ID)
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Failed to create API key.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+			rbacAllowListElements = append(rbacAllowListElements, entry)
+		}
+
+		rbacAllowList, err := rbac.NormalizeAllowList(rbacAllowListElements)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Failed to create API key.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		dbAllowList := make(database.AllowList, 0, len(rbacAllowList))
+		for _, e := range rbacAllowList {
+			dbAllowList = append(dbAllowList, rbac.AllowListElement{Type: e.Type, ID: e.ID})
+		}
+
+		params.AllowList = dbAllowList
+	}
+
+	if createToken.Lifetime != 0 {
+		err := api.validateAPIKeyLifetime(ctx, user.ID, createToken.Lifetime)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Failed to validate create API key request.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		params.ExpiresAt = dbtime.Now().Add(createToken.Lifetime)
+		params.LifetimeSeconds = int64(createToken.Lifetime.Seconds())
+	}
+
+	cookie, key, err := api.createAPIKey(ctx, params)
 	if err != nil {
 		if database.IsUniqueViolation(err, database.UniqueIndexAPIKeyName) {
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
@@ -122,19 +193,33 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 // @Success 201 {object} codersdk.GenerateAPIKeyResponse
 // @Router /users/{user}/keys [post]
 func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	user := httpmw.UserParam(r)
+	var (
+		ctx               = r.Context()
+		user              = httpmw.UserParam(r)
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.APIKey](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionCreate,
+		})
+	)
+	aReq.Old = database.APIKey{}
+	defer commitAudit()
 
-	lifeTime := time.Hour * 24 * 7
-	cookie, _, err := api.createAPIKey(ctx, apikey.CreateParams{
-		UserID:           user.ID,
-		DeploymentValues: api.DeploymentValues,
-		LoginType:        database.LoginTypePassword,
-		RemoteAddr:       r.RemoteAddr,
-		// All api generated keys will last 1 week. Browser login tokens have
-		// a shorter life.
-		ExpiresAt:       dbtime.Now().Add(lifeTime),
-		LifetimeSeconds: int64(lifeTime.Seconds()),
+	// TODO(Cian): System users technically just have the 'member' role
+	// and we don't want to disallow all members from creating API keys.
+	if user.IsSystem {
+		api.Logger.Warn(ctx, "disallowed creating api key for system user", slog.F("user_id", user.ID))
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	cookie, key, err := api.createAPIKey(ctx, apikey.CreateParams{
+		UserID:          user.ID,
+		DefaultLifetime: api.DeploymentValues.Sessions.DefaultTokenDuration.Value(),
+		LoginType:       database.LoginTypePassword,
+		RemoteAddr:      r.RemoteAddr,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -144,6 +229,7 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	aReq.New = *key
 	// We intentionally do not set the cookie on the response here.
 	// Setting the cookie will couple the browser session to the API
 	// key we return here, meaning logging out of the website would
@@ -157,7 +243,7 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
-// @Param keyid path string true "Key ID" format(uuid)
+// @Param keyid path string true "Key ID" format(string)
 // @Success 200 {object} codersdk.APIKey
 // @Router /users/{user}/keys/{keyid} [get]
 func (api *API) apiKeyByID(rw http.ResponseWriter, r *http.Request) {
@@ -255,7 +341,7 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	keys, err = AuthorizeFilter(api.HTTPAuth, r, rbac.ActionRead, keys)
+	keys, err = AuthorizeFilter(api.HTTPAuth, r, policy.ActionRead, keys)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching keys.",
@@ -264,12 +350,12 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var userIds []uuid.UUID
+	var userIDs []uuid.UUID
 	for _, key := range keys {
-		userIds = append(userIds, key.UserID)
+		userIDs = append(userIDs, key.UserID)
 	}
 
-	users, _ := api.Database.GetUsersByIDs(ctx, userIds)
+	users, _ := api.Database.GetUsersByIDs(ctx, userIDs)
 	usersByID := map[uuid.UUID]database.User{}
 	for _, user := range users {
 		usersByID[user.ID] = user
@@ -298,7 +384,7 @@ func (api *API) tokens(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Tags Users
 // @Param user path string true "User ID, name, or me"
-// @Param keyid path string true "Key ID" format(uuid)
+// @Param keyid path string true "Key ID" format(string)
 // @Success 204
 // @Router /users/{user}/keys/{keyid} [delete]
 func (api *API) deleteAPIKey(rw http.ResponseWriter, r *http.Request) {
@@ -333,7 +419,7 @@ func (api *API) deleteAPIKey(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
+	rw.WriteHeader(http.StatusNoContent)
 }
 
 // @Summary Get token config
@@ -345,33 +431,67 @@ func (api *API) deleteAPIKey(rw http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} codersdk.TokenConfig
 // @Router /users/{user}/keys/tokens/tokenconfig [get]
 func (api *API) tokenConfig(rw http.ResponseWriter, r *http.Request) {
-	values, err := api.DeploymentValues.WithoutSecrets()
+	user := httpmw.UserParam(r)
+	maxLifetime, err := api.getMaxTokenLifetime(r.Context(), user.ID)
 	if err != nil {
-		httpapi.InternalServerError(rw, err)
+		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get token configuration.",
+			Detail:  err.Error(),
+		})
 		return
 	}
 
 	httpapi.Write(
 		r.Context(), rw, http.StatusOK,
 		codersdk.TokenConfig{
-			MaxTokenLifetime: values.MaxTokenLifetime.Value(),
+			MaxTokenLifetime: maxLifetime,
 		},
 	)
 }
 
-func (api *API) validateAPIKeyLifetime(lifetime time.Duration) error {
+func (api *API) validateAPIKeyLifetime(ctx context.Context, userID uuid.UUID, lifetime time.Duration) error {
 	if lifetime <= 0 {
 		return xerrors.New("lifetime must be positive number greater than 0")
 	}
 
-	if lifetime > api.DeploymentValues.MaxTokenLifetime.Value() {
+	maxLifetime, err := api.getMaxTokenLifetime(ctx, userID)
+	if err != nil {
+		return xerrors.Errorf("failed to get max token lifetime: %w", err)
+	}
+
+	if lifetime > maxLifetime {
 		return xerrors.Errorf(
 			"lifetime must be less than %v",
-			api.DeploymentValues.MaxTokenLifetime,
+			maxLifetime,
 		)
 	}
 
 	return nil
+}
+
+// getMaxTokenLifetime returns the maximum allowed token lifetime for a user.
+// It distinguishes between regular users and owners.
+func (api *API) getMaxTokenLifetime(ctx context.Context, userID uuid.UUID) (time.Duration, error) {
+	subject, _, err := httpmw.UserRBACSubject(ctx, api.Database, userID, rbac.ScopeAll)
+	if err != nil {
+		return 0, xerrors.Errorf("failed to get user rbac subject: %w", err)
+	}
+
+	roles, err := subject.Roles.Expand()
+	if err != nil {
+		return 0, xerrors.Errorf("failed to expand user roles: %w", err)
+	}
+
+	maxLifetime := api.DeploymentValues.Sessions.MaximumTokenDuration.Value()
+	for _, role := range roles {
+		if role.Identifier.Name == codersdk.RoleOwner {
+			// Owners have a different max lifetime.
+			maxLifetime = api.DeploymentValues.Sessions.MaximumAdminTokenDuration.Value()
+			break
+		}
+	}
+
+	return maxLifetime, nil
 }
 
 func (api *API) createAPIKey(ctx context.Context, params apikey.CreateParams) (*http.Cookie, *database.APIKey, error) {
@@ -389,12 +509,10 @@ func (api *API) createAPIKey(ctx context.Context, params apikey.CreateParams) (*
 		APIKeys: []telemetry.APIKey{telemetry.ConvertAPIKey(newkey)},
 	})
 
-	return &http.Cookie{
+	return api.DeploymentValues.HTTPCookies.Apply(&http.Cookie{
 		Name:     codersdk.SessionTokenCookie,
 		Value:    sessionToken,
 		Path:     "/",
 		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		Secure:   api.SecureAuthCookie,
-	}, &newkey, nil
+	}), &newkey, nil
 }

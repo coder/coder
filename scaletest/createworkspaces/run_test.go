@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/scaletest/agentconn"
@@ -30,15 +31,26 @@ import (
 
 func Test_Runner(t *testing.T) {
 	t.Parallel()
+
 	if testutil.RaceEnabled() {
 		t.Skip("Race detector enabled, skipping time-sensitive test.")
 	}
 
+	testParameters := []*proto.RichParameter{
+		{
+			Name:         "foo",
+			DefaultValue: "baz",
+		},
+	}
+	testParameterValues := []codersdk.WorkspaceBuildParameter{
+		{
+			Name:  "foo",
+			Value: "baz",
+		},
+	}
+
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
 
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
@@ -47,8 +59,16 @@ func Test_Runner(t *testing.T) {
 
 		authToken := uuid.NewString()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:         echo.ParseComplete,
-			ProvisionPlan: echo.PlanComplete,
+			Parse: echo.ParseComplete,
+			ProvisionPlan: []*proto.Response{
+				{
+					Type: &proto.Response_Plan{
+						Plan: &proto.PlanComplete{
+							Parameters: testParameters,
+						},
+					},
+				},
+			},
 			ProvisionApply: []*proto.Response{
 				{
 					Type: &proto.Response_Log{
@@ -86,8 +106,9 @@ func Test_Runner(t *testing.T) {
 		version = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		closer := goEventuallyStartFakeAgent(ctx, t, client, authToken)
-		t.Cleanup(closer)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		closerCh := goEventuallyStartFakeAgent(ctx, t, client, authToken)
 
 		const (
 			username = "scaletest-user"
@@ -102,11 +123,12 @@ func Test_Runner(t *testing.T) {
 			Workspace: workspacebuild.Config{
 				OrganizationID: user.OrganizationID,
 				Request: codersdk.CreateWorkspaceRequest{
-					TemplateID: template.ID,
+					TemplateID:          template.ID,
+					RichParameterValues: testParameterValues,
 				},
 			},
 			ReconnectingPTY: &reconnectingpty.Config{
-				Init: codersdk.WorkspaceAgentReconnectingPTYInit{
+				Init: workspacesdk.AgentReconnectingPTYInit{
 					Height:  24,
 					Width:   80,
 					Command: "echo hello",
@@ -125,6 +147,10 @@ func Test_Runner(t *testing.T) {
 		t.Log("Runner logs:\n\n" + logsStr)
 		require.NoError(t, err)
 
+		// Wait for the workspace agent to start.
+		closer := <-closerCh
+		t.Cleanup(func() { _ = closer.Close() })
+
 		// Ensure a user and workspace were created.
 		users, err := client.Users(ctx, codersdk.UsersRequest{})
 		require.NoError(t, err)
@@ -132,6 +158,13 @@ func Test_Runner(t *testing.T) {
 		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 		require.NoError(t, err)
 		require.Len(t, workspaces.Workspaces, 1)
+
+		// Ensure the correct build parameters were used.
+		buildParams, err := client.WorkspaceBuildParameters(ctx, workspaces.Workspaces[0].LatestBuild.ID)
+		require.NoError(t, err)
+		require.Len(t, buildParams, 1)
+		require.Equal(t, testParameterValues[0].Name, buildParams[0].Name)
+		require.Equal(t, testParameterValues[0].Value, buildParams[0].Value)
 
 		// Look for strings in the logs.
 		require.Contains(t, logsStr, "Generating user password...")
@@ -145,8 +178,13 @@ func Test_Runner(t *testing.T) {
 		require.Contains(t, logsStr, "Opening reconnecting PTY connection to agent")
 		require.Contains(t, logsStr, "Opening connection to workspace agent")
 
-		err = runner.Cleanup(ctx, "1")
+		cleanupLogs := bytes.NewBuffer(nil)
+		err = runner.Cleanup(ctx, "1", cleanupLogs)
 		require.NoError(t, err)
+		cleanupLogsStr := cleanupLogs.String()
+		require.Contains(t, cleanupLogsStr, "deleting workspace")
+		require.NotContains(t, cleanupLogsStr, "canceling workspace build") // The build should have already completed.
+		require.Contains(t, cleanupLogsStr, "Build succeeded!")
 
 		// Ensure the user and workspace were deleted.
 		users, err = client.Users(ctx, codersdk.UsersRequest{})
@@ -160,9 +198,6 @@ func Test_Runner(t *testing.T) {
 	t.Run("CleanupPendingBuild", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
 		// need to include our own logger because the provisioner (rightly) drops error logs when we shut down the
 		// test with a build in progress.
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
@@ -173,11 +208,19 @@ func Test_Runner(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:         echo.ParseComplete,
-			ProvisionPlan: echo.PlanComplete,
+			Parse: echo.ParseComplete,
+			ProvisionPlan: []*proto.Response{
+				{
+					Type: &proto.Response_Plan{
+						Plan: &proto.PlanComplete{
+							Parameters: testParameters,
+						},
+					},
+				},
+			},
 			ProvisionApply: []*proto.Response{
 				{
-					Type: &proto.Response_Log{Log: &proto.Log{}},
+					Type: &proto.Response_Log{Log: &proto.Log{}}, // This provisioner job will never complete.
 				},
 			},
 		})
@@ -200,86 +243,95 @@ func Test_Runner(t *testing.T) {
 			Workspace: workspacebuild.Config{
 				OrganizationID: user.OrganizationID,
 				Request: codersdk.CreateWorkspaceRequest{
-					TemplateID: template.ID,
+					TemplateID:          template.ID,
+					RichParameterValues: testParameterValues,
 				},
 			},
 		})
 
-		cancelCtx, cancelFunc := context.WithCancel(ctx)
+		runnerCtx, runnerCancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+
 		done := make(chan struct{})
 		logs := bytes.NewBuffer(nil)
 		go func() {
-			err := runner.Run(cancelCtx, "1", logs)
+			err := runner.Run(runnerCtx, "1", logs)
 			logsStr := logs.String()
 			t.Log("Runner logs:\n\n" + logsStr)
-			require.ErrorIs(t, err, context.Canceled)
+			assert.ErrorIs(t, err, context.Canceled)
 			close(done)
 		}()
 
-		require.Eventually(t, func() bool {
-			workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+		// Wait for the workspace build job to be picked up.
+		checkJobStartedCtx := testutil.Context(t, testutil.WaitLong)
+		jobCh := make(chan codersdk.ProvisionerJob, 1)
+		testutil.Eventually(checkJobStartedCtx, t, func(ctx context.Context) bool {
+			workspaces, err := client.Workspaces(checkJobStartedCtx, codersdk.WorkspaceFilter{})
 			if err != nil {
 				return false
 			}
-
-			return len(workspaces.Workspaces) > 0
-		}, testutil.WaitShort, testutil.IntervalFast)
-
-		cancelFunc()
-		<-done
-
-		// When we run the cleanup, it should be canceled
-		cancelCtx, cancelFunc = context.WithCancel(ctx)
-		done = make(chan struct{})
-		go func() {
-			// This will return an error as the "delete" operation will never complete.
-			_ = runner.Cleanup(cancelCtx, "1")
-			close(done)
-		}()
-
-		// Ensure the job has been marked as deleted
-		require.Eventually(t, func() bool {
-			workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
-			if err != nil {
-				return false
-			}
-
 			if len(workspaces.Workspaces) == 0 {
 				return false
 			}
 
-			// There should be two builds
-			builds, err := client.WorkspaceBuilds(ctx, codersdk.WorkspaceBuildsRequest{
-				WorkspaceID: workspaces.Workspaces[0].ID,
-			})
-			if err != nil {
+			ws := workspaces.Workspaces[0]
+			t.Logf("checking build: %s | %s | %s", ws.ID, ws.LatestBuild.Transition, ws.LatestBuild.Job.Status)
+			// There should be only one build at present.
+			if ws.LatestBuild.Transition != codersdk.WorkspaceTransitionStart {
+				t.Errorf("expected build transition %s, got %s", codersdk.WorkspaceTransitionStart, ws.LatestBuild.Transition)
 				return false
 			}
-			for i, build := range builds {
-				t.Logf("checking build #%d: %s | %s", i, build.Transition, build.Job.Status)
-				// One of the builds should be for creating the workspace,
-				if build.Transition != codersdk.WorkspaceTransitionStart {
-					continue
-				}
 
-				// And it should be either failed (Echo returns an error when job is canceled), canceling, or canceled.
-				if build.Job.Status == codersdk.ProvisionerJobFailed ||
-					build.Job.Status == codersdk.ProvisionerJobCanceling ||
-					build.Job.Status == codersdk.ProvisionerJobCanceled {
-					return true
-				}
+			if ws.LatestBuild.Job.Status != codersdk.ProvisionerJobRunning {
+				return false
 			}
-			return false
-		}, testutil.WaitShort, testutil.IntervalFast)
-		cancelFunc()
+			jobCh <- ws.LatestBuild.Job
+			return true
+		}, testutil.IntervalSlow)
+
+		t.Log("canceling scaletest workspace creation")
+		runnerCancel()
 		<-done
+		t.Log("canceled scaletest workspace creation")
+		// Ensure we have a job to interrogate
+		runningJob := testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, jobCh)
+		require.NotZero(t, runningJob.ID)
+
+		// When we run the cleanup, it should be canceled
+		cleanupLogs := bytes.NewBuffer(nil)
+		// Reset ctx to avoid timeouts.
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		done = make(chan struct{})
+		go func() {
+			// This will return an error as the "delete" operation will never complete.
+			_ = runner.Cleanup(cleanupCtx, "1", cleanupLogs)
+			close(done)
+		}()
+
+		// Ensure the job has been marked as canceled
+		testutil.Eventually(cleanupCtx, t, func(ctx context.Context) bool {
+			pj, err := client.OrganizationProvisionerJob(ctx, runningJob.OrganizationID, runningJob.ID)
+			if !assert.NoError(t, err) {
+				return false
+			}
+
+			t.Logf("provisioner job id:%s status:%s", pj.ID, pj.Status)
+
+			if pj.Status != codersdk.ProvisionerJobFailed &&
+				pj.Status != codersdk.ProvisionerJobCanceling &&
+				pj.Status != codersdk.ProvisionerJobCanceled {
+				return false
+			}
+
+			return true
+		}, testutil.IntervalSlow)
+		cleanupCancel()
+		<-done
+		cleanupLogsStr := cleanupLogs.String()
+		require.Contains(t, cleanupLogsStr, "canceling workspace build")
 	})
 
 	t.Run("NoCleanup", func(t *testing.T) {
 		t.Parallel()
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
 
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
@@ -288,8 +340,16 @@ func Test_Runner(t *testing.T) {
 
 		authToken := uuid.NewString()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:         echo.ParseComplete,
-			ProvisionPlan: echo.PlanComplete,
+			Parse: echo.ParseComplete,
+			ProvisionPlan: []*proto.Response{
+				{
+					Type: &proto.Response_Plan{
+						Plan: &proto.PlanComplete{
+							Parameters: testParameters,
+						},
+					},
+				},
+			},
 			ProvisionApply: []*proto.Response{
 				{
 					Type: &proto.Response_Log{
@@ -327,8 +387,8 @@ func Test_Runner(t *testing.T) {
 		version = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		closer := goEventuallyStartFakeAgent(ctx, t, client, authToken)
-		t.Cleanup(closer)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		closeCh := goEventuallyStartFakeAgent(ctx, t, client, authToken)
 
 		const (
 			username = "scaletest-user"
@@ -344,11 +404,12 @@ func Test_Runner(t *testing.T) {
 			Workspace: workspacebuild.Config{
 				OrganizationID: user.OrganizationID,
 				Request: codersdk.CreateWorkspaceRequest{
-					TemplateID: template.ID,
+					TemplateID:          template.ID,
+					RichParameterValues: testParameterValues,
 				},
 			},
 			ReconnectingPTY: &reconnectingpty.Config{
-				Init: codersdk.WorkspaceAgentReconnectingPTYInit{
+				Init: workspacesdk.AgentReconnectingPTYInit{
 					Height:  24,
 					Width:   80,
 					Command: "echo hello",
@@ -367,6 +428,10 @@ func Test_Runner(t *testing.T) {
 		t.Log("Runner logs:\n\n" + logsStr)
 		require.NoError(t, err)
 
+		// Wait for the agent to start.
+		closer := <-closeCh
+		t.Cleanup(func() { _ = closer.Close() })
+
 		// Ensure a user and workspace were created.
 		users, err := client.Users(ctx, codersdk.UsersRequest{})
 		require.NoError(t, err)
@@ -374,6 +439,13 @@ func Test_Runner(t *testing.T) {
 		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 		require.NoError(t, err)
 		require.Len(t, workspaces.Workspaces, 1)
+
+		// Ensure the correct build parameters were used.
+		buildParams, err := client.WorkspaceBuildParameters(ctx, workspaces.Workspaces[0].LatestBuild.ID)
+		require.NoError(t, err)
+		require.Len(t, buildParams, 1)
+		require.Equal(t, testParameterValues[0].Name, buildParams[0].Name)
+		require.Equal(t, testParameterValues[0].Value, buildParams[0].Value)
 
 		// Look for strings in the logs.
 		require.Contains(t, logsStr, "Generating user password...")
@@ -387,7 +459,8 @@ func Test_Runner(t *testing.T) {
 		require.Contains(t, logsStr, "Opening reconnecting PTY connection to agent")
 		require.Contains(t, logsStr, "Opening connection to workspace agent")
 
-		err = runner.Cleanup(ctx, "1")
+		cleanupLogs := bytes.NewBuffer(nil)
+		err = runner.Cleanup(ctx, "1", cleanupLogs)
 		require.NoError(t, err)
 
 		// Ensure the user and workspace were not deleted.
@@ -402,9 +475,6 @@ func Test_Runner(t *testing.T) {
 	t.Run("FailedBuild", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
@@ -413,8 +483,16 @@ func Test_Runner(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:         echo.ParseComplete,
-			ProvisionPlan: echo.PlanComplete,
+			Parse: echo.ParseComplete,
+			ProvisionPlan: []*proto.Response{
+				{
+					Type: &proto.Response_Plan{
+						Plan: &proto.PlanComplete{
+							Parameters: testParameters,
+						},
+					},
+				},
+			},
 			ProvisionApply: []*proto.Response{
 				{
 					Type: &proto.Response_Apply{
@@ -438,10 +516,13 @@ func Test_Runner(t *testing.T) {
 			Workspace: workspacebuild.Config{
 				OrganizationID: user.OrganizationID,
 				Request: codersdk.CreateWorkspaceRequest{
-					TemplateID: template.ID,
+					TemplateID:          template.ID,
+					RichParameterValues: testParameterValues,
 				},
 			},
 		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		logs := bytes.NewBuffer(nil)
 		err := runner.Run(ctx, "1", logs)
@@ -456,7 +537,7 @@ func Test_Runner(t *testing.T) {
 // listing workspaces until we find it, then wait for the build to
 // finish, then start the agents. It is the caller's responsibility to
 // call the returned function to stop the agents.
-func goEventuallyStartFakeAgent(ctx context.Context, t *testing.T, client *codersdk.Client, agentToken string) func() {
+func goEventuallyStartFakeAgent(ctx context.Context, t *testing.T, client *codersdk.Client, agentToken string) chan io.Closer {
 	t.Helper()
 	ch := make(chan io.Closer, 1) // Don't block.
 	go func() {
@@ -474,25 +555,23 @@ func goEventuallyStartFakeAgent(ctx context.Context, t *testing.T, client *coder
 				break
 			}
 
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(testutil.IntervalMedium)
 		}
 
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(agentToken)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(agentToken))
 		agentCloser := agent.New(agent.Options{
 			Client: agentClient,
 			Logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).
 				Named("agent").Leveled(slog.LevelWarn),
 		})
-		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+		resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+		assert.GreaterOrEqual(t, len(resources), 1, "workspace %s has no resources", workspace.ID.String())
+		assert.NotEmpty(t, resources[0].Agents, "workspace %s has no agents", workspace.ID.String())
+		agentID := resources[0].Agents[0].ID
+		t.Logf("agent %s is running for workspace %s", agentID.String(), workspace.ID.String())
 		ch <- agentCloser
 	}()
-	closeFunc := func() {
-		if closer, ok := <-ch; ok {
-			_ = closer.Close()
-		}
-	}
-	return closeFunc
+	return ch
 }

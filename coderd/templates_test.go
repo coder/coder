@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"database/sql"
 	"net/http"
 	"sync/atomic"
 	"testing"
@@ -11,15 +12,21 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -34,8 +41,7 @@ func TestTemplate(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		_, err := client.Template(ctx, template.ID)
 		require.NoError(t, err)
@@ -47,24 +53,31 @@ func TestPostTemplateByOrganization(t *testing.T) {
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
-		owner := coderdtest.CreateFirstUser(t, client)
+		ownerClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
+		owner := coderdtest.CreateFirstUser(t, ownerClient)
+
+		// Use org scoped template admin
+		client, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgTemplateAdmin(owner.OrganizationID))
 		// By default, everyone in the org can read the template.
-		user, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		user, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 		auditor.ResetLogs()
 
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 
-		expected := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+		expected := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.ActivityBumpMillis = ptr.Ref((3 * time.Hour).Milliseconds())
+		})
+		assert.Equal(t, (3 * time.Hour).Milliseconds(), expected.ActivityBumpMillis)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		got, err := user.Template(ctx, expected.ID)
 		require.NoError(t, err)
 
 		assert.Equal(t, expected.Name, got.Name)
 		assert.Equal(t, expected.Description, got.Description)
+		assert.Equal(t, expected.ActivityBumpMillis, got.ActivityBumpMillis)
+		assert.Equal(t, expected.UseClassicParameterFlow, false) // Current default is false
 
 		require.Len(t, auditor.AuditLogs(), 3)
 		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[0].Action)
@@ -74,15 +87,16 @@ func TestPostTemplateByOrganization(t *testing.T) {
 
 	t.Run("AlreadyExists", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		ownerClient := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, ownerClient)
+		client, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgTemplateAdmin(owner.OrganizationID))
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 
-		_, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, err := client.CreateTemplate(ctx, owner.OrganizationID, codersdk.CreateTemplateRequest{
 			Name:      template.Name,
 			VersionID: version.ID,
 		})
@@ -91,15 +105,30 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
 	})
 
+	t.Run("ReservedName", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		_, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
+			Name:      "new",
+			VersionID: version.ID,
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+	})
+
 	t.Run("DefaultTTLTooLow", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
+		ctx := testutil.Context(t, testutil.WaitLong)
 		_, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
 			Name:             "testing",
 			VersionID:        version.ID,
@@ -117,9 +146,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
+		ctx := testutil.Context(t, testutil.WaitLong)
 		got, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
 			Name:             "testing",
 			VersionID:        version.ID,
@@ -136,15 +163,13 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		owner := coderdtest.CreateFirstUser(t, client)
 		user, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
-
 		expected := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID, func(request *codersdk.CreateTemplateRequest) {
 			request.DisableEveryoneGroupAccess = true
 		})
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
+		ctx := testutil.Context(t, testutil.WaitLong)
 		_, err := user.Template(ctx, expected.ID)
+
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
@@ -154,9 +179,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
+		ctx := testutil.Context(t, testutil.WaitLong)
 		_, err := client.CreateTemplate(ctx, uuid.New(), codersdk.CreateTemplateRequest{
 			Name:      "test",
 			VersionID: uuid.New(),
@@ -165,7 +188,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
-		require.Contains(t, err.Error(), "Try logging in using 'coder login <url>'.")
+		require.Contains(t, err.Error(), "Try logging in using 'coder login'.")
 	})
 
 	t.Run("AllowUserScheduling", func(t *testing.T) {
@@ -234,8 +257,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		_, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
 			Name:      "test",
@@ -266,7 +288,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 							AllowUserAutostart:            options.UserAutostartEnabled,
 							AllowUserAutostop:             options.UserAutostopEnabled,
 							DefaultTTL:                    int64(options.DefaultTTL),
-							MaxTTL:                        int64(options.MaxTTL),
+							ActivityBump:                  int64(options.ActivityBump),
 							AutostopRequirementDaysOfWeek: int16(options.AutostopRequirement.DaysOfWeek),
 							AutostopRequirementWeeks:      options.AutostopRequirement.Weeks,
 							FailureTTL:                    int64(options.FailureTTL),
@@ -316,7 +338,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 							AllowUserAutostart:            options.UserAutostartEnabled,
 							AllowUserAutostop:             options.UserAutostopEnabled,
 							DefaultTTL:                    int64(options.DefaultTTL),
-							MaxTTL:                        int64(options.MaxTTL),
+							ActivityBump:                  int64(options.ActivityBump),
 							AutostopRequirementDaysOfWeek: int16(options.AutostopRequirement.DaysOfWeek),
 							AutostopRequirementWeeks:      options.AutostopRequirement.Weeks,
 							FailureTTL:                    int64(options.FailureTTL),
@@ -382,6 +404,288 @@ func TestPostTemplateByOrganization(t *testing.T) {
 			require.EqualValues(t, 1, got.AutostopRequirement.Weeks)
 		})
 	})
+
+	t.Run("MaxPortShareLevel", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("OK", func(t *testing.T) {
+			client := coderdtest.New(t, nil)
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			got, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
+				Name:      "testing",
+				VersionID: version.ID,
+			})
+			require.NoError(t, err)
+			require.Equal(t, codersdk.WorkspaceAgentPortShareLevelPublic, got.MaxPortShareLevel)
+		})
+
+		t.Run("EnterpriseLevelError", func(t *testing.T) {
+			client := coderdtest.New(t, nil)
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			_, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
+				Name:              "testing",
+				VersionID:         version.ID,
+				MaxPortShareLevel: ptr.Ref(codersdk.WorkspaceAgentPortShareLevelPublic),
+			})
+			var apiErr *codersdk.Error
+			require.ErrorAs(t, err, &apiErr)
+			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		})
+	})
+}
+
+func TestTemplates(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ListEmpty", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		templates, err := client.Templates(ctx, codersdk.TemplateFilter{})
+		require.NoError(t, err)
+		require.NotNil(t, templates)
+		require.Len(t, templates, 0)
+	})
+
+	// Should return only non-deprecated templates by default
+	t.Run("ListMultiple non-deprecated", func(t *testing.T) {
+		t.Parallel()
+
+		owner, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: false})
+		user := coderdtest.CreateFirstUser(t, owner)
+		client, tplAdmin := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		version2 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		foo := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(request *codersdk.CreateTemplateRequest) {
+			request.Name = "foo"
+		})
+		bar := coderdtest.CreateTemplate(t, client, user.OrganizationID, version2.ID, func(request *codersdk.CreateTemplateRequest) {
+			request.Name = "bar"
+		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Deprecate bar template
+		deprecationMessage := "Some deprecated message"
+		err := db.UpdateTemplateAccessControlByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(tplAdmin, user.OrganizationID)), database.UpdateTemplateAccessControlByIDParams{
+			ID:                   bar.ID,
+			RequireActiveVersion: false,
+			Deprecated:           deprecationMessage,
+		})
+		require.NoError(t, err)
+
+		updatedBar, err := client.Template(ctx, bar.ID)
+		require.NoError(t, err)
+		require.True(t, updatedBar.Deprecated)
+		require.Equal(t, deprecationMessage, updatedBar.DeprecationMessage)
+
+		// Should return only the non-deprecated template (foo)
+		templates, err := client.Templates(ctx, codersdk.TemplateFilter{})
+		require.NoError(t, err)
+		require.Len(t, templates, 1)
+
+		require.Equal(t, foo.ID, templates[0].ID)
+		require.False(t, templates[0].Deprecated)
+		require.Empty(t, templates[0].DeprecationMessage)
+	})
+
+	// Should return only deprecated templates when filtering by deprecated:true
+	t.Run("ListMultiple deprecated:true", func(t *testing.T) {
+		t.Parallel()
+
+		owner, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: false})
+		user := coderdtest.CreateFirstUser(t, owner)
+		client, tplAdmin := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		version2 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		foo := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(request *codersdk.CreateTemplateRequest) {
+			request.Name = "foo"
+		})
+		bar := coderdtest.CreateTemplate(t, client, user.OrganizationID, version2.ID, func(request *codersdk.CreateTemplateRequest) {
+			request.Name = "bar"
+		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Deprecate foo and bar templates
+		deprecationMessage := "Some deprecated message"
+		err := db.UpdateTemplateAccessControlByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(tplAdmin, user.OrganizationID)), database.UpdateTemplateAccessControlByIDParams{
+			ID:                   foo.ID,
+			RequireActiveVersion: false,
+			Deprecated:           deprecationMessage,
+		})
+		require.NoError(t, err)
+		err = db.UpdateTemplateAccessControlByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(tplAdmin, user.OrganizationID)), database.UpdateTemplateAccessControlByIDParams{
+			ID:                   bar.ID,
+			RequireActiveVersion: false,
+			Deprecated:           deprecationMessage,
+		})
+		require.NoError(t, err)
+
+		// Should have deprecation message set
+		updatedFoo, err := client.Template(ctx, foo.ID)
+		require.NoError(t, err)
+		require.True(t, updatedFoo.Deprecated)
+		require.Equal(t, deprecationMessage, updatedFoo.DeprecationMessage)
+
+		updatedBar, err := client.Template(ctx, bar.ID)
+		require.NoError(t, err)
+		require.True(t, updatedBar.Deprecated)
+		require.Equal(t, deprecationMessage, updatedBar.DeprecationMessage)
+
+		// Should return only the deprecated templates (foo and bar)
+		templates, err := client.Templates(ctx, codersdk.TemplateFilter{
+			SearchQuery: "deprecated:true",
+		})
+		require.NoError(t, err)
+		require.Len(t, templates, 2)
+
+		// Make sure all the deprecated templates are returned
+		expectedTemplates := map[uuid.UUID]codersdk.Template{
+			updatedFoo.ID: updatedFoo,
+			updatedBar.ID: updatedBar,
+		}
+		actualTemplates := map[uuid.UUID]codersdk.Template{}
+		for _, template := range templates {
+			actualTemplates[template.ID] = template
+		}
+
+		require.Equal(t, len(expectedTemplates), len(actualTemplates))
+		for id, expectedTemplate := range expectedTemplates {
+			actualTemplate, ok := actualTemplates[id]
+			require.True(t, ok)
+			require.Equal(t, expectedTemplate.ID, actualTemplate.ID)
+			require.Equal(t, true, actualTemplate.Deprecated)
+			require.Equal(t, expectedTemplate.DeprecationMessage, actualTemplate.DeprecationMessage)
+		}
+	})
+
+	// Should return only non-deprecated templates when filtering by deprecated:false
+	t.Run("ListMultiple deprecated:false", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		version2 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		foo := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(request *codersdk.CreateTemplateRequest) {
+			request.Name = "foo"
+		})
+		bar := coderdtest.CreateTemplate(t, client, user.OrganizationID, version2.ID, func(request *codersdk.CreateTemplateRequest) {
+			request.Name = "bar"
+		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Should return only the non-deprecated templates
+		templates, err := client.Templates(ctx, codersdk.TemplateFilter{
+			SearchQuery: "deprecated:false",
+		})
+		require.NoError(t, err)
+		require.Len(t, templates, 2)
+
+		// Make sure all the non-deprecated templates are returned
+		expectedTemplates := map[uuid.UUID]codersdk.Template{
+			foo.ID: foo,
+			bar.ID: bar,
+		}
+		actualTemplates := map[uuid.UUID]codersdk.Template{}
+		for _, template := range templates {
+			actualTemplates[template.ID] = template
+		}
+
+		require.Equal(t, len(expectedTemplates), len(actualTemplates))
+		for id, expectedTemplate := range expectedTemplates {
+			actualTemplate, ok := actualTemplates[id]
+			require.True(t, ok)
+			require.Equal(t, expectedTemplate.ID, actualTemplate.ID)
+			require.Equal(t, false, actualTemplate.Deprecated)
+			require.Equal(t, expectedTemplate.DeprecationMessage, actualTemplate.DeprecationMessage)
+		}
+	})
+
+	// Should return a re-enabled template in the default (non-deprecated) list
+	t.Run("ListMultiple re-enabled template", func(t *testing.T) {
+		t.Parallel()
+
+		owner, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: false})
+		user := coderdtest.CreateFirstUser(t, owner)
+		client, tplAdmin := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		version2 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		foo := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(request *codersdk.CreateTemplateRequest) {
+			request.Name = "foo"
+		})
+		bar := coderdtest.CreateTemplate(t, client, user.OrganizationID, version2.ID, func(request *codersdk.CreateTemplateRequest) {
+			request.Name = "bar"
+		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Deprecate bar template
+		deprecationMessage := "Some deprecated message"
+		err := db.UpdateTemplateAccessControlByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(tplAdmin, user.OrganizationID)), database.UpdateTemplateAccessControlByIDParams{
+			ID:                   bar.ID,
+			RequireActiveVersion: false,
+			Deprecated:           deprecationMessage,
+		})
+		require.NoError(t, err)
+
+		updatedBar, err := client.Template(ctx, bar.ID)
+		require.NoError(t, err)
+		require.True(t, updatedBar.Deprecated)
+		require.Equal(t, deprecationMessage, updatedBar.DeprecationMessage)
+
+		// Re-enable bar template
+		err = db.UpdateTemplateAccessControlByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(tplAdmin, user.OrganizationID)), database.UpdateTemplateAccessControlByIDParams{
+			ID:                   bar.ID,
+			RequireActiveVersion: false,
+			Deprecated:           "",
+		})
+		require.NoError(t, err)
+
+		reEnabledBar, err := client.Template(ctx, bar.ID)
+		require.NoError(t, err)
+		require.False(t, reEnabledBar.Deprecated)
+		require.Empty(t, reEnabledBar.DeprecationMessage)
+
+		// Should return only the non-deprecated templates (foo and bar)
+		templates, err := client.Templates(ctx, codersdk.TemplateFilter{})
+		require.NoError(t, err)
+		require.Len(t, templates, 2)
+
+		// Make sure all the non-deprecated templates are returned
+		expectedTemplates := map[uuid.UUID]codersdk.Template{
+			foo.ID: foo,
+			bar.ID: bar,
+		}
+		actualTemplates := map[uuid.UUID]codersdk.Template{}
+		for _, template := range templates {
+			actualTemplates[template.ID] = template
+		}
+
+		require.Equal(t, len(expectedTemplates), len(actualTemplates))
+		for id, expectedTemplate := range expectedTemplates {
+			actualTemplate, ok := actualTemplates[id]
+			require.True(t, ok)
+			require.Equal(t, expectedTemplate.ID, actualTemplate.ID)
+			require.Equal(t, false, actualTemplate.Deprecated)
+			require.Equal(t, expectedTemplate.DeprecationMessage, actualTemplate.DeprecationMessage)
+		}
+	})
 }
 
 func TestTemplatesByOrganization(t *testing.T) {
@@ -391,8 +695,7 @@ func TestTemplatesByOrganization(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		templates, err := client.TemplatesByOrganization(ctx, user.OrganizationID)
 		require.NoError(t, err)
@@ -407,10 +710,11 @@ func TestTemplatesByOrganization(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
-		templates, err := client.TemplatesByOrganization(ctx, user.OrganizationID)
+		templates, err := client.Templates(ctx, codersdk.TemplateFilter{
+			OrganizationID: user.OrganizationID,
+		})
 		require.NoError(t, err)
 		require.Len(t, templates, 1)
 	})
@@ -420,15 +724,135 @@ func TestTemplatesByOrganization(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		version2 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.CreateTemplate(t, client, user.OrganizationID, version2.ID)
+		foo := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(request *codersdk.CreateTemplateRequest) {
+			request.Name = "foobar"
+		})
+		bar := coderdtest.CreateTemplate(t, client, user.OrganizationID, version2.ID, func(request *codersdk.CreateTemplateRequest) {
+			request.Name = "barbaz"
+		})
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		templates, err := client.TemplatesByOrganization(ctx, user.OrganizationID)
 		require.NoError(t, err)
 		require.Len(t, templates, 2)
+
+		// Listing all should match
+		templates, err = client.Templates(ctx, codersdk.TemplateFilter{})
+		require.NoError(t, err)
+		require.Len(t, templates, 2)
+
+		org, err := client.Organization(ctx, user.OrganizationID)
+		require.NoError(t, err)
+		for _, tmpl := range templates {
+			require.Equal(t, tmpl.OrganizationID, user.OrganizationID, "organization ID")
+			require.Equal(t, tmpl.OrganizationName, org.Name, "organization name")
+			require.Equal(t, tmpl.OrganizationDisplayName, org.DisplayName, "organization display name")
+			require.Equal(t, tmpl.OrganizationIcon, org.Icon, "organization display name")
+		}
+
+		// Check fuzzy name matching
+		templates, err = client.Templates(ctx, codersdk.TemplateFilter{
+			FuzzyName: "bar",
+		})
+		require.NoError(t, err)
+		require.Len(t, templates, 2)
+
+		templates, err = client.Templates(ctx, codersdk.TemplateFilter{
+			FuzzyName: "foo",
+		})
+		require.NoError(t, err)
+		require.Len(t, templates, 1)
+		require.Equal(t, foo.ID, templates[0].ID)
+
+		templates, err = client.Templates(ctx, codersdk.TemplateFilter{
+			FuzzyName: "baz",
+		})
+		require.NoError(t, err)
+		require.Len(t, templates, 1)
+		require.Equal(t, bar.ID, templates[0].ID)
+	})
+
+	// Should return only non-deprecated templates by default
+	t.Run("ListMultiple non-deprecated", func(t *testing.T) {
+		t.Parallel()
+
+		owner, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: false})
+		user := coderdtest.CreateFirstUser(t, owner)
+		client, tplAdmin := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		version2 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		foo := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(request *codersdk.CreateTemplateRequest) {
+			request.Name = "foo"
+		})
+		bar := coderdtest.CreateTemplate(t, client, user.OrganizationID, version2.ID, func(request *codersdk.CreateTemplateRequest) {
+			request.Name = "bar"
+		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Deprecate bar template
+		deprecationMessage := "Some deprecated message"
+		err := db.UpdateTemplateAccessControlByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(tplAdmin, user.OrganizationID)), database.UpdateTemplateAccessControlByIDParams{
+			ID:                   bar.ID,
+			RequireActiveVersion: false,
+			Deprecated:           deprecationMessage,
+		})
+		require.NoError(t, err)
+
+		updatedBar, err := client.Template(ctx, bar.ID)
+		require.NoError(t, err)
+		require.True(t, updatedBar.Deprecated)
+		require.Equal(t, deprecationMessage, updatedBar.DeprecationMessage)
+
+		// Should return only the non-deprecated template (foo)
+		templates, err := client.TemplatesByOrganization(ctx, user.OrganizationID)
+		require.NoError(t, err)
+		require.Len(t, templates, 1)
+
+		require.Equal(t, foo.ID, templates[0].ID)
+		require.False(t, templates[0].Deprecated)
+		require.Empty(t, templates[0].DeprecationMessage)
+	})
+
+	t.Run("ListByAuthor", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		adminAlpha, adminAlphaData := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		adminBravo, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		adminCharlie, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+		versionA := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		versionB := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		versionC := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		foo := coderdtest.CreateTemplate(t, adminAlpha, owner.OrganizationID, versionA.ID, func(request *codersdk.CreateTemplateRequest) {
+			request.Name = "foo"
+		})
+		bar := coderdtest.CreateTemplate(t, adminBravo, owner.OrganizationID, versionB.ID, func(request *codersdk.CreateTemplateRequest) {
+			request.Name = "bar"
+		})
+		_ = coderdtest.CreateTemplate(t, adminCharlie, owner.OrganizationID, versionC.ID, func(request *codersdk.CreateTemplateRequest) {
+			request.Name = "baz"
+		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// List alpha
+		alpha, err := client.Templates(ctx, codersdk.TemplateFilter{
+			AuthorUsername: adminAlphaData.Username,
+		})
+		require.NoError(t, err)
+		require.Len(t, alpha, 1)
+		require.Equal(t, foo.ID, alpha[0].ID)
+
+		// List bravo
+		bravo, err := adminBravo.Templates(ctx, codersdk.TemplateFilter{
+			AuthorUsername: codersdk.Me,
+		})
+		require.NoError(t, err)
+		require.Len(t, bravo, 1)
+		require.Equal(t, bar.ID, bravo[0].ID)
 	})
 }
 
@@ -439,8 +863,7 @@ func TestTemplateByOrganizationAndName(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		_, err := client.TemplateByName(ctx, user.OrganizationID, "something")
 		var apiErr *codersdk.Error
@@ -455,8 +878,7 @@ func TestTemplateByOrganizationAndName(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		_, err := client.TemplateByName(ctx, user.OrganizationID, template.Name)
 		require.NoError(t, err)
@@ -475,30 +897,32 @@ func TestPatchTemplateMeta(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		assert.Equal(t, (1 * time.Hour).Milliseconds(), template.ActivityBumpMillis)
 
 		req := codersdk.UpdateTemplateMeta{
 			Name:                         "new-template-name",
-			DisplayName:                  "Displayed Name 456",
-			Description:                  "lorem ipsum dolor sit amet et cetera",
-			Icon:                         "/icon/new-icon.png",
+			DisplayName:                  ptr.Ref("Displayed Name 456"),
+			Description:                  ptr.Ref("lorem ipsum dolor sit amet et cetera"),
+			Icon:                         ptr.Ref("/icon/new-icon.png"),
 			DefaultTTLMillis:             12 * time.Hour.Milliseconds(),
+			ActivityBumpMillis:           3 * time.Hour.Milliseconds(),
 			AllowUserCancelWorkspaceJobs: false,
 		}
 		// It is unfortunate we need to sleep, but the test can fail if the
 		// updatedAt is too close together.
 		time.Sleep(time.Millisecond * 5)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		updated, err := client.UpdateTemplateMeta(ctx, template.ID, req)
 		require.NoError(t, err)
 		assert.Greater(t, updated.UpdatedAt, template.UpdatedAt)
 		assert.Equal(t, req.Name, updated.Name)
-		assert.Equal(t, req.DisplayName, updated.DisplayName)
-		assert.Equal(t, req.Description, updated.Description)
-		assert.Equal(t, req.Icon, updated.Icon)
+		assert.Equal(t, *req.DisplayName, updated.DisplayName)
+		assert.Equal(t, *req.Description, updated.Description)
+		assert.Equal(t, *req.Icon, updated.Icon)
 		assert.Equal(t, req.DefaultTTLMillis, updated.DefaultTTLMillis)
+		assert.Equal(t, req.ActivityBumpMillis, updated.ActivityBumpMillis)
 		assert.False(t, req.AllowUserCancelWorkspaceJobs)
 
 		// Extra paranoid: did it _really_ happen?
@@ -506,14 +930,135 @@ func TestPatchTemplateMeta(t *testing.T) {
 		require.NoError(t, err)
 		assert.Greater(t, updated.UpdatedAt, template.UpdatedAt)
 		assert.Equal(t, req.Name, updated.Name)
-		assert.Equal(t, req.DisplayName, updated.DisplayName)
-		assert.Equal(t, req.Description, updated.Description)
-		assert.Equal(t, req.Icon, updated.Icon)
+		assert.Equal(t, *req.DisplayName, updated.DisplayName)
+		assert.Equal(t, *req.Description, updated.Description)
+		assert.Equal(t, *req.Icon, updated.Icon)
 		assert.Equal(t, req.DefaultTTLMillis, updated.DefaultTTLMillis)
+		assert.Equal(t, req.ActivityBumpMillis, updated.ActivityBumpMillis)
 		assert.False(t, req.AllowUserCancelWorkspaceJobs)
 
 		require.Len(t, auditor.AuditLogs(), 5)
 		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[4].Action)
+	})
+
+	t.Run("AlreadyExists", func(t *testing.T) {
+		t.Parallel()
+
+		if !dbtestutil.WillUsePostgres() {
+			t.Skip("This test requires Postgres constraints")
+		}
+
+		ownerClient := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, ownerClient)
+		client, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgTemplateAdmin(owner.OrganizationID))
+
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		version2 := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+		template2 := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version2.ID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			Name: template2.Name,
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
+	})
+
+	t.Run("AGPL_Deprecated", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: false})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		// It is unfortunate we need to sleep, but the test can fail if the
+		// updatedAt is too close together.
+		time.Sleep(time.Millisecond * 5)
+
+		req := codersdk.UpdateTemplateMeta{
+			DeprecationMessage: ptr.Ref("APGL cannot deprecate"),
+		}
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		updated, err := client.UpdateTemplateMeta(ctx, template.ID, req)
+		require.NoError(t, err)
+		assert.Greater(t, updated.UpdatedAt, template.UpdatedAt)
+		// AGPL cannot deprecate, expect no change
+		assert.False(t, updated.Deprecated)
+		assert.Empty(t, updated.DeprecationMessage)
+	})
+
+	// AGPL cannot deprecate, but it can be unset
+	t.Run("AGPL_Unset_Deprecated", func(t *testing.T) {
+		t.Parallel()
+
+		owner, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: false})
+		user := coderdtest.CreateFirstUser(t, owner)
+		client, tplAdmin := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		// It is unfortunate we need to sleep, but the test can fail if the
+		// updatedAt is too close together.
+		time.Sleep(time.Millisecond * 5)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// nolint:gocritic // Setting up unit test data
+		err := db.UpdateTemplateAccessControlByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(tplAdmin, user.OrganizationID)), database.UpdateTemplateAccessControlByIDParams{
+			ID:                   template.ID,
+			RequireActiveVersion: false,
+			Deprecated:           "Some deprecated message",
+		})
+		require.NoError(t, err)
+
+		// Check that it is deprecated
+		got, err := client.Template(ctx, template.ID)
+		require.NoError(t, err)
+		require.NotEmpty(t, got.DeprecationMessage, "template is deprecated to start")
+		require.True(t, got.Deprecated, "template is deprecated to start")
+
+		req := codersdk.UpdateTemplateMeta{
+			DeprecationMessage: ptr.Ref(""),
+		}
+
+		updated, err := client.UpdateTemplateMeta(ctx, template.ID, req)
+		require.NoError(t, err)
+		assert.Greater(t, updated.UpdatedAt, template.UpdatedAt)
+		assert.False(t, updated.Deprecated)
+		assert.Empty(t, updated.DeprecationMessage)
+	})
+
+	t.Run("AGPL_MaxPortShareLevel", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: false})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		require.Equal(t, codersdk.WorkspaceAgentPortShareLevelPublic, template.MaxPortShareLevel)
+
+		var level codersdk.WorkspaceAgentPortShareLevel = codersdk.WorkspaceAgentPortShareLevelAuthenticated
+		req := codersdk.UpdateTemplateMeta{
+			MaxPortShareLevel: &level,
+		}
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, err := client.UpdateTemplateMeta(ctx, template.ID, req)
+		// AGPL cannot change max port sharing level
+		require.ErrorContains(t, err, "port sharing level is an enterprise feature")
+
+		// Ensure the same value port share level is a no-op
+		level = codersdk.WorkspaceAgentPortShareLevelPublic
+		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			Name:              coderdtest.RandomUsername(t),
+			MaxPortShareLevel: &level,
+		})
+		require.NoError(t, err)
 	})
 
 	t.Run("NoDefaultTTL", func(t *testing.T) {
@@ -525,6 +1070,10 @@ func TestPatchTemplateMeta(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.DefaultTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
 		})
+		// It is unfortunate we need to sleep, but the test can fail if the
+		// updatedAt is too close together.
+		time.Sleep(time.Millisecond * 5)
+
 		req := codersdk.UpdateTemplateMeta{
 			DefaultTTLMillis: 0,
 		}
@@ -532,8 +1081,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		// We're too fast! Sleep so we can be sure that updatedAt is greater
 		time.Sleep(time.Millisecond * 5)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		_, err := client.UpdateTemplateMeta(ctx, template.ID, req)
 		require.NoError(t, err)
@@ -543,6 +1091,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 		require.NoError(t, err)
 		assert.Greater(t, updated.UpdatedAt, template.UpdatedAt)
 		assert.Equal(t, req.DefaultTTLMillis, updated.DefaultTTLMillis)
+		assert.Empty(t, updated.DeprecationMessage)
+		assert.False(t, updated.Deprecated)
 	})
 
 	t.Run("DefaultTTLTooLow", func(t *testing.T) {
@@ -554,12 +1104,15 @@ func TestPatchTemplateMeta(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.DefaultTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
 		})
+		// It is unfortunate we need to sleep, but the test can fail if the
+		// updatedAt is too close together.
+		time.Sleep(time.Millisecond * 5)
+
 		req := codersdk.UpdateTemplateMeta{
 			DefaultTTLMillis: -1,
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		_, err := client.UpdateTemplateMeta(ctx, template.ID, req)
 		require.ErrorContains(t, err, "default_ttl_ms: Must be a positive integer")
@@ -569,130 +1122,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, updated.UpdatedAt, template.UpdatedAt)
 		assert.Equal(t, updated.DefaultTTLMillis, template.DefaultTTLMillis)
-	})
-
-	t.Run("MaxTTL", func(t *testing.T) {
-		t.Parallel()
-
-		const (
-			defaultTTL = 1 * time.Hour
-			maxTTL     = 24 * time.Hour
-		)
-
-		t.Run("OK", func(t *testing.T) {
-			t.Parallel()
-
-			var setCalled int64
-			client := coderdtest.New(t, &coderdtest.Options{
-				TemplateScheduleStore: schedule.MockTemplateScheduleStore{
-					SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
-						if atomic.AddInt64(&setCalled, 1) == 2 {
-							require.Equal(t, maxTTL, options.MaxTTL)
-						}
-
-						err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
-							ID:                            template.ID,
-							UpdatedAt:                     dbtime.Now(),
-							AllowUserAutostart:            options.UserAutostartEnabled,
-							AllowUserAutostop:             options.UserAutostopEnabled,
-							DefaultTTL:                    int64(options.DefaultTTL),
-							MaxTTL:                        int64(options.MaxTTL),
-							AutostopRequirementDaysOfWeek: int16(options.AutostopRequirement.DaysOfWeek),
-							AutostopRequirementWeeks:      options.AutostopRequirement.Weeks,
-							FailureTTL:                    int64(options.FailureTTL),
-							TimeTilDormant:                int64(options.TimeTilDormant),
-							TimeTilDormantAutoDelete:      int64(options.TimeTilDormantAutoDelete),
-						})
-						if !assert.NoError(t, err) {
-							return database.Template{}, err
-						}
-
-						return db.GetTemplateByID(ctx, template.ID)
-					},
-				},
-			})
-			user := coderdtest.CreateFirstUser(t, client)
-			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-				ctr.DefaultTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
-			})
-
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			defer cancel()
-
-			got, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-				Name:                         template.Name,
-				DisplayName:                  template.DisplayName,
-				Description:                  template.Description,
-				Icon:                         template.Icon,
-				DefaultTTLMillis:             0,
-				MaxTTLMillis:                 maxTTL.Milliseconds(),
-				AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
-			})
-			require.NoError(t, err)
-
-			require.EqualValues(t, 2, atomic.LoadInt64(&setCalled))
-			require.EqualValues(t, 0, got.DefaultTTLMillis)
-			require.Equal(t, maxTTL.Milliseconds(), got.MaxTTLMillis)
-		})
-
-		t.Run("DefaultTTLBigger", func(t *testing.T) {
-			t.Parallel()
-
-			client := coderdtest.New(t, nil)
-			user := coderdtest.CreateFirstUser(t, client)
-			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-				ctr.DefaultTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
-			})
-
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			defer cancel()
-
-			_, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-				Name:                         template.Name,
-				DisplayName:                  template.DisplayName,
-				Description:                  template.Description,
-				Icon:                         template.Icon,
-				DefaultTTLMillis:             (maxTTL * 2).Milliseconds(),
-				MaxTTLMillis:                 maxTTL.Milliseconds(),
-				AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
-			})
-			require.Error(t, err)
-			var sdkErr *codersdk.Error
-			require.ErrorAs(t, err, &sdkErr)
-			require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-			require.Len(t, sdkErr.Validations, 1)
-			require.Equal(t, "default_ttl_ms", sdkErr.Validations[0].Field)
-			require.Contains(t, sdkErr.Validations[0].Detail, "Must be less than or equal to max_ttl_ms")
-		})
-
-		t.Run("IgnoredUnlicensed", func(t *testing.T) {
-			t.Parallel()
-
-			client := coderdtest.New(t, nil)
-			user := coderdtest.CreateFirstUser(t, client)
-			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-				ctr.DefaultTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
-			})
-
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-			defer cancel()
-
-			got, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-				Name:                         template.Name,
-				DisplayName:                  template.DisplayName,
-				Description:                  template.Description,
-				Icon:                         template.Icon,
-				DefaultTTLMillis:             defaultTTL.Milliseconds(),
-				MaxTTLMillis:                 maxTTL.Milliseconds(),
-				AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
-			})
-			require.NoError(t, err)
-			require.Equal(t, defaultTTL.Milliseconds(), got.DefaultTTLMillis)
-			require.Zero(t, got.MaxTTLMillis)
-		})
+		assert.Empty(t, updated.DeprecationMessage)
+		assert.False(t, updated.Deprecated)
 	})
 
 	t.Run("CleanupTTLs", func(t *testing.T) {
@@ -736,9 +1167,9 @@ func TestPatchTemplateMeta(t *testing.T) {
 
 			got, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 				Name:                           template.Name,
-				DisplayName:                    template.DisplayName,
-				Description:                    template.Description,
-				Icon:                           template.Icon,
+				DisplayName:                    &template.DisplayName,
+				Description:                    &template.Description,
+				Icon:                           &template.Icon,
 				DefaultTTLMillis:               0,
 				AutostopRequirement:            &template.AutostopRequirement,
 				AllowUserCancelWorkspaceJobs:   template.AllowUserCancelWorkspaceJobs,
@@ -771,9 +1202,9 @@ func TestPatchTemplateMeta(t *testing.T) {
 
 			got, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 				Name:                           template.Name,
-				DisplayName:                    template.DisplayName,
-				Description:                    template.Description,
-				Icon:                           template.Icon,
+				DisplayName:                    &template.DisplayName,
+				Description:                    &template.Description,
+				Icon:                           &template.Icon,
 				DefaultTTLMillis:               template.DefaultTTLMillis,
 				AutostopRequirement:            &template.AutostopRequirement,
 				AllowUserCancelWorkspaceJobs:   template.AllowUserCancelWorkspaceJobs,
@@ -785,6 +1216,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 			require.Zero(t, got.FailureTTLMillis)
 			require.Zero(t, got.TimeTilDormantMillis)
 			require.Zero(t, got.TimeTilDormantAutoDeleteMillis)
+			require.Empty(t, got.DeprecationMessage)
+			require.False(t, got.Deprecated)
 		})
 	})
 
@@ -830,9 +1263,9 @@ func TestPatchTemplateMeta(t *testing.T) {
 			allowAutostop.Store(false)
 			got, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 				Name:                         template.Name,
-				DisplayName:                  template.DisplayName,
-				Description:                  template.Description,
-				Icon:                         template.Icon,
+				DisplayName:                  &template.DisplayName,
+				Description:                  &template.Description,
+				Icon:                         &template.Icon,
 				DefaultTTLMillis:             template.DefaultTTLMillis,
 				AutostopRequirement:          &template.AutostopRequirement,
 				AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
@@ -861,9 +1294,9 @@ func TestPatchTemplateMeta(t *testing.T) {
 
 			got, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 				Name:        template.Name,
-				DisplayName: template.DisplayName,
-				Description: template.Description,
-				Icon:        template.Icon,
+				DisplayName: &template.DisplayName,
+				Description: &template.Description,
+				Icon:        &template.Icon,
 				// Increase the default TTL to avoid error "not modified".
 				DefaultTTLMillis:             template.DefaultTTLMillis + 1,
 				AutostopRequirement:          &template.AutostopRequirement,
@@ -889,14 +1322,14 @@ func TestPatchTemplateMeta(t *testing.T) {
 			ctr.DefaultTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
 		})
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		req := codersdk.UpdateTemplateMeta{
 			Name:                template.Name,
-			Description:         template.Description,
-			Icon:                template.Icon,
+			Description:         &template.Description,
+			Icon:                &template.Icon,
 			DefaultTTLMillis:    template.DefaultTTLMillis,
+			ActivityBumpMillis:  template.ActivityBumpMillis,
 			AutostopRequirement: nil,
 			AllowUserAutostart:  template.AllowUserAutostart,
 			AllowUserAutostop:   template.AllowUserAutostop,
@@ -923,8 +1356,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 			ctr.DefaultTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
 		})
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		req := codersdk.UpdateTemplateMeta{
 			DefaultTTLMillis: -int64(time.Hour),
@@ -955,11 +1387,10 @@ func TestPatchTemplateMeta(t *testing.T) {
 			ctr.Icon = "/icon/code.png"
 		})
 		req := codersdk.UpdateTemplateMeta{
-			Icon: "",
+			Icon: ptr.Ref(""),
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		updated, err := client.UpdateTemplateMeta(ctx, template.ID, req)
 		require.NoError(t, err)
@@ -987,7 +1418,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 							AllowUserAutostart:            options.UserAutostartEnabled,
 							AllowUserAutostop:             options.UserAutostopEnabled,
 							DefaultTTL:                    int64(options.DefaultTTL),
-							MaxTTL:                        int64(options.MaxTTL),
+							ActivityBump:                  int64(options.ActivityBump),
 							AutostopRequirementDaysOfWeek: int16(options.AutostopRequirement.DaysOfWeek),
 							AutostopRequirementWeeks:      options.AutostopRequirement.Weeks,
 							FailureTTL:                    int64(options.FailureTTL),
@@ -1011,9 +1442,9 @@ func TestPatchTemplateMeta(t *testing.T) {
 			require.EqualValues(t, 1, template.AutostopRequirement.Weeks)
 			req := codersdk.UpdateTemplateMeta{
 				Name:                         template.Name,
-				DisplayName:                  template.DisplayName,
-				Description:                  template.Description,
-				Icon:                         template.Icon,
+				DisplayName:                  &template.DisplayName,
+				Description:                  &template.Description,
+				Icon:                         &template.Icon,
 				AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
 				DefaultTTLMillis:             time.Hour.Milliseconds(),
 				AutostopRequirement: &codersdk.TemplateAutostopRequirement{
@@ -1036,6 +1467,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, []string{"friday", "saturday"}, template.AutostopRequirement.DaysOfWeek)
 			require.EqualValues(t, 2, template.AutostopRequirement.Weeks)
+			require.Empty(t, template.DeprecationMessage)
+			require.False(t, template.Deprecated)
 		})
 
 		t.Run("Unset", func(t *testing.T) {
@@ -1056,7 +1489,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 							AllowUserAutostart:            options.UserAutostartEnabled,
 							AllowUserAutostop:             options.UserAutostopEnabled,
 							DefaultTTL:                    int64(options.DefaultTTL),
-							MaxTTL:                        int64(options.MaxTTL),
+							ActivityBump:                  int64(options.ActivityBump),
 							AutostopRequirementDaysOfWeek: int16(options.AutostopRequirement.DaysOfWeek),
 							AutostopRequirementWeeks:      options.AutostopRequirement.Weeks,
 							FailureTTL:                    int64(options.FailureTTL),
@@ -1086,9 +1519,9 @@ func TestPatchTemplateMeta(t *testing.T) {
 			require.EqualValues(t, 2, template.AutostopRequirement.Weeks)
 			req := codersdk.UpdateTemplateMeta{
 				Name:                         template.Name,
-				DisplayName:                  template.DisplayName,
-				Description:                  template.Description,
-				Icon:                         template.Icon,
+				DisplayName:                  &template.DisplayName,
+				Description:                  &template.Description,
+				Icon:                         &template.Icon,
 				AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
 				DefaultTTLMillis:             time.Hour.Milliseconds(),
 				AutostopRequirement: &codersdk.TemplateAutostopRequirement{
@@ -1123,9 +1556,9 @@ func TestPatchTemplateMeta(t *testing.T) {
 			require.EqualValues(t, 1, template.AutostopRequirement.Weeks)
 			req := codersdk.UpdateTemplateMeta{
 				Name:                         template.Name,
-				DisplayName:                  template.DisplayName,
-				Description:                  template.Description,
-				Icon:                         template.Icon,
+				DisplayName:                  &template.DisplayName,
+				Description:                  &template.Description,
+				Icon:                         &template.Icon,
 				AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
 				DefaultTTLMillis:             time.Hour.Milliseconds(),
 				AutostopRequirement: &codersdk.TemplateAutostopRequirement{
@@ -1146,7 +1579,144 @@ func TestPatchTemplateMeta(t *testing.T) {
 			require.NoError(t, err)
 			require.Empty(t, template.AutostopRequirement.DaysOfWeek)
 			require.EqualValues(t, 1, template.AutostopRequirement.Weeks)
+			require.Empty(t, template.DeprecationMessage)
+			require.False(t, template.Deprecated)
 		})
+	})
+
+	t.Run("ClassicParameterFlow", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		require.False(t, template.UseClassicParameterFlow, "default is false")
+
+		bTrue := true
+		bFalse := false
+		req := codersdk.UpdateTemplateMeta{
+			UseClassicParameterFlow: &bTrue,
+		}
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// set to true
+		updated, err := client.UpdateTemplateMeta(ctx, template.ID, req)
+		require.NoError(t, err)
+		assert.True(t, updated.UseClassicParameterFlow, "expected true")
+
+		// noop
+		req.UseClassicParameterFlow = nil
+		updated, err = client.UpdateTemplateMeta(ctx, template.ID, req)
+		require.NoError(t, err)
+		assert.True(t, updated.UseClassicParameterFlow, "expected true")
+
+		// back to false
+		req.UseClassicParameterFlow = &bFalse
+		updated, err = client.UpdateTemplateMeta(ctx, template.ID, req)
+		require.NoError(t, err)
+		assert.False(t, updated.UseClassicParameterFlow, "expected false")
+	})
+
+	t.Run("SupportEmptyOrDefaultFields", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+
+		displayName := "Test Display Name"
+		description := "test-description"
+		icon := "/icon/icon.png"
+		defaultTTLMillis := 10 * time.Hour.Milliseconds()
+
+		reference := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.DisplayName = displayName
+			ctr.Description = description
+			ctr.Icon = icon
+			ctr.DefaultTTLMillis = ptr.Ref(defaultTTLMillis)
+		})
+		require.Equal(t, displayName, reference.DisplayName)
+		require.Equal(t, description, reference.Description)
+		require.Equal(t, icon, reference.Icon)
+
+		restoreReq := codersdk.UpdateTemplateMeta{
+			DisplayName:      &displayName,
+			Description:      &description,
+			Icon:             &icon,
+			DefaultTTLMillis: defaultTTLMillis,
+		}
+
+		type expected struct {
+			displayName      string
+			description      string
+			icon             string
+			defaultTTLMillis int64
+		}
+
+		type testCase struct {
+			name     string
+			req      codersdk.UpdateTemplateMeta
+			expected expected
+		}
+
+		tests := []testCase{
+			{
+				name:     "Only update default_ttl_ms",
+				req:      codersdk.UpdateTemplateMeta{DefaultTTLMillis: 99 * time.Hour.Milliseconds()},
+				expected: expected{displayName: reference.DisplayName, description: reference.Description, icon: reference.Icon, defaultTTLMillis: 99 * time.Hour.Milliseconds()},
+			},
+			{
+				name:     "Clear display name",
+				req:      codersdk.UpdateTemplateMeta{DisplayName: ptr.Ref("")},
+				expected: expected{displayName: "", description: reference.Description, icon: reference.Icon, defaultTTLMillis: 0},
+			},
+			{
+				name:     "Clear description",
+				req:      codersdk.UpdateTemplateMeta{Description: ptr.Ref("")},
+				expected: expected{displayName: reference.DisplayName, description: "", icon: reference.Icon, defaultTTLMillis: 0},
+			},
+			{
+				name:     "Clear icon",
+				req:      codersdk.UpdateTemplateMeta{Icon: ptr.Ref("")},
+				expected: expected{displayName: reference.DisplayName, description: reference.Description, icon: "", defaultTTLMillis: 0},
+			},
+			{
+				name:     "Nil display name defaults to reference display name",
+				req:      codersdk.UpdateTemplateMeta{DisplayName: nil},
+				expected: expected{displayName: reference.DisplayName, description: reference.Description, icon: reference.Icon, defaultTTLMillis: 0},
+			},
+			{
+				name:     "Nil description defaults to reference description",
+				req:      codersdk.UpdateTemplateMeta{Description: nil},
+				expected: expected{displayName: reference.DisplayName, description: reference.Description, icon: reference.Icon, defaultTTLMillis: 0},
+			},
+			{
+				name:     "Nil icon defaults to reference icon",
+				req:      codersdk.UpdateTemplateMeta{Icon: nil},
+				expected: expected{displayName: reference.DisplayName, description: reference.Description, icon: reference.Icon, defaultTTLMillis: 0},
+			},
+		}
+
+		for _, tc := range tests {
+			//nolint:tparallel,paralleltest
+			t.Run(tc.name, func(t *testing.T) {
+				defer func() {
+					ctx := testutil.Context(t, testutil.WaitLong)
+					// Restore reference after each test case
+					_, err := client.UpdateTemplateMeta(ctx, reference.ID, restoreReq)
+					require.NoError(t, err)
+				}()
+				ctx := testutil.Context(t, testutil.WaitLong)
+				updated, err := client.UpdateTemplateMeta(ctx, reference.ID, tc.req)
+				require.NoError(t, err)
+				assert.Equal(t, tc.expected.displayName, updated.DisplayName)
+				assert.Equal(t, tc.expected.description, updated.Description)
+				assert.Equal(t, tc.expected.icon, updated.Icon)
+				assert.Equal(t, tc.expected.defaultTTLMillis, updated.DefaultTTLMillis)
+			})
+		}
 	})
 }
 
@@ -1162,8 +1732,7 @@ func TestDeleteTemplate(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.DeleteTemplate(ctx, template.ID)
 		require.NoError(t, err)
@@ -1179,10 +1748,9 @@ func TestDeleteTemplate(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.CreateWorkspace(t, client, template.ID)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client.DeleteTemplate(ctx, template.ID)
 		var apiErr *codersdk.Error
@@ -1214,7 +1782,7 @@ func TestTemplateMetrics(t *testing.T) {
 	require.Empty(t, template.BuildTimeStats[codersdk.WorkspaceTransitionStart])
 
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 	_ = agenttest.New(t, client.URL, authToken)
@@ -1234,9 +1802,10 @@ func TestTemplateMetrics(t *testing.T) {
 	require.NoError(t, err)
 	assert.Zero(t, res.Workspaces[0].LastUsedAt)
 
-	conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, &codersdk.DialWorkspaceAgentOptions{
-		Logger: slogtest.Make(t, nil).Named("tailnet"),
-	})
+	conn, err := workspacesdk.New(client).
+		DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
+			Logger: testutil.Logger(t).Named("tailnet"),
+		})
 	require.NoError(t, err)
 	defer func() {
 		_ = conn.Close()
@@ -1249,7 +1818,7 @@ func TestTemplateMetrics(t *testing.T) {
 	wantDAUs := &codersdk.DAUsResponse{
 		Entries: []codersdk.DAUEntry{
 			{
-				Date:   time.Now().UTC().Truncate(time.Hour * 24),
+				Date:   time.Now().UTC().Truncate(time.Hour * 24).Format("2006-01-02"),
 				Amount: 1,
 			},
 		},
@@ -1285,4 +1854,220 @@ func TestTemplateMetrics(t *testing.T) {
 	assert.WithinDuration(t,
 		dbtime.Now(), res.Workspaces[0].LastUsedAt, time.Minute,
 	)
+}
+
+func TestTemplateNotifications(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Delete", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("InitiatorIsNotNotified", func(t *testing.T) {
+			t.Parallel()
+
+			// Given: an initiator
+			var (
+				notifyEnq = &notificationstest.FakeEnqueuer{}
+				client    = coderdtest.New(t, &coderdtest.Options{
+					IncludeProvisionerDaemon: true,
+					NotificationsEnqueuer:    notifyEnq,
+				})
+				initiator = coderdtest.CreateFirstUser(t, client)
+				version   = coderdtest.CreateTemplateVersion(t, client, initiator.OrganizationID, nil)
+				_         = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+				template  = coderdtest.CreateTemplate(t, client, initiator.OrganizationID, version.ID)
+				ctx       = testutil.Context(t, testutil.WaitLong)
+			)
+
+			// When: the template is deleted by the initiator
+			err := client.DeleteTemplate(ctx, template.ID)
+			require.NoError(t, err)
+
+			// Then: the delete notification is not sent to the initiator.
+			deleteNotifications := make([]*notificationstest.FakeNotification, 0)
+			for _, n := range notifyEnq.Sent() {
+				if n.TemplateID == notifications.TemplateTemplateDeleted {
+					deleteNotifications = append(deleteNotifications, n)
+				}
+			}
+			require.Len(t, deleteNotifications, 0)
+		})
+
+		t.Run("OnlyOwnersAndAdminsAreNotified", func(t *testing.T) {
+			t.Parallel()
+
+			// Given: multiple users with different roles
+			var (
+				notifyEnq = &notificationstest.FakeEnqueuer{}
+				client    = coderdtest.New(t, &coderdtest.Options{
+					IncludeProvisionerDaemon: true,
+					NotificationsEnqueuer:    notifyEnq,
+				})
+				initiator = coderdtest.CreateFirstUser(t, client)
+				ctx       = testutil.Context(t, testutil.WaitLong)
+
+				// Setup template
+				version  = coderdtest.CreateTemplateVersion(t, client, initiator.OrganizationID, nil)
+				_        = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+				template = coderdtest.CreateTemplate(t, client, initiator.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+					ctr.DisplayName = "Bobby's Template"
+				})
+			)
+
+			// Setup users with different roles
+			_, owner := coderdtest.CreateAnotherUser(t, client, initiator.OrganizationID, rbac.RoleOwner())
+			_, tmplAdmin := coderdtest.CreateAnotherUser(t, client, initiator.OrganizationID, rbac.RoleTemplateAdmin())
+			coderdtest.CreateAnotherUser(t, client, initiator.OrganizationID, rbac.RoleMember())
+			coderdtest.CreateAnotherUser(t, client, initiator.OrganizationID, rbac.RoleUserAdmin())
+			coderdtest.CreateAnotherUser(t, client, initiator.OrganizationID, rbac.RoleAuditor())
+
+			// When: the template is deleted by the initiator
+			err := client.DeleteTemplate(ctx, template.ID)
+			require.NoError(t, err)
+
+			// Then: only owners and template admins should receive the
+			// notification.
+			shouldBeNotified := []uuid.UUID{owner.ID, tmplAdmin.ID}
+			var deleteTemplateNotifications []*notificationstest.FakeNotification
+			for _, n := range notifyEnq.Sent() {
+				if n.TemplateID == notifications.TemplateTemplateDeleted {
+					deleteTemplateNotifications = append(deleteTemplateNotifications, n)
+				}
+			}
+			notifiedUsers := make([]uuid.UUID, 0, len(deleteTemplateNotifications))
+			for _, n := range deleteTemplateNotifications {
+				notifiedUsers = append(notifiedUsers, n.UserID)
+			}
+			require.ElementsMatch(t, shouldBeNotified, notifiedUsers)
+
+			// Validate the notification content
+			for _, n := range deleteTemplateNotifications {
+				require.Equal(t, n.TemplateID, notifications.TemplateTemplateDeleted)
+				require.Contains(t, notifiedUsers, n.UserID)
+				require.Contains(t, n.Targets, template.ID)
+				require.Contains(t, n.Targets, template.OrganizationID)
+				require.Equal(t, n.Labels["name"], template.DisplayName)
+				require.Equal(t, n.Labels["initiator"], coderdtest.FirstUserParams.Username)
+			}
+		})
+	})
+}
+
+func TestTemplateFilterHasAITask(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database:                 db,
+		Pubsub:                   pubsub,
+		IncludeProvisionerDaemon: true,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	jobWithAITask := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
+		OrganizationID: user.OrganizationID,
+		InitiatorID:    user.UserID,
+		Tags:           database.StringMap{},
+		Type:           database.ProvisionerJobTypeTemplateVersionImport,
+	})
+	jobWithoutAITask := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
+		OrganizationID: user.OrganizationID,
+		InitiatorID:    user.UserID,
+		Tags:           database.StringMap{},
+		Type:           database.ProvisionerJobTypeTemplateVersionImport,
+	})
+	versionWithAITask := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: user.OrganizationID,
+		CreatedBy:      user.UserID,
+		HasAITask:      sql.NullBool{Bool: true, Valid: true},
+		JobID:          jobWithAITask.ID,
+	})
+	versionWithoutAITask := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: user.OrganizationID,
+		CreatedBy:      user.UserID,
+		HasAITask:      sql.NullBool{Bool: false, Valid: true},
+		JobID:          jobWithoutAITask.ID,
+	})
+	templateWithAITask := coderdtest.CreateTemplate(t, client, user.OrganizationID, versionWithAITask.ID)
+	templateWithoutAITask := coderdtest.CreateTemplate(t, client, user.OrganizationID, versionWithoutAITask.ID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	// Test filtering
+	templates, err := client.Templates(ctx, codersdk.TemplateFilter{
+		SearchQuery: "has-ai-task:true",
+	})
+	require.NoError(t, err)
+	require.Len(t, templates, 1)
+	require.Equal(t, templateWithAITask.ID, templates[0].ID)
+
+	templates, err = client.Templates(ctx, codersdk.TemplateFilter{
+		SearchQuery: "has-ai-task:false",
+	})
+	require.NoError(t, err)
+	require.Len(t, templates, 1)
+	require.Equal(t, templateWithoutAITask.ID, templates[0].ID)
+
+	templates, err = client.Templates(ctx, codersdk.TemplateFilter{})
+	require.NoError(t, err)
+	require.Len(t, templates, 2)
+	require.Contains(t, templates, templateWithAITask)
+	require.Contains(t, templates, templateWithoutAITask)
+}
+
+func TestTemplateFilterHasExternalAgent(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database:                 db,
+		Pubsub:                   pubsub,
+		IncludeProvisionerDaemon: true,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	jobWithExternalAgent := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
+		OrganizationID: user.OrganizationID,
+		InitiatorID:    user.UserID,
+		Tags:           database.StringMap{},
+		Type:           database.ProvisionerJobTypeTemplateVersionImport,
+	})
+	jobWithoutExternalAgent := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
+		OrganizationID: user.OrganizationID,
+		InitiatorID:    user.UserID,
+		Tags:           database.StringMap{},
+		Type:           database.ProvisionerJobTypeTemplateVersionImport,
+	})
+	versionWithExternalAgent := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID:   user.OrganizationID,
+		CreatedBy:        user.UserID,
+		HasExternalAgent: sql.NullBool{Bool: true, Valid: true},
+		JobID:            jobWithExternalAgent.ID,
+	})
+	versionWithoutExternalAgent := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID:   user.OrganizationID,
+		CreatedBy:        user.UserID,
+		HasExternalAgent: sql.NullBool{Bool: false, Valid: true},
+		JobID:            jobWithoutExternalAgent.ID,
+	})
+	templateWithExternalAgent := coderdtest.CreateTemplate(t, client, user.OrganizationID, versionWithExternalAgent.ID)
+	templateWithoutExternalAgent := coderdtest.CreateTemplate(t, client, user.OrganizationID, versionWithoutExternalAgent.ID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	templates, err := client.Templates(ctx, codersdk.TemplateFilter{
+		SearchQuery: "has_external_agent:true",
+	})
+	require.NoError(t, err)
+	require.Len(t, templates, 1)
+	require.Equal(t, templateWithExternalAgent.ID, templates[0].ID)
+
+	templates, err = client.Templates(ctx, codersdk.TemplateFilter{
+		SearchQuery: "has_external_agent:false",
+	})
+	require.NoError(t, err)
+	require.Len(t, templates, 1)
+	require.Equal(t, templateWithoutExternalAgent.ID, templates[0].ID)
 }

@@ -37,40 +37,60 @@ const (
 type BuildReason string
 
 const (
-	// "initiator" is used when a workspace build is triggered by a user.
+	// BuildReasonInitiator "initiator" is used when a workspace build is triggered by a user.
 	// Combined with the initiator id/username, it indicates which user initiated the build.
 	BuildReasonInitiator BuildReason = "initiator"
-	// "autostart" is used when a build to start a workspace is triggered by Autostart.
+	// BuildReasonAutostart "autostart" is used when a build to start a workspace is triggered by Autostart.
 	// The initiator id/username in this case is the workspace owner and can be ignored.
 	BuildReasonAutostart BuildReason = "autostart"
-	// "autostop" is used when a build to stop a workspace is triggered by Autostop.
+	// BuildReasonAutostop "autostop" is used when a build to stop a workspace is triggered by Autostop.
 	// The initiator id/username in this case is the workspace owner and can be ignored.
 	BuildReasonAutostop BuildReason = "autostop"
+	// BuildReasonDormancy "dormancy" is used when a build to stop a workspace is triggered due to inactivity (dormancy).
+	// The initiator id/username in this case is the workspace owner and can be ignored.
+	BuildReasonDormancy BuildReason = "dormancy"
+	// BuildReasonDashboard "dashboard" is used when a build to start a workspace is triggered by the dashboard.
+	BuildReasonDashboard BuildReason = "dashboard"
+	// BuildReasonCLI "cli" is used when a build to start a workspace is triggered by the CLI.
+	BuildReasonCLI BuildReason = "cli"
+	// BuildReasonSSHConnection "ssh_connection" is used when a build to start a workspace is triggered by an SSH connection.
+	BuildReasonSSHConnection BuildReason = "ssh_connection"
+	// BuildReasonVSCodeConnection "vscode_connection" is used when a build to start a workspace is triggered by a VS Code connection.
+	BuildReasonVSCodeConnection BuildReason = "vscode_connection"
+	// BuildReasonJetbrainsConnection "jetbrains_connection" is used when a build to start a workspace is triggered by a JetBrains connection.
+	BuildReasonJetbrainsConnection BuildReason = "jetbrains_connection"
 )
 
 // WorkspaceBuild is an at-point representation of a workspace state.
 // BuildNumbers start at 1 and increase by 1 for each subsequent build
 type WorkspaceBuild struct {
-	ID                  uuid.UUID           `json:"id" format:"uuid"`
-	CreatedAt           time.Time           `json:"created_at" format:"date-time"`
-	UpdatedAt           time.Time           `json:"updated_at" format:"date-time"`
-	WorkspaceID         uuid.UUID           `json:"workspace_id" format:"uuid"`
-	WorkspaceName       string              `json:"workspace_name"`
-	WorkspaceOwnerID    uuid.UUID           `json:"workspace_owner_id" format:"uuid"`
-	WorkspaceOwnerName  string              `json:"workspace_owner_name"`
-	TemplateVersionID   uuid.UUID           `json:"template_version_id" format:"uuid"`
-	TemplateVersionName string              `json:"template_version_name"`
-	BuildNumber         int32               `json:"build_number"`
-	Transition          WorkspaceTransition `json:"transition" enums:"start,stop,delete"`
-	InitiatorID         uuid.UUID           `json:"initiator_id" format:"uuid"`
-	InitiatorUsername   string              `json:"initiator_name"`
-	Job                 ProvisionerJob      `json:"job"`
-	Reason              BuildReason         `db:"reason" json:"reason" enums:"initiator,autostart,autostop"`
-	Resources           []WorkspaceResource `json:"resources"`
-	Deadline            NullTime            `json:"deadline,omitempty" format:"date-time"`
-	MaxDeadline         NullTime            `json:"max_deadline,omitempty" format:"date-time"`
-	Status              WorkspaceStatus     `json:"status" enums:"pending,starting,running,stopping,stopped,failed,canceling,canceled,deleting,deleted"`
-	DailyCost           int32               `json:"daily_cost"`
+	ID               uuid.UUID `json:"id" format:"uuid"`
+	CreatedAt        time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt        time.Time `json:"updated_at" format:"date-time"`
+	WorkspaceID      uuid.UUID `json:"workspace_id" format:"uuid"`
+	WorkspaceName    string    `json:"workspace_name"`
+	WorkspaceOwnerID uuid.UUID `json:"workspace_owner_id" format:"uuid"`
+	// WorkspaceOwnerName is the username of the owner of the workspace.
+	WorkspaceOwnerName      string               `json:"workspace_owner_name"`
+	WorkspaceOwnerAvatarURL string               `json:"workspace_owner_avatar_url,omitempty"`
+	TemplateVersionID       uuid.UUID            `json:"template_version_id" format:"uuid"`
+	TemplateVersionName     string               `json:"template_version_name"`
+	BuildNumber             int32                `json:"build_number"`
+	Transition              WorkspaceTransition  `json:"transition" enums:"start,stop,delete"`
+	InitiatorID             uuid.UUID            `json:"initiator_id" format:"uuid"`
+	InitiatorUsername       string               `json:"initiator_name"`
+	Job                     ProvisionerJob       `json:"job"`
+	Reason                  BuildReason          `db:"reason" json:"reason" enums:"initiator,autostart,autostop"`
+	Resources               []WorkspaceResource  `json:"resources"`
+	Deadline                NullTime             `json:"deadline,omitempty" format:"date-time"`
+	MaxDeadline             NullTime             `json:"max_deadline,omitempty" format:"date-time"`
+	Status                  WorkspaceStatus      `json:"status" enums:"pending,starting,running,stopping,stopped,failed,canceling,canceled,deleting,deleted"`
+	DailyCost               int32                `json:"daily_cost"`
+	MatchedProvisioners     *MatchedProvisioners `json:"matched_provisioners,omitempty"`
+	TemplateVersionPresetID *uuid.UUID           `json:"template_version_preset_id" format:"uuid"`
+	HasAITask               *bool                `json:"has_ai_task,omitempty"`
+	AITaskSidebarAppID      *uuid.UUID           `json:"ai_task_sidebar_app_id,omitempty" format:"uuid"`
+	HasExternalAgent        *bool                `json:"has_external_agent,omitempty"`
 }
 
 // WorkspaceResource describes resources used to create a workspace, for instance:
@@ -117,9 +137,29 @@ func (c *Client) WorkspaceBuild(ctx context.Context, id uuid.UUID) (WorkspaceBui
 	return workspaceBuild, json.NewDecoder(res.Body).Decode(&workspaceBuild)
 }
 
+type CancelWorkspaceBuildStatus string
+
+const (
+	CancelWorkspaceBuildStatusRunning CancelWorkspaceBuildStatus = "running"
+	CancelWorkspaceBuildStatusPending CancelWorkspaceBuildStatus = "pending"
+)
+
+type CancelWorkspaceBuildParams struct {
+	// ExpectStatus ensures the build is in the expected status before canceling.
+	ExpectStatus CancelWorkspaceBuildStatus `json:"expect_status,omitempty"`
+}
+
+func (c *CancelWorkspaceBuildParams) asRequestOption() RequestOption {
+	return func(r *http.Request) {
+		q := r.URL.Query()
+		q.Set("expect_status", string(c.ExpectStatus))
+		r.URL.RawQuery = q.Encode()
+	}
+}
+
 // CancelWorkspaceBuild marks a workspace build job as canceled.
-func (c *Client) CancelWorkspaceBuild(ctx context.Context, id uuid.UUID) error {
-	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/workspacebuilds/%s/cancel", id), nil)
+func (c *Client) CancelWorkspaceBuild(ctx context.Context, id uuid.UUID, req CancelWorkspaceBuildParams) error {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/workspacebuilds/%s/cancel", id), nil, req.asRequestOption())
 	if err != nil {
 		return err
 	}
@@ -172,4 +212,71 @@ func (c *Client) WorkspaceBuildParameters(ctx context.Context, build uuid.UUID) 
 	}
 	var params []WorkspaceBuildParameter
 	return params, json.NewDecoder(res.Body).Decode(&params)
+}
+
+type TimingStage string
+
+const (
+	// Based on ProvisionerJobTimingStage
+	TimingStageInit  TimingStage = "init"
+	TimingStagePlan  TimingStage = "plan"
+	TimingStageGraph TimingStage = "graph"
+	TimingStageApply TimingStage = "apply"
+	// Based on  WorkspaceAgentScriptTimingStage
+	TimingStageStart TimingStage = "start"
+	TimingStageStop  TimingStage = "stop"
+	TimingStageCron  TimingStage = "cron"
+	// Custom timing stage to represent the time taken to connect to an agent
+	TimingStageConnect TimingStage = "connect"
+)
+
+type ProvisionerTiming struct {
+	JobID     uuid.UUID   `json:"job_id" format:"uuid"`
+	StartedAt time.Time   `json:"started_at" format:"date-time"`
+	EndedAt   time.Time   `json:"ended_at" format:"date-time"`
+	Stage     TimingStage `json:"stage"`
+	Source    string      `json:"source"`
+	Action    string      `json:"action"`
+	Resource  string      `json:"resource"`
+}
+
+type AgentScriptTiming struct {
+	StartedAt          time.Time   `json:"started_at" format:"date-time"`
+	EndedAt            time.Time   `json:"ended_at" format:"date-time"`
+	ExitCode           int32       `json:"exit_code"`
+	Stage              TimingStage `json:"stage"`
+	Status             string      `json:"status"`
+	DisplayName        string      `json:"display_name"`
+	WorkspaceAgentID   string      `json:"workspace_agent_id"`
+	WorkspaceAgentName string      `json:"workspace_agent_name"`
+}
+
+type AgentConnectionTiming struct {
+	StartedAt          time.Time   `json:"started_at" format:"date-time"`
+	EndedAt            time.Time   `json:"ended_at" format:"date-time"`
+	Stage              TimingStage `json:"stage"`
+	WorkspaceAgentID   string      `json:"workspace_agent_id"`
+	WorkspaceAgentName string      `json:"workspace_agent_name"`
+}
+
+type WorkspaceBuildTimings struct {
+	ProvisionerTimings []ProvisionerTiming `json:"provisioner_timings"`
+	// TODO: Consolidate agent-related timing metrics into a single struct when
+	// updating the API version
+	AgentScriptTimings     []AgentScriptTiming     `json:"agent_script_timings"`
+	AgentConnectionTimings []AgentConnectionTiming `json:"agent_connection_timings"`
+}
+
+func (c *Client) WorkspaceBuildTimings(ctx context.Context, build uuid.UUID) (WorkspaceBuildTimings, error) {
+	path := fmt.Sprintf("/api/v2/workspacebuilds/%s/timings", build.String())
+	res, err := c.Request(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return WorkspaceBuildTimings{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return WorkspaceBuildTimings{}, ReadBodyAsError(res)
+	}
+	var timings WorkspaceBuildTimings
+	return timings, json.NewDecoder(res.Body).Decode(&timings)
 }

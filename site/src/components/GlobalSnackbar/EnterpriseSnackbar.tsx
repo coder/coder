@@ -1,19 +1,18 @@
 import IconButton from "@mui/material/IconButton";
 import Snackbar, {
-  SnackbarProps as MuiSnackbarProps,
+	type SnackbarProps as MuiSnackbarProps,
 } from "@mui/material/Snackbar";
-import { makeStyles } from "@mui/styles";
-import CloseIcon from "@mui/icons-material/Close";
-import { FC } from "react";
-import { combineClasses } from "utils/combineClasses";
+import { X as XIcon } from "lucide-react";
+import type { FC } from "react";
+import { cn } from "utils/cn";
 
 type EnterpriseSnackbarVariant = "error" | "info" | "success";
 
-export interface EnterpriseSnackbarProps extends MuiSnackbarProps {
-  /** Called when the snackbar should close, either from timeout or clicking close */
-  onClose: () => void;
-  /** Variant of snackbar, for theming */
-  variant?: EnterpriseSnackbarVariant;
+interface EnterpriseSnackbarProps extends MuiSnackbarProps {
+	/** Called when the snackbar should close, either from timeout or clicking close */
+	onClose: () => void;
+	/** Variant of snackbar, for theming */
+	variant?: EnterpriseSnackbarVariant;
 }
 
 /**
@@ -27,80 +26,54 @@ export interface EnterpriseSnackbarProps extends MuiSnackbarProps {
  *
  * See original component's Material UI documentation here: https://material-ui.com/components/snackbars/
  */
-export const EnterpriseSnackbar: FC<
-  React.PropsWithChildren<EnterpriseSnackbarProps>
-> = ({ onClose, variant = "info", ContentProps = {}, action, ...rest }) => {
-  const styles = useStyles();
-
-  return (
-    <Snackbar
-      anchorOrigin={{
-        vertical: "bottom",
-        horizontal: "right",
-      }}
-      {...rest}
-      action={
-        <div className={styles.actionWrapper}>
-          {action}
-          <IconButton
-            onClick={onClose}
-            className={styles.iconButton}
-            size="large"
-          >
-            <CloseIcon className={styles.closeIcon} aria-label="close" />
-          </IconButton>
-        </div>
-      }
-      ContentProps={{
-        ...ContentProps,
-        className: combineClasses({
-          [styles.snackbarContent]: true,
-          [styles.snackbarContentInfo]: variant === "info",
-          [styles.snackbarContentError]: variant === "error",
-          [styles.snackbarContentSuccess]: variant === "success",
-        }),
-      }}
-      onClose={onClose}
-    />
-  );
+export const EnterpriseSnackbar: FC<EnterpriseSnackbarProps> = ({
+	children,
+	onClose,
+	variant = "info",
+	ContentProps = {},
+	action,
+	...snackbarProps
+}) => {
+	return (
+		<Snackbar
+			anchorOrigin={{
+				vertical: "bottom",
+				horizontal: "right",
+			}}
+			action={
+				<div className="flex items-center">
+					{action}
+					<IconButton onClick={onClose} className="p-0">
+						<XIcon
+							aria-label="close"
+							className="size-icon-sm text-content-primary"
+						/>
+					</IconButton>
+				</div>
+			}
+			ContentProps={{
+				...ContentProps,
+				className: cn(
+					"rounded-lg bg-surface-secondary text-content-primary shadow",
+					"py-2 pl-6 pr-4 items-[inherit] border-0 border-l-[4px]",
+					variantColor(variant),
+				),
+			}}
+			onClose={onClose}
+			{...snackbarProps}
+		>
+			{children}
+		</Snackbar>
+	);
 };
 
-const useStyles = makeStyles((theme) => ({
-  actionWrapper: {
-    display: "flex",
-    alignItems: "center",
-  },
-  iconButton: {
-    padding: 0,
-  },
-  closeIcon: {
-    width: 25,
-    height: 25,
-    color: theme.palette.primary.contrastText,
-  },
-  snackbarContent: {
-    border: `1px solid ${theme.palette.divider}`,
-    borderLeft: `4px solid ${theme.palette.primary.main}`,
-    borderRadius: theme.shape.borderRadius,
-    padding: `
-      ${theme.spacing(1)}px
-      ${theme.spacing(3)}px
-      ${theme.spacing(1)}px
-      ${theme.spacing(2)}px
-    `,
-    boxShadow: theme.shadows[6],
-    alignItems: "inherit",
-    backgroundColor: theme.palette.background.paper,
-    color: theme.palette.text.secondary,
-  },
-  snackbarContentInfo: {
-    // Use success color as a highlight
-    borderLeftColor: theme.palette.primary.main,
-  },
-  snackbarContentError: {
-    borderLeftColor: theme.palette.error.main,
-  },
-  snackbarContentSuccess: {
-    borderLeftColor: theme.palette.success.main,
-  },
-}));
+const variantColor = (variant: EnterpriseSnackbarVariant) => {
+	switch (variant) {
+		case "error":
+			return "border-border-destructive";
+		case "info":
+			return "border-highlight-sky";
+		case "success":
+			return "border-border-success";
+	}
+};

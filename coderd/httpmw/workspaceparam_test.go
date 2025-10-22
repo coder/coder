@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -12,14 +13,16 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 )
@@ -46,6 +49,7 @@ func TestWorkspaceParam(t *testing.T) {
 			CreatedAt:      dbtime.Now(),
 			UpdatedAt:      dbtime.Now(),
 			LoginType:      database.LoginTypePassword,
+			RBACRoles:      []string{},
 		})
 		require.NoError(t, err)
 
@@ -63,7 +67,17 @@ func TestWorkspaceParam(t *testing.T) {
 			LastUsed:     dbtime.Now(),
 			ExpiresAt:    dbtime.Now().Add(time.Minute),
 			LoginType:    database.LoginTypePassword,
-			Scope:        database.APIKeyScopeAll,
+			Scopes:       database.APIKeyScopes{database.ApiKeyScopeCoderAll},
+			AllowList: database.AllowList{
+				{Type: policy.WildcardSymbol, ID: policy.WildcardSymbol},
+			},
+			IPAddress: pqtype.Inet{
+				IPNet: net.IPNet{
+					IP:   net.IPv4(127, 0, 0, 1),
+					Mask: net.IPv4Mask(255, 255, 255, 255),
+				},
+				Valid: true,
+			},
 		})
 		require.NoError(t, err)
 
@@ -75,7 +89,7 @@ func TestWorkspaceParam(t *testing.T) {
 
 	t.Run("None", func(t *testing.T) {
 		t.Parallel()
-		db := dbfake.New()
+		db, _ := dbtestutil.NewDB(t)
 		rtr := chi.NewRouter()
 		rtr.Use(httpmw.ExtractWorkspaceParam(db))
 		rtr.Get("/", nil)
@@ -90,7 +104,7 @@ func TestWorkspaceParam(t *testing.T) {
 
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
-		db := dbfake.New()
+		db, _ := dbtestutil.NewDB(t)
 		rtr := chi.NewRouter()
 		rtr.Use(httpmw.ExtractWorkspaceParam(db))
 		rtr.Get("/", nil)
@@ -106,7 +120,7 @@ func TestWorkspaceParam(t *testing.T) {
 
 	t.Run("Found", func(t *testing.T) {
 		t.Parallel()
-		db := dbfake.New()
+		db, _ := dbtestutil.NewDB(t)
 		rtr := chi.NewRouter()
 		rtr.Use(
 			httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
@@ -120,11 +134,18 @@ func TestWorkspaceParam(t *testing.T) {
 			rw.WriteHeader(http.StatusOK)
 		})
 		r, user := setup(db)
+		org := dbgen.Organization(t, db, database.Organization{})
+		tpl := dbgen.Template(t, db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
 		workspace, err := db.InsertWorkspace(context.Background(), database.InsertWorkspaceParams{
 			ID:               uuid.New(),
 			OwnerID:          user.ID,
 			Name:             "hello",
 			AutomaticUpdates: database.AutomaticUpdatesNever,
+			OrganizationID:   org.ID,
+			TemplateID:       tpl.ID,
 		})
 		require.NoError(t, err)
 		chi.RouteContext(r.Context()).URLParams.Add("workspace", workspace.ID.String())
@@ -299,7 +320,6 @@ func TestWorkspaceAgentByNameParam(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-		c := c
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 			db, r := setupWorkspaceWithAgents(t, setupConfig{
@@ -315,7 +335,7 @@ func TestWorkspaceAgentByNameParam(t *testing.T) {
 					DB:              db,
 					RedirectToLogin: true,
 				}),
-				httpmw.ExtractUserParam(db, false),
+				httpmw.ExtractUserParam(db),
 				httpmw.ExtractWorkspaceAndAgentParam(db),
 			)
 			rtr.Get("/", func(w http.ResponseWriter, r *http.Request) {
@@ -348,27 +368,44 @@ type setupConfig struct {
 
 func setupWorkspaceWithAgents(t testing.TB, cfg setupConfig) (database.Store, *http.Request) {
 	t.Helper()
-	db := dbfake.New()
+	db, _ := dbtestutil.NewDB(t)
 
 	var (
 		user     = dbgen.User(t, db, database.User{})
 		_, token = dbgen.APIKey(t, db, database.APIKey{
 			UserID: user.ID,
 		})
-		workspace = dbgen.Workspace(t, db, database.Workspace{
-			OwnerID: user.ID,
-			Name:    cfg.WorkspaceName,
+		org = dbgen.Organization(t, db, database.Organization{})
+		tpl = dbgen.Template(t, db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
 		})
-		build = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-			WorkspaceID: workspace.ID,
-			Transition:  database.WorkspaceTransitionStart,
-			Reason:      database.BuildReasonInitiator,
+		workspace = dbgen.Workspace(t, db, database.WorkspaceTable{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+			TemplateID:     tpl.ID,
+			Name:           cfg.WorkspaceName,
 		})
 		job = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-			ID:            build.JobID,
 			Type:          database.ProvisionerJobTypeWorkspaceBuild,
 			Provisioner:   database.ProvisionerTypeEcho,
 			StorageMethod: database.ProvisionerStorageMethodFile,
+		})
+		tv = dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			TemplateID: uuid.NullUUID{
+				UUID:  tpl.ID,
+				Valid: true,
+			},
+			JobID:          job.ID,
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			JobID:             job.ID,
+			WorkspaceID:       workspace.ID,
+			Transition:        database.WorkspaceTransitionStart,
+			Reason:            database.BuildReasonInitiator,
+			TemplateVersionID: tv.ID,
 		})
 	)
 

@@ -1,7 +1,7 @@
 coder v0.0.0-devel
 
 USAGE:
-  coder tokens remove <name>
+  coder tokens remove <name|id|token>
 
   Delete a token
 

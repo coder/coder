@@ -1,0 +1,230 @@
+import { useTheme } from "@emotion/react";
+import Divider from "@mui/material/Divider";
+import Menu from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
+import Skeleton from "@mui/material/Skeleton";
+import { visuallyHidden } from "@mui/utils";
+import type * as TypesGen from "api/typesGenerated";
+import { Abbr } from "components/Abbr/Abbr";
+import { Button } from "components/Button/Button";
+import { displayError } from "components/GlobalSnackbar/utils";
+import { Latency } from "components/Latency/Latency";
+import type { ProxyContextValue } from "contexts/ProxyContext";
+import { useAuthenticated } from "hooks";
+import { ChevronDownIcon } from "lucide-react";
+import { type FC, useRef, useState } from "react";
+import { useNavigate } from "react-router";
+import { sortProxiesByLatency } from "./proxyUtils";
+
+interface ProxyMenuProps {
+	proxyContextValue: ProxyContextValue;
+}
+
+export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
+	const theme = useTheme();
+	const buttonRef = useRef<HTMLButtonElement>(null);
+	const [isOpen, setIsOpen] = useState(false);
+	const [refetchDate, setRefetchDate] = useState<Date>();
+	const selectedProxy = proxyContextValue.proxy.proxy;
+	const refreshLatencies = proxyContextValue.refetchProxyLatencies;
+	const closeMenu = () => setIsOpen(false);
+	const navigate = useNavigate();
+	const latencies = proxyContextValue.proxyLatencies;
+	const isLoadingLatencies = Object.keys(latencies).length === 0;
+	const isLoading = proxyContextValue.isLoading || isLoadingLatencies;
+	const { permissions } = useAuthenticated();
+
+	const proxyLatencyLoading = (proxy: TypesGen.Region): boolean => {
+		if (!refetchDate) {
+			// Only show loading if the user manually requested a refetch
+			return false;
+		}
+
+		// Only show a loading spinner if:
+		//  - A latency exists. This means the latency was fetched at some point, so
+		//    the loader *should* be resolved.
+		//  - The proxy is healthy. If it is not, the loader might never resolve.
+		//  - The latency reported is older than the refetch date. This means the
+		//    latency is stale and we should show a loading spinner until the new
+		//    latency is fetched.
+		const latency = latencies[proxy.id];
+		return proxy.healthy && latency !== undefined && latency.at < refetchDate;
+	};
+
+	// This endpoint returns a 404 when not using enterprise.
+	// If we don't return null, then it looks like this is
+	// loading forever!
+	if (proxyContextValue.error) {
+		return null;
+	}
+
+	if (isLoading) {
+		return (
+			<Skeleton
+				width="110px"
+				height={40}
+				css={{ borderRadius: 6, transform: "none" }}
+			/>
+		);
+	}
+
+	return (
+		<>
+			<Button
+				variant="outline"
+				ref={buttonRef}
+				onClick={() => setIsOpen(true)}
+				size="lg"
+			>
+				<span css={{ ...visuallyHidden }}>
+					Latency for {selectedProxy?.display_name ?? "your region"}
+				</span>
+
+				{selectedProxy ? (
+					<>
+						<img
+							// Empty alt text used because we don't want to double up on
+							// screen reader announcements from visually-hidden span
+							alt=""
+							src={selectedProxy.icon_url}
+						/>
+
+						<Latency
+							latency={latencies?.[selectedProxy.id]?.latencyMS}
+							isLoading={proxyLatencyLoading(selectedProxy)}
+						/>
+					</>
+				) : (
+					"Select Proxy"
+				)}
+
+				<ChevronDownIcon className="text-content-primary !size-icon-sm" />
+			</Button>
+
+			<Menu
+				open={isOpen}
+				anchorEl={buttonRef.current}
+				onClick={closeMenu}
+				onClose={closeMenu}
+				css={{ "& .MuiMenu-paper": { paddingTop: 8, paddingBottom: 8 } }}
+				// autoFocus here does not affect modal focus; it affects whether the
+				// first item in the list will get auto-focus when the menu opens. Have
+				// to turn this off because otherwise, screen readers will skip over all
+				// the descriptive text and will only have access to the latency options
+				autoFocus={false}
+			>
+				{proxyContextValue.proxies &&
+					proxyContextValue.proxies.length > 1 && [
+						<div
+							key="description"
+							css={{
+								width: "100%",
+								maxWidth: "320px",
+								fontSize: 14,
+								padding: 16,
+								lineHeight: "140%",
+							}}
+						>
+							<h4
+								tabIndex={-1}
+								css={{
+									fontSize: "inherit",
+									fontWeight: 600,
+									lineHeight: "inherit",
+									margin: 0,
+									marginBottom: 4,
+								}}
+							>
+								Select a region nearest to you
+							</h4>
+
+							<p
+								css={{
+									fontSize: 13,
+									color: theme.palette.text.secondary,
+									lineHeight: "inherit",
+									marginTop: 0.5,
+									marginBottom: 0,
+								}}
+							>
+								Workspace proxies improve terminal and web app connections to
+								workspaces. This does not apply to{" "}
+								<Abbr title="Command-Line Interface" pronunciation="initialism">
+									CLI
+								</Abbr>{" "}
+								connections. A region must be manually selected, otherwise the
+								default primary region will be used.
+							</p>
+						</div>,
+
+						<Divider key="divider" />,
+					]}
+
+				{proxyContextValue.proxies &&
+					sortProxiesByLatency(proxyContextValue.proxies, latencies).map(
+						(proxy) => (
+							<MenuItem
+								key={proxy.id}
+								selected={proxy.id === selectedProxy?.id}
+								className="text-sm"
+								onClick={() => {
+									if (!proxy.healthy) {
+										displayError("Please select a healthy workspace proxy.");
+										closeMenu();
+										return;
+									}
+
+									proxyContextValue.setProxy(proxy);
+									closeMenu();
+								}}
+							>
+								<div className="flex gap-6 items-center w-full">
+									<div className="leading-[0] size-[14px]">
+										<img
+											src={proxy.icon_url}
+											alt=""
+											className="object-fit size-full"
+										/>
+									</div>
+
+									{proxy.display_name}
+
+									<Latency
+										className="ml-auto"
+										latency={latencies?.[proxy.id]?.latencyMS}
+										isLoading={proxyLatencyLoading(proxy)}
+									/>
+								</div>
+							</MenuItem>
+						),
+					)}
+
+				<Divider />
+
+				{Boolean(permissions.editWorkspaceProxies) && (
+					<MenuItem
+						css={{ fontSize: 14 }}
+						onClick={() => {
+							navigate("/deployment/workspace-proxies");
+						}}
+					>
+						Proxy settings
+					</MenuItem>
+				)}
+
+				<MenuItem
+					css={{ fontSize: 14 }}
+					onClick={(e) => {
+						// Stop the menu from closing
+						e.stopPropagation();
+						// Refresh the latencies.
+						const refetchDate = refreshLatencies();
+						setRefetchDate(refetchDate);
+					}}
+				>
+					Refresh Latencies
+				</MenuItem>
+			</Menu>
+		</>
+	);
+};

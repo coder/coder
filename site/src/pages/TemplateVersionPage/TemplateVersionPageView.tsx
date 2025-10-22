@@ -1,113 +1,112 @@
-import Button from "@mui/material/Button";
-import AddIcon from "@mui/icons-material/Add";
-import EditIcon from "@mui/icons-material/Edit";
+import type { TemplateVersion } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Button } from "components/Button/Button";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import {
-  PageHeader,
-  PageHeaderCaption,
-  PageHeaderSubtitle,
-  PageHeaderTitle,
+	PageHeader,
+	PageHeaderCaption,
+	PageHeaderTitle,
 } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
 import { Stats, StatsItem } from "components/Stats/Stats";
-import { TemplateFiles } from "components/TemplateFiles/TemplateFiles";
-import { UseTabResult } from "hooks/useTab";
-import { type FC } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { EditIcon, PlusIcon } from "lucide-react";
+import { linkToTemplate, useLinks } from "modules/navigation";
+import { TemplateFiles } from "modules/templates/TemplateFiles/TemplateFiles";
+import { TemplateUpdateMessage } from "modules/templates/TemplateUpdateMessage";
+import type { FC } from "react";
+import { Link as RouterLink } from "react-router";
 import { createDayString } from "utils/createDayString";
-import { TemplateVersionMachineContext } from "xServices/templateVersion/templateVersionXService";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
+import type { TemplateVersionFiles } from "utils/templateVersion";
 
 export interface TemplateVersionPageViewProps {
-  /**
-   * Used to display the version name before loading the version in the API
-   */
-  versionName: string;
-  templateName: string;
-  tab: UseTabResult;
-  context: TemplateVersionMachineContext;
-  createWorkspaceUrl?: string;
+	organizationName: string;
+	templateName: string;
+	versionName: string;
+	createWorkspaceUrl?: string;
+	error: unknown;
+	currentVersion: TemplateVersion | undefined;
+	currentFiles: TemplateVersionFiles | undefined;
+	baseFiles: TemplateVersionFiles | undefined;
 }
 
 export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
-  context,
-  tab,
-  versionName,
-  templateName,
-  createWorkspaceUrl,
+	organizationName,
+	templateName,
+	versionName,
+	createWorkspaceUrl,
+	currentVersion,
+	currentFiles,
+	baseFiles,
+	error,
 }) => {
-  const { currentFiles, error, currentVersion, previousFiles } = context;
+	const getLink = useLinks();
+	const templateLink = getLink(linkToTemplate(organizationName, templateName));
 
-  return (
-    <Margins>
-      <PageHeader
-        actions={
-          <>
-            {createWorkspaceUrl && (
-              <Button
-                variant="contained"
-                startIcon={<AddIcon />}
-                component={RouterLink}
-                to={createWorkspaceUrl}
-              >
-                Create workspace
-              </Button>
-            )}
-            <Button
-              startIcon={<EditIcon />}
-              component={RouterLink}
-              to={`/templates/${templateName}/versions/${versionName}/edit`}
-            >
-              Edit
-            </Button>
-          </>
-        }
-      >
-        <PageHeaderCaption>Version</PageHeaderCaption>
-        <PageHeaderTitle>{versionName}</PageHeaderTitle>
-        {currentVersion &&
-          currentVersion.message &&
-          currentVersion.message !== "" && (
-            <PageHeaderSubtitle>{currentVersion.message}</PageHeaderSubtitle>
-          )}
-      </PageHeader>
+	return (
+		<Margins>
+			<PageHeader
+				actions={
+					<>
+						{createWorkspaceUrl && (
+							<Button asChild>
+								<RouterLink to={createWorkspaceUrl}>
+									<PlusIcon />
+									Create workspace
+								</RouterLink>
+							</Button>
+						)}
+						<Button variant="outline" asChild>
+							<RouterLink to={`${templateLink}/versions/${versionName}/edit`}>
+								<EditIcon className="!size-icon-sm" />
+								Edit
+							</RouterLink>
+						</Button>
+					</>
+				}
+			>
+				<PageHeaderCaption>Version</PageHeaderCaption>
+				<PageHeaderTitle>{versionName}</PageHeaderTitle>
+			</PageHeader>
 
-      {!currentFiles && !error && <Loader />}
+			{!currentFiles && !error && <Loader />}
 
-      <Stack spacing={4}>
-        {Boolean(error) && <ErrorAlert error={error} />}
-        {currentVersion && currentFiles && (
-          <>
-            <Stats>
-              <StatsItem
-                label="Template"
-                value={
-                  <RouterLink to={`/templates/${templateName}`}>
-                    {templateName}
-                  </RouterLink>
-                }
-              />
-              <StatsItem
-                label="Created by"
-                value={currentVersion.created_by.username}
-              />
-              <StatsItem
-                label="Created"
-                value={createDayString(currentVersion.created_at)}
-              />
-            </Stats>
+			<Stack spacing={4}>
+				{Boolean(error) && <ErrorAlert error={error} />}
+				{currentVersion?.message && (
+					<TemplateUpdateMessage>
+						{currentVersion.message}
+					</TemplateUpdateMessage>
+				)}
+				{currentVersion && currentFiles && (
+					<>
+						<Stats>
+							<StatsItem
+								label="Template"
+								value={
+									<RouterLink to={templateLink}>{templateName}</RouterLink>
+								}
+							/>
+							<StatsItem
+								label="Created by"
+								value={currentVersion.created_by.username}
+							/>
+							<StatsItem
+								label="Created"
+								value={createDayString(currentVersion.created_at)}
+							/>
+						</Stats>
 
-            <TemplateFiles
-              tab={tab}
-              currentFiles={currentFiles}
-              previousFiles={previousFiles}
-            />
-          </>
-        )}
-      </Stack>
-    </Margins>
-  );
+						<TemplateFiles
+							organizationName={organizationName}
+							templateName={templateName}
+							versionName={versionName}
+							currentFiles={currentFiles}
+							baseFiles={baseFiles}
+						/>
+					</>
+				)}
+			</Stack>
+		</Margins>
+	);
 };
-
-export default TemplateVersionPageView;

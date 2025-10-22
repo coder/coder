@@ -27,6 +27,12 @@ provider "coder" {}
 provider "nomad" {
   address   = var.nomad_provider_address
   http_auth = var.nomad_provider_http_auth == "" ? null : var.nomad_provider_http_auth
+
+  # Fix reading the NOMAD_NAMESPACE and the NOMAD_REGION env var from the coder's allocation.
+  ignore_env_vars = {
+    "NOMAD_NAMESPACE" = true
+    "NOMAD_REGION"    = true
+  }
 }
 
 data "coder_parameter" "cpu" {
@@ -80,12 +86,12 @@ data "coder_parameter" "memory" {
 }
 
 data "coder_workspace" "me" {}
+data "coder_workspace_owner" "me" {}
 
 resource "coder_agent" "main" {
-  os                     = "linux"
-  arch                   = "amd64"
-  startup_script_timeout = 180
-  startup_script         = <<-EOT
+  os             = "linux"
+  arch           = "amd64"
+  startup_script = <<-EOT
     set -e
     # install and start code-server
     curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server
@@ -104,25 +110,20 @@ resource "coder_agent" "main" {
   }
 }
 
-# code-server
-resource "coder_app" "code-server" {
-  agent_id     = coder_agent.main.id
-  slug         = "code-server"
-  display_name = "code-server"
-  icon         = "/icon/code.svg"
-  url          = "http://localhost:13337?folder=/home/coder"
-  subdomain    = false
-  share        = "owner"
+# See https://registry.coder.com/modules/coder/code-server
+module "code-server" {
+  count  = data.coder_workspace.me.start_count
+  source = "registry.coder.com/coder/code-server/coder"
 
-  healthcheck {
-    url       = "http://localhost:13337/healthz"
-    interval  = 3
-    threshold = 10
-  }
+  # This ensures that the latest non-breaking version of the module gets downloaded, you can also pin the module version to prevent breaking changes in production.
+  version = "~> 1.0"
+
+  agent_id = coder_agent.main.id
+  order    = 1
 }
 
 locals {
-  workspace_tag    = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
+  workspace_tag    = "coder-${data.coder_workspace_owner.me.name}-${data.coder_workspace.me.name}"
   home_volume_name = "coder_${data.coder_workspace.me.id}_home"
 }
 
@@ -130,7 +131,7 @@ resource "nomad_namespace" "coder_workspace" {
   name        = local.workspace_tag
   description = "Coder workspace"
   meta = {
-    owner = data.coder_workspace.me.owner
+    owner = data.coder_workspace_owner.me.name
   }
 }
 
@@ -164,7 +165,7 @@ resource "nomad_job" "workspace" {
   count      = data.coder_workspace.me.start_count
   depends_on = [nomad_csi_volume.home_volume]
   jobspec = templatefile("${path.module}/workspace.nomad.tpl", {
-    coder_workspace_owner = data.coder_workspace.me.owner
+    coder_workspace_owner = data.coder_workspace_owner.me.name
     coder_workspace_name  = data.coder_workspace.me.name
     workspace_tag         = local.workspace_tag
     cores                 = tonumber(data.coder_parameter.cpu.value)

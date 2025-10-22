@@ -1,23 +1,36 @@
-name: Stale Issue, Banch and Old Workflows Cleanup
+name: Stale Issue, Branch and Old Workflows Cleanup
 on:
   schedule:
     # Every day at midnight
     - cron: "0 0 * * *"
   workflow_dispatch:
+
+permissions:
+  contents: read
+
 jobs:
   issues:
     runs-on: ubuntu-latest
     permissions:
+      # Needed to close issues.
       issues: write
+      # Needed to close PRs.
       pull-requests: write
-      actions: write
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        with:
+          egress-policy: audit
+
       - name: stale
-        uses: actions/stale@v8.0.0
+        uses: actions/stale@3a9db7e6a41a89f618792c92c0e97cc736e1b13f # v10.0.0
         with:
           stale-issue-label: "stale"
           stale-pr-label: "stale"
-          days-before-stale: 180
+          # days-before-stale: 180
+          # essentially disabled for now while we work through polish issues
+          days-before-stale: 3650
+
           # Pull Requests become stale more quickly due to merge conflicts.
           # Also, we promote minimizing WIP.
           days-before-pr-stale: 7
@@ -30,13 +43,69 @@ jobs:
           operations-per-run: 60
           # Start with the oldest issues, always.
           ascending: true
+      - name: "Close old issues labeled likely-no"
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const thirtyDaysAgo = new Date(new Date().setDate(new Date().getDate() - 30));
+            console.log(`Looking for issues labeled with 'likely-no' more than 30 days ago, which is after ${thirtyDaysAgo.toISOString()}`);
+
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'likely-no',
+              state: 'open',
+            });
+
+            console.log(`Found ${issues.data.length} open issues labeled with 'likely-no'`);
+
+            for (const issue of issues.data) {
+              console.log(`Checking issue #${issue.number} created at ${issue.created_at}`);
+
+              const timeline = await github.rest.issues.listEventsForTimeline({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+              });
+
+              const labelEvent = timeline.data.find(event => event.event === 'labeled' && event.label.name === 'likely-no');
+
+              if (labelEvent) {
+                console.log(`Issue #${issue.number} was labeled with 'likely-no' at ${labelEvent.created_at}`);
+
+                if (new Date(labelEvent.created_at) < thirtyDaysAgo) {
+                  console.log(`Issue #${issue.number} is older than 30 days with 'likely-no' label, closing issue.`);
+                  await github.rest.issues.update({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number,
+                    state: 'closed',
+                    state_reason: 'not_planned'
+                  });
+                }
+              } else {
+                console.log(`Issue #${issue.number} does not have a 'likely-no' label event in its timeline.`);
+              }
+            }
+
   branches:
     runs-on: ubuntu-latest
+    permissions:
+      # Needed to delete branches.
+      contents: write
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        with:
+          egress-policy: audit
+
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
       - name: Run delete-old-branches-action
-        uses: beatlabs/delete-old-branches-action@v0.0.10
+        uses: beatlabs/delete-old-branches-action@4eeeb8740ff8b3cb310296ddd6b43c3387734588 # v0.0.11
         with:
           repo_token: ${{ github.token }}
           date: "6 months ago"
@@ -46,22 +115,29 @@ jobs:
           exclude_open_pr_branches: true
   del_runs:
     runs-on: ubuntu-latest
+    permissions:
+      # Needed to delete workflow runs.
+      actions: write
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        with:
+          egress-policy: audit
+
       - name: Delete PR Cleanup workflow runs
-        uses: Mattraks/delete-workflow-runs@v2
+        uses: Mattraks/delete-workflow-runs@39f0bbed25d76b34de5594dceab824811479e5de # v2.0.6
         with:
           token: ${{ github.token }}
           repository: ${{ github.repository }}
-          retain_days: 1
-          keep_minimum_runs: 1
+          retain_days: 30
+          keep_minimum_runs: 30
           delete_workflow_pattern: pr-cleanup.yaml
 
       - name: Delete PR Deploy workflow skipped runs
-        uses: Mattraks/delete-workflow-runs@v2
+        uses: Mattraks/delete-workflow-runs@39f0bbed25d76b34de5594dceab824811479e5de # v2.0.6
         with:
           token: ${{ github.token }}
           repository: ${{ github.repository }}
-          retain_days: 0
-          keep_minimum_runs: 0
-          delete_run_by_conclusion_pattern: skipped
+          retain_days: 30
+          keep_minimum_runs: 30
           delete_workflow_pattern: pr-deploy.yaml

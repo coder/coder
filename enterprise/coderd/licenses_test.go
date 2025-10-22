@@ -4,7 +4,9 @@ import (
 	"context"
 	"net/http"
 	"testing"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -36,6 +38,72 @@ func TestPostLicense(t *testing.T) {
 		assert.EqualValues(t, 1, features[codersdk.FeatureAuditLog])
 	})
 
+	t.Run("InvalidDeploymentID", func(t *testing.T) {
+		t.Parallel()
+		// The generated deployment will start out with a different deployment ID.
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
+		license := coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+			DeploymentIDs: []string{uuid.NewString()},
+		})
+		_, err := client.AddLicense(context.Background(), codersdk.AddLicenseRequest{
+			License: license,
+		})
+		errResp := &codersdk.Error{}
+		require.ErrorAs(t, err, &errResp)
+		require.Equal(t, http.StatusBadRequest, errResp.StatusCode())
+		require.Contains(t, errResp.Message, "License cannot be used on this deployment!")
+	})
+
+	t.Run("InvalidAccountID", func(t *testing.T) {
+		t.Parallel()
+		// The generated deployment will start out with a different deployment ID.
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
+		license := coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+			AllowEmpty: true,
+			AccountID:  "",
+		})
+		_, err := client.AddLicense(context.Background(), codersdk.AddLicenseRequest{
+			License: license,
+		})
+		errResp := &codersdk.Error{}
+		require.ErrorAs(t, err, &errResp)
+		require.Equal(t, http.StatusBadRequest, errResp.StatusCode())
+		require.Contains(t, errResp.Message, "Invalid license")
+	})
+
+	t.Run("InvalidAccountType", func(t *testing.T) {
+		t.Parallel()
+		// The generated deployment will start out with a different deployment ID.
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
+		license := coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+			AllowEmpty:  true,
+			AccountType: "",
+		})
+		_, err := client.AddLicense(context.Background(), codersdk.AddLicenseRequest{
+			License: license,
+		})
+		errResp := &codersdk.Error{}
+		require.ErrorAs(t, err, &errResp)
+		require.Equal(t, http.StatusBadRequest, errResp.StatusCode())
+		require.Contains(t, errResp.Message, "Invalid license")
+	})
+
+	t.Run("InvalidLicenseExpires", func(t *testing.T) {
+		t.Parallel()
+		// The generated deployment will start out with a different deployment ID.
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
+		license := coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+			GraceAt: time.Unix(99999999999, 0),
+		})
+		_, err := client.AddLicense(context.Background(), codersdk.AddLicenseRequest{
+			License: license,
+		})
+		errResp := &codersdk.Error{}
+		require.ErrorAs(t, err, &errResp)
+		require.Equal(t, http.StatusBadRequest, errResp.StatusCode())
+		require.Contains(t, errResp.Message, "Invalid license")
+	})
+
 	t.Run("Unauthorized", func(t *testing.T) {
 		t.Parallel()
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
@@ -64,6 +132,53 @@ func TestPostLicense(t *testing.T) {
 		} else {
 			t.Error("expected to get error status 400")
 		}
+	})
+
+	// Test a license that isn't yet valid, but will be in the future.  We should allow this so that
+	// operators can upload a license ahead of time.
+	t.Run("NotYet", func(t *testing.T) {
+		t.Parallel()
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
+		respLic := coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			AccountType: license.AccountTypeSalesforce,
+			AccountID:   "testing",
+			Features: license.Features{
+				codersdk.FeatureAuditLog: 1,
+			},
+			NotBefore: time.Now().Add(time.Hour),
+			GraceAt:   time.Now().Add(2 * time.Hour),
+			ExpiresAt: time.Now().Add(3 * time.Hour),
+		})
+		assert.GreaterOrEqual(t, respLic.ID, int32(0))
+		// just a couple spot checks for sanity
+		assert.Equal(t, "testing", respLic.Claims["account_id"])
+		features, err := respLic.FeaturesClaims()
+		require.NoError(t, err)
+		assert.EqualValues(t, 1, features[codersdk.FeatureAuditLog])
+	})
+
+	// Test we still reject a license that isn't valid yet, but has other issues (e.g. expired
+	// before it starts).
+	t.Run("NotEver", func(t *testing.T) {
+		t.Parallel()
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
+		lic := coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+			AccountType: license.AccountTypeSalesforce,
+			AccountID:   "testing",
+			Features: license.Features{
+				codersdk.FeatureAuditLog: 1,
+			},
+			NotBefore: time.Now().Add(time.Hour),
+			GraceAt:   time.Now().Add(2 * time.Hour),
+			ExpiresAt: time.Now().Add(-time.Hour),
+		})
+		_, err := client.AddLicense(context.Background(), codersdk.AddLicenseRequest{
+			License: lic,
+		})
+		errResp := &codersdk.Error{}
+		require.ErrorAs(t, err, &errResp)
+		require.Equal(t, http.StatusBadRequest, errResp.StatusCode())
+		require.Contains(t, errResp.Detail, license.ErrMultipleIssues.Error())
 	})
 }
 
@@ -148,6 +263,7 @@ func TestDeleteLicense(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
+		//nolint:gocritic // RBAC is irrelevant here.
 		resp, err := client.Request(ctx, http.MethodDelete, "/api/v2/licenses/drivers", nil)
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusNotFound, resp.StatusCode)

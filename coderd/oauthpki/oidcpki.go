@@ -20,7 +20,7 @@ import (
 	"golang.org/x/oauth2/jws"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/promoauth"
 )
 
 // Config uses jwt assertions over client_secret for oauth2 authentication of
@@ -33,7 +33,7 @@ import (
 //
 //	https://datatracker.ietf.org/doc/html/rfc7523
 type Config struct {
-	cfg httpmw.OAuth2Config
+	cfg promoauth.OAuth2Config
 
 	// These values should match those provided in the oauth2.Config.
 	// Because the inner config is an interface, we need to duplicate these
@@ -57,7 +57,7 @@ type ConfigParams struct {
 	PemEncodedKey  []byte
 	PemEncodedCert []byte
 
-	Config httpmw.OAuth2Config
+	Config promoauth.OAuth2Config
 }
 
 // NewOauth2PKIConfig creates the oauth2 config for PKI based auth. It requires the certificate and it's private key.
@@ -180,6 +180,8 @@ func (src *jwtTokenSource) Token() (*oauth2.Token, error) {
 	}
 	cli := http.DefaultClient
 	if v, ok := src.ctx.Value(oauth2.HTTPClient).(*http.Client); ok {
+		// This client should be the instrumented client already. So no need to
+		// handle this manually.
 		cli = v
 	}
 
@@ -220,8 +222,9 @@ func (src *jwtTokenSource) Token() (*oauth2.Token, error) {
 		RefreshToken string `json:"refresh_token,omitempty"`
 
 		// Extra fields returned by the refresh that are needed
-		IDToken   string `json:"id_token"`
-		ExpiresIn int64  `json:"expires_in"` // relative seconds from now
+		IDToken   string      `json:"id_token"`
+		ExpiresIn json.Number `json:"expires_in"` // relative seconds from now, use Number since Azure AD might return string
+
 		// error fields
 		// https://datatracker.ietf.org/doc/html/rfc6749#section-5.2
 		ErrorCode        string `json:"error"`
@@ -245,7 +248,7 @@ func (src *jwtTokenSource) Token() (*oauth2.Token, error) {
 	}
 
 	if unmarshalError != nil {
-		return nil, xerrors.Errorf("oauth2: cannot unmarshal token: %w", err)
+		return nil, xerrors.Errorf("oauth2: cannot unmarshal token: %w", unmarshalError)
 	}
 
 	newToken := &oauth2.Token{
@@ -254,8 +257,13 @@ func (src *jwtTokenSource) Token() (*oauth2.Token, error) {
 		RefreshToken: tokenRes.RefreshToken,
 	}
 
-	if secs := tokenRes.ExpiresIn; secs > 0 {
-		newToken.Expiry = time.Now().Add(time.Duration(secs) * time.Second)
+	expiresIn, convertErr := tokenRes.ExpiresIn.Int64()
+	if convertErr != nil {
+		return nil, xerrors.Errorf("oauth2: cannot convert expires_in to int64: %w", convertErr)
+	}
+
+	if expiresIn > 0 {
+		newToken.Expiry = time.Now().Add(time.Duration(expiresIn) * time.Second)
 	}
 
 	// ID token is a JWT token. We can decode it to get the expiry.

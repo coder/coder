@@ -1,0 +1,2 @@
+-- Nothing to do
+-- It's not possible to drop enum values from enum types, so the up migration has "IF NOT EXISTS".

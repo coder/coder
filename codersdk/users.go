@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -28,7 +29,8 @@ type UsersRequest struct {
 	// Filter users by status.
 	Status UserStatus `json:"status,omitempty" typescript:"-"`
 	// Filter users that have the given role.
-	Role string `json:"role,omitempty" typescript:"-"`
+	Role      string      `json:"role,omitempty" typescript:"-"`
+	LoginType []LoginType `json:"login_type,omitempty" typescript:"-"`
 
 	SearchQuery string `json:"q,omitempty"`
 	Pagination
@@ -39,22 +41,34 @@ type UsersRequest struct {
 type MinimalUser struct {
 	ID        uuid.UUID `json:"id" validate:"required" table:"id" format:"uuid"`
 	Username  string    `json:"username" validate:"required" table:"username,default_sort"`
-	AvatarURL string    `json:"avatar_url" format:"uri"`
+	Name      string    `json:"name,omitempty" table:"name"`
+	AvatarURL string    `json:"avatar_url,omitempty" format:"uri"`
+}
+
+// ReducedUser omits role and organization information. Roles are deduced from
+// the user's site and organization roles. This requires fetching the user's
+// organizational memberships. Fetching that is more expensive, and not usually
+// required by the frontend.
+type ReducedUser struct {
+	MinimalUser `table:"m,recursive_inline"`
+	Email       string    `json:"email" validate:"required" table:"email" format:"email"`
+	CreatedAt   time.Time `json:"created_at" validate:"required" table:"created at" format:"date-time"`
+	UpdatedAt   time.Time `json:"updated_at" table:"updated at" format:"date-time"`
+	LastSeenAt  time.Time `json:"last_seen_at,omitempty" format:"date-time"`
+
+	Status    UserStatus `json:"status" table:"status" enums:"active,suspended"`
+	LoginType LoginType  `json:"login_type"`
+	// Deprecated: this value should be retrieved from
+	// `codersdk.UserPreferenceSettings` instead.
+	ThemePreference string `json:"theme_preference,omitempty"`
 }
 
 // User represents a user in Coder.
 type User struct {
-	ID         uuid.UUID `json:"id" validate:"required" table:"id" format:"uuid"`
-	Username   string    `json:"username" validate:"required" table:"username,default_sort"`
-	Email      string    `json:"email" validate:"required" table:"email" format:"email"`
-	CreatedAt  time.Time `json:"created_at" validate:"required" table:"created at" format:"date-time"`
-	LastSeenAt time.Time `json:"last_seen_at" format:"date-time"`
+	ReducedUser `table:"r,recursive_inline"`
 
-	Status          UserStatus  `json:"status" table:"status" enums:"active,suspended"`
 	OrganizationIDs []uuid.UUID `json:"organization_ids" format:"uuid"`
-	Roles           []Role      `json:"roles"`
-	AvatarURL       string      `json:"avatar_url" format:"uri"`
-	LoginType       LoginType   `json:"login_type"`
+	Roles           []SlimRole  `json:"roles"`
 }
 
 type GetUsersResponse struct {
@@ -62,11 +76,39 @@ type GetUsersResponse struct {
 	Count int    `json:"count"`
 }
 
+// @typescript-ignore LicensorTrialRequest
+type LicensorTrialRequest struct {
+	DeploymentID string `json:"deployment_id"`
+	Email        string `json:"email"`
+	Source       string `json:"source"`
+
+	// Personal details.
+	FirstName   string `json:"first_name"`
+	LastName    string `json:"last_name"`
+	PhoneNumber string `json:"phone_number"`
+	JobTitle    string `json:"job_title"`
+	CompanyName string `json:"company_name"`
+	Country     string `json:"country"`
+	Developers  string `json:"developers"`
+}
+
 type CreateFirstUserRequest struct {
-	Email    string `json:"email" validate:"required,email"`
-	Username string `json:"username" validate:"required,username"`
-	Password string `json:"password" validate:"required"`
-	Trial    bool   `json:"trial"`
+	Email     string                   `json:"email" validate:"required,email"`
+	Username  string                   `json:"username" validate:"required,username"`
+	Name      string                   `json:"name" validate:"user_real_name"`
+	Password  string                   `json:"password" validate:"required"`
+	Trial     bool                     `json:"trial"`
+	TrialInfo CreateFirstUserTrialInfo `json:"trial_info"`
+}
+
+type CreateFirstUserTrialInfo struct {
+	FirstName   string `json:"first_name"`
+	LastName    string `json:"last_name"`
+	PhoneNumber string `json:"phone_number"`
+	JobTitle    string `json:"job_title"`
+	CompanyName string `json:"company_name"`
+	Country     string `json:"country"`
+	Developers  string `json:"developers"`
 }
 
 // CreateFirstUserResponse contains IDs for newly created user info.
@@ -75,9 +117,15 @@ type CreateFirstUserResponse struct {
 	OrganizationID uuid.UUID `json:"organization_id" format:"uuid"`
 }
 
+// CreateUserRequest
+// Deprecated: Use CreateUserRequestWithOrgs instead. This will be removed.
+// TODO: When removing, we should rename CreateUserRequestWithOrgs -> CreateUserRequest
+// Then alias CreateUserRequestWithOrgs to CreateUserRequest.
+// @typescript-ignore CreateUserRequest
 type CreateUserRequest struct {
 	Email    string `json:"email" validate:"required,email" format:"email"`
 	Username string `json:"username" validate:"required,username"`
+	Name     string `json:"name" validate:"user_real_name"`
 	Password string `json:"password"`
 	// UserLoginType defaults to LoginTypePassword.
 	UserLoginType LoginType `json:"login_type"`
@@ -88,8 +136,85 @@ type CreateUserRequest struct {
 	OrganizationID uuid.UUID `json:"organization_id" validate:"" format:"uuid"`
 }
 
+type CreateUserRequestWithOrgs struct {
+	Email    string `json:"email" validate:"required,email" format:"email"`
+	Username string `json:"username" validate:"required,username"`
+	Name     string `json:"name" validate:"user_real_name"`
+	Password string `json:"password"`
+	// UserLoginType defaults to LoginTypePassword.
+	UserLoginType LoginType `json:"login_type"`
+	// UserStatus defaults to UserStatusDormant.
+	UserStatus *UserStatus `json:"user_status"`
+	// OrganizationIDs is a list of organization IDs that the user should be a member of.
+	OrganizationIDs []uuid.UUID `json:"organization_ids" validate:"" format:"uuid"`
+}
+
+// UnmarshalJSON implements the unmarshal for the legacy param "organization_id".
+// To accommodate multiple organizations, the field has been switched to a slice.
+// The previous field will just be appended to the slice.
+// Note in the previous behavior, omitting the field would result in the
+// default org being applied, but that is no longer the case.
+// TODO: Remove this method in it's entirety after some period of time.
+// This will be released in v1.16.0, and is associated with the multiple orgs
+// feature.
+func (r *CreateUserRequestWithOrgs) UnmarshalJSON(data []byte) error {
+	// By using a type alias, we prevent an infinite recursion when unmarshalling.
+	// This allows us to use the default unmarshal behavior of the original type.
+	type AliasedReq CreateUserRequestWithOrgs
+	type DeprecatedCreateUserRequest struct {
+		AliasedReq
+		OrganizationID *uuid.UUID `json:"organization_id" format:"uuid"`
+	}
+	var dep DeprecatedCreateUserRequest
+	err := json.Unmarshal(data, &dep)
+	if err != nil {
+		return err
+	}
+	*r = CreateUserRequestWithOrgs(dep.AliasedReq)
+	if dep.OrganizationID != nil {
+		r.OrganizationIDs = append(r.OrganizationIDs, *dep.OrganizationID)
+	}
+	return nil
+}
+
 type UpdateUserProfileRequest struct {
 	Username string `json:"username" validate:"required,username"`
+	Name     string `json:"name" validate:"user_real_name"`
+}
+
+type ValidateUserPasswordRequest struct {
+	Password string `json:"password" validate:"required"`
+}
+
+type ValidateUserPasswordResponse struct {
+	Valid   bool   `json:"valid"`
+	Details string `json:"details"`
+}
+
+// TerminalFontName is the name of supported terminal font
+type TerminalFontName string
+
+var TerminalFontNames = []TerminalFontName{
+	TerminalFontUnknown, TerminalFontIBMPlexMono, TerminalFontFiraCode,
+	TerminalFontSourceCodePro, TerminalFontJetBrainsMono,
+}
+
+const (
+	TerminalFontUnknown       TerminalFontName = ""
+	TerminalFontIBMPlexMono   TerminalFontName = "ibm-plex-mono"
+	TerminalFontFiraCode      TerminalFontName = "fira-code"
+	TerminalFontSourceCodePro TerminalFontName = "source-code-pro"
+	TerminalFontJetBrainsMono TerminalFontName = "jetbrains-mono"
+)
+
+type UserAppearanceSettings struct {
+	ThemePreference string           `json:"theme_preference"`
+	TerminalFont    TerminalFontName `json:"terminal_font"`
+}
+
+type UpdateUserAppearanceSettingsRequest struct {
+	ThemePreference string           `json:"theme_preference" validate:"required"`
+	TerminalFont    TerminalFontName `json:"terminal_font" validate:"required"`
 }
 
 type UpdateUserPasswordRequest struct {
@@ -102,6 +227,10 @@ type UserQuietHoursScheduleResponse struct {
 	// UserSet is true if the user has set their own quiet hours schedule. If
 	// false, the user is using the default schedule.
 	UserSet bool `json:"user_set"`
+	// UserCanSet is true if the user is allowed to set their own quiet hours
+	// schedule. If false, the user cannot set a custom schedule and the default
+	// schedule will always be used.
+	UserCanSet bool `json:"user_can_set"`
 	// Time is the time of day that the quiet hours window starts in the given
 	// Timezone each day.
 	Time     string `json:"time"`     // HH:mm (24-hour)
@@ -115,7 +244,7 @@ type UpdateUserQuietHoursScheduleRequest struct {
 	// window is. Schedule must not be empty. For new users, the schedule is set
 	// to 2am in their browser or computer's timezone. The schedule denotes the
 	// beginning of a 4 hour window where the workspace is allowed to
-	// automatically stop or restart due to maintenance or template max TTL.
+	// automatically stop or restart due to maintenance or template schedule.
 	//
 	// The schedule must be daily with a single time, and should have a timezone
 	// specified via a CRON_TZ prefix (otherwise UTC will be used).
@@ -151,6 +280,18 @@ type LoginWithPasswordResponse struct {
 	SessionToken string `json:"session_token" validate:"required"`
 }
 
+// RequestOneTimePasscodeRequest enables callers to request a one-time-passcode to change their password.
+type RequestOneTimePasscodeRequest struct {
+	Email string `json:"email" validate:"required,email" format:"email"`
+}
+
+// ChangePasswordWithOneTimePasscodeRequest enables callers to change their password when they've forgotten it.
+type ChangePasswordWithOneTimePasscodeRequest struct {
+	Email           string `json:"email" validate:"required,email" format:"email"`
+	Password        string `json:"password" validate:"required"`
+	OneTimePasscode string `json:"one_time_passcode" validate:"required"`
+}
+
 type OAuthConversionResponse struct {
 	StateString string    `json:"state_string"`
 	ExpiresAt   time.Time `json:"expires_at" format:"date-time"`
@@ -158,15 +299,12 @@ type OAuthConversionResponse struct {
 	UserID      uuid.UUID `json:"user_id" format:"uuid"`
 }
 
-type CreateOrganizationRequest struct {
-	Name string `json:"name" validate:"required,username"`
-}
-
 // AuthMethods contains authentication method information like whether they are enabled or not or custom text, etc.
 type AuthMethods struct {
-	Password AuthMethod     `json:"password"`
-	Github   AuthMethod     `json:"github"`
-	OIDC     OIDCAuthMethod `json:"oidc"`
+	TermsOfServiceURL string           `json:"terms_of_service_url,omitempty"`
+	Password          AuthMethod       `json:"password"`
+	Github            GithubAuthMethod `json:"github"`
+	OIDC              OIDCAuthMethod   `json:"oidc"`
 }
 
 type AuthMethod struct {
@@ -177,10 +315,36 @@ type UserLoginType struct {
 	LoginType LoginType `json:"login_type"`
 }
 
+type GithubAuthMethod struct {
+	Enabled                   bool `json:"enabled"`
+	DefaultProviderConfigured bool `json:"default_provider_configured"`
+}
+
 type OIDCAuthMethod struct {
 	AuthMethod
 	SignInText string `json:"signInText"`
 	IconURL    string `json:"iconUrl"`
+}
+
+type UserParameter struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+// UserAutofillParameters returns all recently used parameters for the given user.
+func (c *Client) UserAutofillParameters(ctx context.Context, user string, templateID uuid.UUID) ([]UserParameter, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/autofill-parameters?template_id=%s", user, templateID), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+
+	var params []UserParameter
+	return params, json.NewDecoder(res.Body).Decode(&params)
 }
 
 // HasFirstUser returns whether the first user has been created.
@@ -190,7 +354,15 @@ func (c *Client) HasFirstUser(ctx context.Context) (bool, error) {
 		return false, err
 	}
 	defer res.Body.Close()
+
 	if res.StatusCode == http.StatusNotFound {
+		// ensure we are talking to coder and not
+		// some other service that returns 404
+		v := res.Header.Get(BuildVersionHeader)
+		if v == "" {
+			return false, xerrors.Errorf("missing build version header, not a coder instance")
+		}
+
 		return false, nil
 	}
 	if res.StatusCode != http.StatusOK {
@@ -214,8 +386,26 @@ func (c *Client) CreateFirstUser(ctx context.Context, req CreateFirstUserRequest
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-// CreateUser creates a new user.
+// CreateUser
+// Deprecated: Use CreateUserWithOrgs instead. This will be removed.
+// TODO: When removing, we should rename CreateUserWithOrgs -> CreateUser
+// with an alias of CreateUserWithOrgs.
 func (c *Client) CreateUser(ctx context.Context, req CreateUserRequest) (User, error) {
+	if req.DisableLogin {
+		req.UserLoginType = LoginTypeNone
+	}
+	return c.CreateUserWithOrgs(ctx, CreateUserRequestWithOrgs{
+		Email:           req.Email,
+		Username:        req.Username,
+		Name:            req.Name,
+		Password:        req.Password,
+		UserLoginType:   req.UserLoginType,
+		OrganizationIDs: []uuid.UUID{req.OrganizationID},
+	})
+}
+
+// CreateUserWithOrgs creates a new user.
+func (c *Client) CreateUserWithOrgs(ctx context.Context, req CreateUserRequestWithOrgs) (User, error) {
 	res, err := c.Request(ctx, http.MethodPost, "/api/v2/users", req)
 	if err != nil {
 		return User{}, err
@@ -235,13 +425,15 @@ func (c *Client) DeleteUser(ctx context.Context, id uuid.UUID) error {
 		return err
 	}
 	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
+	// Check for a 200 or a 204 response. 2.14.0 accidentally included a 204 response,
+	// which was a breaking change, and reverted in 2.14.1.
+	if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusNoContent {
 		return ReadBodyAsError(res)
 	}
 	return nil
 }
 
-// UpdateUserProfile enables callers to update profile information
+// UpdateUserProfile updates the username of a user.
 func (c *Client) UpdateUserProfile(ctx context.Context, user string, req UpdateUserProfileRequest) (User, error) {
 	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/profile", user), req)
 	if err != nil {
@@ -252,6 +444,20 @@ func (c *Client) UpdateUserProfile(ctx context.Context, user string, req UpdateU
 		return User{}, ReadBodyAsError(res)
 	}
 	var resp User
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// ValidateUserPassword validates the complexity of a user password and that it is secured enough.
+func (c *Client) ValidateUserPassword(ctx context.Context, req ValidateUserPasswordRequest) (ValidateUserPasswordResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/users/validate-password", req)
+	if err != nil {
+		return ValidateUserPasswordResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ValidateUserPasswordResponse{}, ReadBodyAsError(res)
+	}
+	var resp ValidateUserPasswordResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
@@ -280,6 +486,34 @@ func (c *Client) UpdateUserStatus(ctx context.Context, user string, status UserS
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
+// GetUserAppearanceSettings fetches the appearance settings for a user.
+func (c *Client) GetUserAppearanceSettings(ctx context.Context, user string) (UserAppearanceSettings, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/appearance", user), nil)
+	if err != nil {
+		return UserAppearanceSettings{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UserAppearanceSettings{}, ReadBodyAsError(res)
+	}
+	var resp UserAppearanceSettings
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateUserAppearanceSettings updates the appearance settings for a user.
+func (c *Client) UpdateUserAppearanceSettings(ctx context.Context, user string, req UpdateUserAppearanceSettingsRequest) (UserAppearanceSettings, error) {
+	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/v2/users/%s/appearance", user), req)
+	if err != nil {
+		return UserAppearanceSettings{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UserAppearanceSettings{}, ReadBodyAsError(res)
+	}
+	var resp UserAppearanceSettings
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
 // UpdateUserPassword updates a user password.
 // It calls PUT /users/{user}/password
 func (c *Client) UpdateUserPassword(ctx context.Context, user string, req UpdateUserPasswordRequest) error {
@@ -292,6 +526,103 @@ func (c *Client) UpdateUserPassword(ctx context.Context, user string, req Update
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+// PostOrganizationMember adds a user to an organization
+func (c *Client) PostOrganizationMember(ctx context.Context, organizationID uuid.UUID, user string) (OrganizationMember, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/organizations/%s/members/%s", organizationID, user), nil)
+	if err != nil {
+		return OrganizationMember{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return OrganizationMember{}, ReadBodyAsError(res)
+	}
+	var member OrganizationMember
+	return member, json.NewDecoder(res.Body).Decode(&member)
+}
+
+// DeleteOrganizationMember removes a user from an organization
+func (c *Client) DeleteOrganizationMember(ctx context.Context, organizationID uuid.UUID, user string) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/organizations/%s/members/%s", organizationID, user), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+type OrganizationMembersQuery struct {
+	UserID        uuid.UUID
+	IncludeSystem bool
+	GithubUserID  int64
+}
+
+func (omq OrganizationMembersQuery) AsRequestOption() RequestOption {
+	return func(r *http.Request) {
+		q := r.URL.Query()
+		var sb strings.Builder
+		if omq.UserID != uuid.Nil {
+			_, _ = sb.WriteString("user_id:")
+			_, _ = sb.WriteString(omq.UserID.String())
+			_, _ = sb.WriteString(" ")
+		}
+		if omq.IncludeSystem {
+			_, _ = sb.WriteString("include_system:true")
+		}
+		if omq.GithubUserID != 0 {
+			_, _ = sb.WriteString("github_user_id:")
+			_, _ = sb.WriteString(strconv.FormatInt(omq.GithubUserID, 10))
+			_, _ = sb.WriteString(" ")
+		}
+		qs := strings.TrimSpace(sb.String())
+		if len(qs) == 0 {
+			return
+		}
+		q.Set("q", qs)
+		r.URL.RawQuery = q.Encode()
+	}
+}
+
+type OrganizationMembersQueryOption func(*OrganizationMembersQuery)
+
+func OrganizationMembersQueryOptionUserID(userID uuid.UUID) OrganizationMembersQueryOption {
+	return func(query *OrganizationMembersQuery) {
+		query.UserID = userID
+	}
+}
+
+func OrganizationMembersQueryOptionIncludeSystem() OrganizationMembersQueryOption {
+	return func(query *OrganizationMembersQuery) {
+		query.IncludeSystem = true
+	}
+}
+
+func OrganizationMembersQueryOptionGithubUserID(githubUserID int64) OrganizationMembersQueryOption {
+	return func(query *OrganizationMembersQuery) {
+		query.GithubUserID = githubUserID
+	}
+}
+
+// OrganizationMembers lists all members in an organization
+func (c *Client) OrganizationMembers(ctx context.Context, organizationID uuid.UUID, opts ...OrganizationMembersQueryOption) ([]OrganizationMemberWithUserData, error) {
+	var query OrganizationMembersQuery
+	for _, opt := range opts {
+		opt(&query)
+	}
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/members/", organizationID), nil, query.AsRequestOption())
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var members []OrganizationMemberWithUserData
+	return members, json.NewDecoder(res.Body).Decode(&members)
 }
 
 // UpdateUserRoles grants the userID the specified roles.
@@ -357,11 +688,46 @@ func (c *Client) LoginWithPassword(ctx context.Context, req LoginWithPasswordReq
 	return resp, nil
 }
 
+func (c *Client) RequestOneTimePasscode(ctx context.Context, req RequestOneTimePasscodeRequest) error {
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/users/otp/request", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+
+	return nil
+}
+
+func (c *Client) ChangePasswordWithOneTimePasscode(ctx context.Context, req ChangePasswordWithOneTimePasscodeRequest) error {
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/users/otp/change-password", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+
+	return nil
+}
+
 // ConvertLoginType will send a request to convert the user from password
 // based authentication to oauth based. The response has the oauth state code
 // to use in the oauth flow.
 func (c *Client) ConvertLoginType(ctx context.Context, req ConvertLoginRequest) (OAuthConversionResponse, error) {
-	res, err := c.Request(ctx, http.MethodPost, "/api/v2/users/me/convert-login", req)
+	return c.ConvertUserLoginType(ctx, Me, req)
+}
+
+// ConvertUserLoginType will send a request to convert the user from password
+// based authentication to oauth based. The response has the oauth state code
+// to use in the oauth flow.
+func (c *Client) ConvertUserLoginType(ctx context.Context, user string, req ConvertLoginRequest) (OAuthConversionResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/convert-login", user), req)
 	if err != nil {
 		return OAuthConversionResponse{}, err
 	}
@@ -454,6 +820,9 @@ func (c *Client) Users(ctx context.Context, req UsersRequest) (GetUsersResponse,
 			if req.SearchQuery != "" {
 				params = append(params, req.SearchQuery)
 			}
+			for _, lt := range req.LoginType {
+				params = append(params, "login_type:"+string(lt))
+			}
 			q.Set("q", strings.Join(params, " "))
 			r.URL.RawQuery = q.Encode()
 		},
@@ -485,7 +854,7 @@ func (c *Client) OrganizationsByUser(ctx context.Context, user string) ([]Organi
 	return orgs, json.NewDecoder(res.Body).Decode(&orgs)
 }
 
-func (c *Client) OrganizationByName(ctx context.Context, user string, name string) (Organization, error) {
+func (c *Client) OrganizationByUserAndName(ctx context.Context, user string, name string) (Organization, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/organizations/%s", user, name), nil)
 	if err != nil {
 		return Organization{}, err
@@ -494,22 +863,6 @@ func (c *Client) OrganizationByName(ctx context.Context, user string, name strin
 	if res.StatusCode != http.StatusOK {
 		return Organization{}, ReadBodyAsError(res)
 	}
-	var org Organization
-	return org, json.NewDecoder(res.Body).Decode(&org)
-}
-
-// CreateOrganization creates an organization and adds the provided user as an admin.
-func (c *Client) CreateOrganization(ctx context.Context, req CreateOrganizationRequest) (Organization, error) {
-	res, err := c.Request(ctx, http.MethodPost, "/api/v2/organizations", req)
-	if err != nil {
-		return Organization{}, err
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusCreated {
-		return Organization{}, ReadBodyAsError(res)
-	}
-
 	var org Organization
 	return org, json.NewDecoder(res.Body).Decode(&org)
 }

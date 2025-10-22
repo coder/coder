@@ -16,12 +16,15 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/externalauth"
-	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/examples"
 	"github.com/coder/coder/v2/provisioner/echo"
+	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -38,15 +41,21 @@ func TestTemplateVersion(t *testing.T) {
 			req.Name = "bananas"
 			req.Message = "first try"
 		})
-		authz.AssertChecked(t, rbac.ActionCreate, rbac.ResourceTemplate.InOrg(user.OrganizationID))
+		authz.AssertChecked(t, policy.ActionCreate, rbac.ResourceTemplate.InOrg(user.OrganizationID))
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
 		authz.Reset()
 		tv, err := client.TemplateVersion(ctx, version.ID)
-		authz.AssertChecked(t, rbac.ActionRead, tv)
+		authz.AssertChecked(t, policy.ActionRead, tv)
 		require.NoError(t, err)
+		if assert.Equal(t, tv.Job.Status, codersdk.ProvisionerJobPending) {
+			assert.NotNil(t, tv.MatchedProvisioners)
+			assert.Zero(t, tv.MatchedProvisioners.Available)
+			assert.Zero(t, tv.MatchedProvisioners.Count)
+			assert.False(t, tv.MatchedProvisioners.MostRecentlySeen.Valid)
+		}
 
 		assert.Equal(t, "bananas", tv.Name)
 		assert.Equal(t, "first try", tv.Message)
@@ -84,8 +93,14 @@ func TestTemplateVersion(t *testing.T) {
 
 		client1, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
-		_, err := client1.TemplateVersion(ctx, version.ID)
+		tv, err := client1.TemplateVersion(ctx, version.ID)
 		require.NoError(t, err)
+		if assert.Equal(t, tv.Job.Status, codersdk.ProvisionerJobPending) {
+			assert.NotNil(t, tv.MatchedProvisioners)
+			assert.Zero(t, tv.MatchedProvisioners.Available)
+			assert.Zero(t, tv.MatchedProvisioners.Count)
+			assert.False(t, tv.MatchedProvisioners.MostRecentlySeen.Valid)
+		}
 	})
 }
 
@@ -132,7 +147,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 	t.Run("WithParameters", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
+		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 		user := coderdtest.CreateFirstUser(t, client)
 		data, err := echo.Tar(&echo.Responses{
 			Parse:          echo.ParseComplete,
@@ -154,15 +169,27 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, "bananas", version.Name)
-		require.Equal(t, provisionerdserver.ScopeOrganization, version.Job.Tags[provisionerdserver.TagScope])
+		require.Equal(t, provisionersdk.ScopeOrganization, version.Job.Tags[provisionersdk.TagScope])
+		if assert.Equal(t, version.Job.Status, codersdk.ProvisionerJobPending) {
+			assert.NotNil(t, version.MatchedProvisioners)
+			assert.Equal(t, 1, version.MatchedProvisioners.Available)
+			assert.Equal(t, 1, version.MatchedProvisioners.Count)
+			assert.True(t, version.MatchedProvisioners.MostRecentlySeen.Valid)
+		}
 
 		require.Len(t, auditor.AuditLogs(), 2)
 		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[1].Action)
+
+		admin, err := client.User(ctx, user.UserID.String())
+		require.NoError(t, err)
+		tvDB, err := db.GetTemplateVersionByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(admin, user.OrganizationID)), version.ID)
+		require.NoError(t, err)
+		require.False(t, tvDB.SourceExampleID.Valid)
 	})
 
 	t.Run("Example", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -203,6 +230,12 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "my-example", tv.Name)
 
+		admin, err := client.User(ctx, user.UserID.String())
+		require.NoError(t, err)
+		tvDB, err := db.GetTemplateVersionByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(admin, user.OrganizationID)), tv.ID)
+		require.NoError(t, err)
+		require.Equal(t, ls[0].ID, tvDB.SourceExampleID.String)
+
 		// ensure the template tar was uploaded correctly
 		fl, ct, err := client.Download(ctx, tv.Job.FileID)
 		require.NoError(t, err)
@@ -219,6 +252,486 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 			Provisioner:   codersdk.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
+	})
+
+	t.Run("WorkspaceTags", func(t *testing.T) {
+		t.Parallel()
+		// This test ensures that when creating a template version from an archive continaining a coder_workspace_tags
+		// data source, we automatically assign some "reasonable" provisioner tag values to the resulting template
+		// import job.
+		// TODO(Cian): I'd also like to assert that the correct raw tag values are stored in the database,
+		//             but in order to do this, we need to actually run the job! This isn't straightforward right now.
+
+		store, ps := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database: store,
+			Pubsub:   ps,
+		})
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdmin, templateAdminUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+		for _, tt := range []struct {
+			name        string
+			files       map[string]string
+			reqTags     map[string]string
+			wantTags    map[string]string
+			variables   []codersdk.VariableValue
+			expectError string
+		}{
+			{
+				name:     "empty",
+				wantTags: map[string]string{"owner": "", "scope": "organization"},
+			},
+			{
+				name: "main.tf with no tags",
+				files: map[string]string{
+					`main.tf`: `
+						variable "a" {
+							type = string
+							default = "1"
+						}
+						data "coder_parameter" "b" {
+							name = "b"
+							type = string
+							default = "2"
+						}
+						data "coder_parameter" "unrelated" {
+							name    = "unrelated"
+							type    = "list(string)"
+							default = jsonencode(["a", "b"])
+						}
+						resource "null_resource" "test" {}`,
+				},
+				wantTags: map[string]string{"owner": "", "scope": "organization"},
+			},
+			{
+				name: "main.tf with empty workspace tags",
+				files: map[string]string{
+					`main.tf`: `
+						variable "a" {
+							type = string
+							default = "1"
+						}
+						data "coder_parameter" "b" {
+							name = "b"
+							type = string
+							default = "2"
+						}
+						data "coder_parameter" "unrelated" {
+							name    = "unrelated"
+							type    = "list(string)"
+							default = jsonencode(["a", "b"])
+						}
+						resource "null_resource" "test" {}
+						data "coder_workspace_tags" "tags" {
+							tags = {}
+						}`,
+				},
+				wantTags: map[string]string{"owner": "", "scope": "organization"},
+			},
+			{
+				name: "main.tf with workspace tags",
+				files: map[string]string{
+					`main.tf`: `
+						variable "a" {
+							type = string
+							default = "1"
+						}
+						data "coder_parameter" "b" {
+							name = "b"
+							type = string
+							default = "2"
+						}
+						data "coder_parameter" "unrelated" {
+							name    = "unrelated"
+							type    = "list(string)"
+							default = jsonencode(["a", "b"])
+						}
+						resource "null_resource" "test" {}
+						data "coder_workspace_tags" "tags" {
+							tags = {
+								"foo": "bar",
+								"a": var.a,
+								"b": data.coder_parameter.b.value,
+							}
+						}`,
+				},
+				wantTags: map[string]string{"owner": "", "scope": "organization", "foo": "bar", "a": "1", "b": "2"},
+			},
+			{
+				name: "main.tf with request tags not clobbering workspace tags",
+				files: map[string]string{
+					`main.tf`: `
+						// This file is, once again, the same as the above, except
+						// for a slightly different comment.
+						variable "a" {
+							type = string
+							default = "1"
+						}
+						data "coder_parameter" "b" {
+							name = "b"
+							type = string
+							default = "2"
+						}
+						data "coder_parameter" "unrelated" {
+							name    = "unrelated"
+							type    = "list(string)"
+							default = jsonencode(["a", "b"])
+						}
+						resource "null_resource" "test" {}
+						data "coder_workspace_tags" "tags" {
+							tags = {
+								"foo": "bar",
+								"a": var.a,
+								"b": data.coder_parameter.b.value,
+							}
+						}`,
+				},
+				reqTags:  map[string]string{"baz": "zap"},
+				wantTags: map[string]string{"owner": "", "scope": "organization", "foo": "bar", "baz": "zap", "a": "1", "b": "2"},
+			},
+			{
+				name: "main.tf with request tags clobbering workspace tags",
+				files: map[string]string{
+					`main.tf`: `
+						// This file is the same as the above, except for this comment.
+						variable "a" {
+							type = string
+							default = "1"
+						}
+						data "coder_parameter" "b" {
+							name = "b"
+							type = string
+							default = "2"
+						}
+						data "coder_parameter" "unrelated" {
+							name    = "unrelated"
+							type    = "list(string)"
+							default = jsonencode(["a", "b"])
+						}
+						resource "null_resource" "test" {}
+						data "coder_workspace_tags" "tags" {
+							tags = {
+								"foo": "bar",
+								"a": var.a,
+								"b": data.coder_parameter.b.value,
+							}
+						}`,
+				},
+				reqTags:  map[string]string{"baz": "zap", "foo": "clobbered"},
+				wantTags: map[string]string{"owner": "", "scope": "organization", "foo": "clobbered", "baz": "zap", "a": "1", "b": "2"},
+			},
+			// FIXME(cian): we should skip evaluating tags for which values have already been provided.
+			{
+				name: "main.tf with variable missing default value but value is passed in request",
+				files: map[string]string{
+					`main.tf`: `
+						variable "a" {
+							type = string
+						}
+						data "coder_workspace_tags" "tags" {
+							tags = {
+								"a": var.a,
+							}
+						}`,
+				},
+				reqTags:   map[string]string{"a": "b"},
+				wantTags:  map[string]string{"owner": "", "scope": "organization", "a": "b"},
+				variables: []codersdk.VariableValue{{Name: "a", Value: "b"}},
+			},
+			{
+				name: "main.tf with resource reference",
+				files: map[string]string{
+					`main.tf`: `
+						variable "a" {
+							type = string
+							default = "1"
+						}
+						data "coder_parameter" "b" {
+							name = "b"
+							type = string
+							default = "2"
+						}
+						data "coder_parameter" "unrelated" {
+							name    = "unrelated"
+							type    = "list(string)"
+							default = jsonencode(["a", "b"])
+						}
+						resource "null_resource" "test" {
+							name = "foo"
+						}
+						data "coder_workspace_tags" "tags" {
+							tags = {
+								"foo": "bar",
+								"a": var.a,
+								"b": data.coder_parameter.b.value,
+								"test": null_resource.test.name,
+							}
+						}`,
+				},
+				reqTags:  map[string]string{"foo": "bar", "a": "1", "b": "2", "test": "foo"},
+				wantTags: map[string]string{"owner": "", "scope": "organization", "foo": "bar", "a": "1", "b": "2", "test": "foo"},
+			},
+			// We will allow coder_workspace_tags to set the scope on a template version import job
+			// BUT the user ID will be ultimately determined by the API key in the scope.
+			// TODO(Cian): Is this what we want? Or should we just ignore these provisioner
+			// tags entirely?
+			{
+				name: "main.tf with workspace tags that attempts to set user scope",
+				files: map[string]string{
+					`main.tf`: `
+						data "coder_parameter" "unrelated" {
+							name    = "unrelated"
+							type    = "list(string)"
+							default = jsonencode(["a", "b"])
+						}
+						resource "null_resource" "test" {}
+						data "coder_workspace_tags" "tags" {
+							tags = {
+								"scope": "user",
+								"owner": "12345678-1234-1234-1234-1234567890ab",
+							}
+						}`,
+				},
+				wantTags: map[string]string{"owner": templateAdminUser.ID.String(), "scope": "user"},
+			},
+			{
+				name: "main.tf with workspace tags that attempt to clobber org ID",
+				files: map[string]string{
+					`main.tf`: `
+						data "coder_parameter" "unrelated" {
+							name    = "unrelated"
+							type    = "list(string)"
+							default = jsonencode(["a", "b"])
+						}
+						resource "null_resource" "test" {}
+						data "coder_workspace_tags" "tags" {
+							tags = {
+								"scope": "organization",
+								"owner": "12345678-1234-1234-1234-1234567890ab",
+							}
+						}`,
+				},
+				wantTags: map[string]string{"owner": "", "scope": "organization"},
+			},
+			{
+				name: "main.tf with workspace tags that set scope=user",
+				files: map[string]string{
+					`main.tf`: `
+						data "coder_parameter" "unrelated" {
+							name    = "unrelated"
+							type    = "list(string)"
+							default = jsonencode(["a", "b"])
+						}
+						resource "null_resource" "test" {}
+						data "coder_workspace_tags" "tags" {
+							tags = {
+								"scope": "user",
+							}
+						}`,
+				},
+				wantTags: map[string]string{"owner": templateAdminUser.ID.String(), "scope": "user"},
+			},
+			// Ref: https://github.com/coder/coder/issues/16021
+			{
+				name: "main.tf with no workspace_tags and a function call in a parameter default",
+				files: map[string]string{
+					`main.tf`: `
+						data "coder_parameter" "unrelated" {
+							name    = "unrelated"
+							type    = "list(string)"
+							default = jsonencode(["a", "b"])
+						}`,
+				},
+				wantTags: map[string]string{"owner": "", "scope": "organization"},
+			},
+			{
+				name: "main.tf with tags from parameter with default value from variable no default",
+				files: map[string]string{
+					`main.tf`: `
+						variable "provisioner" {
+						  type        = string
+						}
+						variable "default_provisioner" {
+						  type        = string
+						  default     = "" # intentionally blank, set on template creation
+						}
+						data "coder_parameter" "provisioner" {
+						  name         = "provisioner"
+						  mutable      = false
+						  default      = var.default_provisioner
+						  dynamic "option" {
+							for_each = toset(split(",", var.provisioner))
+							content {
+							  name  = option.value
+							  value = option.value
+							}
+						  }
+						}
+						data "coder_workspace_tags" "tags" {
+						  tags = {
+							"provisioner" : data.coder_parameter.provisioner.value
+						  }
+						}`,
+				},
+				reqTags: map[string]string{
+					"provisioner": "alpha",
+				},
+				wantTags: map[string]string{
+					"provisioner": "alpha", "owner": "", "scope": "organization",
+				},
+			},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitShort)
+
+				// Create an archive from the files provided in the test case.
+				tarFile := testutil.CreateTar(t, tt.files)
+
+				// Post the archive file
+				fi, err := templateAdmin.Upload(ctx, "application/x-tar", bytes.NewReader(tarFile))
+				require.NoError(t, err)
+
+				// Create a template version from the archive
+				tvName := testutil.GetRandomNameHyphenated(t)
+				tv, err := templateAdmin.CreateTemplateVersion(ctx, owner.OrganizationID, codersdk.CreateTemplateVersionRequest{
+					Name:               tvName,
+					StorageMethod:      codersdk.ProvisionerStorageMethodFile,
+					Provisioner:        codersdk.ProvisionerTypeTerraform,
+					FileID:             fi.ID,
+					ProvisionerTags:    tt.reqTags,
+					UserVariableValues: tt.variables,
+				})
+
+				if tt.expectError == "" {
+					require.NoError(t, err)
+					// Assert the expected provisioner job is created from the template version import
+					pj, err := store.GetProvisionerJobByID(ctx, tv.Job.ID)
+					require.NoError(t, err)
+					require.EqualValues(t, tt.wantTags, pj.Tags)
+					// Also assert that we get the expected information back from the API endpoint
+					require.Zero(t, tv.MatchedProvisioners.Count)
+					require.Zero(t, tv.MatchedProvisioners.Available)
+					require.Zero(t, tv.MatchedProvisioners.MostRecentlySeen.Time)
+				} else {
+					require.ErrorContains(t, err, tt.expectError)
+				}
+			})
+		}
+	})
+
+	t.Run("Presets", func(t *testing.T) {
+		t.Parallel()
+		store, ps := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database: store,
+			Pubsub:   ps,
+		})
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+		for _, tt := range []struct {
+			name        string
+			files       map[string]string
+			expectError string
+		}{
+			{
+				name: "valid preset",
+				files: map[string]string{
+					`main.tf`: `
+						terraform {
+							required_providers {
+								coder = {
+									source = "coder/coder"
+									version = "2.8.0"
+								}
+							}
+						}
+						data "coder_parameter" "valid_parameter" {
+							name = "valid_parameter_name"
+							default = "valid_option_value"
+							option {
+								name = "valid_option_name"
+								value = "valid_option_value"
+							}
+						}
+						data "coder_workspace_preset" "valid_preset" {
+							name = "valid_preset"
+							parameters = {
+								"valid_parameter_name" = "valid_option_value"
+							}
+						}
+					`,
+				},
+			},
+			{
+				name: "invalid preset",
+				files: map[string]string{
+					`main.tf`: `
+						terraform {
+							required_providers {
+								coder = {
+									source = "coder/coder"
+									version = "2.8.0"
+								}
+							}
+						}
+						data "coder_parameter" "valid_parameter" {
+							name = "valid_parameter_name"
+							default = "valid_option_value"
+							option {
+								name = "valid_option_name"
+								value = "valid_option_value"
+							}
+						}
+						data "coder_workspace_preset" "invalid_parameter_name" {
+							name = "invalid_parameter_name"
+							parameters = {
+								"invalid_parameter_name" = "irrelevant_value"
+							}
+						}
+					`,
+				},
+				expectError: "Undefined Parameter",
+			},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitShort)
+
+				// Create an archive from the files provided in the test case.
+				tarFile := testutil.CreateTar(t, tt.files)
+
+				// Post the archive file
+				fi, err := templateAdmin.Upload(ctx, "application/x-tar", bytes.NewReader(tarFile))
+				require.NoError(t, err)
+
+				// Create a template version from the archive
+				tvName := testutil.GetRandomNameHyphenated(t)
+				tv, err := templateAdmin.CreateTemplateVersion(ctx, owner.OrganizationID, codersdk.CreateTemplateVersionRequest{
+					Name:          tvName,
+					StorageMethod: codersdk.ProvisionerStorageMethodFile,
+					Provisioner:   codersdk.ProvisionerTypeTerraform,
+					FileID:        fi.ID,
+				})
+
+				if tt.expectError == "" {
+					require.NoError(t, err)
+					// Assert the expected provisioner job is created from the template version import
+					pj, err := store.GetProvisionerJobByID(ctx, tv.Job.ID)
+					require.NoError(t, err)
+					require.NotNil(t, pj)
+					// Also assert that we get the expected information back from the API endpoint
+					require.Zero(t, tv.MatchedProvisioners.Count)
+					require.Zero(t, tv.MatchedProvisioners.Available)
+					require.Zero(t, tv.MatchedProvisioners.MostRecentlySeen.Time)
+				} else {
+					require.ErrorContains(t, err, tt.expectError)
+					require.Equal(t, tv.Job.ID, uuid.Nil)
+				}
+			})
+		}
 	})
 }
 
@@ -335,10 +848,10 @@ func TestTemplateVersionsExternalAuth(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 			ExternalAuthConfigs: []*externalauth.Config{{
-				OAuth2Config: &testutil.OAuth2Config{},
-				ID:           "github",
-				Regex:        regexp.MustCompile(`github\.com`),
-				Type:         codersdk.EnhancedExternalAuthProviderGitHub.String(),
+				InstrumentedOAuth2Config: &testutil.OAuth2Config{},
+				ID:                       "github",
+				Regex:                    regexp.MustCompile(`github\.com`),
+				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
 			}},
 		})
 		user := coderdtest.CreateFirstUser(t, client)
@@ -347,7 +860,7 @@ func TestTemplateVersionsExternalAuth(t *testing.T) {
 			ProvisionPlan: []*proto.Response{{
 				Type: &proto.Response_Plan{
 					Plan: &proto.PlanComplete{
-						ExternalAuthProviders: []string{"github"},
+						ExternalAuthProviders: []*proto.ExternalAuthProviderResource{{Id: "github", Optional: true}},
 					},
 				},
 			}},
@@ -373,6 +886,7 @@ func TestTemplateVersionsExternalAuth(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, providers, 1)
 		require.True(t, providers[0].Authenticated)
+		require.True(t, providers[0].Optional)
 	})
 }
 
@@ -406,6 +920,7 @@ func TestTemplateVersionResources(t *testing.T) {
 							Type: "example",
 							Agents: []*proto.Agent{{
 								Id:   "something",
+								Name: "dev",
 								Auth: &proto.Agent_Token{},
 							}},
 						}, {
@@ -452,7 +967,8 @@ func TestTemplateVersionLogs(t *testing.T) {
 						Name: "some",
 						Type: "example",
 						Agents: []*proto.Agent{{
-							Id: "something",
+							Id:   "something",
+							Name: "dev",
 							Auth: &proto.Agent_Token{
 								Token: uuid.NewString(),
 							},
@@ -528,8 +1044,15 @@ func TestTemplateVersionByName(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, err := client.TemplateVersionByName(ctx, template.ID, version.Name)
+		tv, err := client.TemplateVersionByName(ctx, template.ID, version.Name)
 		require.NoError(t, err)
+
+		if assert.Equal(t, tv.Job.Status, codersdk.ProvisionerJobPending) {
+			assert.NotNil(t, tv.MatchedProvisioners)
+			assert.Zero(t, tv.MatchedProvisioners.Available)
+			assert.Zero(t, tv.MatchedProvisioners.Count)
+			assert.False(t, tv.MatchedProvisioners.MostRecentlySeen.Valid)
+		}
 	})
 }
 
@@ -619,6 +1142,34 @@ func TestPatchActiveTemplateVersion(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 	})
 
+	t.Run("Archived", func(t *testing.T) {
+		t.Parallel()
+		auditor := audit.NewMock()
+		ownerClient := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			Auditor:                  auditor,
+		})
+		owner := coderdtest.CreateFirstUser(t, ownerClient)
+		client, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+		version = coderdtest.UpdateTemplateVersion(t, client, owner.OrganizationID, nil, template.ID)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		err := client.SetArchiveTemplateVersion(ctx, version.ID, true)
+		require.NoError(t, err)
+
+		err = client.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{
+			ID: version.ID,
+		})
+		require.Error(t, err)
+		require.ErrorContains(t, err, "The provided template version is archived")
+	})
+
 	t.Run("SuccessfulBuild", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
@@ -689,6 +1240,13 @@ func TestTemplateVersionDryRun(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, job.ID, newJob.ID)
 
+		// Check matched provisioners
+		matched, err := client.TemplateVersionDryRunMatchedProvisioners(ctx, version.ID, job.ID)
+		require.NoError(t, err)
+		require.Equal(t, 1, matched.Count)
+		require.Equal(t, 1, matched.Available)
+		require.NotZero(t, matched.MostRecentlySeen.Time)
+
 		// Stream logs
 		logs, closer, err := client.TemplateVersionDryRunLogsAfter(ctx, version.ID, job.ID, 0)
 		require.NoError(t, err)
@@ -740,7 +1298,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 		_, err := client.CreateTemplateVersionDryRun(ctx, version.ID, codersdk.CreateTemplateVersionDryRunRequest{})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Equal(t, http.StatusTooEarly, apiErr.StatusCode())
 	})
 
 	t.Run("Cancel", func(t *testing.T) {
@@ -861,6 +1419,49 @@ func TestTemplateVersionDryRun(t *testing.T) {
 			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 		})
 	})
+
+	t.Run("Pending", func(t *testing.T) {
+		t.Parallel()
+		if !dbtestutil.WillUsePostgres() {
+			t.Skip("this test requires postgres")
+		}
+
+		store, ps, db := dbtestutil.NewDBWithSQLDB(t)
+		client, closer := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{
+			Database:                 store,
+			Pubsub:                   ps,
+			IncludeProvisionerDaemon: true,
+		})
+		defer closer.Close()
+
+		owner := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ApplyComplete,
+		})
+		version = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		require.Equal(t, codersdk.ProvisionerJobSucceeded, version.Job.Status)
+
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		_, err := db.Exec("DELETE FROM provisioner_daemons")
+		require.NoError(t, err)
+
+		job, err := templateAdmin.CreateTemplateVersionDryRun(ctx, version.ID, codersdk.CreateTemplateVersionDryRunRequest{
+			WorkspaceName:       "test",
+			RichParameterValues: []codersdk.WorkspaceBuildParameter{},
+			UserVariableValues:  []codersdk.VariableValue{},
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ProvisionerJobPending, job.Status)
+
+		matched, err := templateAdmin.TemplateVersionDryRunMatchedProvisioners(ctx, version.ID, job.ID)
+		require.NoError(t, err)
+		require.Equal(t, 0, matched.Count)
+		require.Equal(t, 0, matched.Available)
+		require.Zero(t, matched.MostRecentlySeen.Time)
+	})
 }
 
 // TestPaginatedTemplateVersions creates a list of template versions and paginate.
@@ -883,7 +1484,6 @@ func TestPaginatedTemplateVersions(t *testing.T) {
 	file, err := client.Upload(egCtx, codersdk.ContentTypeTar, bytes.NewReader(data))
 	require.NoError(t, err)
 	for i := 0; i < total; i++ {
-		i := i
 		eg.Go(func() error {
 			templateVersion, err := client.CreateTemplateVersion(egCtx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
 				Name:          uuid.NewString(),
@@ -956,7 +1556,6 @@ func TestPaginatedTemplateVersions(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1067,17 +1666,17 @@ func TestPreviousTemplateVersion(t *testing.T) {
 	})
 }
 
-func TestTemplateExamples(t *testing.T) {
+func TestStarterTemplates(t *testing.T) {
 	t.Parallel()
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		user := coderdtest.CreateFirstUser(t, client)
+		_ = coderdtest.CreateFirstUser(t, client)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		ex, err := client.TemplateExamples(ctx, user.OrganizationID)
+		ex, err := client.StarterTemplates(ctx)
 		require.NoError(t, err)
 		ls, err := examples.List()
 		require.NoError(t, err)
@@ -1514,4 +2113,144 @@ func TestTemplateVersionParameters_Order(t *testing.T) {
 	require.Equal(t, fourthParameterName, templateRichParameters[2].Name)
 	require.Equal(t, secondParameterName, templateRichParameters[3].Name)
 	require.Equal(t, thirdParameterName, templateRichParameters[4].Name)
+}
+
+func TestTemplateArchiveVersions(t *testing.T) {
+	t.Parallel()
+
+	ownerClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	owner := coderdtest.CreateFirstUser(t, ownerClient)
+	client, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+	var totalVersions int
+	// Create a template to archive
+	initialVersion := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+	totalVersions++
+	template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, initialVersion.ID)
+
+	allFailed := make([]uuid.UUID, 0)
+	expArchived := make([]uuid.UUID, 0)
+	// create some failed versions
+	for i := 0; i < 2; i++ {
+		failed := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.PlanFailed,
+			ProvisionApply: echo.ApplyFailed,
+		}, func(req *codersdk.CreateTemplateVersionRequest) {
+			req.TemplateID = template.ID
+		})
+		allFailed = append(allFailed, failed.ID)
+		totalVersions++
+	}
+
+	// Create some unused versions
+	for i := 0; i < 2; i++ {
+		unused := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil, func(req *codersdk.CreateTemplateVersionRequest) {
+			req.TemplateID = template.ID
+		})
+		expArchived = append(expArchived, unused.ID)
+		totalVersions++
+	}
+
+	// Create some used template versions
+	for i := 0; i < 2; i++ {
+		used := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil, func(req *codersdk.CreateTemplateVersionRequest) {
+			req.TemplateID = template.ID
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, used.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, uuid.Nil, func(request *codersdk.CreateWorkspaceRequest) {
+			request.TemplateVersionID = used.ID
+		})
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+		totalVersions++
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	versions, err := client.TemplateVersionsByTemplate(ctx, codersdk.TemplateVersionsByTemplateRequest{
+		TemplateID: template.ID,
+		Pagination: codersdk.Pagination{
+			Limit: 100,
+		},
+	})
+	require.NoError(t, err, "fetch all versions")
+	require.Len(t, versions, totalVersions, "total versions")
+
+	// Archive failed versions
+	archiveFailed, err := client.ArchiveTemplateVersions(ctx, template.ID, false)
+	require.NoError(t, err, "archive failed versions")
+	require.ElementsMatch(t, archiveFailed.ArchivedIDs, allFailed, "all failed versions archived")
+
+	remaining, err := client.TemplateVersionsByTemplate(ctx, codersdk.TemplateVersionsByTemplateRequest{
+		TemplateID: template.ID,
+		Pagination: codersdk.Pagination{
+			Limit: 100,
+		},
+	})
+	require.NoError(t, err, "fetch all non-failed versions")
+	require.Len(t, remaining, totalVersions-len(allFailed), "remaining non-failed versions")
+
+	// Try archiving "All" unused templates
+	archived, err := client.ArchiveTemplateVersions(ctx, template.ID, true)
+	require.NoError(t, err, "archive versions")
+	require.ElementsMatch(t, archived.ArchivedIDs, expArchived, "all expected versions archived")
+
+	remaining, err = client.TemplateVersionsByTemplate(ctx, codersdk.TemplateVersionsByTemplateRequest{
+		TemplateID: template.ID,
+		Pagination: codersdk.Pagination{
+			Limit: 100,
+		},
+	})
+	require.NoError(t, err, "fetch all versions")
+	require.Len(t, remaining, totalVersions-len(expArchived)-len(allFailed), "remaining versions")
+
+	// Unarchive a version
+	err = client.SetArchiveTemplateVersion(ctx, expArchived[0], false)
+	require.NoError(t, err, "unarchive a version")
+
+	tv, err := client.TemplateVersion(ctx, expArchived[0])
+	require.NoError(t, err, "fetch version")
+	require.False(t, tv.Archived, "expect unarchived")
+
+	// Check the remaining again
+	remaining, err = client.TemplateVersionsByTemplate(ctx, codersdk.TemplateVersionsByTemplateRequest{
+		TemplateID: template.ID,
+		Pagination: codersdk.Pagination{
+			Limit: 100,
+		},
+	})
+	require.NoError(t, err, "fetch all versions")
+	require.Len(t, remaining, totalVersions-len(expArchived)-len(allFailed)+1, "remaining versions")
+}
+
+func TestTemplateVersionHasExternalAgent(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse: echo.ParseComplete,
+		ProvisionPlan: []*proto.Response{
+			{
+				Type: &proto.Response_Plan{
+					Plan: &proto.PlanComplete{
+						Resources: []*proto.Resource{
+							{
+								Name: "example",
+								Type: "coder_external_agent",
+							},
+						},
+						HasExternalAgents: true,
+					},
+				},
+			},
+		},
+		ProvisionApply: echo.ApplyComplete,
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+	version, err := client.TemplateVersion(ctx, version.ID)
+	require.NoError(t, err)
+	require.True(t, version.HasExternalAgent)
 }

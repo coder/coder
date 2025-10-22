@@ -2,13 +2,21 @@ package workspacetraffic_test
 
 import (
 	"context"
+	"errors"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"golang.org/x/exp/slices"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -17,10 +25,7 @@ import (
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/scaletest/workspacetraffic"
 	"github.com/coder/coder/v2/testutil"
-
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/coder/websocket"
 )
 
 func TestRun(t *testing.T) {
@@ -33,7 +38,7 @@ func TestRun(t *testing.T) {
 	}
 
 	//nolint:dupl
-	t.Run("PTY", func(t *testing.T) {
+	t.Run("RPTY", func(t *testing.T) {
 		t.Parallel()
 		// We need to stand up an in-memory coderd and run a fake workspace.
 		var (
@@ -66,7 +71,7 @@ func TestRun(t *testing.T) {
 			template = coderdtest.CreateTemplate(t, client, firstUser.OrganizationID, version.ID)
 			_        = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 			// In order to be picked up as a scaletest workspace, the workspace must be named specifically
-			ws = coderdtest.CreateWorkspace(t, client, firstUser.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			ws = coderdtest.CreateWorkspace(t, client, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
 				cwr.Name = "scaletest-test"
 			})
 			_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
@@ -91,7 +96,6 @@ func TestRun(t *testing.T) {
 		var (
 			bytesPerTick = 1024
 			tickInterval = 1000 * time.Millisecond
-			fudgeWrite   = 12 // The ReconnectingPTY payload incurs some overhead
 			readMetrics  = &testMetrics{}
 			writeMetrics = &testMetrics{}
 		)
@@ -103,6 +107,7 @@ func TestRun(t *testing.T) {
 			ReadMetrics:  readMetrics,
 			WriteMetrics: writeMetrics,
 			SSH:          false,
+			Echo:         false,
 		})
 
 		var logs strings.Builder
@@ -111,7 +116,7 @@ func TestRun(t *testing.T) {
 		go func() {
 			defer close(runDone)
 			err := runner.Run(ctx, "", &logs)
-			assert.NoError(t, err, "unexpected error calling Run()")
+			assert.NoError(t, err, "RUN LOGS:\n%s\nEND RUN LOGS\n", logs.String())
 		}()
 
 		gotMetrics := make(chan struct{})
@@ -138,11 +143,11 @@ func TestRun(t *testing.T) {
 		t.Logf("bytes read total: %.0f\n", readMetrics.Total())
 		t.Logf("bytes written total: %.0f\n", writeMetrics.Total())
 
-		// We want to ensure the metrics are somewhat accurate.
-		assert.InDelta(t, bytesPerTick+fudgeWrite, writeMetrics.Total(), 0.1)
-		// Read is highly variable, depending on how far we read before stopping.
-		// Just ensure it's not zero.
+		// Ensure something was both read and written.
 		assert.NotZero(t, readMetrics.Total())
+		assert.NotZero(t, writeMetrics.Total())
+		// We want to ensure the metrics are somewhat accurate.
+		assert.InDelta(t, writeMetrics.Total(), readMetrics.Total(), float64(bytesPerTick)*10)
 		// Latency should report non-zero values.
 		assert.NotEmpty(t, readMetrics.Latencies())
 		assert.NotEmpty(t, writeMetrics.Latencies())
@@ -185,7 +190,7 @@ func TestRun(t *testing.T) {
 			template = coderdtest.CreateTemplate(t, client, firstUser.OrganizationID, version.ID)
 			_        = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 			// In order to be picked up as a scaletest workspace, the workspace must be named specifically
-			ws = coderdtest.CreateWorkspace(t, client, firstUser.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			ws = coderdtest.CreateWorkspace(t, client, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
 				cwr.Name = "scaletest-test"
 			})
 			_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
@@ -211,7 +216,6 @@ func TestRun(t *testing.T) {
 		var (
 			bytesPerTick = 1024
 			tickInterval = 1000 * time.Millisecond
-			fudgeWrite   = 2 // We send \r\n, which is two bytes
 			readMetrics  = &testMetrics{}
 			writeMetrics = &testMetrics{}
 		)
@@ -223,6 +227,7 @@ func TestRun(t *testing.T) {
 			ReadMetrics:  readMetrics,
 			WriteMetrics: writeMetrics,
 			SSH:          true,
+			Echo:         true,
 		})
 
 		var logs strings.Builder
@@ -231,7 +236,7 @@ func TestRun(t *testing.T) {
 		go func() {
 			defer close(runDone)
 			err := runner.Run(ctx, "", &logs)
-			assert.NoError(t, err, "unexpected error calling Run()")
+			assert.NoError(t, err, "RUN LOGS:\n%s\nEND RUN LOGS\n", logs.String())
 		}()
 
 		gotMetrics := make(chan struct{})
@@ -258,11 +263,111 @@ func TestRun(t *testing.T) {
 		t.Logf("bytes read total: %.0f\n", readMetrics.Total())
 		t.Logf("bytes written total: %.0f\n", writeMetrics.Total())
 
-		// We want to ensure the metrics are somewhat accurate.
-		assert.InDelta(t, bytesPerTick+fudgeWrite, writeMetrics.Total(), 0.1)
-		// Read is highly variable, depending on how far we read before stopping.
-		// Just ensure it's not zero.
+		// Ensure something was both read and written.
 		assert.NotZero(t, readMetrics.Total())
+		assert.NotZero(t, writeMetrics.Total())
+		// We want to ensure the metrics are somewhat accurate.
+		assert.InDelta(t, writeMetrics.Total(), readMetrics.Total(), float64(bytesPerTick)*10)
+		// Latency should report non-zero values.
+		assert.NotEmpty(t, readMetrics.Latencies())
+		assert.NotEmpty(t, writeMetrics.Latencies())
+		// Should not report any errors!
+		assert.Zero(t, readMetrics.Errors())
+		assert.Zero(t, writeMetrics.Errors())
+	})
+
+	t.Run("App", func(t *testing.T) {
+		t.Parallel()
+
+		// Start a test server that will echo back the request body, this skips
+		// the roundtrip to coderd/agent and simply tests the http request conn
+		// directly.
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			c, err := websocket.Accept(w, r, &websocket.AcceptOptions{})
+			if err != nil {
+				t.Error(err)
+				return
+			}
+
+			nc := websocket.NetConn(context.Background(), c, websocket.MessageBinary)
+			defer nc.Close()
+
+			_, err = io.Copy(nc, nc)
+			if err == nil || errors.Is(err, io.EOF) {
+				return
+			}
+			// Ignore policy violations, we expect these, e.g.:
+			//
+			// 	failed to get reader: received close frame: status = StatusPolicyViolation and reason = "timed out"
+			if websocket.CloseStatus(err) == websocket.StatusPolicyViolation {
+				return
+			}
+
+			t.Error(err)
+		}))
+		defer srv.Close()
+
+		// Now we can start the runner.
+		var (
+			bytesPerTick = 1024
+			tickInterval = 1000 * time.Millisecond
+			readMetrics  = &testMetrics{}
+			writeMetrics = &testMetrics{}
+		)
+		client := codersdk.New(&url.URL{})
+		runner := workspacetraffic.NewRunner(client, workspacetraffic.Config{
+			BytesPerTick: int64(bytesPerTick),
+			TickInterval: tickInterval,
+			Duration:     testutil.WaitLong,
+			ReadMetrics:  readMetrics,
+			WriteMetrics: writeMetrics,
+			App: workspacetraffic.AppConfig{
+				Name: "echo",
+				URL:  srv.URL,
+			},
+		})
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		var logs strings.Builder
+
+		runDone := make(chan struct{})
+		go func() {
+			defer close(runDone)
+			err := runner.Run(ctx, "", &logs)
+			assert.NoError(t, err, "RUN LOGS:\n%s\nEND RUN LOGS\n", logs.String())
+		}()
+
+		gotMetrics := make(chan struct{})
+		go func() {
+			defer close(gotMetrics)
+			// Wait until we get some non-zero metrics before canceling.
+			assert.Eventually(t, func() bool {
+				readLatencies := readMetrics.Latencies()
+				writeLatencies := writeMetrics.Latencies()
+				return len(readLatencies) > 0 &&
+					len(writeLatencies) > 0 &&
+					slices.ContainsFunc(readLatencies, func(f float64) bool { return f > 0.0 }) &&
+					slices.ContainsFunc(writeLatencies, func(f float64) bool { return f > 0.0 })
+			}, testutil.WaitLong, testutil.IntervalMedium, "expected non-zero metrics")
+		}()
+
+		// Stop the test after we get some non-zero metrics.
+		<-gotMetrics
+		cancel()
+		<-runDone
+
+		t.Logf("read errors: %.0f\n", readMetrics.Errors())
+		t.Logf("write errors: %.0f\n", writeMetrics.Errors())
+		t.Logf("bytes read total: %.0f\n", readMetrics.Total())
+		t.Logf("bytes written total: %.0f\n", writeMetrics.Total())
+
+		// Ensure something was both read and written.
+		assert.NotZero(t, readMetrics.Total())
+		assert.NotZero(t, writeMetrics.Total())
+		// We want to ensure the metrics are somewhat accurate.
+		assert.InDelta(t, writeMetrics.Total(), readMetrics.Total(), float64(bytesPerTick)*10)
 		// Latency should report non-zero values.
 		assert.NotEmpty(t, readMetrics.Latencies())
 		assert.NotEmpty(t, writeMetrics.Latencies())
@@ -315,4 +420,8 @@ func (m *testMetrics) Latencies() []float64 {
 	m.Lock()
 	defer m.Unlock()
 	return m.latencies
+}
+
+func (m *testMetrics) GetTotalBytes() int64 {
+	return int64(m.total)
 }

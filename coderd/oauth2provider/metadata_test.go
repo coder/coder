@@ -1,0 +1,68 @@
+package oauth2provider_test
+
+import (
+	"context"
+	"net/url"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
+)
+
+func TestOAuth2AuthorizationServerMetadata(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+	serverURL := client.URL
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	// Use a plain HTTP client since this endpoint doesn't require authentication.
+	// Add a short readiness wait to avoid rare races with server startup.
+	endpoint := serverURL.ResolveReference(&url.URL{Path: "/.well-known/oauth-authorization-server"}).String()
+	var metadata codersdk.OAuth2AuthorizationServerMetadata
+	testutil.RequireEventuallyResponseOK(ctx, t, endpoint, &metadata)
+
+	// Verify the metadata
+	require.NotEmpty(t, metadata.Issuer)
+	require.NotEmpty(t, metadata.AuthorizationEndpoint)
+	require.NotEmpty(t, metadata.TokenEndpoint)
+	require.Contains(t, metadata.ResponseTypesSupported, "code")
+	require.Contains(t, metadata.GrantTypesSupported, "authorization_code")
+	require.Contains(t, metadata.GrantTypesSupported, "refresh_token")
+	require.Contains(t, metadata.CodeChallengeMethodsSupported, "S256")
+	// Supported scopes are published from the curated catalog
+	require.Equal(t, rbac.ExternalScopeNames(), metadata.ScopesSupported)
+}
+
+func TestOAuth2ProtectedResourceMetadata(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, nil)
+	serverURL := client.URL
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	// Use a plain HTTP client since this endpoint doesn't require authentication.
+	// Add a short readiness wait to avoid rare races with server startup.
+	endpoint := serverURL.ResolveReference(&url.URL{Path: "/.well-known/oauth-protected-resource"}).String()
+	var metadata codersdk.OAuth2ProtectedResourceMetadata
+	testutil.RequireEventuallyResponseOK(ctx, t, endpoint, &metadata)
+
+	// Verify the metadata
+	require.NotEmpty(t, metadata.Resource)
+	require.NotEmpty(t, metadata.AuthorizationServers)
+	require.Len(t, metadata.AuthorizationServers, 1)
+	require.Equal(t, metadata.Resource, metadata.AuthorizationServers[0])
+	// RFC 6750 bearer tokens are now supported as fallback methods
+	require.Contains(t, metadata.BearerMethodsSupported, "header")
+	require.Contains(t, metadata.BearerMethodsSupported, "query")
+	// Supported scopes are published from the curated catalog
+	require.Equal(t, rbac.ExternalScopeNames(), metadata.ScopesSupported)
+}

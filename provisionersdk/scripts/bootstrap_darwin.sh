@@ -4,7 +4,7 @@ set -eux
 # This is to allow folks to exec into a failed workspace and poke around to
 # troubleshoot.
 waitonexit() {
-	echo "=== Agent script exited with non-zero code. Sleeping 24h to preserve logs..."
+	echo "=== Agent script exited with non-zero code ($?). Sleeping 24h to preserve logs..."
 	sleep 86400
 }
 trap waitonexit EXIT
@@ -31,4 +31,12 @@ fi
 
 export CODER_AGENT_AUTH="${AUTH_TYPE}"
 export CODER_AGENT_URL="${ACCESS_URL}"
-exec ./$BINARY_NAME agent
+
+output=$(./${BINARY_NAME} --version | head -n1)
+if ! echo "${output}" | grep -q Coder; then
+	echo >&2 "ERROR: Downloaded agent binary returned unexpected version output"
+	echo >&2 "${BINARY_NAME} --version output: \"${output}\""
+	exit 2
+fi
+
+exec ./${BINARY_NAME} agent

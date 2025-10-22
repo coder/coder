@@ -1,0 +1,57 @@
+name: "Setup Go Paths"
+description: Overrides Go paths like GOCACHE and GOMODCACHE to use temporary directories.
+outputs:
+  gocache:
+    description: "Value of GOCACHE"
+    value: ${{ steps.paths.outputs.gocache }}
+  gomodcache:
+    description: "Value of GOMODCACHE"
+    value: ${{ steps.paths.outputs.gomodcache }}
+  gopath:
+    description: "Value of GOPATH"
+    value: ${{ steps.paths.outputs.gopath }}
+  gotmp:
+    description: "Value of GOTMPDIR"
+    value: ${{ steps.paths.outputs.gotmp }}
+  cached-dirs:
+    description: "Go directories that should be cached between CI runs"
+    value: ${{ steps.paths.outputs.cached-dirs }}
+runs:
+  using: "composite"
+  steps:
+    - name: Override Go paths
+      id: paths
+      uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+      with:
+        script: |
+          const path = require('path');
+
+          // RUNNER_TEMP should be backed by a RAM disk on Windows if
+          // coder/setup-ramdisk-action was used
+          const runnerTemp = process.env.RUNNER_TEMP;
+          const gocacheDir = path.join(runnerTemp, 'go-cache');
+          const gomodcacheDir = path.join(runnerTemp, 'go-mod-cache');
+          const gopathDir = path.join(runnerTemp, 'go-path');
+          const gotmpDir = path.join(runnerTemp, 'go-tmp');
+
+          core.exportVariable('GOCACHE', gocacheDir);
+          core.exportVariable('GOMODCACHE', gomodcacheDir);
+          core.exportVariable('GOPATH', gopathDir);
+          core.exportVariable('GOTMPDIR', gotmpDir);
+
+          core.setOutput('gocache', gocacheDir);
+          core.setOutput('gomodcache', gomodcacheDir);
+          core.setOutput('gopath', gopathDir);
+          core.setOutput('gotmp', gotmpDir);
+
+          const cachedDirs = `${gocacheDir}\n${gomodcacheDir}`;
+          core.setOutput('cached-dirs', cachedDirs);
+
+    - name: Create directories
+      shell: bash
+      run: |
+        set -e
+        mkdir -p "$GOCACHE"
+        mkdir -p "$GOMODCACHE"
+        mkdir -p "$GOPATH"
+        mkdir -p "$GOTMPDIR"

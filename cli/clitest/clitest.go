@@ -20,16 +20,16 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/cli"
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
 
 // New creates a CLI instance with a configuration pointed to a
 // temporary testing directory.
-func New(t testing.TB, args ...string) (*clibase.Invocation, config.Root) {
+func New(t testing.TB, args ...string) (*serpent.Invocation, config.Root) {
 	var root cli.RootCmd
 
 	cmd, err := root.Command(root.AGPL())
@@ -56,16 +56,21 @@ func (l *logWriter) Write(p []byte) (n int, err error) {
 }
 
 func NewWithCommand(
-	t testing.TB, cmd *clibase.Cmd, args ...string,
-) (*clibase.Invocation, config.Root) {
+	t testing.TB, cmd *serpent.Command, args ...string,
+) (*serpent.Invocation, config.Root) {
 	configDir := config.Root(t.TempDir())
-	logger := slogtest.Make(t, nil)
-	i := &clibase.Invocation{
+	// I really would like to fail test on error logs, but realistically, turning on by default
+	// in all our CLI tests is going to create a lot of flaky noise.
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).
+		Leveled(slog.LevelDebug).
+		Named("cli")
+	i := &serpent.Invocation{
 		Command: cmd,
 		Args:    append([]string{"--global-config", string(configDir)}, args...),
 		Stdin:   io.LimitReader(nil, 0),
 		Stdout:  (&logWriter{prefix: "stdout", log: logger}),
 		Stderr:  (&logWriter{prefix: "stderr", log: logger}),
+		Logger:  logger,
 	}
 	t.Logf("invoking command: %s %s", cmd.Name(), strings.Join(i.Args, " "))
 
@@ -135,7 +140,11 @@ func extractTar(t *testing.T, data []byte, directory string) {
 
 // Start runs the command in a goroutine and cleans it up when the test
 // completed.
-func Start(t *testing.T, inv *clibase.Invocation) {
+func Start(t *testing.T, inv *serpent.Invocation) {
+	StartWithAssert(t, inv, nil)
+}
+
+func StartWithAssert(t *testing.T, inv *serpent.Invocation, assertCallback func(t *testing.T, err error)) { //nolint:revive
 	t.Helper()
 
 	closeCh := make(chan struct{})
@@ -150,8 +159,20 @@ func Start(t *testing.T, inv *clibase.Invocation) {
 	go func() {
 		defer close(closeCh)
 		err := waiter.Wait()
+
+		if assertCallback != nil {
+			assertCallback(t, err)
+			return
+		}
+
 		switch {
 		case errors.Is(err, context.Canceled):
+			return
+		case err != nil && strings.Contains(err.Error(), "driver: bad connection"):
+			// When we cancel the context on a query that's being executed within
+			// a transaction, sometimes, instead of a context.Canceled error we get
+			// a "driver: bad connection" error.
+			// https://github.com/lib/pq/issues/1137
 			return
 		default:
 			assert.NoError(t, err)
@@ -160,7 +181,7 @@ func Start(t *testing.T, inv *clibase.Invocation) {
 }
 
 // Run runs the command and asserts that there is no error.
-func Run(t *testing.T, inv *clibase.Invocation) {
+func Run(t *testing.T, inv *serpent.Invocation) {
 	t.Helper()
 
 	err := inv.Run()
@@ -213,7 +234,7 @@ func (w *ErrorWaiter) RequireAs(want interface{}) {
 
 // StartWithWaiter runs the command in a goroutine but returns the error instead
 // of asserting it. This is useful for testing error cases.
-func StartWithWaiter(t *testing.T, inv *clibase.Invocation) *ErrorWaiter {
+func StartWithWaiter(t *testing.T, inv *serpent.Invocation) *ErrorWaiter {
 	t.Helper()
 
 	var (

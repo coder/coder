@@ -4,28 +4,28 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os/signal"
 	"time"
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/gitauth"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/retry"
+	"github.com/coder/serpent"
 )
 
 // gitAskpass is used by the Coder agent to automatically authenticate
 // with Git providers based on a hostname.
-func (r *RootCmd) gitAskpass() *clibase.Cmd {
-	return &clibase.Cmd{
+func gitAskpass(agentAuth *AgentAuth) *serpent.Command {
+	cmd := &serpent.Command{
 		Use:    "gitaskpass",
 		Hidden: true,
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
 
-			ctx, stop := signal.NotifyContext(ctx, InterruptSignals...)
+			ctx, stop := inv.SignalNotifyContext(ctx, StopSignals...)
 			defer stop()
 
 			user, host, err := gitauth.ParseAskpass(inv.Args[0])
@@ -33,12 +33,14 @@ func (r *RootCmd) gitAskpass() *clibase.Cmd {
 				return xerrors.Errorf("parse host: %w", err)
 			}
 
-			client, err := r.createAgentClient()
+			client, err := agentAuth.CreateClient()
 			if err != nil {
 				return xerrors.Errorf("create agent client: %w", err)
 			}
 
-			token, err := client.GitAuth(ctx, host, false)
+			token, err := client.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{
+				Match: host,
+			})
 			if err != nil {
 				var apiError *codersdk.Error
 				if errors.As(err, &apiError) && apiError.StatusCode() == http.StatusNotFound {
@@ -51,7 +53,7 @@ func (r *RootCmd) gitAskpass() *clibase.Cmd {
 					cliui.Warn(inv.Stderr, "Coder was unable to handle this git request. The default git behavior will be used instead.",
 						lines...,
 					)
-					return cliui.Canceled
+					return cliui.ErrCanceled
 				}
 				return xerrors.Errorf("get git token: %w", err)
 			}
@@ -63,7 +65,10 @@ func (r *RootCmd) gitAskpass() *clibase.Cmd {
 				}
 
 				for r := retry.New(250*time.Millisecond, 10*time.Second); r.Wait(ctx); {
-					token, err = client.GitAuth(ctx, host, true)
+					token, err = client.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{
+						Match:  host,
+						Listen: true,
+					})
 					if err != nil {
 						continue
 					}
@@ -85,4 +90,6 @@ func (r *RootCmd) gitAskpass() *clibase.Cmd {
 			return nil
 		},
 	}
+	agentAuth.AttachOptions(cmd, false)
+	return cmd
 }

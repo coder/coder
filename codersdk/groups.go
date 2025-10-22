@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -18,21 +20,27 @@ const (
 )
 
 type CreateGroupRequest struct {
-	Name           string `json:"name"`
-	DisplayName    string `json:"display_name"`
+	Name           string `json:"name" validate:"required,group_name"`
+	DisplayName    string `json:"display_name" validate:"omitempty,group_display_name"`
 	AvatarURL      string `json:"avatar_url"`
 	QuotaAllowance int    `json:"quota_allowance"`
 }
 
 type Group struct {
-	ID             uuid.UUID   `json:"id" format:"uuid"`
-	Name           string      `json:"name"`
-	DisplayName    string      `json:"display_name"`
-	OrganizationID uuid.UUID   `json:"organization_id" format:"uuid"`
-	Members        []User      `json:"members"`
-	AvatarURL      string      `json:"avatar_url"`
-	QuotaAllowance int         `json:"quota_allowance"`
-	Source         GroupSource `json:"source"`
+	ID             uuid.UUID     `json:"id" format:"uuid"`
+	Name           string        `json:"name"`
+	DisplayName    string        `json:"display_name"`
+	OrganizationID uuid.UUID     `json:"organization_id" format:"uuid"`
+	Members        []ReducedUser `json:"members"`
+	// How many members are in this group. Shows the total count,
+	// even if the user is not authorized to read group member details.
+	// May be greater than `len(Group.Members)`.
+	TotalMemberCount        int         `json:"total_member_count"`
+	AvatarURL               string      `json:"avatar_url" format:"uri"`
+	QuotaAllowance          int         `json:"quota_allowance"`
+	Source                  GroupSource `json:"source"`
+	OrganizationName        string      `json:"organization_name"`
+	OrganizationDisplayName string      `json:"organization_display_name"`
 }
 
 func (g Group) IsEveryone() bool {
@@ -56,9 +64,40 @@ func (c *Client) CreateGroup(ctx context.Context, orgID uuid.UUID, req CreateGro
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
+// GroupsByOrganization
+// Deprecated: use Groups with GroupArguments instead.
 func (c *Client) GroupsByOrganization(ctx context.Context, orgID uuid.UUID) ([]Group, error) {
+	return c.Groups(ctx, GroupArguments{Organization: orgID.String()})
+}
+
+type GroupArguments struct {
+	// Organization can be an org UUID or name
+	Organization string
+	// HasMember can be a user uuid or username
+	HasMember string
+	// GroupIDs is a list of group UUIDs to filter by.
+	// If not set, all groups will be returned.
+	GroupIDs []uuid.UUID
+}
+
+func (c *Client) Groups(ctx context.Context, args GroupArguments) ([]Group, error) {
+	qp := url.Values{}
+	if args.Organization != "" {
+		qp.Set("organization", args.Organization)
+	}
+	if args.HasMember != "" {
+		qp.Set("has_member", args.HasMember)
+	}
+	if len(args.GroupIDs) > 0 {
+		idStrs := make([]string, 0, len(args.GroupIDs))
+		for _, id := range args.GroupIDs {
+			idStrs = append(idStrs, id.String())
+		}
+		qp.Set("group_ids", strings.Join(idStrs, ","))
+	}
+
 	res, err := c.Request(ctx, http.MethodGet,
-		fmt.Sprintf("/api/v2/organizations/%s/groups", orgID.String()),
+		fmt.Sprintf("/api/v2/groups?%s", qp.Encode()),
 		nil,
 	)
 	if err != nil {
@@ -111,8 +150,8 @@ func (c *Client) Group(ctx context.Context, group uuid.UUID) (Group, error) {
 type PatchGroupRequest struct {
 	AddUsers       []string `json:"add_users"`
 	RemoveUsers    []string `json:"remove_users"`
-	Name           string   `json:"name"`
-	DisplayName    *string  `json:"display_name"`
+	Name           string   `json:"name" validate:"omitempty,group_name"`
+	DisplayName    *string  `json:"display_name" validate:"omitempty,group_display_name"`
 	AvatarURL      *string  `json:"avatar_url"`
 	QuotaAllowance *int     `json:"quota_allowance"`
 }

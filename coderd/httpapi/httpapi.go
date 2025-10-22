@@ -16,6 +16,9 @@ import (
 	"github.com/go-playground/validator/v10"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/websocket"
+	"github.com/coder/websocket/wsjson"
+
 	"github.com/coder/coder/v2/coderd/httpapi/httpapiconstraints"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
@@ -43,28 +46,30 @@ func init() {
 		if !ok {
 			return false
 		}
-		valid := NameValid(str)
+		valid := codersdk.NameValid(str)
 		return valid == nil
 	}
-	for _, tag := range []string{"username", "template_name", "workspace_name"} {
+	for _, tag := range []string{"username", "organization_name", "template_name", "workspace_name", "oauth2_app_name"} {
 		err := Validate.RegisterValidation(tag, nameValidator)
 		if err != nil {
 			panic(err)
 		}
 	}
 
-	templateDisplayNameValidator := func(fl validator.FieldLevel) bool {
+	displayNameValidator := func(fl validator.FieldLevel) bool {
 		f := fl.Field().Interface()
 		str, ok := f.(string)
 		if !ok {
 			return false
 		}
-		valid := TemplateDisplayNameValid(str)
+		valid := codersdk.DisplayNameValid(str)
 		return valid == nil
 	}
-	err := Validate.RegisterValidation("template_display_name", templateDisplayNameValidator)
-	if err != nil {
-		panic(err)
+	for _, displayNameTag := range []string{"organization_display_name", "template_display_name", "group_display_name"} {
+		err := Validate.RegisterValidation(displayNameTag, displayNameValidator)
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	templateVersionNameValidator := func(fl validator.FieldLevel) bool {
@@ -73,10 +78,38 @@ func init() {
 		if !ok {
 			return false
 		}
-		valid := TemplateVersionNameValid(str)
+		valid := codersdk.TemplateVersionNameValid(str)
 		return valid == nil
 	}
-	err = Validate.RegisterValidation("template_version_name", templateVersionNameValidator)
+	err := Validate.RegisterValidation("template_version_name", templateVersionNameValidator)
+	if err != nil {
+		panic(err)
+	}
+
+	userRealNameValidator := func(fl validator.FieldLevel) bool {
+		f := fl.Field().Interface()
+		str, ok := f.(string)
+		if !ok {
+			return false
+		}
+		valid := codersdk.UserRealNameValid(str)
+		return valid == nil
+	}
+	err = Validate.RegisterValidation("user_real_name", userRealNameValidator)
+	if err != nil {
+		panic(err)
+	}
+
+	groupNameValidator := func(fl validator.FieldLevel) bool {
+		f := fl.Field().Interface()
+		str, ok := f.(string)
+		if !ok {
+			return false
+		}
+		valid := codersdk.GroupNameValid(str)
+		return valid == nil
+	}
+	err = Validate.RegisterValidation("group_name", groupNameValidator)
 	if err != nil {
 		panic(err)
 	}
@@ -91,11 +124,23 @@ func Is404Error(err error) bool {
 	}
 
 	// This tests for dbauthz.IsNotAuthorizedError and rbac.IsUnauthorizedError.
+	if IsUnauthorizedError(err) {
+		return true
+	}
+	return xerrors.Is(err, sql.ErrNoRows)
+}
+
+func IsUnauthorizedError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// This tests for dbauthz.IsNotAuthorizedError and rbac.IsUnauthorizedError.
 	var unauthorized httpapiconstraints.IsUnauthorizedError
 	if errors.As(err, &unauthorized) && unauthorized.IsUnauthorized() {
 		return true
 	}
-	return xerrors.Is(err, sql.ErrNoRows)
+	return false
 }
 
 // Convenience error functions don't take contexts since their responses are
@@ -109,10 +154,13 @@ func ResourceNotFound(rw http.ResponseWriter) {
 	Write(context.Background(), rw, http.StatusNotFound, ResourceNotFoundResponse)
 }
 
+var ResourceForbiddenResponse = codersdk.Response{
+	Message: "Forbidden.",
+	Detail:  "You don't have permission to view this content. If you believe this is a mistake, please contact your administrator or try signing in with different credentials.",
+}
+
 func Forbidden(rw http.ResponseWriter) {
-	Write(context.Background(), rw, http.StatusForbidden, codersdk.Response{
-		Message: "Forbidden.",
-	})
+	Write(context.Background(), rw, http.StatusForbidden, ResourceForbiddenResponse)
 }
 
 func InternalServerError(rw http.ResponseWriter, err error) {
@@ -150,6 +198,8 @@ func Write(ctx context.Context, rw http.ResponseWriter, status int, response int
 	_, span := tracing.StartSpan(ctx)
 	defer span.End()
 
+	SetAuthzCheckRecorderHeader(ctx, rw)
+
 	rw.Header().Set("Content-Type", "application/json; charset=utf-8")
 	rw.WriteHeader(status)
 
@@ -164,6 +214,8 @@ func Write(ctx context.Context, rw http.ResponseWriter, status int, response int
 func WriteIndent(ctx context.Context, rw http.ResponseWriter, status int, response interface{}) {
 	_, span := tracing.StartSpan(ctx)
 	defer span.End()
+
+	SetAuthzCheckRecorderHeader(ctx, rw)
 
 	rw.Header().Set("Content-Type", "application/json; charset=utf-8")
 	rw.WriteHeader(status)
@@ -226,7 +278,7 @@ const websocketCloseMaxLen = 123
 func WebsocketCloseSprintf(format string, vars ...any) string {
 	msg := fmt.Sprintf(format, vars...)
 
-	// Cap msg length at 123 bytes. nhooyr/websocket only allows close messages
+	// Cap msg length at 123 bytes. coder/websocket only allows close messages
 	// of this length.
 	if len(msg) > websocketCloseMaxLen {
 		// Trim the string to 123 bytes. If we accidentally cut in the middle of
@@ -237,7 +289,25 @@ func WebsocketCloseSprintf(format string, vars ...any) string {
 	return msg
 }
 
-func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (sendEvent func(ctx context.Context, sse codersdk.ServerSentEvent) error, closed chan struct{}, err error) {
+type EventSender func(rw http.ResponseWriter, r *http.Request) (
+	sendEvent func(sse codersdk.ServerSentEvent) error,
+	done <-chan struct{},
+	err error,
+)
+
+// ServerSentEventSender establishes a Server-Sent Event connection and allows
+// the consumer to send messages to the client.
+//
+// The function returned allows you to send a single message to the client,
+// while the channel lets you listen for when the connection closes.
+//
+// As much as possible, this function should be avoided in favor of using the
+// OneWayWebSocket function. See OneWayWebSocket for more context.
+func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (
+	func(sse codersdk.ServerSentEvent) error,
+	<-chan struct{},
+	error,
+) {
 	h := rw.Header()
 	h.Set("Content-Type", "text/event-stream")
 	h.Set("Cache-Control", "no-cache")
@@ -249,7 +319,8 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (sendEvent f
 		panic("http.ResponseWriter is not http.Flusher")
 	}
 
-	closed = make(chan struct{})
+	ctx := r.Context()
+	closed := make(chan struct{})
 	type sseEvent struct {
 		payload []byte
 		errC    chan error
@@ -259,16 +330,13 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (sendEvent f
 	// Synchronized handling of events (no guarantee of order).
 	go func() {
 		defer close(closed)
-
-		// Send a heartbeat every 15 seconds to avoid the connection being killed.
-		ticker := time.NewTicker(time.Second * 15)
+		ticker := time.NewTicker(HeartbeatInterval)
 		defer ticker.Stop()
 
 		for {
 			var event sseEvent
-
 			select {
-			case <-r.Context().Done():
+			case <-ctx.Done():
 				return
 			case event = <-eventC:
 			case <-ticker.C:
@@ -288,21 +356,21 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (sendEvent f
 		}
 	}()
 
-	sendEvent = func(ctx context.Context, sse codersdk.ServerSentEvent) error {
+	sendEvent := func(newEvent codersdk.ServerSentEvent) error {
 		buf := &bytes.Buffer{}
-		enc := json.NewEncoder(buf)
-
-		_, err := buf.WriteString(fmt.Sprintf("event: %s\n", sse.Type))
+		_, err := buf.WriteString(fmt.Sprintf("event: %s\n", newEvent.Type))
 		if err != nil {
 			return err
 		}
 
-		if sse.Data != nil {
+		if newEvent.Data != nil {
 			_, err = buf.WriteString("data: ")
 			if err != nil {
 				return err
 			}
-			err = enc.Encode(sse.Data)
+
+			enc := json.NewEncoder(buf)
+			err = enc.Encode(newEvent.Data)
 			if err != nil {
 				return err
 			}
@@ -319,8 +387,6 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (sendEvent f
 		}
 
 		select {
-		case <-r.Context().Done():
-			return r.Context().Err()
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-closed:
@@ -330,8 +396,6 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (sendEvent f
 			// for early exit. We don't check closed here because it
 			// can't happen while processing the event.
 			select {
-			case <-r.Context().Done():
-				return r.Context().Err()
 			case <-ctx.Done():
 				return ctx.Err()
 			case err := <-event.errC:
@@ -341,4 +405,106 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (sendEvent f
 	}
 
 	return sendEvent, closed, nil
+}
+
+// OneWayWebSocketEventSender establishes a new WebSocket connection that
+// enforces one-way communication from the server to the client.
+//
+// The function returned allows you to send a single message to the client,
+// while the channel lets you listen for when the connection closes.
+//
+// We must use an approach like this instead of Server-Sent Events for the
+// browser, because on HTTP/1.1 connections, browsers are locked to no more than
+// six HTTP connections for a domain total, across all tabs. If a user were to
+// open a workspace in multiple tabs, the entire UI can start to lock up.
+// WebSockets have no such limitation, no matter what HTTP protocol was used to
+// establish the connection.
+func OneWayWebSocketEventSender(rw http.ResponseWriter, r *http.Request) (
+	func(event codersdk.ServerSentEvent) error,
+	<-chan struct{},
+	error,
+) {
+	ctx, cancel := context.WithCancel(r.Context())
+	r = r.WithContext(ctx)
+	socket, err := websocket.Accept(rw, r, nil)
+	if err != nil {
+		cancel()
+		return nil, nil, xerrors.Errorf("cannot establish connection: %w", err)
+	}
+	go Heartbeat(ctx, socket)
+
+	eventC := make(chan codersdk.ServerSentEvent)
+	socketErrC := make(chan websocket.CloseError, 1)
+	closed := make(chan struct{})
+	go func() {
+		defer cancel()
+		defer close(closed)
+
+		for {
+			select {
+			case event := <-eventC:
+				writeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+				err := wsjson.Write(writeCtx, socket, event)
+				cancel()
+				if err == nil {
+					continue
+				}
+				_ = socket.Close(websocket.StatusInternalError, "Unable to send newest message")
+			case err := <-socketErrC:
+				_ = socket.Close(err.Code, err.Reason)
+			case <-ctx.Done():
+				_ = socket.Close(websocket.StatusNormalClosure, "Connection closed")
+			}
+			return
+		}
+	}()
+
+	// We have some tools in the UI code to help enforce one-way WebSocket
+	// connections, but there's still the possibility that the client could send
+	// a message when it's not supposed to. If that happens, the client likely
+	// forgot to use those tools, and communication probably can't be trusted.
+	// Better to just close the socket and force the UI to fix its mess
+	go func() {
+		_, _, err := socket.Read(ctx)
+		if errors.Is(err, context.Canceled) {
+			return
+		}
+		if err != nil {
+			socketErrC <- websocket.CloseError{
+				Code:   websocket.StatusInternalError,
+				Reason: "Unable to process invalid message from client",
+			}
+			return
+		}
+		socketErrC <- websocket.CloseError{
+			Code:   websocket.StatusProtocolError,
+			Reason: "Clients cannot send messages for one-way WebSockets",
+		}
+	}()
+
+	sendEvent := func(event codersdk.ServerSentEvent) error {
+		select {
+		case eventC <- event:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+		return nil
+	}
+
+	return sendEvent, closed, nil
+}
+
+// OAuth2Error represents an OAuth2-compliant error response per RFC 6749.
+type OAuth2Error struct {
+	Error            string `json:"error"`
+	ErrorDescription string `json:"error_description,omitempty"`
+}
+
+// WriteOAuth2Error writes an OAuth2-compliant error response per RFC 6749.
+// This should be used for all OAuth2 endpoints (/oauth2/*) to ensure compliance.
+func WriteOAuth2Error(ctx context.Context, rw http.ResponseWriter, status int, errorCode, description string) {
+	Write(ctx, rw, status, OAuth2Error{
+		Error:            errorCode,
+		ErrorDescription: description,
+	})
 }

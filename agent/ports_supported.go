@@ -9,13 +9,14 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 func (lp *listeningPortsHandler) getListeningPorts() ([]codersdk.WorkspaceAgentListeningPort, error) {
 	lp.mut.Lock()
 	defer lp.mut.Unlock()
 
-	if time.Since(lp.mtime) < time.Second {
+	if time.Since(lp.mtime) < lp.cacheDuration {
 		// copy
 		ports := make([]codersdk.WorkspaceAgentListeningPort, len(lp.ports))
 		copy(ports, lp.ports)
@@ -32,7 +33,7 @@ func (lp *listeningPortsHandler) getListeningPorts() ([]codersdk.WorkspaceAgentL
 	seen := make(map[uint16]struct{}, len(tabs))
 	ports := []codersdk.WorkspaceAgentListeningPort{}
 	for _, tab := range tabs {
-		if tab.LocalAddr == nil || tab.LocalAddr.Port < codersdk.WorkspaceAgentMinimumListeningPort {
+		if tab.LocalAddr == nil || tab.LocalAddr.Port < workspacesdk.AgentMinimumListeningPort {
 			continue
 		}
 

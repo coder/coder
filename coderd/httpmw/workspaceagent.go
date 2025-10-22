@@ -32,7 +32,23 @@ func WorkspaceAgent(r *http.Request) database.WorkspaceAgent {
 	return user
 }
 
-type ExtractWorkspaceAgentConfig struct {
+type latestBuildContextKey struct{}
+
+func latestBuildOptional(r *http.Request) (database.WorkspaceBuild, bool) {
+	wb, ok := r.Context().Value(latestBuildContextKey{}).(database.WorkspaceBuild)
+	return wb, ok
+}
+
+// LatestBuild returns the Latest Build from the ExtractLatestBuild handler.
+func LatestBuild(r *http.Request) database.WorkspaceBuild {
+	wb, ok := latestBuildOptional(r)
+	if !ok {
+		panic("developer error: agent middleware not provided or was made optional")
+	}
+	return wb
+}
+
+type ExtractWorkspaceAgentAndLatestBuildConfig struct {
 	DB database.Store
 	// Optional indicates whether the middleware should be optional.  If true, any
 	// requests without the a token or with an invalid token will be allowed to
@@ -40,8 +56,8 @@ type ExtractWorkspaceAgentConfig struct {
 	Optional bool
 }
 
-// ExtractWorkspaceAgent requires authentication using a valid agent token.
-func ExtractWorkspaceAgent(opts ExtractWorkspaceAgentConfig) func(http.Handler) http.Handler {
+// ExtractWorkspaceAgentAndLatestBuild requires authentication using a valid agent token.
+func ExtractWorkspaceAgentAndLatestBuild(opts ExtractWorkspaceAgentAndLatestBuildConfig) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
@@ -76,7 +92,7 @@ func ExtractWorkspaceAgent(opts ExtractWorkspaceAgentConfig) func(http.Handler) 
 			}
 
 			//nolint:gocritic // System needs to be able to get workspace agents.
-			row, err := opts.DB.GetWorkspaceAgentAndOwnerByAuthToken(dbauthz.AsSystemRestricted(ctx), token)
+			row, err := opts.DB.GetWorkspaceAgentAndLatestBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), token)
 			if err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
 					optionalWrite(http.StatusUnauthorized, codersdk.Response{
@@ -93,14 +109,28 @@ func ExtractWorkspaceAgent(opts ExtractWorkspaceAgentConfig) func(http.Handler) 
 				return
 			}
 
-			subject := rbac.Subject{
-				ID:     row.OwnerID.String(),
-				Roles:  rbac.RoleNames(row.OwnerRoles),
-				Groups: row.OwnerGroups,
-				Scope:  rbac.WorkspaceAgentScope(row.WorkspaceID, row.OwnerID),
-			}.WithCachedASTValue()
+			subject, _, err := UserRBACSubject(
+				ctx,
+				opts.DB,
+				row.WorkspaceTable.OwnerID,
+				rbac.WorkspaceAgentScope(rbac.WorkspaceAgentScopeParams{
+					WorkspaceID:   row.WorkspaceTable.ID,
+					OwnerID:       row.WorkspaceTable.OwnerID,
+					TemplateID:    row.WorkspaceTable.TemplateID,
+					VersionID:     row.WorkspaceBuild.TemplateVersionID,
+					BlockUserData: row.WorkspaceAgent.APIKeyScope == database.AgentKeyScopeEnumNoUserData,
+				}),
+			)
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Internal error with workspace agent authorization context.",
+					Detail:  err.Error(),
+				})
+				return
+			}
 
 			ctx = context.WithValue(ctx, workspaceAgentContextKey{}, row.WorkspaceAgent)
+			ctx = context.WithValue(ctx, latestBuildContextKey{}, row.WorkspaceBuild)
 			// Also set the dbauthz actor for the request.
 			ctx = dbauthz.As(ctx, subject)
 			next.ServeHTTP(rw, r.WithContext(ctx))

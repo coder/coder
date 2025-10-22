@@ -4,21 +4,13 @@ on:
   push:
     branches:
       - main
+      - release/*
 
   pull_request:
   workflow_dispatch:
 
 permissions:
-  actions: none
-  checks: none
   contents: read
-  deployments: none
-  issues: none
-  packages: write
-  pull-requests: none
-  repository-projects: none
-  security-events: none
-  statuses: none
 
 # Cancel in-progress runs for pull requests when developers push
 # additional changes
@@ -31,20 +23,29 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       docs-only: ${{ steps.filter.outputs.docs_count == steps.filter.outputs.all_count }}
+      docs: ${{ steps.filter.outputs.docs }}
       go: ${{ steps.filter.outputs.go }}
-      ts: ${{ steps.filter.outputs.ts }}
+      site: ${{ steps.filter.outputs.site }}
       k8s: ${{ steps.filter.outputs.k8s }}
       ci: ${{ steps.filter.outputs.ci }}
+      db: ${{ steps.filter.outputs.db }}
+      gomod: ${{ steps.filter.outputs.gomod }}
       offlinedocs-only: ${{ steps.filter.outputs.offlinedocs_count == steps.filter.outputs.all_count }}
       offlinedocs: ${{ steps.filter.outputs.offlinedocs }}
+      tailnet-integration: ${{ steps.filter.outputs.tailnet-integration }}
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        with:
+          egress-policy: audit
+
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           fetch-depth: 1
-      # For pull requests it's not necessary to checkout the code
+          persist-credentials: false
       - name: check changed files
-        uses: dorny/paths-filter@v2
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         id: filter
         with:
           filters: |
@@ -56,6 +57,9 @@ jobs:
               - "examples/web-server/**"
               - "examples/monitoring/**"
               - "examples/lima/**"
+            db:
+              - "**.sql"
+              - "coderd/database/**"
             go:
               - "**.sql"
               - "**.go"
@@ -77,7 +81,8 @@ jobs:
               - "cmd/**"
               - "coderd/**"
               - "enterprise/**"
-              - "examples/*"
+              - "examples/**"
+              - "helm/**"
               - "provisioner/**"
               - "provisionerd/**"
               - "provisionersdk/**"
@@ -85,9 +90,11 @@ jobs:
               - "scaletest/**"
               - "tailnet/**"
               - "testutil/**"
-            ts:
+            gomod:
+              - "go.mod"
+              - "go.sum"
+            site:
               - "site/**"
-              - "Makefile"
             k8s:
               - "helm/**"
               - "scripts/Dockerfile"
@@ -98,20 +105,67 @@ jobs:
               - ".github/workflows/ci.yaml"
             offlinedocs:
               - "offlinedocs/**"
+            tailnet-integration:
+              - "tailnet/**"
+              - "go.mod"
+              - "go.sum"
 
       - id: debug
         run: |
-          echo "${{ toJSON(steps.filter )}}"
+          echo "$FILTER_JSON"
+        env:
+          FILTER_JSON: ${{ toJSON(steps.filter.outputs) }}
+
+  # Disabled due to instability. See: https://github.com/coder/coder/issues/14553
+  # Re-enable once the flake hash calculation is stable.
+  # update-flake:
+  #   needs: changes
+  #   if: needs.changes.outputs.gomod == 'true'
+  #   runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+  #       with:
+  #         fetch-depth: 1
+  #         # See: https://github.com/stefanzweifel/git-auto-commit-action?tab=readme-ov-file#commits-made-by-this-action-do-not-trigger-new-workflow-runs
+  #         token: ${{ secrets.CDRCI_GITHUB_TOKEN }}
+
+  #     - name: Setup Go
+  #       uses: ./.github/actions/setup-go
+
+  #     - name: Update Nix Flake SRI Hash
+  #       run: ./scripts/update-flake.sh
+
+  #     # auto update flake for dependabot
+  #     - uses: stefanzweifel/git-auto-commit-action@8621497c8c39c72f3e2a999a26b4ca1b5058a842 # v5.0.1
+  #       if: github.actor == 'dependabot[bot]'
+  #       with:
+  #         # Allows dependabot to still rebase!
+  #         commit_message: "[dependabot skip] Update Nix Flake SRI Hash"
+  #         commit_user_name: "dependabot[bot]"
+  #         commit_user_email: "49699333+dependabot[bot]@users.noreply.github.com>"
+  #         commit_author: "dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>"
+
+  #     # require everyone else to update it themselves
+  #     - name: Ensure No Changes
+  #       if: github.actor != 'dependabot[bot]'
+  #       run: git diff --exit-code
 
   lint:
     needs: changes
     if: needs.changes.outputs.offlinedocs-only == 'false' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        with:
+          egress-policy: audit
+
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
@@ -121,12 +175,13 @@ jobs:
 
       - name: Get golangci-lint cache dir
         run: |
-          go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.53.2
+          linter_ver=$(grep -Eo 'GOLANGCI_LINT_VERSION=\S+' dogfood/coder/Dockerfile | cut -d '=' -f 2)
+          go install "github.com/golangci/golangci-lint/cmd/golangci-lint@v$linter_ver"
           dir=$(golangci-lint cache status | awk '/Dir/ { print $2 }')
-          echo "LINT_CACHE_DIR=$dir" >> $GITHUB_ENV
+          echo "LINT_CACHE_DIR=$dir" >> "$GITHUB_ENV"
 
       - name: golangci-lint cache
-        uses: buildjet/cache@v3
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
         with:
           path: |
             ${{ env.LINT_CACHE_DIR }}
@@ -136,7 +191,7 @@ jobs:
 
       # Check for any typos
       - name: Check for typos
-        uses: crate-ci/typos@v1.16.15
+        uses: crate-ci/typos@85f62a8a84f939ae994ab3763f01a0296d61a7ee # v1.36.2
         with:
           config: .github/workflows/typos.toml
 
@@ -149,24 +204,46 @@ jobs:
 
       # Needed for helm chart linting
       - name: Install helm
-        uses: azure/setup-helm@v3
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
         with:
           version: v3.9.2
 
       - name: make lint
         run: |
-          make --output-sync=line -j lint
+          # zizmor isn't included in the lint target because it takes a while,
+          # but we explicitly want to run it in CI.
+          make --output-sync=line -j lint lint/actions/zizmor
+        env:
+          # Used by zizmor to lint third-party GitHub actions.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check workflow files
+        run: |
+          bash <(curl https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash) 1.7.4
+          ./actionlint -color -shellcheck= -ignore "set-output"
+        shell: bash
+
+      - name: Check for unstaged files
+        run: |
+          rm -f ./actionlint ./typos
+          ./scripts/check_unstaged.sh
+        shell: bash
 
   gen:
     timeout-minutes: 8
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
-    needs: changes
-    if: needs.changes.outputs.docs-only == 'false' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    if: ${{ !cancelled() }}
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        with:
+          egress-policy: audit
+
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
@@ -177,26 +254,32 @@ jobs:
       - name: Setup sqlc
         uses: ./.github/actions/setup-sqlc
 
+      - name: Setup Terraform
+        uses: ./.github/actions/setup-tf
+
       - name: go install tools
-        run: |
-          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30
-          go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.33
-          go install golang.org/x/tools/cmd/goimports@latest
-          go install github.com/mikefarah/yq/v4@v4.30.6
-          go install github.com/golang/mock/mockgen@v1.6.0
+        uses: ./.github/actions/setup-go-tools
 
       - name: Install Protoc
         run: |
           mkdir -p /tmp/proto
           pushd /tmp/proto
-          curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.3/protoc-23.3-linux-x86_64.zip
+          curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-linux-x86_64.zip
           unzip protoc.zip
-          cp -r ./bin/* /usr/local/bin
-          cp -r ./include /usr/local/bin/include
+          sudo cp -r ./bin/* /usr/local/bin
+          sudo cp -r ./include /usr/local/bin/include
           popd
 
       - name: make gen
-        run: "make --output-sync -j -B gen"
+        run: |
+          # Remove golden files to detect discrepancy in generated files.
+          make clean/golden-files
+          # Notifications require DB, we could start a DB instance here but
+          # let's just restore for now.
+          git checkout -- coderd/notifications/testdata/rendered-templates
+          # no `-j` flag as `make` fails with:
+          # coderd/rbac/object_gen.go:1:1: syntax error: package statement must be first
+          make --output-sync -B gen
 
       - name: Check for unstaged files
         run: ./scripts/check_unstaged.sh
@@ -204,121 +287,45 @@ jobs:
   fmt:
     needs: changes
     if: needs.changes.outputs.offlinedocs-only == 'false' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     timeout-minutes: 7
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        with:
+          egress-policy: audit
+
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
 
+      - name: Check Go version
+        run: IGNORE_NIX=true ./scripts/check_go_versions.sh
+
+      # Use default Go version
       - name: Setup Go
-        uses: buildjet/setup-go@v4
-        with:
-          # This doesn't need caching. It's super fast anyways!
-          cache: false
-          go-version: 1.20.8
+        uses: ./.github/actions/setup-go
 
       - name: Install shfmt
-        run: go install mvdan.cc/sh/v3/cmd/shfmt@v3.5.0
+        run: go install mvdan.cc/sh/v3/cmd/shfmt@v3.7.0
 
       - name: make fmt
         run: |
-          export PATH=${PATH}:$(go env GOPATH)/bin
-          make --output-sync -j -B fmt
+          PATH="${PATH}:$(go env GOPATH)/bin" \
+            make --output-sync -j -B fmt
 
       - name: Check for unstaged files
         run: ./scripts/check_unstaged.sh
 
-  test-go:
-    runs-on: ${{ matrix.os == 'ubuntu-latest' && github.repository_owner == 'coder' && 'buildjet-4vcpu-ubuntu-2204' || matrix.os == 'macos-latest' && github.repository_owner == 'coder' && 'macos-latest-xlarge' || matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'windows-latest-16-cores' || matrix.os }}
-    needs: changes
-    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        os:
-          - ubuntu-latest
-          - macos-latest
-          - windows-2022
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
-
-      - name: Setup Terraform
-        uses: ./.github/actions/setup-tf
-
-      - name: Test with Mock Database
-        id: test
-        shell: bash
-        run: |
-          # Code coverage is more computationally expensive and also
-          # prevents test caching, so we disable it on alternate operating
-          # systems.
-          if [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
-            echo "cover=true" >> $GITHUB_OUTPUT
-            export COVERAGE_FLAGS='-covermode=atomic -coverprofile="gotests.coverage" -coverpkg=./...'
-          else
-            echo "cover=false" >> $GITHUB_OUTPUT
-          fi
-
-          # if macOS, install google-chrome for scaletests. As another concern,
-          # should we really have this kind of external dependency requirement
-          # on standard CI?
-          if [ "${{ matrix.os }}" == "macos-latest" ]; then
-            brew install google-chrome
-          fi
-
-          # By default Go will use the number of logical CPUs, which
-          # is a fine default.
-          PARALLEL_FLAG=""
-
-          # macOS will output "The default interactive shell is now zsh"
-          # intermittently in CI...
-          if [ "${{ matrix.os }}" == "macos-latest" ]; then
-            touch ~/.bash_profile && echo "export BASH_SILENCE_DEPRECATION_WARNING=1" >> ~/.bash_profile
-          fi
-          export TS_DEBUG_DISCO=true
-          gotestsum --junitfile="gotests.xml" --jsonfile="gotests.json" \
-            --packages="./..." -- $PARALLEL_FLAG -short -failfast $COVERAGE_FLAGS
-
-      - name: Print test stats
-        if: success() || failure()
-        run: |
-          # Artifacts are not available after rerunning a job,
-          # so we need to print the test stats to the log.
-          go run ./scripts/ci-report/main.go gotests.json | tee gotests_stats.json
-
-      - name: Upload test stats to Datadog
-        uses: ./.github/actions/upload-datadog
-        if: success() || failure()
-        with:
-          api-key: ${{ secrets.DATADOG_API_KEY }}
-
-      - name: Check code coverage
-        uses: codecov/codecov-action@v3
-        # This action has a tendency to error out unexpectedly, it has
-        # the `fail_ci_if_error` option that defaults to `false`, but
-        # that is no guarantee, see:
-        # https://github.com/codecov/codecov-action/issues/788
-        continue-on-error: true
-        if: steps.test.outputs.cover && github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./gotests.coverage
-          flags: unittest-go-${{ matrix.os }}
-
   test-go-pg:
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    # make sure to adjust NUM_PARALLEL_PACKAGES and NUM_PARALLEL_TESTS below
+    # when changing runner sizes
+    runs-on: ${{ matrix.os == 'ubuntu-latest' && github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || matrix.os && matrix.os == 'macos-latest' && github.repository_owner == 'coder' && 'depot-macos-latest' || matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'depot-windows-2022-16' || matrix.os }}
     needs: changes
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     # This timeout must be greater than the timeout set by `go test` in
@@ -326,59 +333,226 @@ jobs:
     # goroutines. Setting this to the timeout +5m should work quite well
     # even if some of the preceding steps are slow.
     timeout-minutes: 25
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-2022
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        with:
+          egress-policy: audit
+
+      # macOS indexes all new files in the background. Our Postgres tests
+      # create and destroy thousands of databases on disk, and Spotlight
+      # tries to index all of them, seriously slowing down the tests.
+      - name: Disable Spotlight Indexing
+        if: runner.os == 'macOS'
+        run: |
+          enabled=$(sudo mdutil -a -s | { grep -Fc "Indexing enabled" || true; })
+          if [ "$enabled" -eq 0 ]; then
+            echo "Spotlight indexing is already disabled"
+            exit 0
+          fi
+          sudo mdutil -a -i off
+          sudo mdutil -X /
+          sudo launchctl bootout system /System/Library/LaunchDaemons/com.apple.metadata.mds.plist
+
+      # Set up RAM disks to speed up the rest of the job. This action is in
+      # a separate repository to allow its use before actions/checkout.
+      - name: Setup RAM Disks
+        if: runner.os == 'Windows'
+        uses: coder/setup-ramdisk-action@e1100847ab2d7bcd9d14bcda8f2d1b0f07b36f1b # v0.1.0
+
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Go Paths
+        id: go-paths
+        uses: ./.github/actions/setup-go-paths
+
+      - name: Download Go Build Cache
+        id: download-go-build-cache
+        uses: ./.github/actions/test-cache/download
+        with:
+          key-prefix: test-go-build-${{ runner.os }}-${{ runner.arch }}
+          cache-path: ${{ steps.go-paths.outputs.cached-dirs }}
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
+        with:
+          # Runners have Go baked-in and Go will automatically
+          # download the toolchain configured in go.mod, so we don't
+          # need to reinstall it. It's faster on Windows runners.
+          use-preinstalled-go: ${{ runner.os == 'Windows' }}
+          # Cache is already downloaded above
+          use-cache: false
 
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
 
-      - name: Test with PostgreSQL Database
-        run: |
-          export TS_DEBUG_DISCO=true
-          make test-postgres
+      - name: Download Test Cache
+        id: download-cache
+        uses: ./.github/actions/test-cache/download
+        with:
+          key-prefix: test-go-pg-${{ runner.os }}-${{ runner.arch }}
 
-      - name: Print test stats
-        if: success() || failure()
+      - name: Setup Embedded Postgres Cache Paths
+        id: embedded-pg-cache
+        uses: ./.github/actions/setup-embedded-pg-cache-paths
+
+      - name: Download Embedded Postgres Cache
+        id: download-embedded-pg-cache
+        uses: ./.github/actions/embedded-pg-cache/download
+        with:
+          key-prefix: embedded-pg-${{ runner.os }}-${{ runner.arch }}
+          cache-path: ${{ steps.embedded-pg-cache.outputs.cached-dirs }}
+
+      - name: Normalize File and Directory Timestamps
+        shell: bash
+        # Normalize file modification timestamps so that go test can use the
+        # cache from the previous CI run. See https://github.com/golang/go/issues/58571
+        # for more details.
         run: |
-          # Artifacts are not available after rerunning a job,
-          # so we need to print the test stats to the log.
-          go run ./scripts/ci-report/main.go gotests.json | tee gotests_stats.json
+          find . -type f ! -path ./.git/\*\* | mtimehash
+          find . -type d ! -path ./.git/\*\* -exec touch -t 200601010000 {} +
+
+      - name: Test with PostgreSQL Database
+        env:
+          POSTGRES_VERSION: "13"
+          TS_DEBUG_DISCO: "true"
+          LC_CTYPE: "en_US.UTF-8"
+          LC_ALL: "en_US.UTF-8"
+        shell: bash
+        run: |
+          set -o errexit
+          set -o pipefail
+
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            # Create a temp dir on the R: ramdisk drive for Windows. The default
+            # C: drive is extremely slow: https://github.com/actions/runner-images/issues/8755
+            mkdir -p "R:/temp/embedded-pg"
+            go run scripts/embedded-pg/main.go -path "R:/temp/embedded-pg" -cache "${EMBEDDED_PG_CACHE_DIR}"
+          elif [ "$RUNNER_OS" == "macOS" ]; then
+            # Postgres runs faster on a ramdisk on macOS too
+            mkdir -p /tmp/tmpfs
+            sudo mount_tmpfs -o noowners -s 8g /tmp/tmpfs
+            go run scripts/embedded-pg/main.go -path /tmp/tmpfs/embedded-pg -cache "${EMBEDDED_PG_CACHE_DIR}"
+          elif [ "$RUNNER_OS" == "Linux" ]; then
+            make test-postgres-docker
+          fi
+
+          # if macOS, install google-chrome for scaletests
+          # As another concern, should we really have this kind of external dependency
+          # requirement on standard CI?
+          if [ "${RUNNER_OS}" == "macOS" ]; then
+            brew install google-chrome
+          fi
+
+          # macOS will output "The default interactive shell is now zsh"
+          # intermittently in CI...
+          if [ "${RUNNER_OS}" == "macOS" ]; then
+            touch ~/.bash_profile && echo "export BASH_SILENCE_DEPRECATION_WARNING=1" >> ~/.bash_profile
+          fi
+
+          if [ "${RUNNER_OS}" == "Windows" ]; then
+            # Our Windows runners have 16 cores.
+            # On Windows Postgres chokes up when we have 16x16=256 tests
+            # running in parallel, and dbtestutil.NewDB starts to take more than
+            # 10s to complete sometimes causing test timeouts. With 16x8=128 tests
+            # Postgres tends not to choke.
+            export TEST_NUM_PARALLEL_PACKAGES=8
+            export TEST_NUM_PARALLEL_TESTS=16
+            # Only the CLI and Agent are officially supported on Windows and the rest are too flaky
+            export TEST_PACKAGES="./cli/... ./enterprise/cli/... ./agent/..."
+          elif [ "${RUNNER_OS}" == "macOS" ]; then
+            # Our macOS runners have 8 cores. We set NUM_PARALLEL_TESTS to 16
+            # because the tests complete faster and Postgres doesn't choke. It seems
+            # that macOS's tmpfs is faster than the one on Windows.
+            export TEST_NUM_PARALLEL_PACKAGES=8
+            export TEST_NUM_PARALLEL_TESTS=16
+            # Only the CLI and Agent are officially supported on macOS and the rest are too flaky
+            export TEST_PACKAGES="./cli/... ./enterprise/cli/... ./agent/..."
+          elif [ "${RUNNER_OS}" == "Linux" ]; then
+            # Our Linux runners have 8 cores.
+            export TEST_NUM_PARALLEL_PACKAGES=8
+            export TEST_NUM_PARALLEL_TESTS=8
+          fi
+
+          # by default, run tests with cache
+          if [ "${GITHUB_REF}" == "refs/heads/main" ]; then
+            # on main, run tests without cache
+            export TEST_COUNT="1"
+          fi
+
+          mkdir -p "$RUNNER_TEMP/sym"
+          source scripts/normalize_path.sh
+          # terraform gets installed in a random directory, so we need to normalize
+          # the path to the terraform binary or a bunch of cached tests will be
+          # invalidated. See scripts/normalize_path.sh for more details.
+          normalize_path_with_symlinks "$RUNNER_TEMP/sym" "$(dirname "$(which terraform)")"
+
+          make test
+
+      - name: Upload failed test db dumps
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: failed-test-db-dump-${{matrix.os}}
+          path: "**/*.test.sql"
+
+      - name: Upload Go Build Cache
+        uses: ./.github/actions/test-cache/upload
+        with:
+          cache-key: ${{ steps.download-go-build-cache.outputs.cache-key }}
+          cache-path: ${{ steps.go-paths.outputs.cached-dirs }}
+
+      - name: Upload Test Cache
+        uses: ./.github/actions/test-cache/upload
+        with:
+          cache-key: ${{ steps.download-cache.outputs.cache-key }}
+
+      - name: Upload Embedded Postgres Cache
+        uses: ./.github/actions/embedded-pg-cache/upload
+        # We only use the embedded Postgres cache on macOS and Windows runners.
+        if: runner.OS == 'macOS' || runner.OS == 'Windows'
+        with:
+          cache-key: ${{ steps.download-embedded-pg-cache.outputs.cache-key }}
+          cache-path: "${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}"
 
       - name: Upload test stats to Datadog
+        timeout-minutes: 1
+        continue-on-error: true
         uses: ./.github/actions/upload-datadog
         if: success() || failure()
         with:
           api-key: ${{ secrets.DATADOG_API_KEY }}
 
-      - name: Check code coverage
-        uses: codecov/codecov-action@v3
-        # This action has a tendency to error out unexpectedly, it has
-        # the `fail_ci_if_error` option that defaults to `false`, but
-        # that is no guarantee, see:
-        # https://github.com/codecov/codecov-action/issues/788
-        continue-on-error: true
-        if: github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./gotests.coverage
-          flags: unittest-go-postgres-linux
-
-  test-go-race:
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
-    needs: changes
+  test-go-pg-17:
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    needs:
+      - changes
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
+    # This timeout must be greater than the timeout set by `go test` in
+    # `make test-postgres` to ensure we receive a trace of running
+    # goroutines. Setting this to the timeout +5m should work quite well
+    # even if some of the preceding steps are slow.
     timeout-minutes: 25
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        with:
+          egress-policy: audit
+
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
@@ -386,150 +560,168 @@ jobs:
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
 
-      - name: Run Tests
+      - name: Download Test Cache
+        id: download-cache
+        uses: ./.github/actions/test-cache/download
+        with:
+          key-prefix: test-go-pg-17-${{ runner.os }}-${{ runner.arch }}
+
+      - name: Test with PostgreSQL Database
+        env:
+          POSTGRES_VERSION: "17"
+          TS_DEBUG_DISCO: "true"
         run: |
-          gotestsum --junitfile="gotests.xml" -- -race ./...
+          make test-postgres
+
+      - name: Upload Test Cache
+        uses: ./.github/actions/test-cache/upload
+        with:
+          cache-key: ${{ steps.download-cache.outputs.cache-key }}
 
       - name: Upload test stats to Datadog
+        timeout-minutes: 1
+        continue-on-error: true
+        uses: ./.github/actions/upload-datadog
+        if: success() || failure()
+        with:
+          api-key: ${{ secrets.DATADOG_API_KEY }}
+
+  test-go-race-pg:
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-16' || 'ubuntu-latest' }}
+    needs: changes
+    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
+    timeout-minutes: 25
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Setup Terraform
+        uses: ./.github/actions/setup-tf
+
+      - name: Download Test Cache
+        id: download-cache
+        uses: ./.github/actions/test-cache/download
+        with:
+          key-prefix: test-go-race-pg-${{ runner.os }}-${{ runner.arch }}
+
+      # We run race tests with reduced parallelism because they use more CPU and we were finding
+      # instances where tests appear to hang for multiple seconds, resulting in flaky tests when
+      # short timeouts are used.
+      # c.f. discussion on https://github.com/coder/coder/pull/15106
+      - name: Run Tests
+        env:
+          POSTGRES_VERSION: "17"
+        run: |
+          make test-postgres-docker
+          gotestsum --junitfile="gotests.xml" --packages="./..." -- -race -parallel 4 -p 4
+
+      - name: Upload Test Cache
+        uses: ./.github/actions/test-cache/upload
+        with:
+          cache-key: ${{ steps.download-cache.outputs.cache-key }}
+
+      - name: Upload test stats to Datadog
+        timeout-minutes: 1
+        continue-on-error: true
         uses: ./.github/actions/upload-datadog
         if: always()
         with:
           api-key: ${{ secrets.DATADOG_API_KEY }}
 
-  deploy:
-    name: "deploy"
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-16vcpu-ubuntu-2204' || 'ubuntu-latest' }}
-    timeout-minutes: 30
+  # Tailnet integration tests only run when the `tailnet` directory or `go.sum`
+  # and `go.mod` are changed. These tests are to ensure we don't add regressions
+  # to tailnet, either due to our code or due to updating dependencies.
+  #
+  # These tests are skipped in the main go test jobs because they require root
+  # and mess with networking.
+  test-go-tailnet-integration:
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     needs: changes
-    if: |
-      github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
-      && needs.changes.outputs.docs-only == 'false'
-    permissions:
-      contents: read
-      id-token: write
+    # Unnecessary to run on main for now
+    if: needs.changes.outputs.tailnet-integration == 'true' || needs.changes.outputs.ci == 'true'
+    timeout-minutes: 20
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        with:
+          egress-policy: audit
+
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          fetch-depth: 0
-
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v1
-        with:
-          workload_identity_provider: projects/573722524737/locations/global/workloadIdentityPools/github/providers/github
-          service_account: coder-ci@coder-dogfood.iam.gserviceaccount.com
-
-      - name: Set up Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1
-
-      - name: Setup Node
-        uses: ./.github/actions/setup-node
+          fetch-depth: 1
+          persist-credentials: false
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
-      - name: Install goimports
-        run: go install golang.org/x/tools/cmd/goimports@latest
-      - name: Install nfpm
-        run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.16.0
+      # Used by some integration tests.
+      - name: Install Nginx
+        run: sudo apt-get update && sudo apt-get install -y nginx
 
-      - name: Install zstd
-        run: sudo apt-get install -y zstd
-
-      - name: Build Release
-        run: |
-          set -euo pipefail
-          go mod download
-
-          version="$(./scripts/version.sh)"
-          make gen/mark-fresh
-          make -j \
-            build/coder_"$version"_windows_amd64.zip \
-            build/coder_"$version"_linux_amd64.{tar.gz,deb}
-
-      - name: Install Release
-        run: |
-          set -euo pipefail
-
-          regions=(
-            # gcp-region-id instance-name systemd-service-name
-            "us-central1-a coder coder"
-            "australia-southeast1-b coder-sydney coder-workspace-proxy"
-            "europe-west3-c coder-europe coder-workspace-proxy"
-            "southamerica-east1-b coder-brazil coder-workspace-proxy"
-          )
-
-          deb_pkg="./build/coder_$(./scripts/version.sh)_linux_amd64.deb"
-          if [ ! -f "$deb_pkg" ]; then
-            echo "deb package not found: $deb_pkg"
-            ls -l ./build
-            exit 1
-          fi
-
-          gcloud config set project coder-dogfood
-          for region in "${regions[@]}"; do
-            echo "::group::$region"
-            set -- $region
-
-            set -x
-            gcloud config set compute/zone "$1"
-            gcloud compute scp "$deb_pkg" "${2}:/tmp/coder.deb"
-            gcloud compute ssh "$2" -- /bin/sh -c "set -eux; sudo dpkg -i --force-confdef /tmp/coder.deb; sudo systemctl daemon-reload; sudo service '$3' restart"
-            set +x
-
-            echo "::endgroup::"
-          done
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v3
-        with:
-          name: coder
-          path: |
-            ./build/*.zip
-            ./build/*.tar.gz
-            ./build/*.deb
-          retention-days: 7
+      - name: Run Tests
+        run: make test-tailnet-integration
 
   test-js:
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     needs: changes
-    if: needs.changes.outputs.ts == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
+    if: needs.changes.outputs.site == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 20
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        with:
+          egress-policy: audit
+
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
 
-      - run: pnpm test:ci --max-workers $(nproc)
+      - run: pnpm test:ci --max-workers "$(nproc)"
         working-directory: site
 
-      - name: Check code coverage
-        uses: codecov/codecov-action@v3
-        # This action has a tendency to error out unexpectedly, it has
-        # the `fail_ci_if_error` option that defaults to `false`, but
-        # that is no guarantee, see:
-        # https://github.com/codecov/codecov-action/issues/788
-        continue-on-error: true
-        if: github.actor != 'dependabot[bot]' && !github.event.pull_request.head.repo.fork
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./site/coverage/lcov.info
-          flags: unittest-js
-
   test-e2e:
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-16vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-4' || 'ubuntu-latest' }}
     needs: changes
-    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
+    strategy:
+      fail-fast: false
+      matrix:
+        variant:
+          - premium: false
+            name: test-e2e
+          #- premium: true
+          #  name: test-e2e-premium
+    # Skip test-e2e on forks as they don't have access to CI secrets
+    if: (needs.changes.outputs.go == 'true' || needs.changes.outputs.site == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main') && !(github.event.pull_request.head.repo.fork)
     timeout-minutes: 20
+    name: ${{ matrix.variant.name }}
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        with:
+          egress-policy: audit
+
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
@@ -537,67 +729,74 @@ jobs:
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
-      - name: Setup Terraform
-        uses: ./.github/actions/setup-tf
+      # Assume that the checked-in versions are up-to-date
+      - run: make gen/mark-fresh
+        name: make gen
 
-      - name: go install tools
-        run: |
-          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30
-          go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.33
-          go install golang.org/x/tools/cmd/goimports@latest
-          go install github.com/mikefarah/yq/v4@v4.30.6
-          go install github.com/golang/mock/mockgen@v1.6.0
+      - run: make site/e2e/bin/coder
+        name: make coder
 
-      - name: Install Protoc
-        run: |
-          mkdir -p /tmp/proto
-          pushd /tmp/proto
-          curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.3/protoc-23.3-linux-x86_64.zip
-          unzip protoc.zip
-          cp -r ./bin/* /usr/local/bin
-          cp -r ./include /usr/local/bin/include
-          popd
-
-      - name: Build
-        run: |
-          make -B site/out/index.html
+      - run: pnpm build
+        env:
+          NODE_OPTIONS: ${{ github.repository_owner == 'coder' && '--max_old_space_size=8192' || '' }}
+        working-directory: site
 
       - run: pnpm playwright:install
         working-directory: site
 
-      - run: pnpm playwright:test --workers 1
+      # Run tests that don't require a premium license without a premium license
+      - run: pnpm playwright:test --forbid-only --workers 1
+        if: ${{ !matrix.variant.premium }}
         env:
           DEBUG: pw:api
         working-directory: site
 
+      # Run all of the tests with a premium license
+      - run: pnpm playwright:test --forbid-only --workers 1
+        if: ${{ matrix.variant.premium }}
+        env:
+          DEBUG: pw:api
+          CODER_E2E_LICENSE: ${{ secrets.CODER_E2E_LICENSE }}
+          CODER_E2E_REQUIRE_PREMIUM_TESTS: "1"
+        working-directory: site
+
       - name: Upload Playwright Failed Tests
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: failed-test-videos
+          name: failed-test-videos${{ matrix.variant.premium && '-premium' || '' }}
           path: ./site/test-results/**/*.webm
           retention-days: 7
 
       - name: Upload pprof dumps
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: debug-pprof-dumps
+          name: debug-pprof-dumps${{ matrix.variant.premium && '-premium' || ''  }}
           path: ./site/test-results/**/debug-pprof-*.txt
           retention-days: 7
 
+  # Reference guide:
+  # https://www.chromatic.com/docs/turbosnap-best-practices/#run-with-caution-when-using-the-pull_request-event
   chromatic:
     # REMARK: this is only used to build storybook and deploy it to Chromatic.
     runs-on: ubuntu-latest
     needs: changes
-    if: needs.changes.outputs.ts == 'true' || needs.changes.outputs.ci == 'true'
+    if: needs.changes.outputs.site == 'true' || needs.changes.outputs.ci == 'true'
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Harden Runner
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
         with:
-          # Required by Chromatic for build-over-build history, otherwise we
-          # only get 1 commit on shallow checkout.
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          # 👇 Ensures Chromatic can read your full git history
           fetch-depth: 0
+          # 👇 Tells the checkout which commit hash to reference
+          ref: ${{ github.event.pull_request.head.ref }}
+          persist-credentials: false
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
@@ -607,12 +806,13 @@ jobs:
       # the check to pass. This is desired in PRs, but not in mainline.
       - name: Publish to Chromatic (non-mainline)
         if: github.ref != 'refs/heads/main' && github.repository_owner == 'coder'
-        uses: chromaui/action@v1
+        uses: chromaui/action@20c7e42e1b2f6becd5d188df9acb02f3e2f51519 # v13.2.0
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
           STORYBOOK: true
         with:
-          buildScriptName: "storybook:build"
+          # Do a fast, testing build for change previews
+          buildScriptName: "storybook:ci"
           exitOnceUploaded: true
           # This will prevent CI from failing when Chromatic detects visual changes
           exitZeroOnChanges: true
@@ -621,11 +821,14 @@ jobs:
           projectToken: 695c25b6cb65
           workingDir: "./site"
           storybookBaseDir: "./site"
+          storybookConfigDir: "./site/.storybook"
           # Prevent excessive build runs on minor version changes
           skip: "@(renovate/**|dependabot/**)"
           # Run TurboSnap to trace file dependencies to related stories
-          # and tell chromatic to only take snapshots of relevent stories
+          # and tell chromatic to only take snapshots of relevant stories
           onlyChanged: true
+          # Avoid uploading single files, because that's very slow
+          zip: true
 
       # This is a separate step for mainline only that auto accepts and changes
       # instead of holding CI up. Since we squash/merge, this is defensive to
@@ -635,7 +838,7 @@ jobs:
       # infinitely "in progress" in mainline unless we re-review each build.
       - name: Publish to Chromatic (mainline)
         if: github.ref == 'refs/heads/main' && github.repository_owner == 'coder'
-        uses: chromaui/action@v1
+        uses: chromaui/action@20c7e42e1b2f6becd5d188df9acb02f3e2f51519 # v13.2.0
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
           STORYBOOK: true
@@ -643,37 +846,57 @@ jobs:
           autoAcceptChanges: true
           # This will prevent CI from failing when Chromatic detects visual changes
           exitZeroOnChanges: true
+          # Do a full build with documentation for mainline builds
           buildScriptName: "storybook:build"
           projectToken: 695c25b6cb65
           workingDir: "./site"
           storybookBaseDir: "./site"
+          storybookConfigDir: "./site/.storybook"
           # Run TurboSnap to trace file dependencies to related stories
-          # and tell chromatic to only take snapshots of relevent stories
+          # and tell chromatic to only take snapshots of relevant stories
           onlyChanged: true
+          # Avoid uploading single files, because that's very slow
+          zip: true
 
   offlinedocs:
     name: offlinedocs
     needs: changes
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
-    if: needs.changes.outputs.offlinedocs == 'true' || needs.changes.outputs.ci == 'true'
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    if: needs.changes.outputs.offlinedocs == 'true' || needs.changes.outputs.ci == 'true' || needs.changes.outputs.docs == 'true'
+
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        with:
+          egress-policy: audit
+
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           # 0 is required here for version.sh to work.
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
         with:
           directory: offlinedocs
 
+      - name: Install Protoc
+        run: |
+          mkdir -p /tmp/proto
+          pushd /tmp/proto
+          curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-linux-x86_64.zip
+          unzip protoc.zip
+          sudo cp -r ./bin/* /usr/local/bin
+          sudo cp -r ./include /usr/local/bin/include
+          popd
+
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
       - name: Install go tools
-        run: |
-          go install github.com/golang/mock/mockgen@v1.6.0
+        uses: ./.github/actions/setup-go-tools
 
       - name: Setup sqlc
         uses: ./.github/actions/setup-sqlc
@@ -689,35 +912,49 @@ jobs:
           pnpm lint
 
       - name: Build
+        # no `-j` flag as `make` fails with:
+        # coderd/rbac/object_gen.go:1:1: syntax error: package statement must be first
         run: |
-          make -j build/coder_docs_"$(./scripts/version.sh)".tgz
+          make build/coder_docs_"$(./scripts/version.sh)".tgz
 
   required:
     runs-on: ubuntu-latest
     needs:
+      - changes
       - fmt
       - lint
       - gen
-      - test-go
       - test-go-pg
-      - test-go-race
+      - test-go-pg-17
+      - test-go-race-pg
       - test-js
       - test-e2e
       - offlinedocs
+      - sqlc-vet
+      - check-build
     # Allow this job to run even if the needed jobs fail, are skipped or
     # cancelled.
     if: always()
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        with:
+          egress-policy: audit
+
       - name: Ensure required checks
-        run: |
+        run: | # zizmor: ignore[template-injection] We're just reading needs.x.result here, no risk of injection
           echo "Checking required checks"
+          echo "- changes: ${{ needs.changes.result }}"
           echo "- fmt: ${{ needs.fmt.result }}"
           echo "- lint: ${{ needs.lint.result }}"
           echo "- gen: ${{ needs.gen.result }}"
-          echo "- test-go: ${{ needs.test-go.result }}"
           echo "- test-go-pg: ${{ needs.test-go-pg.result }}"
-          echo "- test-go-race: ${{ needs.test-go-race.result }}"
+          echo "- test-go-pg-17: ${{ needs.test-go-pg-17.result }}"
+          echo "- test-go-race-pg: ${{ needs.test-go-race-pg.result }}"
           echo "- test-js: ${{ needs.test-js.result }}"
+          echo "- test-e2e: ${{ needs.test-e2e.result }}"
+          echo "- offlinedocs: ${{ needs.offlinedocs.result }}"
+          echo "- check-build: ${{ needs.check-build.result }}"
           echo
 
           # We allow skipped jobs to pass, but not failed or cancelled jobs.
@@ -728,19 +965,107 @@ jobs:
 
           echo "Required checks have passed"
 
-  build-main-image:
-    # This build and publihes ghcr.io/coder/coder-preview:main for each merge commit to main branch.
-    # We are only building this for amd64 plateform. (>95% pulls are for amd64)
+  # Builds the dylibs and upload it as an artifact so it can be embedded in the main build
+  build-dylib:
     needs: changes
-    if: github.ref == 'refs/heads/main' && needs.changes.outputs.docs-only == 'false'
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
-    env:
-      DOCKER_CLI_EXPERIMENTAL: "enabled"
+    # We always build the dylibs on Go changes to verify we're not merging unbuildable code,
+    # but they need only be signed and uploaded on coder/coder main.
+    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-macos-latest' || 'macos-latest' }}
     steps:
+      # Harden Runner doesn't work on macOS
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup build tools
+        run: |
+          brew install bash gnu-getopt make
+          {
+            echo "$(brew --prefix bash)/bin"
+            echo "$(brew --prefix gnu-getopt)/bin"
+            echo "$(brew --prefix make)/libexec/gnubin"
+          } >> "$GITHUB_PATH"
+
+      - name: Switch XCode Version
+        uses: maxim-lobanov/setup-xcode@60606e260d2fc5762a71e64e74b2174e8ea3c8bd # v1.6.0
+        with:
+          xcode-version: "16.1.0"
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Install rcodesign
+        if: ${{ github.repository_owner == 'coder' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) }}
+        run: |
+          set -euo pipefail
+          wget -O /tmp/rcodesign.tar.gz https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F0.22.0/apple-codesign-0.22.0-macos-universal.tar.gz
+          sudo tar -xzf /tmp/rcodesign.tar.gz \
+            -C /usr/local/bin \
+            --strip-components=1 \
+            apple-codesign-0.22.0-macos-universal/rcodesign
+          rm /tmp/rcodesign.tar.gz
+
+      - name: Setup Apple Developer certificate and API key
+        if: ${{ github.repository_owner == 'coder' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) }}
+        run: |
+          set -euo pipefail
+          touch /tmp/{apple_cert.p12,apple_cert_password.txt,apple_apikey.p8}
+          chmod 600 /tmp/{apple_cert.p12,apple_cert_password.txt,apple_apikey.p8}
+          echo "$AC_CERTIFICATE_P12_BASE64" | base64 -d > /tmp/apple_cert.p12
+          echo "$AC_CERTIFICATE_PASSWORD" > /tmp/apple_cert_password.txt
+          echo "$AC_APIKEY_P8_BASE64" | base64 -d > /tmp/apple_apikey.p8
+        env:
+          AC_CERTIFICATE_P12_BASE64: ${{ secrets.AC_CERTIFICATE_P12_BASE64 }}
+          AC_CERTIFICATE_PASSWORD: ${{ secrets.AC_CERTIFICATE_PASSWORD }}
+          AC_APIKEY_P8_BASE64: ${{ secrets.AC_APIKEY_P8_BASE64 }}
+
+      - name: Build dylibs
+        run: |
+          set -euxo pipefail
+          go mod download
+
+          make gen/mark-fresh
+          make build/coder-dylib
+        env:
+          CODER_SIGN_DARWIN: ${{ (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) && '1' || '0' }}
+          AC_CERTIFICATE_FILE: /tmp/apple_cert.p12
+          AC_CERTIFICATE_PASSWORD_FILE: /tmp/apple_cert_password.txt
+
+      - name: Upload build artifacts
+        if: ${{ github.repository_owner == 'coder' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dylibs
+          path: |
+            ./build/*.h
+            ./build/*.dylib
+          retention-days: 7
+
+      - name: Delete Apple Developer certificate and API key
+        if: ${{ github.repository_owner == 'coder' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) }}
+        run: rm -f /tmp/{apple_cert.p12,apple_cert_password.txt,apple_apikey.p8}
+
+  check-build:
+    # This job runs make build to verify compilation on PRs.
+    # The build doesn't get signed, and is not suitable for usage, unlike the
+    # `build` job that runs on main.
+    needs: changes
+    if: needs.changes.outputs.go == 'true' && github.ref != 'refs/heads/main'
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
@@ -748,45 +1073,499 @@ jobs:
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
-      - name: Setup sqlc
-        uses: ./.github/actions/setup-sqlc
+      - name: Install go-winres
+        run: go install github.com/tc-hib/go-winres@d743268d7ea168077ddd443c4240562d4f5e8c3e # v0.3.3
+
+      - name: Install nfpm
+        run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.35.1
+
+      - name: Install zstd
+        run: sudo apt-get install -y zstd
+
+      - name: Build
+        run: |
+          set -euxo pipefail
+          go mod download
+          make gen/mark-fresh
+          make build
+
+  build:
+    # This builds and publishes ghcr.io/coder/coder-preview:main for each commit
+    # to main branch.
+    needs:
+      - changes
+      - build-dylib
+    if: (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) && needs.changes.outputs.docs-only == 'false' && !github.event.pull_request.head.repo.fork
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-22.04' }}
+    permissions:
+      # Necessary to push docker images to ghcr.io.
+      packages: write
+      # Necessary for GCP authentication (https://github.com/google-github-actions/setup-gcloud#usage)
+      # Also necessary for keyless cosign (https://docs.sigstore.dev/cosign/signing/overview/)
+      # And for GitHub Actions attestation
+      id-token: write
+      # Required for GitHub Actions attestation
+      attestations: write
+    env:
+      DOCKER_CLI_EXPERIMENTAL: "enabled"
+    outputs:
+      IMAGE: ghcr.io/coder/coder-preview:${{ steps.build-docker.outputs.tag }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: GHCR Login
-        uses: docker/login-action@v3
+        uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push Linux amd64 Docker image
-        id: build_and_push
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Install rcodesign
+        run: |
+          set -euo pipefail
+          wget -O /tmp/rcodesign.tar.gz https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F0.22.0/apple-codesign-0.22.0-x86_64-unknown-linux-musl.tar.gz
+          sudo tar -xzf /tmp/rcodesign.tar.gz \
+            -C /usr/bin \
+            --strip-components=1 \
+            apple-codesign-0.22.0-x86_64-unknown-linux-musl/rcodesign
+          rm /tmp/rcodesign.tar.gz
+
+      - name: Setup Apple Developer certificate
+        run: |
+          set -euo pipefail
+          touch /tmp/{apple_cert.p12,apple_cert_password.txt}
+          chmod 600 /tmp/{apple_cert.p12,apple_cert_password.txt}
+          echo "$AC_CERTIFICATE_P12_BASE64" | base64 -d > /tmp/apple_cert.p12
+          echo "$AC_CERTIFICATE_PASSWORD" > /tmp/apple_cert_password.txt
+        env:
+          AC_CERTIFICATE_P12_BASE64: ${{ secrets.AC_CERTIFICATE_P12_BASE64 }}
+          AC_CERTIFICATE_PASSWORD: ${{ secrets.AC_CERTIFICATE_PASSWORD }}
+
+      # Necessary for signing Windows binaries.
+      - name: Setup Java
+        uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v5.0.0
+        with:
+          distribution: "zulu"
+          java-version: "11.0"
+
+      - name: Install go-winres
+        run: go install github.com/tc-hib/go-winres@d743268d7ea168077ddd443c4240562d4f5e8c3e # v0.3.3
+
+      - name: Install nfpm
+        run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.35.1
+
+      - name: Install zstd
+        run: sudo apt-get install -y zstd
+
+      - name: Install cosign
+        uses: ./.github/actions/install-cosign
+
+      - name: Install syft
+        uses: ./.github/actions/install-syft
+
+      - name: Setup Windows EV Signing Certificate
+        run: |
+          set -euo pipefail
+          touch /tmp/ev_cert.pem
+          chmod 600 /tmp/ev_cert.pem
+          echo "$EV_SIGNING_CERT" > /tmp/ev_cert.pem
+          wget https://github.com/ebourg/jsign/releases/download/6.0/jsign-6.0.jar -O /tmp/jsign-6.0.jar
+        env:
+          EV_SIGNING_CERT: ${{ secrets.EV_SIGNING_CERT }}
+
+      # Setup GCloud for signing Windows binaries.
+      - name: Authenticate to Google Cloud
+        id: gcloud_auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.GCP_CODE_SIGNING_WORKLOAD_ID_PROVIDER }}
+          service_account: ${{ vars.GCP_CODE_SIGNING_SERVICE_ACCOUNT }}
+          token_format: "access_token"
+
+      - name: Setup GCloud SDK
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+
+      - name: Download dylibs
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          name: dylibs
+          path: ./build
+
+      - name: Insert dylibs
+        run: |
+          mv ./build/*amd64.dylib ./site/out/bin/coder-vpn-darwin-amd64.dylib
+          mv ./build/*arm64.dylib ./site/out/bin/coder-vpn-darwin-arm64.dylib
+          mv ./build/*arm64.h     ./site/out/bin/coder-vpn-darwin-dylib.h
+
+      - name: Build
         run: |
           set -euxo pipefail
           go mod download
-          make gen/mark-fresh
-          export DOCKER_IMAGE_NO_PREREQUISITES=true
-          version="$(./scripts/version.sh)"
-          export CODER_IMAGE_BUILD_BASE_TAG="$(CODER_IMAGE_BASE=coder-base ./scripts/image_tag.sh --version "$version")"
-          make -j build/coder_linux_amd64
-          ./scripts/build_docker.sh \
-            --arch amd64 \
-            --target ghcr.io/coder/coder-preview:main \
-            --version $version \
-            --push \
-            build/coder_linux_amd64
 
-          # Tag image with new package tag and push
-          tag=$(echo "$version" | sed 's/+/-/g')
-          docker tag ghcr.io/coder/coder-preview:main ghcr.io/coder/coder-preview:main-$tag
-          docker push ghcr.io/coder/coder-preview:main-$tag
+          version="$(./scripts/version.sh)"
+          tag="main-${version//+/-}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+          make gen/mark-fresh
+          make -j \
+            build/coder_linux_{amd64,arm64,armv7} \
+            build/coder_"$version"_windows_amd64.zip \
+            build/coder_"$version"_linux_amd64.{tar.gz,deb}
+        env:
+          # The Windows slim binary must be signed for Coder Desktop to accept
+          # it. The darwin executables don't need to be signed, but the dylibs
+          # do (see above).
+          CODER_SIGN_WINDOWS: "1"
+          CODER_WINDOWS_RESOURCES: "1"
+          CODER_SIGN_GPG: "1"
+          CODER_GPG_RELEASE_KEY_BASE64: ${{ secrets.GPG_RELEASE_KEY_BASE64 }}
+          CODER_SIGN_DARWIN: "1"
+          AC_CERTIFICATE_FILE: /tmp/apple_cert.p12
+          AC_CERTIFICATE_PASSWORD_FILE: /tmp/apple_cert_password.txt
+          EV_KEY: ${{ secrets.EV_KEY }}
+          EV_KEYSTORE: ${{ secrets.EV_KEYSTORE }}
+          EV_TSA_URL: ${{ secrets.EV_TSA_URL }}
+          EV_CERTIFICATE_PATH: /tmp/ev_cert.pem
+          GCLOUD_ACCESS_TOKEN: ${{ steps.gcloud_auth.outputs.access_token }}
+          JSIGN_PATH: /tmp/jsign-6.0.jar
+
+      - name: Build Linux Docker images
+        id: build-docker
+        env:
+          CODER_IMAGE_BASE: ghcr.io/coder/coder-preview
+          DOCKER_CLI_EXPERIMENTAL: "enabled"
+        run: |
+          set -euxo pipefail
+
+          # build Docker images for each architecture
+          version="$(./scripts/version.sh)"
+          tag="${version//+/-}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+          # build images for each architecture
+          # note: omitting the -j argument to avoid race conditions when pushing
+          make build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
+
+          # only push if we are on main branch or release branch
+          if [[ "${GITHUB_REF}" == "refs/heads/main" || "${GITHUB_REF}" == refs/heads/release/* ]]; then
+            # build and push multi-arch manifest, this depends on the other images
+            # being pushed so will automatically push them
+            # note: omitting the -j argument to avoid race conditions when pushing
+            make push/build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
+
+            # Define specific tags
+            tags=("$tag")
+            if [ "${GITHUB_REF}" == "refs/heads/main" ]; then
+              tags+=("main" "latest")
+            elif [[ "${GITHUB_REF}" == refs/heads/release/* ]]; then
+              tags+=("release-${GITHUB_REF#refs/heads/release/}")
+            fi
+
+            # Create and push a multi-arch manifest for each tag
+            # we are adding `latest` tag and keeping `main` for backward
+            # compatibality
+            for t in "${tags[@]}"; do
+              echo "Pushing multi-arch manifest for tag: $t"
+              # shellcheck disable=SC2046
+              ./scripts/build_docker_multiarch.sh \
+                  --push \
+                  --target "ghcr.io/coder/coder-preview:$t" \
+                  --version "$version" \
+                  $(cat build/coder_"$version"_linux_{amd64,arm64,armv7}.tag)
+            done
+          fi
+
+      - name: SBOM Generation and Attestation
+        if: github.ref == 'refs/heads/main'
+        continue-on-error: true
+        env:
+          COSIGN_EXPERIMENTAL: 1
+          BUILD_TAG: ${{ steps.build-docker.outputs.tag }}
+        run: |
+          set -euxo pipefail
+
+          # Define image base and tags
+          IMAGE_BASE="ghcr.io/coder/coder-preview"
+          TAGS=("${BUILD_TAG}" "main" "latest")
+
+          # Generate and attest SBOM for each tag
+          for tag in "${TAGS[@]}"; do
+            IMAGE="${IMAGE_BASE}:${tag}"
+            SBOM_FILE="coder_sbom_${tag//[:\/]/_}.spdx.json"
+
+            echo "Generating SBOM for image: ${IMAGE}"
+            syft "${IMAGE}" -o spdx-json > "${SBOM_FILE}"
+
+            echo "Attesting SBOM to image: ${IMAGE}"
+            cosign clean --force=true "${IMAGE}"
+            cosign attest --type spdxjson \
+              --predicate "${SBOM_FILE}" \
+              --yes \
+              "${IMAGE}"
+          done
+
+      # GitHub attestation provides SLSA provenance for the Docker images, establishing a verifiable
+      # record that these images were built in GitHub Actions with specific inputs and environment.
+      # This complements our existing cosign attestations which focus on SBOMs.
+      #
+      # We attest each tag separately to ensure all tags have proper provenance records.
+      # TODO: Consider refactoring these steps to use a matrix strategy or composite action to reduce duplication
+      # while maintaining the required functionality for each tag.
+      - name: GitHub Attestation for Docker image
+        id: attest_main
+        if: github.ref == 'refs/heads/main'
+        continue-on-error: true
+        uses: actions/attest@daf44fb950173508f38bd2406030372c1d1162b1 # v3.0.0
+        with:
+          subject-name: "ghcr.io/coder/coder-preview:main"
+          predicate-type: "https://slsa.dev/provenance/v1"
+          predicate: |
+            {
+              "buildType": "https://github.com/actions/runner-images/",
+              "builder": {
+                "id": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              },
+              "invocation": {
+                "configSource": {
+                  "uri": "git+https://github.com/${{ github.repository }}@${{ github.ref }}",
+                  "digest": {
+                    "sha1": "${{ github.sha }}"
+                  },
+                  "entryPoint": ".github/workflows/ci.yaml"
+                },
+                "environment": {
+                  "github_workflow": "${{ github.workflow }}",
+                  "github_run_id": "${{ github.run_id }}"
+                }
+              },
+              "metadata": {
+                "buildInvocationID": "${{ github.run_id }}",
+                "completeness": {
+                  "environment": true,
+                  "materials": true
+                }
+              }
+            }
+          push-to-registry: true
+
+      - name: GitHub Attestation for Docker image (latest tag)
+        id: attest_latest
+        if: github.ref == 'refs/heads/main'
+        continue-on-error: true
+        uses: actions/attest@daf44fb950173508f38bd2406030372c1d1162b1 # v3.0.0
+        with:
+          subject-name: "ghcr.io/coder/coder-preview:latest"
+          predicate-type: "https://slsa.dev/provenance/v1"
+          predicate: |
+            {
+              "buildType": "https://github.com/actions/runner-images/",
+              "builder": {
+                "id": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              },
+              "invocation": {
+                "configSource": {
+                  "uri": "git+https://github.com/${{ github.repository }}@${{ github.ref }}",
+                  "digest": {
+                    "sha1": "${{ github.sha }}"
+                  },
+                  "entryPoint": ".github/workflows/ci.yaml"
+                },
+                "environment": {
+                  "github_workflow": "${{ github.workflow }}",
+                  "github_run_id": "${{ github.run_id }}"
+                }
+              },
+              "metadata": {
+                "buildInvocationID": "${{ github.run_id }}",
+                "completeness": {
+                  "environment": true,
+                  "materials": true
+                }
+              }
+            }
+          push-to-registry: true
+
+      - name: GitHub Attestation for version-specific Docker image
+        id: attest_version
+        if: github.ref == 'refs/heads/main'
+        continue-on-error: true
+        uses: actions/attest@daf44fb950173508f38bd2406030372c1d1162b1 # v3.0.0
+        with:
+          subject-name: "ghcr.io/coder/coder-preview:${{ steps.build-docker.outputs.tag }}"
+          predicate-type: "https://slsa.dev/provenance/v1"
+          predicate: |
+            {
+              "buildType": "https://github.com/actions/runner-images/",
+              "builder": {
+                "id": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              },
+              "invocation": {
+                "configSource": {
+                  "uri": "git+https://github.com/${{ github.repository }}@${{ github.ref }}",
+                  "digest": {
+                    "sha1": "${{ github.sha }}"
+                  },
+                  "entryPoint": ".github/workflows/ci.yaml"
+                },
+                "environment": {
+                  "github_workflow": "${{ github.workflow }}",
+                  "github_run_id": "${{ github.run_id }}"
+                }
+              },
+              "metadata": {
+                "buildInvocationID": "${{ github.run_id }}",
+                "completeness": {
+                  "environment": true,
+                  "materials": true
+                }
+              }
+            }
+          push-to-registry: true
+
+      # Report attestation failures but don't fail the workflow
+      - name: Check attestation status
+        if: github.ref == 'refs/heads/main'
+        run: | # zizmor: ignore[template-injection] We're just reading steps.attest_x.outcome here, no risk of injection
+          if [[ "${{ steps.attest_main.outcome }}" == "failure" ]]; then
+            echo "::warning::GitHub attestation for main tag failed"
+          fi
+          if [[ "${{ steps.attest_latest.outcome }}" == "failure" ]]; then
+            echo "::warning::GitHub attestation for latest tag failed"
+          fi
+          if [[ "${{ steps.attest_version.outcome }}" == "failure" ]]; then
+            echo "::warning::GitHub attestation for version-specific tag failed"
+          fi
 
       - name: Prune old images
-        uses: vlaurin/action-ghcr-prune@v0.5.0
+        if: github.ref == 'refs/heads/main'
+        uses: vlaurin/action-ghcr-prune@0cf7d39f88546edd31965acba78cdcb0be14d641 # v0.6.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           organization: coder
           container: coder-preview
           keep-younger-than: 7 # days
+          keep-tags: latest
           keep-tags-regexes: ^pr
-          prune-tags-regexes: ^main-
+          prune-tags-regexes: |
+            ^main-
+            ^v
           prune-untagged: true
+
+      - name: Upload build artifacts
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: coder
+          path: |
+            ./build/*.zip
+            ./build/*.tar.gz
+            ./build/*.deb
+          retention-days: 7
+
+  # Deploy is handled in deploy.yaml so we can apply concurrency limits.
+  deploy:
+    needs:
+      - changes
+      - build
+    if: |
+      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/'))
+      && needs.changes.outputs.docs-only == 'false'
+      && !github.event.pull_request.head.repo.fork
+    uses: ./.github/workflows/deploy.yaml
+    with:
+      image: ${{ needs.build.outputs.IMAGE }}
+    permissions:
+      contents: read
+      id-token: write
+      packages: write # to retag image as dogfood
+    secrets:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      FLY_PARIS_CODER_PROXY_SESSION_TOKEN: ${{ secrets.FLY_PARIS_CODER_PROXY_SESSION_TOKEN }}
+      FLY_SYDNEY_CODER_PROXY_SESSION_TOKEN: ${{ secrets.FLY_SYDNEY_CODER_PROXY_SESSION_TOKEN }}
+      FLY_SAO_PAULO_CODER_PROXY_SESSION_TOKEN: ${{ secrets.FLY_SAO_PAULO_CODER_PROXY_SESSION_TOKEN }}
+      FLY_JNB_CODER_PROXY_SESSION_TOKEN: ${{ secrets.FLY_JNB_CODER_PROXY_SESSION_TOKEN }}
+
+  # sqlc-vet runs a postgres docker container, runs Coder migrations, and then
+  # runs sqlc-vet to ensure all queries are valid. This catches any mistakes
+  # in migrations or sqlc queries that makes a query unable to be prepared.
+  sqlc-vet:
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    needs: changes
+    if: needs.changes.outputs.db == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Setup sqlc
+        uses: ./.github/actions/setup-sqlc
+
+      - name: Setup and run sqlc vet
+        run: |
+          make sqlc-vet
+
+  notify-slack-on-failure:
+    needs:
+      - required
+    runs-on: ubuntu-latest
+    if: failure() && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Send Slack notification
+        run: |
+          ESCAPED_PROMPT=$(printf "%s" "<@U09LQ75AHKR> $BLINK_CI_FAILURE_PROMPT" | jq -Rsa .)
+          curl -X POST -H 'Content-type: application/json' \
+          --data '{
+            "blocks": [
+              {
+                "type": "header",
+                "text": {
+                  "type": "plain_text",
+                  "text": "❌ CI Failure in main",
+                  "emoji": true
+                }
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*View failure:* <'"${RUN_URL}"'|Click here>"
+                }
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": '"$ESCAPED_PROMPT"'
+                }
+              }
+            ]
+          }' "${SLACK_WEBHOOK}"
+        env:
+          SLACK_WEBHOOK: ${{ secrets.CI_FAILURE_SLACK_WEBHOOK }}
+          RUN_URL: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          BLINK_CI_FAILURE_PROMPT: ${{ vars.BLINK_CI_FAILURE_PROMPT }}

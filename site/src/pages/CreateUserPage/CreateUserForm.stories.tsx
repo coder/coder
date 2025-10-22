@@ -1,16 +1,23 @@
-import { action } from "@storybook/addon-actions";
-import { StoryObj, Meta } from "@storybook/react";
+import {
+	MockOrganization,
+	MockOrganization2,
+	mockApiError,
+} from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { organizationsKey } from "api/queries/organizations";
+import type { Organization } from "api/typesGenerated";
+import { action } from "storybook/actions";
+import { userEvent, within } from "storybook/test";
 import { CreateUserForm } from "./CreateUserForm";
-import { mockApiError } from "testHelpers/entities";
 
 const meta: Meta<typeof CreateUserForm> = {
-  title: "components/CreateUserForm",
-  component: CreateUserForm,
-  args: {
-    onCancel: action("cancel"),
-    onSubmit: action("submit"),
-    isLoading: false,
-  },
+	title: "pages/CreateUserPage",
+	component: CreateUserForm,
+	args: {
+		onCancel: action("cancel"),
+		onSubmit: action("submit"),
+		isLoading: false,
+	},
 };
 
 export default meta;
@@ -18,24 +25,66 @@ type Story = StoryObj<typeof CreateUserForm>;
 
 export const Ready: Story = {};
 
+const permissionCheckQuery = (organizations: Organization[]) => {
+	return {
+		key: [
+			"authorization",
+			{
+				checks: Object.fromEntries(
+					organizations.map((org) => [
+						org.id,
+						{
+							action: "create",
+							object: {
+								resource_type: "organization_member",
+								organization_id: org.id,
+							},
+						},
+					]),
+				),
+			},
+		],
+		data: Object.fromEntries(organizations.map((org) => [org.id, true])),
+	};
+};
+
+export const WithOrganizations: Story = {
+	parameters: {
+		queries: [
+			{
+				key: organizationsKey,
+				data: [MockOrganization, MockOrganization2],
+			},
+			permissionCheckQuery([MockOrganization, MockOrganization2]),
+		],
+	},
+	args: {
+		showOrganizations: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByLabelText("Organization *"));
+	},
+};
+
 export const FormError: Story = {
-  args: {
-    error: mockApiError({
-      validations: [{ field: "username", detail: "Username taken" }],
-    }),
-  },
+	args: {
+		error: mockApiError({
+			validations: [{ field: "username", detail: "Username taken" }],
+		}),
+	},
 };
 
 export const GeneralError: Story = {
-  args: {
-    error: mockApiError({
-      message: "User already exists",
-    }),
-  },
+	args: {
+		error: mockApiError({
+			message: "User already exists",
+		}),
+	},
 };
 
 export const Loading: Story = {
-  args: {
-    isLoading: true,
-  },
+	args: {
+		isLoading: true,
+	},
 };

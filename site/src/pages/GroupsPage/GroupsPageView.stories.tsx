@@ -1,51 +1,51 @@
 import { MockGroup } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { GroupsPageView } from "./GroupsPageView";
-import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof GroupsPageView> = {
-  title: "pages/GroupsPageView",
-  component: GroupsPageView,
+	title: "pages/OrganizationGroupsPage",
+	component: GroupsPageView,
 };
 
 export default meta;
 type Story = StoryObj<typeof GroupsPageView>;
 
 export const NotEnabled: Story = {
-  args: {
-    groups: [MockGroup],
-    canCreateGroup: true,
-    isTemplateRBACEnabled: false,
-  },
+	args: {
+		groups: [MockGroup],
+		canCreateGroup: true,
+		groupsEnabled: false,
+	},
 };
 
 export const WithGroups: Story = {
-  args: {
-    groups: [MockGroup],
-    canCreateGroup: true,
-    isTemplateRBACEnabled: true,
-  },
+	args: {
+		groups: [MockGroup],
+		canCreateGroup: true,
+		groupsEnabled: true,
+	},
 };
 
 export const WithDisplayGroup: Story = {
-  args: {
-    groups: [{ ...MockGroup, name: "front-end" }],
-    canCreateGroup: true,
-    isTemplateRBACEnabled: true,
-  },
+	args: {
+		groups: [{ ...MockGroup, name: "front-end" }],
+		canCreateGroup: true,
+		groupsEnabled: true,
+	},
 };
 
 export const EmptyGroup: Story = {
-  args: {
-    groups: [],
-    canCreateGroup: false,
-    isTemplateRBACEnabled: true,
-  },
+	args: {
+		groups: [],
+		canCreateGroup: false,
+		groupsEnabled: true,
+	},
 };
 
 export const EmptyGroupWithPermission: Story = {
-  args: {
-    groups: [],
-    canCreateGroup: true,
-    isTemplateRBACEnabled: true,
-  },
+	args: {
+		groups: [],
+		canCreateGroup: true,
+		groupsEnabled: true,
+	},
 };

@@ -1,13 +1,16 @@
 package oidctest
 
 import (
+	"context"
 	"database/sql"
 	"net/http"
+	"net/url"
 	"testing"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -47,6 +50,14 @@ func (h *LoginHelper) Login(t *testing.T, idTokenClaims jwt.MapClaims) (*codersd
 	return h.fake.Login(t, unauthenticatedClient, idTokenClaims)
 }
 
+// AttemptLogin does not assert a successful login.
+func (h *LoginHelper) AttemptLogin(t *testing.T, idTokenClaims jwt.MapClaims) (*codersdk.Client, *http.Response) {
+	t.Helper()
+	unauthenticatedClient := codersdk.New(h.client.URL)
+
+	return h.fake.AttemptLogin(t, unauthenticatedClient, idTokenClaims)
+}
+
 // ExpireOauthToken expires the oauth token for the given user.
 func (*LoginHelper) ExpireOauthToken(t *testing.T, db database.Store, user *codersdk.Client) database.UserLink {
 	t.Helper()
@@ -77,6 +88,7 @@ func (*LoginHelper) ExpireOauthToken(t *testing.T, db database.Store, user *code
 		OAuthExpiry:            time.Now().Add(time.Hour * -1),
 		UserID:                 link.UserID,
 		LoginType:              link.LoginType,
+		Claims:                 database.UserLinkClaims{},
 	})
 	require.NoError(t, err, "expire user link")
 
@@ -103,4 +115,53 @@ func (h *LoginHelper) ForceRefresh(t *testing.T, db database.Store, user *coders
 	// Do any authenticated call to force the refresh
 	_, err := user.User(testutil.Context(t, testutil.WaitShort), "me")
 	require.NoError(t, err, "user must be able to be fetched")
+}
+
+// OAuth2GetCode emulates a user clicking "allow" on the IDP page. When doing
+// unit tests, it's easier to skip this step sometimes. It does make an actual
+// request to the IDP, so it should be equivalent to doing this "manually" with
+// actual requests.
+func OAuth2GetCode(rawAuthURL string, doRequest func(req *http.Request) (*http.Response, error)) (string, error) {
+	authURL, err := url.Parse(rawAuthURL)
+	if err != nil {
+		return "", xerrors.Errorf("failed to parse auth URL: %w", err)
+	}
+
+	r, err := http.NewRequestWithContext(context.Background(), http.MethodGet, rawAuthURL, nil)
+	if err != nil {
+		return "", xerrors.Errorf("failed to create auth request: %w", err)
+	}
+
+	resp, err := doRequest(r)
+	if err != nil {
+		return "", xerrors.Errorf("request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Accept both 302 (Found) and 307 (Temporary Redirect) as valid OAuth2 redirects
+	if resp.StatusCode != http.StatusFound && resp.StatusCode != http.StatusTemporaryRedirect {
+		return "", codersdk.ReadBodyAsError(resp)
+	}
+
+	to := resp.Header.Get("Location")
+	if to == "" {
+		return "", xerrors.Errorf("expected redirect location")
+	}
+
+	toURL, err := url.Parse(to)
+	if err != nil {
+		return "", xerrors.Errorf("failed to parse redirect location: %w", err)
+	}
+
+	code := toURL.Query().Get("code")
+	if code == "" {
+		return "", xerrors.Errorf("expected code in redirect location")
+	}
+
+	state := authURL.Query().Get("state")
+	newState := toURL.Query().Get("state")
+	if newState != state {
+		return "", xerrors.Errorf("expected state %q, got %q", state, newState)
+	}
+	return code, nil
 }

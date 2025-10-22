@@ -28,7 +28,14 @@ type Runnable interface {
 type Cleanable interface {
 	Runnable
 	// Cleanup should clean up any lingering resources from the test.
-	Cleanup(ctx context.Context, id string) error
+	Cleanup(ctx context.Context, id string, logs io.Writer) error
+}
+
+// Collectable is an optional extension to Runnable that exposes additional
+// metrics from the runner.
+type Collectable interface {
+	Runnable
+	GetMetrics() map[string]any
 }
 
 // AddRun creates a new *TestRun with the given name, ID and Runnable, adds it
@@ -71,6 +78,7 @@ type TestRun struct {
 	started  time.Time
 	duration time.Duration
 	err      error
+	metrics  map[string]any
 }
 
 func NewTestRun(testName string, id string, runner Runnable) *TestRun {
@@ -98,6 +106,11 @@ func (r *TestRun) Run(ctx context.Context) (err error) {
 	defer func() {
 		r.duration = time.Since(r.started)
 		r.err = err
+		c, ok := r.runner.(Collectable)
+		if !ok {
+			return
+		}
+		r.metrics = c.GetMetrics()
 	}()
 	defer func() {
 		e := recover()
@@ -107,6 +120,7 @@ func (r *TestRun) Run(ctx context.Context) (err error) {
 	}()
 
 	err = r.runner.Run(ctx, r.id, r.logs)
+
 	//nolint:revive // we use named returns because we mutate it in a defer
 	return
 }
@@ -131,7 +145,7 @@ func (r *TestRun) Cleanup(ctx context.Context) (err error) {
 		}
 	}()
 
-	err = c.Cleanup(ctx, r.id)
+	err = c.Cleanup(ctx, r.id, r.logs)
 	//nolint:revive // we use named returns because we mutate it in a defer
 	return
 }

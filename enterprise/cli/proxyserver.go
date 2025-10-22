@@ -10,11 +10,11 @@ import (
 	"net"
 	"net/http"
 	"net/http/pprof"
-	"os/signal"
 	"regexp"
 	rpprof "runtime/pprof"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/coreos/go-systemd/daemon"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
@@ -23,45 +23,47 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/cli"
-	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/clilog"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd"
-	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/wsproxy"
+	"github.com/coder/pretty"
+	"github.com/coder/serpent"
 )
 
-type closers []func()
+type closerFuncs []func()
 
-func (c closers) Close() {
+func (c closerFuncs) Close() {
 	for _, closeF := range c {
 		closeF()
 	}
 }
 
-func (c *closers) Add(f func()) {
+func (c *closerFuncs) Add(f func()) {
 	*c = append(*c, f)
 }
 
-func (*RootCmd) proxyServer() *clibase.Cmd {
+func (r *RootCmd) proxyServer() *serpent.Command {
 	var (
 		cfg = new(codersdk.DeploymentValues)
 		// Filter options for only relevant ones.
 		opts = cfg.Options().Filter(codersdk.IsWorkspaceProxies)
 
-		externalProxyOptionGroup = clibase.Group{
+		externalProxyOptionGroup = serpent.Group{
 			Name: "External Workspace Proxy",
 			YAML: "externalWorkspaceProxy",
 		}
-		proxySessionToken clibase.String
-		primaryAccessURL  clibase.URL
-		derpOnly          clibase.Bool
+		proxySessionToken serpent.String
+		primaryAccessURL  serpent.URL
+		derpOnly          serpent.Bool
 	)
 	opts.Add(
 		// Options only for external workspace proxies
 
-		clibase.Option{
+		serpent.Option{
 			Name:        "Proxy Session Token",
 			Description: "Authentication token for the workspace proxy to communicate with coderd.",
 			Flag:        "proxy-session-token",
@@ -73,14 +75,14 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 			Hidden:      false,
 		},
 
-		clibase.Option{
+		serpent.Option{
 			Name:        "Coderd (Primary) Access URL",
 			Description: "URL to communicate with coderd. This should match the access URL of the Coder deployment.",
 			Flag:        "primary-access-url",
 			Env:         "CODER_PRIMARY_ACCESS_URL",
 			YAML:        "primaryAccessURL",
 			Required:    true,
-			Value: clibase.Validate(&primaryAccessURL, func(value *clibase.URL) error {
+			Value: serpent.Validate(&primaryAccessURL, func(value *serpent.URL) error {
 				if !(value.Scheme == "http" || value.Scheme == "https") {
 					return xerrors.Errorf("'--primary-access-url' value must be http or https: url=%s", primaryAccessURL.String())
 				}
@@ -89,7 +91,7 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 			Group:  &externalProxyOptionGroup,
 			Hidden: false,
 		},
-		clibase.Option{
+		serpent.Option{
 			Name:        "DERP-only proxy",
 			Description: "Run a proxy server that only supports DERP connections and does not proxy workspace app/terminal traffic.",
 			Flag:        "derp-only",
@@ -102,27 +104,27 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 		},
 	)
 
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Command{
 		Use:     "server",
 		Short:   "Start a workspace proxy server",
 		Options: opts,
-		Middleware: clibase.Chain(
+		Middleware: serpent.Chain(
 			cli.WriteConfigMW(cfg),
-			cli.PrintDeprecatedOptions(),
-			clibase.RequireNArgs(0),
+			serpent.RequireNArgs(0),
 		),
-		Handler: func(inv *clibase.Invocation) error {
-			var closers closers
+		Handler: func(inv *serpent.Invocation) error {
+			var closers closerFuncs
+			defer closers.Close()
 			// Main command context for managing cancellation of running
 			// services.
 			ctx, topCancel := context.WithCancel(inv.Context())
 			defer topCancel()
 			closers.Add(topCancel)
 
-			go cli.DumpHandler(ctx)
+			go cli.DumpHandler(ctx, "workspace-proxy")
 
 			cli.PrintLogo(inv, "Coder Workspace Proxy")
-			logger, logCloser, err := cli.BuildLogger(inv, cfg)
+			logger, logCloser, err := clilog.New(clilog.FromDeploymentValues(cfg)).Build(inv)
 			if err != nil {
 				return xerrors.Errorf("make logger: %w", err)
 			}
@@ -142,7 +144,7 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 			//
 			// To get out of a graceful shutdown, the user can send
 			// SIGQUIT with ctrl+\ or SIGKILL with `kill -9`.
-			notifyCtx, notifyStop := signal.NotifyContext(ctx, cli.InterruptSignals...)
+			notifyCtx, notifyStop := inv.SignalNotifyContext(ctx, cli.StopSignals...)
 			defer notifyStop()
 
 			// Clean up idle connections at the end, e.g.
@@ -158,7 +160,7 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 				logger.Debug(ctx, "tracing closed", slog.Error(traceCloseErr))
 			}()
 
-			httpServers, err := cli.ConfigureHTTPServers(inv, cfg)
+			httpServers, err := cli.ConfigureHTTPServers(logger, inv, cfg)
 			if err != nil {
 				return xerrors.Errorf("configure http(s): %w", err)
 			}
@@ -169,9 +171,9 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 			if cfg.AccessURL.String() == "" {
 				// Prefer TLS
 				if httpServers.TLSUrl != nil {
-					cfg.AccessURL = clibase.URL(*httpServers.TLSUrl)
+					cfg.AccessURL = serpent.URL(*httpServers.TLSUrl)
 				} else if httpServers.HTTPUrl != nil {
-					cfg.AccessURL = clibase.URL(*httpServers.HTTPUrl)
+					cfg.AccessURL = serpent.URL(*httpServers.HTTPUrl)
 				}
 			}
 
@@ -193,13 +195,28 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 			defer httpClient.CloseIdleConnections()
 			closers.Add(httpClient.CloseIdleConnections)
 
-			// A newline is added before for visibility in terminal output.
-			cliui.Infof(inv.Stdout, "\nView the Web UI: %s", cfg.AccessURL.String())
+			// Attach header transport so we process --header and
+			// --header-command flags
+			headerTransport, err := r.HeaderTransport(ctx, primaryAccessURL.Value())
+			if err != nil {
+				return xerrors.Errorf("configure header transport: %w", err)
+			}
+			headerTransport.Transport = httpClient.Transport
+			httpClient.Transport = headerTransport
+
+			accessURL := cfg.AccessURL.String()
+			cliui.Info(inv.Stdout, lipgloss.NewStyle().
+				Border(lipgloss.DoubleBorder()).
+				Align(lipgloss.Center).
+				Padding(0, 3).
+				BorderForeground(lipgloss.Color("12")).
+				Render(fmt.Sprintf("View the Web UI:\n%s",
+					pretty.Sprint(cliui.DefaultStyles.Hyperlink, accessURL))))
 
 			var appHostnameRegex *regexp.Regexp
 			appHostname := cfg.WildcardAccessURL.String()
 			if appHostname != "" {
-				appHostnameRegex, err = httpapi.CompileHostnamePattern(appHostname)
+				appHostnameRegex, err = appurl.CompileHostnamePattern(appHostname)
 				if err != nil {
 					return xerrors.Errorf("parse wildcard access URL %q: %w", appHostname, err)
 				}
@@ -235,7 +252,7 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 				closers.Add(closeFunc)
 			}
 
-			proxy, err := wsproxy.New(ctx, &wsproxy.Options{
+			options := &wsproxy.Options{
 				Logger:                 logger,
 				Experiments:            coderd.ReadExperiments(logger, cfg.Experiments.Value()),
 				HTTPClient:             httpClient,
@@ -247,14 +264,20 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 				Tracing:                tracer,
 				PrometheusRegistry:     prometheusRegistry,
 				APIRateLimit:           int(cfg.RateLimit.API.Value()),
-				SecureAuthCookie:       cfg.SecureAuthCookie.Value(),
+				CookieConfig:           cfg.HTTPCookies,
 				DisablePathApps:        cfg.DisablePathApps.Value(),
 				ProxySessionToken:      proxySessionToken.Value(),
 				AllowAllCors:           cfg.Dangerous.AllowAllCors.Value(),
 				DERPEnabled:            cfg.DERP.Server.Enable.Value(),
 				DERPOnly:               derpOnly.Value(),
+				BlockDirect:            cfg.DERP.Config.BlockDirect.Value(),
 				DERPServerRelayAddress: cfg.DERP.Server.RelayURL.String(),
-			})
+			}
+			if httpServers.TLSConfig != nil {
+				options.TLSCertificates = httpServers.TLSConfig.Certificates
+			}
+
+			proxy, err := wsproxy.New(ctx, options)
 			if err != nil {
 				return xerrors.Errorf("create workspace proxy: %w", err)
 			}
@@ -285,7 +308,7 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 
 			// TODO: So this obviously is not going to work well.
 			errCh := make(chan error, 1)
-			go rpprof.Do(ctx, rpprof.Labels("service", "workspace-proxy"), func(ctx context.Context) {
+			go rpprof.Do(ctx, rpprof.Labels("service", "workspace-proxy"), func(_ context.Context) {
 				errCh <- httpServers.Serve(httpServer)
 			})
 

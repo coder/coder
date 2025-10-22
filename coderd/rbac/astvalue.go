@@ -3,12 +3,14 @@ package rbac
 import (
 	"github.com/open-policy-agent/opa/ast"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 )
 
 // regoInputValue returns a rego input value for the given subject, action, and
 // object. This rego input is already parsed and can be used directly in a
 // rego query.
-func regoInputValue(subject Subject, action Action, object Object) (ast.Value, error) {
+func regoInputValue(subject Subject, action policy.Action, object Object) (ast.Value, error) {
 	regoSubj, err := subject.regoValue()
 	if err != nil {
 		return nil, xerrors.Errorf("subject: %w", err)
@@ -34,7 +36,7 @@ func regoInputValue(subject Subject, action Action, object Object) (ast.Value, e
 
 // regoPartialInputValue is the same as regoInputValue but only includes the
 // object type. This is for partial evaluations.
-func regoPartialInputValue(subject Subject, action Action, objectType string) (ast.Value, error) {
+func regoPartialInputValue(subject Subject, action policy.Action, objectType string) (ast.Value, error) {
 	regoSubj, err := subject.regoValue()
 	if err != nil {
 		return nil, xerrors.Errorf("subject: %w", err)
@@ -103,11 +105,11 @@ func (s Subject) regoValue() (ast.Value, error) {
 func (z Object) regoValue() ast.Value {
 	userACL := ast.NewObject()
 	for k, v := range z.ACLUserList {
-		userACL.Insert(ast.StringTerm(k), ast.NewTerm(regoSlice(v)))
+		userACL.Insert(ast.StringTerm(k), ast.NewTerm(regoSliceString(v...)))
 	}
 	grpACL := ast.NewObject()
 	for k, v := range z.ACLGroupList {
-		grpACL.Insert(ast.StringTerm(k), ast.NewTerm(regoSlice(v)))
+		grpACL.Insert(ast.StringTerm(k), ast.NewTerm(regoSliceString(v...)))
 	}
 	return ast.NewObject(
 		[2]*ast.Term{
@@ -121,6 +123,10 @@ func (z Object) regoValue() ast.Value {
 		[2]*ast.Term{
 			ast.StringTerm("org_owner"),
 			ast.StringTerm(z.OrgID),
+		},
+		[2]*ast.Term{
+			ast.StringTerm("any_org"),
+			ast.BooleanTerm(z.AnyOrgOwner),
 		},
 		[2]*ast.Term{
 			ast.StringTerm("type"),
@@ -151,9 +157,16 @@ func (role Role) regoValue() ast.Value {
 	if role.cachedRegoValue != nil {
 		return role.cachedRegoValue
 	}
-	orgMap := ast.NewObject()
-	for k, p := range role.Org {
-		orgMap.Insert(ast.StringTerm(k), ast.NewTerm(regoSlice(p)))
+	byOrgIDMap := ast.NewObject()
+	for k, p := range role.ByOrgID {
+		byOrgIDMap.Insert(ast.StringTerm(k), ast.NewTerm(
+			ast.NewObject(
+				[2]*ast.Term{
+					ast.StringTerm("org"),
+					ast.NewTerm(regoSlice(p.Org)),
+				},
+			),
+		))
 	}
 	return ast.NewObject(
 		[2]*ast.Term{
@@ -161,12 +174,12 @@ func (role Role) regoValue() ast.Value {
 			ast.NewTerm(regoSlice(role.Site)),
 		},
 		[2]*ast.Term{
-			ast.StringTerm("org"),
-			ast.NewTerm(orgMap),
-		},
-		[2]*ast.Term{
 			ast.StringTerm("user"),
 			ast.NewTerm(regoSlice(role.User)),
+		},
+		[2]*ast.Term{
+			ast.StringTerm("by_org_id"),
+			ast.NewTerm(byOrgIDMap),
 		},
 	)
 }
@@ -176,9 +189,25 @@ func (s Scope) regoValue() ast.Value {
 	if !ok {
 		panic("developer error: role is not an object")
 	}
+
+	terms := make([]*ast.Term, len(s.AllowIDList))
+	for i, v := range s.AllowIDList {
+		terms[i] = ast.NewTerm(ast.NewObject(
+			[2]*ast.Term{
+				ast.StringTerm("type"),
+				ast.StringTerm(v.Type),
+			},
+			[2]*ast.Term{
+				ast.StringTerm("id"),
+				ast.StringTerm(v.ID),
+			},
+		),
+		)
+	}
+
 	r.Insert(
 		ast.StringTerm("allow_list"),
-		ast.NewTerm(regoSliceString(s.AllowIDList...)),
+		ast.NewTerm(ast.NewArray(terms...)),
 	)
 	return r
 }
@@ -200,10 +229,6 @@ func (perm Permission) regoValue() ast.Value {
 	)
 }
 
-func (act Action) regoValue() ast.Value {
-	return ast.StringTerm(string(act)).Value
-}
-
 type regoValue interface {
 	regoValue() ast.Value
 }
@@ -218,10 +243,10 @@ func regoSlice[T regoValue](slice []T) *ast.Array {
 	return ast.NewArray(terms...)
 }
 
-func regoSliceString(slice ...string) *ast.Array {
+func regoSliceString[T ~string](slice ...T) *ast.Array {
 	terms := make([]*ast.Term, len(slice))
 	for i, v := range slice {
-		terms[i] = ast.StringTerm(v)
+		terms[i] = ast.StringTerm(string(v))
 	}
 	return ast.NewArray(terms...)
 }

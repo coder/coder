@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -euo pipefail
 # shellcheck source=scripts/lib.sh
@@ -20,7 +20,7 @@ if [[ "$FILES" != "" ]]; then
 	log "These are the changes:"
 	log
 	for file in "${files[@]}"; do
-		git --no-pager diff "$file" 1>&2
+		git --no-pager diff -- "$file" 1>&2
 	done
 
 	log

@@ -3,3 +3,5 @@
 
 # chore: format code with semicolons when using prettier (#9555)
 988c9af0153561397686c119da9d1336d2433fdd
+# chore: use tabs for prettier and biome (#14283)
+95a7c0c4f087744a22c2e88dd3c5d30024d5fb02

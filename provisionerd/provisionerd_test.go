@@ -1,8 +1,6 @@
 package provisionerd_test
 
 import (
-	"archive/tar"
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -23,6 +21,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/provisionerd"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
@@ -31,7 +30,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
 func closedWithin(c chan struct{}, d time.Duration) func() bool {
@@ -71,8 +70,11 @@ func TestProvisionerd(t *testing.T) {
 			close(done)
 		})
 		completeChan := make(chan struct{})
+		var completed sync.Once
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
-			defer close(completeChan)
+			completed.Do(func() {
+				defer close(completeChan)
+			})
 			return nil, xerrors.New("an error")
 		}, provisionerd.LocalProvisioners{})
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
@@ -96,7 +98,7 @@ func TestProvisionerd(t *testing.T) {
 					err := stream.Send(&proto.AcquiredJob{
 						JobId:       "test",
 						Provisioner: "someprovisioner",
-						TemplateSourceArchive: createTar(t, map[string]string{
+						TemplateSourceArchive: testutil.CreateTar(t, map[string]string{
 							"test.txt": "content",
 						}),
 						Type: &proto.AcquiredJob_TemplateImport_{
@@ -146,27 +148,24 @@ func TestProvisionerd(t *testing.T) {
 		var (
 			completeChan = make(chan struct{})
 			completeOnce sync.Once
+			acq          = newAcquireOne(t, &proto.AcquiredJob{
+				JobId:       "test",
+				Provisioner: "someprovisioner",
+				TemplateSourceArchive: testutil.CreateTar(t, map[string]string{
+					"../../../etc/passwd": "content",
+				}),
+				Type: &proto.AcquiredJob_TemplateImport_{
+					TemplateImport: &proto.AcquiredJob_TemplateImport{
+						Metadata: &sdkproto.Metadata{},
+					},
+				},
+			})
 		)
 
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
-				acquireJobWithCancel: func(stream proto.DRPCProvisionerDaemon_AcquireJobWithCancelStream) error {
-					err := stream.Send(&proto.AcquiredJob{
-						JobId:       "test",
-						Provisioner: "someprovisioner",
-						TemplateSourceArchive: createTar(t, map[string]string{
-							"../../../etc/passwd": "content",
-						}),
-						Type: &proto.AcquiredJob_TemplateImport_{
-							TemplateImport: &proto.AcquiredJob_TemplateImport{
-								Metadata: &sdkproto.Metadata{},
-							},
-						},
-					})
-					assert.NoError(t, err)
-					return nil
-				},
-				updateJob: noopUpdateJob,
+				acquireJobWithCancel: acq.acquireWithCancel,
+				updateJob:            noopUpdateJob,
 				failJob: func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error) {
 					completeOnce.Do(func() { close(completeChan) })
 					return &proto.Empty{}, nil
@@ -174,6 +173,79 @@ func TestProvisionerd(t *testing.T) {
 			}), nil
 		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{}),
+		})
+		require.Condition(t, closedWithin(completeChan, testutil.WaitMedium))
+		require.NoError(t, closer.Close())
+	})
+
+	// LargePayloads sends a 3mb tar file to the provisioner. The provisioner also
+	// returns large payload messages back. The limit should be 4mb, so all
+	// these messages should work.
+	t.Run("LargePayloads", func(t *testing.T) {
+		t.Parallel()
+		done := make(chan struct{})
+		t.Cleanup(func() {
+			close(done)
+		})
+		var (
+			largeSize    = 3 * 1024 * 1024
+			completeChan = make(chan struct{})
+			completeOnce sync.Once
+			acq          = newAcquireOne(t, &proto.AcquiredJob{
+				JobId:       "test",
+				Provisioner: "someprovisioner",
+				TemplateSourceArchive: testutil.CreateTar(t, map[string]string{
+					"toolarge.txt": string(make([]byte, largeSize)),
+				}),
+				Type: &proto.AcquiredJob_TemplateImport_{
+					TemplateImport: &proto.AcquiredJob_TemplateImport{
+						Metadata: &sdkproto.Metadata{},
+					},
+				},
+			})
+		)
+
+		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
+			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
+				acquireJobWithCancel: acq.acquireWithCancel,
+				updateJob:            noopUpdateJob,
+				completeJob: func(ctx context.Context, job *proto.CompletedJob) (*proto.Empty, error) {
+					completeOnce.Do(func() { close(completeChan) })
+					return &proto.Empty{}, nil
+				},
+			}), nil
+		}, provisionerd.LocalProvisioners{
+			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
+				parse: func(
+					s *provisionersdk.Session,
+					_ *sdkproto.ParseRequest,
+					cancelOrComplete <-chan struct{},
+				) *sdkproto.ParseComplete {
+					return &sdkproto.ParseComplete{
+						// 6mb readme
+						Readme: make([]byte, largeSize),
+					}
+				},
+				plan: func(
+					_ *provisionersdk.Session,
+					_ *sdkproto.PlanRequest,
+					_ <-chan struct{},
+				) *sdkproto.PlanComplete {
+					return &sdkproto.PlanComplete{
+						Resources: []*sdkproto.Resource{},
+						Plan:      make([]byte, largeSize),
+					}
+				},
+				apply: func(
+					_ *provisionersdk.Session,
+					_ *sdkproto.ApplyRequest,
+					_ <-chan struct{},
+				) *sdkproto.ApplyComplete {
+					return &sdkproto.ApplyComplete{
+						State: make([]byte, largeSize),
+					}
+				},
+			}),
 		})
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
 		require.NoError(t, closer.Close())
@@ -196,7 +268,7 @@ func TestProvisionerd(t *testing.T) {
 					err := stream.Send(&proto.AcquiredJob{
 						JobId:       "test",
 						Provisioner: "someprovisioner",
-						TemplateSourceArchive: createTar(t, map[string]string{
+						TemplateSourceArchive: testutil.CreateTar(t, map[string]string{
 							"test.txt": "content",
 						}),
 						Type: &proto.AcquiredJob_TemplateImport_{
@@ -245,7 +317,7 @@ func TestProvisionerd(t *testing.T) {
 			acq         = newAcquireOne(t, &proto.AcquiredJob{
 				JobId:       "test",
 				Provisioner: "someprovisioner",
-				TemplateSourceArchive: createTar(t, map[string]string{
+				TemplateSourceArchive: testutil.CreateTar(t, map[string]string{
 					"test.txt":                "content",
 					provisionersdk.ReadmeFile: "# A cool template 😎\n",
 				}),
@@ -327,7 +399,7 @@ func TestProvisionerd(t *testing.T) {
 			acq         = newAcquireOne(t, &proto.AcquiredJob{
 				JobId:       "test",
 				Provisioner: "someprovisioner",
-				TemplateSourceArchive: createTar(t, map[string]string{
+				TemplateSourceArchive: testutil.CreateTar(t, map[string]string{
 					"test.txt": "content",
 				}),
 				Type: &proto.AcquiredJob_TemplateDryRun_{
@@ -398,7 +470,7 @@ func TestProvisionerd(t *testing.T) {
 			acq         = newAcquireOne(t, &proto.AcquiredJob{
 				JobId:       "test",
 				Provisioner: "someprovisioner",
-				TemplateSourceArchive: createTar(t, map[string]string{
+				TemplateSourceArchive: testutil.CreateTar(t, map[string]string{
 					"test.txt": "content",
 				}),
 				Type: &proto.AcquiredJob_WorkspaceBuild_{
@@ -461,7 +533,7 @@ func TestProvisionerd(t *testing.T) {
 			acq         = newAcquireOne(t, &proto.AcquiredJob{
 				JobId:       "test",
 				Provisioner: "someprovisioner",
-				TemplateSourceArchive: createTar(t, map[string]string{
+				TemplateSourceArchive: testutil.CreateTar(t, map[string]string{
 					"test.txt": "content",
 				}),
 				Type: &proto.AcquiredJob_WorkspaceBuild_{
@@ -551,7 +623,7 @@ func TestProvisionerd(t *testing.T) {
 			acq     = newAcquireOne(t, &proto.AcquiredJob{
 				JobId:       "test",
 				Provisioner: "someprovisioner",
-				TemplateSourceArchive: createTar(t, map[string]string{
+				TemplateSourceArchive: testutil.CreateTar(t, map[string]string{
 					"test.txt": "content",
 				}),
 				Type: &proto.AcquiredJob_WorkspaceBuild_{
@@ -599,6 +671,38 @@ func TestProvisionerd(t *testing.T) {
 		assert.True(t, didFail.Load(), "should fail the job")
 	})
 
+	// Simulates when there is no coderd to connect to. So the client connection
+	// will never be established.
+	t.Run("ShutdownNoCoderd", func(t *testing.T) {
+		t.Parallel()
+		done := make(chan struct{})
+		t.Cleanup(func() {
+			close(done)
+		})
+
+		connectAttemptedClose := sync.Once{}
+		connectAttempted := make(chan struct{})
+		server := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
+			// This is the dial out to Coderd, which in this unit test will always fail.
+			connectAttemptedClose.Do(func() { close(connectAttempted) })
+			return nil, xerrors.New("client connection always fails")
+		}, provisionerd.LocalProvisioners{
+			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{}),
+		})
+
+		// Wait for at least 1 attempt to connect to ensure the connect go routine
+		// is running.
+		require.Condition(t, closedWithin(connectAttempted, testutil.WaitShort))
+
+		// The test is ensuring this Shutdown call does not block indefinitely.
+		// If it does, the context will return with an error, and the test will
+		// fail.
+		shutdownCtx := testutil.Context(t, testutil.WaitShort)
+		err := server.Shutdown(shutdownCtx, true)
+		require.NoError(t, err, "shutdown did not unblock. Failed to close the server gracefully.")
+		require.NoError(t, server.Close())
+	})
+
 	t.Run("Shutdown", func(t *testing.T) {
 		t.Parallel()
 		done := make(chan struct{})
@@ -615,7 +719,7 @@ func TestProvisionerd(t *testing.T) {
 					err := stream.Send(&proto.AcquiredJob{
 						JobId:       "test",
 						Provisioner: "someprovisioner",
-						TemplateSourceArchive: createTar(t, map[string]string{
+						TemplateSourceArchive: testutil.CreateTar(t, map[string]string{
 							"test.txt": "content",
 						}),
 						Type: &proto.AcquiredJob_WorkspaceBuild_{
@@ -673,7 +777,7 @@ func TestProvisionerd(t *testing.T) {
 			}),
 		})
 		require.Condition(t, closedWithin(updateChan, testutil.WaitShort))
-		err := server.Shutdown(context.Background())
+		err := server.Shutdown(context.Background(), true)
 		require.NoError(t, err)
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
 		require.NoError(t, server.Close())
@@ -695,7 +799,7 @@ func TestProvisionerd(t *testing.T) {
 					err := stream.Send(&proto.AcquiredJob{
 						JobId:       "test",
 						Provisioner: "someprovisioner",
-						TemplateSourceArchive: createTar(t, map[string]string{
+						TemplateSourceArchive: testutil.CreateTar(t, map[string]string{
 							"test.txt": "content",
 						}),
 						Type: &proto.AcquiredJob_WorkspaceBuild_{
@@ -764,7 +868,7 @@ func TestProvisionerd(t *testing.T) {
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
-		require.NoError(t, server.Shutdown(ctx))
+		require.NoError(t, server.Shutdown(ctx, true))
 		require.NoError(t, server.Close())
 	})
 
@@ -789,7 +893,7 @@ func TestProvisionerd(t *testing.T) {
 					job := &proto.AcquiredJob{
 						JobId:       "test",
 						Provisioner: "someprovisioner",
-						TemplateSourceArchive: createTar(t, map[string]string{
+						TemplateSourceArchive: testutil.CreateTar(t, map[string]string{
 							"test.txt": "content",
 						}),
 						Type: &proto.AcquiredJob_WorkspaceBuild_{
@@ -855,7 +959,7 @@ func TestProvisionerd(t *testing.T) {
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
-		require.NoError(t, server.Shutdown(ctx))
+		require.NoError(t, server.Shutdown(ctx, true))
 		require.NoError(t, server.Close())
 	})
 
@@ -886,7 +990,7 @@ func TestProvisionerd(t *testing.T) {
 					job := &proto.AcquiredJob{
 						JobId:       "test",
 						Provisioner: "someprovisioner",
-						TemplateSourceArchive: createTar(t, map[string]string{
+						TemplateSourceArchive: testutil.CreateTar(t, map[string]string{
 							"test.txt": "content",
 						}),
 						Type: &proto.AcquiredJob_WorkspaceBuild_{
@@ -946,7 +1050,7 @@ func TestProvisionerd(t *testing.T) {
 		t.Log("completeChan closed")
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
-		require.NoError(t, server.Shutdown(ctx))
+		require.NoError(t, server.Shutdown(ctx, true))
 		require.NoError(t, server.Close())
 	})
 
@@ -980,7 +1084,7 @@ func TestProvisionerd(t *testing.T) {
 					err := stream.Send(&proto.AcquiredJob{
 						JobId:       "test",
 						Provisioner: "someprovisioner",
-						TemplateSourceArchive: createTar(t, map[string]string{
+						TemplateSourceArchive: testutil.CreateTar(t, map[string]string{
 							"test.txt": "content",
 						}),
 						Type: &proto.AcquiredJob_WorkspaceBuild_{
@@ -1041,31 +1145,11 @@ func TestProvisionerd(t *testing.T) {
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
-		require.NoError(t, server.Shutdown(ctx))
+		require.NoError(t, server.Shutdown(ctx, true))
 		require.NoError(t, server.Close())
 		assert.Equal(t, ops[len(ops)-1], "CompleteJob")
 		assert.Contains(t, ops[0:len(ops)-1], "Log: Cleaning Up | ")
 	})
-}
-
-// Creates an in-memory tar of the files provided.
-func createTar(t *testing.T, files map[string]string) []byte {
-	var buffer bytes.Buffer
-	writer := tar.NewWriter(&buffer)
-	for path, content := range files {
-		err := writer.WriteHeader(&tar.Header{
-			Name: path,
-			Size: int64(len(content)),
-		})
-		require.NoError(t, err)
-
-		_, err = writer.Write([]byte(content))
-		require.NoError(t, err)
-	}
-
-	err := writer.Flush()
-	require.NoError(t, err)
-	return buffer.Bytes()
 }
 
 // Creates a provisionerd implementation with the provided dialer and provisioners.
@@ -1078,7 +1162,7 @@ func createProvisionerd(t *testing.T, dialer provisionerd.Dialer, connector prov
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
-		_ = server.Shutdown(ctx)
+		_ = server.Shutdown(ctx, true)
 		_ = server.Close()
 	})
 	return server
@@ -1096,7 +1180,7 @@ func createProvisionerDaemonClient(t *testing.T, done <-chan struct{}, server pr
 			return &proto.Empty{}, nil
 		}
 	}
-	clientPipe, serverPipe := provisionersdk.MemTransportPipe()
+	clientPipe, serverPipe := drpcsdk.MemTransportPipe()
 	t.Cleanup(func() {
 		_ = clientPipe.Close()
 		_ = serverPipe.Close()
@@ -1104,7 +1188,9 @@ func createProvisionerDaemonClient(t *testing.T, done <-chan struct{}, server pr
 	mux := drpcmux.New()
 	err := proto.DRPCRegisterProvisionerDaemon(mux, &server)
 	require.NoError(t, err)
-	srv := drpcserver.New(mux)
+	srv := drpcserver.NewWithOptions(mux, drpcserver.Options{
+		Manager: drpcsdk.DefaultDRPCOptions(nil),
+	})
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	closed := make(chan struct{})
 	go func() {
@@ -1132,19 +1218,20 @@ func createProvisionerDaemonClient(t *testing.T, done <-chan struct{}, server pr
 // to the server implementation provided.
 func createProvisionerClient(t *testing.T, done <-chan struct{}, server provisionerTestServer) sdkproto.DRPCProvisionerClient {
 	t.Helper()
-	clientPipe, serverPipe := provisionersdk.MemTransportPipe()
+	clientPipe, serverPipe := drpcsdk.MemTransportPipe()
 	t.Cleanup(func() {
 		_ = clientPipe.Close()
 		_ = serverPipe.Close()
 	})
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	closed := make(chan struct{})
+	tempDir := t.TempDir()
 	go func() {
 		defer close(closed)
 		_ = provisionersdk.Serve(ctx, &server, &provisionersdk.ServeOptions{
 			Listener:      serverPipe,
-			Logger:        slogtest.Make(t, nil).Leveled(slog.LevelDebug).Named("test-provisioner"),
-			WorkDirectory: t.TempDir(),
+			Logger:        testutil.Logger(t).Named("test-provisioner"),
+			WorkDirectory: tempDir,
 		})
 	}()
 	t.Cleanup(func() {
@@ -1182,6 +1269,10 @@ func (p *provisionerTestServer) Apply(s *provisionersdk.Session, r *sdkproto.App
 	return p.apply(s, r, canceledOrComplete)
 }
 
+func (p *provisionerDaemonTestServer) UploadFile(stream proto.DRPCProvisionerDaemon_UploadFileStream) error {
+	return p.uploadFile(stream)
+}
+
 // Fulfills the protobuf interface for a ProvisionerDaemon with
 // passable functions for dynamic functionality.
 type provisionerDaemonTestServer struct {
@@ -1190,6 +1281,7 @@ type provisionerDaemonTestServer struct {
 	updateJob            func(ctx context.Context, update *proto.UpdateJobRequest) (*proto.UpdateJobResponse, error)
 	failJob              func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error)
 	completeJob          func(ctx context.Context, job *proto.CompletedJob) (*proto.Empty, error)
+	uploadFile           func(stream proto.DRPCProvisionerDaemon_UploadFileStream) error
 }
 
 func (*provisionerDaemonTestServer) AcquireJob(context.Context, *proto.Empty) (*proto.AcquiredJob, error) {
@@ -1258,6 +1350,11 @@ func (a *acquireOne) acquireWithCancel(stream proto.DRPCProvisionerDaemon_Acquir
 		return nil
 	}
 	err := stream.Send(a.job)
-	assert.NoError(a.t, err)
+	// dRPC is racy, and sometimes will return context.Canceled after it has successfully sent the message if we cancel
+	// right away, e.g. in unit tests that complete. So, just swallow the error in that case. If we are canceled before
+	// the job was acquired, presumably something else in the test will have failed.
+	if !xerrors.Is(err, context.Canceled) {
+		assert.NoError(a.t, err)
+	}
 	return nil
 }

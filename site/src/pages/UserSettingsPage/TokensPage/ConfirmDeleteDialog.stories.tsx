@@ -1,39 +1,37 @@
-import type { Meta, StoryObj } from "@storybook/react";
 import { MockToken } from "testHelpers/entities";
-import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { QueryClient, QueryClientProvider } from "react-query";
+import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
 
 const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: false,
-      cacheTime: 0,
-      refetchOnWindowFocus: false,
-    },
-  },
+	defaultOptions: {
+		queries: {
+			retry: false,
+			gcTime: 0,
+			refetchOnWindowFocus: false,
+		},
+	},
 });
 
 const meta: Meta<typeof ConfirmDeleteDialog> = {
-  title: "components/ConfirmDeleteDialog",
-  component: ConfirmDeleteDialog,
-  decorators: [
-    (Story) => (
-      <QueryClientProvider client={queryClient}>
-        <Story />
-      </QueryClientProvider>
-    ),
-  ],
+	title: "pages/UserSettingsPage/TokensDeleteDialog",
+	component: ConfirmDeleteDialog,
+	decorators: [
+		(Story) => (
+			<QueryClientProvider client={queryClient}>
+				<Story />
+			</QueryClientProvider>
+		),
+	],
 };
 
 export default meta;
 type Story = StoryObj<typeof ConfirmDeleteDialog>;
 
 export const DeleteDialog: Story = {
-  args: {
-    queryKey: ["tokens"],
-    token: MockToken,
-    setToken: () => {
-      return null;
-    },
-  },
+	args: {
+		queryKey: ["tokens"],
+		token: MockToken,
+		setToken: () => null,
+	},
 };

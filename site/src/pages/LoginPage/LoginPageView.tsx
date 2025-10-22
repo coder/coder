@@ -1,100 +1,107 @@
-import { makeStyles } from "@mui/styles";
-import { FullScreenLoader } from "components/Loader/FullScreenLoader";
-import { FC } from "react";
-import { useLocation } from "react-router-dom";
-import { AuthContext, UnauthenticatedData } from "xServices/auth/authXService";
+import type { Interpolation, Theme } from "@emotion/react";
+import type { AuthMethods, BuildInfoResponse } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
+import { CustomLogo } from "components/CustomLogo/CustomLogo";
+import { Loader } from "components/Loader/Loader";
+import { type FC, useState } from "react";
+import { useLocation } from "react-router";
 import { SignInForm } from "./SignInForm";
-import { retrieveRedirect } from "utils/redirect";
-import { CoderIcon } from "components/Icons/CoderIcon";
-import { getApplicationName, getLogoURL } from "utils/appearance";
+import { TermsOfServiceLink } from "./TermsOfServiceLink";
 
-export interface LoginPageViewProps {
-  context: AuthContext;
-  isLoading: boolean;
-  isSigningIn: boolean;
-  onSignIn: (credentials: { email: string; password: string }) => void;
+interface LoginPageViewProps {
+	authMethods: AuthMethods | undefined;
+	error: unknown;
+	isLoading: boolean;
+	buildInfo?: BuildInfoResponse;
+	isSigningIn: boolean;
+	onSignIn: (credentials: { email: string; password: string }) => void;
+	redirectTo: string;
 }
 
 export const LoginPageView: FC<LoginPageViewProps> = ({
-  context,
-  isLoading,
-  isSigningIn,
-  onSignIn,
+	authMethods,
+	error,
+	isLoading,
+	buildInfo,
+	isSigningIn,
+	onSignIn,
+	redirectTo,
 }) => {
-  const location = useLocation();
-  const redirectTo = retrieveRedirect(location.search);
-  const { error } = context;
-  const data = context.data as UnauthenticatedData;
-  const styles = useStyles();
-  // This allows messages to be displayed at the top of the sign in form.
-  // Helpful for any redirects that want to inform the user of something.
-  const info = new URLSearchParams(location.search).get("info") || undefined;
-  const applicationName = getApplicationName();
-  const logoURL = getLogoURL();
-  const applicationLogo = logoURL ? (
-    <img
-      alt={applicationName}
-      src={logoURL}
-      // This prevent browser to display the ugly error icon if the
-      // image path is wrong or user didn't finish typing the url
-      onError={(e) => (e.currentTarget.style.display = "none")}
-      onLoad={(e) => (e.currentTarget.style.display = "inline")}
-      css={{
-        maxWidth: "200px",
-      }}
-    />
-  ) : (
-    <CoderIcon fill="white" opacity={1} className={styles.icon} />
-  );
+	const location = useLocation();
+	// This allows messages to be displayed at the top of the sign in form.
+	// Helpful for any redirects that want to inform the user of something.
+	const message = new URLSearchParams(location.search).get("message");
+	const [tosAccepted, setTosAccepted] = useState(false);
+	const tosAcceptanceRequired =
+		authMethods?.terms_of_service_url && !tosAccepted;
 
-  return isLoading ? (
-    <FullScreenLoader />
-  ) : (
-    <div className={styles.root}>
-      <div className={styles.container}>
-        {applicationLogo}
-        <SignInForm
-          authMethods={data.authMethods}
-          redirectTo={redirectTo}
-          isSigningIn={isSigningIn}
-          error={error}
-          info={info}
-          onSubmit={onSignIn}
-        />
-        <footer className={styles.footer}>
-          Copyright © {new Date().getFullYear()} Coder Technologies, Inc.
-        </footer>
-      </div>
-    </div>
-  );
+	return (
+		<div css={styles.root}>
+			<div css={styles.container}>
+				<CustomLogo />
+				{isLoading ? (
+					<Loader />
+				) : tosAcceptanceRequired ? (
+					<>
+						<TermsOfServiceLink url={authMethods.terms_of_service_url} />
+						<Button
+							size="lg"
+							className="w-full"
+							onClick={() => setTosAccepted(true)}
+						>
+							I agree
+						</Button>
+					</>
+				) : (
+					<SignInForm
+						authMethods={authMethods}
+						redirectTo={redirectTo}
+						isSigningIn={isSigningIn}
+						error={error}
+						message={message}
+						onSubmit={onSignIn}
+					/>
+				)}
+				<footer css={styles.footer}>
+					<div>
+						Copyright &copy; {new Date().getFullYear()} Coder Technologies, Inc.
+					</div>
+					<div>{buildInfo?.version}</div>
+					{tosAccepted && (
+						<TermsOfServiceLink url={authMethods?.terms_of_service_url} />
+					)}
+				</footer>
+			</div>
+		</div>
+	);
 };
 
-const useStyles = makeStyles((theme) => ({
-  root: {
-    padding: theme.spacing(3),
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: "100%",
-    textAlign: "center",
-  },
+const styles = {
+	root: {
+		padding: 24,
+		display: "flex",
+		alignItems: "center",
+		justifyContent: "center",
+		minHeight: "100%",
+		textAlign: "center",
+	},
 
-  container: {
-    width: "100%",
-    maxWidth: 385,
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    gap: theme.spacing(2),
-  },
+	container: {
+		width: "100%",
+		maxWidth: 320,
+		display: "flex",
+		flexDirection: "column",
+		alignItems: "center",
+		gap: 16,
+	},
 
-  icon: {
-    fontSize: theme.spacing(8),
-  },
+	icon: {
+		fontSize: 64,
+	},
 
-  footer: {
-    fontSize: 12,
-    color: theme.palette.text.secondary,
-    marginTop: theme.spacing(3),
-  },
-}));
+	footer: (theme) => ({
+		fontSize: 12,
+		color: theme.palette.text.secondary,
+		marginTop: 24,
+	}),
+} satisfies Record<string, Interpolation<Theme>>;

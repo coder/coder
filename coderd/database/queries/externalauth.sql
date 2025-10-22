@@ -1,6 +1,9 @@
 -- name: GetExternalAuthLink :one
 SELECT * FROM external_auth_links WHERE provider_id = $1 AND user_id = $2;
 
+-- name: DeleteExternalAuthLink :exec
+DELETE FROM external_auth_links WHERE provider_id = $1 AND user_id = $2;
+
 -- name: GetExternalAuthLinksByUserID :many
 SELECT * FROM external_auth_links WHERE user_id = $1;
 
@@ -14,7 +17,8 @@ INSERT INTO external_auth_links (
     oauth_access_token_key_id,
     oauth_refresh_token,
     oauth_refresh_token_key_id,
-    oauth_expiry
+    oauth_expiry,
+	oauth_extra
 ) VALUES (
     $1,
     $2,
@@ -24,7 +28,8 @@ INSERT INTO external_auth_links (
     $6,
     $7,
     $8,
-    $9
+    $9,
+	$10
 ) RETURNING *;
 
 -- name: UpdateExternalAuthLink :one
@@ -34,5 +39,27 @@ UPDATE external_auth_links SET
     oauth_access_token_key_id = $5,
     oauth_refresh_token = $6,
     oauth_refresh_token_key_id = $7,
-    oauth_expiry = $8
+    oauth_expiry = $8,
+	oauth_extra = $9,
+	-- Only 'UpdateExternalAuthLinkRefreshToken' supports updating the oauth_refresh_failure_reason.
+	-- Any updates to the external auth link, will be assumed to change the state and clear
+	-- any cached errors.
+	oauth_refresh_failure_reason = ''
 WHERE provider_id = $1 AND user_id = $2 RETURNING *;
+
+-- name: UpdateExternalAuthLinkRefreshToken :exec
+UPDATE
+	external_auth_links
+SET
+	-- oauth_refresh_failure_reason can be set to cache the failure reason
+	-- for subsequent refresh attempts.
+	oauth_refresh_failure_reason = @oauth_refresh_failure_reason,
+	oauth_refresh_token = @oauth_refresh_token,
+	updated_at = @updated_at
+WHERE
+    provider_id = @provider_id
+AND
+    user_id = @user_id
+AND
+    -- Required for sqlc to generate a parameter for the oauth_refresh_token_key_id
+    @oauth_refresh_token_key_id :: text = @oauth_refresh_token_key_id :: text;

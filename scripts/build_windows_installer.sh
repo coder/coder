@@ -19,6 +19,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 agpl="${CODER_BUILD_AGPL:-0}"
 output_path=""
 version=""
+sign_windows="${CODER_SIGN_WINDOWS:-0}"
 
 args="$(getopt -o "" -l agpl,output:,version: -- "$@")"
 eval set -- "$args"
@@ -49,6 +50,11 @@ done
 
 if [[ "$output_path" == "" ]]; then
 	error "--output is a required parameter"
+fi
+
+if [[ "$sign_windows" == 1 ]]; then
+	dependencies java
+	requiredenvs JSIGN_PATH EV_KEYSTORE EV_KEY EV_CERTIFICATE_PATH EV_TSA_URL GCLOUD_ACCESS_TOKEN
 fi
 
 if [[ "$#" != 1 ]]; then
@@ -125,3 +131,7 @@ popd
 cp "$temp_dir/installer.exe" "$output_path"
 
 rm -rf "$temp_dir"
+
+if [[ "$sign_windows" == 1 ]]; then
+	execrelative ./sign_windows.sh "$output_path" 1>&2
+fi

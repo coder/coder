@@ -122,7 +122,6 @@ var _ ExecutionStrategy = TimeoutExecutionStrategyWrapper{}
 func (t TimeoutExecutionStrategyWrapper) Run(ctx context.Context, fns []TestFn) ([]error, error) {
 	newFns := make([]TestFn, len(fns))
 	for i, fn := range fns {
-		fn := fn
 		newFns[i] = func(ctx context.Context) error {
 			ctx, cancel := context.WithTimeout(ctx, t.Timeout)
 			defer cancel()
@@ -153,6 +152,7 @@ func (cryptoRandSource) Int63() int64 {
 	}
 
 	// mask off sign bit to ensure positive number
+	// #nosec G115 - Safe conversion because we're masking the highest bit to ensure a positive int64
 	return int64(binary.LittleEndian.Uint64(b[:]) & (1<<63 - 1))
 }
 

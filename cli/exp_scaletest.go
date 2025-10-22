@@ -9,11 +9,13 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
+	"net/url"
 	"os"
+	"os/signal"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/google/uuid"
@@ -25,35 +27,44 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/scaletest/agentconn"
+	"github.com/coder/coder/v2/scaletest/autostart"
+	"github.com/coder/coder/v2/scaletest/createusers"
 	"github.com/coder/coder/v2/scaletest/createworkspaces"
 	"github.com/coder/coder/v2/scaletest/dashboard"
 	"github.com/coder/coder/v2/scaletest/harness"
+	"github.com/coder/coder/v2/scaletest/loadtestutil"
 	"github.com/coder/coder/v2/scaletest/reconnectingpty"
 	"github.com/coder/coder/v2/scaletest/workspacebuild"
 	"github.com/coder/coder/v2/scaletest/workspacetraffic"
+	"github.com/coder/coder/v2/scaletest/workspaceupdates"
+	"github.com/coder/serpent"
 )
 
 const scaletestTracerName = "coder_scaletest"
 
-func (r *RootCmd) scaletestCmd() *clibase.Cmd {
-	cmd := &clibase.Cmd{
+func (r *RootCmd) scaletestCmd() *serpent.Command {
+	cmd := &serpent.Command{
 		Use:   "scaletest",
 		Short: "Run a scale test against the Coder API",
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
-		Children: []*clibase.Cmd{
+		Children: []*serpent.Command{
 			r.scaletestCleanup(),
 			r.scaletestDashboard(),
+			r.scaletestDynamicParameters(),
 			r.scaletestCreateWorkspaces(),
+			r.scaletestWorkspaceUpdates(),
 			r.scaletestWorkspaceTraffic(),
+			r.scaletestAutostart(),
+			r.scaletestNotifications(),
+			r.scaletestSMTP(),
 		},
 	}
 
@@ -67,32 +78,32 @@ type scaletestTracingFlags struct {
 	tracePropagate       bool
 }
 
-func (s *scaletestTracingFlags) attach(opts *clibase.OptionSet) {
+func (s *scaletestTracingFlags) attach(opts *serpent.OptionSet) {
 	*opts = append(
 		*opts,
-		clibase.Option{
+		serpent.Option{
 			Flag:        "trace",
 			Env:         "CODER_SCALETEST_TRACE",
 			Description: "Whether application tracing data is collected. It exports to a backend configured by environment variables. See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md.",
-			Value:       clibase.BoolOf(&s.traceEnable),
+			Value:       serpent.BoolOf(&s.traceEnable),
 		},
-		clibase.Option{
+		serpent.Option{
 			Flag:        "trace-coder",
 			Env:         "CODER_SCALETEST_TRACE_CODER",
 			Description: "Whether opentelemetry traces are sent to Coder. We recommend keeping this disabled unless we advise you to enable it.",
-			Value:       clibase.BoolOf(&s.traceCoder),
+			Value:       serpent.BoolOf(&s.traceCoder),
 		},
-		clibase.Option{
+		serpent.Option{
 			Flag:        "trace-honeycomb-api-key",
 			Env:         "CODER_SCALETEST_TRACE_HONEYCOMB_API_KEY",
 			Description: "Enables trace exporting to Honeycomb.io using the provided API key.",
-			Value:       clibase.StringOf(&s.traceHoneycombAPIKey),
+			Value:       serpent.StringOf(&s.traceHoneycombAPIKey),
 		},
-		clibase.Option{
+		serpent.Option{
 			Flag:        "trace-propagate",
 			Env:         "CODER_SCALETEST_TRACE_PROPAGATE",
 			Description: "Enables trace propagation to the Coder backend, which will be used to correlate server-side spans with client-side spans. Only enable this if the server is configured with the exact same tracing configuration as the client.",
-			Value:       clibase.BoolOf(&s.tracePropagate),
+			Value:       serpent.BoolOf(&s.tracePropagate),
 		},
 	)
 }
@@ -115,7 +126,7 @@ func (s *scaletestTracingFlags) provider(ctx context.Context) (trace.TracerProvi
 	}
 
 	var closeTracingOnce sync.Once
-	return tracerProvider, func(ctx context.Context) error {
+	return tracerProvider, func(_ context.Context) error {
 		var err error
 		closeTracingOnce.Do(func() {
 			// Allow time to upload traces even if ctx is canceled
@@ -128,77 +139,109 @@ func (s *scaletestTracingFlags) provider(ctx context.Context) (trace.TracerProvi
 	}, true, nil
 }
 
-type scaletestStrategyFlags struct {
+type concurrencyFlags struct {
+	cleanup     bool
+	concurrency int64
+}
+
+func (c *concurrencyFlags) attach(opts *serpent.OptionSet) {
+	concurrencyLong, concurrencyEnv, concurrencyDescription := "concurrency", "CODER_SCALETEST_CONCURRENCY", "Number of concurrent jobs to run. 0 means unlimited."
+	if c.cleanup {
+		concurrencyLong, concurrencyEnv, concurrencyDescription = "cleanup-"+concurrencyLong, "CODER_SCALETEST_CLEANUP_CONCURRENCY", strings.ReplaceAll(concurrencyDescription, "jobs", "cleanup jobs")
+	}
+
+	*opts = append(*opts, serpent.Option{
+		Flag:        concurrencyLong,
+		Env:         concurrencyEnv,
+		Description: concurrencyDescription,
+		Default:     "1",
+		Value:       serpent.Int64Of(&c.concurrency),
+	})
+}
+
+func (c *concurrencyFlags) toStrategy() harness.ExecutionStrategy {
+	switch c.concurrency {
+	case 1:
+		return harness.LinearExecutionStrategy{}
+	case 0:
+		return harness.ConcurrentExecutionStrategy{}
+	default:
+		return harness.ParallelExecutionStrategy{
+			Limit: int(c.concurrency),
+		}
+	}
+}
+
+type timeoutFlags struct {
 	cleanup       bool
-	concurrency   int64
 	timeout       time.Duration
 	timeoutPerJob time.Duration
 }
 
-func (s *scaletestStrategyFlags) attach(opts *clibase.OptionSet) {
-	concurrencyLong, concurrencyEnv, concurrencyDescription := "concurrency", "CODER_SCALETEST_CONCURRENCY", "Number of concurrent jobs to run. 0 means unlimited."
+func (t *timeoutFlags) attach(opts *serpent.OptionSet) {
 	timeoutLong, timeoutEnv, timeoutDescription := "timeout", "CODER_SCALETEST_TIMEOUT", "Timeout for the entire test run. 0 means unlimited."
 	jobTimeoutLong, jobTimeoutEnv, jobTimeoutDescription := "job-timeout", "CODER_SCALETEST_JOB_TIMEOUT", "Timeout per job. Jobs may take longer to complete under higher concurrency limits."
-	if s.cleanup {
-		concurrencyLong, concurrencyEnv, concurrencyDescription = "cleanup-"+concurrencyLong, "CODER_SCALETEST_CLEANUP_CONCURRENCY", strings.ReplaceAll(concurrencyDescription, "jobs", "cleanup jobs")
+	if t.cleanup {
 		timeoutLong, timeoutEnv, timeoutDescription = "cleanup-"+timeoutLong, "CODER_SCALETEST_CLEANUP_TIMEOUT", strings.ReplaceAll(timeoutDescription, "test", "cleanup")
 		jobTimeoutLong, jobTimeoutEnv, jobTimeoutDescription = "cleanup-"+jobTimeoutLong, "CODER_SCALETEST_CLEANUP_JOB_TIMEOUT", strings.ReplaceAll(jobTimeoutDescription, "jobs", "cleanup jobs")
 	}
 
 	*opts = append(
 		*opts,
-		clibase.Option{
-			Flag:        concurrencyLong,
-			Env:         concurrencyEnv,
-			Description: concurrencyDescription,
-			Default:     "1",
-			Value:       clibase.Int64Of(&s.concurrency),
-		},
-		clibase.Option{
+		serpent.Option{
 			Flag:        timeoutLong,
 			Env:         timeoutEnv,
 			Description: timeoutDescription,
 			Default:     "30m",
-			Value:       clibase.DurationOf(&s.timeout),
+			Value:       serpent.DurationOf(&t.timeout),
 		},
-		clibase.Option{
+		serpent.Option{
 			Flag:        jobTimeoutLong,
 			Env:         jobTimeoutEnv,
 			Description: jobTimeoutDescription,
 			Default:     "5m",
-			Value:       clibase.DurationOf(&s.timeoutPerJob),
+			Value:       serpent.DurationOf(&t.timeoutPerJob),
 		},
 	)
 }
 
-func (s *scaletestStrategyFlags) toStrategy() harness.ExecutionStrategy {
-	var strategy harness.ExecutionStrategy
-	if s.concurrency == 1 {
-		strategy = harness.LinearExecutionStrategy{}
-	} else if s.concurrency == 0 {
-		strategy = harness.ConcurrentExecutionStrategy{}
-	} else {
-		strategy = harness.ParallelExecutionStrategy{
-			Limit: int(s.concurrency),
-		}
-	}
-
-	if s.timeoutPerJob > 0 {
-		strategy = harness.TimeoutExecutionStrategyWrapper{
-			Timeout: s.timeoutPerJob,
+func (t *timeoutFlags) wrapStrategy(strategy harness.ExecutionStrategy) harness.ExecutionStrategy {
+	if t.timeoutPerJob > 0 {
+		return harness.TimeoutExecutionStrategyWrapper{
+			Timeout: t.timeoutPerJob,
 			Inner:   strategy,
 		}
 	}
-
 	return strategy
 }
 
-func (s *scaletestStrategyFlags) toContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	if s.timeout > 0 {
-		return context.WithTimeout(ctx, s.timeout)
+func (t *timeoutFlags) toContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	if t.timeout > 0 {
+		return context.WithTimeout(ctx, t.timeout)
 	}
 
 	return context.WithCancel(ctx)
+}
+
+type scaletestStrategyFlags struct {
+	concurrencyFlags
+	timeoutFlags
+}
+
+func newScaletestCleanupStrategy() *scaletestStrategyFlags {
+	return &scaletestStrategyFlags{
+		concurrencyFlags: concurrencyFlags{cleanup: true},
+		timeoutFlags:     timeoutFlags{cleanup: true},
+	}
+}
+
+func (s *scaletestStrategyFlags) attach(opts *serpent.OptionSet) {
+	s.timeoutFlags.attach(opts)
+	s.concurrencyFlags.attach(opts)
+}
+
+func (s *scaletestStrategyFlags) toStrategy() harness.ExecutionStrategy {
+	return s.timeoutFlags.wrapStrategy(s.concurrencyFlags.toStrategy())
 }
 
 type scaleTestOutputFormat string
@@ -241,12 +284,8 @@ func (o *scaleTestOutput) write(res harness.Results, stdout io.Writer) error {
 
 	// Sync the file to disk if it's a file.
 	if s, ok := w.(interface{ Sync() error }); ok {
-		err := s.Sync()
-		// On Linux, EINVAL is returned when calling fsync on /dev/stdout. We
-		// can safely ignore this error.
-		if err != nil && !xerrors.Is(err, syscall.EINVAL) {
-			return xerrors.Errorf("flush output file: %w", err)
-		}
+		// Best effort. If we get an error from syncing, just ignore it.
+		_ = s.Sync()
 	}
 
 	if c != nil {
@@ -263,13 +302,13 @@ type scaletestOutputFlags struct {
 	outputSpecs []string
 }
 
-func (s *scaletestOutputFlags) attach(opts *clibase.OptionSet) {
-	*opts = append(*opts, clibase.Option{
+func (s *scaletestOutputFlags) attach(opts *serpent.OptionSet) {
+	*opts = append(*opts, serpent.Option{
 		Flag:        "output",
 		Env:         "CODER_SCALETEST_OUTPUTS",
 		Description: `Output format specs in the format "<format>[:<path>]". Not specifying a path will default to stdout. Available formats: text, json.`,
 		Default:     "text",
-		Value:       clibase.StringArrayOf(&s.outputSpecs),
+		Value:       serpent.StringArrayOf(&s.outputSpecs),
 	})
 }
 
@@ -326,21 +365,21 @@ type scaletestPrometheusFlags struct {
 	Wait    time.Duration
 }
 
-func (s *scaletestPrometheusFlags) attach(opts *clibase.OptionSet) {
+func (s *scaletestPrometheusFlags) attach(opts *serpent.OptionSet) {
 	*opts = append(*opts,
-		clibase.Option{
+		serpent.Option{
 			Flag:        "scaletest-prometheus-address",
 			Env:         "CODER_SCALETEST_PROMETHEUS_ADDRESS",
 			Default:     "0.0.0.0:21112",
 			Description: "Address on which to expose scaletest Prometheus metrics.",
-			Value:       clibase.StringOf(&s.Address),
+			Value:       serpent.StringOf(&s.Address),
 		},
-		clibase.Option{
+		serpent.Option{
 			Flag:        "scaletest-prometheus-wait",
 			Env:         "CODER_SCALETEST_PROMETHEUS_WAIT",
 			Default:     "15s",
 			Description: "How long to wait before exiting in order to allow Prometheus metrics to be scraped.",
-			Value:       clibase.DurationOf(&s.Wait),
+			Value:       serpent.DurationOf(&s.Wait),
 		},
 	)
 }
@@ -393,36 +432,44 @@ func (r *userCleanupRunner) Run(ctx context.Context, _ string, _ io.Writer) erro
 	return nil
 }
 
-func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
-	cleanupStrategy := &scaletestStrategyFlags{cleanup: true}
-	client := new(codersdk.Client)
-
-	cmd := &clibase.Cmd{
+func (r *RootCmd) scaletestCleanup() *serpent.Command {
+	var template string
+	cleanupStrategy := newScaletestCleanupStrategy()
+	cmd := &serpent.Command{
 		Use:   "cleanup",
 		Short: "Cleanup scaletest workspaces, then cleanup scaletest users.",
 		Long:  "The strategy flags will apply to each stage of the cleanup process.",
-		Middleware: clibase.Chain(
-			r.InitClient(client),
-		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			ctx := inv.Context()
 
-			_, err := requireAdmin(ctx, client)
+			me, err := requireAdmin(ctx, client)
 			if err != nil {
 				return err
 			}
 
 			client.HTTPClient = &http.Client{
-				Transport: &headerTransport{
-					transport: http.DefaultTransport,
-					header: map[string][]string{
+				Transport: &codersdk.HeaderTransport{
+					Transport: http.DefaultTransport,
+					Header: map[string][]string{
 						codersdk.BypassRatelimitHeader: {"true"},
 					},
 				},
 			}
 
+			if template != "" {
+				_, err := parseTemplate(ctx, client, me.OrganizationIDs, template)
+				if err != nil {
+					return xerrors.Errorf("parse template: %w", err)
+				}
+			}
+
 			cliui.Infof(inv.Stdout, "Fetching scaletest workspaces...")
-			workspaces, err := getScaletestWorkspaces(ctx, client)
+			workspaces, _, err := getScaletestWorkspaces(ctx, client, "", template)
 			if err != nil {
 				return err
 			}
@@ -494,16 +541,25 @@ func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 		},
 	}
 
+	cmd.Options = serpent.OptionSet{
+		{
+			Flag:        "template",
+			Env:         "CODER_SCALETEST_CLEANUP_TEMPLATE",
+			Description: "Name or ID of the template. Only delete workspaces created from the given template.",
+			Value:       serpent.StringOf(&template),
+		},
+	}
+
 	cleanupStrategy.attach(&cmd.Options)
 	return cmd
 }
 
-func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
+func (r *RootCmd) scaletestCreateWorkspaces() *serpent.Command {
 	var (
 		count    int64
+		retry    int64
 		template string
 
-		noPlan    bool
 		noCleanup bool
 		// TODO: implement this flag
 		// noCleanupFailures bool
@@ -525,20 +581,24 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 
 		useHostUser bool
 
+		parameterFlags workspaceParameterFlags
+
 		tracingFlags    = &scaletestTracingFlags{}
 		strategy        = &scaletestStrategyFlags{}
-		cleanupStrategy = &scaletestStrategyFlags{cleanup: true}
+		cleanupStrategy = newScaletestCleanupStrategy()
 		output          = &scaletestOutputFlags{}
 	)
 
-	client := new(codersdk.Client)
+	cmd := &serpent.Command{
+		Use:   "create-workspaces",
+		Short: "Creates many users, then creates a workspace for each user and waits for them finish building and fully come online. Optionally runs a command inside each workspace, and connects to the workspace over WireGuard.",
+		Long:  `It is recommended that all rate limits are disabled on the server before running this scaletest. This test generates many login events which will be rate limited against the (most likely single) IP.`,
+		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 
-	cmd := &clibase.Cmd{
-		Use:        "create-workspaces",
-		Short:      "Creates many users, then creates a workspace for each user and waits for them finish building and fully come online. Optionally runs a command inside each workspace, and connects to the workspace over WireGuard.",
-		Long:       `It is recommended that all rate limits are disabled on the server before running this scaletest. This test generates many login events which will be rate limited against the (most likely single) IP.`,
-		Middleware: r.InitClient(client),
-		Handler: func(inv *clibase.Invocation) error {
 			ctx := inv.Context()
 
 			me, err := requireAdmin(ctx, client)
@@ -547,9 +607,9 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 			}
 
 			client.HTTPClient = &http.Client{
-				Transport: &headerTransport{
-					transport: http.DefaultTransport,
-					header: map[string][]string{
+				Transport: &codersdk.HeaderTransport{
+					Transport: http.DefaultTransport,
+					Header: map[string][]string{
 						codersdk.BypassRatelimitHeader: {"true"},
 					},
 				},
@@ -563,66 +623,29 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 				return xerrors.Errorf("could not parse --output flags")
 			}
 
-			var tpl codersdk.Template
 			if template == "" {
 				return xerrors.Errorf("--template is required")
 			}
-			if id, err := uuid.Parse(template); err == nil && id != uuid.Nil {
-				tpl, err = client.Template(ctx, id)
-				if err != nil {
-					return xerrors.Errorf("get template by ID %q: %w", template, err)
-				}
-			} else {
-				// List templates in all orgs until we find a match.
-			orgLoop:
-				for _, orgID := range me.OrganizationIDs {
-					tpls, err := client.TemplatesByOrganization(ctx, orgID)
-					if err != nil {
-						return xerrors.Errorf("list templates in org %q: %w", orgID, err)
-					}
-
-					for _, t := range tpls {
-						if t.Name == template {
-							tpl = t
-							break orgLoop
-						}
-					}
-				}
-			}
-			if tpl.ID == uuid.Nil {
-				return xerrors.Errorf("could not find template %q in any organization", template)
-			}
-			templateVersion, err := client.TemplateVersion(ctx, tpl.ActiveVersionID)
+			tpl, err := parseTemplate(ctx, client, me.OrganizationIDs, template)
 			if err != nil {
-				return xerrors.Errorf("get template version %q: %w", tpl.ActiveVersionID, err)
+				return xerrors.Errorf("parse template: %w", err)
 			}
 
-			// Do a dry-run to ensure the template and parameters are valid
-			// before we start creating users and workspaces.
-			if !noPlan {
-				dryRun, err := client.CreateTemplateVersionDryRun(ctx, templateVersion.ID, codersdk.CreateTemplateVersionDryRunRequest{
-					WorkspaceName: "scaletest",
-				})
-				if err != nil {
-					return xerrors.Errorf("start dry run workspace creation: %w", err)
-				}
-				_, _ = fmt.Fprintln(inv.Stdout, "Planning workspace...")
-				err = cliui.ProvisionerJob(inv.Context(), inv.Stdout, cliui.ProvisionerJobOptions{
-					Fetch: func() (codersdk.ProvisionerJob, error) {
-						return client.TemplateVersionDryRun(inv.Context(), templateVersion.ID, dryRun.ID)
-					},
-					Cancel: func() error {
-						return client.CancelTemplateVersionDryRun(inv.Context(), templateVersion.ID, dryRun.ID)
-					},
-					Logs: func() (<-chan codersdk.ProvisionerJobLog, io.Closer, error) {
-						return client.TemplateVersionDryRunLogsAfter(inv.Context(), templateVersion.ID, dryRun.ID, 0)
-					},
-					// Don't show log output for the dry-run unless there's an error.
-					Silent: true,
-				})
-				if err != nil {
-					return xerrors.Errorf("dry-run workspace: %w", err)
-				}
+			cliRichParameters, err := asWorkspaceBuildParameters(parameterFlags.richParameters)
+			if err != nil {
+				return xerrors.Errorf("can't parse given parameter values: %w", err)
+			}
+
+			richParameters, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
+				Action:            WorkspaceCreate,
+				TemplateVersionID: tpl.ActiveVersionID,
+				NewWorkspaceName:  "scaletest-N", // TODO: the scaletest runner will pass in a different name here. Does this matter?
+
+				RichParameterFile: parameterFlags.richParameterFile,
+				RichParameters:    cliRichParameters,
+			})
+			if err != nil {
+				return xerrors.Errorf("prepare build: %w", err)
 			}
 
 			tracerProvider, closeTracing, tracingEnabled, err := tracingFlags.provider(ctx)
@@ -653,31 +676,23 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 						OrganizationID: me.OrganizationIDs[0],
 						// UserID is set by the test automatically.
 						Request: codersdk.CreateWorkspaceRequest{
-							TemplateID: tpl.ID,
+							TemplateID:          tpl.ID,
+							RichParameterValues: richParameters,
 						},
 						NoWaitForAgents: noWaitForAgents,
+						Retry:           int(retry),
 					},
 					NoCleanup: noCleanup,
 				}
 
 				if useHostUser {
 					config.User.SessionToken = client.SessionToken()
-				} else {
-					config.User.Username, config.User.Email, err = newScaleTestUser(id)
-					if err != nil {
-						return xerrors.Errorf("create scaletest username and email: %w", err)
-					}
-				}
-
-				config.Workspace.Request.Name, err = newScaleTestWorkspace(id)
-				if err != nil {
-					return xerrors.Errorf("create scaletest workspace name: %w", err)
 				}
 
 				if runCommand != "" {
 					config.ReconnectingPTY = &reconnectingpty.Config{
 						// AgentID is set by the test automatically.
-						Init: codersdk.WorkspaceAgentReconnectingPTYInit{
+						Init: workspacesdk.AgentReconnectingPTYInit{
 							ID:      uuid.Nil,
 							Height:  24,
 							Width:   80,
@@ -756,97 +771,98 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 		},
 	}
 
-	cmd.Options = clibase.OptionSet{
+	cmd.Options = serpent.OptionSet{
 		{
 			Flag:          "count",
 			FlagShorthand: "c",
 			Env:           "CODER_SCALETEST_COUNT",
 			Default:       "1",
 			Description:   "Required: Number of workspaces to create.",
-			Value:         clibase.Int64Of(&count),
+			Value:         serpent.Int64Of(&count),
+		},
+		{
+			Flag:        "retry",
+			Env:         "CODER_SCALETEST_RETRY",
+			Default:     "0",
+			Description: "Number of tries to create and bring up the workspace.",
+			Value:       serpent.Int64Of(&retry),
 		},
 		{
 			Flag:          "template",
 			FlagShorthand: "t",
 			Env:           "CODER_SCALETEST_TEMPLATE",
 			Description:   "Required: Name or ID of the template to use for workspaces.",
-			Value:         clibase.StringOf(&template),
-		},
-		{
-			Flag:        "no-plan",
-			Env:         "CODER_SCALETEST_NO_PLAN",
-			Description: `Skip the dry-run step to plan the workspace creation. This step ensures that the given parameters are valid for the given template.`,
-			Value:       clibase.BoolOf(&noPlan),
+			Value:         serpent.StringOf(&template),
 		},
 		{
 			Flag:        "no-cleanup",
 			Env:         "CODER_SCALETEST_NO_CLEANUP",
 			Description: "Do not clean up resources after the test completes. You can cleanup manually using coder scaletest cleanup.",
-			Value:       clibase.BoolOf(&noCleanup),
+			Value:       serpent.BoolOf(&noCleanup),
 		},
 		{
 			Flag:        "no-wait-for-agents",
 			Env:         "CODER_SCALETEST_NO_WAIT_FOR_AGENTS",
 			Description: `Do not wait for agents to start before marking the test as succeeded. This can be useful if you are running the test against a template that does not start the agent quickly.`,
-			Value:       clibase.BoolOf(&noWaitForAgents),
+			Value:       serpent.BoolOf(&noWaitForAgents),
 		},
 		{
 			Flag:        "run-command",
 			Env:         "CODER_SCALETEST_RUN_COMMAND",
 			Description: "Command to run inside each workspace using reconnecting-pty (i.e. web terminal protocol). " + "If not specified, no command will be run.",
-			Value:       clibase.StringOf(&runCommand),
+			Value:       serpent.StringOf(&runCommand),
 		},
 		{
 			Flag:        "run-timeout",
 			Env:         "CODER_SCALETEST_RUN_TIMEOUT",
 			Default:     "5s",
 			Description: "Timeout for the command to complete.",
-			Value:       clibase.DurationOf(&runTimeout),
+			Value:       serpent.DurationOf(&runTimeout),
 		},
 		{
 			Flag: "run-expect-timeout",
 			Env:  "CODER_SCALETEST_RUN_EXPECT_TIMEOUT",
 
 			Description: "Expect the command to timeout." + " If the command does not finish within the given --run-timeout, it will be marked as succeeded." + " If the command finishes before the timeout, it will be marked as failed.",
-			Value:       clibase.BoolOf(&runExpectTimeout),
+			Value:       serpent.BoolOf(&runExpectTimeout),
 		},
 		{
 			Flag:        "run-expect-output",
 			Env:         "CODER_SCALETEST_RUN_EXPECT_OUTPUT",
 			Description: "Expect the command to output the given string (on a single line). " + "If the command does not output the given string, it will be marked as failed.",
-			Value:       clibase.StringOf(&runExpectOutput),
+			Value:       serpent.StringOf(&runExpectOutput),
 		},
 		{
 			Flag:        "run-log-output",
 			Env:         "CODER_SCALETEST_RUN_LOG_OUTPUT",
 			Description: "Log the output of the command to the test logs. " + "This should be left off unless you expect small amounts of output. " + "Large amounts of output will cause high memory usage.",
-			Value:       clibase.BoolOf(&runLogOutput),
+			Value:       serpent.BoolOf(&runLogOutput),
 		},
 		{
 			Flag:        "connect-url",
 			Env:         "CODER_SCALETEST_CONNECT_URL",
 			Description: "URL to connect to inside the the workspace over WireGuard. " + "If not specified, no connections will be made over WireGuard.",
-			Value:       clibase.StringOf(&connectURL),
+			Value:       serpent.StringOf(&connectURL),
 		},
 		{
 			Flag:        "connect-mode",
 			Env:         "CODER_SCALETEST_CONNECT_MODE",
 			Default:     "derp",
 			Description: "Mode to use for connecting to the workspace.",
-			Value:       clibase.EnumOf(&connectMode, "derp", "direct"),
+			Value:       serpent.EnumOf(&connectMode, "derp", "direct"),
 		},
 		{
 			Flag:        "connect-hold",
 			Env:         "CODER_SCALETEST_CONNECT_HOLD",
 			Default:     "30s",
 			Description: "How long to hold the WireGuard connection open for.",
-			Value:       clibase.DurationOf(&connectHold),
+			Value:       serpent.DurationOf(&connectHold),
 		},
 		{
 			Flag:        "connect-interval",
 			Env:         "CODER_SCALETEST_CONNECT_INTERVAL",
 			Default:     "1s",
-			Value:       clibase.DurationOf(&connectInterval),
+			Value:       serpent.DurationOf(&connectInterval),
 			Description: "How long to wait between making requests to the --connect-url once the connection is established.",
 		},
 		{
@@ -854,17 +870,18 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 			Env:         "CODER_SCALETEST_CONNECT_TIMEOUT",
 			Default:     "5s",
 			Description: "Timeout for each request to the --connect-url.",
-			Value:       clibase.DurationOf(&connectTimeout),
+			Value:       serpent.DurationOf(&connectTimeout),
 		},
 		{
 			Flag:        "use-host-login",
 			Env:         "CODER_SCALETEST_USE_HOST_LOGIN",
 			Default:     "false",
 			Description: "Use the user logged in on the host machine, instead of creating users.",
-			Value:       clibase.BoolOf(&useHostUser),
+			Value:       serpent.BoolOf(&useHostUser),
 		},
 	}
 
+	cmd.Options = append(cmd.Options, parameterFlags.cliParameters()...)
 	tracingFlags.attach(&cmd.Options)
 	strategy.attach(&cmd.Options)
 	cleanupStrategy.attach(&cmd.Options)
@@ -872,52 +889,398 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 	return cmd
 }
 
-func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
+func (r *RootCmd) scaletestWorkspaceUpdates() *serpent.Command {
 	var (
-		tickInterval time.Duration
-		bytesPerTick int64
-		ssh          bool
+		workspaceCount          int64
+		powerUserWorkspaces     int64
+		powerUserPercentage     float64
+		workspaceUpdatesTimeout time.Duration
+		dialTimeout             time.Duration
+		template                string
+		noCleanup               bool
 
-		client          = &codersdk.Client{}
-		tracingFlags    = &scaletestTracingFlags{}
-		strategy        = &scaletestStrategyFlags{}
-		cleanupStrategy = &scaletestStrategyFlags{cleanup: true}
+		parameterFlags workspaceParameterFlags
+		tracingFlags   = &scaletestTracingFlags{}
+		// This test requires unlimited concurrency
+		timeoutStrategy = &timeoutFlags{}
+		cleanupStrategy = newScaletestCleanupStrategy()
 		output          = &scaletestOutputFlags{}
 		prometheusFlags = &scaletestPrometheusFlags{}
 	)
 
-	cmd := &clibase.Cmd{
-		Use:   "workspace-traffic",
-		Short: "Generate traffic to scaletest workspaces through coderd",
-		Middleware: clibase.Chain(
-			r.InitClient(client),
-		),
-		Handler: func(inv *clibase.Invocation) error {
+	cmd := &serpent.Command{
+		Use:   "workspace-updates",
+		Short: "Simulate the load of Coder Desktop clients receiving workspace updates",
+		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
-			reg := prometheus.NewRegistry()
-			metrics := workspacetraffic.NewMetrics(reg, "username", "workspace_name", "agent_name")
+			client, err := r.TryInitClient(inv)
+			if err != nil {
+				return err
+			}
 
-			logger := slog.Make(sloghuman.Sink(io.Discard))
-			prometheusSrvClose := ServeHandler(ctx, logger, promhttp.HandlerFor(reg, promhttp.HandlerOpts{}), prometheusFlags.Address, "prometheus")
-			defer prometheusSrvClose()
+			notifyCtx, stop := signal.NotifyContext(ctx, StopSignals...) // Checked later.
+			defer stop()
+			ctx = notifyCtx
 
-			// Bypass rate limiting
+			me, err := requireAdmin(ctx, client)
+			if err != nil {
+				return err
+			}
+
 			client.HTTPClient = &http.Client{
-				Transport: &headerTransport{
-					transport: http.DefaultTransport,
-					header: map[string][]string{
+				Transport: &codersdk.HeaderTransport{
+					Transport: http.DefaultTransport,
+					Header: map[string][]string{
 						codersdk.BypassRatelimitHeader: {"true"},
 					},
 				},
 			}
 
-			workspaces, err := getScaletestWorkspaces(inv.Context(), client)
+			if workspaceCount <= 0 {
+				return xerrors.Errorf("--workspace-count must be greater than 0")
+			}
+			if powerUserWorkspaces <= 1 {
+				return xerrors.Errorf("--power-user-workspaces must be greater than 1")
+			}
+			if powerUserPercentage < 0 || powerUserPercentage > 100 {
+				return xerrors.Errorf("--power-user-proportion must be between 0 and 100")
+			}
+
+			powerUserWorkspaceCount := int64(float64(workspaceCount) * powerUserPercentage / 100)
+			remainder := powerUserWorkspaceCount % powerUserWorkspaces
+			// If the power user workspaces can't be evenly divided, round down
+			// to the nearest multiple so that we only have two groups of users.
+			workspaceCount -= remainder
+			powerUserWorkspaceCount -= remainder
+			powerUserCount := powerUserWorkspaceCount / powerUserWorkspaces
+			regularWorkspaceCount := workspaceCount - powerUserWorkspaceCount
+			regularUserCount := regularWorkspaceCount
+			regularUserWorkspaceCount := 1
+
+			_, _ = fmt.Fprintf(inv.Stderr, "Distribution plan:\n")
+			_, _ = fmt.Fprintf(inv.Stderr, "  Total workspaces: %d\n", workspaceCount)
+			_, _ = fmt.Fprintf(inv.Stderr, "  Power users: %d (each owning %d workspaces = %d total)\n",
+				powerUserCount, powerUserWorkspaces, powerUserWorkspaceCount)
+			_, _ = fmt.Fprintf(inv.Stderr, "  Regular users: %d (each owning %d workspace = %d total)\n",
+				regularUserCount, regularUserWorkspaceCount, regularWorkspaceCount)
+
+			outputs, err := output.parse()
+			if err != nil {
+				return xerrors.Errorf("could not parse --output flags")
+			}
+
+			tpl, err := parseTemplate(ctx, client, me.OrganizationIDs, template)
+			if err != nil {
+				return xerrors.Errorf("parse template: %w", err)
+			}
+
+			cliRichParameters, err := asWorkspaceBuildParameters(parameterFlags.richParameters)
+			if err != nil {
+				return xerrors.Errorf("can't parse given parameter values: %w", err)
+			}
+
+			richParameters, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
+				Action:            WorkspaceCreate,
+				TemplateVersionID: tpl.ActiveVersionID,
+
+				RichParameterFile: parameterFlags.richParameterFile,
+				RichParameters:    cliRichParameters,
+			})
+			if err != nil {
+				return xerrors.Errorf("prepare build: %w", err)
+			}
+
+			tracerProvider, closeTracing, tracingEnabled, err := tracingFlags.provider(ctx)
+			if err != nil {
+				return xerrors.Errorf("create tracer provider: %w", err)
+			}
+			tracer := tracerProvider.Tracer(scaletestTracerName)
+
+			reg := prometheus.NewRegistry()
+			metrics := workspaceupdates.NewMetrics(reg)
+
+			logger := inv.Logger
+			prometheusSrvClose := ServeHandler(ctx, logger, promhttp.HandlerFor(reg, promhttp.HandlerOpts{}), prometheusFlags.Address, "prometheus")
+			defer prometheusSrvClose()
+
+			defer func() {
+				_, _ = fmt.Fprintln(inv.Stderr, "\nUploading traces...")
+				if err := closeTracing(ctx); err != nil {
+					_, _ = fmt.Fprintf(inv.Stderr, "\nError uploading traces: %+v\n", err)
+				}
+				// Wait for prometheus metrics to be scraped
+				_, _ = fmt.Fprintf(inv.Stderr, "Waiting %s for prometheus metrics to be scraped\n", prometheusFlags.Wait)
+				<-time.After(prometheusFlags.Wait)
+			}()
+
+			_, _ = fmt.Fprintln(inv.Stderr, "Creating users...")
+
+			dialBarrier := new(sync.WaitGroup)
+			dialBarrier.Add(int(powerUserCount + regularUserCount))
+
+			configs := make([]workspaceupdates.Config, 0, powerUserCount+regularUserCount)
+
+			for range powerUserCount {
+				config := workspaceupdates.Config{
+					User: createusers.Config{
+						OrganizationID: me.OrganizationIDs[0],
+					},
+					Workspace: workspacebuild.Config{
+						OrganizationID: me.OrganizationIDs[0],
+						Request: codersdk.CreateWorkspaceRequest{
+							TemplateID:          tpl.ID,
+							RichParameterValues: richParameters,
+						},
+						NoWaitForAgents: true,
+					},
+					WorkspaceCount:          powerUserWorkspaces,
+					WorkspaceUpdatesTimeout: workspaceUpdatesTimeout,
+					DialTimeout:             dialTimeout,
+					Metrics:                 metrics,
+					DialBarrier:             dialBarrier,
+				}
+				if err := config.Validate(); err != nil {
+					return xerrors.Errorf("validate config: %w", err)
+				}
+				configs = append(configs, config)
+			}
+
+			for range regularUserCount {
+				config := workspaceupdates.Config{
+					User: createusers.Config{
+						OrganizationID: me.OrganizationIDs[0],
+					},
+					Workspace: workspacebuild.Config{
+						OrganizationID: me.OrganizationIDs[0],
+						Request: codersdk.CreateWorkspaceRequest{
+							TemplateID:          tpl.ID,
+							RichParameterValues: richParameters,
+						},
+						NoWaitForAgents: true,
+					},
+					WorkspaceCount:          int64(regularUserWorkspaceCount),
+					WorkspaceUpdatesTimeout: workspaceUpdatesTimeout,
+					DialTimeout:             dialTimeout,
+					Metrics:                 metrics,
+					DialBarrier:             dialBarrier,
+				}
+				if err := config.Validate(); err != nil {
+					return xerrors.Errorf("validate config: %w", err)
+				}
+				configs = append(configs, config)
+			}
+
+			th := harness.NewTestHarness(timeoutStrategy.wrapStrategy(harness.ConcurrentExecutionStrategy{}), cleanupStrategy.toStrategy())
+			for i, config := range configs {
+				name := fmt.Sprintf("workspaceupdates-%dw", config.WorkspaceCount)
+				id := strconv.Itoa(i)
+				var runner harness.Runnable = workspaceupdates.NewRunner(client, config)
+				if tracingEnabled {
+					runner = &runnableTraceWrapper{
+						tracer:   tracer,
+						spanName: fmt.Sprintf("%s/%s", name, id),
+						runner:   runner,
+					}
+				}
+
+				th.AddRun(name, id, runner)
+			}
+
+			_, _ = fmt.Fprintln(inv.Stderr, "Running workspace updates scaletest...")
+			testCtx, testCancel := timeoutStrategy.toContext(ctx)
+			defer testCancel()
+			err = th.Run(testCtx)
+			if err != nil {
+				return xerrors.Errorf("run test harness (harness failure, not a test failure): %w", err)
+			}
+
+			// If the command was interrupted, skip stats.
+			if notifyCtx.Err() != nil {
+				return notifyCtx.Err()
+			}
+
+			res := th.Results()
+			for _, o := range outputs {
+				err = o.write(res, inv.Stdout)
+				if err != nil {
+					return xerrors.Errorf("write output %q to %q: %w", o.format, o.path, err)
+				}
+			}
+
+			if !noCleanup {
+				_, _ = fmt.Fprintln(inv.Stderr, "\nCleaning up...")
+				cleanupCtx, cleanupCancel := cleanupStrategy.toContext(ctx)
+				defer cleanupCancel()
+				err = th.Cleanup(cleanupCtx)
+				if err != nil {
+					return xerrors.Errorf("cleanup tests: %w", err)
+				}
+			}
+
+			if res.TotalFail > 0 {
+				return xerrors.New("load test failed, see above for more details")
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Options = serpent.OptionSet{
+		{
+			Flag:          "workspace-count",
+			FlagShorthand: "c",
+			Env:           "CODER_SCALETEST_WORKSPACE_COUNT",
+			Description:   "Required: Total number of workspaces to create.",
+			Value:         serpent.Int64Of(&workspaceCount),
+			Required:      true,
+		},
+		{
+			Flag:        "power-user-workspaces",
+			Env:         "CODER_SCALETEST_POWER_USER_WORKSPACES",
+			Description: "Number of workspaces each power-user owns.",
+			Value:       serpent.Int64Of(&powerUserWorkspaces),
+			Required:    true,
+		},
+		{
+			Flag:        "power-user-percentage",
+			Env:         "CODER_SCALETEST_POWER_USER_PERCENTAGE",
+			Default:     "50.0",
+			Description: "Percentage of total workspaces owned by power-users (0-100).",
+			Value:       serpent.Float64Of(&powerUserPercentage),
+		},
+		{
+			Flag:        "workspace-updates-timeout",
+			Env:         "CODER_SCALETEST_WORKSPACE_UPDATES_TIMEOUT",
+			Default:     "5m",
+			Description: "How long to wait for all expected workspace updates.",
+			Value:       serpent.DurationOf(&workspaceUpdatesTimeout),
+		},
+		{
+			Flag:        "dial-timeout",
+			Env:         "CODER_SCALETEST_DIAL_TIMEOUT",
+			Default:     "2m",
+			Description: "Timeout for dialing the tailnet endpoint.",
+			Value:       serpent.DurationOf(&dialTimeout),
+		},
+		{
+			Flag:          "template",
+			FlagShorthand: "t",
+			Env:           "CODER_SCALETEST_TEMPLATE",
+			Description:   "Required: Name or ID of the template to use for workspaces.",
+			Value:         serpent.StringOf(&template),
+			Required:      true,
+		},
+		{
+			Flag:        "no-cleanup",
+			Env:         "CODER_SCALETEST_NO_CLEANUP",
+			Description: "Do not clean up resources after the test completes.",
+			Value:       serpent.BoolOf(&noCleanup),
+		},
+	}
+
+	cmd.Options = append(cmd.Options, parameterFlags.cliParameters()...)
+	tracingFlags.attach(&cmd.Options)
+	timeoutStrategy.attach(&cmd.Options)
+	cleanupStrategy.attach(&cmd.Options)
+	output.attach(&cmd.Options)
+	prometheusFlags.attach(&cmd.Options)
+	return cmd
+}
+
+func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
+	var (
+		tickInterval      time.Duration
+		bytesPerTick      int64
+		ssh               bool
+		disableDirect     bool
+		useHostLogin      bool
+		app               string
+		template          string
+		targetWorkspaces  string
+		workspaceProxyURL string
+
+		tracingFlags    = &scaletestTracingFlags{}
+		strategy        = &scaletestStrategyFlags{}
+		cleanupStrategy = newScaletestCleanupStrategy()
+		output          = &scaletestOutputFlags{}
+		prometheusFlags = &scaletestPrometheusFlags{}
+	)
+
+	cmd := &serpent.Command{
+		Use:   "workspace-traffic",
+		Short: "Generate traffic to scaletest workspaces through coderd",
+		Handler: func(inv *serpent.Invocation) (err error) {
+			client, err := r.InitClient(inv)
 			if err != nil {
 				return err
 			}
 
+			ctx := inv.Context()
+
+			notifyCtx, stop := signal.NotifyContext(ctx, StopSignals...) // Checked later.
+			defer stop()
+			ctx = notifyCtx
+
+			me, err := requireAdmin(ctx, client)
+			if err != nil {
+				return err
+			}
+
+			reg := prometheus.NewRegistry()
+			metrics := workspacetraffic.NewMetrics(reg, "username", "workspace_name", "agent_name")
+
+			logger := inv.Logger
+			prometheusSrvClose := ServeHandler(ctx, logger, promhttp.HandlerFor(reg, promhttp.HandlerOpts{}), prometheusFlags.Address, "prometheus")
+			defer prometheusSrvClose()
+
+			// Bypass rate limiting
+			client.HTTPClient = &http.Client{
+				Transport: &codersdk.HeaderTransport{
+					Transport: http.DefaultTransport,
+					Header: map[string][]string{
+						codersdk.BypassRatelimitHeader: {"true"},
+					},
+				},
+			}
+
+			if template != "" {
+				_, err := parseTemplate(ctx, client, me.OrganizationIDs, template)
+				if err != nil {
+					return xerrors.Errorf("parse template: %w", err)
+				}
+			}
+			targetWorkspaceStart, targetWorkspaceEnd, err := parseTargetRange("workspaces", targetWorkspaces)
+			if err != nil {
+				return xerrors.Errorf("parse target workspaces: %w", err)
+			}
+
+			appHost, err := client.AppHost(ctx)
+			if err != nil {
+				return xerrors.Errorf("get app host: %w", err)
+			}
+
+			var owner string
+			if useHostLogin {
+				owner = codersdk.Me
+			}
+
+			workspaces, numSkipped, err := getScaletestWorkspaces(inv.Context(), client, owner, template)
+			if err != nil {
+				return err
+			}
+			if numSkipped > 0 {
+				cliui.Warnf(inv.Stdout, "CODER_DISABLE_OWNER_WORKSPACE_ACCESS is set on the deployment.\n\t%d workspace(s) were skipped due to ownership mismatch.\n\tSet --use-host-login to only target workspaces you own.", numSkipped)
+			}
+
+			if targetWorkspaceEnd == 0 {
+				targetWorkspaceEnd = len(workspaces)
+			}
+
 			if len(workspaces) == 0 {
 				return xerrors.Errorf("no scaletest workspaces exist")
+			}
+			if targetWorkspaceEnd > len(workspaces) {
+				return xerrors.Errorf("target workspace end %d is greater than the number of workspaces %d", targetWorkspaceEnd, len(workspaces))
 			}
 
 			tracerProvider, closeTracing, tracingEnabled, err := tracingFlags.provider(ctx)
@@ -944,35 +1307,67 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 
 			th := harness.NewTestHarness(strategy.toStrategy(), cleanupStrategy.toStrategy())
 			for idx, ws := range workspaces {
+				if idx < targetWorkspaceStart || idx >= targetWorkspaceEnd {
+					continue
+				}
+
 				var (
-					agentID   uuid.UUID
-					agentName string
-					name      = "workspace-traffic"
-					id        = strconv.Itoa(idx)
+					agent codersdk.WorkspaceAgent
+					name  = "workspace-traffic"
+					id    = strconv.Itoa(idx)
 				)
 
 				for _, res := range ws.LatestBuild.Resources {
 					if len(res.Agents) == 0 {
 						continue
 					}
-					agentID = res.Agents[0].ID
-					agentName = res.Agents[0].Name
+					agent = res.Agents[0]
 				}
 
-				if agentID == uuid.Nil {
+				if agent.ID == uuid.Nil {
 					_, _ = fmt.Fprintf(inv.Stderr, "WARN: skipping workspace %s: no agent\n", ws.Name)
 					continue
 				}
 
+				appConfig, err := createWorkspaceAppConfig(client, appHost.Host, app, ws, agent)
+				if err != nil {
+					return xerrors.Errorf("configure workspace app: %w", err)
+				}
+
+				var webClient *codersdk.Client
+				if workspaceProxyURL != "" {
+					u, err := url.Parse(workspaceProxyURL)
+					if err != nil {
+						return xerrors.Errorf("parse workspace proxy URL: %w", err)
+					}
+
+					webClient = codersdk.New(u,
+						codersdk.WithHTTPClient(client.HTTPClient),
+						codersdk.WithSessionToken(client.SessionToken()),
+					)
+
+					appConfig, err = createWorkspaceAppConfig(webClient, appHost.Host, app, ws, agent)
+					if err != nil {
+						return xerrors.Errorf("configure proxy workspace app: %w", err)
+					}
+				}
+
 				// Setup our workspace agent connection.
 				config := workspacetraffic.Config{
-					AgentID:      agentID,
-					BytesPerTick: bytesPerTick,
-					Duration:     strategy.timeout,
-					TickInterval: tickInterval,
-					ReadMetrics:  metrics.ReadMetrics(ws.OwnerName, ws.Name, agentName),
-					WriteMetrics: metrics.WriteMetrics(ws.OwnerName, ws.Name, agentName),
-					SSH:          ssh,
+					AgentID:       agent.ID,
+					BytesPerTick:  bytesPerTick,
+					Duration:      strategy.timeout,
+					TickInterval:  tickInterval,
+					ReadMetrics:   metrics.ReadMetrics(ws.OwnerName, ws.Name, agent.Name),
+					WriteMetrics:  metrics.WriteMetrics(ws.OwnerName, ws.Name, agent.Name),
+					SSH:           ssh,
+					DisableDirect: disableDirect,
+					Echo:          ssh,
+					App:           appConfig,
+				}
+
+				if webClient != nil {
+					config.WebClient = webClient
 				}
 
 				if err := config.Validate(); err != nil {
@@ -998,6 +1393,11 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 				return xerrors.Errorf("run test harness (harness failure, not a test failure): %w", err)
 			}
 
+			// If the command was interrupted, skip stats.
+			if notifyCtx.Err() != nil {
+				return notifyCtx.Err()
+			}
+
 			res := th.Results()
 			for _, o := range outputs {
 				err = o.write(res, inv.Stdout)
@@ -1014,27 +1414,68 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 		},
 	}
 
-	cmd.Options = []clibase.Option{
+	cmd.Options = []serpent.Option{
+		{
+			Flag:          "template",
+			FlagShorthand: "t",
+			Env:           "CODER_SCALETEST_TEMPLATE",
+			Description:   "Name or ID of the template. Traffic generation will be limited to workspaces created from this template.",
+			Value:         serpent.StringOf(&template),
+		},
+		{
+			Flag:        "target-workspaces",
+			Env:         "CODER_SCALETEST_TARGET_WORKSPACES",
+			Description: "Target a specific range of workspaces in the format [START]:[END] (exclusive). Example: 0:10 will target the 10 first alphabetically sorted workspaces (0-9).",
+			Value:       serpent.StringOf(&targetWorkspaces),
+		},
 		{
 			Flag:        "bytes-per-tick",
 			Env:         "CODER_SCALETEST_WORKSPACE_TRAFFIC_BYTES_PER_TICK",
 			Default:     "1024",
 			Description: "How much traffic to generate per tick.",
-			Value:       clibase.Int64Of(&bytesPerTick),
+			Value:       serpent.Int64Of(&bytesPerTick),
 		},
 		{
 			Flag:        "tick-interval",
 			Env:         "CODER_SCALETEST_WORKSPACE_TRAFFIC_TICK_INTERVAL",
 			Default:     "100ms",
 			Description: "How often to send traffic.",
-			Value:       clibase.DurationOf(&tickInterval),
+			Value:       serpent.DurationOf(&tickInterval),
 		},
 		{
 			Flag:        "ssh",
 			Env:         "CODER_SCALETEST_WORKSPACE_TRAFFIC_SSH",
 			Default:     "",
-			Description: "Send traffic over SSH.",
-			Value:       clibase.BoolOf(&ssh),
+			Description: "Send traffic over SSH, cannot be used with --app.",
+			Value:       serpent.BoolOf(&ssh),
+		},
+		{
+			Flag:        "disable-direct",
+			Env:         "CODER_SCALETEST_WORKSPACE_TRAFFIC_DISABLE_DIRECT_CONNECTIONS",
+			Default:     "false",
+			Description: "Disable direct connections for SSH traffic to workspaces. Does nothing if `--ssh` is not also set.",
+			Value:       serpent.BoolOf(&disableDirect),
+		},
+		{
+			Flag:        "app",
+			Env:         "CODER_SCALETEST_WORKSPACE_TRAFFIC_APP",
+			Default:     "",
+			Description: "Send WebSocket traffic to a workspace app (proxied via coderd), cannot be used with --ssh.",
+			Value:       serpent.StringOf(&app),
+		},
+		{
+			Flag:        "use-host-login",
+			Env:         "CODER_SCALETEST_USE_HOST_LOGIN",
+			Default:     "false",
+			Description: "Connect as the currently logged in user.",
+			Value:       serpent.BoolOf(&useHostLogin),
+		},
+		{
+			Flag:        "workspace-proxy-url",
+			Env:         "CODER_SCALETEST_WORKSPACE_PROXY_URL",
+			Default:     "",
+			Description: "URL for workspace proxy to send web traffic to.",
+			Value:       serpent.StringOf(&workspaceProxyURL),
 		},
 	}
 
@@ -1047,36 +1488,44 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 	return cmd
 }
 
-func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
+func (r *RootCmd) scaletestDashboard() *serpent.Command {
 	var (
-		interval time.Duration
-		jitter   time.Duration
-		headless bool
-		randSeed int64
-
-		client          = &codersdk.Client{}
+		interval        time.Duration
+		jitter          time.Duration
+		headless        bool
+		randSeed        int64
+		targetUsers     string
 		tracingFlags    = &scaletestTracingFlags{}
 		strategy        = &scaletestStrategyFlags{}
-		cleanupStrategy = &scaletestStrategyFlags{cleanup: true}
+		cleanupStrategy = newScaletestCleanupStrategy()
 		output          = &scaletestOutputFlags{}
 		prometheusFlags = &scaletestPrometheusFlags{}
 	)
 
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Command{
 		Use:   "dashboard",
 		Short: "Generate traffic to the HTTP API to simulate use of the dashboard.",
-		Middleware: clibase.Chain(
-			r.InitClient(client),
-		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			if !(interval > 0) {
 				return xerrors.Errorf("--interval must be greater than zero")
 			}
 			if !(jitter < interval) {
 				return xerrors.Errorf("--jitter must be less than --interval")
 			}
+			targetUserStart, targetUserEnd, err := parseTargetRange("users", targetUsers)
+			if err != nil {
+				return xerrors.Errorf("parse target users: %w", err)
+			}
 			ctx := inv.Context()
-			logger := slog.Make(sloghuman.Sink(inv.Stdout)).Leveled(slog.LevelInfo)
+			logger := inv.Logger.AppendSinks(sloghuman.Sink(inv.Stdout))
+			if r.verbose {
+				logger = logger.Leveled(slog.LevelDebug)
+			}
 			tracerProvider, closeTracing, tracingEnabled, err := tracingFlags.provider(ctx)
 			if err != nil {
 				return xerrors.Errorf("create tracer provider: %w", err)
@@ -1108,8 +1557,15 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 			if err != nil {
 				return xerrors.Errorf("get scaletest users")
 			}
+			if targetUserEnd == 0 {
+				targetUserEnd = len(users)
+			}
 
-			for _, usr := range users {
+			for idx, usr := range users {
+				if idx < targetUserStart || idx >= targetUserEnd {
+					continue
+				}
+
 				//nolint:gosec // not used for cryptographic purposes
 				rndGen := rand.New(rand.NewSource(randSeed))
 				name := fmt.Sprintf("dashboard-%s", usr.Username)
@@ -1122,21 +1578,32 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 					return xerrors.Errorf("create token for user: %w", err)
 				}
 
-				userClient := codersdk.New(client.URL)
-				userClient.SetSessionToken(userTokResp.Key)
+				userClient := codersdk.New(client.URL,
+					codersdk.WithSessionToken(userTokResp.Key),
+				)
 
 				config := dashboard.Config{
-					Interval:   interval,
-					Jitter:     jitter,
-					Trace:      tracingEnabled,
-					Logger:     logger.Named(name),
-					Headless:   headless,
-					ActionFunc: dashboard.ClickRandomElement,
-					RandIntn:   rndGen.Intn,
+					Interval: interval,
+					Jitter:   jitter,
+					Trace:    tracingEnabled,
+					Logger:   logger.Named(name),
+					Headless: headless,
+					RandIntn: rndGen.Intn,
+				}
+				// Only take a screenshot if we're in verbose mode.
+				// This could be useful for debugging, but it will blow up the disk.
+				if r.verbose {
+					config.Screenshot = dashboard.Screenshot
+				} else {
+					// Disable screenshots otherwise.
+					config.Screenshot = func(context.Context, string) (string, error) {
+						return "/dev/null", nil
+					}
 				}
 				//nolint:gocritic
-				logger.Info(ctx, "runner config", slog.F("min_wait", interval), slog.F("max_wait", jitter), slog.F("headless", headless), slog.F("trace", tracingEnabled))
+				logger.Info(ctx, "runner config", slog.F("interval", interval), slog.F("jitter", jitter), slog.F("headless", headless), slog.F("trace", tracingEnabled))
 				if err := config.Validate(); err != nil {
+					logger.Fatal(ctx, "validate config", slog.Error(err))
 					return err
 				}
 				var runner harness.Runnable = dashboard.NewRunner(userClient, metrics, config)
@@ -1174,34 +1641,40 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 		},
 	}
 
-	cmd.Options = []clibase.Option{
+	cmd.Options = []serpent.Option{
+		{
+			Flag:        "target-users",
+			Env:         "CODER_SCALETEST_DASHBOARD_TARGET_USERS",
+			Description: "Target a specific range of users in the format [START]:[END] (exclusive). Example: 0:10 will target the 10 first alphabetically sorted users (0-9).",
+			Value:       serpent.StringOf(&targetUsers),
+		},
 		{
 			Flag:        "interval",
 			Env:         "CODER_SCALETEST_DASHBOARD_INTERVAL",
-			Default:     "3s",
+			Default:     "10s",
 			Description: "Interval between actions.",
-			Value:       clibase.DurationOf(&interval),
+			Value:       serpent.DurationOf(&interval),
 		},
 		{
 			Flag:        "jitter",
 			Env:         "CODER_SCALETEST_DASHBOARD_JITTER",
-			Default:     "2s",
+			Default:     "5s",
 			Description: "Jitter between actions.",
-			Value:       clibase.DurationOf(&jitter),
+			Value:       serpent.DurationOf(&jitter),
 		},
 		{
 			Flag:        "headless",
 			Env:         "CODER_SCALETEST_DASHBOARD_HEADLESS",
 			Default:     "true",
 			Description: "Controls headless mode. Setting to false is useful for debugging.",
-			Value:       clibase.BoolOf(&headless),
+			Value:       serpent.BoolOf(&headless),
 		},
 		{
 			Flag:        "rand-seed",
 			Env:         "CODER_SCALETEST_DASHBOARD_RAND_SEED",
 			Default:     "0",
 			Description: "Seed for the random number generator.",
-			Value:       clibase.Int64Of(&randSeed),
+			Value:       serpent.Int64Of(&randSeed),
 		},
 	}
 
@@ -1214,6 +1687,239 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 	return cmd
 }
 
+const (
+	autostartTestName = "autostart"
+)
+
+func (r *RootCmd) scaletestAutostart() *serpent.Command {
+	var (
+		workspaceCount      int64
+		workspaceJobTimeout time.Duration
+		autostartDelay      time.Duration
+		autostartTimeout    time.Duration
+		template            string
+		noCleanup           bool
+
+		parameterFlags  workspaceParameterFlags
+		tracingFlags    = &scaletestTracingFlags{}
+		timeoutStrategy = &timeoutFlags{}
+		cleanupStrategy = newScaletestCleanupStrategy()
+		output          = &scaletestOutputFlags{}
+		prometheusFlags = &scaletestPrometheusFlags{}
+	)
+
+	cmd := &serpent.Command{
+		Use:   "autostart",
+		Short: "Replicate a thundering herd of autostarting workspaces",
+		Handler: func(inv *serpent.Invocation) error {
+			ctx := inv.Context()
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
+			notifyCtx, stop := signal.NotifyContext(ctx, StopSignals...) // Checked later.
+			defer stop()
+			ctx = notifyCtx
+
+			me, err := requireAdmin(ctx, client)
+			if err != nil {
+				return err
+			}
+
+			client.HTTPClient = &http.Client{
+				Transport: &codersdk.HeaderTransport{
+					Transport: http.DefaultTransport,
+					Header: map[string][]string{
+						codersdk.BypassRatelimitHeader: {"true"},
+					},
+				},
+			}
+
+			if workspaceCount <= 0 {
+				return xerrors.Errorf("--workspace-count must be greater than zero")
+			}
+
+			outputs, err := output.parse()
+			if err != nil {
+				return xerrors.Errorf("could not parse --output flags")
+			}
+
+			tpl, err := parseTemplate(ctx, client, me.OrganizationIDs, template)
+			if err != nil {
+				return xerrors.Errorf("parse template: %w", err)
+			}
+
+			cliRichParameters, err := asWorkspaceBuildParameters(parameterFlags.richParameters)
+			if err != nil {
+				return xerrors.Errorf("can't parse given parameter values: %w", err)
+			}
+
+			richParameters, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
+				Action:            WorkspaceCreate,
+				TemplateVersionID: tpl.ActiveVersionID,
+
+				RichParameterFile: parameterFlags.richParameterFile,
+				RichParameters:    cliRichParameters,
+			})
+			if err != nil {
+				return xerrors.Errorf("prepare build: %w", err)
+			}
+
+			tracerProvider, closeTracing, tracingEnabled, err := tracingFlags.provider(ctx)
+			if err != nil {
+				return xerrors.Errorf("create tracer provider: %w", err)
+			}
+			tracer := tracerProvider.Tracer(scaletestTracerName)
+
+			reg := prometheus.NewRegistry()
+			metrics := autostart.NewMetrics(reg)
+
+			setupBarrier := new(sync.WaitGroup)
+			setupBarrier.Add(int(workspaceCount))
+
+			th := harness.NewTestHarness(timeoutStrategy.wrapStrategy(harness.ConcurrentExecutionStrategy{}), cleanupStrategy.toStrategy())
+			for i := range workspaceCount {
+				id := strconv.Itoa(int(i))
+				config := autostart.Config{
+					User: createusers.Config{
+						OrganizationID: me.OrganizationIDs[0],
+					},
+					Workspace: workspacebuild.Config{
+						OrganizationID: me.OrganizationIDs[0],
+						Request: codersdk.CreateWorkspaceRequest{
+							TemplateID:          tpl.ID,
+							RichParameterValues: richParameters,
+						},
+					},
+					WorkspaceJobTimeout: workspaceJobTimeout,
+					AutostartDelay:      autostartDelay,
+					AutostartTimeout:    autostartTimeout,
+					Metrics:             metrics,
+					SetupBarrier:        setupBarrier,
+				}
+				if err := config.Validate(); err != nil {
+					return xerrors.Errorf("validate config: %w", err)
+				}
+				var runner harness.Runnable = autostart.NewRunner(client, config)
+				if tracingEnabled {
+					runner = &runnableTraceWrapper{
+						tracer:   tracer,
+						spanName: fmt.Sprintf("%s/%s", autostartTestName, id),
+						runner:   runner,
+					}
+				}
+				th.AddRun(autostartTestName, id, runner)
+			}
+
+			logger := inv.Logger
+			prometheusSrvClose := ServeHandler(ctx, logger, promhttp.HandlerFor(reg, promhttp.HandlerOpts{}), prometheusFlags.Address, "prometheus")
+			defer prometheusSrvClose()
+
+			defer func() {
+				_, _ = fmt.Fprintln(inv.Stderr, "\nUploading traces...")
+				if err := closeTracing(ctx); err != nil {
+					_, _ = fmt.Fprintf(inv.Stderr, "\nError uploading traces: %+v\n", err)
+				}
+				// Wait for prometheus metrics to be scraped
+				_, _ = fmt.Fprintf(inv.Stderr, "Waiting %s for prometheus metrics to be scraped\n", prometheusFlags.Wait)
+				<-time.After(prometheusFlags.Wait)
+			}()
+
+			_, _ = fmt.Fprintln(inv.Stderr, "Running autostart load test...")
+			testCtx, testCancel := timeoutStrategy.toContext(ctx)
+			defer testCancel()
+			err = th.Run(testCtx)
+			if err != nil {
+				return xerrors.Errorf("run test harness (harness failure, not a test failure): %w", err)
+			}
+
+			// If the command was interrupted, skip stats.
+			if notifyCtx.Err() != nil {
+				return notifyCtx.Err()
+			}
+
+			res := th.Results()
+			for _, o := range outputs {
+				err = o.write(res, inv.Stdout)
+				if err != nil {
+					return xerrors.Errorf("write output %q to %q: %w", o.format, o.path, err)
+				}
+			}
+
+			if !noCleanup {
+				_, _ = fmt.Fprintln(inv.Stderr, "\nCleaning up...")
+				cleanupCtx, cleanupCancel := cleanupStrategy.toContext(ctx)
+				defer cleanupCancel()
+				err = th.Cleanup(cleanupCtx)
+				if err != nil {
+					return xerrors.Errorf("cleanup tests: %w", err)
+				}
+			}
+
+			if res.TotalFail > 0 {
+				return xerrors.New("load test failed, see above for more details")
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Options = serpent.OptionSet{
+		{
+			Flag:          "workspace-count",
+			FlagShorthand: "c",
+			Env:           "CODER_SCALETEST_WORKSPACE_COUNT",
+			Description:   "Required: Total number of workspaces to create.",
+			Value:         serpent.Int64Of(&workspaceCount),
+			Required:      true,
+		},
+		{
+			Flag:        "workspace-job-timeout",
+			Env:         "CODER_SCALETEST_WORKSPACE_JOB_TIMEOUT",
+			Default:     "5m",
+			Description: "Timeout for workspace jobs (e.g. build, start).",
+			Value:       serpent.DurationOf(&workspaceJobTimeout),
+		},
+		{
+			Flag:        "autostart-delay",
+			Env:         "CODER_SCALETEST_AUTOSTART_DELAY",
+			Default:     "2m",
+			Description: "How long after all the workspaces have been stopped to schedule them to be started again.",
+			Value:       serpent.DurationOf(&autostartDelay),
+		},
+		{
+			Flag:        "autostart-timeout",
+			Env:         "CODER_SCALETEST_AUTOSTART_TIMEOUT",
+			Default:     "5m",
+			Description: "Timeout for the autostart build to be initiated after the scheduled start time.",
+			Value:       serpent.DurationOf(&autostartTimeout),
+		},
+		{
+			Flag:          "template",
+			FlagShorthand: "t",
+			Env:           "CODER_SCALETEST_TEMPLATE",
+			Description:   "Required: Name or ID of the template to use for workspaces.",
+			Value:         serpent.StringOf(&template),
+			Required:      true,
+		},
+		{
+			Flag:        "no-cleanup",
+			Env:         "CODER_SCALETEST_NO_CLEANUP",
+			Description: "Do not clean up resources after the test completes.",
+			Value:       serpent.BoolOf(&noCleanup),
+		},
+	}
+
+	cmd.Options = append(cmd.Options, parameterFlags.cliParameters()...)
+	tracingFlags.attach(&cmd.Options)
+	timeoutStrategy.attach(&cmd.Options)
+	cleanupStrategy.attach(&cmd.Options)
+	output.attach(&cmd.Options)
+	prometheusFlags.attach(&cmd.Options)
+	return cmd
+}
+
 type runnableTraceWrapper struct {
 	tracer   trace.Tracer
 	spanName string
@@ -1223,8 +1929,9 @@ type runnableTraceWrapper struct {
 }
 
 var (
-	_ harness.Runnable  = &runnableTraceWrapper{}
-	_ harness.Cleanable = &runnableTraceWrapper{}
+	_ harness.Runnable    = &runnableTraceWrapper{}
+	_ harness.Cleanable   = &runnableTraceWrapper{}
+	_ harness.Collectable = &runnableTraceWrapper{}
 )
 
 func (r *runnableTraceWrapper) Run(ctx context.Context, id string, logs io.Writer) error {
@@ -1251,7 +1958,7 @@ func (r *runnableTraceWrapper) Run(ctx context.Context, id string, logs io.Write
 	return r.runner.Run(ctx2, id, logs)
 }
 
-func (r *runnableTraceWrapper) Cleanup(ctx context.Context, id string) error {
+func (r *runnableTraceWrapper) Cleanup(ctx context.Context, id string, logs io.Writer) error {
 	c, ok := r.runner.(harness.Cleanable)
 	if !ok {
 		return nil
@@ -1263,49 +1970,46 @@ func (r *runnableTraceWrapper) Cleanup(ctx context.Context, id string) error {
 	ctx, span := r.tracer.Start(ctx, r.spanName+" cleanup")
 	defer span.End()
 
-	return c.Cleanup(ctx, id)
+	return c.Cleanup(ctx, id, logs)
 }
 
-// newScaleTestUser returns a random username and email address that can be used
-// for scale testing. The returned username is prefixed with "scaletest-" and
-// the returned email address is suffixed with "@scaletest.local".
-func newScaleTestUser(id string) (username string, email string, err error) {
-	randStr, err := cryptorand.String(8)
-	return fmt.Sprintf("scaletest-%s-%s", randStr, id), fmt.Sprintf("%s-%s@scaletest.local", randStr, id), err
+func (r *runnableTraceWrapper) GetMetrics() map[string]any {
+	c, ok := r.runner.(harness.Collectable)
+	if !ok {
+		return nil
+	}
+	return c.GetMetrics()
 }
 
-// newScaleTestWorkspace returns a random workspace name that can be used for
-// scale testing. The returned workspace name is prefixed with "scaletest-" and
-// suffixed with the given id.
-func newScaleTestWorkspace(id string) (name string, err error) {
-	randStr, err := cryptorand.String(8)
-	return fmt.Sprintf("scaletest-%s-%s", randStr, id), err
-}
-
-func isScaleTestUser(user codersdk.User) bool {
-	return strings.HasSuffix(user.Email, "@scaletest.local")
-}
-
-func isScaleTestWorkspace(workspace codersdk.Workspace) bool {
-	return strings.HasPrefix(workspace.OwnerName, "scaletest-") ||
-		strings.HasPrefix(workspace.Name, "scaletest-")
-}
-
-func getScaletestWorkspaces(ctx context.Context, client *codersdk.Client) ([]codersdk.Workspace, error) {
+func getScaletestWorkspaces(ctx context.Context, client *codersdk.Client, owner, template string) ([]codersdk.Workspace, int, error) {
 	var (
 		pageNumber = 0
 		limit      = 100
 		workspaces []codersdk.Workspace
+		skipped    int
 	)
+
+	me, err := client.User(ctx, codersdk.Me)
+	if err != nil {
+		return nil, 0, xerrors.Errorf("check logged-in user")
+	}
+
+	dv, err := client.DeploymentConfig(ctx)
+	if err != nil {
+		return nil, 0, xerrors.Errorf("fetch deployment config: %w", err)
+	}
+	noOwnerAccess := dv.Values != nil && dv.Values.DisableOwnerWorkspaceExec.Value()
 
 	for {
 		page, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
-			Name:   "scaletest-",
-			Offset: pageNumber * limit,
-			Limit:  limit,
+			Name:     "scaletest-",
+			Template: template,
+			Owner:    owner,
+			Offset:   pageNumber * limit,
+			Limit:    limit,
 		})
 		if err != nil {
-			return nil, xerrors.Errorf("fetch scaletest workspaces page %d: %w", pageNumber, err)
+			return nil, 0, xerrors.Errorf("fetch scaletest workspaces page %d: %w", pageNumber, err)
 		}
 
 		pageNumber++
@@ -1315,13 +2019,18 @@ func getScaletestWorkspaces(ctx context.Context, client *codersdk.Client) ([]cod
 
 		pageWorkspaces := make([]codersdk.Workspace, 0, len(page.Workspaces))
 		for _, w := range page.Workspaces {
-			if isScaleTestWorkspace(w) {
-				pageWorkspaces = append(pageWorkspaces, w)
+			if !loadtestutil.IsScaleTestWorkspace(w.Name, w.OwnerName) {
+				continue
 			}
+			if noOwnerAccess && w.OwnerID != me.ID {
+				skipped++
+				continue
+			}
+			pageWorkspaces = append(pageWorkspaces, w)
 		}
 		workspaces = append(workspaces, pageWorkspaces...)
 	}
-	return workspaces, nil
+	return workspaces, skipped, nil
 }
 
 func getScaletestUsers(ctx context.Context, client *codersdk.Client) ([]codersdk.User, error) {
@@ -1350,7 +2059,7 @@ func getScaletestUsers(ctx context.Context, client *codersdk.Client) ([]codersdk
 
 		pageUsers := make([]codersdk.User, 0, len(page.Users))
 		for _, u := range page.Users {
-			if isScaleTestUser(u) {
+			if loadtestutil.IsScaleTestUser(u.Username, u.Email) {
 				pageUsers = append(pageUsers, u)
 			}
 		}
@@ -1358,4 +2067,90 @@ func getScaletestUsers(ctx context.Context, client *codersdk.Client) ([]codersdk
 	}
 
 	return users, nil
+}
+
+func parseTemplate(ctx context.Context, client *codersdk.Client, organizationIDs []uuid.UUID, template string) (tpl codersdk.Template, err error) {
+	if id, err := uuid.Parse(template); err == nil && id != uuid.Nil {
+		tpl, err = client.Template(ctx, id)
+		if err != nil {
+			return tpl, xerrors.Errorf("get template by ID %q: %w", template, err)
+		}
+	} else {
+		// List templates in all orgs until we find a match.
+	orgLoop:
+		for _, orgID := range organizationIDs {
+			tpls, err := client.TemplatesByOrganization(ctx, orgID)
+			if err != nil {
+				return tpl, xerrors.Errorf("list templates in org %q: %w", orgID, err)
+			}
+
+			for _, t := range tpls {
+				if t.Name == template {
+					tpl = t
+					break orgLoop
+				}
+			}
+		}
+	}
+	if tpl.ID == uuid.Nil {
+		return tpl, xerrors.Errorf("could not find template %q in any organization", template)
+	}
+
+	return tpl, nil
+}
+
+func parseTargetRange(name, targets string) (start, end int, err error) {
+	if targets == "" {
+		return 0, 0, nil
+	}
+
+	parts := strings.Split(targets, ":")
+	if len(parts) != 2 {
+		return 0, 0, xerrors.Errorf("invalid target %s %q", name, targets)
+	}
+
+	start, err = strconv.Atoi(parts[0])
+	if err != nil {
+		return 0, 0, xerrors.Errorf("invalid target %s %q: %w", name, targets, err)
+	}
+
+	end, err = strconv.Atoi(parts[1])
+	if err != nil {
+		return 0, 0, xerrors.Errorf("invalid target %s %q: %w", name, targets, err)
+	}
+
+	if start == end {
+		return 0, 0, xerrors.Errorf("invalid target %s %q: start and end cannot be equal", name, targets)
+	}
+	if end < start {
+		return 0, 0, xerrors.Errorf("invalid target %s %q: end cannot be less than start", name, targets)
+	}
+
+	return start, end, nil
+}
+
+func createWorkspaceAppConfig(client *codersdk.Client, appHost, app string, workspace codersdk.Workspace, agent codersdk.WorkspaceAgent) (workspacetraffic.AppConfig, error) {
+	if app == "" {
+		return workspacetraffic.AppConfig{}, nil
+	}
+
+	i := slices.IndexFunc(agent.Apps, func(a codersdk.WorkspaceApp) bool { return a.Slug == app })
+	if i == -1 {
+		return workspacetraffic.AppConfig{}, xerrors.Errorf("app %q not found in workspace %q", app, workspace.Name)
+	}
+
+	c := workspacetraffic.AppConfig{
+		Name: agent.Apps[i].Slug,
+	}
+	if agent.Apps[i].Subdomain {
+		if appHost == "" {
+			return workspacetraffic.AppConfig{}, xerrors.Errorf("app %q is a subdomain app but no app host is configured", app)
+		}
+
+		c.URL = fmt.Sprintf("%s://%s", client.URL.Scheme, strings.Replace(appHost, "*", agent.Apps[i].SubdomainName, 1))
+	} else {
+		c.URL = fmt.Sprintf("%s/@%s/%s.%s/apps/%s", client.URL.String(), workspace.OwnerName, workspace.Name, agent.Name, agent.Apps[i].Slug)
+	}
+
+	return c, nil
 }

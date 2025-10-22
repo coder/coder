@@ -1,5 +1,3 @@
-BEGIN;
-
 -- We need to delete all existing API keys for soft-deleted users.
 DELETE FROM
 	api_keys
@@ -51,5 +49,3 @@ CREATE TRIGGER trigger_insert_apikeys
 BEFORE INSERT ON api_keys
 FOR EACH ROW
 EXECUTE PROCEDURE insert_apikey_fail_if_user_deleted();
-
-COMMIT;

@@ -29,8 +29,12 @@ type TemplateVersion struct {
 	Job            ProvisionerJob `json:"job"`
 	Readme         string         `json:"readme"`
 	CreatedBy      MinimalUser    `json:"created_by"`
+	Archived       bool           `json:"archived"`
 
-	Warnings []TemplateVersionWarning `json:"warnings,omitempty" enums:"DEPRECATED_PARAMETERS"`
+	Warnings            []TemplateVersionWarning `json:"warnings,omitempty" enums:"DEPRECATED_PARAMETERS"`
+	MatchedProvisioners *MatchedProvisioners     `json:"matched_provisioners,omitempty"`
+
+	HasExternalAgent bool `json:"has_external_agent"`
 }
 
 type TemplateVersionExternalAuth struct {
@@ -40,6 +44,7 @@ type TemplateVersionExternalAuth struct {
 	DisplayIcon     string `json:"display_icon"`
 	AuthenticateURL string `json:"authenticate_url"`
 	Authenticated   bool   `json:"authenticated"`
+	Optional        bool   `json:"optional,omitempty"`
 }
 
 type ValidationMonotonicOrder string
@@ -51,22 +56,25 @@ const (
 
 // TemplateVersionParameter represents a parameter for a template version.
 type TemplateVersionParameter struct {
-	Name                 string                           `json:"name"`
-	DisplayName          string                           `json:"display_name,omitempty"`
-	Description          string                           `json:"description"`
-	DescriptionPlaintext string                           `json:"description_plaintext"`
-	Type                 string                           `json:"type" enums:"string,number,bool,list(string)"`
-	Mutable              bool                             `json:"mutable"`
-	DefaultValue         string                           `json:"default_value"`
-	Icon                 string                           `json:"icon"`
-	Options              []TemplateVersionParameterOption `json:"options"`
-	ValidationError      string                           `json:"validation_error,omitempty"`
-	ValidationRegex      string                           `json:"validation_regex,omitempty"`
-	ValidationMin        *int32                           `json:"validation_min,omitempty"`
-	ValidationMax        *int32                           `json:"validation_max,omitempty"`
-	ValidationMonotonic  ValidationMonotonicOrder         `json:"validation_monotonic,omitempty" enums:"increasing,decreasing"`
-	Required             bool                             `json:"required"`
-	Ephemeral            bool                             `json:"ephemeral"`
+	Name                 string `json:"name"`
+	DisplayName          string `json:"display_name,omitempty"`
+	Description          string `json:"description"`
+	DescriptionPlaintext string `json:"description_plaintext"`
+	Type                 string `json:"type" enums:"string,number,bool,list(string)"`
+	// FormType has an enum value of empty string, `""`.
+	// Keep the leading comma in the enums struct tag.
+	FormType            string                           `json:"form_type" enums:",radio,dropdown,input,textarea,slider,checkbox,switch,tag-select,multi-select,error"`
+	Mutable             bool                             `json:"mutable"`
+	DefaultValue        string                           `json:"default_value"`
+	Icon                string                           `json:"icon"`
+	Options             []TemplateVersionParameterOption `json:"options"`
+	ValidationError     string                           `json:"validation_error,omitempty"`
+	ValidationRegex     string                           `json:"validation_regex,omitempty"`
+	ValidationMin       *int32                           `json:"validation_min,omitempty"`
+	ValidationMax       *int32                           `json:"validation_max,omitempty"`
+	ValidationMonotonic ValidationMonotonicOrder         `json:"validation_monotonic,omitempty" enums:"increasing,decreasing"`
+	Required            bool                             `json:"required"`
+	Ephemeral           bool                             `json:"ephemeral"`
 }
 
 // TemplateVersionParameterOption represents a selectable option for a template parameter.
@@ -219,6 +227,22 @@ func (c *Client) TemplateVersionDryRun(ctx context.Context, version, job uuid.UU
 
 	var j ProvisionerJob
 	return j, json.NewDecoder(res.Body).Decode(&j)
+}
+
+// TemplateVersionDryRunMatchedProvisioners returns the matched provisioners for a
+// template version dry-run job.
+func (c *Client) TemplateVersionDryRunMatchedProvisioners(ctx context.Context, version, job uuid.UUID) (MatchedProvisioners, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s/dry-run/%s/matched-provisioners", version, job), nil)
+	if err != nil {
+		return MatchedProvisioners{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return MatchedProvisioners{}, ReadBodyAsError(res)
+	}
+
+	var matched MatchedProvisioners
+	return matched, json.NewDecoder(res.Body).Decode(&matched)
 }
 
 // TemplateVersionDryRunResources returns the resources of a finished template

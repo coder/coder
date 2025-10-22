@@ -3,44 +3,55 @@
 package cli
 
 import (
-	"database/sql"
 	"fmt"
 
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/sloghuman"
+	"github.com/coder/coder/v2/coderd/database/awsiamrds"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
+	"github.com/coder/serpent"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/migrations"
 	"github.com/coder/coder/v2/coderd/userpassword"
 )
 
-func (*RootCmd) resetPassword() *clibase.Cmd {
-	var postgresURL string
+func (*RootCmd) resetPassword() *serpent.Command {
+	var (
+		postgresURL  string
+		postgresAuth string
+	)
 
-	root := &clibase.Cmd{
+	root := &serpent.Command{
 		Use:        "reset-password <username>",
 		Short:      "Directly connect to the database to reset a user's password",
-		Middleware: clibase.RequireNArgs(1),
-		Handler: func(inv *clibase.Invocation) error {
+		Middleware: serpent.RequireNArgs(1),
+		Handler: func(inv *serpent.Invocation) error {
 			username := inv.Args[0]
 
-			sqlDB, err := sql.Open("postgres", postgresURL)
+			logger := slog.Make(sloghuman.Sink(inv.Stdout))
+			if ok, _ := inv.ParsedFlags().GetBool("verbose"); ok {
+				logger = logger.Leveled(slog.LevelDebug)
+			}
+
+			sqlDriver := "postgres"
+			if codersdk.PostgresAuth(postgresAuth) == codersdk.PostgresAuthAWSIAMRDS {
+				var err error
+				sqlDriver, err = awsiamrds.Register(inv.Context(), sqlDriver)
+				if err != nil {
+					return xerrors.Errorf("register aws rds iam auth: %w", err)
+				}
+			}
+
+			sqlDB, err := ConnectToPostgres(inv.Context(), logger, sqlDriver, postgresURL, nil)
 			if err != nil {
 				return xerrors.Errorf("dial postgres: %w", err)
 			}
 			defer sqlDB.Close()
-			err = sqlDB.Ping()
-			if err != nil {
-				return xerrors.Errorf("ping postgres: %w", err)
-			}
 
-			err = migrations.EnsureClean(sqlDB)
-			if err != nil {
-				return xerrors.Errorf("database needs migration: %w", err)
-			}
 			db := database.New(sqlDB)
 
 			user, err := db.GetUserByEmailOrUsername(inv.Context(), database.GetUserByEmailOrUsernameParams{
@@ -51,11 +62,9 @@ func (*RootCmd) resetPassword() *clibase.Cmd {
 			}
 
 			password, err := cliui.Prompt(inv, cliui.PromptOptions{
-				Text:   "Enter new " + pretty.Sprint(cliui.DefaultStyles.Field, "password") + ":",
-				Secret: true,
-				Validate: func(s string) error {
-					return userpassword.Validate(s)
-				},
+				Text:     "Enter new " + pretty.Sprint(cliui.DefaultStyles.Field, "password") + ":",
+				Secret:   true,
+				Validate: userpassword.Validate,
 			})
 			if err != nil {
 				return xerrors.Errorf("password prompt: %w", err)
@@ -90,12 +99,20 @@ func (*RootCmd) resetPassword() *clibase.Cmd {
 		},
 	}
 
-	root.Options = clibase.OptionSet{
+	root.Options = serpent.OptionSet{
 		{
 			Flag:        "postgres-url",
 			Description: "URL of a PostgreSQL database to connect to.",
 			Env:         "CODER_PG_CONNECTION_URL",
-			Value:       clibase.StringOf(&postgresURL),
+			Value:       serpent.StringOf(&postgresURL),
+		},
+		serpent.Option{
+			Name:        "Postgres Connection Auth",
+			Description: "Type of auth to use when connecting to postgres.",
+			Flag:        "postgres-connection-auth",
+			Env:         "CODER_PG_CONNECTION_AUTH",
+			Default:     "password",
+			Value:       serpent.EnumOf(&postgresAuth, codersdk.PostgresAuthDrivers...),
 		},
 	}
 

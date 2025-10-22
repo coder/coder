@@ -5,22 +5,29 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
-	"strconv"
+	"sync"
 	"time"
 
-	"cloud.google.com/go/compute/metadata"
 	"github.com/google/uuid"
+	"github.com/hashicorp/yamux"
 	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
+	"storj.io/drpc"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/retry"
+	"github.com/coder/websocket"
+
+	"github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/apiversion"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
+	"github.com/coder/coder/v2/tailnet"
+	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 )
 
 // ExternalLogSourceID is the statically-defined ID of a log-source that
@@ -30,22 +37,35 @@ import (
 // log-source. This should be removed in the future.
 var ExternalLogSourceID = uuid.MustParse("3b579bf4-1ed8-4b99-87a8-e9a1e3410410")
 
-// New returns a client that is used to interact with the
-// Coder API from a workspace agent.
-func New(serverURL *url.URL) *Client {
+// SessionTokenSetup is a function that creates the token provider while setting up the workspace agent. We do it this
+// way because cloud instance identity (AWS, Azure, Google, etc.) requires interacting with coderd to exchange tokens.
+// This means that the token providers need a codersdk.Client. However, the SessionTokenProvider is itself used by
+// the client to authenticate requests. Thus, the dependency is bidirectional. Functions of this type are used in
+// New() to ensure that things are set up correctly so there is only one instance of the codersdk.Client created.
+// @typescript-ignore SessionTokenSetup
+type SessionTokenSetup func(client *codersdk.Client) RefreshableSessionTokenProvider
+
+// New creates a new *Client which can be used by an agent to connect to Coderd. Use a SessionTokenSetup function
+// to define the session token provider for the Client. This overrides the SessionTokenProvider on the underlying
+// `*codersdk.Client`, so any `codersdk.ClientOptions` passed as `opts` should not set this property.
+func New(serverURL *url.URL, setup SessionTokenSetup, opts ...codersdk.ClientOption) *Client {
+	var provider RefreshableSessionTokenProvider
+	opts = append(opts, func(c *codersdk.Client) {
+		provider = setup(c)
+		c.SessionTokenProvider = provider
+	})
+	c := codersdk.New(serverURL, opts...)
 	return &Client{
-		SDK: codersdk.New(serverURL),
+		SDK:                             c,
+		RefreshableSessionTokenProvider: provider,
 	}
 }
 
 // Client wraps `codersdk.Client` with specific functions
 // scoped to a workspace agent.
 type Client struct {
+	RefreshableSessionTokenProvider
 	SDK *codersdk.Client
-}
-
-func (c *Client) SetSessionToken(token string) {
-	c.SDK.SetSessionToken(token)
 }
 
 type GitSSHKey struct {
@@ -69,26 +89,29 @@ func (c *Client) GitSSHKey(ctx context.Context) (GitSSHKey, error) {
 	return gitSSHKey, json.NewDecoder(res.Body).Decode(&gitSSHKey)
 }
 
-// In the future, we may want to support sending back multiple values for
-// performance.
-type PostMetadataRequest = codersdk.WorkspaceAgentMetadataResult
-
-func (c *Client) PostMetadata(ctx context.Context, key string, req PostMetadataRequest) error {
-	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/metadata/"+key, req)
-	if err != nil {
-		return xerrors.Errorf("execute request: %w", err)
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusNoContent {
-		return codersdk.ReadBodyAsError(res)
-	}
-
-	return nil
+type Metadata struct {
+	Key string `json:"key"`
+	codersdk.WorkspaceAgentMetadataResult
 }
 
+type PostMetadataRequest struct {
+	Metadata []Metadata `json:"metadata"`
+}
+
+// In the future, we may want to support sending back multiple values for
+// performance.
+type PostMetadataRequestDeprecated = codersdk.WorkspaceAgentMetadataResult
+
 type Manifest struct {
-	AgentID uuid.UUID `json:"agent_id"`
+	ParentID  uuid.UUID `json:"parent_id"`
+	AgentID   uuid.UUID `json:"agent_id"`
+	AgentName string    `json:"agent_name"`
+	// OwnerUsername and WorkspaceID are used by an open-source user to identify the workspace.
+	// We do not provide insurance that this will not be removed in the future,
+	// but if it's easy to persist lets keep it around.
+	OwnerName     string    `json:"owner_name"`
+	WorkspaceID   uuid.UUID `json:"workspace_id"`
+	WorkspaceName string    `json:"workspace_name"`
 	// GitAuthConfigs stores the number of Git configurations
 	// the Coder deployment has. If this number is >0, we
 	// set up special configuration in the workspace.
@@ -103,6 +126,7 @@ type Manifest struct {
 	DisableDirectConnections bool                                         `json:"disable_direct_connections"`
 	Metadata                 []codersdk.WorkspaceAgentMetadataDescription `json:"metadata"`
 	Scripts                  []codersdk.WorkspaceAgentScript              `json:"scripts"`
+	Devcontainers            []codersdk.WorkspaceAgentDevcontainer        `json:"devcontainers"`
 }
 
 type LogSource struct {
@@ -115,165 +139,142 @@ type Script struct {
 	Script string `json:"script"`
 }
 
-// Manifest fetches manifest for the currently authenticated workspace agent.
-func (c *Client) Manifest(ctx context.Context) (Manifest, error) {
-	res, err := c.SDK.Request(ctx, http.MethodGet, "/api/v2/workspaceagents/me/manifest", nil)
-	if err != nil {
-		return Manifest{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return Manifest{}, codersdk.ReadBodyAsError(res)
-	}
-	var agentMeta Manifest
-	err = json.NewDecoder(res.Body).Decode(&agentMeta)
-	if err != nil {
-		return Manifest{}, err
-	}
-	err = c.rewriteDerpMap(agentMeta.DERPMap)
-	if err != nil {
-		return Manifest{}, err
-	}
-	return agentMeta, nil
-}
-
-// rewriteDerpMap rewrites the DERP map to use the access URL of the SDK as the
-// "embedded relay" access URL. The passed derp map is modified in place.
+// RewriteDERPMap rewrites the DERP map to use the configured access URL of the
+// agent as the "embedded relay" access URL.
 //
-// Agents can provide an arbitrary access URL that may be different that the
-// globally configured one. This breaks the built-in DERP, which would continue
-// to reference the global access URL.
-func (c *Client) rewriteDerpMap(derpMap *tailcfg.DERPMap) error {
-	accessingPort := c.SDK.URL.Port()
-	if accessingPort == "" {
-		accessingPort = "80"
-		if c.SDK.URL.Scheme == "https" {
-			accessingPort = "443"
-		}
-	}
-	accessPort, err := strconv.Atoi(accessingPort)
-	if err != nil {
-		return xerrors.Errorf("convert accessing port %q: %w", accessingPort, err)
-	}
-	for _, region := range derpMap.Regions {
-		if !region.EmbeddedRelay {
-			continue
-		}
-
-		for _, node := range region.Nodes {
-			if node.STUNOnly {
-				continue
-			}
-			node.HostName = c.SDK.URL.Hostname()
-			node.DERPPort = accessPort
-			node.ForceHTTP = c.SDK.URL.Scheme == "http"
-		}
-	}
-	return nil
+// See tailnet.RewriteDERPMapDefaultRelay for more details on why this is
+// necessary.
+func (c *Client) RewriteDERPMap(derpMap *tailcfg.DERPMap) {
+	tailnet.RewriteDERPMapDefaultRelay(context.Background(), c.SDK.Logger(), derpMap, c.SDK.URL)
 }
 
-type DERPMapUpdate struct {
-	Err     error
-	DERPMap *tailcfg.DERPMap
+// ConnectRPC20 returns a dRPC client to the Agent API v2.0.  Notably, it is missing
+// GetAnnouncementBanners, but is useful when you want to be maximally compatible with Coderd
+// Release Versions from 2.9+
+// Deprecated: use ConnectRPC20WithTailnet
+func (c *Client) ConnectRPC20(ctx context.Context) (proto.DRPCAgentClient20, error) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 0))
+	if err != nil {
+		return nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), nil
 }
 
-// DERPMapUpdates connects to the DERP map updates WebSocket.
-func (c *Client) DERPMapUpdates(ctx context.Context) (<-chan DERPMapUpdate, io.Closer, error) {
-	derpMapURL, err := c.SDK.URL.Parse("/api/v2/derp-map")
+// ConnectRPC20WithTailnet returns a dRPC client to the Agent API v2.0.  Notably, it is missing
+// GetAnnouncementBanners, but is useful when you want to be maximally compatible with Coderd
+// Release Versions from 2.9+
+func (c *Client) ConnectRPC20WithTailnet(ctx context.Context) (
+	proto.DRPCAgentClient20, tailnetproto.DRPCTailnetClient20, error,
+) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 0))
 	if err != nil {
-		return nil, nil, xerrors.Errorf("parse url: %w", err)
+		return nil, nil, err
 	}
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		return nil, nil, xerrors.Errorf("create cookie jar: %w", err)
-	}
-	jar.SetCookies(derpMapURL, []*http.Cookie{{
-		Name:  codersdk.SessionTokenCookie,
-		Value: c.SDK.SessionToken(),
-	}})
-	httpClient := &http.Client{
-		Jar:       jar,
-		Transport: c.SDK.HTTPClient.Transport,
-	}
-	// nolint:bodyclose
-	conn, res, err := websocket.Dial(ctx, derpMapURL.String(), &websocket.DialOptions{
-		HTTPClient: httpClient,
-	})
-	if err != nil {
-		if res == nil {
-			return nil, nil, err
-		}
-		return nil, nil, codersdk.ReadBodyAsError(res)
-	}
-
-	ctx, cancelFunc := context.WithCancel(ctx)
-	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
-	pingClosed := pingWebSocket(ctx, c.SDK.Logger(), conn, "derp map")
-
-	var (
-		updates       = make(chan DERPMapUpdate)
-		updatesClosed = make(chan struct{})
-		dec           = json.NewDecoder(wsNetConn)
-	)
-	go func() {
-		defer close(updates)
-		defer close(updatesClosed)
-		defer cancelFunc()
-		defer conn.Close(websocket.StatusGoingAway, "DERPMapUpdates closed")
-		for {
-			var update DERPMapUpdate
-			err := dec.Decode(&update.DERPMap)
-			if err != nil {
-				update.Err = err
-				update.DERPMap = nil
-			}
-			if update.DERPMap != nil {
-				err = c.rewriteDerpMap(update.DERPMap)
-				if err != nil {
-					update.Err = err
-					update.DERPMap = nil
-				}
-			}
-
-			select {
-			case updates <- update:
-			case <-ctx.Done():
-				// Unblock the caller if they're waiting for an update.
-				select {
-				case updates <- DERPMapUpdate{Err: ctx.Err()}:
-				default:
-				}
-				return
-			}
-			if update.Err != nil {
-				return
-			}
-		}
-	}()
-
-	return updates, &closer{
-		closeFunc: func() error {
-			cancelFunc()
-			<-pingClosed
-			_ = conn.Close(websocket.StatusGoingAway, "DERPMapUpdates closed")
-			<-updatesClosed
-			return nil
-		},
-	}, nil
+	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
 }
 
-// Listen connects to the workspace agent coordinate WebSocket
-// that handles connection negotiation.
-func (c *Client) Listen(ctx context.Context) (net.Conn, error) {
-	coordinateURL, err := c.SDK.URL.Parse("/api/v2/workspaceagents/me/coordinate")
+// ConnectRPC21 returns a dRPC client to the Agent API v2.1.  It is useful when you want to be
+// maximally compatible with Coderd Release Versions from 2.12+
+// Deprecated: use ConnectRPC21WithTailnet
+func (c *Client) ConnectRPC21(ctx context.Context) (proto.DRPCAgentClient21, error) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 1))
+	if err != nil {
+		return nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), nil
+}
+
+// ConnectRPC21WithTailnet returns a dRPC client to the Agent API v2.1.  It is useful when you want to be
+// maximally compatible with Coderd Release Versions from 2.12+
+func (c *Client) ConnectRPC21WithTailnet(ctx context.Context) (
+	proto.DRPCAgentClient21, tailnetproto.DRPCTailnetClient21, error,
+) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 1))
+	if err != nil {
+		return nil, nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
+}
+
+// ConnectRPC22 returns a dRPC client to the Agent API v2.2.  It is useful when you want to be
+// maximally compatible with Coderd Release Versions from 2.13+
+func (c *Client) ConnectRPC22(ctx context.Context) (
+	proto.DRPCAgentClient22, tailnetproto.DRPCTailnetClient22, error,
+) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 2))
+	if err != nil {
+		return nil, nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
+}
+
+// ConnectRPC23 returns a dRPC client to the Agent API v2.3.  It is useful when you want to be
+// maximally compatible with Coderd Release Versions from 2.18+
+func (c *Client) ConnectRPC23(ctx context.Context) (
+	proto.DRPCAgentClient23, tailnetproto.DRPCTailnetClient23, error,
+) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 3))
+	if err != nil {
+		return nil, nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
+}
+
+// ConnectRPC24 returns a dRPC client to the Agent API v2.4.  It is useful when you want to be
+// maximally compatible with Coderd Release Versions from 2.20+
+func (c *Client) ConnectRPC24(ctx context.Context) (
+	proto.DRPCAgentClient24, tailnetproto.DRPCTailnetClient24, error,
+) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 4))
+	if err != nil {
+		return nil, nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
+}
+
+// ConnectRPC25 returns a dRPC client to the Agent API v2.5.  It is useful when you want to be
+// maximally compatible with Coderd Release Versions from 2.23+
+func (c *Client) ConnectRPC25(ctx context.Context) (
+	proto.DRPCAgentClient25, tailnetproto.DRPCTailnetClient25, error,
+) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 5))
+	if err != nil {
+		return nil, nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
+}
+
+// ConnectRPC25 returns a dRPC client to the Agent API v2.5.  It is useful when you want to be
+// maximally compatible with Coderd Release Versions from 2.24+
+func (c *Client) ConnectRPC26(ctx context.Context) (
+	proto.DRPCAgentClient26, tailnetproto.DRPCTailnetClient26, error,
+) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 6))
+	if err != nil {
+		return nil, nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
+}
+
+// ConnectRPC connects to the workspace agent API and tailnet API
+func (c *Client) ConnectRPC(ctx context.Context) (drpc.Conn, error) {
+	return c.connectRPCVersion(ctx, proto.CurrentVersion)
+}
+
+func (c *Client) connectRPCVersion(ctx context.Context, version *apiversion.APIVersion) (drpc.Conn, error) {
+	rpcURL, err := c.SDK.URL.Parse("/api/v2/workspaceagents/me/rpc")
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
+	q := rpcURL.Query()
+	q.Add("version", version.String())
+	rpcURL.RawQuery = q.Encode()
+
 	jar, err := cookiejar.New(nil)
 	if err != nil {
 		return nil, xerrors.Errorf("create cookie jar: %w", err)
 	}
-	jar.SetCookies(coordinateURL, []*http.Cookie{{
+	jar.SetCookies(rpcURL, []*http.Cookie{{
 		Name:  codersdk.SessionTokenCookie,
 		Value: c.SDK.SessionToken(),
 	}})
@@ -282,7 +283,7 @@ func (c *Client) Listen(ctx context.Context) (net.Conn, error) {
 		Transport: c.SDK.HTTPClient.Transport,
 	}
 	// nolint:bodyclose
-	conn, res, err := websocket.Dial(ctx, coordinateURL.String(), &websocket.DialOptions{
+	conn, res, err := websocket.Dial(ctx, rpcURL.String(), &websocket.DialOptions{
 		HTTPClient: httpClient,
 	})
 	if err != nil {
@@ -292,18 +293,19 @@ func (c *Client) Listen(ctx context.Context) (net.Conn, error) {
 		return nil, codersdk.ReadBodyAsError(res)
 	}
 
-	ctx, cancelFunc := context.WithCancel(ctx)
-	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageBinary)
-	pingClosed := pingWebSocket(ctx, c.SDK.Logger(), conn, "coordinate")
+	// Set the read limit to 4 MiB -- about the limit for protobufs.  This needs to be larger than
+	// the default because some of our protocols can include large messages like startup scripts.
+	conn.SetReadLimit(1 << 22)
+	netConn := websocket.NetConn(ctx, conn, websocket.MessageBinary)
 
-	return &closeNetConn{
-		Conn: wsNetConn,
-		closeFunc: func() {
-			cancelFunc()
-			_ = conn.Close(websocket.StatusGoingAway, "Listen closed")
-			<-pingClosed
-		},
-	}, nil
+	config := yamux.DefaultConfig()
+	config.LogOutput = nil
+	config.Logger = slog.Stdlib(ctx, c.SDK.Logger(), slog.LevelInfo)
+	session, err := yamux.Client(netConn, config)
+	if err != nil {
+		return nil, xerrors.Errorf("multiplex client: %w", err)
+	}
+	return drpcsdk.MultiplexedConn(session), nil
 }
 
 type PostAppHealthsRequest struct {
@@ -311,18 +313,23 @@ type PostAppHealthsRequest struct {
 	Healths map[uuid.UUID]codersdk.WorkspaceAppHealth
 }
 
-// PostAppHealth updates the workspace agent app health status.
-func (c *Client) PostAppHealth(ctx context.Context, req PostAppHealthsRequest) error {
-	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/app-health", req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return codersdk.ReadBodyAsError(res)
-	}
+// BatchUpdateAppHealthsClient is a partial interface of proto.DRPCAgentClient.
+type BatchUpdateAppHealthsClient interface {
+	BatchUpdateAppHealths(ctx context.Context, req *proto.BatchUpdateAppHealthRequest) (*proto.BatchUpdateAppHealthResponse, error)
+}
 
-	return nil
+func AppHealthPoster(aAPI BatchUpdateAppHealthsClient) func(ctx context.Context, req PostAppHealthsRequest) error {
+	return func(ctx context.Context, req PostAppHealthsRequest) error {
+		pReq, err := ProtoFromAppHealthsRequest(req)
+		if err != nil {
+			return xerrors.Errorf("convert AppHealthsRequest: %w", err)
+		}
+		_, err = aAPI.BatchUpdateAppHealths(ctx, pReq)
+		if err != nil {
+			return xerrors.Errorf("batch update app healths: %w", err)
+		}
+		return nil
+	}
 }
 
 // AuthenticateResponse is returned when an instance ID
@@ -332,201 +339,91 @@ type AuthenticateResponse struct {
 	SessionToken string `json:"session_token"`
 }
 
-type GoogleInstanceIdentityToken struct {
-	JSONWebToken string `json:"json_web_token" validate:"required"`
+// RefreshableSessionTokenProvider is a SessionTokenProvider that can be refreshed, for example, via token exchange.
+// @typescript-ignore RefreshableSessionTokenProvider
+type RefreshableSessionTokenProvider interface {
+	codersdk.SessionTokenProvider
+	RefreshToken(ctx context.Context) error
 }
 
-// AuthWorkspaceGoogleInstanceIdentity uses the Google Compute Engine Metadata API to
-// fetch a signed JWT, and exchange it for a session token for a workspace agent.
-//
-// The requesting instance must be registered as a resource in the latest history for a workspace.
-func (c *Client) AuthGoogleInstanceIdentity(ctx context.Context, serviceAccount string, gcpClient *metadata.Client) (AuthenticateResponse, error) {
-	if serviceAccount == "" {
-		// This is the default name specified by Google.
-		serviceAccount = "default"
-	}
-	if gcpClient == nil {
-		gcpClient = metadata.NewClient(c.SDK.HTTPClient)
-	}
-	// "format=full" is required, otherwise the responding payload will be missing "instance_id".
-	jwt, err := gcpClient.Get(fmt.Sprintf("instance/service-accounts/%s/identity?audience=coder&format=full", serviceAccount))
-	if err != nil {
-		return AuthenticateResponse{}, xerrors.Errorf("get metadata identity: %w", err)
-	}
-	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/google-instance-identity", GoogleInstanceIdentityToken{
-		JSONWebToken: jwt,
-	})
-	if err != nil {
-		return AuthenticateResponse{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return AuthenticateResponse{}, codersdk.ReadBodyAsError(res)
-	}
-	var resp AuthenticateResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+// InstanceIdentitySessionTokenProvider implements RefreshableSessionTokenProvider via token exchange for a cloud
+// compute instance identity.
+// @typescript-ignore InstanceIdentitySessionTokenProvider
+type InstanceIdentitySessionTokenProvider struct {
+	TokenExchanger TokenExchanger
+	logger         slog.Logger
+
+	// cache so we don't request each time
+	mu           sync.Mutex
+	sessionToken string
 }
 
-type AWSInstanceIdentityToken struct {
-	Signature string `json:"signature" validate:"required"`
-	Document  string `json:"document" validate:"required"`
+// TokenExchanger obtains a session token by exchanging a cloud instance identity credential for a Coder session token.
+// @typescript-ignore TokenExchanger
+type TokenExchanger interface {
+	exchange(ctx context.Context) (AuthenticateResponse, error)
 }
 
-// AuthWorkspaceAWSInstanceIdentity uses the Amazon Metadata API to
-// fetch a signed payload, and exchange it for a session token for a workspace agent.
-//
-// The requesting instance must be registered as a resource in the latest history for a workspace.
-func (c *Client) AuthAWSInstanceIdentity(ctx context.Context) (AuthenticateResponse, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPut, "http://169.254.169.254/latest/api/token", nil)
-	if err != nil {
-		return AuthenticateResponse{}, nil
+func (i *InstanceIdentitySessionTokenProvider) AsRequestOption() codersdk.RequestOption {
+	t := i.GetSessionToken()
+	return func(req *http.Request) {
+		req.Header.Set(codersdk.SessionTokenHeader, t)
 	}
-	req.Header.Set("X-aws-ec2-metadata-token-ttl-seconds", "21600")
-	res, err := c.SDK.HTTPClient.Do(req)
-	if err != nil {
-		return AuthenticateResponse{}, err
-	}
-	defer res.Body.Close()
-	token, err := io.ReadAll(res.Body)
-	if err != nil {
-		return AuthenticateResponse{}, xerrors.Errorf("read token: %w", err)
-	}
-
-	req, err = http.NewRequestWithContext(ctx, http.MethodGet, "http://169.254.169.254/latest/dynamic/instance-identity/signature", nil)
-	if err != nil {
-		return AuthenticateResponse{}, nil
-	}
-	req.Header.Set("X-aws-ec2-metadata-token", string(token))
-	res, err = c.SDK.HTTPClient.Do(req)
-	if err != nil {
-		return AuthenticateResponse{}, err
-	}
-	defer res.Body.Close()
-	signature, err := io.ReadAll(res.Body)
-	if err != nil {
-		return AuthenticateResponse{}, xerrors.Errorf("read token: %w", err)
-	}
-
-	req, err = http.NewRequestWithContext(ctx, http.MethodGet, "http://169.254.169.254/latest/dynamic/instance-identity/document", nil)
-	if err != nil {
-		return AuthenticateResponse{}, nil
-	}
-	req.Header.Set("X-aws-ec2-metadata-token", string(token))
-	res, err = c.SDK.HTTPClient.Do(req)
-	if err != nil {
-		return AuthenticateResponse{}, err
-	}
-	defer res.Body.Close()
-	document, err := io.ReadAll(res.Body)
-	if err != nil {
-		return AuthenticateResponse{}, xerrors.Errorf("read token: %w", err)
-	}
-
-	res, err = c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/aws-instance-identity", AWSInstanceIdentityToken{
-		Signature: string(signature),
-		Document:  string(document),
-	})
-	if err != nil {
-		return AuthenticateResponse{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return AuthenticateResponse{}, codersdk.ReadBodyAsError(res)
-	}
-	var resp AuthenticateResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-type AzureInstanceIdentityToken struct {
-	Signature string `json:"signature" validate:"required"`
-	Encoding  string `json:"encoding" validate:"required"`
+func (i *InstanceIdentitySessionTokenProvider) SetDialOption(opts *websocket.DialOptions) {
+	t := i.GetSessionToken()
+	if opts.HTTPHeader == nil {
+		opts.HTTPHeader = http.Header{}
+	}
+	if opts.HTTPHeader.Get(codersdk.SessionTokenHeader) == "" {
+		opts.HTTPHeader.Set(codersdk.SessionTokenHeader, t)
+	}
 }
 
-// AuthWorkspaceAzureInstanceIdentity uses the Azure Instance Metadata Service to
-// fetch a signed payload, and exchange it for a session token for a workspace agent.
-func (c *Client) AuthAzureInstanceIdentity(ctx context.Context) (AuthenticateResponse, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://169.254.169.254/metadata/attested/document?api-version=2020-09-01", nil)
+func (i *InstanceIdentitySessionTokenProvider) GetSessionToken() string {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	if i.sessionToken != "" {
+		return i.sessionToken
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	resp, err := i.TokenExchanger.exchange(ctx)
 	if err != nil {
-		return AuthenticateResponse{}, nil
+		i.logger.Error(ctx, "failed to exchange session token: %v", err)
+		return ""
 	}
-	req.Header.Set("Metadata", "true")
-	res, err := c.SDK.HTTPClient.Do(req)
-	if err != nil {
-		return AuthenticateResponse{}, err
-	}
-	defer res.Body.Close()
-
-	var token AzureInstanceIdentityToken
-	err = json.NewDecoder(res.Body).Decode(&token)
-	if err != nil {
-		return AuthenticateResponse{}, err
-	}
-
-	res, err = c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/azure-instance-identity", token)
-	if err != nil {
-		return AuthenticateResponse{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return AuthenticateResponse{}, codersdk.ReadBodyAsError(res)
-	}
-	var resp AuthenticateResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	i.sessionToken = resp.SessionToken
+	return i.sessionToken
 }
 
-// ReportStats begins a stat streaming connection with the Coder server.
-// It is resilient to network failures and intermittent coderd issues.
-func (c *Client) ReportStats(ctx context.Context, log slog.Logger, statsChan <-chan *Stats, setInterval func(time.Duration)) (io.Closer, error) {
-	var interval time.Duration
-	ctx, cancel := context.WithCancel(ctx)
-	exited := make(chan struct{})
-
-	postStat := func(stat *Stats) {
-		var nextInterval time.Duration
-		for r := retry.New(100*time.Millisecond, time.Minute); r.Wait(ctx); {
-			resp, err := c.PostStats(ctx, stat)
-			if err != nil {
-				if !xerrors.Is(err, context.Canceled) {
-					log.Error(ctx, "report stats", slog.Error(err))
-				}
-				continue
-			}
-
-			nextInterval = resp.ReportInterval
-			break
-		}
-
-		if nextInterval != 0 && interval != nextInterval {
-			setInterval(nextInterval)
-		}
-		interval = nextInterval
+func (i *InstanceIdentitySessionTokenProvider) RefreshToken(ctx context.Context) error {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	resp, err := i.TokenExchanger.exchange(ctx)
+	if err != nil {
+		return err
 	}
+	i.sessionToken = resp.SessionToken
+	return nil
+}
 
-	// Send an empty stat to get the interval.
-	postStat(&Stats{})
+// FixedSessionTokenProvider wraps the codersdk variant to add a no-op RefreshToken method to satisfy the
+// RefreshableSessionTokenProvider interface.
+// @typescript-ignore FixedSessionTokenProvider
+type FixedSessionTokenProvider struct {
+	codersdk.FixedSessionTokenProvider
+}
 
-	go func() {
-		defer close(exited)
+func (FixedSessionTokenProvider) RefreshToken(_ context.Context) error {
+	return nil
+}
 
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case stat, ok := <-statsChan:
-				if !ok {
-					return
-				}
-
-				postStat(stat)
-			}
-		}
-	}()
-
-	return closeFunc(func() error {
-		cancel()
-		<-exited
-		return nil
-	}), nil
+func WithFixedToken(token string) SessionTokenSetup {
+	return func(_ *codersdk.Client) RefreshableSessionTokenProvider {
+		return FixedSessionTokenProvider{FixedSessionTokenProvider: codersdk.FixedSessionTokenProvider{SessionToken: token}}
+	}
 }
 
 // Stats records the Agent's network connection statistics for use in
@@ -564,6 +461,10 @@ type Stats struct {
 	Metrics []AgentMetric `json:"metrics"`
 }
 
+func (s Stats) SessionCount() int64 {
+	return s.SessionCountVSCode + s.SessionCountJetBrains + s.SessionCountReconnectingPTY + s.SessionCountSSH
+}
+
 type AgentMetricType string
 
 const (
@@ -589,59 +490,15 @@ type StatsResponse struct {
 	ReportInterval time.Duration `json:"report_interval"`
 }
 
-func (c *Client) PostStats(ctx context.Context, stats *Stats) (StatsResponse, error) {
-	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/report-stats", stats)
-	if err != nil {
-		return StatsResponse{}, xerrors.Errorf("send request: %w", err)
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return StatsResponse{}, codersdk.ReadBodyAsError(res)
-	}
-
-	var interval StatsResponse
-	err = json.NewDecoder(res.Body).Decode(&interval)
-	if err != nil {
-		return StatsResponse{}, xerrors.Errorf("decode stats response: %w", err)
-	}
-
-	return interval, nil
-}
-
 type PostLifecycleRequest struct {
 	State     codersdk.WorkspaceAgentLifecycle `json:"state"`
 	ChangedAt time.Time                        `json:"changed_at"`
-}
-
-func (c *Client) PostLifecycle(ctx context.Context, req PostLifecycleRequest) error {
-	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/report-lifecycle", req)
-	if err != nil {
-		return xerrors.Errorf("agent state post request: %w", err)
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return codersdk.ReadBodyAsError(res)
-	}
-
-	return nil
 }
 
 type PostStartupRequest struct {
 	Version           string                    `json:"version"`
 	ExpandedDirectory string                    `json:"expanded_directory"`
 	Subsystems        []codersdk.AgentSubsystem `json:"subsystems"`
-}
-
-func (c *Client) PostStartup(ctx context.Context, req PostStartupRequest) error {
-	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/startup", req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return codersdk.ReadBodyAsError(res)
-	}
-	return nil
 }
 
 type Log struct {
@@ -657,6 +514,8 @@ type PatchLogs struct {
 
 // PatchLogs writes log messages to the agent startup script.
 // Log messages are limited to 1MB in total.
+//
+// Deprecated: use the DRPCAgentClient.BatchCreateLogs instead
 func (c *Client) PatchLogs(ctx context.Context, req PatchLogs) error {
 	res, err := c.SDK.Request(ctx, http.MethodPatch, "/api/v2/workspaceagents/me/logs", req)
 	if err != nil {
@@ -669,7 +528,31 @@ func (c *Client) PatchLogs(ctx context.Context, req PatchLogs) error {
 	return nil
 }
 
-type PostLogSource struct {
+// PatchAppStatus updates the status of a workspace app.
+type PatchAppStatus struct {
+	AppSlug string                           `json:"app_slug"`
+	State   codersdk.WorkspaceAppStatusState `json:"state"`
+	Message string                           `json:"message"`
+	URI     string                           `json:"uri"`
+	// Deprecated: this field is unused and will be removed in a future version.
+	Icon string `json:"icon"`
+	// Deprecated: this field is unused and will be removed in a future version.
+	NeedsUserAttention bool `json:"needs_user_attention"`
+}
+
+func (c *Client) PatchAppStatus(ctx context.Context, req PatchAppStatus) error {
+	res, err := c.SDK.Request(ctx, http.MethodPatch, "/api/v2/workspaceagents/me/app-status", req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return codersdk.ReadBodyAsError(res)
+	}
+	return nil
+}
+
+type PostLogSourceRequest struct {
 	// ID is a unique identifier for the log source.
 	// It is scoped to a workspace agent, and can be statically
 	// defined inside code to prevent duplicate sources from being
@@ -679,7 +562,7 @@ type PostLogSource struct {
 	Icon        string    `json:"icon"`
 }
 
-func (c *Client) PostLogSource(ctx context.Context, req PostLogSource) (codersdk.WorkspaceAgentLogSource, error) {
+func (c *Client) PostLogSource(ctx context.Context, req PostLogSourceRequest) (codersdk.WorkspaceAgentLogSource, error) {
 	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/log-source", req)
 	if err != nil {
 		return codersdk.WorkspaceAgentLogSource{}, err
@@ -692,96 +575,53 @@ func (c *Client) PostLogSource(ctx context.Context, req PostLogSource) (codersdk
 	return logSource, json.NewDecoder(res.Body).Decode(&logSource)
 }
 
-// GetServiceBanner relays the service banner config.
-func (c *Client) GetServiceBanner(ctx context.Context) (codersdk.ServiceBannerConfig, error) {
-	res, err := c.SDK.Request(ctx, http.MethodGet, "/api/v2/appearance", nil)
-	if err != nil {
-		return codersdk.ServiceBannerConfig{}, err
-	}
-	defer res.Body.Close()
-	// If the route does not exist then Enterprise code is not enabled.
-	if res.StatusCode == http.StatusNotFound {
-		return codersdk.ServiceBannerConfig{}, nil
-	}
-	if res.StatusCode != http.StatusOK {
-		return codersdk.ServiceBannerConfig{}, codersdk.ReadBodyAsError(res)
-	}
-	var cfg codersdk.AppearanceConfig
-	return cfg.ServiceBanner, json.NewDecoder(res.Body).Decode(&cfg)
-}
+type ExternalAuthResponse struct {
+	AccessToken string                 `json:"access_token"`
+	TokenExtra  map[string]interface{} `json:"token_extra"`
+	URL         string                 `json:"url"`
+	Type        string                 `json:"type"`
 
-type GitAuthResponse struct {
+	// Deprecated: Only supported on `/workspaceagents/me/gitauth`
+	// for backwards compatibility.
 	Username string `json:"username"`
 	Password string `json:"password"`
-	URL      string `json:"url"`
 }
 
-// GitAuth submits a URL to fetch a GIT_ASKPASS username and password for.
+// ExternalAuthRequest is used to request an access token for a provider.
+// Either ID or Match must be specified, but not both.
+type ExternalAuthRequest struct {
+	// ID is the ID of a provider to request authentication for.
+	ID string
+	// Match is an arbitrary string matched against the regex of the provider.
+	Match string
+	// Listen indicates that the request should be long-lived and listen for
+	// a new token to be requested.
+	Listen bool
+}
+
+// ExternalAuth submits a URL or provider ID to fetch an access token for.
 // nolint:revive
-func (c *Client) GitAuth(ctx context.Context, gitURL string, listen bool) (GitAuthResponse, error) {
-	reqURL := "/api/v2/workspaceagents/me/gitauth?url=" + url.QueryEscape(gitURL)
-	if listen {
-		reqURL += "&listen"
+func (c *Client) ExternalAuth(ctx context.Context, req ExternalAuthRequest) (ExternalAuthResponse, error) {
+	q := url.Values{
+		"id":    []string{req.ID},
+		"match": []string{req.Match},
 	}
+	if req.Listen {
+		q.Set("listen", "true")
+	}
+	reqURL := "/api/v2/workspaceagents/me/external-auth?" + q.Encode()
 	res, err := c.SDK.Request(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
-		return GitAuthResponse{}, xerrors.Errorf("execute request: %w", err)
+		return ExternalAuthResponse{}, xerrors.Errorf("execute request: %w", err)
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return GitAuthResponse{}, codersdk.ReadBodyAsError(res)
+		return ExternalAuthResponse{}, codersdk.ReadBodyAsError(res)
 	}
 
-	var authResp GitAuthResponse
+	var authResp ExternalAuthResponse
 	return authResp, json.NewDecoder(res.Body).Decode(&authResp)
-}
-
-type closeFunc func() error
-
-func (c closeFunc) Close() error {
-	return c()
-}
-
-// wsNetConn wraps net.Conn created by websocket.NetConn(). Cancel func
-// is called if a read or write error is encountered.
-type wsNetConn struct {
-	cancel context.CancelFunc
-	net.Conn
-}
-
-func (c *wsNetConn) Read(b []byte) (n int, err error) {
-	n, err = c.Conn.Read(b)
-	if err != nil {
-		c.cancel()
-	}
-	return n, err
-}
-
-func (c *wsNetConn) Write(b []byte) (n int, err error) {
-	n, err = c.Conn.Write(b)
-	if err != nil {
-		c.cancel()
-	}
-	return n, err
-}
-
-func (c *wsNetConn) Close() error {
-	defer c.cancel()
-	return c.Conn.Close()
-}
-
-// websocketNetConn wraps websocket.NetConn and returns a context that
-// is tied to the parent context and the lifetime of the conn. Any error
-// during read or write will cancel the context, but not close the
-// conn. Close should be called to release context resources.
-func websocketNetConn(ctx context.Context, conn *websocket.Conn, msgType websocket.MessageType) (context.Context, net.Conn) {
-	ctx, cancel := context.WithCancel(ctx)
-	nc := websocket.NetConn(ctx, conn, msgType)
-	return ctx, &wsNetConn{
-		cancel: cancel,
-		Conn:   nc,
-	}
 }
 
 // LogsNotifyChannel returns the channel name responsible for notifying
@@ -794,62 +634,187 @@ type LogsNotifyMessage struct {
 	CreatedAfter int64 `json:"created_after"`
 }
 
-type closeNetConn struct {
-	net.Conn
-	closeFunc func()
+type ReinitializationReason string
+
+const (
+	ReinitializeReasonPrebuildClaimed ReinitializationReason = "prebuild_claimed"
+)
+
+type ReinitializationEvent struct {
+	WorkspaceID uuid.UUID
+	Reason      ReinitializationReason `json:"reason"`
 }
 
-func (c *closeNetConn) Close() error {
-	c.closeFunc()
-	return c.Conn.Close()
+func PrebuildClaimedChannel(id uuid.UUID) string {
+	return fmt.Sprintf("prebuild_claimed_%s", id)
 }
 
-func pingWebSocket(ctx context.Context, logger slog.Logger, conn *websocket.Conn, name string) <-chan struct{} {
-	// Ping once every 30 seconds to ensure that the websocket is alive. If we
-	// don't get a response within 30s we kill the websocket and reconnect.
-	// See: https://github.com/coder/coder/pull/5824
-	closed := make(chan struct{})
+// WaitForReinit polls a SSE endpoint, and receives an event back under the following conditions:
+// - ping: ignored, keepalive
+// - prebuild claimed: a prebuilt workspace is claimed, so the agent must reinitialize.
+func (c *Client) WaitForReinit(ctx context.Context) (*ReinitializationEvent, error) {
+	rpcURL, err := c.SDK.URL.Parse("/api/v2/workspaceagents/me/reinit")
+	if err != nil {
+		return nil, xerrors.Errorf("parse url: %w", err)
+	}
+
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return nil, xerrors.Errorf("create cookie jar: %w", err)
+	}
+	jar.SetCookies(rpcURL, []*http.Cookie{{
+		Name:  codersdk.SessionTokenCookie,
+		Value: c.SDK.SessionToken(),
+	}})
+	httpClient := &http.Client{
+		Jar:       jar,
+		Transport: c.SDK.HTTPClient.Transport,
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rpcURL.String(), nil)
+	if err != nil {
+		return nil, xerrors.Errorf("build request: %w", err)
+	}
+
+	res, err := httpClient.Do(req)
+	if err != nil {
+		return nil, xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, codersdk.ReadBodyAsError(res)
+	}
+
+	reinitEvent, err := NewSSEAgentReinitReceiver(res.Body).Receive(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("listening for reinitialization events: %w", err)
+	}
+	return reinitEvent, nil
+}
+
+func WaitForReinitLoop(ctx context.Context, logger slog.Logger, client *Client) <-chan ReinitializationEvent {
+	reinitEvents := make(chan ReinitializationEvent)
+
 	go func() {
-		defer close(closed)
-		tick := 30 * time.Second
-		ticker := time.NewTicker(tick)
-		defer ticker.Stop()
-		defer func() {
-			logger.Debug(ctx, fmt.Sprintf("%s pinger exited", name))
-		}()
-		for {
+		for retrier := retry.New(100*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
+			logger.Debug(ctx, "waiting for agent reinitialization instructions")
+			reinitEvent, err := client.WaitForReinit(ctx)
+			if err != nil {
+				logger.Error(ctx, "failed to wait for agent reinitialization instructions", slog.Error(err))
+				continue
+			}
+			retrier.Reset()
 			select {
 			case <-ctx.Done():
+				close(reinitEvents)
 				return
-			case start := <-ticker.C:
-				ctx, cancel := context.WithTimeout(ctx, tick)
-
-				err := conn.Ping(ctx)
-				if err != nil {
-					logger.Error(ctx, fmt.Sprintf("workspace agent %s ping", name), slog.Error(err))
-
-					err := conn.Close(websocket.StatusGoingAway, "Ping failed")
-					if err != nil {
-						logger.Error(ctx, fmt.Sprintf("close workspace agent %s websocket", name), slog.Error(err))
-					}
-
-					cancel()
-					return
-				}
-
-				logger.Debug(ctx, fmt.Sprintf("got %s ping", name), slog.F("took", time.Since(start)))
-				cancel()
+			case reinitEvents <- *reinitEvent:
 			}
 		}
 	}()
 
-	return closed
+	return reinitEvents
 }
 
-type closer struct {
-	closeFunc func() error
+func NewSSEAgentReinitTransmitter(logger slog.Logger, rw http.ResponseWriter, r *http.Request) *SSEAgentReinitTransmitter {
+	return &SSEAgentReinitTransmitter{logger: logger, rw: rw, r: r}
 }
 
-func (c *closer) Close() error {
-	return c.closeFunc()
+type SSEAgentReinitTransmitter struct {
+	rw     http.ResponseWriter
+	r      *http.Request
+	logger slog.Logger
+}
+
+var (
+	ErrTransmissionSourceClosed = xerrors.New("transmission source closed")
+	ErrTransmissionTargetClosed = xerrors.New("transmission target closed")
+)
+
+// Transmit will read from the given chan and send events for as long as:
+// * the chan remains open
+// * the context has not been canceled
+// * not timed out
+// * the connection to the receiver remains open
+func (s *SSEAgentReinitTransmitter) Transmit(ctx context.Context, reinitEvents <-chan ReinitializationEvent) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
+	sseSendEvent, sseSenderClosed, err := httpapi.ServerSentEventSender(s.rw, s.r)
+	if err != nil {
+		return xerrors.Errorf("failed to create sse transmitter: %w", err)
+	}
+
+	defer func() {
+		// Block returning until the ServerSentEventSender is closed
+		// to avoid a race condition where we might write or flush to rw after the handler returns.
+		<-sseSenderClosed
+	}()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-sseSenderClosed:
+			return ErrTransmissionTargetClosed
+		case reinitEvent, ok := <-reinitEvents:
+			if !ok {
+				return ErrTransmissionSourceClosed
+			}
+			err := sseSendEvent(codersdk.ServerSentEvent{
+				Type: codersdk.ServerSentEventTypeData,
+				Data: reinitEvent,
+			})
+			if err != nil {
+				return err
+			}
+		}
+	}
+}
+
+func NewSSEAgentReinitReceiver(r io.ReadCloser) *SSEAgentReinitReceiver {
+	return &SSEAgentReinitReceiver{r: r}
+}
+
+type SSEAgentReinitReceiver struct {
+	r io.ReadCloser
+}
+
+func (s *SSEAgentReinitReceiver) Receive(ctx context.Context) (*ReinitializationEvent, error) {
+	nextEvent := codersdk.ServerSentEventReader(ctx, s.r)
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
+
+		sse, err := nextEvent()
+		switch {
+		case err != nil:
+			return nil, xerrors.Errorf("failed to read server-sent event: %w", err)
+		case sse.Type == codersdk.ServerSentEventTypeError:
+			return nil, xerrors.Errorf("unexpected server sent event type error")
+		case sse.Type == codersdk.ServerSentEventTypePing:
+			continue
+		case sse.Type != codersdk.ServerSentEventTypeData:
+			return nil, xerrors.Errorf("unexpected server sent event type: %s", sse.Type)
+		}
+
+		// At this point we know that the sent event is of type codersdk.ServerSentEventTypeData
+		var reinitEvent ReinitializationEvent
+		b, ok := sse.Data.([]byte)
+		if !ok {
+			return nil, xerrors.Errorf("expected data as []byte, got %T", sse.Data)
+		}
+		err = json.Unmarshal(b, &reinitEvent)
+		if err != nil {
+			return nil, xerrors.Errorf("unmarshal reinit response: %w", err)
+		}
+		return &reinitEvent, nil
+	}
 }

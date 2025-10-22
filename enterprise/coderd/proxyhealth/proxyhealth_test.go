@@ -10,10 +10,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/proxyhealth"
@@ -31,6 +30,7 @@ func insertProxy(t *testing.T, db database.Store, url string) database.Workspace
 		Url:              url,
 		WildcardHostname: "",
 		ID:               proxy.ID,
+		Version:          `v2.34.5-test+beefcake`,
 	})
 	require.NoError(t, err, "failed to update proxy")
 	return proxy
@@ -46,7 +46,7 @@ func TestProxyHealth_Nil(t *testing.T) {
 
 func TestProxyHealth_Unregistered(t *testing.T) {
 	t.Parallel()
-	db := dbfake.New()
+	db, _ := dbtestutil.NewDB(t)
 
 	proxies := []database.WorkspaceProxy{
 		insertProxy(t, db, ""),
@@ -56,7 +56,7 @@ func TestProxyHealth_Unregistered(t *testing.T) {
 	ph, err := proxyhealth.New(&proxyhealth.Options{
 		Interval: 0,
 		DB:       db,
-		Logger:   slogtest.Make(t, nil),
+		Logger:   testutil.Logger(t),
 	})
 	require.NoError(t, err, "failed to create proxy health")
 
@@ -72,7 +72,7 @@ func TestProxyHealth_Unregistered(t *testing.T) {
 
 func TestProxyHealth_Unhealthy(t *testing.T) {
 	t.Parallel()
-	db := dbfake.New()
+	db, _ := dbtestutil.NewDB(t)
 
 	srvBadReport := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		httpapi.Write(context.Background(), w, http.StatusOK, codersdk.ProxyHealthReport{
@@ -95,7 +95,7 @@ func TestProxyHealth_Unhealthy(t *testing.T) {
 	ph, err := proxyhealth.New(&proxyhealth.Options{
 		Interval: 0,
 		DB:       db,
-		Logger:   slogtest.Make(t, nil),
+		Logger:   testutil.Logger(t),
 		Client:   srvBadReport.Client(),
 	})
 	require.NoError(t, err, "failed to create proxy health")
@@ -112,7 +112,7 @@ func TestProxyHealth_Unhealthy(t *testing.T) {
 
 func TestProxyHealth_Reachable(t *testing.T) {
 	t.Parallel()
-	db := dbfake.New()
+	db, _ := dbtestutil.NewDB(t)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		httpapi.Write(context.Background(), w, http.StatusOK, codersdk.ProxyHealthReport{
@@ -130,7 +130,7 @@ func TestProxyHealth_Reachable(t *testing.T) {
 	ph, err := proxyhealth.New(&proxyhealth.Options{
 		Interval: 0,
 		DB:       db,
-		Logger:   slogtest.Make(t, nil),
+		Logger:   testutil.Logger(t),
 		Client:   srv.Client(),
 	})
 	require.NoError(t, err, "failed to create proxy health")
@@ -147,7 +147,7 @@ func TestProxyHealth_Reachable(t *testing.T) {
 
 func TestProxyHealth_Unreachable(t *testing.T) {
 	t.Parallel()
-	db := dbfake.New()
+	db, _ := dbtestutil.NewDB(t)
 
 	cli := &http.Client{
 		Transport: &http.Transport{
@@ -166,7 +166,7 @@ func TestProxyHealth_Unreachable(t *testing.T) {
 	ph, err := proxyhealth.New(&proxyhealth.Options{
 		Interval: 0,
 		DB:       db,
-		Logger:   slogtest.Make(t, nil),
+		Logger:   testutil.Logger(t),
 		Client:   cli,
 	})
 	require.NoError(t, err, "failed to create proxy health")

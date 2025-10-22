@@ -4,15 +4,15 @@ import (
 	"context"
 	"crypto/tls"
 	"testing"
+	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/testutil"
@@ -21,9 +21,48 @@ import (
 func TestReplicas(t *testing.T) {
 	t.Parallel()
 	if !dbtestutil.WillUsePostgres() {
-		t.Skip("only test with real postgresF")
+		t.Skip("only test with real postgres")
 	}
 	t.Run("ErrorWithoutLicense", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		// This will error because replicas are expected to instantly report
+		// errors when the license is not present.
+		db, pubsub := dbtestutil.NewDB(t)
+		firstClient, _ := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+				Database:                 db,
+				Pubsub:                   pubsub,
+			},
+			DontAddLicense:          true,
+			ReplicaErrorGracePeriod: time.Nanosecond,
+		})
+		secondClient, _, secondAPI, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				Database: db,
+				Pubsub:   pubsub,
+			},
+			DontAddFirstUser:        true,
+			DontAddLicense:          true,
+			ReplicaErrorGracePeriod: time.Nanosecond,
+		})
+		secondClient.SetSessionToken(firstClient.SessionToken())
+
+		testutil.Eventually(ctx, t, func(ctx context.Context) (done bool) {
+			ents, err := secondClient.Entitlements(ctx)
+			return assert.NoError(t, err, "unexpected error from secondClient.Entitlements") &&
+				len(ents.Errors) == 1
+		}, testutil.IntervalFast)
+		_ = secondAPI.Close()
+
+		testutil.Eventually(ctx, t, func(ctx context.Context) (done bool) {
+			ents, err := firstClient.Entitlements(ctx)
+			return assert.NoError(t, err, "unexpected error from firstClient.Entitlements") &&
+				len(ents.Warnings) == 0
+		}, testutil.IntervalFast)
+	})
+	t.Run("DoesNotErrorBeforeGrace", func(t *testing.T) {
 		t.Parallel()
 		db, pubsub := dbtestutil.NewDB(t)
 		firstClient, _ := coderdenttest.New(t, &coderdenttest.Options{
@@ -45,12 +84,12 @@ func TestReplicas(t *testing.T) {
 		secondClient.SetSessionToken(firstClient.SessionToken())
 		ents, err := secondClient.Entitlements(context.Background())
 		require.NoError(t, err)
-		require.Len(t, ents.Errors, 1)
+		require.Len(t, ents.Errors, 0)
 		_ = secondAPI.Close()
 
 		ents, err = firstClient.Entitlements(context.Background())
 		require.NoError(t, err)
-		require.Len(t, ents.Warnings, 0)
+		require.Len(t, ents.Errors, 0)
 	})
 	t.Run("ConnectAcrossMultiple", func(t *testing.T) {
 		t.Parallel()
@@ -81,11 +120,12 @@ func TestReplicas(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, replicas, 2)
 
-		_, agent := setupWorkspaceAgent(t, firstClient, firstUser, 0)
-		conn, err := secondClient.DialWorkspaceAgent(context.Background(), agent.ID, &codersdk.DialWorkspaceAgentOptions{
-			BlockEndpoints: true,
-			Logger:         slogtest.Make(t, nil).Leveled(slog.LevelDebug),
-		})
+		r := setupWorkspaceAgent(t, firstClient, firstUser, 0)
+		conn, err := workspacesdk.New(secondClient).
+			DialAgent(context.Background(), r.sdkAgent.ID, &workspacesdk.DialAgentOptions{
+				BlockEndpoints: true,
+				Logger:         testutil.Logger(t),
+			})
 		require.NoError(t, err)
 		require.Eventually(t, func() bool {
 			ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -127,11 +167,12 @@ func TestReplicas(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, replicas, 2)
 
-		_, agent := setupWorkspaceAgent(t, firstClient, firstUser, 0)
-		conn, err := secondClient.DialWorkspaceAgent(context.Background(), agent.ID, &codersdk.DialWorkspaceAgentOptions{
-			BlockEndpoints: true,
-			Logger:         slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
-		})
+		r := setupWorkspaceAgent(t, firstClient, firstUser, 0)
+		conn, err := workspacesdk.New(secondClient).
+			DialAgent(context.Background(), r.sdkAgent.ID, &workspacesdk.DialAgentOptions{
+				BlockEndpoints: true,
+				Logger:         testutil.Logger(t).Named("client"),
+			})
 		require.NoError(t, err)
 		require.Eventually(t, func() bool {
 			ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.IntervalSlow)

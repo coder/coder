@@ -13,6 +13,7 @@ import (
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/golang-jwt/jwt/v4"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
@@ -25,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+//nolint:gosec // these are just for testing
 const (
 	testClientKey = `-----BEGIN RSA PRIVATE KEY-----
 MIIEpAIBAAKCAQEAnUryZEfn5kA8wuk9a7ogFuWbk3uPHEhioYuAg9m3/tIdqSqu
@@ -142,6 +144,7 @@ func TestAzureAKPKIWithCoderd(t *testing.T) {
 			return values, nil
 		}),
 		oidctest.WithServing(),
+		oidctest.WithLogging(t, nil),
 	)
 	cfg := fake.OIDCConfig(t, scopes, func(cfg *coderd.OIDCConfig) {
 		cfg.AllowSignups = true
@@ -168,6 +171,7 @@ func TestAzureAKPKIWithCoderd(t *testing.T) {
 	const email = "alice@coder.com"
 	claims := jwt.MapClaims{
 		"email": email,
+		"sub":   uuid.NewString(),
 	}
 	helper := oidctest.NewLoginHelper(owner, fake)
 	user, _ := helper.Login(t, claims)

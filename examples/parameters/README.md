@@ -7,7 +7,7 @@ icon: /icon/docker.png
 
 # Overview
 
-This Coder template presents various features of [rich parameters](https://coder.com/docs/v2/latest/templates/parameters), including types, validation constraints,
+This Coder template presents various features of [rich parameters](https://coder.com/docs/templates/parameters), including types, validation constraints,
 mutability, ephemeral (one-time) parameters, etc.
 
 ## Development

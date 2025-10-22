@@ -7,14 +7,15 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/jedib0t/go-pretty/v6/table"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/serpent"
 )
 
 type OutputFormat interface {
 	ID() string
-	AttachOptions(opts *clibase.OptionSet)
+	AttachOptions(opts *serpent.OptionSet)
 	Format(ctx context.Context, data any) (string, error)
 }
 
@@ -49,7 +50,7 @@ func NewOutputFormatter(formats ...OutputFormat) *OutputFormatter {
 
 // AttachOptions attaches the --output flag to the given command, and any
 // additional flags required by the output formatters.
-func (f *OutputFormatter) AttachOptions(opts *clibase.OptionSet) {
+func (f *OutputFormatter) AttachOptions(opts *serpent.OptionSet) {
 	for _, format := range f.formats {
 		format.AttachOptions(opts)
 	}
@@ -60,12 +61,12 @@ func (f *OutputFormatter) AttachOptions(opts *clibase.OptionSet) {
 	}
 
 	*opts = append(*opts,
-		clibase.Option{
+		serpent.Option{
 			Flag:          "output",
 			FlagShorthand: "o",
 			Default:       f.formats[0].ID(),
-			Value:         clibase.StringOf(&f.formatID),
-			Description:   "Output format. Available formats: " + strings.Join(formatNames, ", ") + ".",
+			Value:         serpent.EnumOf(&f.formatID, formatNames...),
+			Description:   "Output format.",
 		},
 	)
 }
@@ -80,6 +81,12 @@ func (f *OutputFormatter) Format(ctx context.Context, data any) (string, error) 
 	}
 
 	return "", xerrors.Errorf("unknown output format %q", f.formatID)
+}
+
+// FormatID will return the ID of the format selected by `--output`.
+// If no flag is present, it returns the 'default' formatter.
+func (f *OutputFormatter) FormatID() string {
+	return f.formatID
 }
 
 type tableFormat struct {
@@ -106,7 +113,7 @@ func TableFormat(out any, defaultColumns []string) OutputFormat {
 	}
 
 	// Get the list of table column headers.
-	headers, defaultSort, err := typeToTableHeaders(v.Type().Elem())
+	headers, defaultSort, err := typeToTableHeaders(v.Type().Elem(), true)
 	if err != nil {
 		panic("parse table headers: " + err.Error())
 	}
@@ -129,21 +136,25 @@ func (*tableFormat) ID() string {
 }
 
 // AttachOptions implements OutputFormat.
-func (f *tableFormat) AttachOptions(opts *clibase.OptionSet) {
+func (f *tableFormat) AttachOptions(opts *serpent.OptionSet) {
 	*opts = append(*opts,
-		clibase.Option{
+		serpent.Option{
 			Flag:          "column",
 			FlagShorthand: "c",
 			Default:       strings.Join(f.defaultColumns, ","),
-			Value:         clibase.StringArrayOf(&f.columns),
-			Description:   "Columns to display in table output. Available columns: " + strings.Join(f.allColumns, ", ") + ".",
+			Value:         serpent.EnumArrayOf(&f.columns, f.allColumns...),
+			Description:   "Columns to display in table output.",
 		},
 	)
 }
 
 // Format implements OutputFormat.
 func (f *tableFormat) Format(_ context.Context, data any) (string, error) {
-	return DisplayTable(data, f.sort, f.columns)
+	headers := make(table.Row, len(f.allColumns))
+	for i, header := range f.allColumns {
+		headers[i] = header
+	}
+	return renderTable(data, f.sort, headers, f.columns)
 }
 
 type jsonFormat struct{}
@@ -161,7 +172,7 @@ func (jsonFormat) ID() string {
 }
 
 // AttachOptions implements OutputFormat.
-func (jsonFormat) AttachOptions(_ *clibase.OptionSet) {}
+func (jsonFormat) AttachOptions(_ *serpent.OptionSet) {}
 
 // Format implements OutputFormat.
 func (jsonFormat) Format(_ context.Context, data any) (string, error) {
@@ -187,7 +198,7 @@ func (textFormat) ID() string {
 	return "text"
 }
 
-func (textFormat) AttachOptions(_ *clibase.OptionSet) {}
+func (textFormat) AttachOptions(_ *serpent.OptionSet) {}
 
 func (textFormat) Format(_ context.Context, data any) (string, error) {
 	return fmt.Sprintf("%s", data), nil
@@ -213,7 +224,7 @@ func (d *DataChangeFormat) ID() string {
 	return d.format.ID()
 }
 
-func (d *DataChangeFormat) AttachOptions(opts *clibase.OptionSet) {
+func (d *DataChangeFormat) AttachOptions(opts *serpent.OptionSet) {
 	d.format.AttachOptions(opts)
 }
 

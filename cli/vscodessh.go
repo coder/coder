@@ -2,26 +2,26 @@ package cli
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
-	"tailscale.com/tailcfg"
-	"tailscale.com/types/netlogtype"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 
-	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/serpent"
 )
 
 // vscodeSSH is used by the Coder VS Code extension to establish
@@ -30,22 +30,24 @@ import (
 // This command needs to remain stable for compatibility with
 // various VS Code versions, so it's kept separate from our
 // standard SSH command.
-func (r *RootCmd) vscodeSSH() *clibase.Cmd {
+func (r *RootCmd) vscodeSSH() *serpent.Command {
 	var (
 		sessionTokenFile    string
 		urlFile             string
+		logDir              string
 		networkInfoDir      string
 		networkInfoInterval time.Duration
+		waitEnum            string
 	)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Command{
 		// A SSH config entry is added by the VS Code extension that
 		// passes %h to ProxyCommand. The prefix of `coder-vscode--`
 		// is a magical string represented in our VS Code extension.
 		// It's not important here, only the delimiter `--` is.
 		Use:        "vscodessh <coder-vscode--<owner>--<workspace>--<agent?>>",
 		Hidden:     true,
-		Middleware: clibase.RequireNArgs(1),
-		Handler: func(inv *clibase.Invocation) error {
+		Middleware: serpent.RequireNArgs(1),
+		Handler: func(inv *serpent.Invocation) error {
 			if networkInfoDir == "" {
 				return xerrors.New("network-info-dir must be specified")
 			}
@@ -77,19 +79,15 @@ func (r *RootCmd) vscodeSSH() *clibase.Cmd {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
-			err = fs.MkdirAll(networkInfoDir, 0o700)
+			// Configure HTTP client with transport wrappers
+			httpClient, err := r.createHTTPClient(ctx, serverURL, inv)
 			if err != nil {
-				return xerrors.Errorf("mkdir: %w", err)
+				return xerrors.Errorf("create HTTP client: %w", err)
 			}
-
-			client := codersdk.New(serverURL)
-			client.SetSessionToken(string(sessionToken))
-
-			// This adds custom headers to the request!
-			err = r.setClient(ctx, client, serverURL)
-			if err != nil {
-				return xerrors.Errorf("set client: %w", err)
-			}
+			client := codersdk.New(serverURL,
+				codersdk.WithSessionToken(string(sessionToken)),
+				codersdk.WithHTTPClient(httpClient),
+			)
 
 			parts := strings.Split(inv.Args[0], "--")
 			if len(parts) < 3 {
@@ -97,56 +95,94 @@ func (r *RootCmd) vscodeSSH() *clibase.Cmd {
 			}
 			owner := parts[1]
 			name := parts[2]
-
-			workspace, err := client.WorkspaceByOwnerAndName(ctx, owner, name, codersdk.WorkspaceOptions{})
-			if err != nil {
-				return xerrors.Errorf("find workspace: %w", err)
+			if len(parts) > 3 {
+				name += "." + parts[3]
 			}
 
-			var agent codersdk.WorkspaceAgent
-			var found bool
-			for _, resource := range workspace.LatestBuild.Resources {
-				if len(resource.Agents) == 0 {
-					continue
-				}
-				for _, resourceAgent := range resource.Agents {
-					// If an agent name isn't included we default to
-					// the first agent!
-					if len(parts) != 4 {
-						agent = resourceAgent
-						found = true
+			// Set autostart to false because it's assumed the VS Code extension
+			// will call this command after the workspace is started.
+			autostart := false
+
+			workspace, workspaceAgent, _, err := GetWorkspaceAndAgent(ctx, inv, client, autostart, fmt.Sprintf("%s/%s", owner, name))
+			if err != nil {
+				return xerrors.Errorf("find workspace and agent: %w", err)
+			}
+
+			// Select the startup script behavior based on template configuration or flags.
+			var wait bool
+			switch waitEnum {
+			case "yes":
+				wait = true
+			case "no":
+				wait = false
+			case "auto":
+				for _, script := range workspaceAgent.Scripts {
+					if script.StartBlocksLogin {
+						wait = true
 						break
 					}
-					if resourceAgent.Name != parts[3] {
-						continue
-					}
-					agent = resourceAgent
-					found = true
-					break
 				}
-				if found {
-					break
-				}
+			default:
+				return xerrors.Errorf("unknown wait value %q", waitEnum)
 			}
 
-			var logger slog.Logger
-			if r.verbose {
-				logger = slog.Make(sloghuman.Sink(inv.Stdout)).Leveled(slog.LevelDebug)
+			appearanceCfg, err := client.Appearance(ctx)
+			if err != nil {
+				var sdkErr *codersdk.Error
+				if !(xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound) {
+					return xerrors.Errorf("get appearance config: %w", err)
+				}
+				appearanceCfg.DocsURL = codersdk.DefaultDocsURL()
 			}
 
-			if r.disableDirect {
-				_, _ = fmt.Fprintln(inv.Stderr, "Direct connections disabled.")
-			}
-			agentConn, err := client.DialWorkspaceAgent(ctx, agent.ID, &codersdk.DialWorkspaceAgentOptions{
-				Logger:         logger,
-				BlockEndpoints: r.disableDirect,
+			err = cliui.Agent(ctx, inv.Stderr, workspaceAgent.ID, cliui.AgentOptions{
+				Fetch:     client.WorkspaceAgent,
+				FetchLogs: client.WorkspaceAgentLogsAfter,
+				Wait:      wait,
+				DocsURL:   appearanceCfg.DocsURL,
 			})
+			if err != nil {
+				if xerrors.Is(err, context.Canceled) {
+					return cliui.ErrCanceled
+				}
+			}
+
+			// Use a stripped down writer that doesn't sync, otherwise you get
+			// "failed to sync sloghuman: sync /dev/stderr: The handle is
+			// invalid" on Windows. Syncing isn't required for stdout/stderr
+			// anyways.
+			logger := inv.Logger.AppendSinks(sloghuman.Sink(slogWriter{w: inv.Stderr})).Leveled(slog.LevelDebug)
+			if logDir != "" {
+				logFilePath := filepath.Join(logDir, fmt.Sprintf("%d.log", os.Getppid()))
+				logFile, err := fs.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY, 0o600)
+				if err != nil {
+					return xerrors.Errorf("open log file %q: %w", logFilePath, err)
+				}
+				dc := cliutil.DiscardAfterClose(logFile)
+				defer dc.Close()
+				logger = logger.AppendSinks(sloghuman.Sink(dc))
+			}
+			if r.disableDirect {
+				logger.Info(ctx, "direct connections disabled")
+			}
+			agentConn, err := workspacesdk.New(client).
+				DialAgent(ctx, workspaceAgent.ID, &workspacesdk.DialAgentOptions{
+					Logger:         logger,
+					BlockEndpoints: r.disableDirect,
+				})
 			if err != nil {
 				return xerrors.Errorf("dial workspace agent: %w", err)
 			}
 			defer agentConn.Close()
 
 			agentConn.AwaitReachable(ctx)
+
+			closeUsage := client.UpdateWorkspaceUsageWithBodyContext(ctx, workspace.ID, codersdk.PostWorkspaceUsageRequest{
+				AgentID: workspaceAgent.ID,
+				AppName: codersdk.UsageAppNameVscode,
+			})
+			defer closeUsage()
+
 			rawSSH, err := agentConn.SSH(ctx)
 			if err != nil {
 				return err
@@ -161,151 +197,63 @@ func (r *RootCmd) vscodeSSH() *clibase.Cmd {
 				_, _ = io.Copy(rawSSH, inv.Stdin)
 			}()
 
-			// The VS Code extension obtains the PID of the SSH process to
-			// read the file below which contains network information to display.
-			//
-			// We get the parent PID because it's assumed `ssh` is calling this
-			// command via the ProxyCommand SSH option.
-			networkInfoFilePath := filepath.Join(networkInfoDir, fmt.Sprintf("%d.json", os.Getppid()))
-
-			statsErrChan := make(chan error, 1)
-			cb := func(start, end time.Time, virtual, _ map[netlogtype.Connection]netlogtype.Counts) {
-				sendErr := func(err error) {
-					select {
-					case statsErrChan <- err:
-					default:
-					}
-				}
-
-				stats, err := collectNetworkStats(ctx, agentConn, start, end, virtual)
-				if err != nil {
-					sendErr(err)
-					return
-				}
-
-				rawStats, err := json.Marshal(stats)
-				if err != nil {
-					sendErr(err)
-					return
-				}
-				err = afero.WriteFile(fs, networkInfoFilePath, rawStats, 0o600)
-				if err != nil {
-					sendErr(err)
-					return
-				}
+			errCh, err := setStatsCallback(ctx, agentConn, logger, networkInfoDir, networkInfoInterval)
+			if err != nil {
+				return err
 			}
-
-			now := time.Now()
-			cb(now, now.Add(time.Nanosecond), map[netlogtype.Connection]netlogtype.Counts{}, map[netlogtype.Connection]netlogtype.Counts{})
-			agentConn.SetConnStatsCallback(networkInfoInterval, 2048, cb)
-
 			select {
 			case <-ctx.Done():
 				return nil
-			case err := <-statsErrChan:
+			case err := <-errCh:
 				return err
 			}
 		},
 	}
-	cmd.Options = clibase.OptionSet{
+	cmd.Options = serpent.OptionSet{
 		{
 			Flag:        "network-info-dir",
 			Description: "Specifies a directory to write network information periodically.",
-			Value:       clibase.StringOf(&networkInfoDir),
+			Value:       serpent.StringOf(&networkInfoDir),
+		},
+		{
+			Flag:        "log-dir",
+			Description: "Specifies a directory to write logs to.",
+			Value:       serpent.StringOf(&logDir),
 		},
 		{
 			Flag:        "session-token-file",
 			Description: "Specifies a file that contains a session token.",
-			Value:       clibase.StringOf(&sessionTokenFile),
+			Value:       serpent.StringOf(&sessionTokenFile),
 		},
 		{
 			Flag:        "url-file",
 			Description: "Specifies a file that contains the Coder URL.",
-			Value:       clibase.StringOf(&urlFile),
+			Value:       serpent.StringOf(&urlFile),
 		},
 		{
 			Flag:        "network-info-interval",
 			Description: "Specifies the interval to update network information.",
 			Default:     "5s",
-			Value:       clibase.DurationOf(&networkInfoInterval),
+			Value:       serpent.DurationOf(&networkInfoInterval),
+		},
+		{
+			Flag:        "wait",
+			Description: "Specifies whether or not to wait for the startup script to finish executing. Auto means that the agent startup script behavior configured in the workspace template is used.",
+			Default:     "auto",
+			Value:       serpent.EnumOf(&waitEnum, "yes", "no", "auto"),
 		},
 	}
 	return cmd
 }
 
-type sshNetworkStats struct {
-	P2P              bool               `json:"p2p"`
-	Latency          float64            `json:"latency"`
-	PreferredDERP    string             `json:"preferred_derp"`
-	DERPLatency      map[string]float64 `json:"derp_latency"`
-	UploadBytesSec   int64              `json:"upload_bytes_sec"`
-	DownloadBytesSec int64              `json:"download_bytes_sec"`
+// slogWriter wraps an io.Writer and removes all other methods (such as Sync),
+// which may cause undesired/broken behavior.
+type slogWriter struct {
+	w io.Writer
 }
 
-func collectNetworkStats(ctx context.Context, agentConn *codersdk.WorkspaceAgentConn, start, end time.Time, counts map[netlogtype.Connection]netlogtype.Counts) (*sshNetworkStats, error) {
-	latency, p2p, pingResult, err := agentConn.Ping(ctx)
-	if err != nil {
-		return nil, err
-	}
-	node := agentConn.Node()
-	derpMap := agentConn.DERPMap()
-	derpLatency := map[string]float64{}
+var _ io.Writer = slogWriter{}
 
-	// Convert DERP region IDs to friendly names for display in the UI.
-	for rawRegion, latency := range node.DERPLatency {
-		regionParts := strings.SplitN(rawRegion, "-", 2)
-		regionID, err := strconv.Atoi(regionParts[0])
-		if err != nil {
-			continue
-		}
-		region, found := derpMap.Regions[regionID]
-		if !found {
-			// It's possible that a workspace agent is using an old DERPMap
-			// and reports regions that do not exist. If that's the case,
-			// report the region as unknown!
-			region = &tailcfg.DERPRegion{
-				RegionID:   regionID,
-				RegionName: fmt.Sprintf("Unnamed %d", regionID),
-			}
-		}
-		// Convert the microseconds to milliseconds.
-		derpLatency[region.RegionName] = latency * 1000
-	}
-
-	totalRx := uint64(0)
-	totalTx := uint64(0)
-	for _, stat := range counts {
-		totalRx += stat.RxBytes
-		totalTx += stat.TxBytes
-	}
-	// Tracking the time since last request is required because
-	// ExtractTrafficStats() resets its counters after each call.
-	dur := end.Sub(start)
-	uploadSecs := float64(totalTx) / dur.Seconds()
-	downloadSecs := float64(totalRx) / dur.Seconds()
-
-	// Sometimes the preferred DERP doesn't match the one we're actually
-	// connected with. Perhaps because the agent prefers a different DERP and
-	// we're using that server instead.
-	preferredDerpID := node.PreferredDERP
-	if pingResult.DERPRegionID != 0 {
-		preferredDerpID = pingResult.DERPRegionID
-	}
-	preferredDerp, ok := derpMap.Regions[preferredDerpID]
-	preferredDerpName := fmt.Sprintf("Unnamed %d", preferredDerpID)
-	if ok {
-		preferredDerpName = preferredDerp.RegionName
-	}
-	if _, ok := derpLatency[preferredDerpName]; !ok {
-		derpLatency[preferredDerpName] = 0
-	}
-
-	return &sshNetworkStats{
-		P2P:              p2p,
-		Latency:          float64(latency.Microseconds()) / 1000,
-		PreferredDERP:    preferredDerpName,
-		DERPLatency:      derpLatency,
-		UploadBytesSec:   int64(uploadSecs),
-		DownloadBytesSec: int64(downloadSecs),
-	}, nil
+func (s slogWriter) Write(p []byte) (n int, err error) {
+	return s.w.Write(p)
 }

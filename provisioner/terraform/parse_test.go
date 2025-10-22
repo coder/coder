@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestParse(t *testing.T) {
@@ -201,15 +202,185 @@ func TestParse(t *testing.T) {
 				},
 			},
 		},
+		{
+			Name: "workspace-tags",
+			Files: map[string]string{
+				"parameters.tf": `data "coder_parameter" "os_selector" {
+					name         = "os_selector"
+					display_name = "Operating System"
+					mutable      = false
+
+					default = "osx"
+
+					option {
+					  icon  = "/icons/linux.png"
+					  name  = "Linux"
+					  value = "linux"
+					}
+					option {
+					  icon  = "/icons/osx.png"
+					  name  = "OSX"
+					  value = "osx"
+					}
+					option {
+					  icon  = "/icons/windows.png"
+					  name  = "Windows"
+					  value = "windows"
+					}
+				  }
+
+				  data "coder_parameter" "feature_cache_enabled" {
+					name         = "feature_cache_enabled"
+					display_name = "Enable cache?"
+					type         = "bool"
+
+					default = false
+				  }
+
+				  data "coder_parameter" "feature_debug_enabled" {
+					name         = "feature_debug_enabled"
+					display_name = "Enable debug?"
+					type         = "bool"
+
+					default = true
+				  }`,
+				"tags.tf": `data "coder_workspace_tags" "custom_workspace_tags" {
+					tags = {
+					  "cluster" = "developers"
+					  "os"      = data.coder_parameter.os_selector.value
+					  "debug"   = "${data.coder_parameter.feature_debug_enabled.value}+12345"
+					  "cache"   = data.coder_parameter.feature_cache_enabled.value == "true" ? "nix-with-cache" : "no-cache"
+					}
+				  }`,
+			},
+			Response: &proto.ParseComplete{
+				WorkspaceTags: map[string]string{
+					"cluster": `"developers"`,
+					"os":      `data.coder_parameter.os_selector.value`,
+					"debug":   `"${data.coder_parameter.feature_debug_enabled.value}+12345"`,
+					"cache":   `data.coder_parameter.feature_cache_enabled.value == "true" ? "nix-with-cache" : "no-cache"`,
+				},
+			},
+		},
+		{
+			Name: "workspace-tags-in-a-single-file",
+			Files: map[string]string{
+				"main.tf": `
+
+				  data "coder_parameter" "os_selector" {
+					name         = "os_selector"
+					display_name = "Operating System"
+					mutable      = false
+
+					default = "osx"
+
+					option {
+					  icon  = "/icons/linux.png"
+					  name  = "Linux"
+					  value = "linux"
+					}
+					option {
+					  icon  = "/icons/osx.png"
+					  name  = "OSX"
+					  value = "osx"
+					}
+					option {
+					  icon  = "/icons/windows.png"
+					  name  = "Windows"
+					  value = "windows"
+					}
+				  }
+
+				  data "coder_parameter" "feature_cache_enabled" {
+					name         = "feature_cache_enabled"
+					display_name = "Enable cache?"
+					type         = "bool"
+
+					default = false
+				  }
+
+				  data "coder_parameter" "feature_debug_enabled" {
+					name         = "feature_debug_enabled"
+					display_name = "Enable debug?"
+					type         = "bool"
+
+					default = true
+				  }
+
+				  data "coder_workspace_tags" "custom_workspace_tags" {
+					tags = {
+					  "cluster" = "developers"
+					  "os"      = data.coder_parameter.os_selector.value
+					  "debug"   = "${data.coder_parameter.feature_debug_enabled.value}+12345"
+					  "cache"   = data.coder_parameter.feature_cache_enabled.value == "true" ? "nix-with-cache" : "no-cache"
+					}
+				  }
+				  `,
+			},
+			Response: &proto.ParseComplete{
+				WorkspaceTags: map[string]string{
+					"cluster": `"developers"`,
+					"os":      `data.coder_parameter.os_selector.value`,
+					"debug":   `"${data.coder_parameter.feature_debug_enabled.value}+12345"`,
+					"cache":   `data.coder_parameter.feature_cache_enabled.value == "true" ? "nix-with-cache" : "no-cache"`,
+				},
+			},
+		},
+		{
+			Name: "workspace-tags-duplicate-tag",
+			Files: map[string]string{
+				"main.tf": `
+
+				  data "coder_workspace_tags" "custom_workspace_tags" {
+					tags = {
+					  "cluster" = "developers"
+					  "debug"   = "yes"
+					  "debug"   = "no"
+					  "cache"   = "no-cache"
+					}
+				  }
+				  `,
+			},
+			ErrorContains: `workspace tag "debug" is defined multiple times`,
+		},
+		{
+			Name: "workspace-tags-wrong-tag-format",
+			Files: map[string]string{
+				"main.tf": `
+
+				  data "coder_workspace_tags" "custom_workspace_tags" {
+					tags {
+					  cluster = "developers"
+					  debug   = "yes"
+					  cache   = "no-cache"
+					}
+				  }
+				  `,
+			},
+			ErrorContains: `"tags" attribute is required by coder_workspace_tags`,
+		},
+		{
+			Name: "empty-main",
+			Files: map[string]string{
+				"main.tf": ``,
+			},
+			Response: &proto.ParseComplete{},
+		},
+		{
+			Name: "non-tf-files",
+			Files: map[string]string{
+				"any-file.txt": "Foobar",
+			},
+			Response: &proto.ParseComplete{},
+		},
 	}
 
 	for _, testCase := range testCases {
-		testCase := testCase
 		t.Run(testCase.Name, func(t *testing.T) {
 			t.Parallel()
 
 			session := configure(ctx, t, api, &proto.Config{
-				TemplateSourceArchive: makeTar(t, testCase.Files),
+				TemplateSourceArchive: testutil.CreateTar(t, testCase.Files),
 			})
 
 			err := session.Send(&proto.Request{Type: &proto.Request_Parse{Parse: &proto.ParseRequest{}}})

@@ -1,0 +1,25 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder support bundle [flags] <workspace> [<agent>]
+
+  Generate a support bundle to troubleshoot issues connecting to a workspace.
+
+  This command generates a file containing detailed troubleshooting information
+  about the Coder deployment and workspace connections. You must specify a
+  single workspace (and optionally an agent name).
+
+OPTIONS:
+  -O, --output-file string, $CODER_SUPPORT_BUNDLE_OUTPUT_FILE
+          File path for writing the generated support bundle. Defaults to
+          coder-support-$(date +%s).zip.
+
+      --url-override string, $CODER_SUPPORT_BUNDLE_URL_OVERRIDE
+          Override the URL to your Coder deployment. This may be useful, for
+          example, if you need to troubleshoot a specific Coder replica.
+
+  -y, --yes bool
+          Bypass prompts.
+
+———
+Run `coder --help` for a list of global options.

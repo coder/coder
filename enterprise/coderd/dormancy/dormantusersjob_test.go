@@ -10,10 +10,11 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/enterprise/coderd/dormancy"
-	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestCheckInactiveUsers(t *testing.T) {
@@ -25,51 +26,64 @@ func TestCheckInactiveUsers(t *testing.T) {
 
 	// Add some dormant accounts
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	db := dbfake.New()
+	db, _ := dbtestutil.NewDB(t)
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
 
-	inactiveUser1 := setupUser(ctx, t, db, "dormant-user-1@coder.com", database.UserStatusActive, time.Now().Add(-dormancyPeriod).Add(-time.Minute))
-	inactiveUser2 := setupUser(ctx, t, db, "dormant-user-2@coder.com", database.UserStatusActive, time.Now().Add(-dormancyPeriod).Add(-time.Hour))
-	inactiveUser3 := setupUser(ctx, t, db, "dormant-user-3@coder.com", database.UserStatusActive, time.Now().Add(-dormancyPeriod).Add(-6*time.Hour))
+	// Use a fixed base time to avoid timing races
+	baseTime := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+	dormancyThreshold := baseTime.Add(-dormancyPeriod)
 
-	activeUser1 := setupUser(ctx, t, db, "active-user-1@coder.com", database.UserStatusActive, time.Now().Add(-dormancyPeriod).Add(time.Minute))
-	activeUser2 := setupUser(ctx, t, db, "active-user-2@coder.com", database.UserStatusActive, time.Now().Add(-dormancyPeriod).Add(time.Hour))
-	activeUser3 := setupUser(ctx, t, db, "active-user-3@coder.com", database.UserStatusActive, time.Now().Add(-dormancyPeriod).Add(6*time.Hour))
+	// Create inactive users (last seen BEFORE dormancy threshold)
+	inactiveUser1 := setupUser(ctx, t, db, "dormant-user-1@coder.com", database.UserStatusActive, dormancyThreshold.Add(-time.Minute))
+	inactiveUser2 := setupUser(ctx, t, db, "dormant-user-2@coder.com", database.UserStatusActive, dormancyThreshold.Add(-time.Hour))
+	inactiveUser3 := setupUser(ctx, t, db, "dormant-user-3@coder.com", database.UserStatusActive, dormancyThreshold.Add(-6*time.Hour))
 
-	suspendedUser1 := setupUser(ctx, t, db, "suspended-user-1@coder.com", database.UserStatusSuspended, time.Now().Add(-dormancyPeriod).Add(-time.Minute))
-	suspendedUser2 := setupUser(ctx, t, db, "suspended-user-2@coder.com", database.UserStatusSuspended, time.Now().Add(-dormancyPeriod).Add(-time.Hour))
-	suspendedUser3 := setupUser(ctx, t, db, "suspended-user-3@coder.com", database.UserStatusSuspended, time.Now().Add(-dormancyPeriod).Add(-6*time.Hour))
+	// Create active users (last seen AFTER dormancy threshold)
+	activeUser1 := setupUser(ctx, t, db, "active-user-1@coder.com", database.UserStatusActive, baseTime.Add(-time.Minute))
+	activeUser2 := setupUser(ctx, t, db, "active-user-2@coder.com", database.UserStatusActive, baseTime.Add(-time.Hour))
+	activeUser3 := setupUser(ctx, t, db, "active-user-3@coder.com", database.UserStatusActive, baseTime.Add(-6*time.Hour))
 
+	suspendedUser1 := setupUser(ctx, t, db, "suspended-user-1@coder.com", database.UserStatusSuspended, dormancyThreshold.Add(-time.Minute))
+	suspendedUser2 := setupUser(ctx, t, db, "suspended-user-2@coder.com", database.UserStatusSuspended, dormancyThreshold.Add(-time.Hour))
+	suspendedUser3 := setupUser(ctx, t, db, "suspended-user-3@coder.com", database.UserStatusSuspended, dormancyThreshold.Add(-6*time.Hour))
+
+	mAudit := audit.NewMock()
+	mClock := quartz.NewMock(t)
+	// Set the mock clock to the base time to ensure consistent behavior
+	mClock.Set(baseTime)
 	// Run the periodic job
-	closeFunc := dormancy.CheckInactiveUsersWithOptions(ctx, logger, db, interval, dormancyPeriod)
+	closeFunc := dormancy.CheckInactiveUsersWithOptions(ctx, logger, mClock, db, mAudit, interval, dormancyPeriod)
 	t.Cleanup(closeFunc)
 
-	var rows []database.GetUsersRow
-	var err error
-	require.Eventually(t, func() bool {
-		rows, err = db.GetUsers(ctx, database.GetUsersParams{})
-		if err != nil {
-			return false
-		}
+	dur, w := mClock.AdvanceNext()
+	require.Equal(t, interval, dur)
+	w.MustWait(ctx)
 
-		var dormant, suspended int
-		for _, row := range rows {
-			if row.Status == database.UserStatusDormant {
-				dormant++
-			} else if row.Status == database.UserStatusSuspended {
-				suspended++
-			}
+	rows, err := db.GetUsers(ctx, database.GetUsersParams{})
+	require.NoError(t, err)
+
+	var dormant, suspended int
+	for _, row := range rows {
+		if row.Status == database.UserStatusDormant {
+			dormant++
+		} else if row.Status == database.UserStatusSuspended {
+			suspended++
 		}
-		// 6 users in total, 3 dormant, 3 suspended
-		return len(rows) == 9 && dormant == 3 && suspended == 3
-	}, testutil.WaitShort, testutil.IntervalMedium)
+	}
+
+	// 9 users in total, 3 active, 3 dormant, 3 suspended
+	require.Len(t, rows, 9)
+	require.Equal(t, 3, dormant)
+	require.Equal(t, 3, suspended)
+
+	require.Len(t, mAudit.AuditLogs(), 3)
 
 	allUsers := ignoreUpdatedAt(database.ConvertUserRows(rows))
 
 	// Verify user status
-	expectedUsers := []database.User{
+	expectedUsers := ignoreUpdatedAt([]database.User{
 		asDormant(inactiveUser1),
 		asDormant(inactiveUser2),
 		asDormant(inactiveUser3),
@@ -79,14 +93,24 @@ func TestCheckInactiveUsers(t *testing.T) {
 		suspendedUser1,
 		suspendedUser2,
 		suspendedUser3,
-	}
+	})
+
 	require.ElementsMatch(t, allUsers, expectedUsers)
 }
 
 func setupUser(ctx context.Context, t *testing.T, db database.Store, email string, status database.UserStatus, lastSeenAt time.Time) database.User {
 	t.Helper()
 
-	user, err := db.InsertUser(ctx, database.InsertUserParams{ID: uuid.New(), LoginType: database.LoginTypePassword, Username: uuid.NewString()[:8], Email: email})
+	now := dbtestutil.NowInDefaultTimezone()
+	user, err := db.InsertUser(ctx, database.InsertUserParams{
+		ID:        uuid.New(),
+		LoginType: database.LoginTypePassword,
+		Username:  uuid.NewString()[:8],
+		Email:     email,
+		RBACRoles: []string{},
+		CreatedAt: now,
+		UpdatedAt: now,
+	})
 	require.NoError(t, err)
 	// At the beginning of the test all users are marked as active
 	user, err = db.UpdateUserStatus(ctx, database.UpdateUserStatusParams{ID: user.ID, Status: status})

@@ -2,21 +2,22 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 0.12"
+      version = "~> 0.23"
     }
     kubernetes = {
       source  = "hashicorp/kubernetes"
-      version = "~> 2.22"
+      version = "~> 2.30"
     }
   }
 }
 
 resource "time_static" "start_time" {
-  # We con't set `count = data.coder_workspace.me.start_count` here because then
-  # we can't use this value in `locals`. The permission check is recreated on
-  # start, which will update the timestamp.
+  # We don't set `count = data.coder_workspace.me.start_count` here because then
+  # we can't use this value in `locals`, but we want to trigger recreation when
+  # the scaletest is restarted.
   triggers = {
-    count : length(null_resource.permission_check)
+    count : data.coder_workspace.me.start_count
+    token : data.coder_workspace_owner.me.session_token # Rely on this being re-generated every start.
   }
 }
 
@@ -28,23 +29,22 @@ resource "null_resource" "permission_check" {
   # for the plan, and consequently, updating the template.
   lifecycle {
     precondition {
-      condition     = can(regex("^(default/default|scaletest/runner)$", "${data.coder_workspace.me.owner}/${data.coder_workspace.me.name}"))
+      condition     = can(regex("^(default/default|scaletest/runner)$", "${data.coder_workspace_owner.me.name}/${data.coder_workspace.me.name}"))
       error_message = "User and workspace name is not allowed, expected 'scaletest/runner'."
     }
   }
 }
 
 locals {
-  workspace_pod_name                             = "coder-scaletest-runner-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
-  workspace_pod_instance                         = "coder-workspace-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
+  workspace_pod_name                             = "coder-scaletest-runner-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
+  workspace_pod_instance                         = "coder-workspace-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
   workspace_pod_termination_grace_period_seconds = 5 * 60 * 60 # 5 hours (cleanup timeout).
   service_account_name                           = "scaletest-sa"
-  cpu                                            = 16
-  memory                                         = 64
   home_disk_size                                 = 10
-  scaletest_run_id                               = "scaletest-${time_static.start_time.rfc3339}"
+  scaletest_run_id                               = "scaletest-${replace(time_static.start_time.rfc3339, ":", "-")}"
   scaletest_run_dir                              = "/home/coder/${local.scaletest_run_id}"
-  grafana_url                                    = "https://stats.dev.c8s.io"
+  scaletest_run_start_time                       = time_static.start_time.rfc3339
+  grafana_url                                    = "https://grafana.corp.tld"
   grafana_dashboard_uid                          = "qLVSTR-Vz"
   grafana_dashboard_name                         = "coderv2-loadtest-dashboard"
 }
@@ -54,6 +54,7 @@ data "coder_provisioner" "me" {
 
 data "coder_workspace" "me" {
 }
+data "coder_workspace_owner" "me" {}
 
 data "coder_parameter" "verbose" {
   order       = 1
@@ -71,6 +72,25 @@ data "coder_parameter" "dry_run" {
   name        = "Dry-run"
   default     = true
   description = "Perform a dry-run to see what would happen."
+  mutable     = true
+  ephemeral   = true
+}
+
+data "coder_parameter" "repo_branch" {
+  order       = 3
+  type        = "string"
+  name        = "Branch"
+  default     = "main"
+  description = "Branch of coder/coder repo to check out (only useful for developing the runner)."
+  mutable     = true
+}
+
+data "coder_parameter" "comment" {
+  order       = 4
+  type        = "string"
+  name        = "Comment"
+  default     = ""
+  description = "Describe **what** you're testing and **why** you're testing it."
   mutable     = true
   ephemeral   = true
 }
@@ -151,6 +171,16 @@ data "coder_parameter" "cleanup_strategy" {
   }
 }
 
+data "coder_parameter" "cleanup_prepare" {
+  order       = 14
+  type        = "bool"
+  name        = "Cleanup before scaletest"
+  default     = true
+  description = "Cleanup existing scaletest users and workspaces before the scaletest starts (prepare phase)."
+  mutable     = true
+  ephemeral   = true
+}
+
 
 data "coder_parameter" "workspace_template" {
   order        = 20
@@ -179,6 +209,12 @@ data "coder_parameter" "workspace_template" {
     description = "Provisions a medium-sized workspace with no persistent storage."
   }
   option {
+    name        = "Medium (Greedy)"
+    value       = "kubernetes-medium-greedy"
+    icon        = "/emojis/1f436.png" # Dog.
+    description = "Provisions a medium-sized workspace with no persistent storage. Greedy agent variant."
+  }
+  option {
     name        = "Large"
     value       = "kubernetes-large"
     icon        = "/emojis/1f434.png" # Horse.
@@ -196,13 +232,22 @@ data "coder_parameter" "num_workspaces" {
 
   validation {
     min = 0
-    max = 1000
+    max = 2000
   }
+}
+
+data "coder_parameter" "skip_create_workspaces" {
+  order       = 22
+  type        = "bool"
+  name        = "DEBUG: Skip creating workspaces"
+  default     = false
+  description = "Skip creating workspaces (for resuming failed scaletests or debugging)"
+  mutable     = true
 }
 
 
 data "coder_parameter" "load_scenarios" {
-  order       = 22
+  order       = 23
   name        = "Load Scenarios"
   type        = "list(string)"
   description = "The load scenarios to run."
@@ -211,12 +256,31 @@ data "coder_parameter" "load_scenarios" {
   default = jsonencode([
     "SSH Traffic",
     "Web Terminal Traffic",
+    "App Traffic",
     "Dashboard Traffic",
   ])
 }
 
+data "coder_parameter" "load_scenario_run_concurrently" {
+  order       = 24
+  name        = "Run Load Scenarios Concurrently"
+  type        = "bool"
+  default     = false
+  description = "Run all load scenarios concurrently, this setting enables the load scenario percentages so that they can be assigned a percentage of 1-100%."
+  mutable     = true
+}
+
+data "coder_parameter" "load_scenario_concurrency_stagger_delay_mins" {
+  order       = 25
+  name        = "Load Scenario Concurrency Stagger Delay"
+  type        = "number"
+  default     = 3
+  description = "The number of minutes to wait between starting each load scenario when run concurrently."
+  mutable     = true
+}
+
 data "coder_parameter" "load_scenario_ssh_traffic_duration" {
-  order       = 23
+  order       = 30
   name        = "SSH Traffic Duration"
   type        = "number"
   description = "The duration of the SSH traffic load scenario in minutes."
@@ -229,7 +293,7 @@ data "coder_parameter" "load_scenario_ssh_traffic_duration" {
 }
 
 data "coder_parameter" "load_scenario_ssh_bytes_per_tick" {
-  order       = 24
+  order       = 31
   name        = "SSH Bytes Per Tick"
   type        = "number"
   description = "The number of bytes to send per tick in the SSH traffic load scenario."
@@ -241,7 +305,7 @@ data "coder_parameter" "load_scenario_ssh_bytes_per_tick" {
 }
 
 data "coder_parameter" "load_scenario_ssh_tick_interval" {
-  order       = 25
+  order       = 32
   name        = "SSH Tick Interval"
   type        = "number"
   description = "The number of milliseconds between each tick in the SSH traffic load scenario."
@@ -252,8 +316,21 @@ data "coder_parameter" "load_scenario_ssh_tick_interval" {
   }
 }
 
+data "coder_parameter" "load_scenario_ssh_traffic_percentage" {
+  order       = 33
+  name        = "SSH Traffic Percentage"
+  type        = "number"
+  description = "The percentage of workspaces that should be targeted for SSH traffic."
+  mutable     = true
+  default     = 100
+  validation {
+    min = 1
+    max = 100
+  }
+}
+
 data "coder_parameter" "load_scenario_web_terminal_traffic_duration" {
-  order       = 26
+  order       = 40
   name        = "Web Terminal Traffic Duration"
   type        = "number"
   description = "The duration of the web terminal traffic load scenario in minutes."
@@ -266,7 +343,7 @@ data "coder_parameter" "load_scenario_web_terminal_traffic_duration" {
 }
 
 data "coder_parameter" "load_scenario_web_terminal_bytes_per_tick" {
-  order       = 27
+  order       = 41
   name        = "Web Terminal Bytes Per Tick"
   type        = "number"
   description = "The number of bytes to send per tick in the web terminal traffic load scenario."
@@ -278,7 +355,7 @@ data "coder_parameter" "load_scenario_web_terminal_bytes_per_tick" {
 }
 
 data "coder_parameter" "load_scenario_web_terminal_tick_interval" {
-  order       = 28
+  order       = 42
   name        = "Web Terminal Tick Interval"
   type        = "number"
   description = "The number of milliseconds between each tick in the web terminal traffic load scenario."
@@ -289,8 +366,94 @@ data "coder_parameter" "load_scenario_web_terminal_tick_interval" {
   }
 }
 
+data "coder_parameter" "load_scenario_web_terminal_traffic_percentage" {
+  order       = 43
+  name        = "Web Terminal Traffic Percentage"
+  type        = "number"
+  description = "The percentage of workspaces that should be targeted for web terminal traffic."
+  mutable     = true
+  default     = 100
+  validation {
+    min = 1
+    max = 100
+  }
+}
+
+data "coder_parameter" "load_scenario_app_traffic_duration" {
+  order       = 50
+  name        = "App Traffic Duration"
+  type        = "number"
+  description = "The duration of the app traffic load scenario in minutes."
+  mutable     = true
+  default     = 30
+  validation {
+    min = 1
+    max = 1440 // 24 hours.
+  }
+}
+
+data "coder_parameter" "load_scenario_app_bytes_per_tick" {
+  order       = 51
+  name        = "App Bytes Per Tick"
+  type        = "number"
+  description = "The number of bytes to send per tick in the app traffic load scenario."
+  mutable     = true
+  default     = 1024
+  validation {
+    min = 1
+  }
+}
+
+data "coder_parameter" "load_scenario_app_tick_interval" {
+  order       = 52
+  name        = "App Tick Interval"
+  type        = "number"
+  description = "The number of milliseconds between each tick in the app traffic load scenario."
+  mutable     = true
+  default     = 100
+  validation {
+    min = 1
+  }
+}
+
+data "coder_parameter" "load_scenario_app_traffic_percentage" {
+  order       = 53
+  name        = "App Traffic Percentage"
+  type        = "number"
+  description = "The percentage of workspaces that should be targeted for app traffic."
+  mutable     = true
+  default     = 100
+  validation {
+    min = 1
+    max = 100
+  }
+}
+
+data "coder_parameter" "load_scenario_app_traffic_mode" {
+  order       = 54
+  name        = "App Traffic Mode"
+  default     = "wsec"
+  description = "The mode of the app traffic load scenario."
+  mutable     = true
+  option {
+    name        = "WebSocket Echo"
+    value       = "wsec"
+    description = "Send traffic to the workspace via the app websocket and read it back."
+  }
+  option {
+    name        = "WebSocket Read (Random)"
+    value       = "wsra"
+    description = "Read traffic from the workspace via the app websocket."
+  }
+  option {
+    name        = "WebSocket Write (Discard)"
+    value       = "wsdi"
+    description = "Send traffic to the workspace via the app websocket."
+  }
+}
+
 data "coder_parameter" "load_scenario_dashboard_traffic_duration" {
-  order       = 29
+  order       = 60
   name        = "Dashboard Traffic Duration"
   type        = "number"
   description = "The duration of the dashboard traffic load scenario in minutes."
@@ -302,8 +465,21 @@ data "coder_parameter" "load_scenario_dashboard_traffic_duration" {
   }
 }
 
+data "coder_parameter" "load_scenario_dashboard_traffic_percentage" {
+  order       = 61
+  name        = "Dashboard Traffic Percentage"
+  type        = "number"
+  description = "The percentage of users that should be targeted for dashboard traffic."
+  mutable     = true
+  default     = 100
+  validation {
+    min = 1
+    max = 100
+  }
+}
+
 data "coder_parameter" "load_scenario_baseline_duration" {
-  order       = 26
+  order       = 100
   name        = "Baseline Wait Duration"
   type        = "number"
   description = "The duration to wait before starting a load scenario in minutes."
@@ -312,6 +488,56 @@ data "coder_parameter" "load_scenario_baseline_duration" {
   validation {
     min = 0
     max = 60
+  }
+}
+
+data "coder_parameter" "greedy_agent" {
+  order       = 200
+  type        = "bool"
+  name        = "Greedy Agent"
+  default     = false
+  description = "If true, the agent will attempt to consume all available resources."
+  mutable     = true
+  ephemeral   = true
+}
+
+data "coder_parameter" "greedy_agent_template" {
+  order        = 201
+  name         = "Greedy Agent Template"
+  display_name = "Greedy Agent Template"
+  description  = "The template used for the greedy agent workspace (must not be same as workspace template)."
+  default      = "kubernetes-medium-greedy"
+  icon         = "/emojis/1f4dc.png" # Scroll.
+  mutable      = true
+  option {
+    name        = "Minimal"
+    value       = "kubernetes-minimal" # Feather.
+    icon        = "/emojis/1fab6.png"
+    description = "Sized to fit approx. 32 per t2d-standard-8 instance."
+  }
+  option {
+    name        = "Small"
+    value       = "kubernetes-small"
+    icon        = "/emojis/1f42d.png" # Mouse.
+    description = "Provisions a small-sized workspace with no persistent storage."
+  }
+  option {
+    name        = "Medium"
+    value       = "kubernetes-medium"
+    icon        = "/emojis/1f436.png" # Dog.
+    description = "Provisions a medium-sized workspace with no persistent storage."
+  }
+  option {
+    name        = "Medium (Greedy)"
+    value       = "kubernetes-medium-greedy"
+    icon        = "/emojis/1f436.png" # Dog.
+    description = "Provisions a medium-sized workspace with no persistent storage. Greedy agent variant."
+  }
+  option {
+    name        = "Large"
+    value       = "kubernetes-large"
+    icon        = "/emojis/1f434.png" # Horse.
+    description = "Provisions a large-sized workspace with no persistent storage."
   }
 }
 
@@ -337,9 +563,9 @@ resource "coder_agent" "main" {
     VERBOSE : data.coder_parameter.verbose.value ? "1" : "0",
     DRY_RUN : data.coder_parameter.dry_run.value ? "1" : "0",
     CODER_CONFIG_DIR : "/home/coder/.config/coderv2",
-    CODER_USER_TOKEN : data.coder_workspace.me.owner_session_token,
+    CODER_USER_TOKEN : data.coder_workspace_owner.me.session_token,
     CODER_URL : data.coder_workspace.me.access_url,
-    CODER_USER : data.coder_workspace.me.owner,
+    CODER_USER : data.coder_workspace_owner.me.name,
     CODER_WORKSPACE : data.coder_workspace.me.name,
 
     # Global scaletest envs that may affect each `coder exp scaletest` invocation.
@@ -355,20 +581,41 @@ resource "coder_agent" "main" {
     # Local envs passed as arguments to `coder exp scaletest` invocations.
     SCALETEST_RUN_ID : local.scaletest_run_id,
     SCALETEST_RUN_DIR : local.scaletest_run_dir,
+    SCALETEST_RUN_START_TIME : local.scaletest_run_start_time,
+    SCALETEST_PROMETHEUS_START_PORT : "21112",
+
+    # Comment is a scaletest param, but we want to surface it separately from
+    # the rest, so we use a different name.
+    SCALETEST_COMMENT : data.coder_parameter.comment.value != "" ? data.coder_parameter.comment.value : "No comment provided",
 
     SCALETEST_PARAM_TEMPLATE : data.coder_parameter.workspace_template.value,
+    SCALETEST_PARAM_REPO_BRANCH : data.coder_parameter.repo_branch.value,
     SCALETEST_PARAM_NUM_WORKSPACES : data.coder_parameter.num_workspaces.value,
+    SCALETEST_PARAM_SKIP_CREATE_WORKSPACES : data.coder_parameter.skip_create_workspaces.value ? "1" : "0",
     SCALETEST_PARAM_CREATE_CONCURRENCY : "${data.coder_parameter.create_concurrency.value}",
     SCALETEST_PARAM_CLEANUP_STRATEGY : data.coder_parameter.cleanup_strategy.value,
+    SCALETEST_PARAM_CLEANUP_PREPARE : data.coder_parameter.cleanup_prepare.value ? "1" : "0",
     SCALETEST_PARAM_LOAD_SCENARIOS : data.coder_parameter.load_scenarios.value,
+    SCALETEST_PARAM_LOAD_SCENARIO_RUN_CONCURRENTLY : data.coder_parameter.load_scenario_run_concurrently.value ? "1" : "0",
+    SCALETEST_PARAM_LOAD_SCENARIO_CONCURRENCY_STAGGER_DELAY_MINS : "${data.coder_parameter.load_scenario_concurrency_stagger_delay_mins.value}",
     SCALETEST_PARAM_LOAD_SCENARIO_SSH_TRAFFIC_DURATION : "${data.coder_parameter.load_scenario_ssh_traffic_duration.value}",
     SCALETEST_PARAM_LOAD_SCENARIO_SSH_TRAFFIC_BYTES_PER_TICK : "${data.coder_parameter.load_scenario_ssh_bytes_per_tick.value}",
     SCALETEST_PARAM_LOAD_SCENARIO_SSH_TRAFFIC_TICK_INTERVAL : "${data.coder_parameter.load_scenario_ssh_tick_interval.value}",
+    SCALETEST_PARAM_LOAD_SCENARIO_SSH_TRAFFIC_PERCENTAGE : "${data.coder_parameter.load_scenario_ssh_traffic_percentage.value}",
     SCALETEST_PARAM_LOAD_SCENARIO_WEB_TERMINAL_TRAFFIC_DURATION : "${data.coder_parameter.load_scenario_web_terminal_traffic_duration.value}",
     SCALETEST_PARAM_LOAD_SCENARIO_WEB_TERMINAL_TRAFFIC_BYTES_PER_TICK : "${data.coder_parameter.load_scenario_web_terminal_bytes_per_tick.value}",
     SCALETEST_PARAM_LOAD_SCENARIO_WEB_TERMINAL_TRAFFIC_TICK_INTERVAL : "${data.coder_parameter.load_scenario_web_terminal_tick_interval.value}",
+    SCALETEST_PARAM_LOAD_SCENARIO_WEB_TERMINAL_TRAFFIC_PERCENTAGE : "${data.coder_parameter.load_scenario_web_terminal_traffic_percentage.value}",
+    SCALETEST_PARAM_LOAD_SCENARIO_APP_TRAFFIC_DURATION : "${data.coder_parameter.load_scenario_app_traffic_duration.value}",
+    SCALETEST_PARAM_LOAD_SCENARIO_APP_TRAFFIC_BYTES_PER_TICK : "${data.coder_parameter.load_scenario_app_bytes_per_tick.value}",
+    SCALETEST_PARAM_LOAD_SCENARIO_APP_TRAFFIC_TICK_INTERVAL : "${data.coder_parameter.load_scenario_app_tick_interval.value}",
+    SCALETEST_PARAM_LOAD_SCENARIO_APP_TRAFFIC_PERCENTAGE : "${data.coder_parameter.load_scenario_app_traffic_percentage.value}",
+    SCALETEST_PARAM_LOAD_SCENARIO_APP_TRAFFIC_MODE : data.coder_parameter.load_scenario_app_traffic_mode.value,
     SCALETEST_PARAM_LOAD_SCENARIO_DASHBOARD_TRAFFIC_DURATION : "${data.coder_parameter.load_scenario_dashboard_traffic_duration.value}",
+    SCALETEST_PARAM_LOAD_SCENARIO_DASHBOARD_TRAFFIC_PERCENTAGE : "${data.coder_parameter.load_scenario_dashboard_traffic_percentage.value}",
     SCALETEST_PARAM_LOAD_SCENARIO_BASELINE_DURATION : "${data.coder_parameter.load_scenario_baseline_duration.value}",
+    SCALETEST_PARAM_GREEDY_AGENT : data.coder_parameter.greedy_agent.value ? "1" : "0",
+    SCALETEST_PARAM_GREEDY_AGENT_TEMPLATE : data.coder_parameter.greedy_agent_template.value,
 
     GRAFANA_URL : local.grafana_url,
 
@@ -490,10 +737,9 @@ resource "coder_app" "prometheus" {
   agent_id     = coder_agent.main.id
   slug         = "01-prometheus"
   display_name = "Prometheus"
-  // https://stats.dev.c8s.io:9443/classic/graph?g0.range_input=2h&g0.end_input=2023-09-08%2015%3A58&g0.stacked=0&g0.expr=rate(pg_stat_database_xact_commit%7Bcluster%3D%22big%22%2Cdatname%3D%22big-coder%22%7D%5B1m%5D)&g0.tab=0
-  url      = "https://stats.dev.c8s.io:9443"
-  icon     = "https://prometheus.io/assets/favicons/favicon-32x32.png"
-  external = true
+  url          = "https://grafana.corp.tld:9443"
+  icon         = "https://prometheus.io/assets/favicons/favicon-32x32.png"
+  external     = true
 }
 
 resource "coder_app" "manual_cleanup" {
@@ -511,17 +757,17 @@ resource "kubernetes_persistent_volume_claim" "home" {
     namespace = data.coder_parameter.namespace.value
     labels = {
       "app.kubernetes.io/name"     = "coder-pvc"
-      "app.kubernetes.io/instance" = "coder-pvc-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
+      "app.kubernetes.io/instance" = "coder-pvc-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
       "app.kubernetes.io/part-of"  = "coder"
       // Coder specific labels.
       "com.coder.resource"       = "true"
       "com.coder.workspace.id"   = data.coder_workspace.me.id
       "com.coder.workspace.name" = data.coder_workspace.me.name
-      "com.coder.user.id"        = data.coder_workspace.me.owner_id
-      "com.coder.user.username"  = data.coder_workspace.me.owner
+      "com.coder.user.id"        = data.coder_workspace_owner.me.id
+      "com.coder.user.username"  = data.coder_workspace_owner.me.name
     }
     annotations = {
-      "com.coder.user.email" = data.coder_workspace.me.owner_email
+      "com.coder.user.email" = data.coder_workspace_owner.me.email
     }
   }
   wait_until_bound = false
@@ -549,16 +795,16 @@ resource "kubernetes_pod" "main" {
       "com.coder.resource"       = "true"
       "com.coder.workspace.id"   = data.coder_workspace.me.id
       "com.coder.workspace.name" = data.coder_workspace.me.name
-      "com.coder.user.id"        = data.coder_workspace.me.owner_id
-      "com.coder.user.username"  = data.coder_workspace.me.owner
+      "com.coder.user.id"        = data.coder_workspace_owner.me.id
+      "com.coder.user.username"  = data.coder_workspace_owner.me.name
     }
     annotations = {
-      "com.coder.user.email" = data.coder_workspace.me.owner_email
+      "com.coder.user.email" = data.coder_workspace_owner.me.email
     }
   }
   # Set the pod delete timeout to termination_grace_period_seconds + 1m.
   timeouts {
-    delete = "${(local.workspace_pod_termination_grace_period_seconds + 120) / 60}s"
+    delete = "${(local.workspace_pod_termination_grace_period_seconds + 120)}s"
   }
   spec {
     security_context {
@@ -576,7 +822,7 @@ resource "kubernetes_pod" "main" {
 
     container {
       name              = "dev"
-      image             = "gcr.io/coder-dev-1/scaletest-runner:latest"
+      image             = "us-docker.pkg.dev/coder-v2-images-public/public/scaletest-runner:latest"
       image_pull_policy = "Always"
       command           = ["sh", "-c", coder_agent.main.init_script]
       security_context {
@@ -609,15 +855,9 @@ resource "kubernetes_pod" "main" {
         }
       }
       resources {
-        # Set requests and limits values such that we can do performant
-        # execution of `coder scaletest` commands.
         requests = {
           "cpu"    = "250m"
           "memory" = "512Mi"
-        }
-        limits = {
-          "cpu"    = "${local.cpu}"
-          "memory" = "${local.memory}Gi"
         }
       }
       volume_mount {
@@ -625,10 +865,14 @@ resource "kubernetes_pod" "main" {
         name       = "home"
         read_only  = false
       }
-      port {
-        container_port = 21112
-        name           = "prometheus-http"
-        protocol       = "TCP"
+      dynamic "port" {
+        for_each = data.coder_parameter.load_scenario_run_concurrently.value ? jsondecode(data.coder_parameter.load_scenarios.value) : [""]
+        iterator = it
+        content {
+          container_port = 21112 + it.key
+          name           = "prom-http${it.key}"
+          protocol       = "TCP"
+        }
       }
     }
 
@@ -703,8 +947,12 @@ resource "kubernetes_manifest" "pod_monitor" {
         }
       }
       podMetricsEndpoints = [
-        {
-          port     = "prometheus-http"
+        # NOTE(mafredri): We could add more information here by including the
+        # scenario name in the port name (although it's limited to 15 chars so
+        # it needs to be short). That said, someone looking at the stats can
+        # assume that there's a 1-to-1 mapping between scenario# and port.
+        for i, _ in data.coder_parameter.load_scenario_run_concurrently.value ? jsondecode(data.coder_parameter.load_scenarios.value) : [""] : {
+          port     = "prom-http${i}"
           interval = "15s"
         }
       ]

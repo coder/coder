@@ -17,14 +17,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent"
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
@@ -32,12 +32,17 @@ import (
 
 const (
 	proxyTestAgentName            = "agent-name"
-	proxyTestAppNameFake          = "taf"
-	proxyTestAppNameOwner         = "tao"
-	proxyTestAppNameAuthenticated = "taa"
-	proxyTestAppNamePublic        = "tap"
-	proxyTestAppQuery             = "query=true"
-	proxyTestAppBody              = "hello world from apps test"
+	proxyTestAppNameFake          = "test-app-fake"
+	proxyTestAppNameOwner         = "test-app-owner"
+	proxyTestAppNameAuthenticated = "test-app-authenticated"
+	proxyTestAppNamePublic        = "test-app-public"
+	// nolint:gosec // Not a secret
+	proxyTestAppNameAuthenticatedCORSPassthru = "test-app-authenticated-cors-passthru"
+	proxyTestAppNamePublicCORSPassthru        = "test-app-public-cors-passthru"
+	proxyTestAppNameAuthenticatedCORSDefault  = "test-app-authenticated-cors-default"
+	proxyTestAppNamePublicCORSDefault         = "test-app-public-cors-default"
+	proxyTestAppQuery                         = "query=true"
+	proxyTestAppBody                          = "hello world from apps test"
 
 	proxyTestSubdomainRaw = "*.test.coder.com"
 	proxyTestSubdomain    = "test.coder.com"
@@ -46,6 +51,7 @@ const (
 // DeploymentOptions are the options for creating a *Deployment with a
 // DeploymentFactory.
 type DeploymentOptions struct {
+	PrimaryAppHost                       string
 	AppHost                              string
 	DisablePathApps                      bool
 	DisableSubdomainApps                 bool
@@ -59,6 +65,7 @@ type DeploymentOptions struct {
 	noWorkspace bool
 	port        uint16
 	headers     http.Header
+	handler     http.Handler
 }
 
 // Deployment is a license-agnostic deployment with all the fields that apps
@@ -70,6 +77,7 @@ type Deployment struct {
 	SDKClient      *codersdk.Client
 	FirstUser      codersdk.CreateFirstUserResponse
 	PathAppBaseURL *url.URL
+	FlushStats     func()
 }
 
 // DeploymentFactory generates a deployment with an API client, a path base URL,
@@ -88,7 +96,12 @@ type App struct {
 	AgentName     string
 	AppSlugOrPort string
 
-	Query string
+	// Prefix should have ---.
+	Prefix string
+	Query  string
+
+	// Control the behavior of CORS handling.
+	CORSBehavior codersdk.CORSBehavior
 }
 
 // Details are the full test details returned from setupProxyTestWithFactory.
@@ -105,11 +118,16 @@ type Details struct {
 	AppPort   uint16
 
 	Apps struct {
-		Fake          App
-		Owner         App
-		Authenticated App
-		Public        App
-		Port          App
+		Fake                      App
+		Owner                     App
+		Authenticated             App
+		Public                    App
+		Port                      App
+		PortHTTPS                 App
+		PublicCORSPassthru        App
+		AuthenticatedCORSPassthru App
+		PublicCORSDefault         App
+		AuthenticatedCORSDefault  App
 	}
 }
 
@@ -119,10 +137,9 @@ type Details struct {
 //
 // The client is authenticated as the first user by default.
 func (d *Details) AppClient(t *testing.T) *codersdk.Client {
-	client := codersdk.New(d.PathAppBaseURL)
-	client.SetSessionToken(d.SDKClient.SessionToken())
+	client := codersdk.New(d.PathAppBaseURL, codersdk.WithSessionToken(d.SDKClient.SessionToken()))
 	forceURLTransport(t, client)
-	client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+	client.HTTPClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
 
@@ -142,9 +159,16 @@ func (d *Details) PathAppURL(app App) *url.URL {
 
 // SubdomainAppURL returns the URL for the given subdomain app.
 func (d *Details) SubdomainAppURL(app App) *url.URL {
-	appHost := httpapi.ApplicationURL{
+	// Agent name is optional when app slug is present
+	agentName := app.AgentName
+	if !appurl.PortRegex.MatchString(app.AppSlugOrPort) {
+		agentName = ""
+	}
+
+	appHost := appurl.ApplicationURL{
+		Prefix:        app.Prefix,
 		AppSlugOrPort: app.AppSlugOrPort,
-		AgentName:     app.AgentName,
+		AgentName:     agentName,
 		WorkspaceName: app.WorkspaceName,
 		Username:      app.Username,
 	}
@@ -176,7 +200,7 @@ func setupProxyTestWithFactory(t *testing.T, factory DeploymentFactory, opts *De
 
 	// Configure the HTTP client to not follow redirects and to route all
 	// requests regardless of hostname to the coderd test server.
-	deployment.SDKClient.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+	deployment.SDKClient.HTTPClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
 	forceURLTransport(t, deployment.SDKClient)
@@ -195,7 +219,7 @@ func setupProxyTestWithFactory(t *testing.T, factory DeploymentFactory, opts *De
 	}
 
 	if opts.port == 0 {
-		opts.port = appServer(t, opts.headers, opts.ServeHTTPS)
+		opts.port = appServer(t, opts.headers, opts.ServeHTTPS, opts.handler)
 	}
 	workspace, agnt := createWorkspaceWithApps(t, deployment.SDKClient, deployment.FirstUser.OrganizationID, me, opts.port, opts.ServeHTTPS)
 
@@ -216,7 +240,7 @@ func setupProxyTestWithFactory(t *testing.T, factory DeploymentFactory, opts *De
 	details.Apps.Owner = App{
 		Username:      me.Username,
 		WorkspaceName: workspace.Name,
-		AgentName:     agnt.Name,
+		AgentName:     "", // Agent name is optional when app slug is present
 		AppSlugOrPort: proxyTestAppNameOwner,
 		Query:         proxyTestAppQuery,
 	}
@@ -240,28 +264,69 @@ func setupProxyTestWithFactory(t *testing.T, factory DeploymentFactory, opts *De
 		AgentName:     agnt.Name,
 		AppSlugOrPort: strconv.Itoa(int(opts.port)),
 	}
+	details.Apps.PortHTTPS = App{
+		Username:      me.Username,
+		WorkspaceName: workspace.Name,
+		AgentName:     agnt.Name,
+		AppSlugOrPort: strconv.Itoa(int(opts.port)) + "s",
+	}
+	details.Apps.PublicCORSPassthru = App{
+		Username:      me.Username,
+		WorkspaceName: workspace.Name,
+		AgentName:     agnt.Name,
+		AppSlugOrPort: proxyTestAppNamePublicCORSPassthru,
+		CORSBehavior:  codersdk.CORSBehaviorPassthru,
+		Query:         proxyTestAppQuery,
+	}
+	details.Apps.AuthenticatedCORSPassthru = App{
+		Username:      me.Username,
+		WorkspaceName: workspace.Name,
+		AgentName:     agnt.Name,
+		AppSlugOrPort: proxyTestAppNameAuthenticatedCORSPassthru,
+		CORSBehavior:  codersdk.CORSBehaviorPassthru,
+		Query:         proxyTestAppQuery,
+	}
+	details.Apps.PublicCORSDefault = App{
+		Username:      me.Username,
+		WorkspaceName: workspace.Name,
+		AgentName:     agnt.Name,
+		AppSlugOrPort: proxyTestAppNamePublicCORSDefault,
+		Query:         proxyTestAppQuery,
+	}
+	details.Apps.AuthenticatedCORSDefault = App{
+		Username:      me.Username,
+		WorkspaceName: workspace.Name,
+		AgentName:     agnt.Name,
+		AppSlugOrPort: proxyTestAppNameAuthenticatedCORSDefault,
+		Query:         proxyTestAppQuery,
+	}
 
 	return details
 }
 
 //nolint:revive
-func appServer(t *testing.T, headers http.Header, isHTTPS bool) uint16 {
-	server := httptest.NewUnstartedServer(
-		http.HandlerFunc(
-			func(w http.ResponseWriter, r *http.Request) {
-				_, err := r.Cookie(codersdk.SessionTokenCookie)
-				assert.ErrorIs(t, err, http.ErrNoCookie)
-				w.Header().Set("X-Forwarded-For", r.Header.Get("X-Forwarded-For"))
-				for name, values := range headers {
-					for _, value := range values {
-						w.Header().Add(name, value)
-					}
+func appServer(t *testing.T, headers http.Header, isHTTPS bool, handler http.Handler) uint16 {
+	defaultHandler := http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			_, err := r.Cookie(codersdk.SessionTokenCookie)
+			assert.ErrorIs(t, err, http.ErrNoCookie)
+			w.Header().Set("X-Forwarded-For", r.Header.Get("X-Forwarded-For"))
+			w.Header().Set("X-Got-Host", r.Host)
+			for name, values := range headers {
+				for _, value := range values {
+					w.Header().Add(name, value)
 				}
-				w.WriteHeader(http.StatusOK)
-				_, _ = w.Write([]byte(proxyTestAppBody))
-			},
-		),
+			}
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(proxyTestAppBody))
+		},
 	)
+
+	if handler == nil {
+		handler = defaultHandler
+	}
+
+	server := httptest.NewUnstartedServer(handler)
 
 	server.Config.ReadHeaderTimeout = time.Minute
 	if isHTTPS {
@@ -290,15 +355,42 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 		scheme = "https"
 	}
 
+	// Workspace name needs to be short to avoid hitting 62 char hostname
+	// segment limit.
+	workspaceName, err := cryptorand.String(6)
+	require.NoError(t, err)
+	workspaceName = "ws-" + workspaceName
+	workspaceMutators = append([]func(*codersdk.CreateWorkspaceRequest){
+		func(req *codersdk.CreateWorkspaceRequest) {
+			req.Name = workspaceName
+		},
+	}, workspaceMutators...)
+
+	// Intentionally going to choose a port that will never be chosen.
+	// Ports <1k will never be selected. 396 is for some old OS over IP.
+	// It will never likely be provisioned. Using quick timeout since
+	// it's all localhost
+	fakeAppURL := "http://127.1.0.1:396"
+	conn, err := net.DialTimeout("tcp", fakeAppURL, time.Millisecond*100)
+	if err == nil {
+		// In the absolute rare case someone hits this. Writing code to find a free port
+		// seems like a waste of time to program and run.
+		_ = conn.Close()
+		t.Errorf("an unused port is required for the fake app. "+
+			"The url %q happens to be an active port. If you hit this, then this test"+
+			"will need to be modified to run on your system. Or you can stop serving an"+
+			"app on that port.", fakeAppURL)
+		t.FailNow()
+	}
+
 	appURL := fmt.Sprintf("%s://127.0.0.1:%d?%s", scheme, port, proxyTestAppQuery)
 	protoApps := []*proto.App{
 		{
 			Slug:         proxyTestAppNameFake,
 			DisplayName:  proxyTestAppNameFake,
 			SharingLevel: proto.AppSharingLevel_OWNER,
-			// Hopefully this IP and port doesn't exist.
-			Url:       "http://127.1.0.1:65535",
-			Subdomain: true,
+			Url:          fakeAppURL,
+			Subdomain:    true,
 		},
 		{
 			Slug:         proxyTestAppNameOwner,
@@ -318,6 +410,36 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 			Slug:         proxyTestAppNamePublic,
 			DisplayName:  proxyTestAppNamePublic,
 			SharingLevel: proto.AppSharingLevel_PUBLIC,
+			Url:          appURL,
+			Subdomain:    true,
+		},
+		{
+			Slug:         proxyTestAppNamePublicCORSPassthru,
+			DisplayName:  proxyTestAppNamePublicCORSPassthru,
+			SharingLevel: proto.AppSharingLevel_PUBLIC,
+			Url:          appURL,
+			Subdomain:    true,
+			// CorsBehavior: proto.AppCORSBehavior_PASSTHRU,
+		},
+		{
+			Slug:         proxyTestAppNameAuthenticatedCORSPassthru,
+			DisplayName:  proxyTestAppNameAuthenticatedCORSPassthru,
+			SharingLevel: proto.AppSharingLevel_AUTHENTICATED,
+			Url:          appURL,
+			Subdomain:    true,
+			// CorsBehavior: proto.AppCORSBehavior_PASSTHRU,
+		},
+		{
+			Slug:         proxyTestAppNamePublicCORSDefault,
+			DisplayName:  proxyTestAppNamePublicCORSDefault,
+			SharingLevel: proto.AppSharingLevel_PUBLIC,
+			Url:          appURL,
+			Subdomain:    true,
+		},
+		{
+			Slug:         proxyTestAppNameAuthenticatedCORSDefault,
+			DisplayName:  proxyTestAppNameAuthenticatedCORSDefault,
+			SharingLevel: proto.AppSharingLevel_AUTHENTICATED,
 			Url:          appURL,
 			Subdomain:    true,
 		},
@@ -346,26 +468,25 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 	})
 	template := coderdtest.CreateTemplate(t, client, orgID, version.ID)
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, orgID, template.ID, workspaceMutators...)
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID, workspaceMutators...)
 	workspaceBuild := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 	// Verify app subdomains
 	for _, app := range workspaceBuild.Resources[0].Agents[0].Apps {
 		require.True(t, app.Subdomain)
 
-		appURL := httpapi.ApplicationURL{
+		appURL := appurl.ApplicationURL{
+			Prefix: "",
 			// findProtoApp is needed as the order of apps returned from PG database
 			// is not guaranteed.
 			AppSlugOrPort: findProtoApp(t, protoApps, app.Slug).Slug,
-			AgentName:     proxyTestAgentName,
 			WorkspaceName: workspace.Name,
 			Username:      me.Username,
 		}
 		require.Equal(t, appURL.String(), app.SubdomainName)
 	}
 
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(authToken)
+	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken))
 
 	// TODO (@dean): currently, the primary app host is used when generating
 	// the port URL we tell the agent to use. We don't have any plans to change
@@ -378,21 +499,27 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 	primaryAppHost, err := client.AppHost(appHostCtx)
 	require.NoError(t, err)
 	if primaryAppHost.Host != "" {
-		manifest, err := agentClient.Manifest(appHostCtx)
+		rpcConn, err := agentClient.ConnectRPC(appHostCtx)
+		require.NoError(t, err)
+		aAPI := agentproto.NewDRPCAgentClient(rpcConn)
+		manifest, err := aAPI.GetManifest(appHostCtx, &agentproto.GetManifestRequest{})
 		require.NoError(t, err)
 
-		appHost := httpapi.ApplicationURL{
+		appHost := appurl.ApplicationURL{
+			Prefix:        "",
 			AppSlugOrPort: "{{port}}",
 			AgentName:     proxyTestAgentName,
 			WorkspaceName: workspace.Name,
 			Username:      me.Username,
 		}
 		proxyURL := "http://" + appHost.String() + strings.ReplaceAll(primaryAppHost.Host, "*", "")
-		require.Equal(t, proxyURL, manifest.VSCodePortProxyURI)
+		require.Equal(t, manifest.VsCodePortProxyUri, proxyURL)
+		err = rpcConn.Close()
+		require.NoError(t, err)
 	}
 	agentCloser := agent.New(agent.Options{
 		Client: agentClient,
-		Logger: slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
+		Logger: testutil.Logger(t).Named("agent"),
 	})
 	t.Cleanup(func() {
 		_ = agentCloser.Close()

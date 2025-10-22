@@ -1,99 +1,54 @@
-import { useQuery } from "react-query";
-import { getPreviousTemplateVersionByName } from "api/api";
-import { TemplateVersion } from "api/typesGenerated";
+import { previousTemplateVersion, templateFiles } from "api/queries/templates";
 import { Loader } from "components/Loader/Loader";
-import { TemplateFiles } from "components/TemplateFiles/TemplateFiles";
+import { TemplateFiles } from "modules/templates/TemplateFiles/TemplateFiles";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
-import { useOrganizationId } from "hooks/useOrganizationId";
-import { useTab } from "hooks/useTab";
-import { FC, useEffect } from "react";
-import { Helmet } from "react-helmet-async";
-import {
-  getTemplateVersionFiles,
-  TemplateVersionFiles,
-} from "utils/templateVersion";
+import type { FC } from "react";
+import { useQuery } from "react-query";
+import { useParams } from "react-router";
 import { getTemplatePageTitle } from "../utils";
 
-const fetchTemplateFiles = async (
-  organizationId: string,
-  templateName: string,
-  activeVersion: TemplateVersion,
-) => {
-  const previousVersion = await getPreviousTemplateVersionByName(
-    organizationId,
-    templateName,
-    activeVersion.name,
-  );
-  const loadFilesPromises: ReturnType<typeof getTemplateVersionFiles>[] = [];
-  loadFilesPromises.push(getTemplateVersionFiles(activeVersion));
-  if (previousVersion) {
-    loadFilesPromises.push(getTemplateVersionFiles(previousVersion));
-  }
-  const [currentFiles, previousFiles] = await Promise.all(loadFilesPromises);
-  return {
-    currentFiles,
-    previousFiles,
-  };
-};
-
-const useTemplateFiles = (
-  organizationId: string,
-  templateName: string,
-  activeVersion: TemplateVersion,
-) =>
-  useQuery({
-    queryKey: ["templateFiles", templateName],
-    queryFn: () =>
-      fetchTemplateFiles(organizationId, templateName, activeVersion),
-  });
-
-const useFileTab = (templateFiles: TemplateVersionFiles | undefined) => {
-  // Tabs The default tab is the tab that has main.tf but until we loads the
-  // files and check if main.tf exists we don't know which tab is the default
-  // one so we just use empty string
-  const tab = useTab("file", "");
-  const isLoaded = tab.value !== "";
-  useEffect(() => {
-    if (templateFiles && !isLoaded) {
-      const terraformFileIndex = Object.keys(templateFiles).indexOf("main.tf");
-      // If main.tf exists use the index if not just use the first tab
-      tab.set(terraformFileIndex !== -1 ? terraformFileIndex.toString() : "0");
-    }
-  }, [isLoaded, tab, templateFiles]);
-
-  return {
-    ...tab,
-    isLoaded,
-  };
-};
-
 const TemplateFilesPage: FC = () => {
-  const { template, activeVersion } = useTemplateLayoutContext();
-  const orgId = useOrganizationId();
-  const { data: templateFiles } = useTemplateFiles(
-    orgId,
-    template.name,
-    activeVersion,
-  );
-  const tab = useFileTab(templateFiles?.currentFiles);
+	const { organization: organizationName = "default" } = useParams() as {
+		organization?: string;
+	};
+	const { template, activeVersion } = useTemplateLayoutContext();
+	const { data: currentFiles } = useQuery(
+		templateFiles(activeVersion.job.file_id),
+	);
+	const previousVersionQuery = useQuery(
+		previousTemplateVersion(
+			organizationName,
+			template.name,
+			activeVersion.name,
+		),
+	);
+	const previousVersion = previousVersionQuery.data;
+	const hasPreviousVersion =
+		previousVersionQuery.isSuccess && previousVersion !== null;
+	const { data: previousFiles } = useQuery({
+		...templateFiles(previousVersion?.job.file_id ?? ""),
+		enabled: hasPreviousVersion,
+	});
+	const shouldDisplayFiles =
+		currentFiles && (!hasPreviousVersion || previousFiles);
 
-  return (
-    <>
-      <Helmet>
-        <title>{getTemplatePageTitle("Source Code", template)}</title>
-      </Helmet>
+	return (
+		<>
+			<title>{getTemplatePageTitle("Source Code", template)}</title>
 
-      {templateFiles && tab.isLoaded ? (
-        <TemplateFiles
-          currentFiles={templateFiles.currentFiles}
-          previousFiles={templateFiles.previousFiles}
-          tab={tab}
-        />
-      ) : (
-        <Loader />
-      )}
-    </>
-  );
+			{shouldDisplayFiles ? (
+				<TemplateFiles
+					organizationName={template.organization_name}
+					templateName={template.name}
+					versionName={activeVersion.name}
+					currentFiles={currentFiles}
+					baseFiles={previousFiles}
+				/>
+			) : (
+				<Loader />
+			)}
+		</>
+	);
 };
 
 export default TemplateFilesPage;

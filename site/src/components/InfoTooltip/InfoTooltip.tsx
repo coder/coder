@@ -1,38 +1,48 @@
-import { type FC, type ReactNode } from "react";
+import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
 import {
-  HelpTooltip,
-  HelpTooltipText,
-  HelpTooltipTitle,
+	HelpTooltip,
+	HelpTooltipContent,
+	HelpTooltipIcon,
+	HelpTooltipIconTrigger,
+	HelpTooltipText,
+	HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
-import InfoIcon from "@mui/icons-material/InfoOutlined";
-import { css } from "@emotion/css";
-import { colors } from "theme/colors";
+import type { FC, ReactNode } from "react";
+import type { ThemeRole } from "theme/roles";
 
 interface InfoTooltipProps {
-  type?: "warning" | "info";
-  title: ReactNode;
-  message: ReactNode;
+	type?: ThemeRole;
+	title: ReactNode;
+	message: ReactNode;
 }
 
-export const InfoTooltip: FC<InfoTooltipProps> = (props) => {
-  const { title, message, type = "info" } = props;
+export const InfoTooltip: FC<InfoTooltipProps> = ({
+	title,
+	message,
+	type = "info",
+}) => {
+	const theme = useTheme();
+	const iconColor = theme.roles[type].outline;
 
-  return (
-    <HelpTooltip
-      size="small"
-      icon={InfoIcon}
-      iconClassName={css`
-        color: ${type === "info" ? colors.blue[5] : colors.yellow[5]};
-      `}
-      buttonClassName={css`
-        opacity: 1;
-        &:hover {
-          opacity: 1;
-        }
-      `}
-    >
-      <HelpTooltipTitle>{title}</HelpTooltipTitle>
-      <HelpTooltipText>{message}</HelpTooltipText>
-    </HelpTooltip>
-  );
+	return (
+		<HelpTooltip>
+			<HelpTooltipIconTrigger size="small" css={styles.button}>
+				<HelpTooltipIcon css={{ color: iconColor }} />
+			</HelpTooltipIconTrigger>
+			<HelpTooltipContent>
+				<HelpTooltipTitle>{title}</HelpTooltipTitle>
+				<HelpTooltipText>{message}</HelpTooltipText>
+			</HelpTooltipContent>
+		</HelpTooltip>
+	);
 };
+
+const styles = {
+	button: css`
+		opacity: 1;
+
+		&:hover {
+			opacity: 1;
+		}
+	`,
+} satisfies Record<string, Interpolation<Theme>>;

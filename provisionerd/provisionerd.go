@@ -2,9 +2,11 @@ package provisionerd
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"reflect"
 	"sync"
 	"time"
@@ -17,13 +19,17 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.14.0"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
+	protobuf "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
+	"github.com/coder/retry"
+
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionerd/runner"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
-	"github.com/coder/retry"
 )
 
 // Dialer represents the function to create a daemon client connection.
@@ -54,10 +60,12 @@ type Options struct {
 	TracerProvider trace.TracerProvider
 	Metrics        *Metrics
 
+	ExternalProvisioner bool
 	ForceCancelInterval time.Duration
 	UpdateInterval      time.Duration
 	LogBufferInterval   time.Duration
 	Connector           Connector
+	InitConnectionCh    chan struct{} // only to be used in tests
 }
 
 // New creates and starts a provisioner daemon.
@@ -82,6 +90,9 @@ func New(clientDialer Dialer, opts *Options) *Server {
 		mets := NewMetrics(reg)
 		opts.Metrics = &mets
 	}
+	if opts.InitConnectionCh == nil {
+		opts.InitConnectionCh = make(chan struct{})
+	}
 
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	daemon := &Server{
@@ -91,11 +102,13 @@ func New(clientDialer Dialer, opts *Options) *Server {
 		clientDialer: clientDialer,
 		clientCh:     make(chan proto.DRPCProvisionerDaemonClient),
 
-		closeContext:   ctx,
-		closeCancel:    ctxCancel,
-		closedCh:       make(chan struct{}),
-		shuttingDownCh: make(chan struct{}),
-		acquireDoneCh:  make(chan struct{}),
+		closeContext:        ctx,
+		closeCancel:         ctxCancel,
+		closedCh:            make(chan struct{}),
+		shuttingDownCh:      make(chan struct{}),
+		acquireDoneCh:       make(chan struct{}),
+		initConnectionCh:    opts.InitConnectionCh,
+		externalProvisioner: opts.ExternalProvisioner,
 	}
 
 	daemon.wg.Add(2)
@@ -113,6 +126,11 @@ type Server struct {
 
 	wg sync.WaitGroup
 
+	// initConnectionCh will receive when the daemon connects to coderd for the
+	// first time.
+	initConnectionCh   chan struct{}
+	initConnectionOnce sync.Once
+
 	// mutex protects all subsequent fields
 	mutex sync.Mutex
 	// closeContext is canceled when we start closing.
@@ -129,8 +147,9 @@ type Server struct {
 	// shuttingDownCh will receive when we start graceful shutdown
 	shuttingDownCh chan struct{}
 	// acquireDoneCh will receive when the acquireLoop exits
-	acquireDoneCh chan struct{}
-	activeJob     *runner.Runner
+	acquireDoneCh       chan struct{}
+	activeJob           *runner.Runner
+	externalProvisioner bool
 }
 
 type Metrics struct {
@@ -176,6 +195,22 @@ func NewMetrics(reg prometheus.Registerer) Metrics {
 				Name:      "workspace_builds_total",
 				Help:      "The number of workspaces started, updated, or deleted.",
 			}, []string{"workspace_owner", "workspace_name", "template_name", "template_version", "workspace_transition", "status"}),
+			WorkspaceBuildTimings: auto.NewHistogramVec(prometheus.HistogramOpts{
+				Namespace: "coderd",
+				Subsystem: "provisionerd",
+				Name:      "workspace_build_timings_seconds",
+				Help:      "The time taken for a workspace to build.",
+				Buckets: []float64{
+					1, // 1s
+					10,
+					30,
+					60, // 1min
+					60 * 5,
+					60 * 10,
+					60 * 30, // 30min
+					60 * 60, // 1hr
+				},
+			}, []string{"template_name", "template_version", "workspace_transition", "status"}),
 		},
 	}
 }
@@ -184,6 +219,10 @@ func NewMetrics(reg prometheus.Registerer) Metrics {
 func (p *Server) connect() {
 	defer p.opts.Logger.Debug(p.closeContext, "connect loop exited")
 	defer p.wg.Done()
+	logConnect := p.opts.Logger.Debug
+	if p.externalProvisioner {
+		logConnect = p.opts.Logger.Info
+	}
 	// An exponential back-off occurs when the connection is failing to dial.
 	// This is to prevent server spam in case of a coderd outage.
 connectLoop:
@@ -199,14 +238,28 @@ connectLoop:
 			if errors.Is(err, context.Canceled) {
 				return
 			}
+			var sdkErr *codersdk.Error
+			// If something is wrong with our auth, stop trying to connect.
+			if errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusForbidden {
+				p.opts.Logger.Error(p.closeContext, "not authorized to dial coderd", slog.Error(err))
+				return
+			}
 			if p.isClosed() {
 				return
 			}
 			p.opts.Logger.Warn(p.closeContext, "coderd client failed to dial", slog.Error(err))
 			continue
 		}
-		p.opts.Logger.Info(p.closeContext, "successfully connected to coderd")
+		// This log is useful to verify that an external provisioner daemon is
+		// successfully connecting to coderd. It doesn't add much value if the
+		// daemon is built-in, so we only log it on the info level if p.externalProvisioner
+		// is true. This log message is mentioned in the docs:
+		// https://github.com/coder/coder/blob/5bd86cb1c06561d1d3e90ce689da220467e525c0/docs/admin/provisioners.md#L346
+		logConnect(p.closeContext, "successfully connected to coderd")
 		retrier.Reset()
+		p.initConnectionOnce.Do(func() {
+			close(p.initConnectionCh)
+		})
 
 		// serve the client until we are closed or it disconnects
 		for {
@@ -215,7 +268,7 @@ connectLoop:
 				client.DRPCConn().Close()
 				return
 			case <-client.DRPCConn().Closed():
-				p.opts.Logger.Info(p.closeContext, "connection to coderd closed")
+				logConnect(p.closeContext, "connection to coderd closed")
 				continue connectLoop
 			case p.clientCh <- client:
 				continue
@@ -228,6 +281,9 @@ func (p *Server) client() (proto.DRPCProvisionerDaemonClient, bool) {
 	select {
 	case <-p.closeContext.Done():
 		return nil, false
+	case <-p.shuttingDownCh:
+		// Shutting down should return a nil client and unblock
+		return nil, false
 	case client := <-p.clientCh:
 		return client, true
 	}
@@ -238,7 +294,7 @@ func (p *Server) acquireLoop() {
 	defer p.wg.Done()
 	defer func() { close(p.acquireDoneCh) }()
 	ctx := p.closeContext
-	for {
+	for retrier := retry.New(10*time.Millisecond, 1*time.Second); retrier.Wait(ctx); {
 		if p.acquireExit() {
 			return
 		}
@@ -247,7 +303,17 @@ func (p *Server) acquireLoop() {
 			p.opts.Logger.Debug(ctx, "shut down before client (re) connected")
 			return
 		}
-		p.acquireAndRunOne(client)
+		err := p.acquireAndRunOne(client)
+		if err != nil && ctx.Err() == nil { // Only log if context is not done.
+			// Short-circuit: don't wait for the retry delay to exit, if required.
+			if p.acquireExit() {
+				return
+			}
+			p.opts.Logger.Warn(ctx, "failed to acquire job, retrying", slog.F("delay", fmt.Sprintf("%vms", retrier.Delay.Milliseconds())), slog.Error(err))
+		} else {
+			// Reset the retrier after each successful acquisition.
+			retrier.Reset()
+		}
 	}
 }
 
@@ -266,7 +332,7 @@ func (p *Server) acquireExit() bool {
 	return false
 }
 
-func (p *Server) acquireAndRunOne(client proto.DRPCProvisionerDaemonClient) {
+func (p *Server) acquireAndRunOne(client proto.DRPCProvisionerDaemonClient) error {
 	ctx := p.closeContext
 	p.opts.Logger.Debug(ctx, "start of acquireAndRunOne")
 	job, err := p.acquireGraceful(client)
@@ -275,15 +341,15 @@ func (p *Server) acquireAndRunOne(client proto.DRPCProvisionerDaemonClient) {
 		if errors.Is(err, context.Canceled) ||
 			errors.Is(err, yamux.ErrSessionShutdown) ||
 			errors.Is(err, fasthttputil.ErrInmemoryListenerClosed) {
-			return
+			return err
 		}
 
 		p.opts.Logger.Warn(ctx, "provisionerd was unable to acquire job", slog.Error(err))
-		return
+		return xerrors.Errorf("failed to acquire job: %w", err)
 	}
 	if job.JobId == "" {
 		p.opts.Logger.Debug(ctx, "acquire job successfully canceled")
-		return
+		return nil
 	}
 
 	if len(job.TraceMetadata) > 0 {
@@ -315,6 +381,7 @@ func (p *Server) acquireAndRunOne(client proto.DRPCProvisionerDaemonClient) {
 			slog.F("workspace_build_id", build.WorkspaceBuildId),
 			slog.F("workspace_id", build.Metadata.WorkspaceId),
 			slog.F("workspace_name", build.WorkspaceName),
+			slog.F("prebuilt_workspace_build_stage", build.Metadata.GetPrebuiltWorkspaceBuildStage().String()),
 		)
 
 		span.SetAttributes(
@@ -324,6 +391,7 @@ func (p *Server) acquireAndRunOne(client proto.DRPCProvisionerDaemonClient) {
 			attribute.String("workspace_owner_id", build.Metadata.WorkspaceOwnerId),
 			attribute.String("workspace_owner", build.Metadata.WorkspaceOwner),
 			attribute.String("workspace_transition", build.Metadata.WorkspaceTransition.String()),
+			attribute.String("prebuilt_workspace_build_stage", build.Metadata.GetPrebuiltWorkspaceBuildStage().String()),
 		)
 	}
 
@@ -338,9 +406,9 @@ func (p *Server) acquireAndRunOne(client proto.DRPCProvisionerDaemonClient) {
 			Error: fmt.Sprintf("failed to connect to provisioner: %s", resp.Error),
 		})
 		if err != nil {
-			p.opts.Logger.Error(ctx, "provisioner job failed", slog.F("job_id", job.JobId), slog.Error(err))
+			p.opts.Logger.Error(ctx, "failed to report provisioner job failed", slog.F("job_id", job.JobId), slog.Error(err))
 		}
-		return
+		return xerrors.Errorf("failed to report provisioner job failed: %w", err)
 	}
 
 	p.mutex.Lock()
@@ -364,6 +432,7 @@ func (p *Server) acquireAndRunOne(client proto.DRPCProvisionerDaemonClient) {
 	p.mutex.Lock()
 	p.activeJob = nil
 	p.mutex.Unlock()
+	return nil
 }
 
 // acquireGraceful attempts to acquire a job from the server, handling canceling the acquisition if we gracefully shut
@@ -449,7 +518,75 @@ func (p *Server) FailJob(ctx context.Context, in *proto.FailedJob) error {
 	return err
 }
 
+// UploadModuleFiles will insert a file into the database of coderd.
+func (p *Server) UploadModuleFiles(ctx context.Context, moduleFiles []byte) error {
+	// Send the files separately if the message size is too large.
+	_, err := clientDoWithRetries(ctx, p.client, func(ctx context.Context, client proto.DRPCProvisionerDaemonClient) (*proto.Empty, error) {
+		// Add some timeout to prevent the stream from hanging indefinitely.
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+		defer cancel()
+
+		stream, err := client.UploadFile(ctx)
+		if err != nil {
+			return nil, xerrors.Errorf("failed to start CompleteJobWithFiles stream: %w", err)
+		}
+		defer stream.Close()
+
+		dataUp, chunks := sdkproto.BytesToDataUpload(sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, moduleFiles)
+
+		err = stream.Send(&proto.UploadFileRequest{Type: &proto.UploadFileRequest_DataUpload{DataUpload: dataUp}})
+		if err != nil {
+			if retryable(err) { // Do not retry
+				return nil, xerrors.Errorf("send data upload: %s", err.Error())
+			}
+			return nil, xerrors.Errorf("send data upload: %w", err)
+		}
+
+		for i, chunk := range chunks {
+			err = stream.Send(&proto.UploadFileRequest{Type: &proto.UploadFileRequest_ChunkPiece{ChunkPiece: chunk}})
+			if err != nil {
+				if retryable(err) { // Do not retry
+					return nil, xerrors.Errorf("send chunk piece: %s", err.Error())
+				}
+				return nil, xerrors.Errorf("send chunk piece %d: %w", i, err)
+			}
+		}
+
+		resp, err := stream.CloseAndRecv()
+		if err != nil {
+			if retryable(err) { // Do not retry
+				return nil, xerrors.Errorf("close stream: %s", err.Error())
+			}
+			return nil, xerrors.Errorf("close stream: %w", err)
+		}
+		return resp, nil
+	})
+	if err != nil {
+		return xerrors.Errorf("upload module files: %w", err)
+	}
+
+	return nil
+}
+
 func (p *Server) CompleteJob(ctx context.Context, in *proto.CompletedJob) error {
+	// If the moduleFiles exceed the max message size, we need to upload them separately.
+	if ti, ok := in.Type.(*proto.CompletedJob_TemplateImport_); ok {
+		messageSize := protobuf.Size(in)
+		if messageSize > drpcsdk.MaxMessageSize &&
+			messageSize-len(ti.TemplateImport.ModuleFiles) < drpcsdk.MaxMessageSize {
+			// Hashing the module files to reference them in the CompletedJob message.
+			moduleFilesHash := sha256.Sum256(ti.TemplateImport.ModuleFiles)
+
+			moduleFiles := ti.TemplateImport.ModuleFiles
+			ti.TemplateImport.ModuleFiles = []byte{} // Clear the files in the final message
+			ti.TemplateImport.ModuleFilesHash = moduleFilesHash[:]
+			err := p.UploadModuleFiles(ctx, moduleFiles)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	_, err := clientDoWithRetries(ctx, p.client, func(ctx context.Context, client proto.DRPCProvisionerDaemonClient) (*proto.Empty, error) {
 		return client.CompleteJob(ctx, in)
 	})
@@ -466,15 +603,18 @@ func (p *Server) isClosed() bool {
 	}
 }
 
-// Shutdown triggers a graceful exit of each registered provisioner.
-func (p *Server) Shutdown(ctx context.Context) error {
+// Shutdown gracefully exists with the option to cancel the active job.
+// If false, it will wait for the job to complete.
+//
+//nolint:revive
+func (p *Server) Shutdown(ctx context.Context, cancelActiveJob bool) error {
 	p.mutex.Lock()
 	p.opts.Logger.Info(ctx, "attempting graceful shutdown")
 	if !p.shuttingDownB {
 		close(p.shuttingDownCh)
 		p.shuttingDownB = true
 	}
-	if p.activeJob != nil {
+	if cancelActiveJob && p.activeJob != nil {
 		p.activeJob.Cancel()
 	}
 	p.mutex.Unlock()

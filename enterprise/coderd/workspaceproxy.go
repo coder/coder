@@ -4,10 +4,10 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
-	"flag"
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -15,23 +15,31 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/v2/buildinfo"
 	agpl "github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/coderd/proxyhealth"
 	"github.com/coder/coder/v2/enterprise/replicasync"
 	"github.com/coder/coder/v2/enterprise/wsproxy/wsproxysdk"
 )
+
+// whitelistedCryptoKeyFeatures is a list of crypto key features that are
+// allowed to be queried with workspace proxies.
+var whitelistedCryptoKeyFeatures = []database.CryptoKeyFeature{
+	database.CryptoKeyFeatureWorkspaceAppsToken,
+	database.CryptoKeyFeatureWorkspaceAppsAPIKey,
+}
 
 // forceWorkspaceProxyHealthUpdate forces an update of the proxy health.
 // This is useful when a proxy is created or deleted. Errors will be logged.
@@ -351,7 +359,7 @@ func (api *API) postWorkspaceProxy(rw http.ResponseWriter, r *http.Request) {
 		Name:              req.Name,
 		DisplayName:       req.DisplayName,
 		Icon:              req.Icon,
-		TokenHashedSecret: hashedSecret[:],
+		TokenHashedSecret: hashedSecret,
 		// Enabled by default, but will be disabled on register if the proxy has
 		// it disabled.
 		DerpEnabled: true,
@@ -482,6 +490,7 @@ func (api *API) workspaceProxyIssueSignedAppToken(rw http.ResponseWriter, r *htt
 		return
 	}
 	userReq.Header.Set(codersdk.SessionTokenHeader, req.SessionToken)
+	userReq.RemoteAddr = r.Header.Get(wsproxysdk.CoderWorkspaceProxyRealIPHeader)
 
 	// Exchange the token.
 	token, tokenStr, ok := api.AGPL.WorkspaceAppsProvider.Issue(ctx, rw, userReq, req)
@@ -519,7 +528,7 @@ func (api *API) workspaceProxyReportAppStats(rw http.ResponseWriter, r *http.Req
 	api.Logger.Debug(ctx, "report app stats", slog.F("stats", req.Stats))
 
 	reporter := api.WorkspaceAppsStatsCollectorOptions.Reporter
-	if err := reporter.Report(ctx, req.Stats); err != nil {
+	if err := reporter.ReportAppStats(ctx, req.Stats); err != nil {
 		api.Logger.Error(ctx, "report app stats failed", slog.Error(err))
 		httpapi.InternalServerError(rw, err)
 		return
@@ -551,36 +560,18 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 	var (
 		ctx   = r.Context()
 		proxy = httpmw.WorkspaceProxy(r)
-		// TODO: This audit log does not work because it has no user id
-		// associated with it. The audit log commitAudit() function ignores
-		// the audit log if there is no user id. We should find a solution
-		// to make sure this event is tracked.
-		// auditor = api.AGPL.Auditor.Load()
-		// aReq, commitAudit = audit.InitRequest[database.WorkspaceProxy](rw, &audit.RequestParams{
-		//	Audit:   *auditor,
-		//	Log:     api.Logger,
-		//	Request: r,
-		//	Action:  database.AuditActionWrite,
-		// })
 	)
-	// aReq.Old = proxy
-	// defer commitAudit()
 
 	var req wsproxysdk.RegisterWorkspaceProxyRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 
-	// Version check should be forced in non-dev builds and when running in
-	// tests. Only Major + minor versions are checked.
-	shouldForceVersion := !buildinfo.IsDev() || flag.Lookup("test.v") != nil
-	if shouldForceVersion && !buildinfo.VersionsMatch(req.Version, buildinfo.Version()) {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Version mismatch.",
-			Detail:  fmt.Sprintf("Proxy version %q does not match primary server version %q", req.Version, buildinfo.Version()),
-		})
-		return
-	}
+	// NOTE: we previously enforced version checks when registering, but this
+	// will cause proxies to enter crash loop backoff if the server is updated
+	// and the proxy is not. Most releases do not make backwards-incompatible
+	// changes to the proxy API, so instead of blocking requests we will show
+	// healthcheck warnings.
 
 	if err := validateProxyURL(req.AccessURL); err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -591,7 +582,7 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	if req.WildcardHostname != "" {
-		if _, err := httpapi.CompileHostnamePattern(req.WildcardHostname); err != nil {
+		if _, err := appurl.CompileHostnamePattern(req.WildcardHostname); err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Wildcard URL is invalid.",
 				Detail:  err.Error(),
@@ -615,6 +606,7 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	startingRegionID, _ := getProxyDERPStartingRegionID(api.Options.BaseDERPMap)
+	// #nosec G115 - Safe conversion as DERP region IDs are small integers expected to be within int32 range
 	regionID := int32(startingRegionID) + proxy.RegionID
 
 	err := api.Database.InTx(func(db database.Store) error {
@@ -625,6 +617,7 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 			DerpEnabled:      req.DerpEnabled,
 			DerpOnly:         req.DerpOnly,
 			WildcardHostname: req.WildcardHostname,
+			Version:          req.Version,
 		})
 		if err != nil {
 			return xerrors.Errorf("register workspace proxy: %w", err)
@@ -634,7 +627,8 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 		// it if it exists. If it doesn't exist, create it.
 		now := time.Now()
 		replica, err := db.GetReplicaByID(ctx, req.ReplicaID)
-		if err == nil {
+		switch {
+		case err == nil:
 			// Replica exists, update it.
 			if replica.StoppedAt.Valid && !replica.StartedAt.IsZero() {
 				// If the replica deregistered, it shouldn't be able to
@@ -659,7 +653,7 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 			if err != nil {
 				return xerrors.Errorf("update replica: %w", err)
 			}
-		} else if xerrors.Is(err, sql.ErrNoRows) {
+		case xerrors.Is(err, sql.ErrNoRows):
 			// Replica doesn't exist, create it.
 			replica, err = db.InsertReplica(ctx, database.InsertReplicaParams{
 				ID:              req.ReplicaID,
@@ -676,7 +670,7 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 			if err != nil {
 				return xerrors.Errorf("insert replica: %w", err)
 			}
-		} else if err != nil {
+		default:
 			return xerrors.Errorf("get replica: %w", err)
 		}
 
@@ -716,9 +710,7 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 		siblingsRes = append(siblingsRes, convertReplica(replica))
 	}
 
-	// aReq.New = updatedProxy
 	httpapi.Write(ctx, rw, http.StatusCreated, wsproxysdk.RegisterWorkspaceProxyResponse{
-		AppSecurityKey:      api.AppSecurityKey.String(),
 		DERPMeshKey:         api.DERPServer.MeshKey(),
 		DERPRegionID:        regionID,
 		DERPMap:             api.AGPL.DERPMap(),
@@ -727,6 +719,49 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 	})
 
 	go api.forceWorkspaceProxyHealthUpdate(api.ctx)
+}
+
+// workspaceProxyCryptoKeys is used to fetch signing keys for the workspace proxy.
+//
+// This is called periodically by the proxy in the background (every 10m per
+// replica) to ensure that the proxy has the latest signing keys.
+//
+// @Summary Get workspace proxy crypto keys
+// @ID get-workspace-proxy-crypto-keys
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param feature query string true "Feature key"
+// @Success 200 {object} wsproxysdk.CryptoKeysResponse
+// @Router /workspaceproxies/me/crypto-keys [get]
+// @x-apidocgen {"skip": true}
+func (api *API) workspaceProxyCryptoKeys(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	feature := database.CryptoKeyFeature(r.URL.Query().Get("feature"))
+	if feature == "" {
+		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Missing feature query parameter.",
+		})
+		return
+	}
+
+	if !slices.Contains(whitelistedCryptoKeyFeatures, feature) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Invalid feature: %q", feature),
+		})
+		return
+	}
+
+	keys, err := api.Database.GetCryptoKeysByFeature(ctx, feature)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, wsproxysdk.CryptoKeysResponse{
+		CryptoKeys: db2sdk.CryptoKeys(keys),
+	})
 }
 
 // @Summary Deregister workspace proxy
@@ -808,7 +843,7 @@ func (api *API) workspaceProxyDeregister(rw http.ResponseWriter, r *http.Request
 // @Summary Issue signed app token for reconnecting PTY
 // @ID issue-signed-app-token-for-reconnecting-pty
 // @Security CoderSessionToken
-// @Tags Applications Enterprise
+// @Tags Enterprise
 // @Accept json
 // @Produce json
 // @Param request body codersdk.IssueReconnectingPTYSignedTokenRequest true "Issue reconnecting PTY signed token request"
@@ -818,7 +853,7 @@ func (api *API) workspaceProxyDeregister(rw http.ResponseWriter, r *http.Request
 func (api *API) reconnectingPTYSignedToken(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
-	if !api.Authorize(r, rbac.ActionCreate, apiKey) {
+	if !api.Authorize(r, policy.ActionCreate, apiKey) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -929,20 +964,26 @@ func convertRegion(proxy database.WorkspaceProxy, status proxyhealth.ProxyStatus
 }
 
 func convertProxy(p database.WorkspaceProxy, status proxyhealth.ProxyStatus) codersdk.WorkspaceProxy {
+	now := dbtime.Now()
 	if p.IsPrimary() {
-		// Primary is always healthy since the primary serves the api that this
-		// is returned from.
-		u, _ := url.Parse(p.Url)
 		status = proxyhealth.ProxyStatus{
 			Proxy:     p,
-			ProxyHost: u.Host,
 			Status:    proxyhealth.Healthy,
 			Report:    codersdk.ProxyHealthReport{},
-			CheckedAt: time.Now(),
+			CheckedAt: now,
 		}
+		// For primary, created at / updated at are always 'now'
+		p.CreatedAt = now
+		p.UpdatedAt = now
 	}
 	if status.Status == "" {
 		status.Status = proxyhealth.Unknown
+	}
+	if status.Report.Errors == nil {
+		status.Report.Errors = make([]string, 0)
+	}
+	if status.Report.Warnings == nil {
+		status.Report.Warnings = make([]string, 0)
 	}
 	return codersdk.WorkspaceProxy{
 		Region:      convertRegion(p, status),
@@ -951,10 +992,28 @@ func convertProxy(p database.WorkspaceProxy, status proxyhealth.ProxyStatus) cod
 		CreatedAt:   p.CreatedAt,
 		UpdatedAt:   p.UpdatedAt,
 		Deleted:     p.Deleted,
+		Version:     p.Version,
 		Status: codersdk.WorkspaceProxyStatus{
 			Status:    codersdk.ProxyHealthStatus(status.Status),
 			Report:    status.Report,
 			CheckedAt: status.CheckedAt,
 		},
 	}
+}
+
+// workspaceProxiesFetchUpdater implements healthcheck.WorkspaceProxyFetchUpdater
+// in an actually useful and meaningful way.
+type workspaceProxiesFetchUpdater struct {
+	fetchFunc  func(context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error)
+	updateFunc func(context.Context) error
+}
+
+func (w *workspaceProxiesFetchUpdater) Fetch(ctx context.Context) (codersdk.RegionsResponse[codersdk.WorkspaceProxy], error) {
+	//nolint:gocritic // Need perms to read all workspace proxies.
+	authCtx := dbauthz.AsSystemRestricted(ctx)
+	return w.fetchFunc(authCtx)
+}
+
+func (w *workspaceProxiesFetchUpdater) Update(ctx context.Context) error {
+	return w.updateFunc(ctx)
 }

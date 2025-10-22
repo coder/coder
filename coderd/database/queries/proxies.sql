@@ -25,6 +25,7 @@ SET
 	wildcard_hostname = @wildcard_hostname :: text,
 	derp_enabled = @derp_enabled :: boolean,
 	derp_only = @derp_only :: boolean,
+	version = @version :: text,
 	updated_at = Now()
 WHERE
 	id = @id

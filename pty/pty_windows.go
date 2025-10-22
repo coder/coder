@@ -243,6 +243,11 @@ func (p *windowsProcess) Kill() error {
 	return p.proc.Kill()
 }
 
+func (p *windowsProcess) Signal(sig os.Signal) error {
+	// Windows doesn't support signals.
+	return p.Kill()
+}
+
 // killOnContext waits for the context to be done and kills the process, unless it exits on its own first.
 func (p *windowsProcess) killOnContext(ctx context.Context) {
 	select {

@@ -1,173 +1,187 @@
-import Button from "@mui/material/Button";
-import BlockIcon from "@mui/icons-material/Block";
-import CloudQueueIcon from "@mui/icons-material/CloudQueue";
-import CropSquareIcon from "@mui/icons-material/CropSquare";
-import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircleOutline";
-import ReplayIcon from "@mui/icons-material/Replay";
-import { LoadingButton } from "components/LoadingButton/LoadingButton";
-import { FC } from "react";
-import BlockOutlined from "@mui/icons-material/BlockOutlined";
-import ButtonGroup from "@mui/material/ButtonGroup";
-import { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
+import Tooltip from "@mui/material/Tooltip";
+import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
+import { TopbarButton } from "components/FullPageLayout/Topbar";
+import {
+	BanIcon,
+	CircleStopIcon,
+	CloudIcon,
+	PlayIcon,
+	PowerIcon,
+	RotateCcwIcon,
+	StarIcon,
+	StarOffIcon,
+} from "lucide-react";
+import type { FC } from "react";
 import { BuildParametersPopover } from "./BuildParametersPopover";
-import PowerSettingsNewIcon from "@mui/icons-material/PowerSettingsNew";
 
-interface WorkspaceAction {
-  loading?: boolean;
-  handleAction: () => void;
+export interface ActionButtonProps {
+	loading?: boolean;
+	handleAction: (buildParameters?: WorkspaceBuildParameter[]) => void;
+	disabled?: boolean;
+	tooltipText?: string;
+	isRunning?: boolean;
+	requireActiveVersion?: boolean;
 }
 
-export const UpdateButton: FC<WorkspaceAction> = ({
-  handleAction,
-  loading,
+export const UpdateButton: FC<ActionButtonProps> = ({
+	handleAction,
+	loading,
+	isRunning,
+	requireActiveVersion,
 }) => {
-  return (
-    <LoadingButton
-      loading={loading}
-      loadingIndicator={<>Updating&hellip;</>}
-      loadingPosition="start"
-      data-testid="workspace-update-button"
-      startIcon={<CloudQueueIcon />}
-      onClick={handleAction}
-    >
-      Update&hellip;
-    </LoadingButton>
-  );
+	return (
+		<Tooltip
+			title={
+				requireActiveVersion
+					? "This template requires automatic updates on workspace startup. Contact your administrator if you want to preserve the template version."
+					: isRunning
+						? "Stop workspace and restart it with the latest template version."
+						: "Start workspace with the latest template version."
+			}
+		>
+			<TopbarButton
+				data-testid="workspace-update-button"
+				disabled={loading}
+				onClick={() => handleAction()}
+			>
+				{requireActiveVersion ? <PlayIcon /> : <CloudIcon />}
+				{loading ? (
+					<>Updating&hellip;</>
+				) : isRunning ? (
+					<>Update and restart&hellip;</>
+				) : (
+					<>Update and start&hellip;</>
+				)}
+			</TopbarButton>
+		</Tooltip>
+	);
 };
 
-export const ActivateButton: FC<WorkspaceAction> = ({
-  handleAction,
-  loading,
+export const ActivateButton: FC<ActionButtonProps> = ({
+	handleAction,
+	loading,
 }) => {
-  return (
-    <LoadingButton
-      loading={loading}
-      loadingIndicator={<>Activating&hellip;</>}
-      loadingPosition="start"
-      startIcon={<PowerSettingsNewIcon />}
-      onClick={handleAction}
-    >
-      Activate
-    </LoadingButton>
-  );
+	return (
+		<TopbarButton disabled={loading} onClick={() => handleAction()}>
+			<PowerIcon />
+			{loading ? <>Activating&hellip;</> : "Activate"}
+		</TopbarButton>
+	);
 };
 
-export const StartButton: FC<
-  Omit<WorkspaceAction, "handleAction"> & {
-    workspace: Workspace;
-    handleAction: (buildParameters?: WorkspaceBuildParameter[]) => void;
-  }
-> = ({ handleAction, workspace, loading }) => {
-  return (
-    <ButtonGroup
-      variant="outlined"
-      sx={{
-        // Workaround to make the border transitions smmothly on button groups
-        "& > button:hover + button": {
-          borderLeft: "1px solid #FFF",
-        },
-      }}
-    >
-      <LoadingButton
-        loading={loading}
-        loadingIndicator={<>Starting&hellip;</>}
-        loadingPosition="start"
-        startIcon={<PlayCircleOutlineIcon />}
-        onClick={() => handleAction()}
-      >
-        Start
-      </LoadingButton>
-      <BuildParametersPopover
-        workspace={workspace}
-        disabled={loading}
-        onSubmit={handleAction}
-      />
-    </ButtonGroup>
-  );
-};
-
-export const StopButton: FC<WorkspaceAction> = ({ handleAction, loading }) => {
-  return (
-    <LoadingButton
-      loading={loading}
-      loadingIndicator={<>Stopping&hellip;</>}
-      loadingPosition="start"
-      startIcon={<CropSquareIcon />}
-      onClick={handleAction}
-      data-testid="workspace-stop-button"
-    >
-      Stop
-    </LoadingButton>
-  );
-};
-
-export const RestartButton: FC<
-  Omit<WorkspaceAction, "handleAction"> & {
-    workspace: Workspace;
-    handleAction: (buildParameters?: WorkspaceBuildParameter[]) => void;
-  }
-> = ({ handleAction, loading, workspace }) => {
-  return (
-    <ButtonGroup
-      variant="outlined"
-      sx={{
-        // Workaround to make the border transitions smmothly on button groups
-        "& > button:hover + button": {
-          borderLeft: "1px solid #FFF",
-        },
-      }}
-    >
-      <LoadingButton
-        loading={loading}
-        loadingIndicator={<>Restarting&hellip;</>}
-        loadingPosition="start"
-        startIcon={<ReplayIcon />}
-        onClick={() => handleAction()}
-        data-testid="workspace-restart-button"
-      >
-        Restart&hellip;
-      </LoadingButton>
-      <BuildParametersPopover
-        workspace={workspace}
-        disabled={loading}
-        onSubmit={handleAction}
-      />
-    </ButtonGroup>
-  );
-};
-
-export const CancelButton: FC<WorkspaceAction> = ({ handleAction }) => {
-  return (
-    <Button startIcon={<BlockIcon />} onClick={handleAction}>
-      Cancel
-    </Button>
-  );
-};
-
-interface DisabledProps {
-  label: string;
+interface ActionButtonPropsWithWorkspace extends ActionButtonProps {
+	workspace: Workspace;
 }
 
-export const DisabledButton: FC<DisabledProps> = ({ label }) => {
-  return (
-    <Button startIcon={<BlockOutlined />} disabled>
-      {label}
-    </Button>
-  );
+export const StartButton: FC<ActionButtonPropsWithWorkspace> = ({
+	handleAction,
+	workspace,
+	loading,
+	disabled,
+	tooltipText,
+}) => {
+	let mainButton = (
+		<TopbarButton onClick={() => handleAction()} disabled={disabled || loading}>
+			<PlayIcon />
+			{loading ? <>Starting&hellip;</> : "Start"}
+		</TopbarButton>
+	);
+
+	if (tooltipText) {
+		mainButton = <Tooltip title={tooltipText}>{mainButton}</Tooltip>;
+	}
+
+	return (
+		<div className="flex gap-1 items-center">
+			{mainButton}
+			<BuildParametersPopover
+				label="Start with build parameters"
+				workspace={workspace}
+				disabled={loading}
+				onSubmit={handleAction}
+			/>
+		</div>
+	);
 };
 
-interface LoadingProps {
-  label: string;
+export const StopButton: FC<ActionButtonProps> = ({
+	handleAction,
+	loading,
+}) => {
+	return (
+		<TopbarButton
+			disabled={loading}
+			onClick={() => handleAction()}
+			data-testid="workspace-stop-button"
+		>
+			<CircleStopIcon />
+			{loading ? <>Stopping&hellip;</> : "Stop"}
+		</TopbarButton>
+	);
+};
+
+export const RestartButton: FC<ActionButtonPropsWithWorkspace> = ({
+	handleAction,
+	loading,
+	workspace,
+}) => {
+	return (
+		<div className="flex gap-1 items-center">
+			<TopbarButton
+				onClick={() => handleAction()}
+				data-testid="workspace-restart-button"
+				disabled={loading}
+			>
+				<RotateCcwIcon />
+				{loading ? <>Restarting&hellip;</> : <>Restart&hellip;</>}
+			</TopbarButton>
+			<BuildParametersPopover
+				label="Restart with build parameters"
+				workspace={workspace}
+				disabled={loading}
+				onSubmit={handleAction}
+			/>
+		</div>
+	);
+};
+
+export const CancelButton: FC<ActionButtonProps> = ({ handleAction }) => {
+	return (
+		<TopbarButton onClick={() => handleAction()}>
+			<BanIcon />
+			Cancel
+		</TopbarButton>
+	);
+};
+
+interface DisabledButtonProps {
+	label: string;
 }
 
-export const ActionLoadingButton: FC<LoadingProps> = ({ label }) => {
-  return (
-    <LoadingButton
-      loading
-      loadingPosition="start"
-      loadingIndicator={label}
-      // This icon can be anything
-      startIcon={<ReplayIcon />}
-    />
-  );
+export const DisabledButton: FC<DisabledButtonProps> = ({ label }) => {
+	return (
+		<TopbarButton disabled>
+			<BanIcon />
+			{label}
+		</TopbarButton>
+	);
+};
+
+interface FavoriteButtonProps {
+	onToggle: (workspaceID: string) => void;
+	workspaceID: string;
+	isFavorite: boolean;
+}
+
+export const FavoriteButton: FC<FavoriteButtonProps> = ({
+	onToggle,
+	workspaceID,
+	isFavorite,
+}) => {
+	return (
+		<TopbarButton onClick={() => onToggle(workspaceID)}>
+			{isFavorite ? <StarOffIcon /> : <StarIcon />}
+			{isFavorite ? "Unfavorite" : "Favorite"}
+		</TopbarButton>
+	);
 };

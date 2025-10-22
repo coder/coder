@@ -1,0 +1,9 @@
+coder:
+  image:
+    tag: latest
+  service:
+    type: NodePort
+    prometheusNodePort: 31112
+  env:
+    - name: CODER_PROMETHEUS_ENABLE
+      value: "true"

@@ -9,8 +9,8 @@ OPTIONS:
       --host bool
           Force host memory measurement.
 
-  -o, --output string (default: text)
-          Output format. Available formats: text, json.
+  -o, --output text|json (default: text)
+          Output format.
 
       --prefix Ki|Mi|Gi|Ti (default: Gi)
           SI Prefix for memory measurement.

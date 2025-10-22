@@ -1,11 +1,15 @@
+//go:build !slim
+
 package httpmw
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/rbac"
 )
 
 // AsAuthzSystem is a chained handler that temporarily sets the dbauthz context
@@ -32,6 +36,28 @@ func AsAuthzSystem(mws ...func(http.Handler) http.Handler) func(http.Handler) ht
 				r = r.WithContext(dbauthz.As(r.Context(), before))
 				next.ServeHTTP(rw, r)
 			})).ServeHTTP(rw, r)
+		})
+	}
+}
+
+// RecordAuthzChecks enables recording all the authorization checks that
+// occurred in the processing of a request. This is mostly helpful for debugging
+// and understanding what permissions are required for a given action.
+//
+// Can either be toggled on by a deployment wide configuration value, or opt-in on
+// a per-request basis by setting the `x-record-authz-checks` header to a truthy value.
+//
+// Requires using a Recorder Authorizer.
+//
+//nolint:revive
+func RecordAuthzChecks(always bool) func(next http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			if enabled, _ := strconv.ParseBool(r.Header.Get("x-record-authz-checks")); enabled || always {
+				r = r.WithContext(rbac.WithAuthzCheckRecorder(r.Context()))
+			}
+
+			next.ServeHTTP(rw, r)
 		})
 	}
 }

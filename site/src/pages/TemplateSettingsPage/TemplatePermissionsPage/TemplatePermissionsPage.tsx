@@ -1,91 +1,107 @@
-import Button from "@mui/material/Button";
-import Link from "@mui/material/Link";
-import ArrowRightAltOutlined from "@mui/icons-material/ArrowRightAltOutlined";
-import { useMachine } from "@xstate/react";
+import { setGroupRole, setUserRole, templateACL } from "api/queries/templates";
+import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Paywall } from "components/Paywall/Paywall";
-import { Stack } from "components/Stack/Stack";
-import { useFeatureVisibility } from "hooks/useFeatureVisibility";
-import { useOrganizationId } from "hooks/useOrganizationId";
-import { FC } from "react";
-import { Helmet } from "react-helmet-async";
+import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
+import type { FC } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
-import { templateACLMachine } from "xServices/template/templateACLXService";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplatePermissionsPageView } from "./TemplatePermissionsPageView";
-import { docs } from "utils/docs";
 
-export const TemplatePermissionsPage: FC<
-  React.PropsWithChildren<unknown>
-> = () => {
-  const organizationId = useOrganizationId();
-  const { template, permissions } = useTemplateSettings();
-  const { template_rbac: isTemplateRBACEnabled } = useFeatureVisibility();
-  const [state, send] = useMachine(templateACLMachine, {
-    context: { templateId: template.id },
-  });
-  const { templateACL, userToBeUpdated, groupToBeUpdated } = state.context;
+const TemplatePermissionsPage: FC = () => {
+	const { template, permissions } = useTemplateSettings();
+	const { template_rbac: isTemplateRBACEnabled } = useFeatureVisibility();
+	const templateACLQuery = useQuery(templateACL(template.id));
+	const queryClient = useQueryClient();
 
-  return (
-    <>
-      <Helmet>
-        <title>{pageTitle([template.name, "Permissions"])}</title>
-      </Helmet>
-      {!isTemplateRBACEnabled ? (
-        <Paywall
-          message="Template permissions"
-          description="Manage your template permissions to allow users or groups to view or admin the template. To use this feature, you have to upgrade your account."
-          cta={
-            <Stack direction="row" alignItems="center">
-              <Link
-                href={docs("/admin/upgrade")}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <Button
-                  startIcon={<ArrowRightAltOutlined />}
-                  variant="contained"
-                >
-                  See how to upgrade
-                </Button>
-              </Link>
-              <Link href={docs("/admin/rbac")} target="_blank" rel="noreferrer">
-                Read the docs
-              </Link>
-            </Stack>
-          }
-        />
-      ) : (
-        <TemplatePermissionsPageView
-          organizationId={organizationId}
-          templateID={template.id}
-          templateACL={templateACL}
-          canUpdatePermissions={Boolean(permissions?.canUpdateTemplate)}
-          onAddUser={(user, role, reset) => {
-            send("ADD_USER", { user, role, onDone: reset });
-          }}
-          isAddingUser={state.matches("addingUser")}
-          onUpdateUser={(user, role) => {
-            send("UPDATE_USER_ROLE", { user, role });
-          }}
-          updatingUser={userToBeUpdated}
-          onRemoveUser={(user) => {
-            send("REMOVE_USER", { user });
-          }}
-          onAddGroup={(group, role, reset) => {
-            send("ADD_GROUP", { group, role, onDone: reset });
-          }}
-          isAddingGroup={state.matches("addingGroup")}
-          onUpdateGroup={(group, role) => {
-            send("UPDATE_GROUP_ROLE", { group, role });
-          }}
-          updatingGroup={groupToBeUpdated}
-          onRemoveGroup={(group) => {
-            send("REMOVE_GROUP", { group });
-          }}
-        />
-      )}
-    </>
-  );
+	const addUserMutation = useMutation(setUserRole(queryClient));
+	const updateUserMutation = useMutation(setUserRole(queryClient));
+	const removeUserMutation = useMutation(setUserRole(queryClient));
+
+	const addGroupMutation = useMutation(setGroupRole(queryClient));
+	const updateGroupMutation = useMutation(setGroupRole(queryClient));
+	const removeGroupMutation = useMutation(setGroupRole(queryClient));
+
+	return (
+		<>
+			<title>{pageTitle(template.name, "Permissions")}</title>
+
+			{!isTemplateRBACEnabled ? (
+				<Paywall
+					message="Template permissions"
+					description="Control access of templates for users and groups to templates. You need an Premium license to use this feature."
+					documentationLink={docs("/admin/templates/template-permissions")}
+				/>
+			) : (
+				<TemplatePermissionsPageView
+					templateID={template.id}
+					templateACL={templateACLQuery.data}
+					canUpdatePermissions={Boolean(permissions?.canUpdateTemplate)}
+					onAddUser={async (user, role, reset) => {
+						await addUserMutation.mutateAsync({
+							templateId: template.id,
+							userId: user.id,
+							role,
+						});
+						reset();
+					}}
+					isAddingUser={addUserMutation.isPending}
+					onUpdateUser={async (user, role) => {
+						await updateUserMutation.mutateAsync({
+							templateId: template.id,
+							userId: user.id,
+							role,
+						});
+						displaySuccess("User role updated successfully!");
+					}}
+					updatingUserId={
+						updateUserMutation.isPending
+							? updateUserMutation.variables?.userId
+							: undefined
+					}
+					onRemoveUser={async (user) => {
+						await removeUserMutation.mutateAsync({
+							templateId: template.id,
+							userId: user.id,
+							role: "",
+						});
+						displaySuccess("User removed successfully!");
+					}}
+					onAddGroup={async (group, role, reset) => {
+						await addGroupMutation.mutateAsync({
+							templateId: template.id,
+							groupId: group.id,
+							role,
+						});
+						reset();
+					}}
+					isAddingGroup={addGroupMutation.isPending}
+					onUpdateGroup={async (group, role) => {
+						await updateGroupMutation.mutateAsync({
+							templateId: template.id,
+							groupId: group.id,
+							role,
+						});
+						displaySuccess("Group role updated successfully!");
+					}}
+					updatingGroupId={
+						updateGroupMutation.isPending
+							? updateGroupMutation.variables?.groupId
+							: undefined
+					}
+					onRemoveGroup={async (group) => {
+						await removeGroupMutation.mutateAsync({
+							groupId: group.id,
+							templateId: template.id,
+							role: "",
+						});
+						displaySuccess("Group removed successfully!");
+					}}
+				/>
+			)}
+		</>
+	);
 };
 
 export default TemplatePermissionsPage;

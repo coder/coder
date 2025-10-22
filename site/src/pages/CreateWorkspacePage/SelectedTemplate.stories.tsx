@@ -1,29 +1,29 @@
 import { MockTemplate } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { SelectedTemplate } from "./SelectedTemplate";
-import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof SelectedTemplate> = {
-  title: "components/SelectedTemplate",
-  component: SelectedTemplate,
+	title: "pages/CreateWorkspacePage/SelectedTemplate",
+	component: SelectedTemplate,
 };
 
 export default meta;
 type Story = StoryObj<typeof SelectedTemplate>;
 
 export const WithIcon: Story = {
-  args: {
-    template: {
-      ...MockTemplate,
-      icon: "/icon/docker.png",
-    },
-  },
+	args: {
+		template: {
+			...MockTemplate,
+			icon: "/icon/docker.png",
+		},
+	},
 };
 
 export const WithoutIcon: Story = {
-  args: {
-    template: {
-      ...MockTemplate,
-      icon: "",
-    },
-  },
+	args: {
+		template: {
+			...MockTemplate,
+			icon: "",
+		},
+	},
 };

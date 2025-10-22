@@ -3,11 +3,12 @@ package replicasync
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -16,12 +17,13 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/pproflabel"
 )
 
 var PubsubEvent = "replica"
@@ -36,8 +38,9 @@ type Options struct {
 	TLSConfig       *tls.Config
 }
 
-// New registers the replica with the database and periodically updates to ensure
-// it's healthy. It contacts all other alive replicas to ensure they are reachable.
+// New registers the replica with the database and periodically updates to
+// ensure it's healthy. It contacts all other alive replicas to ensure they are
+// reachable.
 func New(ctx context.Context, logger slog.Logger, db database.Store, ps pubsub.Pubsub, options *Options) (*Manager, error) {
 	if options == nil {
 		options = &Options{}
@@ -56,24 +59,22 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, ps pubsub.P
 		// primary purpose is to clean up dead replicas.
 		options.CleanupInterval = 30 * time.Minute
 	}
-	hostname, err := os.Hostname()
-	if err != nil {
-		return nil, xerrors.Errorf("get hostname: %w", err)
-	}
+	hostname := cliutil.Hostname()
 	databaseLatency, err := db.Ping(ctx)
 	if err != nil {
 		return nil, xerrors.Errorf("ping database: %w", err)
 	}
 	// nolint:gocritic // Inserting a replica is a system function.
 	replica, err := db.InsertReplica(dbauthz.AsSystemRestricted(ctx), database.InsertReplicaParams{
-		ID:              options.ID,
-		CreatedAt:       dbtime.Now(),
-		StartedAt:       dbtime.Now(),
-		UpdatedAt:       dbtime.Now(),
-		Hostname:        hostname,
-		RegionID:        options.RegionID,
-		RelayAddress:    options.RelayAddress,
-		Version:         buildinfo.Version(),
+		ID:           options.ID,
+		CreatedAt:    dbtime.Now(),
+		StartedAt:    dbtime.Now(),
+		UpdatedAt:    dbtime.Now(),
+		Hostname:     hostname,
+		RegionID:     options.RegionID,
+		RelayAddress: options.RelayAddress,
+		Version:      buildinfo.Version(),
+		// #nosec G115 - Safe conversion for microseconds latency which is expected to be within int32 range
 		DatabaseLatency: int32(databaseLatency.Microseconds()),
 		Primary:         true,
 	})
@@ -104,7 +105,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, ps pubsub.P
 		return nil, xerrors.Errorf("subscribe: %w", err)
 	}
 	manager.closeWait.Add(1)
-	go manager.loop(ctx)
+	pproflabel.Go(ctx, pproflabel.Service(pproflabel.ServiceReplicaSync), manager.loop)
 	return manager, nil
 }
 
@@ -203,7 +204,7 @@ func (m *Manager) subscribe(ctx context.Context) error {
 		updating = false
 		updateMutex.Unlock()
 	}
-	cancelFunc, err := m.pubsub.Subscribe(PubsubEvent, func(ctx context.Context, message []byte) {
+	cancelFunc, err := m.pubsub.Subscribe(PubsubEvent, func(_ context.Context, message []byte) {
 		updateMutex.Lock()
 		defer updateMutex.Unlock()
 		id, err := uuid.Parse(string(message))
@@ -256,6 +257,13 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 		if replica.ID == m.id {
 			continue
 		}
+		// Don't peer with nodes that have an empty relay address.
+		if replica.RelayAddress == "" {
+			m.logger.Debug(ctx, "peer doesn't have an address, skipping",
+				slog.F("replica_hostname", replica.Hostname),
+			)
+			continue
+		}
 		m.peers = append(m.peers, replica)
 	}
 	m.mutex.Unlock()
@@ -267,33 +275,35 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 		},
 	}
 	defer client.CloseIdleConnections()
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-	failed := make([]string, 0)
-	for _, peer := range m.Regional() {
-		wg.Add(1)
+
+	peers := m.Regional()
+	errs := make(chan error, len(peers))
+	for _, peer := range peers {
 		go func(peer database.Replica) {
-			defer wg.Done()
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, peer.RelayAddress, nil)
+			err := PingPeerReplica(ctx, client, peer.RelayAddress)
 			if err != nil {
-				m.logger.Warn(ctx, "create http request for relay probe",
-					slog.F("relay_address", peer.RelayAddress), slog.Error(err))
+				errs <- xerrors.Errorf("ping sibling replica %s (%s): %w", peer.Hostname, peer.RelayAddress, err)
+				m.logger.Warn(ctx, "failed to ping sibling replica, this could happen if the replica has shutdown",
+					slog.F("replica_hostname", peer.Hostname),
+					slog.F("replica_relay_address", peer.RelayAddress),
+					slog.Error(err),
+				)
 				return
 			}
-			res, err := client.Do(req)
-			if err != nil {
-				mu.Lock()
-				failed = append(failed, fmt.Sprintf("relay %s (%s): %s", peer.Hostname, peer.RelayAddress, err))
-				mu.Unlock()
-				return
-			}
-			_ = res.Body.Close()
+			errs <- nil
 		}(peer)
 	}
-	wg.Wait()
+
+	replicaErrs := make([]string, 0, len(peers))
+	for i := 0; i < len(peers); i++ {
+		err := <-errs
+		if err != nil {
+			replicaErrs = append(replicaErrs, err.Error())
+		}
+	}
 	replicaError := ""
-	if len(failed) > 0 {
-		replicaError = fmt.Sprintf("Failed to dial peers: %s", strings.Join(failed, ", "))
+	if len(replicaErrs) > 0 {
+		replicaError = fmt.Sprintf("Failed to dial peers: %s", strings.Join(replicaErrs, ", "))
 	}
 
 	databaseLatency, err := m.db.Ping(ctx)
@@ -305,20 +315,41 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 	defer m.mutex.Unlock()
 	// nolint:gocritic // Updating a replica is a system function.
 	replica, err := m.db.UpdateReplica(dbauthz.AsSystemRestricted(ctx), database.UpdateReplicaParams{
-		ID:              m.self.ID,
-		UpdatedAt:       dbtime.Now(),
-		StartedAt:       m.self.StartedAt,
-		StoppedAt:       m.self.StoppedAt,
-		RelayAddress:    m.self.RelayAddress,
-		RegionID:        m.self.RegionID,
-		Hostname:        m.self.Hostname,
-		Version:         m.self.Version,
-		Error:           replicaError,
+		ID:           m.self.ID,
+		UpdatedAt:    dbtime.Now(),
+		StartedAt:    m.self.StartedAt,
+		StoppedAt:    m.self.StoppedAt,
+		RelayAddress: m.self.RelayAddress,
+		RegionID:     m.self.RegionID,
+		Hostname:     m.self.Hostname,
+		Version:      m.self.Version,
+		Error:        replicaError,
+		// #nosec G115 - Safe conversion for microseconds latency which is expected to be within int32 range
 		DatabaseLatency: int32(databaseLatency.Microseconds()),
 		Primary:         m.self.Primary,
 	})
 	if err != nil {
-		return xerrors.Errorf("update replica: %w", err)
+		if !errors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("update replica: %w", err)
+		}
+		// self replica has been cleaned up, we must reinsert
+		// nolint:gocritic // Updating a replica is a system function.
+		replica, err = m.db.InsertReplica(dbauthz.AsSystemRestricted(ctx), database.InsertReplicaParams{
+			ID:           m.self.ID,
+			CreatedAt:    dbtime.Now(),
+			UpdatedAt:    dbtime.Now(),
+			StartedAt:    m.self.StartedAt,
+			RelayAddress: m.self.RelayAddress,
+			RegionID:     m.self.RegionID,
+			Hostname:     m.self.Hostname,
+			Version:      m.self.Version,
+			// #nosec G115 - Safe conversion for microseconds latency which is expected to be within int32 range
+			DatabaseLatency: int32(databaseLatency.Microseconds()),
+			Primary:         m.self.Primary,
+		})
+		if err != nil {
+			return xerrors.Errorf("update replica: %w", err)
+		}
 	}
 	if m.self.Error != replica.Error {
 		// Publish an update occurred!
@@ -330,6 +361,32 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 	m.self = replica
 	if m.callback != nil {
 		go m.callback()
+	}
+	return nil
+}
+
+// PingPeerReplica pings a peer replica over it's internal relay address to
+// ensure it's reachable and alive for health purposes.
+func PingPeerReplica(ctx context.Context, client http.Client, relayAddress string) error {
+	ra, err := url.Parse(relayAddress)
+	if err != nil {
+		return xerrors.Errorf("parse relay address %q: %w", relayAddress, err)
+	}
+	target, err := ra.Parse("/derp/latency-check")
+	if err != nil {
+		return xerrors.Errorf("parse latency-check URL: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
+	if err != nil {
+		return xerrors.Errorf("create request: %w", err)
+	}
+	res, err := client.Do(req)
+	if err != nil {
+		return xerrors.Errorf("do probe: %w", err)
+	}
+	_ = res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return xerrors.Errorf("unexpected status code: %d", res.StatusCode)
 	}
 	return nil
 }
@@ -352,9 +409,6 @@ func (m *Manager) AllPrimary() []database.Replica {
 			continue
 		}
 
-		// When we assign the non-pointer to a
-		// variable it loses the reference.
-		replica := replica
 		replicas = append(replicas, replica)
 	}
 	return replicas
@@ -436,4 +490,30 @@ func (m *Manager) Close() error {
 		return xerrors.Errorf("publish replica update: %w", err)
 	}
 	return nil
+}
+
+// CreateDERPMeshTLSConfig creates a TLS configuration for connecting to peers
+// in the DERP mesh over private networking. It overrides the ServerName to be
+// the expected public hostname of the peer, and trusts all of the TLS server
+// certificates used by this replica (as we expect all replicas to use the same
+// TLS certificates).
+func CreateDERPMeshTLSConfig(hostname string, tlsCertificates []tls.Certificate) (*tls.Config, error) {
+	meshRootCA := x509.NewCertPool()
+	for _, certificate := range tlsCertificates {
+		for _, certificatePart := range certificate.Certificate {
+			parsedCert, err := x509.ParseCertificate(certificatePart)
+			if err != nil {
+				return nil, xerrors.Errorf("parse certificate %s: %w", parsedCert.Subject.CommonName, err)
+			}
+			meshRootCA.AddCert(parsedCert)
+		}
+	}
+
+	// This TLS configuration trusts the built-in TLS certificates and forces
+	// the server name to be the public hostname.
+	return &tls.Config{
+		MinVersion: tls.VersionTLS12,
+		RootCAs:    meshRootCA,
+		ServerName: hostname,
+	}, nil
 }

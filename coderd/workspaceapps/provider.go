@@ -22,6 +22,8 @@ const (
 type ResolveRequestOptions struct {
 	Logger              slog.Logger
 	SignedTokenProvider SignedTokenProvider
+	Cookies             AppCookies
+	CookieCfg           codersdk.HTTPCookieConfig
 
 	DashboardURL   *url.URL
 	PathAppBaseURL *url.URL
@@ -38,7 +40,7 @@ type ResolveRequestOptions struct {
 
 func ResolveRequest(rw http.ResponseWriter, r *http.Request, opts ResolveRequestOptions) (*SignedToken, bool) {
 	appReq := opts.AppRequest.Normalize()
-	err := appReq.Validate()
+	err := appReq.Check()
 	if err != nil {
 		// This is a 500 since it's a coder server or proxy that's making this
 		// request struct based on details from the request. The values should
@@ -57,7 +59,7 @@ func ResolveRequest(rw http.ResponseWriter, r *http.Request, opts ResolveRequest
 		AppRequest:     appReq,
 		PathAppBaseURL: opts.PathAppBaseURL.String(),
 		AppHostname:    opts.AppHostname,
-		SessionToken:   AppConnectSessionTokenFromRequest(r, appReq.AccessMethod),
+		SessionToken:   opts.Cookies.TokenFromRequest(r, appReq.AccessMethod),
 		AppPath:        opts.AppPath,
 		AppQuery:       opts.AppQuery,
 	}
@@ -75,12 +77,13 @@ func ResolveRequest(rw http.ResponseWriter, r *http.Request, opts ResolveRequest
 	//
 	// For subdomain apps, this applies to the entire subdomain, e.g.
 	//   app--agent--workspace--user.apps.example.com
-	http.SetCookie(rw, &http.Cookie{
-		Name:    codersdk.SignedAppTokenCookie,
-		Value:   tokenStr,
-		Path:    appReq.BasePath,
-		Expires: token.Expiry,
-	})
+	http.SetCookie(rw, opts.CookieCfg.Apply(&http.Cookie{
+		Name:     codersdk.SignedAppTokenCookie,
+		Value:    tokenStr,
+		Path:     appReq.BasePath,
+		HttpOnly: true,
+		Expires:  token.Expiry.Time(),
+	}))
 
 	return token, true
 }

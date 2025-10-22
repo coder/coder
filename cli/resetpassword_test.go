@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/clitest"
-	"github.com/coder/coder/v2/coderd/database/postgres"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
@@ -18,7 +18,7 @@ import (
 
 // nolint:paralleltest
 func TestResetPassword(t *testing.T) {
-	// postgres.Open() seems to be creating race conditions when run in parallel.
+	// dbtestutil.Open() seems to be creating race conditions when run in parallel.
 	// t.Parallel()
 
 	if runtime.GOOS != "linux" || testing.Short() {
@@ -32,9 +32,8 @@ func TestResetPassword(t *testing.T) {
 	const newPassword = "MyNewPassword!"
 
 	// start postgres and coder server processes
-	connectionURL, closeFunc, err := postgres.Open()
+	connectionURL, err := dbtestutil.Open(t)
 	require.NoError(t, err)
-	defer closeFunc()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	serverDone := make(chan struct{})
 	serverinv, cfg := clitest.New(t,

@@ -1,7 +1,6 @@
 package coderd
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"net/http"
@@ -11,10 +10,13 @@ import (
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/acl"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -34,7 +36,7 @@ func (api *API) templateAvailablePermissions(rw http.ResponseWriter, r *http.Req
 
 	// Requires update permission on the template to list all avail users/groups
 	// for assignment.
-	if !api.Authorize(r, rbac.ActionUpdate, template) {
+	if !api.Authorize(r, policy.ActionUpdate, template) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -49,7 +51,9 @@ func (api *API) templateAvailablePermissions(rw http.ResponseWriter, r *http.Req
 
 	// Perm check is the template update check.
 	// nolint:gocritic
-	groups, err := api.Database.GetGroupsByOrganizationID(dbauthz.AsSystemRestricted(ctx), template.OrganizationID)
+	groups, err := api.Database.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{
+		OrganizationID: template.OrganizationID,
+	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -58,21 +62,33 @@ func (api *API) templateAvailablePermissions(rw http.ResponseWriter, r *http.Req
 	sdkGroups := make([]codersdk.Group, 0, len(groups))
 	for _, group := range groups {
 		// nolint:gocritic
-		members, err := api.Database.GetGroupMembers(dbauthz.AsSystemRestricted(ctx), group.ID)
+		members, err := api.Database.GetGroupMembersByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersByGroupIDParams{
+			GroupID:       group.Group.ID,
+			IncludeSystem: false,
+		})
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
 			return
 		}
 
-		sdkGroups = append(sdkGroups, convertGroup(group, members))
+		// nolint:gocritic
+		memberCount, err := api.Database.GetGroupMembersCountByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersCountByGroupIDParams{
+			GroupID:       group.Group.ID,
+			IncludeSystem: false,
+		})
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+
+		sdkGroups = append(sdkGroups, db2sdk.Group(group, members, int(memberCount)))
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ACLAvailable{
-		// No need to pass organization info here.
 		// TODO: @emyrk we should return a MinimalUser here instead of a full user.
 		// The FE requires the `email` field, so this cannot be done without
 		// a UI change.
-		Users:  convertUsers(users, map[uuid.UUID][]uuid.UUID{}),
+		Users:  db2sdk.ReducedUsers(users),
 		Groups: sdkGroups,
 	})
 }
@@ -83,7 +99,7 @@ func (api *API) templateAvailablePermissions(rw http.ResponseWriter, r *http.Req
 // @Produce json
 // @Tags Enterprise
 // @Param template path string true "Template ID" format(uuid)
-// @Success 200 {array} codersdk.TemplateUser
+// @Success 200 {object} codersdk.TemplateACL
 // @Router /templates/{template}/acl [get]
 func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -121,21 +137,37 @@ func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 
 	groups := make([]codersdk.TemplateGroup, 0, len(dbGroups))
 	for _, group := range dbGroups {
-		var members []database.User
+		var members []database.GroupMember
 
 		// This is a bit of a hack. The caller might not have permission to do this,
 		// but they can read the acl list if the function got this far. So we let
 		// them read the group members.
 		// We should probably at least return more truncated user data here.
 		// nolint:gocritic
-		members, err = api.Database.GetGroupMembers(dbauthz.AsSystemRestricted(ctx), group.ID)
+		members, err = api.Database.GetGroupMembersByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersByGroupIDParams{
+			GroupID:       group.Group.ID,
+			IncludeSystem: false,
+		})
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+		// nolint:gocritic
+		memberCount, err := api.Database.GetGroupMembersCountByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersCountByGroupIDParams{
+			GroupID:       group.Group.ID,
+			IncludeSystem: false,
+		})
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
 			return
 		}
 		groups = append(groups, codersdk.TemplateGroup{
-			Group: convertGroup(group.Group, members),
-			Role:  convertToTemplateRole(group.Actions),
+			Group: db2sdk.Group(database.GetGroupsRow{
+				Group:                   group.Group,
+				OrganizationName:        template.OrganizationName,
+				OrganizationDisplayName: template.OrganizationDisplayName,
+			}, members, int(memberCount)),
+			Role: convertToTemplateRole(group.Actions),
 		})
 	}
 
@@ -152,7 +184,7 @@ func (api *API) templateACL(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Enterprise
 // @Param template path string true "Template ID" format(uuid)
-// @Param request body codersdk.UpdateTemplateACL true "Update template request"
+// @Param request body codersdk.UpdateTemplateACL true "Update template ACL request"
 // @Success 200 {object} codersdk.Response
 // @Router /templates/{template}/acl [patch]
 func (api *API) patchTemplateACL(rw http.ResponseWriter, r *http.Request) {
@@ -161,10 +193,11 @@ func (api *API) patchTemplateACL(rw http.ResponseWriter, r *http.Request) {
 		template          = httpmw.TemplateParam(r)
 		auditor           = api.AGPL.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.Template](rw, &audit.RequestParams{
-			Audit:   *auditor,
-			Log:     api.Logger,
-			Request: r,
-			Action:  database.AuditActionWrite,
+			Audit:          *auditor,
+			Log:            api.Logger,
+			Request:        r,
+			Action:         database.AuditActionWrite,
+			OrganizationID: template.OrganizationID,
 		})
 	)
 	defer commitAudit()
@@ -175,13 +208,10 @@ func (api *API) patchTemplateACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	validErrs := validateTemplateACLPerms(ctx, api.Database, req.UserPerms, "user_perms", true)
-	validErrs = append(validErrs,
-		validateTemplateACLPerms(ctx, api.Database, req.GroupPerms, "group_perms", false)...)
-
+	validErrs := acl.Validate(ctx, api.Database, TemplateACLUpdateValidator(req))
 	if len(validErrs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message:     "Invalid request to update template metadata!",
+			Message:     "Invalid request to update template ACL",
 			Validations: validErrs,
 		})
 		return
@@ -194,28 +224,20 @@ func (api *API) patchTemplateACL(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("get template by ID: %w", err)
 		}
 
-		if len(req.UserPerms) > 0 {
-			for id, role := range req.UserPerms {
-				// A user with an empty string implies
-				// deletion.
-				if role == "" {
-					delete(template.UserACL, id)
-					continue
-				}
-				template.UserACL[id] = convertSDKTemplateRole(role)
+		for id, role := range req.UserPerms {
+			if role == codersdk.TemplateRoleDeleted {
+				delete(template.UserACL, id)
+				continue
 			}
+			template.UserACL[id] = db2sdk.TemplateRoleActions(role)
 		}
 
-		if len(req.GroupPerms) > 0 {
-			for id, role := range req.GroupPerms {
-				// An id with an empty string implies
-				// deletion.
-				if role == "" {
-					delete(template.GroupACL, id)
-					continue
-				}
-				template.GroupACL[id] = convertSDKTemplateRole(role)
+		for id, role := range req.GroupPerms {
+			if role == codersdk.TemplateRoleDeleted {
+				delete(template.GroupACL, id)
+				continue
 			}
+			template.GroupACL[id] = db2sdk.TemplateRoleActions(role)
 		}
 
 		err = tx.UpdateTemplateACLByID(ctx, database.UpdateTemplateACLByIDParams{
@@ -244,42 +266,31 @@ func (api *API) patchTemplateACL(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// nolint TODO fix stupid flag.
-func validateTemplateACLPerms(ctx context.Context, db database.Store, perms map[string]codersdk.TemplateRole, field string, isUser bool) []codersdk.ValidationError {
-	// Validate requires full read access to users and groups
-	// nolint:gocritic
-	ctx = dbauthz.AsSystemRestricted(ctx)
-	var validErrs []codersdk.ValidationError
-	for k, v := range perms {
-		if err := validateTemplateRole(v); err != nil {
-			validErrs = append(validErrs, codersdk.ValidationError{Field: field, Detail: err.Error()})
-			continue
-		}
+type TemplateACLUpdateValidator codersdk.UpdateTemplateACL
 
-		id, err := uuid.Parse(k)
-		if err != nil {
-			validErrs = append(validErrs, codersdk.ValidationError{Field: field, Detail: "ID " + k + "must be a valid UUID."})
-			continue
-		}
+var (
+	templateACLUpdateUsersFieldName  = "user_perms"
+	templateACLUpdateGroupsFieldName = "group_perms"
+)
 
-		if isUser {
-			// This could get slow if we get a ton of user perm updates.
-			_, err = db.GetUserByID(ctx, id)
-			if err != nil {
-				validErrs = append(validErrs, codersdk.ValidationError{Field: field, Detail: fmt.Sprintf("Failed to find resource with ID %q: %v", k, err.Error())})
-				continue
-			}
-		} else {
-			// This could get slow if we get a ton of group perm updates.
-			_, err = db.GetGroupByID(ctx, id)
-			if err != nil {
-				validErrs = append(validErrs, codersdk.ValidationError{Field: field, Detail: fmt.Sprintf("Failed to find resource with ID %q: %v", k, err.Error())})
-				continue
-			}
-		}
+// TemplateACLUpdateValidator implements acl.UpdateValidator[codersdk.TemplateRole]
+var _ acl.UpdateValidator[codersdk.TemplateRole] = TemplateACLUpdateValidator{}
+
+func (w TemplateACLUpdateValidator) Users() (map[string]codersdk.TemplateRole, string) {
+	return w.UserPerms, templateACLUpdateUsersFieldName
+}
+
+func (w TemplateACLUpdateValidator) Groups() (map[string]codersdk.TemplateRole, string) {
+	return w.GroupPerms, templateACLUpdateGroupsFieldName
+}
+
+func (TemplateACLUpdateValidator) ValidateRole(role codersdk.TemplateRole) error {
+	actions := db2sdk.TemplateRoleActions(role)
+	if len(actions) == 0 && role != codersdk.TemplateRoleDeleted {
+		return xerrors.Errorf("role %q is not a valid template role", role)
 	}
 
-	return validErrs
+	return nil
 }
 
 func convertTemplateUsers(tus []database.TemplateUser, orgIDsByUserIDs map[uuid.UUID][]uuid.UUID) []codersdk.TemplateUser {
@@ -287,7 +298,7 @@ func convertTemplateUsers(tus []database.TemplateUser, orgIDsByUserIDs map[uuid.
 
 	for _, tu := range tus {
 		users = append(users, codersdk.TemplateUser{
-			User: convertUser(tu.User, orgIDsByUserIDs[tu.User.ID]),
+			User: db2sdk.User(tu.User, orgIDsByUserIDs[tu.User.ID]),
 			Role: convertToTemplateRole(tu.Actions),
 		})
 	}
@@ -295,72 +306,35 @@ func convertTemplateUsers(tus []database.TemplateUser, orgIDsByUserIDs map[uuid.
 	return users
 }
 
-func validateTemplateRole(role codersdk.TemplateRole) error {
-	actions := convertSDKTemplateRole(role)
-	if actions == nil && role != codersdk.TemplateRoleDeleted {
-		return xerrors.Errorf("role %q is not a valid Template role", role)
-	}
-
-	return nil
-}
-
-func convertToTemplateRole(actions []rbac.Action) codersdk.TemplateRole {
+func convertToTemplateRole(actions []policy.Action) codersdk.TemplateRole {
 	switch {
-	case len(actions) == 1 && actions[0] == rbac.ActionRead:
-		return codersdk.TemplateRoleUse
-	case len(actions) == 1 && actions[0] == rbac.WildcardSymbol:
+	case slice.SameElements(actions, db2sdk.TemplateRoleActions(codersdk.TemplateRoleAdmin)):
 		return codersdk.TemplateRoleAdmin
+	case slice.SameElements(actions, db2sdk.TemplateRoleActions(codersdk.TemplateRoleUse)):
+		return codersdk.TemplateRoleUse
 	}
 
-	return ""
+	return codersdk.TemplateRoleDeleted
 }
 
-func convertSDKTemplateRole(role codersdk.TemplateRole) []rbac.Action {
-	switch role {
-	case codersdk.TemplateRoleAdmin:
-		return []rbac.Action{rbac.WildcardSymbol}
-	case codersdk.TemplateRoleUse:
-		return []rbac.Action{rbac.ActionRead}
-	}
-
-	return nil
-}
-
-// TODO reduce the duplication across all of these.
+// TODO move to api.RequireFeatureMW when we are OK with changing the behavior.
 func (api *API) templateRBACEnabledMW(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		api.entitlementsMu.RLock()
-		rbac := api.entitlements.Features[codersdk.FeatureTemplateRBAC].Enabled
-		api.entitlementsMu.RUnlock()
-
-		if !rbac {
-			httpapi.RouteNotFound(rw)
-			return
-		}
-
-		next.ServeHTTP(rw, r)
-	})
+	return api.RequireFeatureMW(codersdk.FeatureTemplateRBAC)(next)
 }
 
-func (api *API) moonsEnabledMW(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		// The experiment must be enabled.
-		if !api.AGPL.Experiments.Enabled(codersdk.ExperimentMoons) {
-			httpapi.RouteNotFound(rw)
-			return
-		}
+func (api *API) RequireFeatureMW(feat codersdk.FeatureName) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			// Entitlement must be enabled.
+			if !api.Entitlements.Enabled(feat) {
+				// All feature warnings should be "Premium", not "Enterprise".
+				httpapi.Write(r.Context(), rw, http.StatusForbidden, codersdk.Response{
+					Message: fmt.Sprintf("%s is a Premium feature. Contact sales!", feat.Humanize()),
+				})
+				return
+			}
 
-		// Entitlement must be enabled.
-		api.entitlementsMu.RLock()
-		proxy := api.entitlements.Features[codersdk.FeatureWorkspaceProxy].Enabled
-		api.entitlementsMu.RUnlock()
-		if !proxy {
-			httpapi.Write(r.Context(), rw, http.StatusForbidden, codersdk.Response{
-				Message: "External workspace proxies is an Enterprise feature. Contact sales!",
-			})
-			return
-		}
-
-		next.ServeHTTP(rw, r)
-	})
+			next.ServeHTTP(rw, r)
+		})
+	}
 }

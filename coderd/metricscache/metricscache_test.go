@@ -3,255 +3,123 @@ package metricscache_test
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/sloggers/slogtest"
+	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/metricscache"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
-
-func dateH(year, month, day, hour int) time.Time {
-	return time.Date(year, time.Month(month), day, hour, 0, 0, 0, time.UTC)
-}
 
 func date(year, month, day int) time.Time {
 	return time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC)
 }
 
-func TestCache_TemplateUsers(t *testing.T) {
-	t.Parallel()
-	statRow := func(user uuid.UUID, date time.Time) database.InsertWorkspaceAgentStatParams {
-		return database.InsertWorkspaceAgentStatParams{
-			CreatedAt: date,
-			UserID:    user,
-		}
-	}
+func newMetricsCache(t *testing.T, log slog.Logger, clock quartz.Clock, intervals metricscache.Intervals, usage bool) (*metricscache.Cache, database.Store) {
+	t.Helper()
+
+	accessControlStore := &atomic.Pointer[dbauthz.AccessControlStore]{}
+	var acs dbauthz.AccessControlStore = dbauthz.AGPLTemplateAccessControlStore{}
+	accessControlStore.Store(&acs)
 
 	var (
-		zebra = uuid.UUID{1}
-		tiger = uuid.UUID{2}
+		auth   = rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+		db, _  = dbtestutil.NewDB(t)
+		dbauth = dbauthz.New(db, auth, log, accessControlStore)
+		cache  = metricscache.New(dbauth, log, clock, intervals, usage)
 	)
 
-	type args struct {
-		rows []database.InsertWorkspaceAgentStatParams
-	}
-	type want struct {
-		entries     []codersdk.DAUEntry
-		uniqueUsers int
-	}
-	tests := []struct {
-		name    string
-		args    args
-		tplWant want
-		// dauWant is optional
-		dauWant  []codersdk.DAUEntry
-		tzOffset int
-	}{
-		{name: "empty", args: args{}, tplWant: want{nil, 0}},
-		{
-			name: "one hole",
-			args: args{
-				rows: []database.InsertWorkspaceAgentStatParams{
-					statRow(zebra, dateH(2022, 8, 27, 0)),
-					statRow(zebra, dateH(2022, 8, 30, 0)),
-				},
-			},
-			tplWant: want{[]codersdk.DAUEntry{
-				{
-					Date:   date(2022, 8, 27),
-					Amount: 1,
-				},
-				{
-					Date:   date(2022, 8, 28),
-					Amount: 0,
-				},
-				{
-					Date:   date(2022, 8, 29),
-					Amount: 0,
-				},
-				{
-					Date:   date(2022, 8, 30),
-					Amount: 1,
-				},
-			}, 1},
-		},
-		{
-			name: "no holes",
-			args: args{
-				rows: []database.InsertWorkspaceAgentStatParams{
-					statRow(zebra, dateH(2022, 8, 27, 0)),
-					statRow(zebra, dateH(2022, 8, 28, 0)),
-					statRow(zebra, dateH(2022, 8, 29, 0)),
-				},
-			},
-			tplWant: want{[]codersdk.DAUEntry{
-				{
-					Date:   date(2022, 8, 27),
-					Amount: 1,
-				},
-				{
-					Date:   date(2022, 8, 28),
-					Amount: 1,
-				},
-				{
-					Date:   date(2022, 8, 29),
-					Amount: 1,
-				},
-			}, 1},
-		},
-		{
-			name: "holes",
-			args: args{
-				rows: []database.InsertWorkspaceAgentStatParams{
-					statRow(zebra, dateH(2022, 1, 1, 0)),
-					statRow(tiger, dateH(2022, 1, 1, 0)),
-					statRow(zebra, dateH(2022, 1, 4, 0)),
-					statRow(zebra, dateH(2022, 1, 7, 0)),
-					statRow(tiger, dateH(2022, 1, 7, 0)),
-				},
-			},
-			tplWant: want{[]codersdk.DAUEntry{
-				{
-					Date:   date(2022, 1, 1),
-					Amount: 2,
-				},
-				{
-					Date:   date(2022, 1, 2),
-					Amount: 0,
-				},
-				{
-					Date:   date(2022, 1, 3),
-					Amount: 0,
-				},
-				{
-					Date:   date(2022, 1, 4),
-					Amount: 1,
-				},
-				{
-					Date:   date(2022, 1, 5),
-					Amount: 0,
-				},
-				{
-					Date:   date(2022, 1, 6),
-					Amount: 0,
-				},
-				{
-					Date:   date(2022, 1, 7),
-					Amount: 2,
-				},
-			}, 2},
-		},
-		{
-			name:     "tzOffset",
-			tzOffset: 1,
-			args: args{
-				rows: []database.InsertWorkspaceAgentStatParams{
-					statRow(zebra, dateH(2022, 1, 2, 1)),
-					statRow(tiger, dateH(2022, 1, 2, 1)),
-					// With offset these should be in the previous day
-					statRow(zebra, dateH(2022, 1, 2, 0)),
-					statRow(tiger, dateH(2022, 1, 2, 0)),
-				},
-			},
-			tplWant: want{[]codersdk.DAUEntry{
-				{
-					Date:   date(2022, 1, 2),
-					Amount: 2,
-				},
-			}, 2},
-			dauWant: []codersdk.DAUEntry{
-				{
-					Date:   date(2022, 1, 1),
-					Amount: 2,
-				},
-				{
-					Date:   date(2022, 1, 2),
-					Amount: 2,
-				},
-			},
-		},
-		{
-			name:     "tzOffsetPreviousDay",
-			tzOffset: 6,
-			args: args{
-				rows: []database.InsertWorkspaceAgentStatParams{
-					statRow(zebra, dateH(2022, 1, 2, 1)),
-					statRow(tiger, dateH(2022, 1, 2, 1)),
-					statRow(zebra, dateH(2022, 1, 2, 0)),
-					statRow(tiger, dateH(2022, 1, 2, 0)),
-				},
-			},
-			dauWant: []codersdk.DAUEntry{
-				{
-					Date:   date(2022, 1, 1),
-					Amount: 2,
-				},
-			},
-			tplWant: want{[]codersdk.DAUEntry{
-				{
-					Date:   date(2022, 1, 2),
-					Amount: 2,
-				},
-			}, 2},
-		},
-	}
+	t.Cleanup(func() { cache.Close() })
 
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			var (
-				db    = dbfake.New()
-				cache = metricscache.New(db, slogtest.Make(t, nil), metricscache.Intervals{
-					TemplateDAUs: testutil.IntervalFast,
-				})
-			)
+	return cache, db
+}
 
-			defer cache.Close()
+func TestCache_TemplateWorkspaceOwners(t *testing.T) {
+	t.Parallel()
 
-			template := dbgen.Template(t, db, database.Template{
-				Provisioner: database.ProvisionerTypeEcho,
-			})
+	var (
+		ctx   = testutil.Context(t, testutil.WaitShort)
+		log   = testutil.Logger(t)
+		clock = quartz.NewMock(t)
+	)
 
-			for _, row := range tt.args.rows {
-				row.TemplateID = template.ID
-				row.ConnectionCount = 1
-				db.InsertWorkspaceAgentStat(context.Background(), row)
-			}
+	trapTickerFunc := clock.Trap().TickerFunc("metricscache")
+	defer trapTickerFunc.Close()
 
-			require.Eventuallyf(t, func() bool {
-				_, _, ok := cache.TemplateDAUs(template.ID, tt.tzOffset)
-				return ok
-			}, testutil.WaitShort, testutil.IntervalMedium,
-				"TemplateDAUs never populated",
-			)
+	cache, db := newMetricsCache(t, log, clock, metricscache.Intervals{
+		TemplateBuildTimes: time.Minute,
+	}, false)
 
-			gotUniqueUsers, ok := cache.TemplateUniqueUsers(template.ID)
-			require.True(t, ok)
+	org := dbgen.Organization(t, db, database.Organization{})
+	user1 := dbgen.User(t, db, database.User{})
+	user2 := dbgen.User(t, db, database.User{})
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		Provisioner:    database.ProvisionerTypeEcho,
+		CreatedBy:      user1.ID,
+	})
 
-			if tt.dauWant != nil {
-				_, dauResponse, ok := cache.DeploymentDAUs(tt.tzOffset)
-				require.True(t, ok)
-				require.Equal(t, tt.dauWant, dauResponse.Entries)
-			}
+	// Wait for both ticker functions to be created (template build times and deployment stats)
+	trapTickerFunc.MustWait(ctx).MustRelease(ctx)
+	trapTickerFunc.MustWait(ctx).MustRelease(ctx)
 
-			offset, gotEntries, ok := cache.TemplateDAUs(template.ID, tt.tzOffset)
-			require.True(t, ok)
-			// Template only supports 0 offset.
-			require.Equal(t, 0, offset)
-			require.Equal(t, tt.tplWant.entries, gotEntries.Entries)
-			require.Equal(t, tt.tplWant.uniqueUsers, gotUniqueUsers)
-		})
-	}
+	clock.Advance(time.Minute).MustWait(ctx)
+
+	count, ok := cache.TemplateWorkspaceOwners(template.ID)
+	require.True(t, ok, "TemplateWorkspaceOwners should be populated")
+	require.Equal(t, 0, count, "should have 0 owners initially")
+
+	dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		TemplateID:     template.ID,
+		OwnerID:        user1.ID,
+	})
+
+	clock.Advance(time.Minute).MustWait(ctx)
+
+	count, _ = cache.TemplateWorkspaceOwners(template.ID)
+	require.Equal(t, 1, count, "should have 1 owner after adding workspace")
+
+	workspace2 := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		TemplateID:     template.ID,
+		OwnerID:        user2.ID,
+	})
+
+	clock.Advance(time.Minute).MustWait(ctx)
+
+	count, _ = cache.TemplateWorkspaceOwners(template.ID)
+	require.Equal(t, 2, count, "should have 2 owners after adding second workspace")
+
+	// 3rd workspace should not be counted since we have the same owner as workspace2.
+	dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		TemplateID:     template.ID,
+		OwnerID:        user1.ID,
+	})
+
+	db.UpdateWorkspaceDeletedByID(context.Background(), database.UpdateWorkspaceDeletedByIDParams{
+		ID:      workspace2.ID,
+		Deleted: true,
+	})
+
+	clock.Advance(time.Minute).MustWait(ctx)
+
+	count, _ = cache.TemplateWorkspaceOwners(template.ID)
+	require.Equal(t, 1, count, "should have 1 owner after deleting workspace")
 }
 
 func clockTime(t time.Time, hour, minute, sec int) time.Time {
@@ -312,7 +180,7 @@ func TestCache_BuildTime(t *testing.T) {
 					},
 				},
 				transition: database.WorkspaceTransitionStop,
-			}, want{50 * 1000, true},
+			}, want{10 * 1000, true},
 		},
 		{
 			"three/delete", args{
@@ -336,99 +204,89 @@ func TestCache_BuildTime(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			ctx := context.Background()
 
 			var (
-				db    = dbfake.New()
-				cache = metricscache.New(db, slogtest.Make(t, nil), metricscache.Intervals{
-					TemplateDAUs: testutil.IntervalFast,
-				})
+				ctx   = testutil.Context(t, testutil.WaitShort)
+				log   = testutil.Logger(t)
+				clock = quartz.NewMock(t)
 			)
 
-			defer cache.Close()
+			clock.Set(someDay)
 
-			id := uuid.New()
-			err := db.InsertTemplate(ctx, database.InsertTemplateParams{
-				ID:          id,
-				Provisioner: database.ProvisionerTypeEcho,
-			})
-			require.NoError(t, err)
-			template, err := db.GetTemplateByID(ctx, id)
-			require.NoError(t, err)
+			trapTickerFunc := clock.Trap().TickerFunc("metricscache")
 
-			templateVersionID := uuid.New()
-			err = db.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
-				ID:         templateVersionID,
-				TemplateID: uuid.NullUUID{UUID: template.ID, Valid: true},
+			defer trapTickerFunc.Close()
+			cache, db := newMetricsCache(t, log, clock, metricscache.Intervals{
+				TemplateBuildTimes: time.Minute,
+			}, false)
+
+			org := dbgen.Organization(t, db, database.Organization{})
+			user := dbgen.User(t, db, database.User{})
+
+			template := dbgen.Template(t, db, database.Template{
+				CreatedBy:      user.ID,
+				OrganizationID: org.ID,
 			})
-			require.NoError(t, err)
+
+			templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+				OrganizationID: org.ID,
+				CreatedBy:      user.ID,
+				TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+			})
+
+			workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+				OrganizationID: org.ID,
+				OwnerID:        user.ID,
+				TemplateID:     template.ID,
+			})
 
 			gotStats := cache.TemplateBuildTimeStats(template.ID)
 			requireBuildTimeStatsEmpty(t, gotStats)
 
-			for _, row := range tt.args.rows {
-				_, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
-					ID:            uuid.New(),
-					Provisioner:   database.ProvisionerTypeEcho,
-					StorageMethod: database.ProvisionerStorageMethodFile,
-					Type:          database.ProvisionerJobTypeWorkspaceBuild,
+			for buildNumber, row := range tt.args.rows {
+				job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+					OrganizationID: org.ID,
+					InitiatorID:    user.ID,
+					Type:           database.ProvisionerJobTypeWorkspaceBuild,
+					StartedAt:      sql.NullTime{Time: row.startedAt, Valid: true},
+					CompletedAt:    sql.NullTime{Time: row.completedAt, Valid: true},
 				})
-				require.NoError(t, err)
 
-				job, err := db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
-					StartedAt: sql.NullTime{Time: row.startedAt, Valid: true},
-					Types: []database.ProvisionerType{
-						database.ProvisionerTypeEcho,
-					},
-				})
-				require.NoError(t, err)
-
-				err = db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
-					TemplateVersionID: templateVersionID,
+				dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+					BuildNumber:       int32(1 + buildNumber), // nolint:gosec
+					WorkspaceID:       workspace.ID,
+					InitiatorID:       user.ID,
+					TemplateVersionID: templateVersion.ID,
 					JobID:             job.ID,
 					Transition:        tt.args.transition,
-					Reason:            database.BuildReasonInitiator,
 				})
-				require.NoError(t, err)
-
-				err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
-					ID:          job.ID,
-					CompletedAt: sql.NullTime{Time: row.completedAt, Valid: true},
-				})
-				require.NoError(t, err)
 			}
+
+			// Wait for both ticker functions to be created (template build times and deployment stats)
+			trapTickerFunc.MustWait(ctx).MustRelease(ctx)
+			trapTickerFunc.MustWait(ctx).MustRelease(ctx)
+
+			clock.Advance(time.Minute).MustWait(ctx)
 
 			if tt.want.loads {
 				wantTransition := codersdk.WorkspaceTransition(tt.args.transition)
-				require.Eventuallyf(t, func() bool {
-					stats := cache.TemplateBuildTimeStats(template.ID)
-					return stats[wantTransition] != codersdk.TransitionStats{}
-				}, testutil.WaitLong, testutil.IntervalMedium,
-					"BuildTime never populated",
-				)
+				gotStats := cache.TemplateBuildTimeStats(template.ID)
+				ts := gotStats[wantTransition]
+				require.NotNil(t, ts.P50, "P50 should be set for %v", wantTransition)
+				require.Equal(t, tt.want.buildTimeMs, *ts.P50, "P50 should match expected value for %v", wantTransition)
 
-				gotStats = cache.TemplateBuildTimeStats(template.ID)
-				for transition, stats := range gotStats {
+				for transition, ts := range gotStats {
 					if transition == wantTransition {
-						require.Equal(t, tt.want.buildTimeMs, *stats.P50)
-					} else {
-						require.Empty(
-							t, stats, "%v", transition,
-						)
+						// Checked above
+						continue
 					}
+					require.Empty(t, ts, "%v", transition)
 				}
 			} else {
-				var stats codersdk.TemplateBuildTimeStats
-				require.Never(t, func() bool {
-					stats = cache.TemplateBuildTimeStats(template.ID)
-					requireBuildTimeStatsEmpty(t, stats)
-					return t.Failed()
-				}, testutil.WaitShort/2, testutil.IntervalMedium,
-					"BuildTimeStats populated", stats,
-				)
+				stats := cache.TemplateBuildTimeStats(template.ID)
+				requireBuildTimeStatsEmpty(t, stats)
 			}
 		})
 	}
@@ -436,28 +294,50 @@ func TestCache_BuildTime(t *testing.T) {
 
 func TestCache_DeploymentStats(t *testing.T) {
 	t.Parallel()
-	db := dbfake.New()
-	cache := metricscache.New(db, slogtest.Make(t, nil), metricscache.Intervals{
-		DeploymentStats: testutil.IntervalFast,
-	})
-	defer cache.Close()
 
-	_, err := db.InsertWorkspaceAgentStat(context.Background(), database.InsertWorkspaceAgentStatParams{
-		ID:                 uuid.New(),
-		AgentID:            uuid.New(),
-		CreatedAt:          dbtime.Now(),
-		ConnectionCount:    1,
-		RxBytes:            1,
-		TxBytes:            1,
-		SessionCountVSCode: 1,
+	var (
+		ctx   = testutil.Context(t, testutil.WaitShort)
+		log   = testutil.Logger(t)
+		clock = quartz.NewMock(t)
+	)
+
+	tickerTrap := clock.Trap().TickerFunc("metricscache")
+	defer tickerTrap.Close()
+
+	cache, db := newMetricsCache(t, log, clock, metricscache.Intervals{
+		DeploymentStats: time.Minute,
+	}, false)
+
+	err := db.InsertWorkspaceAgentStats(context.Background(), database.InsertWorkspaceAgentStatsParams{
+		ID:                 []uuid.UUID{uuid.New()},
+		CreatedAt:          []time.Time{clock.Now()},
+		WorkspaceID:        []uuid.UUID{uuid.New()},
+		UserID:             []uuid.UUID{uuid.New()},
+		TemplateID:         []uuid.UUID{uuid.New()},
+		AgentID:            []uuid.UUID{uuid.New()},
+		ConnectionsByProto: json.RawMessage(`[{}]`),
+
+		RxPackets:                   []int64{0},
+		RxBytes:                     []int64{1},
+		TxPackets:                   []int64{0},
+		TxBytes:                     []int64{1},
+		ConnectionCount:             []int64{1},
+		SessionCountVSCode:          []int64{1},
+		SessionCountJetBrains:       []int64{0},
+		SessionCountReconnectingPTY: []int64{0},
+		SessionCountSSH:             []int64{0},
+		ConnectionMedianLatencyMS:   []float64{10},
+		Usage:                       []bool{false},
 	})
 	require.NoError(t, err)
 
-	var stat codersdk.DeploymentStats
-	require.Eventually(t, func() bool {
-		var ok bool
-		stat, ok = cache.DeploymentStats()
-		return ok
-	}, testutil.WaitLong, testutil.IntervalMedium)
+	// Wait for both ticker functions to be created (template build times and deployment stats)
+	tickerTrap.MustWait(ctx).MustRelease(ctx)
+	tickerTrap.MustWait(ctx).MustRelease(ctx)
+
+	clock.Advance(time.Minute).MustWait(ctx)
+
+	stat, ok := cache.DeploymentStats()
+	require.True(t, ok, "cache should be populated after refresh")
 	require.Equal(t, int64(1), stat.SessionCount.VSCode)
 }

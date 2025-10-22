@@ -2,6 +2,7 @@ package workspaceapps_test
 
 import (
 	"context"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -10,7 +11,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -43,7 +43,7 @@ func (r *fakeReporter) setError(err error) {
 	r.err = err
 }
 
-func (r *fakeReporter) Report(_ context.Context, stats []workspaceapps.StatsReport) error {
+func (r *fakeReporter) ReportAppStats(_ context.Context, stats []workspaceapps.StatsReport) error {
 	r.mu.Lock()
 	if r.err != nil {
 		r.errN++
@@ -280,7 +280,6 @@ func TestStatsCollector(t *testing.T) {
 
 	// Run tests.
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 

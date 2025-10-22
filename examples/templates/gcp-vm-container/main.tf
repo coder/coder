@@ -9,94 +9,67 @@ terraform {
   }
 }
 
-provider "coder" {
-}
+provider "coder" {}
 
 variable "project_id" {
   description = "Which Google Compute Project should your workspace live in?"
 }
 
-data "coder_parameter" "zone" {
-  name         = "zone"
-  display_name = "Zone"
-  description  = "Which zone should your workspace live in?"
-  type         = "string"
-  default      = "us-central1-a"
-  icon         = "/emojis/1f30e.png"
-  mutable      = false
-  option {
-    name  = "North America (Northeast)"
-    value = "northamerica-northeast1-a"
-    icon  = "/emojis/1f1fa-1f1f8.png"
-  }
-  option {
-    name  = "North America (Central)"
-    value = "us-central1-a"
-    icon  = "/emojis/1f1fa-1f1f8.png"
-  }
-  option {
-    name  = "North America (West)"
-    value = "us-west2-c"
-    icon  = "/emojis/1f1fa-1f1f8.png"
-  }
-  option {
-    name  = "Europe (West)"
-    value = "europe-west4-b"
-    icon  = "/emojis/1f1ea-1f1fa.png"
-  }
-  option {
-    name  = "South America (East)"
-    value = "southamerica-east1-a"
-    icon  = "/emojis/1f1e7-1f1f7.png"
-  }
+# https://registry.coder.com/modules/coder/gcp-region/coder
+module "gcp_region" {
+  source = "registry.coder.com/coder/gcp-region/coder"
+  # This ensures that the latest non-breaking version of the module gets downloaded, you can also pin the module version to prevent breaking changes in production.
+  version = "~> 1.0"
+  regions = ["us", "europe"]
 }
 
 provider "google" {
-  zone    = data.coder_parameter.zone.value
+  zone    = module.gcp_region.value
   project = var.project_id
 }
 
-data "google_compute_default_service_account" "default" {
-}
+data "google_compute_default_service_account" "default" {}
 
-data "coder_workspace" "me" {
-}
+data "coder_workspace" "me" {}
+data "coder_workspace_owner" "me" {}
 
 resource "coder_agent" "main" {
-  auth = "google-instance-identity"
-  arch = "amd64"
-  os   = "linux"
-
-  startup_script_timeout = 180
-  startup_script         = <<-EOT
+  auth           = "google-instance-identity"
+  arch           = "amd64"
+  os             = "linux"
+  startup_script = <<-EOT
     set -e
 
-    # install and start code-server
-    curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.11.0
-    /tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
+    # Add any commands that should be executed at workspace startup (e.g install requirements, start a program, etc) here
   EOT
 }
 
-# code-server
-resource "coder_app" "code-server" {
-  agent_id     = coder_agent.main.id
-  slug         = "code-server"
-  display_name = "code-server"
-  icon         = "/icon/code.svg"
-  url          = "http://localhost:13337?folder=/home/coder"
-  subdomain    = false
-  share        = "owner"
+# See https://registry.coder.com/modules/coder/code-server
+module "code-server" {
+  count  = data.coder_workspace.me.start_count
+  source = "registry.coder.com/coder/code-server/coder"
 
-  healthcheck {
-    url       = "http://localhost:13337/healthz"
-    interval  = 3
-    threshold = 10
-  }
+  # This ensures that the latest non-breaking version of the module gets downloaded, you can also pin the module version to prevent breaking changes in production.
+  version = "~> 1.0"
+
+  agent_id = coder_agent.main.id
+  order    = 1
 }
 
+# See https://registry.coder.com/modules/coder/jetbrains
+module "jetbrains" {
+  count      = data.coder_workspace.me.start_count
+  source     = "registry.coder.com/coder/jetbrains/coder"
+  version    = "~> 1.0"
+  agent_id   = coder_agent.main.id
+  agent_name = "main"
+  folder     = "/home/coder"
+}
+
+# See https://registry.terraform.io/modules/terraform-google-modules/container-vm
 module "gce-container" {
   source  = "terraform-google-modules/container-vm/google"
-  version = "3.0.0"
+  version = "3.2.0"
 
   container = {
     image   = "codercom/enterprise-base:ubuntu"
@@ -109,9 +82,9 @@ module "gce-container" {
 }
 
 resource "google_compute_instance" "dev" {
-  zone         = data.coder_parameter.zone.value
+  zone         = module.gcp_region.value
   count        = data.coder_workspace.me.start_count
-  name         = "coder-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
+  name         = "coder-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
   machine_type = "e2-medium"
   network_interface {
     network = "default"

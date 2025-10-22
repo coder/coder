@@ -1,7 +1,7 @@
 coder v0.0.0-devel
 
 USAGE:
-  coder create [flags] [name]
+  coder create [flags] [workspace]
 
   Create a workspace
 
@@ -10,16 +10,30 @@ USAGE:
        $ coder create <username>/<workspace_name>
 
 OPTIONS:
+  -O, --org string, $CODER_ORGANIZATION
+          Select which organization (uuid or name) to use.
+
       --automatic-updates string, $CODER_WORKSPACE_AUTOMATIC_UPDATES (default: never)
           Specify automatic updates setting for the workspace (accepts 'always'
           or 'never').
 
+      --copy-parameters-from string, $CODER_WORKSPACE_COPY_PARAMETERS_FROM
+          Specify the source workspace name to copy parameters from.
+
       --parameter string-array, $CODER_RICH_PARAMETER
           Rich parameter value in the format "name=value".
 
+      --parameter-default string-array, $CODER_RICH_PARAMETER_DEFAULT
+          Rich parameter default values in the format "name=value".
+
+      --preset string, $CODER_PRESET_NAME
+          Specify the name of a template version preset. Use 'none' to
+          explicitly indicate that no preset should be used.
+
       --rich-parameter-file string, $CODER_RICH_PARAMETER_FILE
           Specify a file path with values for rich parameters defined in the
-          template.
+          template. The file should be in YAML format, containing key-value
+          pairs for the parameters.
 
       --start-at string, $CODER_WORKSPACE_START_AT
           Specify the workspace autostart schedule. Check coder schedule start
@@ -31,6 +45,9 @@ OPTIONS:
 
   -t, --template string, $CODER_TEMPLATE_NAME
           Specify a template name.
+
+      --template-version string, $CODER_TEMPLATE_VERSION
+          Specify a template version name.
 
   -y, --yes bool
           Bypass prompts.

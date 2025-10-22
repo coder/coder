@@ -15,18 +15,19 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/pretty"
+	"github.com/coder/serpent"
 )
 
 func main() {
-	var root *clibase.Cmd
-	root = &clibase.Cmd{
+	var root *serpent.Command
+	root = &serpent.Command{
 		Use:   "cliui",
 		Short: "Used for visually testing UI components for the CLI.",
-		HelpHandler: func(inv *clibase.Invocation) error {
+		HelpHandler: func(inv *serpent.Invocation) error {
 			_, _ = fmt.Fprintln(inv.Stdout, "This command is used for visually testing UI components for the CLI.")
 			_, _ = fmt.Fprintln(inv.Stdout, "It is not intended to be used by end users.")
 			_, _ = fmt.Fprintln(inv.Stdout, "Subcommands: ")
@@ -37,9 +38,47 @@ func main() {
 		},
 	}
 
-	root.Children = append(root.Children, &clibase.Cmd{
+	root.Children = append(root.Children, &serpent.Command{
+		Use:    "colors",
+		Hidden: true,
+		Handler: func(inv *serpent.Invocation) error {
+			pretty.Fprintf(inv.Stdout, cliui.DefaultStyles.Code, "This is a code message")
+			_, _ = fmt.Fprintln(inv.Stdout)
+
+			pretty.Fprintf(inv.Stdout, cliui.DefaultStyles.DateTimeStamp, "This is a datetimestamp message")
+			_, _ = fmt.Fprintln(inv.Stdout)
+
+			pretty.Fprintf(inv.Stdout, cliui.DefaultStyles.Error, "This is an error message")
+			_, _ = fmt.Fprintln(inv.Stdout)
+
+			pretty.Fprintf(inv.Stdout, cliui.DefaultStyles.Field, "This is a field message")
+			_, _ = fmt.Fprintln(inv.Stdout)
+
+			pretty.Fprintf(inv.Stdout, cliui.DefaultStyles.Keyword, "This is a keyword message")
+			_, _ = fmt.Fprintln(inv.Stdout)
+
+			pretty.Fprintf(inv.Stdout, cliui.DefaultStyles.Placeholder, "This is a placeholder message")
+			_, _ = fmt.Fprintln(inv.Stdout)
+
+			pretty.Fprintf(inv.Stdout, cliui.DefaultStyles.Prompt, "This is a prompt message")
+			_, _ = fmt.Fprintln(inv.Stdout)
+
+			pretty.Fprintf(inv.Stdout, cliui.DefaultStyles.FocusedPrompt, "This is a focused prompt message")
+			_, _ = fmt.Fprintln(inv.Stdout)
+
+			pretty.Fprintf(inv.Stdout, cliui.DefaultStyles.Fuchsia, "This is a fuchsia message")
+			_, _ = fmt.Fprintln(inv.Stdout)
+
+			pretty.Fprintf(inv.Stdout, cliui.DefaultStyles.Warn, "This is a warning message")
+			_, _ = fmt.Fprintln(inv.Stdout)
+
+			return nil
+		},
+	})
+
+	root.Children = append(root.Children, &serpent.Command{
 		Use: "prompt",
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			_, err := cliui.Prompt(inv, cliui.PromptOptions{
 				Text:    "What is our " + cliui.Field("company name") + "?",
 				Default: "acme-corp",
@@ -50,7 +89,7 @@ func main() {
 					return nil
 				},
 			})
-			if errors.Is(err, cliui.Canceled) {
+			if errors.Is(err, cliui.ErrCanceled) {
 				return nil
 			}
 			if err != nil {
@@ -61,7 +100,7 @@ func main() {
 				Default:   cliui.ConfirmYes,
 				IsConfirm: true,
 			})
-			if errors.Is(err, cliui.Canceled) {
+			if errors.Is(err, cliui.ErrCanceled) {
 				return nil
 			}
 			if err != nil {
@@ -75,9 +114,9 @@ func main() {
 		},
 	})
 
-	root.Children = append(root.Children, &clibase.Cmd{
+	root.Children = append(root.Children, &serpent.Command{
 		Use: "select",
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			value, err := cliui.Select(inv, cliui.SelectOptions{
 				Options: []string{"Tomato", "Banana", "Onion", "Grape", "Lemon"},
 				Size:    3,
@@ -87,9 +126,9 @@ func main() {
 		},
 	})
 
-	root.Children = append(root.Children, &clibase.Cmd{
+	root.Children = append(root.Children, &serpent.Command{
 		Use: "job",
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			job := codersdk.ProvisionerJob{
 				Status:    codersdk.ProvisionerJobPending,
 				CreatedAt: dbtime.Now(),
@@ -173,9 +212,9 @@ func main() {
 		},
 	})
 
-	root.Children = append(root.Children, &clibase.Cmd{
+	root.Children = append(root.Children, &serpent.Command{
 		Use: "agent",
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			var agent codersdk.WorkspaceAgent
 			var logs []codersdk.WorkspaceAgentLog
 
@@ -265,9 +304,9 @@ func main() {
 		},
 	})
 
-	root.Children = append(root.Children, &clibase.Cmd{
+	root.Children = append(root.Children, &serpent.Command{
 		Use: "resources",
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			disconnected := dbtime.Now().Add(-4 * time.Second)
 			return cliui.WorkspaceResources(inv.Stdout, []codersdk.WorkspaceResource{{
 				Transition: codersdk.WorkspaceTransitionStart,
@@ -315,9 +354,9 @@ func main() {
 		},
 	})
 
-	root.Children = append(root.Children, &clibase.Cmd{
+	root.Children = append(root.Children, &serpent.Command{
 		Use: "git-auth",
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			var count atomic.Int32
 			var githubAuthed atomic.Bool
 			var gitlabAuthed atomic.Bool
@@ -332,7 +371,7 @@ func main() {
 				gitlabAuthed.Store(true)
 			}()
 			return cliui.ExternalAuth(inv.Context(), inv.Stdout, cliui.ExternalAuthOptions{
-				Fetch: func(ctx context.Context) ([]codersdk.TemplateVersionExternalAuth, error) {
+				Fetch: func(_ context.Context) ([]codersdk.TemplateVersionExternalAuth, error) {
 					count.Add(1)
 					return []codersdk.TemplateVersionExternalAuth{{
 						ID:              "github",

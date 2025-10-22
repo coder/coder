@@ -8,27 +8,26 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 
-	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
 
 var jwtRegexp = regexp.MustCompile(`^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$`)
 
-func (r *RootCmd) licenses() *clibase.Cmd {
-	cmd := &clibase.Cmd{
+func (r *RootCmd) licenses() *serpent.Command {
+	cmd := &serpent.Command{
 		Short:   "Add, delete, and list licenses",
 		Use:     "licenses",
 		Aliases: []string{"license"},
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
-		Children: []*clibase.Cmd{
+		Children: []*serpent.Command{
 			r.licenseAdd(),
 			r.licensesList(),
 			r.licenseDelete(),
@@ -37,22 +36,24 @@ func (r *RootCmd) licenses() *clibase.Cmd {
 	return cmd
 }
 
-func (r *RootCmd) licenseAdd() *clibase.Cmd {
+func (r *RootCmd) licenseAdd() *serpent.Command {
 	var (
 		filename string
 		license  string
 		debug    bool
 	)
-	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Command{
 		Use:   "add [-f file | -l license]",
 		Short: "Add license to Coder deployment",
-		Middleware: clibase.Chain(
-			clibase.RequireNArgs(0),
-			r.InitClient(client),
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(0),
 		),
-		Handler: func(inv *clibase.Invocation) error {
-			var err error
+		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			switch {
 			case filename != "" && license != "":
 				return xerrors.New("only one of (--file, --license) may be specified")
@@ -107,23 +108,23 @@ func (r *RootCmd) licenseAdd() *clibase.Cmd {
 			return nil
 		},
 	}
-	cmd.Options = clibase.OptionSet{
+	cmd.Options = serpent.OptionSet{
 		{
 			Flag:          "file",
 			FlagShorthand: "f",
 			Description:   "Load license from file.",
-			Value:         clibase.StringOf(&filename),
+			Value:         serpent.StringOf(&filename),
 		},
 		{
 			Flag:          "license",
 			FlagShorthand: "l",
 			Description:   "License string.",
-			Value:         clibase.StringOf(&license),
+			Value:         serpent.StringOf(&license),
 		},
 		{
 			Flag:        "debug",
 			Description: "Output license claims for debugging.",
-			Value:       clibase.BoolOf(&debug),
+			Value:       serpent.BoolOf(&debug),
 		},
 	}
 	return cmd
@@ -136,87 +137,21 @@ func validJWT(s string) error {
 	return xerrors.New("Invalid license")
 }
 
-func (r *RootCmd) licensesList() *clibase.Cmd {
-	type tableLicense struct {
-		ID         int32     `table:"id,default_sort"`
-		UUID       uuid.UUID `table:"uuid" format:"uuid"`
-		UploadedAt time.Time `table:"uploaded_at" format:"date-time"`
-		// Features is the formatted string for the license claims.
-		// Used for the table view.
-		Features  string    `table:"features"`
-		ExpiresAt time.Time `table:"expires_at" format:"date-time"`
-		Trial     bool      `table:"trial"`
-	}
-
-	formatter := cliui.NewOutputFormatter(
-		cliui.ChangeFormatterData(
-			cliui.TableFormat([]tableLicense{}, []string{"UUID", "Expires At", "Uploaded At", "Features"}),
-			func(data any) (any, error) {
-				list, ok := data.([]codersdk.License)
-				if !ok {
-					return nil, xerrors.Errorf("invalid data type %T", data)
-				}
-				out := make([]tableLicense, 0, len(list))
-				for _, lic := range list {
-					var formattedFeatures string
-					features, err := lic.FeaturesClaims()
-					if err != nil {
-						formattedFeatures = xerrors.Errorf("invalid license: %w", err).Error()
-					} else {
-						var strs []string
-						if lic.AllFeaturesClaim() {
-							// If all features are enabled, just include that
-							strs = append(strs, "all features")
-						} else {
-							for k, v := range features {
-								if v > 0 {
-									// Only include claims > 0
-									strs = append(strs, fmt.Sprintf("%s=%v", k, v))
-								}
-							}
-						}
-						formattedFeatures = strings.Join(strs, ", ")
-					}
-					// If this returns an error, a zero time is returned.
-					exp, _ := lic.ExpiresAt()
-
-					out = append(out, tableLicense{
-						ID:         lic.ID,
-						UUID:       lic.UUID,
-						UploadedAt: lic.UploadedAt,
-						Features:   formattedFeatures,
-						ExpiresAt:  exp,
-						Trial:      lic.Trial(),
-					})
-				}
-				return out, nil
-			}),
-		cliui.ChangeFormatterData(cliui.JSONFormat(), func(data any) (any, error) {
-			list, ok := data.([]codersdk.License)
-			if !ok {
-				return nil, xerrors.Errorf("invalid data type %T", data)
-			}
-			for i := range list {
-				humanExp, err := list[i].ExpiresAt()
-				if err == nil {
-					list[i].Claims[codersdk.LicenseExpiryClaim+"_human"] = humanExp.Format(time.RFC3339)
-				}
-			}
-
-			return list, nil
-		}),
-	)
-
-	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+func (r *RootCmd) licensesList() *serpent.Command {
+	formatter := cliutil.NewLicenseFormatter()
+	cmd := &serpent.Command{
 		Use:     "list",
 		Short:   "List licenses (including expired)",
 		Aliases: []string{"ls"},
-		Middleware: clibase.Chain(
-			clibase.RequireNArgs(0),
-			r.InitClient(client),
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(0),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			licenses, err := client.Licenses(inv.Context())
 			if err != nil {
 				return err
@@ -239,17 +174,20 @@ func (r *RootCmd) licensesList() *clibase.Cmd {
 	return cmd
 }
 
-func (r *RootCmd) licenseDelete() *clibase.Cmd {
-	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+func (r *RootCmd) licenseDelete() *serpent.Command {
+	cmd := &serpent.Command{
 		Use:     "delete <id>",
 		Short:   "Delete license by ID",
 		Aliases: []string{"del"},
-		Middleware: clibase.Chain(
-			clibase.RequireNArgs(1),
-			r.InitClient(client),
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(1),
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+
 			id, err := strconv.ParseInt(inv.Args[0], 10, 32)
 			if err != nil {
 				return xerrors.Errorf("license ID must be an integer: %s", inv.Args[0])

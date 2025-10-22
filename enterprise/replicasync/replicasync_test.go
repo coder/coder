@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -14,18 +15,15 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/enterprise/replicasync"
 	"github.com/coder/coder/v2/testutil"
 )
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
 func TestReplica(t *testing.T) {
@@ -45,7 +43,7 @@ func TestReplica(t *testing.T) {
 		defer cancel()
 		ctx, cancelCtx := context.WithCancel(context.Background())
 		defer cancelCtx()
-		server, err := replicasync.New(ctx, slogtest.Make(t, nil), db, pubsub, nil)
+		server, err := replicasync.New(ctx, testutil.Logger(t), db, pubsub, nil)
 		require.NoError(t, err)
 		<-closeChan
 		_ = server.Close()
@@ -55,9 +53,9 @@ func TestReplica(t *testing.T) {
 		// Ensures that the replica reports a successful status for
 		// accessing all of its peers.
 		t.Parallel()
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-		}))
+		dh := &derpyHandler{}
+		defer dh.requireOnlyDERPPaths(t)
+		srv := httptest.NewServer(dh)
 		defer srv.Close()
 		db, pubsub := dbtestutil.NewDB(t)
 		peer, err := db.InsertReplica(context.Background(), database.InsertReplicaParams{
@@ -72,7 +70,7 @@ func TestReplica(t *testing.T) {
 		require.NoError(t, err)
 		ctx, cancelCtx := context.WithCancel(context.Background())
 		defer cancelCtx()
-		server, err := replicasync.New(ctx, slogtest.Make(t, nil), db, pubsub, &replicasync.Options{
+		server, err := replicasync.New(ctx, testutil.Logger(t), db, pubsub, &replicasync.Options{
 			RelayAddress: "http://169.254.169.254",
 		})
 		require.NoError(t, err)
@@ -98,9 +96,9 @@ func TestReplica(t *testing.T) {
 			ServerName:   "hello.org",
 			RootCAs:      pool,
 		}
-		srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-		}))
+		dh := &derpyHandler{}
+		defer dh.requireOnlyDERPPaths(t)
+		srv := httptest.NewUnstartedServer(dh)
 		srv.TLS = tlsConfig
 		srv.StartTLS()
 		defer srv.Close()
@@ -117,7 +115,7 @@ func TestReplica(t *testing.T) {
 		require.NoError(t, err)
 		ctx, cancelCtx := context.WithCancel(context.Background())
 		defer cancelCtx()
-		server, err := replicasync.New(ctx, slogtest.Make(t, nil), db, pubsub, &replicasync.Options{
+		server, err := replicasync.New(ctx, testutil.Logger(t), db, pubsub, &replicasync.Options{
 			RelayAddress: "http://169.254.169.254",
 			TLSConfig:    tlsConfig,
 		})
@@ -145,7 +143,7 @@ func TestReplica(t *testing.T) {
 		require.NoError(t, err)
 		ctx, cancelCtx := context.WithCancel(context.Background())
 		defer cancelCtx()
-		server, err := replicasync.New(ctx, slogtest.Make(t, nil), db, pubsub, &replicasync.Options{
+		server, err := replicasync.New(ctx, testutil.Logger(t), db, pubsub, &replicasync.Options{
 			PeerTimeout:  1 * time.Millisecond,
 			RelayAddress: "http://127.0.0.1:1",
 		})
@@ -164,12 +162,12 @@ func TestReplica(t *testing.T) {
 		db, pubsub := dbtestutil.NewDB(t)
 		ctx, cancelCtx := context.WithCancel(context.Background())
 		defer cancelCtx()
-		server, err := replicasync.New(ctx, slogtest.Make(t, nil), db, pubsub, nil)
+		server, err := replicasync.New(ctx, testutil.Logger(t), db, pubsub, nil)
 		require.NoError(t, err)
 		defer server.Close()
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-		}))
+		dh := &derpyHandler{}
+		defer dh.requireOnlyDERPPaths(t)
+		srv := httptest.NewServer(dh)
 		defer srv.Close()
 		peer, err := db.InsertReplica(ctx, database.InsertReplicaParams{
 			ID:           uuid.New(),
@@ -199,7 +197,7 @@ func TestReplica(t *testing.T) {
 		require.NoError(t, err)
 		ctx, cancelCtx := context.WithCancel(context.Background())
 		defer cancelCtx()
-		server, err := replicasync.New(ctx, slogtest.Make(t, nil), db, pubsub, &replicasync.Options{
+		server, err := replicasync.New(ctx, testutil.Logger(t), db, pubsub, &replicasync.Options{
 			RelayAddress:    "google.com",
 			CleanupInterval: time.Millisecond,
 		})
@@ -215,15 +213,11 @@ func TestReplica(t *testing.T) {
 		t.Parallel()
 		ctx, cancelCtx := context.WithCancel(context.Background())
 		defer cancelCtx()
-		// This doesn't use the database fake because creating
-		// this many PostgreSQL connections takes some
-		// configuration tweaking.
-		db := dbfake.New()
-		pubsub := pubsub.NewInMemory()
-		logger := slogtest.Make(t, nil)
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-		}))
+		db, pubsub := dbtestutil.NewDB(t)
+		logger := testutil.Logger(t)
+		dh := &derpyHandler{}
+		defer dh.requireOnlyDERPPaths(t)
+		srv := httptest.NewServer(dh)
 		defer srv.Close()
 		var wg sync.WaitGroup
 		count := 20
@@ -254,4 +248,40 @@ func TestReplica(t *testing.T) {
 		}
 		wg.Wait()
 	})
+	t.Run("UpsertAfterDelete", func(t *testing.T) {
+		t.Parallel()
+		db, pubsub := dbtestutil.NewDB(t)
+		ctx, cancelCtx := context.WithCancel(context.Background())
+		defer cancelCtx()
+		server, err := replicasync.New(ctx, testutil.Logger(t), db, pubsub, &replicasync.Options{
+			RelayAddress:    "google.com",
+			CleanupInterval: time.Millisecond,
+			UpdateInterval:  time.Millisecond,
+		})
+		require.NoError(t, err)
+		defer server.Close()
+		err = db.DeleteReplicasUpdatedBefore(ctx, dbtime.Now())
+		require.NoError(t, err)
+		deleteTime := dbtime.Now()
+		require.Eventually(t, func() bool {
+			return server.Self().UpdatedAt.After(deleteTime)
+		}, testutil.WaitShort, testutil.IntervalFast)
+	})
+}
+
+type derpyHandler struct {
+	atomic.Uint32
+}
+
+func (d *derpyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/derp/latency-check" {
+		w.WriteHeader(http.StatusNotFound)
+		d.Add(1)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func (d *derpyHandler) requireOnlyDERPPaths(t *testing.T) {
+	require.Equal(t, uint32(0), d.Load())
 }

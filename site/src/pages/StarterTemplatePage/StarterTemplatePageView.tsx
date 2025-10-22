@@ -1,115 +1,107 @@
-import Button from "@mui/material/Button";
-import { makeStyles } from "@mui/styles";
+import { useTheme } from "@emotion/react";
+import type { TemplateExample } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Button } from "components/Button/Button";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { MemoizedMarkdown } from "components/Markdown/Markdown";
 import {
-  PageHeader,
-  PageHeaderSubtitle,
-  PageHeaderTitle,
+	PageHeader,
+	PageHeaderSubtitle,
+	PageHeaderTitle,
 } from "components/PageHeader/PageHeader";
-import { FC } from "react";
-import ViewCodeIcon from "@mui/icons-material/OpenInNewOutlined";
-import PlusIcon from "@mui/icons-material/AddOutlined";
 import { Stack } from "components/Stack/Stack";
-import { Link } from "react-router-dom";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { TemplateExample } from "api/typesGenerated";
+import { ExternalLinkIcon, PlusIcon } from "lucide-react";
+import type { FC } from "react";
+import { Link } from "react-router";
 
-export interface StarterTemplatePageViewProps {
-  starterTemplate?: TemplateExample;
-  error?: unknown;
+interface StarterTemplatePageViewProps {
+	starterTemplate?: TemplateExample;
+	error?: unknown;
 }
 
 export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
-  starterTemplate,
-  error,
+	starterTemplate,
+	error,
 }) => {
-  const styles = useStyles();
+	const theme = useTheme();
 
-  if (error) {
-    return (
-      <Margins>
-        <ErrorAlert error={error} />
-      </Margins>
-    );
-  }
+	if (error) {
+		return (
+			<Margins>
+				<ErrorAlert error={error} />
+			</Margins>
+		);
+	}
 
-  if (!starterTemplate) {
-    return <Loader />;
-  }
+	if (!starterTemplate) {
+		return <Loader />;
+	}
 
-  return (
-    <Margins>
-      <PageHeader
-        actions={
-          <>
-            <Button
-              component="a"
-              target="_blank"
-              href={starterTemplate.url}
-              rel="noreferrer"
-              startIcon={<ViewCodeIcon />}
-            >
-              View source code
-            </Button>
-            <Button
-              variant="contained"
-              component={Link}
-              to={`/templates/new?exampleId=${starterTemplate.id}`}
-              startIcon={<PlusIcon />}
-            >
-              Use template
-            </Button>
-          </>
-        }
-      >
-        <Stack direction="row" spacing={3} alignItems="center">
-          <div className={styles.icon}>
-            <img src={starterTemplate.icon} alt="" />
-          </div>
-          <div>
-            <PageHeaderTitle>{starterTemplate.name}</PageHeaderTitle>
-            <PageHeaderSubtitle condensed>
-              {starterTemplate.description}
-            </PageHeaderSubtitle>
-          </div>
-        </Stack>
-      </PageHeader>
+	return (
+		<Margins>
+			<PageHeader
+				actions={
+					<>
+						<Button asChild variant="outline" size="sm">
+							<a target="_blank" href={starterTemplate.url} rel="noreferrer">
+								<ExternalLinkIcon />
+								View source code
+							</a>
+						</Button>
+						<Button asChild size="sm">
+							<Link to={`/templates/new?exampleId=${starterTemplate.id}`}>
+								<PlusIcon />
+								Use template
+							</Link>
+						</Button>
+					</>
+				}
+			>
+				<Stack direction="row" spacing={3} alignItems="center">
+					<div
+						css={{
+							height: 48,
+							width: 48,
+							display: "flex",
+							alignItems: "center",
+							justifyContent: "center",
 
-      <div className={styles.markdownSection} id="readme">
-        <div className={styles.markdownWrapper}>
-          <MemoizedMarkdown>{starterTemplate.markdown}</MemoizedMarkdown>
-        </div>
-      </div>
-    </Margins>
-  );
+							"& img": {
+								width: "100%",
+							},
+						}}
+					>
+						<ExternalImage src={starterTemplate.icon} />
+					</div>
+					<div>
+						<PageHeaderTitle>{starterTemplate.name}</PageHeaderTitle>
+						<PageHeaderSubtitle condensed>
+							{starterTemplate.description}
+						</PageHeaderSubtitle>
+					</div>
+				</Stack>
+			</PageHeader>
+
+			<div
+				css={{
+					background: theme.palette.background.paper,
+					border: `1px solid ${theme.palette.divider}`,
+					borderRadius: 8,
+				}}
+				id="readme"
+			>
+				<div
+					css={{
+						padding: "40px 40px 64px",
+						maxWidth: 800,
+						margin: "auto",
+					}}
+				>
+					<MemoizedMarkdown>{starterTemplate.markdown}</MemoizedMarkdown>
+				</div>
+			</div>
+		</Margins>
+	);
 };
-
-export const useStyles = makeStyles((theme) => {
-  return {
-    icon: {
-      height: theme.spacing(6),
-      width: theme.spacing(6),
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-
-      "& img": {
-        width: "100%",
-      },
-    },
-
-    markdownSection: {
-      background: theme.palette.background.paper,
-      border: `1px solid ${theme.palette.divider}`,
-      borderRadius: theme.shape.borderRadius,
-    },
-
-    markdownWrapper: {
-      padding: theme.spacing(5, 5, 8),
-      maxWidth: 800,
-      margin: "auto",
-    },
-  };
-});

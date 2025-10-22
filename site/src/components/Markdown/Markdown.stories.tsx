@@ -1,17 +1,17 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Markdown } from "./Markdown";
 
 const meta: Meta<typeof Markdown> = {
-  title: "components/Markdown",
-  component: Markdown,
+	title: "components/Markdown",
+	component: Markdown,
 };
 
 export default meta;
 type Story = StoryObj<typeof Markdown>;
 
 export const WithCode: Story = {
-  args: {
-    children: `
+	args: {
+		children: `
   ## Required permissions / policy
 
   The following sample policy allows Coder to create EC2 instances and modify instances provisioned by Coder:
@@ -63,14 +63,35 @@ export const WithCode: Story = {
     ]
   }
   \`\`\``,
-  },
+	},
 };
 
 export const WithTable: Story = {
-  args: {
-    children: `
+	args: {
+		children: `
   | heading | b  |  c |  d  |
   | - | :- | -: | :-: |
   | cell 1 | cell 2 | 3 | 4 | `,
-  },
+	},
+};
+
+export const GFMAlerts: Story = {
+	args: {
+		children: `
+> [!NOTE]
+> Useful information that users should know, even when skimming content.
+
+> [!TIP]
+> Helpful advice for doing things better or more easily.
+
+> [!IMPORTANT]
+> Key information users need to know to achieve their goal.
+
+> [!WARNING]
+> Urgent info that needs immediate user attention to avoid problems.
+
+> [!CAUTION]
+> Advises about risks or negative outcomes of certain actions.
+		`,
+	},
 };

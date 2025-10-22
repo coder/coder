@@ -15,27 +15,33 @@ import (
 // Template is the JSON representation of a Coder template. This type matches the
 // database object for now, but is abstracted for ease of change later on.
 type Template struct {
-	ID              uuid.UUID       `json:"id" format:"uuid"`
-	CreatedAt       time.Time       `json:"created_at" format:"date-time"`
-	UpdatedAt       time.Time       `json:"updated_at" format:"date-time"`
-	OrganizationID  uuid.UUID       `json:"organization_id" format:"uuid"`
-	Name            string          `json:"name"`
-	DisplayName     string          `json:"display_name"`
-	Provisioner     ProvisionerType `json:"provisioner" enums:"terraform"`
-	ActiveVersionID uuid.UUID       `json:"active_version_id" format:"uuid"`
+	ID                      uuid.UUID       `json:"id" format:"uuid"`
+	CreatedAt               time.Time       `json:"created_at" format:"date-time"`
+	UpdatedAt               time.Time       `json:"updated_at" format:"date-time"`
+	OrganizationID          uuid.UUID       `json:"organization_id" format:"uuid"`
+	OrganizationName        string          `json:"organization_name" format:"url"`
+	OrganizationDisplayName string          `json:"organization_display_name"`
+	OrganizationIcon        string          `json:"organization_icon"`
+	Name                    string          `json:"name"`
+	DisplayName             string          `json:"display_name"`
+	Provisioner             ProvisionerType `json:"provisioner" enums:"terraform"`
+	ActiveVersionID         uuid.UUID       `json:"active_version_id" format:"uuid"`
 	// ActiveUserCount is set to -1 when loading.
-	ActiveUserCount  int                    `json:"active_user_count"`
-	BuildTimeStats   TemplateBuildTimeStats `json:"build_time_stats"`
-	Description      string                 `json:"description"`
-	Icon             string                 `json:"icon"`
-	DefaultTTLMillis int64                  `json:"default_ttl_ms"`
-	// TODO(@dean): remove max_ttl once autostop_requirement is matured
-	MaxTTLMillis int64 `json:"max_ttl_ms"`
-	// AutostopRequirement is an enterprise feature. Its value is only used if
-	// your license is entitled to use the advanced template scheduling feature.
-	AutostopRequirement TemplateAutostopRequirement `json:"autostop_requirement"`
-	CreatedByID         uuid.UUID                   `json:"created_by_id" format:"uuid"`
-	CreatedByName       string                      `json:"created_by_name"`
+	ActiveUserCount    int                    `json:"active_user_count"`
+	BuildTimeStats     TemplateBuildTimeStats `json:"build_time_stats"`
+	Description        string                 `json:"description"`
+	Deprecated         bool                   `json:"deprecated"`
+	DeprecationMessage string                 `json:"deprecation_message"`
+	Icon               string                 `json:"icon"`
+	DefaultTTLMillis   int64                  `json:"default_ttl_ms"`
+	ActivityBumpMillis int64                  `json:"activity_bump_ms"`
+	// AutostopRequirement and AutostartRequirement are enterprise features. Its
+	// value is only used if your license is entitled to use the advanced template
+	// scheduling feature.
+	AutostopRequirement  TemplateAutostopRequirement  `json:"autostop_requirement"`
+	AutostartRequirement TemplateAutostartRequirement `json:"autostart_requirement"`
+	CreatedByID          uuid.UUID                    `json:"created_by_id" format:"uuid"`
+	CreatedByName        string                       `json:"created_by_name"`
 
 	// AllowUserAutostart and AllowUserAutostop are enterprise-only. Their
 	// values are only used if your license is entitled to use the advanced
@@ -50,6 +56,14 @@ type Template struct {
 	FailureTTLMillis               int64 `json:"failure_ttl_ms"`
 	TimeTilDormantMillis           int64 `json:"time_til_dormant_ms"`
 	TimeTilDormantAutoDeleteMillis int64 `json:"time_til_dormant_autodelete_ms"`
+
+	// RequireActiveVersion mandates that workspaces are built with the active
+	// template version.
+	RequireActiveVersion bool                         `json:"require_active_version"`
+	MaxPortShareLevel    WorkspaceAgentPortShareLevel `json:"max_port_share_level"`
+	CORSBehavior         CORSBehavior                 `json:"cors_behavior"`
+
+	UseClassicParameterFlow bool `json:"use_classic_parameter_flow"`
 }
 
 // WeekdaysToBitmap converts a list of weekdays to a bitmap in accordance with
@@ -107,6 +121,14 @@ func BitmapToWeekdays(bitmap uint8) []string {
 	return days
 }
 
+var AllDaysOfWeek = []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}
+
+type TemplateAutostartRequirement struct {
+	// DaysOfWeek is a list of days of the week in which autostart is allowed
+	// to happen. If no days are specified, autostart is not allowed.
+	DaysOfWeek []string `json:"days_of_week" enums:"monday,tuesday,wednesday,thursday,friday,saturday,sunday"`
+}
+
 type TemplateAutostopRequirement struct {
 	// DaysOfWeek is a list of days of the week on which restarts are required.
 	// Restarts happen within the user's quiet hours (in their configured
@@ -136,6 +158,17 @@ type (
 	}
 )
 
+type ArchiveTemplateVersionsRequest struct {
+	// By default, only failed versions are archived. Set this to true
+	// to archive all unused versions regardless of job status.
+	All bool `json:"all"`
+}
+
+type ArchiveTemplateVersionsResponse struct {
+	TemplateID  uuid.UUID   `json:"template_id" format:"uuid"`
+	ArchivedIDs []uuid.UUID `json:"archived_ids"`
+}
+
 type TemplateRole string
 
 const (
@@ -160,38 +193,44 @@ type TemplateUser struct {
 }
 
 type UpdateTemplateACL struct {
-	// UserPerms should be a mapping of user id to role. The user id must be the
-	// uuid of the user, not a username or email address.
-	UserPerms map[string]TemplateRole `json:"user_perms,omitempty" example:"<group_id>:admin,4df59e74-c027-470b-ab4d-cbba8963a5e9:use"`
-	// GroupPerms should be a mapping of group id to role.
-	GroupPerms map[string]TemplateRole `json:"group_perms,omitempty" example:"<user_id>>:admin,8bd26b20-f3e8-48be-a903-46bb920cf671:use"`
+	// UserPerms is a mapping from valid user UUIDs to the template role they
+	// should be granted. To remove a user from the template, use "" as the role
+	// (available as a constant named codersdk.TemplateRoleDeleted)
+	UserPerms map[string]TemplateRole `json:"user_perms,omitempty" example:"<user_id>:admin,4df59e74-c027-470b-ab4d-cbba8963a5e9:use"`
+	// GroupPerms is a mapping from valid group UUIDs to the template role they
+	// should be granted. To remove a group from the template, use "" as the role
+	// (available as a constant named codersdk.TemplateRoleDeleted)
+	GroupPerms map[string]TemplateRole `json:"group_perms,omitempty" example:"<group_id>:admin,8bd26b20-f3e8-48be-a903-46bb920cf671:use"`
 }
 
 // ACLAvailable is a list of users and groups that can be added to a template
 // ACL.
 type ACLAvailable struct {
-	Users  []User  `json:"users"`
-	Groups []Group `json:"groups"`
+	Users  []ReducedUser `json:"users"`
+	Groups []Group       `json:"groups"`
 }
 
 type UpdateTemplateMeta struct {
-	Name             string `json:"name,omitempty" validate:"omitempty,template_name"`
-	DisplayName      string `json:"display_name,omitempty" validate:"omitempty,template_display_name"`
-	Description      string `json:"description,omitempty"`
-	Icon             string `json:"icon,omitempty"`
-	DefaultTTLMillis int64  `json:"default_ttl_ms,omitempty"`
-	// TODO(@dean): remove max_ttl once autostop_requirement is matured
-	MaxTTLMillis int64 `json:"max_ttl_ms,omitempty"`
-	// AutostopRequirement can only be set if your license includes the advanced
-	// template scheduling feature. If you attempt to set this value while
-	// unlicensed, it will be ignored.
-	AutostopRequirement            *TemplateAutostopRequirement `json:"autostop_requirement,omitempty"`
-	AllowUserAutostart             bool                         `json:"allow_user_autostart,omitempty"`
-	AllowUserAutostop              bool                         `json:"allow_user_autostop,omitempty"`
-	AllowUserCancelWorkspaceJobs   bool                         `json:"allow_user_cancel_workspace_jobs,omitempty"`
-	FailureTTLMillis               int64                        `json:"failure_ttl_ms,omitempty"`
-	TimeTilDormantMillis           int64                        `json:"time_til_dormant_ms,omitempty"`
-	TimeTilDormantAutoDeleteMillis int64                        `json:"time_til_dormant_autodelete_ms,omitempty"`
+	Name             string  `json:"name,omitempty" validate:"omitempty,template_name"`
+	DisplayName      *string `json:"display_name,omitempty" validate:"omitempty,template_display_name"`
+	Description      *string `json:"description,omitempty"`
+	Icon             *string `json:"icon,omitempty"`
+	DefaultTTLMillis int64   `json:"default_ttl_ms,omitempty"`
+	// ActivityBumpMillis allows optionally specifying the activity bump
+	// duration for all workspaces created from this template. Defaults to 1h
+	// but can be set to 0 to disable activity bumping.
+	ActivityBumpMillis int64 `json:"activity_bump_ms,omitempty"`
+	// AutostopRequirement and AutostartRequirement can only be set if your license
+	// includes the advanced template scheduling feature. If you attempt to set this
+	// value while unlicensed, it will be ignored.
+	AutostopRequirement            *TemplateAutostopRequirement  `json:"autostop_requirement,omitempty"`
+	AutostartRequirement           *TemplateAutostartRequirement `json:"autostart_requirement,omitempty"`
+	AllowUserAutostart             bool                          `json:"allow_user_autostart,omitempty"`
+	AllowUserAutostop              bool                          `json:"allow_user_autostop,omitempty"`
+	AllowUserCancelWorkspaceJobs   bool                          `json:"allow_user_cancel_workspace_jobs,omitempty"`
+	FailureTTLMillis               int64                         `json:"failure_ttl_ms,omitempty"`
+	TimeTilDormantMillis           int64                         `json:"time_til_dormant_ms,omitempty"`
+	TimeTilDormantAutoDeleteMillis int64                         `json:"time_til_dormant_autodelete_ms,omitempty"`
 	// UpdateWorkspaceLastUsedAt updates the last_used_at field of workspaces
 	// spawned from the template. This is useful for preventing workspaces being
 	// immediately locked when updating the inactivity_ttl field to a new, shorter
@@ -201,6 +240,29 @@ type UpdateTemplateMeta struct {
 	// from the template. This is useful for preventing dormant workspaces being immediately
 	// deleted when updating the dormant_ttl field to a new, shorter value.
 	UpdateWorkspaceDormantAt bool `json:"update_workspace_dormant_at"`
+	// RequireActiveVersion mandates workspaces built using this template
+	// use the active version of the template. This option has no
+	// effect on template admins.
+	RequireActiveVersion bool `json:"require_active_version,omitempty"`
+	// DeprecationMessage if set, will mark the template as deprecated and block
+	// any new workspaces from using this template.
+	// If passed an empty string, will remove the deprecated message, making
+	// the template usable for new workspaces again.
+	DeprecationMessage *string `json:"deprecation_message,omitempty"`
+	// DisableEveryoneGroupAccess allows optionally disabling the default
+	// behavior of granting the 'everyone' group access to use the template.
+	// If this is set to true, the template will not be available to all users,
+	// and must be explicitly granted to users or groups in the permissions settings
+	// of the template.
+	DisableEveryoneGroupAccess bool                          `json:"disable_everyone_group_access"`
+	MaxPortShareLevel          *WorkspaceAgentPortShareLevel `json:"max_port_share_level,omitempty"`
+	CORSBehavior               *CORSBehavior                 `json:"cors_behavior,omitempty"`
+	// UseClassicParameterFlow is a flag that switches the default behavior to use the classic
+	// parameter flow when creating a workspace. This only affects deployments with the experiment
+	// "dynamic-parameters" enabled. This setting will live for a period after the experiment is
+	// made the default.
+	// An "opt-out" is present in case the new feature breaks some existing templates.
+	UseClassicParameterFlow *bool `json:"use_classic_parameter_flow,omitempty"`
 }
 
 type TemplateExample struct {
@@ -217,7 +279,7 @@ type TemplateExample struct {
 func (c *Client) Template(ctx context.Context, template uuid.UUID) (Template, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s", template), nil)
 	if err != nil {
-		return Template{}, nil
+		return Template{}, xerrors.Errorf("do request: %w", err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
@@ -225,6 +287,44 @@ func (c *Client) Template(ctx context.Context, template uuid.UUID) (Template, er
 	}
 	var resp Template
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+func (c *Client) ArchiveTemplateVersions(ctx context.Context, template uuid.UUID, all bool) (ArchiveTemplateVersionsResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost,
+		fmt.Sprintf("/api/v2/templates/%s/versions/archive", template),
+		ArchiveTemplateVersionsRequest{
+			All: all,
+		},
+	)
+	if err != nil {
+		return ArchiveTemplateVersionsResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ArchiveTemplateVersionsResponse{}, ReadBodyAsError(res)
+	}
+	var resp ArchiveTemplateVersionsResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+//nolint:revive
+func (c *Client) SetArchiveTemplateVersion(ctx context.Context, templateVersion uuid.UUID, archive bool) error {
+	u := fmt.Sprintf("/api/v2/templateversions/%s", templateVersion.String())
+	if archive {
+		u += "/archive"
+	} else {
+		u += "/unarchive"
+	}
+	res, err := c.Request(ctx, http.MethodPost, u, nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ReadBodyAsError(res)
+	}
+
+	return nil
 }
 
 func (c *Client) DeleteTemplate(ctx context.Context, template uuid.UUID) error {
@@ -311,13 +411,18 @@ func (c *Client) UpdateActiveTemplateVersion(ctx context.Context, template uuid.
 // TemplateVersionsByTemplateRequest defines the request parameters for
 // TemplateVersionsByTemplate.
 type TemplateVersionsByTemplateRequest struct {
-	TemplateID uuid.UUID `json:"template_id" validate:"required" format:"uuid"`
+	TemplateID      uuid.UUID `json:"template_id" validate:"required" format:"uuid"`
+	IncludeArchived bool      `json:"include_archived"`
 	Pagination
 }
 
 // TemplateVersionsByTemplate lists versions associated with a template.
 func (c *Client) TemplateVersionsByTemplate(ctx context.Context, req TemplateVersionsByTemplateRequest) ([]TemplateVersion, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s/versions", req.TemplateID), nil, req.Pagination.asRequestOption())
+	u := fmt.Sprintf("/api/v2/templates/%s/versions", req.TemplateID)
+	if req.IncludeArchived {
+		u += "?include_archived=true"
+	}
+	res, err := c.Request(ctx, http.MethodGet, u, nil, req.Pagination.asRequestOption())
 	if err != nil {
 		return nil, err
 	}
@@ -382,9 +487,16 @@ type AgentStatsReportResponse struct {
 	TxBytes int64 `json:"tx_bytes"`
 }
 
-// TemplateExamples lists example templates embedded in coder.
-func (c *Client) TemplateExamples(ctx context.Context, organizationID uuid.UUID) ([]TemplateExample, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/templates/examples", organizationID), nil)
+// TemplateExamples lists example templates available in Coder.
+//
+// Deprecated: Use StarterTemplates instead.
+func (c *Client) TemplateExamples(ctx context.Context, _ uuid.UUID) ([]TemplateExample, error) {
+	return c.StarterTemplates(ctx)
+}
+
+// StarterTemplates lists example templates available in Coder.
+func (c *Client) StarterTemplates(ctx context.Context) ([]TemplateExample, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/templates/examples", nil)
 	if err != nil {
 		return nil, err
 	}

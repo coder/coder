@@ -11,6 +11,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -43,7 +44,7 @@ func (api *API) PrimaryRegion(ctx context.Context) (codersdk.Region, error) {
 		IconURL:          proxy.IconUrl,
 		Healthy:          true,
 		PathAppURL:       api.AccessURL.String(),
-		WildcardHostname: api.AppHostname,
+		WildcardHostname: appurl.SubdomainAppHost(api.AppHostname, api.AccessURL),
 	}, nil
 }
 

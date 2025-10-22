@@ -1,37 +1,41 @@
+import { Button } from "components/Button/Button";
 import { Margins } from "components/Margins/Margins";
-import { FC, ReactNode } from "react";
 import {
-  PageHeader,
-  PageHeaderTitle,
-  PageHeaderSubtitle,
+	PageHeader,
+	PageHeaderSubtitle,
+	PageHeaderTitle,
 } from "components/PageHeader/PageHeader";
-import Button from "@mui/material/Button";
+import type { FC, ReactNode } from "react";
 
-export interface FullPageHorizontalFormProps {
-  title: string;
-  detail?: ReactNode;
-  onCancel?: () => void;
+interface FullPageHorizontalFormProps {
+	title: string;
+	detail?: ReactNode;
+	onCancel?: () => void;
+	children?: ReactNode;
 }
 
-export const FullPageHorizontalForm: FC<
-  React.PropsWithChildren<FullPageHorizontalFormProps>
-> = ({ title, detail, onCancel, children }) => {
-  return (
-    <Margins size="medium">
-      <PageHeader
-        actions={
-          onCancel && (
-            <Button size="small" onClick={onCancel}>
-              Cancel
-            </Button>
-          )
-        }
-      >
-        <PageHeaderTitle>{title}</PageHeaderTitle>
-        {detail && <PageHeaderSubtitle>{detail}</PageHeaderSubtitle>}
-      </PageHeader>
+export const FullPageHorizontalForm: FC<FullPageHorizontalFormProps> = ({
+	title,
+	detail,
+	onCancel,
+	children,
+}) => {
+	return (
+		<Margins size="medium">
+			<PageHeader
+				actions={
+					onCancel && (
+						<Button variant="outline" onClick={onCancel}>
+							Cancel
+						</Button>
+					)
+				}
+			>
+				<PageHeaderTitle>{title}</PageHeaderTitle>
+				{detail && <PageHeaderSubtitle>{detail}</PageHeaderSubtitle>}
+			</PageHeader>
 
-      <main>{children}</main>
-    </Margins>
-  );
+			<main>{children}</main>
+		</Margins>
+	);
 };

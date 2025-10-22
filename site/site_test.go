@@ -18,16 +18,19 @@ import (
 	"testing/fstest"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/testutil"
@@ -42,11 +45,12 @@ func TestInjection(t *testing.T) {
 		},
 	}
 	binFs := http.FS(fstest.MapFS{})
-	db := dbfake.New()
+	db, _ := dbtestutil.NewDB(t)
 	handler := site.New(&site.Options{
-		BinFS:    binFs,
-		Database: db,
-		SiteFS:   siteFS,
+		Telemetry: telemetry.NewNoop(),
+		BinFS:     binFs,
+		Database:  db,
+		SiteFS:    siteFS,
 	})
 
 	user := dbgen.User(t, db, database.User{})
@@ -68,13 +72,17 @@ func TestInjection(t *testing.T) {
 	// This will update as part of the request!
 	got.LastSeenAt = user.LastSeenAt
 
+	// json.Unmarshal doesn't parse the timezone correctly
+	got.CreatedAt = got.CreatedAt.In(user.CreatedAt.Location())
+	got.UpdatedAt = got.UpdatedAt.In(user.CreatedAt.Location())
+
 	require.Equal(t, db2sdk.User(user, []uuid.UUID{}), got)
 }
 
 func TestInjectionFailureProducesCleanHTML(t *testing.T) {
 	t.Parallel()
 
-	db := dbfake.New()
+	db, _ := dbtestutil.NewDB(t)
 
 	// Create an expired user with a refresh token, but provide no OAuth2
 	// configuration so that refresh is impossible, this should result in
@@ -100,9 +108,10 @@ func TestInjectionFailureProducesCleanHTML(t *testing.T) {
 		},
 	}
 	handler := site.New(&site.Options{
-		BinFS:    binFs,
-		Database: db,
-		SiteFS:   siteFS,
+		Telemetry: telemetry.NewNoop(),
+		BinFS:     binFs,
+		Database:  db,
+		SiteFS:    siteFS,
 
 		// No OAuth2 configs, refresh will fail.
 		OAuth2Configs: &httpmw.OAuth2Configs{
@@ -146,9 +155,12 @@ func TestCaching(t *testing.T) {
 	}
 	binFS := http.FS(fstest.MapFS{})
 
+	db, _ := dbtestutil.NewDB(t)
 	srv := httptest.NewServer(site.New(&site.Options{
-		BinFS:  binFS,
-		SiteFS: rootFS,
+		Telemetry: telemetry.NewNoop(),
+		BinFS:     binFS,
+		SiteFS:    rootFS,
+		Database:  db,
 	}))
 	defer srv.Close()
 
@@ -206,14 +218,21 @@ func TestServingFiles(t *testing.T) {
 		"dashboard.css": &fstest.MapFile{
 			Data: []byte("dashboard-css-bytes"),
 		},
+		"install.sh": &fstest.MapFile{
+			Data: []byte("install-sh-bytes"),
+		},
 	}
 	binFS := http.FS(fstest.MapFS{})
 
+	db, _ := dbtestutil.NewDB(t)
 	srv := httptest.NewServer(site.New(&site.Options{
-		BinFS:  binFS,
-		SiteFS: rootFS,
+		Telemetry: telemetry.NewNoop(),
+		BinFS:     binFS,
+		SiteFS:    rootFS,
+		Database:  db,
 	}))
 	defer srv.Close()
+	client := &http.Client{}
 
 	// Create a context
 	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -247,6 +266,9 @@ func TestServingFiles(t *testing.T) {
 		// JS, CSS cases
 		{"/dashboard.js", "dashboard-js-bytes"},
 		{"/dashboard.css", "dashboard-css-bytes"},
+
+		// Install script
+		{"/install.sh", "install-sh-bytes"},
 	}
 
 	for _, testCase := range testCases {
@@ -254,7 +276,7 @@ func TestServingFiles(t *testing.T) {
 
 		req, err := http.NewRequestWithContext(ctx, "GET", path, nil)
 		require.NoError(t, err)
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := client.Do(req)
 		require.NoError(t, err, "get file")
 		data, _ := io.ReadAll(resp.Body)
 		require.Equal(t, string(data), testCase.expected, "Verify file: "+testCase.path)
@@ -356,11 +378,13 @@ func TestServingBin(t *testing.T) {
 	delete(sampleBinFSMissingSha256, binCoderSha1)
 
 	type req struct {
-		url         string
-		ifNoneMatch string
-		wantStatus  int
-		wantBody    []byte
-		wantEtag    string
+		url              string
+		ifNoneMatch      string
+		wantStatus       int
+		wantBody         []byte
+		wantOriginalSize int
+		wantEtag         string
+		compression      bool
 	}
 	tests := []struct {
 		name    string
@@ -373,17 +397,27 @@ func TestServingBin(t *testing.T) {
 			fs:   sampleBinFS(),
 			reqs: []req{
 				{
-					url:        "/bin/coder-linux-amd64",
-					wantStatus: http.StatusOK,
-					wantBody:   []byte("compressed"),
-					wantEtag:   fmt.Sprintf("%q", sampleBinSHAs["coder-linux-amd64"]),
+					url:              "/bin/coder-linux-amd64",
+					wantStatus:       http.StatusOK,
+					wantBody:         []byte("compressed"),
+					wantOriginalSize: 10,
+					wantEtag:         fmt.Sprintf("%q", sampleBinSHAs["coder-linux-amd64"]),
 				},
 				// Test ETag support.
 				{
-					url:         "/bin/coder-linux-amd64",
-					ifNoneMatch: fmt.Sprintf("%q", sampleBinSHAs["coder-linux-amd64"]),
-					wantStatus:  http.StatusNotModified,
-					wantEtag:    fmt.Sprintf("%q", sampleBinSHAs["coder-linux-amd64"]),
+					url:              "/bin/coder-linux-amd64",
+					ifNoneMatch:      fmt.Sprintf("%q", sampleBinSHAs["coder-linux-amd64"]),
+					wantStatus:       http.StatusNotModified,
+					wantOriginalSize: 10,
+					wantEtag:         fmt.Sprintf("%q", sampleBinSHAs["coder-linux-amd64"]),
+				},
+				// Test compression support with X-Original-Content-Length
+				// header.
+				{
+					url:              "/bin/coder-linux-amd64",
+					wantStatus:       http.StatusOK,
+					wantOriginalSize: 10,
+					compression:      true,
 				},
 				{url: "/bin/GITKEEP", wantStatus: http.StatusNotFound},
 			},
@@ -445,15 +479,29 @@ func TestServingBin(t *testing.T) {
 			},
 			reqs: []req{
 				// We support both hyphens and underscores for compatibility.
-				{url: "/bin/coder-linux-amd64", wantStatus: http.StatusOK, wantBody: []byte("embed")},
-				{url: "/bin/coder_linux_amd64", wantStatus: http.StatusOK, wantBody: []byte("embed")},
-				{url: "/bin/GITKEEP", wantStatus: http.StatusOK, wantBody: []byte("")},
+				{
+					url:              "/bin/coder-linux-amd64",
+					wantStatus:       http.StatusOK,
+					wantBody:         []byte("embed"),
+					wantOriginalSize: 5,
+				},
+				{
+					url:              "/bin/coder_linux_amd64",
+					wantStatus:       http.StatusOK,
+					wantBody:         []byte("embed"),
+					wantOriginalSize: 5,
+				},
+				{
+					url:              "/bin/GITKEEP",
+					wantStatus:       http.StatusOK,
+					wantBody:         []byte(""),
+					wantOriginalSize: 0,
+				},
 			},
 		},
 	}
 	//nolint // Parallel test detection issue.
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -465,12 +513,16 @@ func TestServingBin(t *testing.T) {
 				require.Error(t, err, "extraction or read did not fail")
 			}
 
-			srv := httptest.NewServer(site.New(&site.Options{
+			site := site.New(&site.Options{
+				Telemetry: telemetry.NewNoop(),
 				BinFS:     binFS,
 				BinHashes: binHashes,
 				SiteFS:    rootFS,
-			}))
+			})
+			compressor := middleware.NewCompressor(1, "text/*", "application/*")
+			srv := httptest.NewServer(compressor.Handler(site))
 			defer srv.Close()
+			client := &http.Client{}
 
 			// Create a context
 			ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -484,8 +536,11 @@ func TestServingBin(t *testing.T) {
 					if tr.ifNoneMatch != "" {
 						req.Header.Set("If-None-Match", tr.ifNoneMatch)
 					}
+					if tr.compression {
+						req.Header.Set("Accept-Encoding", "gzip")
+					}
 
-					resp, err := http.DefaultClient.Do(req)
+					resp, err := client.Do(req)
 					require.NoError(t, err, "http do failed")
 					defer resp.Body.Close()
 
@@ -502,9 +557,27 @@ func TestServingBin(t *testing.T) {
 						assert.Empty(t, gotBody, "body is not empty")
 					}
 
+					if tr.compression {
+						assert.Equal(t, "gzip", resp.Header.Get("Content-Encoding"), "content encoding is not gzip")
+					} else {
+						assert.Empty(t, resp.Header.Get("Content-Encoding"), "content encoding is not empty")
+					}
+
 					if tr.wantEtag != "" {
 						assert.NotEmpty(t, resp.Header.Get("ETag"), "etag header is empty")
 						assert.Equal(t, tr.wantEtag, resp.Header.Get("ETag"), "etag did not match")
+					}
+
+					if tr.wantOriginalSize > 0 {
+						// This is a custom header that we set to help the
+						// client know the size of the decompressed data. See
+						// the comment in site.go.
+						headerStr := resp.Header.Get("X-Original-Content-Length")
+						assert.NotEmpty(t, headerStr, "X-Original-Content-Length header is empty")
+						originalSize, err := strconv.Atoi(headerStr)
+						if assert.NoErrorf(t, err, "could not parse X-Original-Content-Length header %q", headerStr) {
+							assert.EqualValues(t, tr.wantOriginalSize, originalSize, "X-Original-Content-Length did not match")
+						}
 					}
 				})
 			}
@@ -658,4 +731,30 @@ func TestRenderStaticErrorPageNoStatus(t *testing.T) {
 	require.Contains(t, bodyStr, d.Description)
 	require.Contains(t, bodyStr, "Retry")
 	require.Contains(t, bodyStr, d.DashboardURL)
+}
+
+func TestJustFilesSystem(t *testing.T) {
+	t.Parallel()
+
+	tfs := fstest.MapFS{
+		"dir/foo.txt": &fstest.MapFile{
+			Data: []byte("hello world"),
+		},
+		"dir/bar.txt": &fstest.MapFile{
+			Data: []byte("hello world"),
+		},
+	}
+
+	mux := chi.NewRouter()
+	mux.Mount("/onlyfiles/", http.StripPrefix("/onlyfiles", http.FileServer(http.FS(site.OnlyFiles(tfs)))))
+	mux.Mount("/all/", http.StripPrefix("/all", http.FileServer(http.FS(tfs))))
+
+	// The /all/ endpoint should serve the directory listing.
+	resp := httptest.NewRecorder()
+	mux.ServeHTTP(resp, httptest.NewRequest("GET", "/all/dir/", nil))
+	require.Equal(t, http.StatusOK, resp.Code, "all serves the directory")
+
+	resp = httptest.NewRecorder()
+	mux.ServeHTTP(resp, httptest.NewRequest("GET", "/onlyfiles/dir/", nil))
+	require.Equal(t, http.StatusNotFound, resp.Code, "onlyfiles does not serve the directory")
 }

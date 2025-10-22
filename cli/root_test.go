@@ -10,25 +10,26 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/coder/coder/v2/cli/clibase"
-	"github.com/coder/coder/v2/coderd"
-	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/pty/ptytest"
-	"github.com/coder/coder/v2/testutil"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clitest"
+	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/pty/ptytest"
+	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
 
 //nolint:tparallel,paralleltest
 func TestCommandHelp(t *testing.T) {
 	// Test with AGPL commands
-	getCmds := func(t *testing.T) *clibase.Cmd {
+	getCmds := func(t *testing.T) *serpent.Command {
 		// Must return a fresh instance of cmds each time.
 
 		t.Helper()
@@ -51,11 +52,74 @@ func TestCommandHelp(t *testing.T) {
 			Name: "coder users list --output json",
 			Cmd:  []string{"users", "list", "--output", "json"},
 		},
+		clitest.CommandHelpCase{
+			Name: "coder users list",
+			Cmd:  []string{"users", "list"},
+		},
+		clitest.CommandHelpCase{
+			Name: "coder provisioner list",
+			Cmd:  []string{"provisioner", "list"},
+		},
+		clitest.CommandHelpCase{
+			Name: "coder provisioner list --output json",
+			Cmd:  []string{"provisioner", "list", "--output", "json"},
+		},
+		clitest.CommandHelpCase{
+			Name: "coder provisioner jobs list",
+			Cmd:  []string{"provisioner", "jobs", "list"},
+		},
+		clitest.CommandHelpCase{
+			Name: "coder provisioner jobs list --output json",
+			Cmd:  []string{"provisioner", "jobs", "list", "--output", "json"},
+		},
 	))
 }
 
 func TestRoot(t *testing.T) {
 	t.Parallel()
+	t.Run("MissingRootCommand", func(t *testing.T) {
+		t.Parallel()
+
+		out := new(bytes.Buffer)
+
+		inv, _ := clitest.New(t, "idontexist")
+		inv.Stdout = out
+
+		err := inv.Run()
+		assert.ErrorContains(t, err,
+			`unrecognized subcommand "idontexist"`)
+		require.Empty(t, out.String())
+	})
+
+	t.Run("MissingSubcommand", func(t *testing.T) {
+		t.Parallel()
+
+		out := new(bytes.Buffer)
+
+		inv, _ := clitest.New(t, "server", "idontexist")
+		inv.Stdout = out
+
+		err := inv.Run()
+		// subcommand error only when command has subcommands
+		assert.ErrorContains(t, err,
+			`unrecognized subcommand "idontexist"`)
+		require.Empty(t, out.String())
+	})
+
+	t.Run("BadSubcommandArgs", func(t *testing.T) {
+		t.Parallel()
+
+		out := new(bytes.Buffer)
+
+		inv, _ := clitest.New(t, "list", "idontexist")
+		inv.Stdout = out
+
+		err := inv.Run()
+		assert.ErrorContains(t, err,
+			`wanted no args but got 1 [idontexist]`)
+		require.Empty(t, out.String())
+	})
+
 	t.Run("Version", func(t *testing.T) {
 		t.Parallel()
 
@@ -136,8 +200,9 @@ func TestDERPHeaders(t *testing.T) {
 	})
 
 	var (
-		user      = coderdtest.CreateFirstUser(t, client)
-		workspace = runAgent(t, client, user.UserID)
+		admin              = coderdtest.CreateFirstUser(t, client)
+		member, memberUser = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+		workspace          = runAgent(t, client, memberUser.ID, newOptions.Database)
 	)
 
 	// Inject custom /derp handler so we can inspect the headers.
@@ -183,7 +248,7 @@ func TestDERPHeaders(t *testing.T) {
 		}
 	}
 	inv, root := clitest.New(t, args...)
-	clitest.SetupConfig(t, client, root)
+	clitest.SetupConfig(t, member, root)
 	pty := ptytest.New(t)
 	inv.Stdin = pty.Input()
 	inv.Stderr = pty.Output()
@@ -205,8 +270,88 @@ func TestHandlersOK(t *testing.T) {
 	t.Parallel()
 
 	var root cli.RootCmd
-	cmd, err := root.Command(root.Core())
+	cmd, err := root.Command(root.CoreSubcommands())
 	require.NoError(t, err)
 
 	clitest.HandlersOK(t, cmd)
+}
+
+func TestCreateAgentClient_Token(t *testing.T) {
+	t.Parallel()
+
+	client := createAgentWithFlags(t,
+		"--agent-token", "fake-token",
+		"--agent-url", "http://coder.fake")
+	require.Equal(t, "fake-token", client.GetSessionToken())
+}
+
+func TestCreateAgentClient_Google(t *testing.T) {
+	t.Parallel()
+
+	client := createAgentWithFlags(t,
+		"--auth", "google-instance-identity",
+		"--agent-url", "http://coder.fake")
+	provider, ok := client.RefreshableSessionTokenProvider.(*agentsdk.InstanceIdentitySessionTokenProvider)
+	require.True(t, ok)
+	require.NotNil(t, provider.TokenExchanger)
+	require.IsType(t, &agentsdk.GoogleSessionTokenExchanger{}, provider.TokenExchanger)
+}
+
+func TestCreateAgentClient_AWS(t *testing.T) {
+	t.Parallel()
+
+	client := createAgentWithFlags(t,
+		"--auth", "aws-instance-identity",
+		"--agent-url", "http://coder.fake")
+	provider, ok := client.RefreshableSessionTokenProvider.(*agentsdk.InstanceIdentitySessionTokenProvider)
+	require.True(t, ok)
+	require.NotNil(t, provider.TokenExchanger)
+	require.IsType(t, &agentsdk.AWSSessionTokenExchanger{}, provider.TokenExchanger)
+}
+
+func TestCreateAgentClient_Azure(t *testing.T) {
+	t.Parallel()
+
+	client := createAgentWithFlags(t,
+		"--auth", "azure-instance-identity",
+		"--agent-url", "http://coder.fake")
+	provider, ok := client.RefreshableSessionTokenProvider.(*agentsdk.InstanceIdentitySessionTokenProvider)
+	require.True(t, ok)
+	require.NotNil(t, provider.TokenExchanger)
+	require.IsType(t, &agentsdk.AzureSessionTokenExchanger{}, provider.TokenExchanger)
+}
+
+func createAgentWithFlags(t *testing.T, flags ...string) *agentsdk.Client {
+	t.Helper()
+	r := &cli.RootCmd{}
+	var client *agentsdk.Client
+	subCmd := agentClientCommand(&client)
+	cmd, err := r.Command([]*serpent.Command{subCmd})
+	require.NoError(t, err)
+	inv, _ := clitest.NewWithCommand(t, cmd,
+		append([]string{"agent-client"}, flags...)...)
+	err = inv.Run()
+	require.NoError(t, err)
+	require.NotNil(t, client)
+	return client
+}
+
+// agentClientCommand creates a subcommand that creates an agent client and stores it in the provided clientRef. Used to
+// test the properties of the client with various root command flags.
+func agentClientCommand(clientRef **agentsdk.Client) *serpent.Command {
+	agentAuth := &cli.AgentAuth{}
+	cmd := &serpent.Command{
+		Use:   "agent-client",
+		Short: `Creates and agent client for testing.`,
+		Handler: func(inv *serpent.Invocation) error {
+			client, err := agentAuth.CreateClient()
+			if err != nil {
+				return xerrors.Errorf("create agent client: %w", err)
+			}
+			*clientRef = client
+			return nil
+		},
+	}
+	agentAuth.AttachOptions(cmd, false)
+	return cmd
 }

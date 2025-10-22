@@ -5,22 +5,25 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"strings"
+	"unicode"
 
-	"github.com/bgentry/speakeasy"
 	"github.com/mattn/go-isatty"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/pty"
 	"github.com/coder/pretty"
+	"github.com/coder/serpent"
 )
 
 // PromptOptions supply a set of options to the prompt.
 type PromptOptions struct {
-	Text      string
-	Default   string
+	Text    string
+	Default string
+	// When true, the input will be masked with asterisks.
 	Secret    bool
 	IsConfirm bool
 	Validate  func(string) error
@@ -30,13 +33,13 @@ const skipPromptFlag = "yes"
 
 // SkipPromptOption adds a "--yes/-y" flag to the cmd that can be used to skip
 // prompts.
-func SkipPromptOption() clibase.Option {
-	return clibase.Option{
+func SkipPromptOption() serpent.Option {
+	return serpent.Option{
 		Flag:          skipPromptFlag,
 		FlagShorthand: "y",
 		Description:   "Bypass prompts.",
 		// Discard
-		Value: clibase.BoolOf(new(bool)),
+		Value: serpent.BoolOf(new(bool)),
 	}
 }
 
@@ -46,7 +49,7 @@ const (
 )
 
 // Prompt asks the user for input.
-func Prompt(inv *clibase.Invocation, opts PromptOptions) (string, error) {
+func Prompt(inv *serpent.Invocation, opts PromptOptions) (string, error) {
 	// If the cmd has a "yes" flag for skipping confirm prompts, honor it.
 	// If it's not a "Confirm" prompt, then don't skip. As the default value of
 	// "yes" makes no sense.
@@ -71,9 +74,9 @@ func Prompt(inv *clibase.Invocation, opts PromptOptions) (string, error) {
 		} else {
 			renderedNo = Bold(ConfirmNo)
 		}
-		pretty.Fprintf(inv.Stdout, DefaultStyles.Placeholder, "(%s/%s)", renderedYes, renderedNo)
+		_, _ = fmt.Fprintf(inv.Stdout, "(%s/%s) ", renderedYes, renderedNo)
 	} else if opts.Default != "" {
-		_, _ = fmt.Fprint(inv.Stdout, pretty.Sprint(DefaultStyles.Placeholder, "("+opts.Default+") "))
+		_, _ = fmt.Fprintf(inv.Stdout, "(%s) ", pretty.Sprint(DefaultStyles.Placeholder, opts.Default))
 	}
 	interrupt := make(chan os.Signal, 1)
 
@@ -88,22 +91,20 @@ func Prompt(inv *clibase.Invocation, opts PromptOptions) (string, error) {
 		var line string
 		var err error
 
+		signal.Notify(interrupt, os.Interrupt)
+		defer signal.Stop(interrupt)
+
 		inFile, isInputFile := inv.Stdin.(*os.File)
 		if opts.Secret && isInputFile && isatty.IsTerminal(inFile.Fd()) {
-			// we don't install a signal handler here because speakeasy has its own
-			line, err = speakeasy.Ask("")
+			line, err = readSecretInput(inFile, inv.Stdout)
 		} else {
-			signal.Notify(interrupt, os.Interrupt)
-			defer signal.Stop(interrupt)
-
-			reader := bufio.NewReader(inv.Stdin)
-			line, err = reader.ReadString('\n')
+			line, err = readUntil(inv.Stdin, '\n')
 
 			// Check if the first line beings with JSON object or array chars.
 			// This enables multiline JSON to be pasted into an input, and have
 			// it parse properly.
 			if err == nil && (strings.HasPrefix(line, "{") || strings.HasPrefix(line, "[")) {
-				line, err = promptJSON(reader, line)
+				line, err = promptJSON(inv.Stdin, line)
 			}
 		}
 		if err != nil {
@@ -125,7 +126,7 @@ func Prompt(inv *clibase.Invocation, opts PromptOptions) (string, error) {
 		return "", err
 	case line := <-lineCh:
 		if opts.IsConfirm && line != "yes" && line != "y" {
-			return line, xerrors.Errorf("got %q: %w", line, Canceled)
+			return line, xerrors.Errorf("got %q: %w", line, ErrCanceled)
 		}
 		if opts.Validate != nil {
 			err := opts.Validate(line)
@@ -140,11 +141,11 @@ func Prompt(inv *clibase.Invocation, opts PromptOptions) (string, error) {
 	case <-interrupt:
 		// Print a newline so that any further output starts properly on a new line.
 		_, _ = fmt.Fprintln(inv.Stdout)
-		return "", Canceled
+		return "", ErrCanceled
 	}
 }
 
-func promptJSON(reader *bufio.Reader, line string) (string, error) {
+func promptJSON(reader io.Reader, line string) (string, error) {
 	var data bytes.Buffer
 	for {
 		_, _ = data.WriteString(line)
@@ -162,7 +163,7 @@ func promptJSON(reader *bufio.Reader, line string) (string, error) {
 			// Read line-by-line. We can't use a JSON decoder
 			// here because it doesn't work by newline, so
 			// reads will block.
-			line, err = reader.ReadString('\n')
+			line, err = readUntil(reader, '\n')
 			if err != nil {
 				break
 			}
@@ -178,4 +179,85 @@ func promptJSON(reader *bufio.Reader, line string) (string, error) {
 		return data.String(), nil
 	}
 	return line, nil
+}
+
+// readUntil the first occurrence of delim in the input, returning a string containing the data up
+// to and including the delimiter. Unlike `bufio`, it only reads until the delimiter and no further
+// bytes. If readUntil encounters an error before finding a delimiter, it returns the data read
+// before the error and the error itself (often io.EOF). readUntil returns err != nil if and only if
+// the returned data does not end in delim.
+func readUntil(r io.Reader, delim byte) (string, error) {
+	var (
+		have []byte
+		b    = make([]byte, 1)
+	)
+	for {
+		n, err := r.Read(b)
+		if n > 0 {
+			have = append(have, b[0])
+			if b[0] == delim {
+				// match `bufio` in that we only return non-nil if we didn't find the delimiter,
+				// regardless of whether we also erred.
+				return string(have), nil
+			}
+		}
+		if err != nil {
+			return string(have), err
+		}
+	}
+}
+
+// readSecretInput reads secret input from the terminal rune-by-rune,
+// masking each character with an asterisk.
+func readSecretInput(f *os.File, w io.Writer) (string, error) {
+	// Put terminal into raw mode (no echo, no line buffering).
+	oldState, err := pty.MakeInputRaw(f.Fd())
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		_ = pty.RestoreTerminal(f.Fd(), oldState)
+	}()
+
+	reader := bufio.NewReader(f)
+	var runes []rune
+
+	for {
+		r, _, err := reader.ReadRune()
+		if err != nil {
+			return "", err
+		}
+
+		switch {
+		case r == '\r' || r == '\n':
+			// Finish on Enter
+			if _, err := fmt.Fprint(w, "\r\n"); err != nil {
+				return "", err
+			}
+			return string(runes), nil
+
+		case r == 3:
+			// Ctrl+C
+			return "", ErrCanceled
+
+		case r == 127 || r == '\b':
+			// Backspace/Delete: remove last rune
+			if len(runes) > 0 {
+				// Erase the last '*' on the screen
+				if _, err := fmt.Fprint(w, "\b \b"); err != nil {
+					return "", err
+				}
+				runes = runes[:len(runes)-1]
+			}
+
+		default:
+			// Only mask printable, non-control runes
+			if !unicode.IsControl(r) {
+				runes = append(runes, r)
+				if _, err := fmt.Fprint(w, "*"); err != nil {
+					return "", err
+				}
+			}
+		}
+	}
 }

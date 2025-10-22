@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -133,8 +134,7 @@ func Test_Runner(t *testing.T) {
 			for i, authToken := range []string{authToken1, authToken2, authToken3} {
 				i := i + 1
 
-				agentClient := agentsdk.New(client.URL)
-				agentClient.SetSessionToken(authToken)
+				agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken))
 				agentCloser := agent.New(agent.Options{
 					Client: agentClient,
 					Logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).
@@ -158,7 +158,7 @@ func Test_Runner(t *testing.T) {
 		})
 
 		logs := bytes.NewBuffer(nil)
-		err := runner.Run(ctx, "1", logs)
+		_, err := runner.RunReturningWorkspace(ctx, "1", logs)
 		logsStr := logs.String()
 		t.Log("Runner logs:\n\n" + logsStr)
 		require.NoError(t, err)
@@ -180,7 +180,8 @@ func Test_Runner(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspaces[0].LatestBuild.ID)
 		coderdtest.AwaitWorkspaceAgents(t, client, workspaces[0].ID)
 
-		err = runner.Cleanup(ctx, "1")
+		cleanupLogs := bytes.NewBuffer(nil)
+		err = runner.Cleanup(ctx, "1", cleanupLogs)
 		require.NoError(t, err)
 	})
 
@@ -223,10 +224,63 @@ func Test_Runner(t *testing.T) {
 		})
 
 		logs := bytes.NewBuffer(nil)
-		err := runner.Run(ctx, "1", logs)
+		_, err := runner.RunReturningWorkspace(ctx, "1", logs)
 		logsStr := logs.String()
 		t.Log("Runner logs:\n\n" + logsStr)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "test error")
+	})
+
+	t.Run("RetryBuild", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			Logger:                   &logger,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:         echo.ParseComplete,
+			ProvisionPlan: echo.PlanComplete,
+			ProvisionApply: []*proto.Response{
+				{
+					Type: &proto.Response_Apply{
+						Apply: &proto.ApplyComplete{
+							Error: "test error",
+						},
+					},
+				},
+			},
+		})
+
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+		runner := workspacebuild.NewRunner(client, workspacebuild.Config{
+			OrganizationID: user.OrganizationID,
+			UserID:         codersdk.Me,
+			Request: codersdk.CreateWorkspaceRequest{
+				TemplateID: template.ID,
+			},
+			Retry: 1,
+		})
+
+		logs := bytes.NewBuffer(nil)
+		_, err := runner.RunReturningWorkspace(ctx, "1", logs)
+		logsStr := logs.String()
+		t.Log("Runner logs:\n\n" + logsStr)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "test error")
+		require.Equal(t, 1, strings.Count(logsStr, "Retrying build"))
+		split := strings.Split(logsStr, "Retrying build")
+		// Ensure the error is present both before and after the retry.
+		for _, s := range split {
+			require.Contains(t, s, "test error")
+		}
 	})
 }

@@ -1,56 +1,75 @@
-import CssBaseline from "@mui/material/CssBaseline";
-import { QueryClient, QueryClientProvider } from "react-query";
-import { AuthProvider } from "components/AuthProvider/AuthProvider";
-import { FC, PropsWithChildren } from "react";
-import { HelmetProvider } from "react-helmet-async";
-import { AppRouter } from "./AppRouter";
-import { ErrorBoundary } from "./components/ErrorBoundary/ErrorBoundary";
-import { GlobalSnackbar } from "./components/GlobalSnackbar/GlobalSnackbar";
-import { dark } from "./theme";
 import "./theme/globalFonts";
+import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import {
-  StyledEngineProvider,
-  ThemeProvider as MuiThemeProvider,
-} from "@mui/material/styles";
-import { ThemeProvider as EmotionThemeProvider } from "@emotion/react";
+	type FC,
+	type ReactNode,
+	StrictMode,
+	useEffect,
+	useState,
+} from "react";
+import { QueryClient, QueryClientProvider } from "react-query";
+import { RouterProvider } from "react-router";
+import { GlobalSnackbar } from "./components/GlobalSnackbar/GlobalSnackbar";
+import { AuthProvider } from "./contexts/auth/AuthProvider";
+import { ThemeProvider } from "./contexts/ThemeProvider";
+import { router } from "./router";
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: false,
-      cacheTime: 0,
-      refetchOnWindowFocus: false,
-      networkMode: "offlineFirst",
-    },
-  },
+const defaultQueryClient = new QueryClient({
+	defaultOptions: {
+		queries: {
+			retry: false,
+			refetchOnWindowFocus: false,
+		},
+	},
 });
 
-export const AppProviders: FC<PropsWithChildren> = ({ children }) => {
-  return (
-    <HelmetProvider>
-      <StyledEngineProvider injectFirst>
-        <MuiThemeProvider theme={dark}>
-          <EmotionThemeProvider theme={dark}>
-            <CssBaseline enableColorScheme />
-            <ErrorBoundary>
-              <QueryClientProvider client={queryClient}>
-                <AuthProvider>
-                  {children}
-                  <GlobalSnackbar />
-                </AuthProvider>
-              </QueryClientProvider>
-            </ErrorBoundary>
-          </EmotionThemeProvider>
-        </MuiThemeProvider>
-      </StyledEngineProvider>
-    </HelmetProvider>
-  );
+interface AppProvidersProps {
+	children: ReactNode;
+	queryClient?: QueryClient;
+}
+
+export const AppProviders: FC<AppProvidersProps> = ({
+	children,
+	queryClient = defaultQueryClient,
+}) => {
+	// https://tanstack.com/query/v4/docs/react/devtools
+	const [showDevtools, setShowDevtools] = useState(false);
+
+	useEffect(() => {
+		// Don't want to throw away the previous devtools value if some other
+		// extension added something already
+		const devtoolsBeforeSync = window.toggleDevtools;
+		window.toggleDevtools = () => {
+			devtoolsBeforeSync?.();
+			setShowDevtools((current) => !current);
+		};
+
+		return () => {
+			window.toggleDevtools = devtoolsBeforeSync;
+		};
+	}, []);
+
+	return (
+		<QueryClientProvider client={queryClient}>
+			<AuthProvider>
+				<ThemeProvider>
+					{children}
+					<GlobalSnackbar />
+				</ThemeProvider>
+			</AuthProvider>
+			{showDevtools && <ReactQueryDevtools initialIsOpen={showDevtools} />}
+		</QueryClientProvider>
+	);
 };
 
 export const App: FC = () => {
-  return (
-    <AppProviders>
-      <AppRouter />
-    </AppProviders>
-  );
+	return (
+		<StrictMode>
+			<AppProviders>
+				{/* If you're wondering where the global error boundary is,
+				    it's connected to the router */}
+				<RouterProvider router={router} />
+			</AppProviders>
+		</StrictMode>
+	);
 };

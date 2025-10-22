@@ -1,14 +1,14 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { PaginationWidgetBase } from "./PaginationWidgetBase";
-import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof PaginationWidgetBase> = {
-  title: "components/PaginationWidgetBase",
-  component: PaginationWidgetBase,
-  args: {
-    page: 1,
-    limit: 12,
-    count: 200,
-  },
+	title: "components/PaginationWidgetBase",
+	component: PaginationWidgetBase,
+	args: {
+		currentPage: 1,
+		pageSize: 12,
+		totalRecords: 200,
+	},
 };
 
 export default meta;
@@ -17,19 +17,17 @@ type Story = StoryObj<typeof PaginationWidgetBase>;
 export const MoreThan8Pages: Story = {};
 
 export const LessThan8Pages: Story = {
-  args: {
-    count: 84,
-  },
+	args: { totalRecords: 84 },
 };
 
 export const MoreThan7PagesWithActivePageCloseToStart: Story = {
-  args: { page: 2, limit: 12 },
+	args: { currentPage: 2, pageSize: 12 },
 };
 
 export const MoreThan7PagesWithActivePageFarFromBoundaries: Story = {
-  args: { page: 4, limit: 12 },
+	args: { currentPage: 4, pageSize: 12 },
 };
 
 export const MoreThan7PagesWithActivePageCloseToEnd: Story = {
-  args: { page: 17, limit: 12 },
+	args: { currentPage: 17, pageSize: 12 },
 };

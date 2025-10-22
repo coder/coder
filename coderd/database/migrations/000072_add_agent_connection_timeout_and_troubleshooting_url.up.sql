@@ -1,5 +1,3 @@
-BEGIN;
-
 ALTER TABLE workspace_agents
 	ADD COLUMN connection_timeout_seconds integer NOT NULL DEFAULT 0;
 
@@ -9,5 +7,3 @@ ALTER TABLE workspace_agents
 	ADD COLUMN troubleshooting_url text NOT NULL DEFAULT '';
 
 COMMENT ON COLUMN workspace_agents.troubleshooting_url IS 'URL for troubleshooting the agent.';
-
-COMMIT;

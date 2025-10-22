@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/tailcfg"
 
 	"github.com/coder/coder/v2/tailnet"
@@ -33,7 +34,10 @@ func TestNewDERPMap(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			data, _ := json.Marshal(&tailcfg.DERPMap{
 				Regions: map[int]*tailcfg.DERPRegion{
-					1: {},
+					1: {
+						RegionID: 1,
+						Nodes:    []*tailcfg.DERPNode{{}},
+					},
 				},
 			})
 			_, _ = w.Write(data)
@@ -66,7 +70,9 @@ func TestNewDERPMap(t *testing.T) {
 		localPath := filepath.Join(t.TempDir(), "derp.json")
 		content, err := json.Marshal(&tailcfg.DERPMap{
 			Regions: map[int]*tailcfg.DERPRegion{
-				1: {},
+				1: {
+					Nodes: []*tailcfg.DERPNode{{}},
+				},
 			},
 		})
 		require.NoError(t, err)
@@ -130,5 +136,138 @@ func TestNewDERPMap(t *testing.T) {
 		// ... but we still remove the STUN port from existing nodes in the
 		// region.
 		require.EqualValues(t, -1, derpMap.Regions[3].Nodes[0].STUNPort)
+	})
+	t.Run("RequireRegions", func(t *testing.T) {
+		t.Parallel()
+		_, err := tailnet.NewDERPMap(context.Background(), nil, nil, "", "", false)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "DERP map has no regions")
+	})
+	t.Run("RequireDERPNodes", func(t *testing.T) {
+		t.Parallel()
+
+		// No nodes.
+		_, err := tailnet.NewDERPMap(context.Background(), &tailcfg.DERPRegion{}, nil, "", "", false)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "DERP map has no DERP nodes")
+
+		// No DERP nodes.
+		_, err = tailnet.NewDERPMap(context.Background(), &tailcfg.DERPRegion{
+			Nodes: []*tailcfg.DERPNode{
+				{
+					STUNOnly: true,
+				},
+			},
+		}, nil, "", "", false)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "DERP map has no DERP nodes")
+	})
+}
+
+func TestExtractDERPLatency(t *testing.T) {
+	t.Parallel()
+
+	derpMap := &tailcfg.DERPMap{
+		Regions: map[int]*tailcfg.DERPRegion{
+			1: {
+				RegionID:   1,
+				RegionName: "Region One",
+				Nodes: []*tailcfg.DERPNode{
+					{Name: "node1", RegionID: 1},
+				},
+			},
+			2: {
+				RegionID:   2,
+				RegionName: "Region Two",
+				Nodes: []*tailcfg.DERPNode{
+					{Name: "node2", RegionID: 2},
+				},
+			},
+		},
+	}
+
+	t.Run("Basic", func(t *testing.T) {
+		t.Parallel()
+		node := &tailnet.Node{
+			DERPLatency: map[string]float64{
+				"1-node1": 0.05,
+				"2-node2": 0.1,
+			},
+		}
+		latencyMs := tailnet.ExtractDERPLatency(node, derpMap)
+		require.EqualValues(t, 50, latencyMs["Region One"].Milliseconds())
+		require.EqualValues(t, 100, latencyMs["Region Two"].Milliseconds())
+		require.Len(t, latencyMs, 2)
+	})
+
+	t.Run("UnknownRegion", func(t *testing.T) {
+		t.Parallel()
+		node := &tailnet.Node{
+			DERPLatency: map[string]float64{
+				"999-node999": 0.2,
+			},
+		}
+		latencyMs := tailnet.ExtractDERPLatency(node, derpMap)
+		require.EqualValues(t, 200, latencyMs["Unnamed 999"].Milliseconds())
+		require.Len(t, latencyMs, 1)
+	})
+
+	t.Run("InvalidRegionFormat", func(t *testing.T) {
+		t.Parallel()
+		node := &tailnet.Node{
+			DERPLatency: map[string]float64{
+				"invalid":  0.3,
+				"1-node1":  0.05,
+				"abc-node": 0.15,
+			},
+		}
+		latencyMs := tailnet.ExtractDERPLatency(node, derpMap)
+		require.EqualValues(t, 50, latencyMs["Region One"].Milliseconds())
+		require.Len(t, latencyMs, 1)
+		require.NotContains(t, latencyMs, "invalid")
+		require.NotContains(t, latencyMs, "abc-node")
+	})
+
+	t.Run("EmptyInput", func(t *testing.T) {
+		t.Parallel()
+		node := &tailnet.Node{
+			DERPLatency: map[string]float64{},
+		}
+		latencyMs := tailnet.ExtractDERPLatency(node, derpMap)
+		require.Empty(t, latencyMs)
+	})
+}
+
+func TestExtractPreferredDERPName(t *testing.T) {
+	t.Parallel()
+	derpMap := &tailcfg.DERPMap{
+		Regions: map[int]*tailcfg.DERPRegion{
+			1: {RegionName: "New York"},
+			2: {RegionName: "London"},
+		},
+	}
+
+	t.Run("UsesPingRegion", func(t *testing.T) {
+		t.Parallel()
+		pingResult := &ipnstate.PingResult{DERPRegionID: 2}
+		node := &tailnet.Node{PreferredDERP: 1}
+		result := tailnet.ExtractPreferredDERPName(pingResult, node, derpMap)
+		require.Equal(t, "London", result)
+	})
+
+	t.Run("UsesNodePreferred", func(t *testing.T) {
+		t.Parallel()
+		pingResult := &ipnstate.PingResult{DERPRegionID: 0}
+		node := &tailnet.Node{PreferredDERP: 1}
+		result := tailnet.ExtractPreferredDERPName(pingResult, node, derpMap)
+		require.Equal(t, "New York", result)
+	})
+
+	t.Run("UnknownRegion", func(t *testing.T) {
+		t.Parallel()
+		pingResult := &ipnstate.PingResult{DERPRegionID: 99}
+		node := &tailnet.Node{PreferredDERP: 1}
+		result := tailnet.ExtractPreferredDERPName(pingResult, node, derpMap)
+		require.Equal(t, "Unnamed 99", result)
 	})
 }

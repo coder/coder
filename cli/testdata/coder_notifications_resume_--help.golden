@@ -1,0 +1,9 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder notifications resume
+
+  Resume notifications
+
+———
+Run `coder --help` for a list of global options.

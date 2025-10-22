@@ -32,7 +32,7 @@ type WorkspaceProxyStatus struct {
 	Status ProxyHealthStatus `json:"status" table:"status,default_sort"`
 	// Report provides more information about the health of the workspace proxy.
 	Report    ProxyHealthReport `json:"report,omitempty" table:"report"`
-	CheckedAt time.Time         `json:"checked_at" table:"checked_at" format:"date-time"`
+	CheckedAt time.Time         `json:"checked_at" table:"checked at" format:"date-time"`
 }
 
 // ProxyHealthReport is a report of the health of the workspace proxy.
@@ -48,17 +48,18 @@ type ProxyHealthReport struct {
 type WorkspaceProxy struct {
 	// Extends Region with extra information
 	Region      `table:"region,recursive_inline"`
-	DerpEnabled bool `json:"derp_enabled" table:"derp_enabled"`
-	DerpOnly    bool `json:"derp_only" table:"derp_only"`
+	DerpEnabled bool `json:"derp_enabled" table:"derp enabled"`
+	DerpOnly    bool `json:"derp_only" table:"derp only"`
 
 	// Status is the latest status check of the proxy. This will be empty for deleted
 	// proxies. This value can be used to determine if a workspace proxy is healthy
 	// and ready to use.
 	Status WorkspaceProxyStatus `json:"status,omitempty" table:"proxy,recursive"`
 
-	CreatedAt time.Time `json:"created_at" format:"date-time" table:"created_at,default_sort"`
-	UpdatedAt time.Time `json:"updated_at" format:"date-time" table:"updated_at"`
+	CreatedAt time.Time `json:"created_at" format:"date-time" table:"created at"`
+	UpdatedAt time.Time `json:"updated_at" format:"date-time" table:"updated at"`
 	Deleted   bool      `json:"deleted" table:"deleted"`
+	Version   string    `json:"version" table:"version"`
 }
 
 type CreateWorkspaceProxyRequest struct {
@@ -68,9 +69,8 @@ type CreateWorkspaceProxyRequest struct {
 }
 
 type UpdateWorkspaceProxyResponse struct {
-	Proxy WorkspaceProxy `json:"proxy" table:"proxy,recursive"`
-	// The recursive table sort is not working very well.
-	ProxyToken string `json:"proxy_token" table:"proxy token,default_sort"`
+	Proxy      WorkspaceProxy `json:"proxy" table:"p,recursive_inline"`
+	ProxyToken string         `json:"proxy_token" table:"proxy token"`
 }
 
 func (c *Client) CreateWorkspaceProxy(ctx context.Context, req CreateWorkspaceProxyRequest) (UpdateWorkspaceProxyResponse, error) {
@@ -187,8 +187,8 @@ type RegionsResponse[R RegionTypes] struct {
 type Region struct {
 	ID          uuid.UUID `json:"id" format:"uuid" table:"id"`
 	Name        string    `json:"name" table:"name,default_sort"`
-	DisplayName string    `json:"display_name" table:"display_name"`
-	IconURL     string    `json:"icon_url" table:"icon_url"`
+	DisplayName string    `json:"display_name" table:"display name"`
+	IconURL     string    `json:"icon_url" table:"icon url"`
 	Healthy     bool      `json:"healthy" table:"healthy"`
 
 	// PathAppURL is the URL to the base path for path apps. Optional
@@ -200,7 +200,7 @@ type Region struct {
 	// E.g. *.us.example.com
 	// E.g. *--suffix.au.example.com
 	// Optional. Does not need to be on the same domain as PathAppURL.
-	WildcardHostname string `json:"wildcard_hostname" table:"wildcard_hostname"`
+	WildcardHostname string `json:"wildcard_hostname" table:"wildcard hostname"`
 }
 
 func (c *Client) Regions(ctx context.Context) ([]Region, error) {

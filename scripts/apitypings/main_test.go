@@ -7,13 +7,19 @@
 package main
 
 import (
+	"flag"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/guts"
 )
+
+// updateGoldenFiles is a flag that can be set to update golden files.
+var updateGoldenFiles = flag.Bool("update", false, "Update golden files")
 
 func TestGeneration(t *testing.T) {
 	t.Parallel()
@@ -25,19 +31,47 @@ func TestGeneration(t *testing.T) {
 			// Only test directories
 			continue
 		}
-		f := f
 		t.Run(f.Name(), func(t *testing.T) {
 			t.Parallel()
 			dir := filepath.Join(".", "testdata", f.Name())
-			output, err := Generate("./" + dir)
-			require.NoErrorf(t, err, "generate %q", dir)
+
+			gen, err := guts.NewGolangParser()
+			if err != nil {
+				require.NoError(t, err)
+			}
+			err = gen.IncludeGenerate("./" + dir)
+			require.NoError(t, err)
+
+			// Include minimal references needed for tests that use external types.
+			for pkg, prefix := range map[string]string{
+				"github.com/google/uuid": "",
+			} {
+				require.NoError(t, gen.IncludeReference(pkg, prefix))
+			}
+
+			err = TypeMappings(gen)
+			require.NoError(t, err)
+
+			ts, err := gen.ToTypescript()
+			require.NoError(t, err)
+
+			TSMutations(ts)
+
+			output, err := ts.Serialize()
+			require.NoError(t, err)
 
 			golden := filepath.Join(dir, f.Name()+".ts")
 			expected, err := os.ReadFile(golden)
 			require.NoErrorf(t, err, "read file %s", golden)
 			expectedString := strings.TrimSpace(string(expected))
 			output = strings.TrimSpace(output)
-			require.Equal(t, expectedString, output, "matched output")
+			if *updateGoldenFiles {
+				// nolint:gosec
+				err := os.WriteFile(golden, []byte(output+"\n"), 0o644)
+				require.NoError(t, err, "write golden file")
+			} else {
+				require.Equal(t, expectedString, output, "matched output")
+			}
 		})
 	}
 }

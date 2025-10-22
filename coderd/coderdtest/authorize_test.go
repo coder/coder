@@ -9,6 +9,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 )
 
 func TestAuthzRecorder(t *testing.T) {
@@ -43,7 +44,7 @@ func TestAuthzRecorder(t *testing.T) {
 		require.NoError(t, rec.AllAsserted(), "all assertions should have been made")
 	})
 
-	t.Run("Authorize&Prepared", func(t *testing.T) {
+	t.Run("Authorize_Prepared", func(t *testing.T) {
 		t.Parallel()
 
 		rec := &coderdtest.RecordingAuthorizer{
@@ -101,7 +102,7 @@ func TestAuthzRecorder(t *testing.T) {
 }
 
 // fuzzAuthzPrep has same action and object types for all calls.
-func fuzzAuthzPrep(t *testing.T, prep rbac.PreparedAuthorized, n int, action rbac.Action, objectType string) []coderdtest.ActionObjectPair {
+func fuzzAuthzPrep(t *testing.T, prep rbac.PreparedAuthorized, n int, action policy.Action, objectType string) []coderdtest.ActionObjectPair {
 	t.Helper()
 	pairs := make([]coderdtest.ActionObjectPair, 0, n)
 

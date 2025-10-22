@@ -11,7 +11,7 @@ and notably (compared to Coder Classic) does not include a database server.
 > instructions on a tagged release.
 
 View
-[our docs](https://coder.com/docs/coder-oss/latest/install/kubernetes)
+[our docs](https://coder.com/docs/install/kubernetes)
 for detailed installation instructions.
 
 ## Values
@@ -29,7 +29,7 @@ coder:
   # to the workspace provisioner (so you can consume them in your Terraform
   # templates for auth keys etc.).
   #
-  # Please keep in mind that you should not set `CODER_ADDRESS`,
+  # Please keep in mind that you should not set `CODER_HTTP_ADDRESS`,
   # `CODER_TLS_ENABLE`, `CODER_TLS_CERT_FILE` or `CODER_TLS_KEY_FILE` as
   # they are already set by the Helm chart and will cause conflicts.
   env:
@@ -47,6 +47,10 @@ coder:
     # This env enables the Prometheus metrics endpoint.
     - name: CODER_PROMETHEUS_ADDRESS
       value: "0.0.0.0:2112"
+    # For production deployments, we recommend configuring your own GitHub
+    # OAuth2 provider and disabling the default one.
+    - name: CODER_OAUTH2_GITHUB_DEFAULT_PROVIDER_ENABLE
+      value: "false"
   tls:
     secretNames:
       - my-tls-secret-name

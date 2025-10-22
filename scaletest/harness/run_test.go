@@ -16,21 +16,38 @@ import (
 type testFns struct {
 	RunFn func(ctx context.Context, id string, logs io.Writer) error
 	// CleanupFn is optional if no cleanup is required.
-	CleanupFn func(ctx context.Context, id string) error
+	CleanupFn func(ctx context.Context, id string, logs io.Writer) error
+	// GetMetricsFn is optional if no metric collection is required.
+	GetMetricsFn func() map[string]any
 }
+
+var (
+	_ harness.Runnable    = &testFns{}
+	_ harness.Cleanable   = &testFns{}
+	_ harness.Collectable = &testFns{}
+)
 
 // Run implements Runnable.
 func (fns testFns) Run(ctx context.Context, id string, logs io.Writer) error {
 	return fns.RunFn(ctx, id, logs)
 }
 
+// GetBytesTransferred implements Collectable.
+func (fns testFns) GetMetrics() map[string]any {
+	if fns.GetMetricsFn == nil {
+		return nil
+	}
+
+	return fns.GetMetricsFn()
+}
+
 // Cleanup implements Cleanable.
-func (fns testFns) Cleanup(ctx context.Context, id string) error {
+func (fns testFns) Cleanup(ctx context.Context, id string, logs io.Writer) error {
 	if fns.CleanupFn == nil {
 		return nil
 	}
 
-	return fns.CleanupFn(ctx, id)
+	return fns.CleanupFn(ctx, id, logs)
 }
 
 func Test_TestRun(t *testing.T) {
@@ -40,17 +57,22 @@ func Test_TestRun(t *testing.T) {
 		t.Parallel()
 
 		var (
-			name, id      = "test", "1"
-			runCalled     int64
-			cleanupCalled int64
+			name, id          = "test", "1"
+			runCalled         int64
+			cleanupCalled     int64
+			collectableCalled int64
 
 			testFns = testFns{
 				RunFn: func(ctx context.Context, id string, logs io.Writer) error {
 					atomic.AddInt64(&runCalled, 1)
 					return nil
 				},
-				CleanupFn: func(ctx context.Context, id string) error {
+				CleanupFn: func(ctx context.Context, id string, logs io.Writer) error {
 					atomic.AddInt64(&cleanupCalled, 1)
+					return nil
+				},
+				GetMetricsFn: func() map[string]any {
+					atomic.AddInt64(&collectableCalled, 1)
 					return nil
 				},
 			}
@@ -62,6 +84,7 @@ func Test_TestRun(t *testing.T) {
 		err := run.Run(context.Background())
 		require.NoError(t, err)
 		require.EqualValues(t, 1, atomic.LoadInt64(&runCalled))
+		require.EqualValues(t, 1, atomic.LoadInt64(&collectableCalled))
 
 		err = run.Cleanup(context.Background())
 		require.NoError(t, err)
@@ -93,7 +116,7 @@ func Test_TestRun(t *testing.T) {
 				RunFn: func(ctx context.Context, id string, logs io.Writer) error {
 					return nil
 				},
-				CleanupFn: func(ctx context.Context, id string) error {
+				CleanupFn: func(ctx context.Context, id string, logs io.Writer) error {
 					atomic.AddInt64(&cleanupCalled, 1)
 					return nil
 				},
@@ -102,6 +125,24 @@ func Test_TestRun(t *testing.T) {
 			err := run.Cleanup(context.Background())
 			require.NoError(t, err)
 			require.EqualValues(t, 0, atomic.LoadInt64(&cleanupCalled))
+		})
+	})
+
+	t.Run("Collectable", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("NoFn", func(t *testing.T) {
+			t.Parallel()
+
+			run := harness.NewTestRun("test", "1", testFns{
+				RunFn: func(ctx context.Context, id string, logs io.Writer) error {
+					return nil
+				},
+				GetMetricsFn: nil,
+			})
+
+			err := run.Run(context.Background())
+			require.NoError(t, err)
 		})
 	})
 

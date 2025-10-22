@@ -1,0 +1,1 @@
+ALTER TABLE template_version_terraform_values DROP COLUMN provisionerd_version;

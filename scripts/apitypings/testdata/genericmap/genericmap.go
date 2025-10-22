@@ -1,20 +1,20 @@
 package codersdk
 
-type Foo struct {
-	Bar string `json:"bar"`
-}
-
 type Buzz struct {
 	Foo  `json:"foo"`
 	Bazz string `json:"bazz"`
 }
 
-type Custom interface {
-	Foo | Buzz
+type Foo struct {
+	Bar string `json:"bar"`
 }
 
 type FooBuzz[R Custom] struct {
 	Something []R `json:"something"`
+}
+
+type Custom interface {
+	Foo | Buzz
 }
 
 // Not yet supported

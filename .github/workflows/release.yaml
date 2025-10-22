@@ -1,11 +1,16 @@
 # GitHub release workflow.
 name: Release
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
     inputs:
+      release_channel:
+        type: choice
+        description: Release channel
+        options:
+          - mainline
+          - stable
+      release_notes:
+        description: Release notes for the publishing the release. This is required to create a release.
       dry_run:
         description: Perform a dry-run release (devel). Note that ref must be an annotated tag when run without dry-run.
         type: boolean
@@ -13,12 +18,7 @@ on:
         default: false
 
 permissions:
-  # Required to publish a release
-  contents: write
-  # Necessary to push docker images to ghcr.io.
-  packages: write
-  # Necessary for GCP authentication (https://github.com/google-github-actions/setup-gcloud#usage)
-  id-token: write
+  contents: read
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
@@ -28,21 +28,47 @@ env:
   # https://github.blog/changelog/2022-06-10-github-actions-inputs-unified-across-manual-and-reusable-workflows/
   CODER_RELEASE: ${{ !inputs.dry_run }}
   CODER_DRY_RUN: ${{ inputs.dry_run }}
+  CODER_RELEASE_CHANNEL: ${{ inputs.release_channel }}
+  CODER_RELEASE_NOTES: ${{ inputs.release_notes }}
 
 jobs:
-  release:
-    name: Build and publish
-    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
-    env:
-      # Necessary for Docker manifest
-      DOCKER_CLI_EXPERIMENTAL: "enabled"
-    outputs:
-      version: ${{ steps.version.outputs.version }}
+  # Only allow maintainers/admins to release.
+  check-perms:
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
+      - name: Allow only maintainers/admins
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const {data} = await github.rest.repos.getCollaboratorPermissionLevel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              username: context.actor
+            });
+            const role = data.role_name || data.user?.role_name || data.permission;
+            const perms = data.user?.permissions || {};
+            core.info(`Actor ${context.actor} permission=${data.permission}, role_name=${role}`);
+
+            const allowed =
+              role === 'admin' ||
+              role === 'maintain' ||
+              perms.admin === true ||
+              perms.maintain === true;
+
+            if (!allowed) core.setFailed('Denied: requires maintain or admin');
+
+  # build-dylib is a separate job to build the dylib on macOS.
+  build-dylib:
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-macos-latest' || 'macos-latest' }}
+    needs: check-perms
+    steps:
+      # Harden Runner doesn't work on macOS.
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       # If the event that triggered the build was an annotated tag (which our
       # tags are supposed to be), actions/checkout has a bug where the tag in
@@ -52,69 +78,31 @@ jobs:
       - name: Fetch git tags
         run: git fetch --tags --force
 
-      - name: Print version
-        id: version
+      - name: Setup build tools
         run: |
-          set -euo pipefail
-          version="$(./scripts/version.sh)"
-          echo "version=$version" >> $GITHUB_OUTPUT
-          # Speed up future version.sh calls.
-          echo "CODER_FORCE_VERSION=$version" >> $GITHUB_ENV
-          echo "$version"
+          brew install bash gnu-getopt make
+          {
+            echo "$(brew --prefix bash)/bin"
+            echo "$(brew --prefix gnu-getopt)/bin"
+            echo "$(brew --prefix make)/libexec/gnubin"
+          } >> "$GITHUB_PATH"
 
-      - name: Create release notes
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # We always have to set this since there might be commits on
-          # main that didn't have a PR.
-          CODER_IGNORE_MISSING_COMMIT_METADATA: "1"
-        run: |
-          set -euo pipefail
-          ref=HEAD
-          old_version="$(git describe --abbrev=0 "$ref^1")"
-          version="v$(./scripts/version.sh)"
-
-          # Generate notes.
-          release_notes_file="$(mktemp -t release_notes.XXXXXX)"
-          ./scripts/release/generate_release_notes.sh --check-for-changelog --old-version "$old_version" --new-version "$version" --ref "$ref" >> "$release_notes_file"
-          echo CODER_RELEASE_NOTES_FILE="$release_notes_file" >> $GITHUB_ENV
-
-      - name: Show release notes
-        run: |
-          set -euo pipefail
-          cat "$CODER_RELEASE_NOTES_FILE"
-
-      - name: Docker Login
-        uses: docker/login-action@v3
+      - name: Switch XCode Version
+        uses: maxim-lobanov/setup-xcode@60606e260d2fc5762a71e64e74b2174e8ea3c8bd # v1.6.0
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          xcode-version: "16.1.0"
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
-      - name: Setup Node
-        uses: ./.github/actions/setup-node
-
-      - name: Install nsis and zstd
-        run: sudo apt-get install -y nsis zstd
-
-      - name: Install nfpm
-        run: |
-          set -euo pipefail
-          wget -O /tmp/nfpm.deb https://github.com/goreleaser/nfpm/releases/download/v2.18.1/nfpm_amd64.deb
-          sudo dpkg -i /tmp/nfpm.deb
-          rm /tmp/nfpm.deb
-
       - name: Install rcodesign
         run: |
           set -euo pipefail
-          wget -O /tmp/rcodesign.tar.gz https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F0.22.0/apple-codesign-0.22.0-x86_64-unknown-linux-musl.tar.gz
+          wget -O /tmp/rcodesign.tar.gz https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F0.22.0/apple-codesign-0.22.0-macos-universal.tar.gz
           sudo tar -xzf /tmp/rcodesign.tar.gz \
-            -C /usr/bin \
+            -C /usr/local/bin \
             --strip-components=1 \
-            apple-codesign-0.22.0-x86_64-unknown-linux-musl/rcodesign
+            apple-codesign-0.22.0-macos-universal/rcodesign
           rm /tmp/rcodesign.tar.gz
 
       - name: Setup Apple Developer certificate and API key
@@ -130,6 +118,226 @@ jobs:
           AC_CERTIFICATE_PASSWORD: ${{ secrets.AC_CERTIFICATE_PASSWORD }}
           AC_APIKEY_P8_BASE64: ${{ secrets.AC_APIKEY_P8_BASE64 }}
 
+      - name: Build dylibs
+        run: |
+          set -euxo pipefail
+          go mod download
+
+          make gen/mark-fresh
+          make build/coder-dylib
+        env:
+          CODER_SIGN_DARWIN: 1
+          AC_CERTIFICATE_FILE: /tmp/apple_cert.p12
+          AC_CERTIFICATE_PASSWORD_FILE: /tmp/apple_cert_password.txt
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dylibs
+          path: |
+            ./build/*.h
+            ./build/*.dylib
+          retention-days: 7
+
+      - name: Delete Apple Developer certificate and API key
+        run: rm -f /tmp/{apple_cert.p12,apple_cert_password.txt,apple_apikey.p8}
+
+  release:
+    name: Build and publish
+    needs: [build-dylib, check-perms]
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    permissions:
+      # Required to publish a release
+      contents: write
+      # Necessary to push docker images to ghcr.io.
+      packages: write
+      # Necessary for GCP authentication (https://github.com/google-github-actions/setup-gcloud#usage)
+      # Also necessary for keyless cosign (https://docs.sigstore.dev/cosign/signing/overview/)
+      # And for GitHub Actions attestation
+      id-token: write
+      # Required for GitHub Actions attestation
+      attestations: write
+    env:
+      # Necessary for Docker manifest
+      DOCKER_CLI_EXPERIMENTAL: "enabled"
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # If the event that triggered the build was an annotated tag (which our
+      # tags are supposed to be), actions/checkout has a bug where the tag in
+      # question is only a lightweight tag and not a full annotated tag. This
+      # command seems to fix it.
+      # https://github.com/actions/checkout/issues/290
+      - name: Fetch git tags
+        run: git fetch --tags --force
+
+      - name: Print version
+        id: version
+        run: |
+          set -euo pipefail
+          version="$(./scripts/version.sh)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          # Speed up future version.sh calls.
+          echo "CODER_FORCE_VERSION=$version" >> "$GITHUB_ENV"
+          echo "$version"
+
+      # Verify that all expectations for a release are met.
+      - name: Verify release input
+        if: ${{ !inputs.dry_run }}
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_REF}" != "refs/tags/v"* ]]; then
+            echo "Ref must be a semver tag when creating a release, did you use scripts/release.sh?"
+            exit 1
+          fi
+
+          # 2.10.2 -> release/2.10
+          version="$(./scripts/version.sh)"
+          release_branch=release/${version%.*}
+          branch_contains_tag=$(git branch --remotes --contains "${GITHUB_REF}" --list "*/${release_branch}" --format='%(refname)')
+          if [[ -z "${branch_contains_tag}" ]]; then
+            echo "Ref tag must exist in a branch named ${release_branch} when creating a release, did you use scripts/release.sh?"
+            exit 1
+          fi
+
+          if [[ -z "${CODER_RELEASE_NOTES}" ]]; then
+            echo "Release notes are required to create a release, did you use scripts/release.sh?"
+            exit 1
+          fi
+
+          echo "Release inputs verified:"
+          echo
+          echo "- Ref: ${GITHUB_REF}"
+          echo "- Version: ${version}"
+          echo "- Release channel: ${CODER_RELEASE_CHANNEL}"
+          echo "- Release branch: ${release_branch}"
+          echo "- Release notes: true"
+
+      - name: Create release notes file
+        run: |
+          set -euo pipefail
+
+          release_notes_file="$(mktemp -t release_notes.XXXXXX)"
+          echo "$CODER_RELEASE_NOTES" > "$release_notes_file"
+          echo CODER_RELEASE_NOTES_FILE="$release_notes_file" >> "$GITHUB_ENV"
+
+      - name: Show release notes
+        run: |
+          set -euo pipefail
+          cat "$CODER_RELEASE_NOTES_FILE"
+
+      - name: Docker Login
+        uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+
+      # Necessary for signing Windows binaries.
+      - name: Setup Java
+        uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v5.0.0
+        with:
+          distribution: "zulu"
+          java-version: "11.0"
+
+      - name: Install go-winres
+        run: go install github.com/tc-hib/go-winres@d743268d7ea168077ddd443c4240562d4f5e8c3e # v0.3.3
+
+      - name: Install nsis and zstd
+        run: sudo apt-get install -y nsis zstd
+
+      - name: Install nfpm
+        run: |
+          set -euo pipefail
+          wget -O /tmp/nfpm.deb https://github.com/goreleaser/nfpm/releases/download/v2.35.1/nfpm_2.35.1_amd64.deb
+          sudo dpkg -i /tmp/nfpm.deb
+          rm /tmp/nfpm.deb
+
+      - name: Install rcodesign
+        run: |
+          set -euo pipefail
+          wget -O /tmp/rcodesign.tar.gz https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F0.22.0/apple-codesign-0.22.0-x86_64-unknown-linux-musl.tar.gz
+          sudo tar -xzf /tmp/rcodesign.tar.gz \
+            -C /usr/bin \
+            --strip-components=1 \
+            apple-codesign-0.22.0-x86_64-unknown-linux-musl/rcodesign
+          rm /tmp/rcodesign.tar.gz
+
+      - name: Install cosign
+        uses: ./.github/actions/install-cosign
+
+      - name: Install syft
+        uses: ./.github/actions/install-syft
+
+      - name: Setup Apple Developer certificate and API key
+        run: |
+          set -euo pipefail
+          touch /tmp/{apple_cert.p12,apple_cert_password.txt,apple_apikey.p8}
+          chmod 600 /tmp/{apple_cert.p12,apple_cert_password.txt,apple_apikey.p8}
+          echo "$AC_CERTIFICATE_P12_BASE64" | base64 -d > /tmp/apple_cert.p12
+          echo "$AC_CERTIFICATE_PASSWORD" > /tmp/apple_cert_password.txt
+          echo "$AC_APIKEY_P8_BASE64" | base64 -d > /tmp/apple_apikey.p8
+        env:
+          AC_CERTIFICATE_P12_BASE64: ${{ secrets.AC_CERTIFICATE_P12_BASE64 }}
+          AC_CERTIFICATE_PASSWORD: ${{ secrets.AC_CERTIFICATE_PASSWORD }}
+          AC_APIKEY_P8_BASE64: ${{ secrets.AC_APIKEY_P8_BASE64 }}
+
+      - name: Setup Windows EV Signing Certificate
+        run: |
+          set -euo pipefail
+          touch /tmp/ev_cert.pem
+          chmod 600 /tmp/ev_cert.pem
+          echo "$EV_SIGNING_CERT" > /tmp/ev_cert.pem
+          wget https://github.com/ebourg/jsign/releases/download/6.0/jsign-6.0.jar -O /tmp/jsign-6.0.jar
+        env:
+          EV_SIGNING_CERT: ${{ secrets.EV_SIGNING_CERT }}
+
+      - name: Test migrations from current ref to main
+        run: |
+          POSTGRES_VERSION=13 make test-migrations
+
+      # Setup GCloud for signing Windows binaries.
+      - name: Authenticate to Google Cloud
+        id: gcloud_auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.GCP_CODE_SIGNING_WORKLOAD_ID_PROVIDER }}
+          service_account: ${{ vars.GCP_CODE_SIGNING_SERVICE_ACCOUNT }}
+          token_format: "access_token"
+
+      - name: Setup GCloud SDK
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+
+      - name: Download dylibs
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          name: dylibs
+          path: ./build
+
+      - name: Insert dylibs
+        run: |
+          mv ./build/*amd64.dylib ./site/out/bin/coder-vpn-darwin-amd64.dylib
+          mv ./build/*arm64.dylib ./site/out/bin/coder-vpn-darwin-arm64.dylib
+          mv ./build/*arm64.h     ./site/out/bin/coder-vpn-darwin-dylib.h
+
       - name: Build binaries
         run: |
           set -euo pipefail
@@ -144,15 +352,28 @@ jobs:
             build/coder_helm_"$version".tgz \
             build/provisioner_helm_"$version".tgz
         env:
+          CODER_SIGN_WINDOWS: "1"
           CODER_SIGN_DARWIN: "1"
+          CODER_SIGN_GPG: "1"
+          CODER_GPG_RELEASE_KEY_BASE64: ${{ secrets.GPG_RELEASE_KEY_BASE64 }}
+          CODER_WINDOWS_RESOURCES: "1"
           AC_CERTIFICATE_FILE: /tmp/apple_cert.p12
           AC_CERTIFICATE_PASSWORD_FILE: /tmp/apple_cert_password.txt
           AC_APIKEY_ISSUER_ID: ${{ secrets.AC_APIKEY_ISSUER_ID }}
           AC_APIKEY_ID: ${{ secrets.AC_APIKEY_ID }}
           AC_APIKEY_FILE: /tmp/apple_apikey.p8
+          EV_KEY: ${{ secrets.EV_KEY }}
+          EV_KEYSTORE: ${{ secrets.EV_KEYSTORE }}
+          EV_TSA_URL: ${{ secrets.EV_TSA_URL }}
+          EV_CERTIFICATE_PATH: /tmp/ev_cert.pem
+          GCLOUD_ACCESS_TOKEN: ${{ steps.gcloud_auth.outputs.access_token }}
+          JSIGN_PATH: /tmp/jsign-6.0.jar
 
       - name: Delete Apple Developer certificate and API key
         run: rm -f /tmp/{apple_cert.p12,apple_cert_password.txt,apple_apikey.p8}
+
+      - name: Delete Windows EV Signing Cert
+        run: rm /tmp/ev_cert.pem
 
       - name: Determine base image tag
         id: image-base-tag
@@ -160,9 +381,9 @@ jobs:
           set -euo pipefail
           if [[ "${CODER_RELEASE:-}" != *t* ]] || [[ "${CODER_DRY_RUN:-}" == *t* ]]; then
             # Empty value means use the default and avoid building a fresh one.
-            echo "tag=" >> $GITHUB_OUTPUT
+            echo "tag=" >> "$GITHUB_OUTPUT"
           else
-            echo "tag=$(CODER_IMAGE_BASE=ghcr.io/coder/coder-base ./scripts/image_tag.sh)" >> $GITHUB_OUTPUT
+            echo "tag=$(CODER_IMAGE_BASE=ghcr.io/coder/coder-base ./scripts/image_tag.sh)" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Create empty base-build-context directory
@@ -171,17 +392,19 @@ jobs:
 
       - name: Install depot.dev CLI
         if: steps.image-base-tag.outputs.tag != ''
-        uses: depot/setup-action@v1
+        uses: depot/setup-action@b0b1ea4f69e92ebf5dea3f8713a1b0c37b2126a5 # v1.6.0
 
       # This uses OIDC authentication, so no auth variables are required.
       - name: Build base Docker image via depot.dev
         if: steps.image-base-tag.outputs.tag != ''
-        uses: depot/build-push-action@v1
+        uses: depot/build-push-action@9785b135c3c76c33db102e45be96a25ab55cd507 # v1.16.2
         with:
           project: wl5hnrrkns
           context: base-build-context
           file: scripts/Dockerfile.base
           platforms: linux/amd64,linux/arm64,linux/arm/v7
+          provenance: true
+          sbom: true
           pull: true
           no-cache: true
           push: true
@@ -189,12 +412,13 @@ jobs:
             ${{ steps.image-base-tag.outputs.tag }}
 
       - name: Verify that images are pushed properly
+        if: steps.image-base-tag.outputs.tag != ''
         run: |
           # retry 10 times with a 5 second delay as the images may not be
           # available immediately
           for i in {1..10}; do
             rc=0
-            raw_manifests=$(docker buildx imagetools inspect --raw "${{ steps.image-base-tag.outputs.tag }}") || rc=$?
+            raw_manifests=$(docker buildx imagetools inspect --raw "${IMAGE_TAG}") || rc=$?
             if [[ "$rc" -eq 0 ]]; then
               break
             fi
@@ -216,14 +440,57 @@ jobs:
           echo "$manifests" | grep -q linux/amd64
           echo "$manifests" | grep -q linux/arm64
           echo "$manifests" | grep -q linux/arm/v7
+        env:
+          IMAGE_TAG: ${{ steps.image-base-tag.outputs.tag }}
+
+      # GitHub attestation provides SLSA provenance for Docker images, establishing a verifiable
+      # record that these images were built in GitHub Actions with specific inputs and environment.
+      # This complements our existing cosign attestations (which focus on SBOMs) by adding
+      # GitHub-specific build provenance to enhance our supply chain security.
+      #
+      # TODO: Consider refactoring these attestation steps to use a matrix strategy or composite action
+      # to reduce duplication while maintaining the required functionality for each distinct image tag.
+      - name: GitHub Attestation for Base Docker image
+        id: attest_base
+        if: ${{ !inputs.dry_run && steps.image-base-tag.outputs.tag != '' }}
+        continue-on-error: true
+        uses: actions/attest@daf44fb950173508f38bd2406030372c1d1162b1 # v3.0.0
+        with:
+          subject-name: ${{ steps.image-base-tag.outputs.tag }}
+          predicate-type: "https://slsa.dev/provenance/v1"
+          predicate: |
+            {
+              "buildType": "https://github.com/actions/runner-images/",
+              "builder": {
+                "id": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              },
+              "invocation": {
+                "configSource": {
+                  "uri": "git+https://github.com/${{ github.repository }}@${{ github.ref }}",
+                  "digest": {
+                    "sha1": "${{ github.sha }}"
+                  },
+                  "entryPoint": ".github/workflows/release.yaml"
+                },
+                "environment": {
+                  "github_workflow": "${{ github.workflow }}",
+                  "github_run_id": "${{ github.run_id }}"
+                }
+              },
+              "metadata": {
+                "buildInvocationID": "${{ github.run_id }}",
+                "completeness": {
+                  "environment": true,
+                  "materials": true
+                }
+              }
+            }
+          push-to-registry: true
 
       - name: Build Linux Docker images
+        id: build_docker
         run: |
           set -euxo pipefail
-
-          # build Docker images for each architecture
-          version="$(./scripts/version.sh)"
-          make -j build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
 
           # we can't build multi-arch if the images aren't pushed, so quit now
           # if dry-running
@@ -232,21 +499,167 @@ jobs:
             exit 0
           fi
 
+          # build Docker images for each architecture
+          version="$(./scripts/version.sh)"
+          make build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
+
           # build and push multi-arch manifest, this depends on the other images
           # being pushed so will automatically push them.
-          make -j push/build/coder_"$version"_linux.tag
+          make push/build/coder_"$version"_linux.tag
+
+          # Save multiarch image tag for attestation
+          multiarch_image="$(./scripts/image_tag.sh)"
+          echo "multiarch_image=${multiarch_image}" >> "$GITHUB_OUTPUT"
+
+          # For debugging, print all docker image tags
+          docker images
 
           # if the current version is equal to the highest (according to semver)
           # version in the repo, also create a multi-arch image as ":latest" and
           # push it
           if [[ "$(git tag | grep '^v' | grep -vE '(rc|dev|-|\+|\/)' | sort -r --version-sort | head -n1)" == "v$(./scripts/version.sh)" ]]; then
+            # shellcheck disable=SC2046
             ./scripts/build_docker_multiarch.sh \
               --push \
               --target "$(./scripts/image_tag.sh --version latest)" \
               $(cat build/coder_"$version"_linux_{amd64,arm64,armv7}.tag)
+            echo "created_latest_tag=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "created_latest_tag=false" >> "$GITHUB_OUTPUT"
           fi
         env:
           CODER_BASE_IMAGE_TAG: ${{ steps.image-base-tag.outputs.tag }}
+
+      - name: SBOM Generation and Attestation
+        if: ${{ !inputs.dry_run }}
+        env:
+          COSIGN_EXPERIMENTAL: '1'
+          MULTIARCH_IMAGE: ${{ steps.build_docker.outputs.multiarch_image }}
+          VERSION: ${{ steps.version.outputs.version }}
+          CREATED_LATEST_TAG: ${{ steps.build_docker.outputs.created_latest_tag }}
+        run: |
+          set -euxo pipefail
+
+          # Generate SBOM for multi-arch image with version in filename
+          echo "Generating SBOM for multi-arch image: ${MULTIARCH_IMAGE}"
+          syft "${MULTIARCH_IMAGE}" -o spdx-json > "coder_${VERSION}_sbom.spdx.json"
+
+          # Attest SBOM to multi-arch image
+          echo "Attesting SBOM to multi-arch image: ${MULTIARCH_IMAGE}"
+          cosign clean --force=true "${MULTIARCH_IMAGE}"
+          cosign attest --type spdxjson \
+            --predicate "coder_${VERSION}_sbom.spdx.json" \
+            --yes \
+            "${MULTIARCH_IMAGE}"
+
+          # If latest tag was created, also attest it
+          if [[ "${CREATED_LATEST_TAG}" == "true" ]]; then
+            latest_tag="$(./scripts/image_tag.sh --version latest)"
+            echo "Generating SBOM for latest image: ${latest_tag}"
+            syft "${latest_tag}" -o spdx-json > coder_latest_sbom.spdx.json
+
+            echo "Attesting SBOM to latest image: ${latest_tag}"
+            cosign clean --force=true "${latest_tag}"
+            cosign attest --type spdxjson \
+              --predicate coder_latest_sbom.spdx.json \
+              --yes \
+              "${latest_tag}"
+          fi
+
+      - name: GitHub Attestation for Docker image
+        id: attest_main
+        if: ${{ !inputs.dry_run }}
+        continue-on-error: true
+        uses: actions/attest@daf44fb950173508f38bd2406030372c1d1162b1 # v3.0.0
+        with:
+          subject-name: ${{ steps.build_docker.outputs.multiarch_image }}
+          predicate-type: "https://slsa.dev/provenance/v1"
+          predicate: |
+            {
+              "buildType": "https://github.com/actions/runner-images/",
+              "builder": {
+                "id": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              },
+              "invocation": {
+                "configSource": {
+                  "uri": "git+https://github.com/${{ github.repository }}@${{ github.ref }}",
+                  "digest": {
+                    "sha1": "${{ github.sha }}"
+                  },
+                  "entryPoint": ".github/workflows/release.yaml"
+                },
+                "environment": {
+                  "github_workflow": "${{ github.workflow }}",
+                  "github_run_id": "${{ github.run_id }}"
+                }
+              },
+              "metadata": {
+                "buildInvocationID": "${{ github.run_id }}",
+                "completeness": {
+                  "environment": true,
+                  "materials": true
+                }
+              }
+            }
+          push-to-registry: true
+
+      # Get the latest tag name for attestation
+      - name: Get latest tag name
+        id: latest_tag
+        if: ${{ !inputs.dry_run && steps.build_docker.outputs.created_latest_tag == 'true' }}
+        run: echo "tag=$(./scripts/image_tag.sh --version latest)" >> "$GITHUB_OUTPUT"
+
+      # If this is the highest version according to semver, also attest the "latest" tag
+      - name: GitHub Attestation for "latest" Docker image
+        id: attest_latest
+        if: ${{ !inputs.dry_run && steps.build_docker.outputs.created_latest_tag == 'true' }}
+        continue-on-error: true
+        uses: actions/attest@daf44fb950173508f38bd2406030372c1d1162b1 # v3.0.0
+        with:
+          subject-name: ${{ steps.latest_tag.outputs.tag }}
+          predicate-type: "https://slsa.dev/provenance/v1"
+          predicate: |
+            {
+              "buildType": "https://github.com/actions/runner-images/",
+              "builder": {
+                "id": "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              },
+              "invocation": {
+                "configSource": {
+                  "uri": "git+https://github.com/${{ github.repository }}@${{ github.ref }}",
+                  "digest": {
+                    "sha1": "${{ github.sha }}"
+                  },
+                  "entryPoint": ".github/workflows/release.yaml"
+                },
+                "environment": {
+                  "github_workflow": "${{ github.workflow }}",
+                  "github_run_id": "${{ github.run_id }}"
+                }
+              },
+              "metadata": {
+                "buildInvocationID": "${{ github.run_id }}",
+                "completeness": {
+                  "environment": true,
+                  "materials": true
+                }
+              }
+            }
+          push-to-registry: true
+
+      # Report attestation failures but don't fail the workflow
+      - name: Check attestation status
+        if: ${{ !inputs.dry_run }}
+        run: | # zizmor: ignore[template-injection] We're just reading steps.attest_x.outcome here, no risk of injection
+          if [[ "${{ steps.attest_base.outcome }}" == "failure" && "${{ steps.attest_base.conclusion }}" != "skipped" ]]; then
+            echo "::warning::GitHub attestation for base image failed"
+          fi
+          if [[ "${{ steps.attest_main.outcome }}" == "failure" ]]; then
+            echo "::warning::GitHub attestation for main image failed"
+          fi
+          if [[ "${{ steps.attest_latest.outcome }}" == "failure" && "${{ steps.attest_latest.conclusion }}" != "skipped" ]]; then
+            echo "::warning::GitHub attestation for latest image failed"
+          fi
 
       - name: Generate offline docs
         run: |
@@ -256,38 +669,78 @@ jobs:
       - name: ls build
         run: ls -lh build
 
+      - name: Publish Coder CLI binaries and detached signatures to GCS
+        if: ${{ !inputs.dry_run }}
+        run: |
+          set -euxo pipefail
+
+          version="$(./scripts/version.sh)"
+
+          # Source array of slim binaries
+          declare -A binaries
+          binaries["coder-darwin-amd64"]="coder-slim_${version}_darwin_amd64"
+          binaries["coder-darwin-arm64"]="coder-slim_${version}_darwin_arm64"
+          binaries["coder-linux-amd64"]="coder-slim_${version}_linux_amd64"
+          binaries["coder-linux-arm64"]="coder-slim_${version}_linux_arm64"
+          binaries["coder-linux-armv7"]="coder-slim_${version}_linux_armv7"
+          binaries["coder-windows-amd64.exe"]="coder-slim_${version}_windows_amd64.exe"
+          binaries["coder-windows-arm64.exe"]="coder-slim_${version}_windows_arm64.exe"
+
+          for cli_name in "${!binaries[@]}"; do
+            slim_binary="${binaries[$cli_name]}"
+            detached_signature="${slim_binary}.asc"
+            gcloud storage cp "./build/${slim_binary}" "gs://releases.coder.com/coder-cli/${version}/${cli_name}"
+            gcloud storage cp "./build/${detached_signature}" "gs://releases.coder.com/coder-cli/${version}/${cli_name}.asc"
+          done
+
       - name: Publish release
         run: |
           set -euo pipefail
 
           publish_args=()
+          if [[ $CODER_RELEASE_CHANNEL == "stable" ]]; then
+            publish_args+=(--stable)
+          fi
           if [[ $CODER_DRY_RUN == *t* ]]; then
             publish_args+=(--dry-run)
           fi
           declare -p publish_args
 
+          # Build the list of files to publish
+          files=(
+            ./build/*_installer.exe
+            ./build/*.zip
+            ./build/*.tar.gz
+            ./build/*.tgz
+            ./build/*.apk
+            ./build/*.deb
+            ./build/*.rpm
+            "./coder_${VERSION}_sbom.spdx.json"
+          )
+
+          # Only include the latest SBOM file if it was created
+          if [[ "${CREATED_LATEST_TAG}" == "true" ]]; then
+            files+=(./coder_latest_sbom.spdx.json)
+          fi
+
           ./scripts/release/publish.sh \
             "${publish_args[@]}" \
             --release-notes-file "$CODER_RELEASE_NOTES_FILE" \
-            ./build/*_installer.exe \
-            ./build/*.zip \
-            ./build/*.tar.gz \
-            ./build/*.tgz \
-            ./build/*.apk \
-            ./build/*.deb \
-            ./build/*.rpm
+            "${files[@]}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CODER_GPG_RELEASE_KEY_BASE64: ${{ secrets.GPG_RELEASE_KEY_BASE64 }}
+          VERSION: ${{ steps.version.outputs.version }}
+          CREATED_LATEST_TAG: ${{ steps.build_docker.outputs.created_latest_tag }}
 
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v1
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_ID_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_ID_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
 
       - name: Setup GCloud SDK
-        uses: "google-github-actions/setup-gcloud@v1"
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # 3.0.1
 
       - name: Publish Helm Chart
         if: ${{ !inputs.dry_run }}
@@ -299,14 +752,16 @@ jobs:
           cp "build/provisioner_helm_${version}.tgz" build/helm
           gsutil cp gs://helm.coder.com/v2/index.yaml build/helm/index.yaml
           helm repo index build/helm --url https://helm.coder.com/v2 --merge build/helm/index.yaml
-          gsutil -h "Cache-Control:no-cache,max-age=0" cp build/helm/coder_helm_${version}.tgz gs://helm.coder.com/v2
-          gsutil -h "Cache-Control:no-cache,max-age=0" cp build/helm/provisioner_helm_${version}.tgz gs://helm.coder.com/v2
-          gsutil -h "Cache-Control:no-cache,max-age=0" cp build/helm/index.yaml gs://helm.coder.com/v2
-          gsutil -h "Cache-Control:no-cache,max-age=0" cp helm/artifacthub-repo.yml gs://helm.coder.com/v2
+          gsutil -h "Cache-Control:no-cache,max-age=0" cp "build/helm/coder_helm_${version}.tgz" gs://helm.coder.com/v2
+          gsutil -h "Cache-Control:no-cache,max-age=0" cp "build/helm/provisioner_helm_${version}.tgz" gs://helm.coder.com/v2
+          gsutil -h "Cache-Control:no-cache,max-age=0" cp "build/helm/index.yaml" gs://helm.coder.com/v2
+          gsutil -h "Cache-Control:no-cache,max-age=0" cp "helm/artifacthub-repo.yml" gs://helm.coder.com/v2
+          helm push "build/coder_helm_${version}.tgz" oci://ghcr.io/coder/chart
+          helm push "build/provisioner_helm_${version}.tgz" oci://ghcr.io/coder/chart
 
       - name: Upload artifacts to actions (if dry-run)
         if: ${{ inputs.dry_run }}
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-artifacts
           path: |
@@ -317,16 +772,25 @@ jobs:
             ./build/*.apk
             ./build/*.deb
             ./build/*.rpm
+            ./coder_${{ steps.version.outputs.version }}_sbom.spdx.json
           retention-days: 7
 
-      - name: Start Packer builds
+      - name: Upload latest sbom artifact to actions (if dry-run)
+        if: inputs.dry_run && steps.build_docker.outputs.created_latest_tag == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: latest-sbom-artifact
+          path: ./coder_latest_sbom.spdx.json
+          retention-days: 7
+
+      - name: Send repository-dispatch event
         if: ${{ !inputs.dry_run }}
-        uses: peter-evans/repository-dispatch@v2
+        uses: peter-evans/repository-dispatch@ff45666b9427631e3450c54a1bcbee4d9ff4d7c0 # v3.0.0
         with:
           token: ${{ secrets.CDRCI_GITHUB_TOKEN }}
           repository: coder/packages
           event-type: coder-release
-          client-payload: '{"coder_version": "${{ steps.version.outputs.version }}"}'
+          client-payload: '{"coder_version": "${{ steps.version.outputs.version }}", "release_channel": "${{ inputs.release_channel }}"}'
 
   publish-homebrew:
     name: Publish to Homebrew tap
@@ -337,14 +801,19 @@ jobs:
     steps:
       # TODO: skip this if it's not a new release (i.e. a backport). This is
       #       fine right now because it just makes a PR that we can close.
+      - name: Harden Runner
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        with:
+          egress-policy: audit
+
       - name: Update homebrew
         env:
-          # Variables used by the `gh` command
           GH_REPO: coder/homebrew-coder
           GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
+          VERSION: ${{ needs.release.outputs.version }}
         run: |
           # Keep version number around for reference, removing any potential leading v
-          coder_version="$(echo "${{ needs.release.outputs.version }}" | tr -d v)"
+          coder_version="$(echo "${VERSION}" | tr -d v)"
 
           set -euxo pipefail
 
@@ -363,9 +832,9 @@ jobs:
           wget "$checksums_url" -O checksums.txt
 
           # Get the SHAs
-          darwin_arm_sha="$(cat checksums.txt | grep "darwin_arm64.zip" | awk '{ print $1 }')"
-          darwin_intel_sha="$(cat checksums.txt | grep "darwin_amd64.zip" | awk '{ print $1 }')"
-          linux_sha="$(cat checksums.txt | grep "linux_amd64.tar.gz" | awk '{ print $1 }')"
+          darwin_arm_sha="$(grep "darwin_arm64.zip" checksums.txt | awk '{ print $1 }')"
+          darwin_intel_sha="$(grep "darwin_amd64.zip" checksums.txt | awk '{ print $1 }')"
+          linux_sha="$(grep "linux_amd64.tar.gz" checksums.txt | awk '{ print $1 }')"
 
           echo "macOS arm64: $darwin_arm_sha"
           echo "macOS amd64: $darwin_intel_sha"
@@ -378,7 +847,7 @@ jobs:
 
           # Check if a PR already exists.
           pr_count="$(gh pr list --search "head:$brew_branch" --json id,closed | jq -r ".[] | select(.closed == false) | .id" | wc -l)"
-          if [[ "$pr_count" > 0 ]]; then
+          if [ "$pr_count" -gt 0 ]; then
             echo "Bailing out as PR already exists" 2>&1
             exit 0
           fi
@@ -397,8 +866,8 @@ jobs:
             -B master -H "$brew_branch" \
             -t "coder $coder_version" \
             -b "" \
-            -r "${{ github.actor }}" \
-            -a "${{ github.actor }}" \
+            -r "${GITHUB_ACTOR}" \
+            -a "${GITHUB_ACTOR}" \
             -b "This automatic PR was triggered by the release of Coder v$coder_version"
 
   publish-winget:
@@ -408,10 +877,21 @@ jobs:
     if: ${{ !inputs.dry_run }}
 
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        with:
+          egress-policy: audit
+
+      - name: Sync fork
+        run: gh repo sync cdrci/winget-pkgs -b master
+        env:
+          GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
+
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       # If the event that triggered the build was an annotated tag (which our
       # tags are supposed to be), actions/checkout has a bug where the tag in
@@ -430,31 +910,30 @@ jobs:
           # The package version is the same as the tag minus the leading "v".
           # The version in this output already has the leading "v" removed but
           # we do it again to be safe.
-          $version = "${{ needs.release.outputs.version }}".Trim('v')
+          $version = $env:VERSION.Trim('v')
 
           $release_assets = gh release view --repo coder/coder "v${version}" --json assets | `
             ConvertFrom-Json
-          # Get the installer URL from the release assets.
-          $installer_url = $release_assets.assets | `
+          # Get the installer URLs from the release assets.
+          $amd64_installer_url = $release_assets.assets | `
             Where-Object name -Match ".*_windows_amd64_installer.exe$" | `
             Select -ExpandProperty url
+          $amd64_zip_url = $release_assets.assets | `
+            Where-Object name -Match ".*_windows_amd64.zip$" | `
+            Select -ExpandProperty url
+          $arm64_zip_url = $release_assets.assets | `
+            Where-Object name -Match ".*_windows_arm64.zip$" | `
+            Select -ExpandProperty url
 
-          echo "Installer URL: ${installer_url}"
+          echo "amd64 Installer URL: ${amd64_installer_url}"
+          echo "amd64 zip URL: ${amd64_zip_url}"
+          echo "arm64 zip URL: ${arm64_zip_url}"
           echo "Package version: ${version}"
 
-          # The URL "|X64" suffix forces the architecture as it cannot be
-          # sniffed properly from the URL. wingetcreate checks both the URL and
-          # binary magic bytes for the architecture and they need to both match,
-          # but they only check for `x64`, `win64` and `_64` in the URL. Our URL
-          # contains `amd64` which doesn't match sadly.
-          #
-          # wingetcreate will still do the binary magic bytes check, so if we
-          # accidentally change the architecture of the installer, it will fail
-          # submission.
           .\wingetcreate.exe update Coder.Coder `
             --submit `
             --version "${version}" `
-            --urls "${installer_url}|X64" `
+            --urls "${amd64_installer_url}" "${amd64_zip_url}" "${arm64_zip_url}" `
             --token "$env:WINGET_GH_TOKEN"
 
         env:
@@ -463,13 +942,14 @@ jobs:
           # For wingetcreate. We need a real token since we're pushing a commit
           # to GitHub and then making a PR in a different repo.
           WINGET_GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
+          VERSION: ${{ needs.release.outputs.version }}
 
       - name: Comment on PR
         run: |
           # wait 30 seconds
           Start-Sleep -Seconds 30.0
           # Find the PR that wingetcreate just made.
-          $version = "${{ needs.release.outputs.version }}".Trim('v')
+          $version = $env:VERSION.Trim('v')
           $pr_list = gh pr list --repo microsoft/winget-pkgs --search "author:cdrci Coder.Coder version ${version}" --limit 1 --json number | `
             ConvertFrom-Json
           $pr_number = $pr_list[0].number
@@ -480,66 +960,36 @@ jobs:
           # For gh CLI. We need a real token since we're commenting on a PR in a
           # different repo.
           GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
+          VERSION: ${{ needs.release.outputs.version }}
 
-  publish-chocolatey:
-    name: Publish to Chocolatey
-    runs-on: windows-latest
+  # publish-sqlc pushes the latest schema to sqlc cloud.
+  # At present these pushes cannot be tagged, so the last push is always the latest.
+  publish-sqlc:
+    name: "Publish to schema sqlc cloud"
+    runs-on: "ubuntu-latest"
     needs: release
     if: ${{ !inputs.dry_run }}
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Harden Runner
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
         with:
-          fetch-depth: 0
+          egress-policy: audit
 
-      # Same reason as for release.
-      - name: Fetch git tags
-        run: git fetch --tags --force
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 1
+          persist-credentials: false
 
-      # From https://chocolatey.org
-      - name: Install Chocolatey
+      # We need golang to run the migration main.go
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Setup sqlc
+        uses: ./.github/actions/setup-sqlc
+
+      - name: Push schema to sqlc cloud
+        # Don't block a release on this
+        continue-on-error: true
         run: |
-          Set-ExecutionPolicy Bypass -Scope Process -Force
-          [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
-
-          iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
-
-      - name: Build chocolatey package
-        run: |
-          cd scripts/chocolatey
-
-          # The package version is the same as the tag minus the leading "v".
-          # The version in this output already has the leading "v" removed but
-          # we do it again to be safe.
-          $version = "${{ needs.release.outputs.version }}".Trim('v')
-
-          $release_assets = gh release view --repo coder/coder "v${version}" --json assets | `
-            ConvertFrom-Json
-
-          # Get the URL for the Windows ZIP from the release assets.
-          $zip_url = $release_assets.assets | `
-            Where-Object name -Match ".*_windows_amd64.zip$" | `
-            Select -ExpandProperty url
-
-          echo "ZIP URL: ${zip_url}"
-          echo "Package version: ${version}"
-
-          echo "Downloading ZIP..."
-          Invoke-WebRequest $zip_url -OutFile assets.zip
-
-          echo "Extracting ZIP..."
-          Expand-Archive assets.zip -DestinationPath assets/
-
-          # No need to specify nuspec if there's only one in the directory.
-          choco pack --version=$version binary_path=assets/coder.exe
-
-          choco apikey --api-key $env:CHOCO_API_KEY --source https://push.chocolatey.org/
-
-          # No need to specify nupkg if there's only one in the directory.
-          choco push --source https://push.chocolatey.org/
-
-        env:
-          CHOCO_API_KEY: ${{ secrets.CHOCO_API_KEY }}
-          # We need a GitHub token for the gh CLI to function under GitHub Actions
-          GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
+          make sqlc-push

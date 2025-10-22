@@ -6,6 +6,9 @@ USAGE:
   Rotate database encryption keys.
 
 OPTIONS:
+      --postgres-connection-auth password|awsiamrds, $CODER_PG_CONNECTION_AUTH (default: password)
+          Type of auth to use when connecting to postgres.
+
       --new-key string, $CODER_EXTERNAL_TOKEN_ENCRYPTION_ENCRYPT_NEW_KEY
           The new external token encryption key. Must be base64-encoded.
 

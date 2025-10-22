@@ -35,6 +35,18 @@ var DaysOfWeek = []time.Weekday{
 	time.Sunday,
 }
 
+type TemplateAutostartRequirement struct {
+	// DaysOfWeek is a bitmap of which days of the week the workspace is allowed
+	// to be auto started. If fully zero, the workspace is not allowed to be auto started.
+	//
+	// First bit is Monday, ..., seventh bit is Sunday, eighth bit is unused.
+	DaysOfWeek uint8
+}
+
+func (r TemplateAutostartRequirement) DaysMap() map[time.Weekday]bool {
+	return daysMap(r.DaysOfWeek)
+}
+
 type TemplateAutostopRequirement struct {
 	// DaysOfWeek is a bitmap of which days of the week the workspace must be
 	// restarted. If fully zero, the workspace is not required to be restarted
@@ -57,9 +69,16 @@ type TemplateAutostopRequirement struct {
 // DaysMap returns a map of the days of the week that the workspace must be
 // restarted.
 func (r TemplateAutostopRequirement) DaysMap() map[time.Weekday]bool {
+	return daysMap(r.DaysOfWeek)
+}
+
+// daysMap returns a map of the days of the week that are specified in the
+// bitmap.
+func daysMap(daysOfWeek uint8) map[time.Weekday]bool {
 	days := make(map[time.Weekday]bool)
 	for i, day := range DaysOfWeek {
-		days[day] = r.DaysOfWeek&(1<<uint(i)) != 0
+		// #nosec G115 - Safe conversion, i ranges from 0-6 for days of the week
+		days[day] = daysOfWeek&(1<<uint(i)) != 0
 	}
 	return days
 }
@@ -70,6 +89,7 @@ func VerifyTemplateAutostopRequirement(days uint8, weeks int64) error {
 	if days&0b10000000 != 0 {
 		return xerrors.New("invalid autostop requirement days, last bit is set")
 	}
+	//nolint:staticcheck
 	if days > 0b11111111 {
 		return xerrors.New("invalid autostop requirement days, too large")
 	}
@@ -82,42 +102,53 @@ func VerifyTemplateAutostopRequirement(days uint8, weeks int64) error {
 	return nil
 }
 
+// VerifyTemplateAutostartRequirement returns an error if the autostart
+// requirement is invalid.
+func VerifyTemplateAutostartRequirement(days uint8) error {
+	if days&0b10000000 != 0 {
+		return xerrors.New("invalid autostart requirement days, last bit is set")
+	}
+	//nolint:staticcheck
+	if days > 0b11111111 {
+		return xerrors.New("invalid autostart requirement days, too large")
+	}
+
+	return nil
+}
+
 type TemplateScheduleOptions struct {
-	UserAutostartEnabled bool          `json:"user_autostart_enabled"`
-	UserAutostopEnabled  bool          `json:"user_autostop_enabled"`
-	DefaultTTL           time.Duration `json:"default_ttl"`
-	// TODO(@dean): remove MaxTTL once autostop_requirement is matured and the
-	// default
-	MaxTTL time.Duration `json:"max_ttl"`
-	// UseAutostopRequirement dictates whether the autostop requirement should
-	// be used instead of MaxTTL. This is governed by the feature flag and
-	// licensing.
-	// TODO(@dean): remove this when we remove max_tll
-	UseAutostopRequirement bool
+	UserAutostartEnabled bool
+	UserAutostopEnabled  bool
+	DefaultTTL           time.Duration
+	// ActivityBump dictates the duration to bump the workspace's deadline by if
+	// Coder detects activity from the user. A value of 0 means no bumping.
+	ActivityBump time.Duration
 	// AutostopRequirement dictates when the workspace must be restarted. This
 	// used to be handled by MaxTTL.
-	AutostopRequirement TemplateAutostopRequirement `json:"autostop_requirement"`
+	AutostopRequirement TemplateAutostopRequirement
+	// AutostartRequirement dictates when the workspace can be auto started.
+	AutostartRequirement TemplateAutostartRequirement
 	// FailureTTL dictates the duration after which failed workspaces will be
 	// stopped automatically.
-	FailureTTL time.Duration `json:"failure_ttl"`
+	FailureTTL time.Duration
 	// TimeTilDormant dictates the duration after which inactive workspaces will
 	// go dormant.
-	TimeTilDormant time.Duration `json:"time_til_dormant"`
+	TimeTilDormant time.Duration
 	// TimeTilDormantAutoDelete dictates the duration after which dormant workspaces will be
 	// permanently deleted.
-	TimeTilDormantAutoDelete time.Duration `json:"time_til_dormant_autodelete"`
+	TimeTilDormantAutoDelete time.Duration
 	// UpdateWorkspaceLastUsedAt updates the template's workspaces'
 	// last_used_at field. This is useful for preventing updates to the
 	// templates inactivity_ttl immediately triggering a dormant action against
 	// workspaces whose last_used_at field violates the new template
 	// inactivity_ttl threshold.
-	UpdateWorkspaceLastUsedAt bool `json:"update_workspace_last_used_at"`
+	UpdateWorkspaceLastUsedAt func(ctx context.Context, db database.Store, templateID uuid.UUID, lastUsedAt time.Time) error `json:"update_workspace_last_used_at"`
 	// UpdateWorkspaceDormantAt updates the template's workspaces'
 	// dormant_at field. This is useful for preventing updates to the
 	// templates locked_ttl immediately triggering a delete action against
 	// workspaces whose dormant_at field violates the new template time_til_dormant_autodelete
 	// threshold.
-	UpdateWorkspaceDormantAt bool `json:"update_workspace_dormant_at"`
+	UpdateWorkspaceDormantAt bool
 }
 
 // TemplateScheduleStore provides an interface for retrieving template
@@ -150,10 +181,13 @@ func (*agplTemplateScheduleStore) Get(ctx context.Context, db database.Store, te
 		UserAutostartEnabled: true,
 		UserAutostopEnabled:  true,
 		DefaultTTL:           time.Duration(tpl.DefaultTTL),
+		ActivityBump:         time.Duration(tpl.ActivityBump),
 		// Disregard the values in the database, since AutostopRequirement,
 		// FailureTTL, TimeTilDormant, and TimeTilDormantAutoDelete are enterprise features.
-		UseAutostopRequirement: false,
-		MaxTTL:                 0,
+		AutostartRequirement: TemplateAutostartRequirement{
+			// Default to allowing all days for AGPL
+			DaysOfWeek: 0b01111111,
+		},
 		AutostopRequirement: TemplateAutostopRequirement{
 			// No days means never. The weeks value should always be greater
 			// than zero though.
@@ -170,7 +204,7 @@ func (*agplTemplateScheduleStore) Set(ctx context.Context, db database.Store, tp
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	if int64(opts.DefaultTTL) == tpl.DefaultTTL {
+	if int64(opts.DefaultTTL) == tpl.DefaultTTL && int64(opts.ActivityBump) == tpl.ActivityBump {
 		// Avoid updating the UpdatedAt timestamp if nothing will be changed.
 		return tpl, nil
 	}
@@ -178,14 +212,15 @@ func (*agplTemplateScheduleStore) Set(ctx context.Context, db database.Store, tp
 	var template database.Template
 	err := db.InTx(func(db database.Store) error {
 		err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
-			ID:         tpl.ID,
-			UpdatedAt:  dbtime.Now(),
-			DefaultTTL: int64(opts.DefaultTTL),
+			ID:           tpl.ID,
+			UpdatedAt:    dbtime.Now(),
+			DefaultTTL:   int64(opts.DefaultTTL),
+			ActivityBump: int64(opts.ActivityBump),
 			// Don't allow changing these settings, but keep the value in the DB (to
 			// avoid clearing settings if the license has an issue).
-			MaxTTL:                        tpl.MaxTTL,
 			AutostopRequirementDaysOfWeek: tpl.AutostopRequirementDaysOfWeek,
 			AutostopRequirementWeeks:      tpl.AutostopRequirementWeeks,
+			AutostartBlockDaysOfWeek:      tpl.AutostartBlockDaysOfWeek,
 			AllowUserAutostart:            tpl.AllowUserAutostart,
 			AllowUserAutostop:             tpl.AllowUserAutostop,
 			FailureTTL:                    tpl.FailureTTL,

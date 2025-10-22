@@ -370,8 +370,8 @@ func Test_diff(t *testing.T) {
 	runDiffTests(t, []diffTest{
 		{
 			name: "Create",
-			left: audit.Empty[database.Workspace](),
-			right: database.Workspace{
+			left: audit.Empty[database.WorkspaceTable](),
+			right: database.WorkspaceTable{
 				ID:                uuid.UUID{1},
 				CreatedAt:         time.Now(),
 				UpdatedAt:         time.Now(),
@@ -392,8 +392,8 @@ func Test_diff(t *testing.T) {
 		},
 		{
 			name: "NullSchedules",
-			left: audit.Empty[database.Workspace](),
-			right: database.Workspace{
+			left: audit.Empty[database.WorkspaceTable](),
+			right: database.WorkspaceTable{
 				ID:                uuid.UUID{1},
 				CreatedAt:         time.Now(),
 				UpdatedAt:         time.Now(),
@@ -417,7 +417,6 @@ func runDiffTests(t *testing.T, tests []diffTest) {
 	t.Helper()
 
 	for _, test := range tests {
-		test := test
 		typName := reflect.TypeOf(test.left).Name()
 		t.Run(typName+"/"+test.name, func(t *testing.T) {
 			t.Parallel()

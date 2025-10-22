@@ -12,7 +12,10 @@ USAGE:
        $ coder templates versions list my-template
 
 SUBCOMMANDS:
-    list    List all the versions of the specified template
+    archive      Archive a template version(s).
+    list         List all the versions of the specified template
+    promote      Promote a template version to active.
+    unarchive    Unarchive a template version(s).
 
 ———
 Run `coder --help` for a list of global options.

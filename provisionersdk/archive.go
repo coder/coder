@@ -2,12 +2,15 @@ package provisionersdk
 
 import (
 	"archive/tar"
+	"context"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/coderd/util/xio"
 )
@@ -39,7 +42,7 @@ func DirHasLockfile(dir string) (bool, error) {
 }
 
 // Tar archives a Terraform directory.
-func Tar(w io.Writer, directory string, limit int64) error {
+func Tar(w io.Writer, logger slog.Logger, directory string, limit int64) error {
 	// The total bytes written must be under the limit, so use -1
 	w = xio.NewLimitWriter(w, limit-1)
 	tarWriter := tar.NewWriter(w)
@@ -94,10 +97,21 @@ func Tar(w io.Writer, directory string, limit int64) error {
 		}
 		if strings.Contains(rel, ".tfstate") {
 			// Don't store tfstate!
+			logger.Debug(context.Background(), "skip state", slog.F("name", rel))
+			return nil
+		}
+		if rel == "terraform.tfvars" || rel == "terraform.tfvars.json" || strings.HasSuffix(rel, ".auto.tfvars") || strings.HasSuffix(rel, ".auto.tfvars.json") {
+			// Don't store .tfvars, as Coder uses their own variables file.
+			logger.Debug(context.Background(), "skip variable definitions", slog.F("name", rel))
 			return nil
 		}
 		// Use unix paths in the tar archive.
 		header.Name = filepath.ToSlash(rel)
+		// tar.FileInfoHeader() will do this, but filepath.Rel() calls filepath.Clean()
+		// which strips trailing path separators for directories.
+		if fileInfo.IsDir() {
+			header.Name += "/"
+		}
 		if err := tarWriter.WriteHeader(header); err != nil {
 			return err
 		}
@@ -157,7 +171,13 @@ func Untar(directory string, r io.Reader) error {
 				}
 			}
 		case tar.TypeReg:
-			file, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR, os.FileMode(header.Mode))
+			// #nosec G115 - Safe conversion as tar header mode fits within uint32
+			err := os.MkdirAll(filepath.Dir(target), os.FileMode(header.Mode)|os.ModeDir|100)
+			if err != nil {
+				return err
+			}
+			// #nosec G115 - Safe conversion as tar header mode fits within uint32
+			file, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR|os.O_TRUNC, os.FileMode(header.Mode))
 			if err != nil {
 				return err
 			}

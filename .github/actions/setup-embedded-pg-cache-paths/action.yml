@@ -1,0 +1,33 @@
+name: "Setup Embedded Postgres Cache Paths"
+description: Sets up a path for cached embedded postgres binaries.
+outputs:
+  embedded-pg-cache:
+    description: "Value of EMBEDDED_PG_CACHE_DIR"
+    value: ${{ steps.paths.outputs.embedded-pg-cache }}
+  cached-dirs:
+    description: "directories that should be cached between CI runs"
+    value: ${{ steps.paths.outputs.cached-dirs }}
+runs:
+  using: "composite"
+  steps:
+    - name: Override Go paths
+      id: paths
+      uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+      with:
+        script: |
+          const path = require('path');
+
+          // RUNNER_TEMP should be backed by a RAM disk on Windows if
+          // coder/setup-ramdisk-action was used
+          const runnerTemp = process.env.RUNNER_TEMP;
+          const embeddedPgCacheDir = path.join(runnerTemp, 'embedded-pg-cache');
+          core.exportVariable('EMBEDDED_PG_CACHE_DIR', embeddedPgCacheDir);
+          core.setOutput('embedded-pg-cache', embeddedPgCacheDir);
+          const cachedDirs = `${embeddedPgCacheDir}`;
+          core.setOutput('cached-dirs', cachedDirs);
+
+    - name: Create directories
+      shell: bash
+      run: |
+        set -e
+        mkdir -p "$EMBEDDED_PG_CACHE_DIR"

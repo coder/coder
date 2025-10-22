@@ -1,0 +1,28 @@
+name: release-validation
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  network-performance:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        with:
+          egress-policy: audit
+
+      - name: Run Schmoder CI
+        uses: benc-uk/workflow-dispatch@e2e5e9a103e331dad343f381a29e654aea3cf8fc # v1.2.4
+        with:
+          workflow: ci.yaml
+          repo: coder/schmoder
+          inputs: '{ "num_releases": "3", "commit": "${{ github.sha }}" }'
+          token: ${{ secrets.CDRCI_SCHMODER_ACTIONS_TOKEN }}
+          ref: main

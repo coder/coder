@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/httpmw"
 )
 
@@ -23,11 +23,12 @@ func TestGroupParam(t *testing.T) {
 		t.Parallel()
 
 		var (
-			db    = dbfake.New()
-			group = dbgen.Group(t, db, database.Group{})
+			db, _ = dbtestutil.NewDB(t)
 			r     = httptest.NewRequest("GET", "/", nil)
 			w     = httptest.NewRecorder()
 		)
+		dbtestutil.DisableForeignKeysAndTriggers(t, db)
+		group := dbgen.Group(t, db, database.Group{})
 
 		router := chi.NewRouter()
 		router.Use(httpmw.ExtractGroupParam(db))
@@ -52,11 +53,12 @@ func TestGroupParam(t *testing.T) {
 		t.Parallel()
 
 		var (
-			db    = dbfake.New()
-			group = dbgen.Group(t, db, database.Group{})
+			db, _ = dbtestutil.NewDB(t)
 			r     = httptest.NewRequest("GET", "/", nil)
 			w     = httptest.NewRecorder()
 		)
+		dbtestutil.DisableForeignKeysAndTriggers(t, db)
+		group := dbgen.Group(t, db, database.Group{})
 
 		router := chi.NewRouter()
 		router.Use(httpmw.ExtractGroupParam(db))

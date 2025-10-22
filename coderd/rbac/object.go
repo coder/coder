@@ -1,198 +1,14 @@
 package rbac
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/google/uuid"
-)
+	"golang.org/x/xerrors"
 
-const WildcardSymbol = "*"
-
-// Objecter returns the RBAC object for itself.
-type Objecter interface {
-	RBACObject() Object
-}
-
-// Resources are just typed objects. Making resources this way allows directly
-// passing them into an Authorize function and use the chaining api.
-var (
-	// ResourceWildcard represents all resource types
-	// Try to avoid using this where possible.
-	ResourceWildcard = Object{
-		Type: WildcardSymbol,
-	}
-
-	// ResourceWorkspace CRUD. Org + User owner
-	//	create/delete = make or delete workspaces
-	// 	read = access workspace
-	//	update = edit workspace variables
-	ResourceWorkspace = Object{
-		Type: "workspace",
-	}
-
-	// ResourceWorkspaceBuild refers to permissions necessary to
-	// insert a workspace build job.
-	// create/delete = ?
-	// read = read workspace builds
-	// update = insert/update workspace builds.
-	ResourceWorkspaceBuild = Object{
-		Type: "workspace_build",
-	}
-
-	// ResourceWorkspaceDormant is returned if a workspace is dormant.
-	// It grants restricted permissions on workspace builds.
-	ResourceWorkspaceDormant = Object{
-		Type: "workspace_dormant",
-	}
-
-	// ResourceWorkspaceProxy CRUD. Org
-	//	create/delete = make or delete proxies
-	// 	read = read proxy urls
-	//	update = edit workspace proxy fields
-	ResourceWorkspaceProxy = Object{
-		Type: "workspace_proxy",
-	}
-
-	// ResourceWorkspaceExecution CRUD. Org + User owner
-	//	create = workspace remote execution
-	// 	read = ?
-	//	update = ?
-	// 	delete = ?
-	ResourceWorkspaceExecution = Object{
-		Type: "workspace_execution",
-	}
-
-	// ResourceWorkspaceApplicationConnect CRUD. Org + User owner
-	//	create = connect to an application
-	// 	read = ?
-	//	update = ?
-	// 	delete = ?
-	ResourceWorkspaceApplicationConnect = Object{
-		Type: "application_connect",
-	}
-
-	// ResourceAuditLog
-	// read = access audit log
-	ResourceAuditLog = Object{
-		Type: "audit_log",
-	}
-
-	// ResourceTemplate CRUD. Org owner only.
-	//	create/delete = Make or delete a new template
-	//	update = Update the template, make new template versions
-	//	read = read the template and all versions associated
-	ResourceTemplate = Object{
-		Type: "template",
-	}
-
-	// ResourceGroup CRUD. Org admins only.
-	//	create/delete = Make or delete a new group.
-	//	update = Update the name or members of a group.
-	//	read = Read groups and their members.
-	ResourceGroup = Object{
-		Type: "group",
-	}
-
-	ResourceFile = Object{
-		Type: "file",
-	}
-
-	ResourceProvisionerDaemon = Object{
-		Type: "provisioner_daemon",
-	}
-
-	// ResourceOrganization CRUD. Has an org owner on all but 'create'.
-	//	create/delete = make or delete organizations
-	// 	read = view org information (Can add user owner for read)
-	//	update = ??
-	ResourceOrganization = Object{
-		Type: "organization",
-	}
-
-	// ResourceRoleAssignment might be expanded later to allow more granular permissions
-	// to modifying roles. For now, this covers all possible roles, so having this permission
-	// allows granting/deleting **ALL** roles.
-	// Never has an owner or org.
-	//	create  = Assign roles
-	//	update  = ??
-	//	read	= View available roles to assign
-	//	delete	= Remove role
-	ResourceRoleAssignment = Object{
-		Type: "assign_role",
-	}
-
-	// ResourceOrgRoleAssignment is just like ResourceRoleAssignment but for organization roles.
-	ResourceOrgRoleAssignment = Object{
-		Type: "assign_org_role",
-	}
-
-	// ResourceAPIKey is owned by a user.
-	//	create  = Create a new api key for user
-	//	update  = ??
-	//	read	= View api key
-	//	delete	= Delete api key
-	ResourceAPIKey = Object{
-		Type: "api_key",
-	}
-
-	// ResourceUser is the user in the 'users' table.
-	// ResourceUser never has any owners or in an org, as it's site wide.
-	// 	create/delete = make or delete a new user.
-	// 	read = view all 'user' table data
-	// 	update = update all 'user' table data
-	ResourceUser = Object{
-		Type: "user",
-	}
-
-	// ResourceUserData is any data associated with a user. A user has control
-	// over their data (profile, password, etc). So this resource has an owner.
-	ResourceUserData = Object{
-		Type: "user_data",
-	}
-
-	// ResourceOrganizationMember is a user's membership in an organization.
-	// Has ONLY an organization owner.
-	//	create/delete  = Create/delete member from org.
-	//	update  = Update organization member
-	//	read	= View member
-	ResourceOrganizationMember = Object{
-		Type: "organization_member",
-	}
-
-	// ResourceLicense is the license in the 'licenses' table.
-	// ResourceLicense is site wide.
-	// 	create/delete = add or remove license from site.
-	// 	read = view license claims
-	// 	update = not applicable; licenses are immutable
-	ResourceLicense = Object{
-		Type: "license",
-	}
-
-	// ResourceDeploymentValues
-	ResourceDeploymentValues = Object{
-		Type: "deployment_config",
-	}
-
-	ResourceDeploymentStats = Object{
-		Type: "deployment_stats",
-	}
-
-	ResourceReplicas = Object{
-		Type: "replicas",
-	}
-
-	// ResourceDebugInfo controls access to the debug routes `/api/v2/debug/*`.
-	ResourceDebugInfo = Object{
-		Type: "debug_info",
-	}
-
-	// ResourceSystem is a pseudo-resource only used for system-level actions.
-	ResourceSystem = Object{
-		Type: "system",
-	}
-
-	// ResourceTailnetCoordinator is a pseudo-resource for use by the tailnet coordinator
-	ResourceTailnetCoordinator = Object{
-		Type: "tailnet_coordinator",
-	}
+	"github.com/coder/coder/v2/coderd/rbac/policy"
+	cstrings "github.com/coder/coder/v2/coderd/util/strings"
 )
 
 // ResourceUserObject is a helper function to create a user object for authz checks.
@@ -211,12 +27,66 @@ type Object struct {
 	Owner string `json:"owner"`
 	// OrgID specifies which org the object is a part of.
 	OrgID string `json:"org_owner"`
+	// AnyOrgOwner will disregard the org_owner when checking for permissions
+	// Use this to ask, "Can the actor do this action on any org?" when
+	// the exact organization is not important or known.
+	// E.g: The UI should show a "create template" button if the user
+	// can create a template in any org.
+	AnyOrgOwner bool `json:"any_org"`
 
 	// Type is "workspace", "project", "app", etc
 	Type string `json:"type"`
 
-	ACLUserList  map[string][]Action ` json:"acl_user_list"`
-	ACLGroupList map[string][]Action ` json:"acl_group_list"`
+	ACLUserList  map[string][]policy.Action ` json:"acl_user_list"`
+	ACLGroupList map[string][]policy.Action ` json:"acl_group_list"`
+}
+
+// String is not perfect, but decent enough for human display
+func (z Object) String() string {
+	var parts []string
+	if z.OrgID != "" {
+		parts = append(parts, fmt.Sprintf("org:%s", cstrings.Truncate(z.OrgID, 4)))
+	}
+	if z.Owner != "" {
+		parts = append(parts, fmt.Sprintf("owner:%s", cstrings.Truncate(z.Owner, 4)))
+	}
+	parts = append(parts, z.Type)
+	if z.ID != "" {
+		parts = append(parts, fmt.Sprintf("id:%s", cstrings.Truncate(z.ID, 4)))
+	}
+	if len(z.ACLGroupList) > 0 || len(z.ACLUserList) > 0 {
+		parts = append(parts, fmt.Sprintf("acl:%d", len(z.ACLUserList)+len(z.ACLGroupList)))
+	}
+	return strings.Join(parts, ".")
+}
+
+// ValidAction checks if the action is valid for the given object type.
+func (z Object) ValidAction(action policy.Action) error {
+	perms, ok := policy.RBACPermissions[z.Type]
+	if !ok {
+		return xerrors.Errorf("invalid type %q", z.Type)
+	}
+	if _, ok := perms.Actions[action]; !ok {
+		return xerrors.Errorf("invalid action %q for type %q", action, z.Type)
+	}
+
+	return nil
+}
+
+// AvailableActions returns all available actions for a given object.
+// Wildcard is omitted.
+func (z Object) AvailableActions() []policy.Action {
+	perms, ok := policy.RBACPermissions[z.Type]
+	if !ok {
+		return []policy.Action{}
+	}
+
+	actions := make([]policy.Action, 0, len(perms.Actions))
+	for action := range perms.Actions {
+		actions = append(actions, action)
+	}
+
+	return actions
 }
 
 func (z Object) Equal(b Object) bool {
@@ -244,7 +114,7 @@ func (z Object) Equal(b Object) bool {
 	return true
 }
 
-func equalACLLists(a, b map[string][]Action) bool {
+func equalACLLists(a, b map[string][]policy.Action) bool {
 	if len(a) != len(b) {
 		return false
 	}
@@ -272,8 +142,9 @@ func (z Object) All() Object {
 		Owner:        "",
 		OrgID:        "",
 		Type:         z.Type,
-		ACLUserList:  map[string][]Action{},
-		ACLGroupList: map[string][]Action{},
+		ACLUserList:  map[string][]policy.Action{},
+		ACLGroupList: map[string][]policy.Action{},
+		AnyOrgOwner:  z.AnyOrgOwner,
 	}
 }
 
@@ -285,6 +156,7 @@ func (z Object) WithIDString(id string) Object {
 		Type:         z.Type,
 		ACLUserList:  z.ACLUserList,
 		ACLGroupList: z.ACLGroupList,
+		AnyOrgOwner:  z.AnyOrgOwner,
 	}
 }
 
@@ -296,6 +168,7 @@ func (z Object) WithID(id uuid.UUID) Object {
 		Type:         z.Type,
 		ACLUserList:  z.ACLUserList,
 		ACLGroupList: z.ACLGroupList,
+		AnyOrgOwner:  z.AnyOrgOwner,
 	}
 }
 
@@ -308,6 +181,21 @@ func (z Object) InOrg(orgID uuid.UUID) Object {
 		Type:         z.Type,
 		ACLUserList:  z.ACLUserList,
 		ACLGroupList: z.ACLGroupList,
+		// InOrg implies AnyOrgOwner is false
+		AnyOrgOwner: false,
+	}
+}
+
+func (z Object) AnyOrganization() Object {
+	return Object{
+		ID:    z.ID,
+		Owner: z.Owner,
+		// AnyOrgOwner cannot have an org owner also set.
+		OrgID:        "",
+		Type:         z.Type,
+		ACLUserList:  z.ACLUserList,
+		ACLGroupList: z.ACLGroupList,
+		AnyOrgOwner:  true,
 	}
 }
 
@@ -320,11 +208,12 @@ func (z Object) WithOwner(ownerID string) Object {
 		Type:         z.Type,
 		ACLUserList:  z.ACLUserList,
 		ACLGroupList: z.ACLGroupList,
+		AnyOrgOwner:  z.AnyOrgOwner,
 	}
 }
 
 // WithACLUserList adds an ACL list to a given object
-func (z Object) WithACLUserList(acl map[string][]Action) Object {
+func (z Object) WithACLUserList(acl map[string][]policy.Action) Object {
 	return Object{
 		ID:           z.ID,
 		Owner:        z.Owner,
@@ -332,10 +221,11 @@ func (z Object) WithACLUserList(acl map[string][]Action) Object {
 		Type:         z.Type,
 		ACLUserList:  acl,
 		ACLGroupList: z.ACLGroupList,
+		AnyOrgOwner:  z.AnyOrgOwner,
 	}
 }
 
-func (z Object) WithGroupACL(groups map[string][]Action) Object {
+func (z Object) WithGroupACL(groups map[string][]policy.Action) Object {
 	return Object{
 		ID:           z.ID,
 		Owner:        z.Owner,
@@ -343,5 +233,6 @@ func (z Object) WithGroupACL(groups map[string][]Action) Object {
 		Type:         z.Type,
 		ACLUserList:  z.ACLUserList,
 		ACLGroupList: groups,
+		AnyOrgOwner:  z.AnyOrgOwner,
 	}
 }

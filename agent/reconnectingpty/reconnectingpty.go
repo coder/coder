@@ -14,8 +14,8 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-
-	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/agent/agentexec"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/pty"
 )
 
@@ -32,6 +32,8 @@ type Options struct {
 	Timeout time.Duration
 	// Metrics tracks various error counters.
 	Metrics *prometheus.CounterVec
+	// BackendType specifies the ReconnectingPTY backend to use.
+	BackendType string
 }
 
 // ReconnectingPTY is a pty that can be reconnected within a timeout and to
@@ -56,7 +58,7 @@ type ReconnectingPTY interface {
 // close itself (and all connections to it) if nothing is attached for the
 // duration of the timeout, if the context ends, or the process exits (buffered
 // backend only).
-func New(ctx context.Context, cmd *pty.Cmd, options *Options, logger slog.Logger) ReconnectingPTY {
+func New(ctx context.Context, logger slog.Logger, execer agentexec.Execer, cmd *pty.Cmd, options *Options) ReconnectingPTY {
 	if options.Timeout == 0 {
 		options.Timeout = 5 * time.Minute
 	}
@@ -64,21 +66,28 @@ func New(ctx context.Context, cmd *pty.Cmd, options *Options, logger slog.Logger
 	// runs) but in CI screen often incorrectly claims the session name does not
 	// exist even though screen -list shows it.  For now, restrict screen to
 	// Linux.
-	backendType := "buffered"
+	autoBackendType := "buffered"
 	if runtime.GOOS == "linux" {
 		_, err := exec.LookPath("screen")
 		if err == nil {
-			backendType = "screen"
+			autoBackendType = "screen"
 		}
+	}
+	var backendType string
+	switch options.BackendType {
+	case "":
+		backendType = autoBackendType
+	default:
+		backendType = options.BackendType
 	}
 
 	logger.Info(ctx, "start reconnecting pty", slog.F("backend_type", backendType))
 
 	switch backendType {
 	case "screen":
-		return newScreen(ctx, cmd, options, logger)
+		return newScreen(ctx, logger, execer, cmd, options)
 	default:
-		return newBuffered(ctx, cmd, options, logger)
+		return newBuffered(ctx, logger, execer, cmd, options)
 	}
 }
 
@@ -196,8 +205,8 @@ func (s *ptyState) waitForStateOrContext(ctx context.Context, state State) (Stat
 // until EOF or an error writing to ptty or reading from conn.
 func readConnLoop(ctx context.Context, conn net.Conn, ptty pty.PTYCmd, metrics *prometheus.CounterVec, logger slog.Logger) {
 	decoder := json.NewDecoder(conn)
-	var req codersdk.ReconnectingPTYRequest
 	for {
+		var req workspacesdk.ReconnectingPTYRequest
 		err := decoder.Decode(&req)
 		if xerrors.Is(err, io.EOF) {
 			return

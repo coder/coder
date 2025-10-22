@@ -1,6 +1,7 @@
 package codersdk_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -121,20 +122,60 @@ func TestParameterResolver_ValidateResolve_NewOverridesOld(t *testing.T) {
 func TestParameterResolver_ValidateResolve_Immutable(t *testing.T) {
 	t.Parallel()
 	uut := codersdk.ParameterResolver{
-		Rich: []codersdk.WorkspaceBuildParameter{{Name: "n", Value: "5"}},
+		Rich: []codersdk.WorkspaceBuildParameter{{Name: "n", Value: "old"}},
 	}
 	p := codersdk.TemplateVersionParameter{
 		Name:     "n",
-		Type:     "number",
+		Type:     "string",
 		Required: true,
 		Mutable:  false,
 	}
-	v, err := uut.ValidateResolve(p, &codersdk.WorkspaceBuildParameter{
-		Name:  "n",
-		Value: "6",
-	})
-	require.Error(t, err)
-	require.Equal(t, "", v)
+
+	cases := []struct {
+		name        string
+		newValue    string
+		expectedErr string
+	}{
+		{
+			name:        "mutation",
+			newValue:    "new", // "new" != "old"
+			expectedErr: fmt.Sprintf("Parameter %q is not mutable", p.Name),
+		},
+		{
+			// Values are case-sensitive.
+			name:        "case change",
+			newValue:    "Old", // "Old" != "old"
+			expectedErr: fmt.Sprintf("Parameter %q is not mutable", p.Name),
+		},
+		{
+			name:        "default",
+			newValue:    "", // "" != "old"
+			expectedErr: fmt.Sprintf("Parameter %q is not mutable", p.Name),
+		},
+		{
+			name:     "no change",
+			newValue: "old", // "old" == "old"
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			v, err := uut.ValidateResolve(p, &codersdk.WorkspaceBuildParameter{
+				Name:  "n",
+				Value: tc.newValue,
+			})
+
+			if tc.expectedErr == "" {
+				require.NoError(t, err)
+				require.Equal(t, tc.newValue, v)
+			} else {
+				require.ErrorContains(t, err, tc.expectedErr)
+				require.Equal(t, "", v)
+			}
+		})
+	}
 }
 
 func TestRichParameterValidation(t *testing.T) {
@@ -201,13 +242,13 @@ func TestRichParameterValidation(t *testing.T) {
 
 		monotonicIncreasingNumberRichParameters := []codersdk.TemplateVersionParameter{
 			{Name: stringParameterName, Type: "string", Mutable: true},
-			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: ptr.Ref(int32(3)), ValidationMax: ptr.Ref(int32(100)), ValidationMonotonic: "increasing"},
+			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: ptr.Ref(int32(3)), ValidationMax: ptr.Ref(int32(100)), ValidationMonotonic: codersdk.MonotonicOrderIncreasing},
 			{Name: boolParameterName, Type: "bool", Mutable: true},
 		}
 
 		monotonicDecreasingNumberRichParameters := []codersdk.TemplateVersionParameter{
 			{Name: stringParameterName, Type: "string", Mutable: true},
-			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: ptr.Ref(int32(3)), ValidationMax: ptr.Ref(int32(100)), ValidationMonotonic: "decreasing"},
+			{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: ptr.Ref(int32(3)), ValidationMax: ptr.Ref(int32(100)), ValidationMonotonic: codersdk.MonotonicOrderDecreasing},
 			{Name: boolParameterName, Type: "bool", Mutable: true},
 		}
 
@@ -281,7 +322,6 @@ func TestRichParameterValidation(t *testing.T) {
 		}
 
 		for _, tc := range tests {
-			tc := tc
 			t.Run(tc.parameterName+"-"+tc.value, func(t *testing.T) {
 				t.Parallel()
 
@@ -307,6 +347,26 @@ func TestRichParameterValidation(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestParameterResolver_ValidateResolve_EmptyString_Monotonic(t *testing.T) {
+	t.Parallel()
+	uut := codersdk.ParameterResolver{
+		Rich: []codersdk.WorkspaceBuildParameter{{Name: "n", Value: ""}},
+	}
+	p := codersdk.TemplateVersionParameter{
+		Name:                "n",
+		Type:                "number",
+		Mutable:             true,
+		DefaultValue:        "0",
+		ValidationMonotonic: codersdk.MonotonicOrderIncreasing,
+	}
+	v, err := uut.ValidateResolve(p, &codersdk.WorkspaceBuildParameter{
+		Name:  "n",
+		Value: "1",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "1", v)
 }
 
 func TestParameterResolver_ValidateResolve_Ephemeral_OverridePrevious(t *testing.T) {
@@ -375,4 +435,25 @@ func TestParameterResolver_ValidateResolve_Ephemeral_UseEmptyDefault(t *testing.
 	v, err := uut.ValidateResolve(p, nil)
 	require.NoError(t, err)
 	require.Equal(t, "", v)
+}
+
+func TestParameterResolver_ValidateResolve_Number_CustomError(t *testing.T) {
+	t.Parallel()
+	uut := codersdk.ParameterResolver{}
+	p := codersdk.TemplateVersionParameter{
+		Name:         "n",
+		Type:         "number",
+		Mutable:      true,
+		DefaultValue: "5",
+
+		ValidationMin:   ptr.Ref(int32(4)),
+		ValidationMax:   ptr.Ref(int32(6)),
+		ValidationError: "These are values for testing purposes: {min}, {max}, and {value}.",
+	}
+	_, err := uut.ValidateResolve(p, &codersdk.WorkspaceBuildParameter{
+		Name:  "n",
+		Value: "8",
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "These are values for testing purposes: 4, 6, and 8.")
 }

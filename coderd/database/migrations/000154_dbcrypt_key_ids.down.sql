@@ -1,5 +1,3 @@
-BEGIN;
-
 -- Before dropping this table, we need to check if there exist any
 -- foreign key references to it. We do this by checking the following:
 -- user_links.oauth_access_token_key_id
@@ -39,5 +37,3 @@ ALTER TABLE user_links
 
 -- Finally, drop the table.
 DROP TABLE IF EXISTS dbcrypt_keys;
-
-COMMIT;

@@ -43,11 +43,11 @@ func RateLimit(count int, window time.Duration) func(http.Handler) http.Handler 
 
 			// Allow Owner to bypass rate limiting for load tests
 			// and automation.
-			auth := UserAuthorization(r)
+			auth := UserAuthorization(r.Context())
 
 			// We avoid using rbac.Authorizer since rego is CPU-intensive
 			// and undermines the DoS-prevention goal of the rate limiter.
-			for _, role := range auth.Actor.SafeRoleNames() {
+			for _, role := range auth.SafeRoleNames() {
 				if role == rbac.RoleOwner() {
 					// HACK: use a random key each time to
 					// de facto disable rate limiting. The

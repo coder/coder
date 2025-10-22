@@ -10,21 +10,21 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"nhooyr.io/websocket"
-
-	"cdr.dev/slog/sloggers/slogtest"
+	"go.uber.org/mock/gomock"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
+	"github.com/coder/coder/v2/coderd/httpmw/loggermw/loggermock"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/websocket"
 )
 
 func TestConvertProvisionerJob_Unit(t *testing.T) {
@@ -132,7 +132,6 @@ func TestConvertProvisionerJob_Unit(t *testing.T) {
 		},
 	}
 	for _, testCase := range testCases {
-		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 			actual := convertProvisionerJob(database.GetProvisionerJobsByIDsWithQueuePositionRow{
@@ -147,7 +146,7 @@ func Test_logFollower_completeBeforeFollow(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	ctrl := gomock.NewController(t)
 	mDB := dbmock.NewMockStore(ctrl)
 	ps := pubsub.NewInMemory()
@@ -210,7 +209,7 @@ func Test_logFollower_completeBeforeSubscribe(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	ctrl := gomock.NewController(t)
 	mDB := dbmock.NewMockStore(ctrl)
 	ps := pubsub.NewInMemory()
@@ -288,7 +287,7 @@ func Test_logFollower_EndOfLogs(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	ctrl := gomock.NewController(t)
 	mDB := dbmock.NewMockStore(ctrl)
 	ps := pubsub.NewInMemory()
@@ -307,11 +306,16 @@ func Test_logFollower_EndOfLogs(t *testing.T) {
 		JobStatus:   database.ProvisionerJobStatusRunning,
 	}
 
+	mockLogger := loggermock.NewMockRequestLogger(ctrl)
+	mockLogger.EXPECT().WriteLog(gomock.Any(), http.StatusAccepted).Times(1)
+	ctx = loggermw.WithRequestLogger(ctx, mockLogger)
+
 	// we need an HTTP server to get a websocket
 	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		uut := newLogFollower(ctx, logger, mDB, ps, rw, r, job, 0)
 		uut.follow()
 	}))
+
 	defer srv.Close()
 
 	// job was incomplete when we create the logFollower, and still incomplete when it queries

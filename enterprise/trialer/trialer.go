@@ -9,31 +9,24 @@ import (
 	"net/http"
 	"time"
 
-	"golang.org/x/xerrors"
-
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 )
 
-type request struct {
-	DeploymentID string `json:"deployment_id"`
-	Email        string `json:"email"`
-}
-
 // New creates a handler that can issue trial licenses!
-func New(db database.Store, url string, keys map[string]ed25519.PublicKey) func(ctx context.Context, email string) error {
-	return func(ctx context.Context, email string) error {
+func New(db database.Store, url string, keys map[string]ed25519.PublicKey) func(ctx context.Context, body codersdk.LicensorTrialRequest) error {
+	return func(ctx context.Context, body codersdk.LicensorTrialRequest) error {
 		deploymentID, err := db.GetDeploymentID(ctx)
 		if err != nil {
 			return xerrors.Errorf("get deployment id: %w", err)
 		}
-		data, err := json.Marshal(request{
-			DeploymentID: deploymentID,
-			Email:        email,
-		})
+		body.DeploymentID = deploymentID
+		data, err := json.Marshal(body)
 		if err != nil {
 			return xerrors.Errorf("marshal: %w", err)
 		}
@@ -46,6 +39,22 @@ func New(db database.Store, url string, keys map[string]ed25519.PublicKey) func(
 			return xerrors.Errorf("perform license request: %w", err)
 		}
 		defer res.Body.Close()
+		if res.StatusCode > 300 {
+			body, err := io.ReadAll(res.Body)
+			if err != nil {
+				return xerrors.Errorf("read license response: %w", err)
+			}
+			// This is the format of the error response from
+			// the license server.
+			var msg struct {
+				Error string `json:"error"`
+			}
+			err = json.Unmarshal(body, &msg)
+			if err != nil {
+				return xerrors.Errorf("unmarshal error: %w", err)
+			}
+			return xerrors.New(msg.Error)
+		}
 		raw, err := io.ReadAll(res.Body)
 		if err != nil {
 			return xerrors.Errorf("read license: %w", err)

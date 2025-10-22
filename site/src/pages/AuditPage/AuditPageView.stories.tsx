@@ -1,77 +1,109 @@
-import { Meta, StoryObj } from "@storybook/react";
-import { MockAuditLog, MockAuditLog2, MockUser } from "testHelpers/entities";
-import { AuditPageView } from "./AuditPageView";
-import { ComponentProps } from "react";
+import { chromaticWithTablet } from "testHelpers/chromatic";
 import {
-  MockMenu,
-  getDefaultFilterProps,
+	MockAuditLog,
+	MockAuditLog2,
+	MockAuditLog3,
+	MockUserOwner,
+} from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import {
+	getDefaultFilterProps,
+	MockMenu,
 } from "components/Filter/storyHelpers";
+import {
+	mockInitialRenderResult,
+	mockSuccessResult,
+} from "components/PaginationWidget/PaginationContainer.mocks";
+import type { UsePaginatedQueryResult } from "hooks/usePaginatedQuery";
+import type { ComponentProps } from "react";
+import { AuditPageView } from "./AuditPageView";
 
 type FilterProps = ComponentProps<typeof AuditPageView>["filterProps"];
 
 const defaultFilterProps = getDefaultFilterProps<FilterProps>({
-  query: `owner:me`,
-  values: {
-    username: MockUser.username,
-    action: undefined,
-    resource_type: undefined,
-  },
-  menus: {
-    user: MockMenu,
-    action: MockMenu,
-    resourceType: MockMenu,
-  },
+	query: "owner:me",
+	values: {
+		username: MockUserOwner.username,
+		action: undefined,
+		resource_type: undefined,
+		organization: undefined,
+	},
+	menus: {
+		user: MockMenu,
+		action: MockMenu,
+		resourceType: MockMenu,
+	},
 });
 
 const meta: Meta<typeof AuditPageView> = {
-  title: "pages/AuditPageView",
-  component: AuditPageView,
-  args: {
-    auditLogs: [MockAuditLog, MockAuditLog2],
-    count: 1000,
-    page: 1,
-    limit: 25,
-    isAuditLogVisible: true,
-    filterProps: defaultFilterProps,
-  },
+	title: "pages/AuditPage",
+	component: AuditPageView,
+	args: {
+		auditLogs: [MockAuditLog, MockAuditLog2, MockAuditLog3],
+		isAuditLogVisible: true,
+		filterProps: defaultFilterProps,
+		showOrgDetails: false,
+	},
 };
 
 export default meta;
 type Story = StoryObj<typeof AuditPageView>;
 
-export const AuditPage: Story = {};
-
-export const Loading = {
-  args: {
-    auditLogs: undefined,
-    count: undefined,
-    isNonInitialPage: false,
-  },
+export const AuditPage: Story = {
+	parameters: { chromatic: chromaticWithTablet },
+	args: {
+		auditsQuery: mockSuccessResult,
+	},
 };
 
-export const EmptyPage = {
-  args: {
-    auditLogs: [],
-    isNonInitialPage: true,
-  },
+export const Loading: Story = {
+	args: {
+		auditLogs: undefined,
+		isNonInitialPage: false,
+		auditsQuery: mockInitialRenderResult,
+	},
 };
 
-export const NoLogs = {
-  args: {
-    auditLogs: [],
-    count: 0,
-    isNonInitialPage: false,
-  },
+export const EmptyPage: Story = {
+	args: {
+		auditLogs: [],
+		isNonInitialPage: true,
+		auditsQuery: {
+			...mockSuccessResult,
+			totalRecords: 0,
+		} as UsePaginatedQueryResult,
+	},
 };
 
-export const NotVisible = {
-  args: {
-    isAuditLogVisible: false,
-  },
+export const NoLogs: Story = {
+	args: {
+		auditLogs: [],
+		isNonInitialPage: false,
+		auditsQuery: {
+			...mockSuccessResult,
+			totalRecords: 0,
+		} as UsePaginatedQueryResult,
+	},
 };
 
-export const AuditPageSmallViewport = {
-  parameters: {
-    chromatic: { viewports: [600] },
-  },
+export const NotVisible: Story = {
+	args: {
+		isAuditLogVisible: false,
+		auditsQuery: mockInitialRenderResult,
+	},
+};
+
+export const MultiOrg: Story = {
+	parameters: { chromatic: chromaticWithTablet },
+	args: {
+		showOrgDetails: true,
+		auditsQuery: mockSuccessResult,
+		filterProps: {
+			...defaultFilterProps,
+			menus: {
+				...defaultFilterProps.menus,
+				organization: MockMenu,
+			},
+		},
+	},
 };

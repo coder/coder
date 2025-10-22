@@ -4,61 +4,70 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/pprof"
 	"net/url"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
-	"cloud.google.com/go/compute/metadata"
 	"golang.org/x/xerrors"
 	"gopkg.in/natefinch/lumberjack.v2"
-	"tailscale.com/util/clientmetric"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/common/expfmt"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"cdr.dev/slog/sloggers/slogjson"
 	"cdr.dev/slog/sloggers/slogstackdriver"
+	"github.com/coder/serpent"
+
 	"github.com/coder/coder/v2/agent"
-	"github.com/coder/coder/v2/agent/agentproc"
+	"github.com/coder/coder/v2/agent/agentcontainers"
+	"github.com/coder/coder/v2/agent/agentexec"
+	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/reaper"
 	"github.com/coder/coder/v2/buildinfo"
-	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/clilog"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
 
-func (r *RootCmd) workspaceAgent() *clibase.Cmd {
+func workspaceAgent() *serpent.Command {
 	var (
-		auth                string
-		logDir              string
-		pprofAddress        string
-		noReap              bool
-		sshMaxTimeout       time.Duration
-		tailnetListenPort   int64
-		prometheusAddress   string
-		debugAddress        string
-		slogHumanPath       string
-		slogJSONPath        string
-		slogStackdriverPath string
+		logDir                         string
+		scriptDataDir                  string
+		pprofAddress                   string
+		noReap                         bool
+		sshMaxTimeout                  time.Duration
+		tailnetListenPort              int64
+		prometheusAddress              string
+		debugAddress                   string
+		slogHumanPath                  string
+		slogJSONPath                   string
+		slogStackdriverPath            string
+		blockFileTransfer              bool
+		agentHeaderCommand             string
+		agentHeader                    []string
+		devcontainers                  bool
+		devcontainerProjectDiscovery   bool
+		devcontainerDiscoveryAutostart bool
 	)
-	cmd := &clibase.Cmd{
+	agentAuth := &AgentAuth{}
+	cmd := &serpent.Command{
 		Use:   "agent",
 		Short: `Starts the Coder workspace agent.`,
 		// This command isn't useful to manually execute.
 		Hidden: true,
-		Handler: func(inv *clibase.Invocation) error {
-			ctx, cancel := context.WithCancel(inv.Context())
-			defer cancel()
+		Handler: func(inv *serpent.Invocation) error {
+			ctx, cancel := context.WithCancelCause(inv.Context())
+			defer func() {
+				cancel(xerrors.New("agent exited"))
+			}()
 
 			var (
 				ignorePorts = map[int]string{}
@@ -108,7 +117,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			// Spawn a reaper so that we don't accumulate a ton
 			// of zombie processes.
 			if reaper.IsInitProcess() && !noReap && isLinux {
-				logWriter := &lumberjackWriteCloseFixer{w: &lumberjack.Logger{
+				logWriter := &clilog.LumberjackWriteCloseFixer{Writer: &lumberjack.Logger{
 					Filename: filepath.Join(logDir, "coder-agent-init.log"),
 					MaxSize:  5, // MB
 					// Without this, rotated logs will never be deleted.
@@ -117,15 +126,16 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 				defer logWriter.Close()
 
 				sinks = append(sinks, sloghuman.Sink(logWriter))
-				logger := slog.Make(sinks...).Leveled(slog.LevelDebug)
+				logger := inv.Logger.AppendSinks(sinks...).Leveled(slog.LevelDebug)
 
 				logger.Info(ctx, "spawning reaper process")
 				// Do not start a reaper on the child process. It's important
 				// to do this else we fork bomb ourselves.
+				//nolint:gocritic
 				args := append(os.Args, "--no-reap")
 				err := reaper.ForkReap(
 					reaper.WithExecArgs(args...),
-					reaper.WithCatchSignals(InterruptSignals...),
+					reaper.WithCatchSignals(StopSignals...),
 				)
 				if err != nil {
 					logger.Error(ctx, "agent process reaper unable to fork", slog.Error(err))
@@ -144,37 +154,49 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			// Note that we don't want to handle these signals in the
 			// process that runs as PID 1, that's why we do this after
 			// the reaper forked.
-			ctx, stopNotify := signal.NotifyContext(ctx, InterruptSignals...)
+			ctx, stopNotify := inv.SignalNotifyContext(ctx, StopSignals...)
 			defer stopNotify()
 
 			// DumpHandler does signal handling, so we call it after the
 			// reaper.
-			go DumpHandler(ctx)
+			go DumpHandler(ctx, "agent")
 
-			logWriter := &lumberjackWriteCloseFixer{w: &lumberjack.Logger{
+			logWriter := &clilog.LumberjackWriteCloseFixer{Writer: &lumberjack.Logger{
 				Filename: filepath.Join(logDir, "coder-agent.log"),
 				MaxSize:  5, // MB
-				// Without this, rotated logs will never be deleted.
-				MaxBackups: 1,
+				// Per customer incident on November 17th, 2023, its helpful
+				// to have the log of the last few restarts to debug a failing agent.
+				MaxBackups: 10,
 			}}
 			defer logWriter.Close()
 
 			sinks = append(sinks, sloghuman.Sink(logWriter))
-			logger := slog.Make(sinks...).Leveled(slog.LevelDebug)
+			logger := inv.Logger.AppendSinks(sinks...).Leveled(slog.LevelDebug)
 
 			version := buildinfo.Version()
 			logger.Info(ctx, "agent is starting now",
-				slog.F("url", r.agentURL),
-				slog.F("auth", auth),
+				slog.F("url", agentAuth.agentURL),
+				slog.F("auth", agentAuth.agentAuth),
 				slog.F("version", version),
 			)
-			client := agentsdk.New(r.agentURL)
+			client, err := agentAuth.CreateClient()
+			if err != nil {
+				return xerrors.Errorf("create agent client: %w", err)
+			}
 			client.SDK.SetLogger(logger)
 			// Set a reasonable timeout so requests can't hang forever!
 			// The timeout needs to be reasonably long, because requests
 			// with large payloads can take a bit. e.g. startup scripts
 			// may take a while to insert.
 			client.SDK.HTTPClient.Timeout = 30 * time.Second
+			// Attach header transport so we process --agent-header and
+			// --agent-header-command flags
+			headerTransport, err := headerTransport(ctx, &agentAuth.agentURL, agentHeader, agentHeaderCommand)
+			if err != nil {
+				return xerrors.Errorf("configure header transport: %w", err)
+			}
+			headerTransport.Transport = client.SDK.HTTPClient.Transport
+			client.SDK.HTTPClient.Transport = headerTransport
 
 			// Enable pprof handler
 			// This prevents the pprof import from being accidentally deleted.
@@ -193,68 +215,6 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 				ignorePorts[port] = "debug"
 			}
 
-			// exchangeToken returns a session token.
-			// This is abstracted to allow for the same looping condition
-			// regardless of instance identity auth type.
-			var exchangeToken func(context.Context) (agentsdk.AuthenticateResponse, error)
-			switch auth {
-			case "token":
-				token, _ := inv.ParsedFlags().GetString(varAgentToken)
-				if token == "" {
-					tokenFile, _ := inv.ParsedFlags().GetString(varAgentTokenFile)
-					if tokenFile != "" {
-						tokenBytes, err := os.ReadFile(tokenFile)
-						if err != nil {
-							return xerrors.Errorf("read token file %q: %w", tokenFile, err)
-						}
-						token = strings.TrimSpace(string(tokenBytes))
-					}
-				}
-				if token == "" {
-					return xerrors.Errorf("CODER_AGENT_TOKEN or CODER_AGENT_TOKEN_FILE must be set for token auth")
-				}
-				client.SetSessionToken(token)
-			case "google-instance-identity":
-				// This is *only* done for testing to mock client authentication.
-				// This will never be set in a production scenario.
-				var gcpClient *metadata.Client
-				gcpClientRaw := ctx.Value("gcp-client")
-				if gcpClientRaw != nil {
-					gcpClient, _ = gcpClientRaw.(*metadata.Client)
-				}
-				exchangeToken = func(ctx context.Context) (agentsdk.AuthenticateResponse, error) {
-					return client.AuthGoogleInstanceIdentity(ctx, "", gcpClient)
-				}
-			case "aws-instance-identity":
-				// This is *only* done for testing to mock client authentication.
-				// This will never be set in a production scenario.
-				var awsClient *http.Client
-				awsClientRaw := ctx.Value("aws-client")
-				if awsClientRaw != nil {
-					awsClient, _ = awsClientRaw.(*http.Client)
-					if awsClient != nil {
-						client.SDK.HTTPClient = awsClient
-					}
-				}
-				exchangeToken = func(ctx context.Context) (agentsdk.AuthenticateResponse, error) {
-					return client.AuthAWSInstanceIdentity(ctx)
-				}
-			case "azure-instance-identity":
-				// This is *only* done for testing to mock client authentication.
-				// This will never be set in a production scenario.
-				var azureClient *http.Client
-				azureClientRaw := ctx.Value("azure-client")
-				if azureClientRaw != nil {
-					azureClient, _ = azureClientRaw.(*http.Client)
-					if azureClient != nil {
-						client.SDK.HTTPClient = azureClient
-					}
-				}
-				exchangeToken = func(ctx context.Context) (agentsdk.AuthenticateResponse, error) {
-					return client.AuthAzureInstanceIdentity(ctx)
-				}
-			}
-
 			executablePath, err := os.Executable()
 			if err != nil {
 				return xerrors.Errorf("getting os executable: %w", err)
@@ -264,7 +224,6 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 				return xerrors.Errorf("add executable to $PATH: %w", err)
 			}
 
-			prometheusRegistry := prometheus.NewRegistry()
 			subsystemsRaw := inv.Environ.Get(agent.EnvAgentSubsystem)
 			subsystems := []codersdk.AgentSubsystem{}
 			for _, s := range strings.Split(subsystemsRaw, ",") {
@@ -278,78 +237,136 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 				subsystems = append(subsystems, subsystem)
 			}
 
-			procTicker := time.NewTicker(time.Second)
-			defer procTicker.Stop()
-			agnt := agent.New(agent.Options{
-				Client:            client,
-				Logger:            logger,
-				LogDir:            logDir,
-				TailnetListenPort: uint16(tailnetListenPort),
-				ExchangeToken: func(ctx context.Context) (string, error) {
-					if exchangeToken == nil {
-						return client.SDK.SessionToken(), nil
-					}
-					resp, err := exchangeToken(ctx)
-					if err != nil {
-						return "", err
-					}
-					client.SetSessionToken(resp.SessionToken)
-					return resp.SessionToken, nil
-				},
-				EnvironmentVariables: map[string]string{
-					"GIT_ASKPASS":         executablePath,
-					agent.EnvProcPrioMgmt: os.Getenv(agent.EnvProcPrioMgmt),
-				},
-				IgnorePorts:   ignorePorts,
-				SSHMaxTimeout: sshMaxTimeout,
-				Subsystems:    subsystems,
+			environmentVariables := map[string]string{
+				"GIT_ASKPASS": executablePath,
+			}
 
-				PrometheusRegistry: prometheusRegistry,
-				Syscaller:          agentproc.NewSyscaller(),
-				// Intentionally set this to nil. It's mainly used
-				// for testing.
-				ModifiedProcesses: nil,
-			})
+			enabled := os.Getenv(agentexec.EnvProcPrioMgmt)
+			if enabled != "" && runtime.GOOS == "linux" {
+				logger.Info(ctx, "process priority management enabled",
+					slog.F("env_var", agentexec.EnvProcPrioMgmt),
+					slog.F("enabled", enabled),
+					slog.F("os", runtime.GOOS),
+				)
+			} else {
+				logger.Info(ctx, "process priority management not enabled (linux-only) ",
+					slog.F("env_var", agentexec.EnvProcPrioMgmt),
+					slog.F("enabled", enabled),
+					slog.F("os", runtime.GOOS),
+				)
+			}
 
-			prometheusSrvClose := ServeHandler(ctx, logger, prometheusMetricsHandler(prometheusRegistry, logger), prometheusAddress, "prometheus")
-			defer prometheusSrvClose()
+			execer, err := agentexec.NewExecer()
+			if err != nil {
+				return xerrors.Errorf("create agent execer: %w", err)
+			}
 
-			debugSrvClose := ServeHandler(ctx, logger, agnt.HTTPDebug(), debugAddress, "debug")
-			defer debugSrvClose()
+			if devcontainers {
+				logger.Info(ctx, "agent devcontainer detection enabled")
+			} else {
+				logger.Info(ctx, "agent devcontainer detection not enabled")
+			}
 
-			<-ctx.Done()
-			return agnt.Close()
+			reinitEvents := agentsdk.WaitForReinitLoop(ctx, logger, client)
+
+			var (
+				lastErr  error
+				mustExit bool
+			)
+			for {
+				prometheusRegistry := prometheus.NewRegistry()
+
+				agnt := agent.New(agent.Options{
+					Client:        client,
+					Logger:        logger,
+					LogDir:        logDir,
+					ScriptDataDir: scriptDataDir,
+					// #nosec G115 - Safe conversion as tailnet listen port is within uint16 range (0-65535)
+					TailnetListenPort:    uint16(tailnetListenPort),
+					EnvironmentVariables: environmentVariables,
+					IgnorePorts:          ignorePorts,
+					SSHMaxTimeout:        sshMaxTimeout,
+					Subsystems:           subsystems,
+
+					PrometheusRegistry: prometheusRegistry,
+					BlockFileTransfer:  blockFileTransfer,
+					Execer:             execer,
+					Devcontainers:      devcontainers,
+					DevcontainerAPIOptions: []agentcontainers.Option{
+						agentcontainers.WithSubAgentURL(agentAuth.agentURL.String()),
+						agentcontainers.WithProjectDiscovery(devcontainerProjectDiscovery),
+						agentcontainers.WithDiscoveryAutostart(devcontainerDiscoveryAutostart),
+					},
+				})
+
+				promHandler := agent.PrometheusMetricsHandler(prometheusRegistry, logger)
+				prometheusSrvClose := ServeHandler(ctx, logger, promHandler, prometheusAddress, "prometheus")
+
+				debugSrvClose := ServeHandler(ctx, logger, agnt.HTTPDebug(), debugAddress, "debug")
+
+				select {
+				case <-ctx.Done():
+					logger.Info(ctx, "agent shutting down", slog.Error(context.Cause(ctx)))
+					mustExit = true
+				case event := <-reinitEvents:
+					logger.Info(ctx, "agent received instruction to reinitialize",
+						slog.F("workspace_id", event.WorkspaceID), slog.F("reason", event.Reason))
+				}
+
+				lastErr = agnt.Close()
+				debugSrvClose()
+				prometheusSrvClose()
+
+				if mustExit {
+					break
+				}
+
+				logger.Info(ctx, "agent reinitializing")
+			}
+			return lastErr
 		},
 	}
 
-	cmd.Options = clibase.OptionSet{
-		{
-			Flag:        "auth",
-			Default:     "token",
-			Description: "Specify the authentication type to use for the agent.",
-			Env:         "CODER_AGENT_AUTH",
-			Value:       clibase.StringOf(&auth),
-		},
+	cmd.Options = serpent.OptionSet{
 		{
 			Flag:        "log-dir",
 			Default:     os.TempDir(),
 			Description: "Specify the location for the agent log files.",
 			Env:         "CODER_AGENT_LOG_DIR",
-			Value:       clibase.StringOf(&logDir),
+			Value:       serpent.StringOf(&logDir),
+		},
+		{
+			Flag:        "script-data-dir",
+			Default:     os.TempDir(),
+			Description: "Specify the location for storing script data.",
+			Env:         "CODER_AGENT_SCRIPT_DATA_DIR",
+			Value:       serpent.StringOf(&scriptDataDir),
 		},
 		{
 			Flag:        "pprof-address",
 			Default:     "127.0.0.1:6060",
 			Env:         "CODER_AGENT_PPROF_ADDRESS",
-			Value:       clibase.StringOf(&pprofAddress),
+			Value:       serpent.StringOf(&pprofAddress),
 			Description: "The address to serve pprof.",
+		},
+		{
+			Flag:        "agent-header-command",
+			Env:         "CODER_AGENT_HEADER_COMMAND",
+			Value:       serpent.StringOf(&agentHeaderCommand),
+			Description: "An external command that outputs additional HTTP headers added to all requests. The command must output each header as `key=value` on its own line.",
+		},
+		{
+			Flag:        "agent-header",
+			Env:         "CODER_AGENT_HEADER",
+			Value:       serpent.StringArrayOf(&agentHeader),
+			Description: "Additional HTTP headers added to all requests. Provide as " + `key=value` + ". Can be specified multiple times.",
 		},
 		{
 			Flag: "no-reap",
 
 			Env:         "",
 			Description: "Do not start a process reaper.",
-			Value:       clibase.BoolOf(&noReap),
+			Value:       serpent.BoolOf(&noReap),
 		},
 		{
 			Flag: "ssh-max-timeout",
@@ -357,27 +374,27 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			Default:     "72h",
 			Env:         "CODER_AGENT_SSH_MAX_TIMEOUT",
 			Description: "Specify the max timeout for a SSH connection, it is advisable to set it to a minimum of 60s, but no more than 72h.",
-			Value:       clibase.DurationOf(&sshMaxTimeout),
+			Value:       serpent.DurationOf(&sshMaxTimeout),
 		},
 		{
 			Flag:        "tailnet-listen-port",
 			Default:     "0",
 			Env:         "CODER_AGENT_TAILNET_LISTEN_PORT",
 			Description: "Specify a static port for Tailscale to use for listening.",
-			Value:       clibase.Int64Of(&tailnetListenPort),
+			Value:       serpent.Int64Of(&tailnetListenPort),
 		},
 		{
 			Flag:        "prometheus-address",
 			Default:     "127.0.0.1:2112",
 			Env:         "CODER_AGENT_PROMETHEUS_ADDRESS",
-			Value:       clibase.StringOf(&prometheusAddress),
+			Value:       serpent.StringOf(&prometheusAddress),
 			Description: "The bind address to serve Prometheus metrics.",
 		},
 		{
 			Flag:        "debug-address",
 			Default:     "127.0.0.1:2113",
 			Env:         "CODER_AGENT_DEBUG_ADDRESS",
-			Value:       clibase.StringOf(&debugAddress),
+			Value:       serpent.StringOf(&debugAddress),
 			Description: "The bind address to serve a debug HTTP server.",
 		},
 		{
@@ -386,7 +403,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			Flag:        "log-human",
 			Env:         "CODER_AGENT_LOGGING_HUMAN",
 			Default:     "/dev/stderr",
-			Value:       clibase.StringOf(&slogHumanPath),
+			Value:       serpent.StringOf(&slogHumanPath),
 		},
 		{
 			Name:        "JSON Log Location",
@@ -394,7 +411,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			Flag:        "log-json",
 			Env:         "CODER_AGENT_LOGGING_JSON",
 			Default:     "",
-			Value:       clibase.StringOf(&slogJSONPath),
+			Value:       serpent.StringOf(&slogJSONPath),
 		},
 		{
 			Name:        "Stackdriver Log Location",
@@ -402,16 +419,42 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			Flag:        "log-stackdriver",
 			Env:         "CODER_AGENT_LOGGING_STACKDRIVER",
 			Default:     "",
-			Value:       clibase.StringOf(&slogStackdriverPath),
+			Value:       serpent.StringOf(&slogStackdriverPath),
+		},
+		{
+			Flag:        "block-file-transfer",
+			Default:     "false",
+			Env:         "CODER_AGENT_BLOCK_FILE_TRANSFER",
+			Description: fmt.Sprintf("Block file transfer using known applications: %s.", strings.Join(agentssh.BlockedFileTransferCommands, ",")),
+			Value:       serpent.BoolOf(&blockFileTransfer),
+		},
+		{
+			Flag:        "devcontainers-enable",
+			Default:     "true",
+			Env:         "CODER_AGENT_DEVCONTAINERS_ENABLE",
+			Description: "Allow the agent to automatically detect running devcontainers.",
+			Value:       serpent.BoolOf(&devcontainers),
+		},
+		{
+			Flag:        "devcontainers-project-discovery-enable",
+			Default:     "true",
+			Env:         "CODER_AGENT_DEVCONTAINERS_PROJECT_DISCOVERY_ENABLE",
+			Description: "Allow the agent to search the filesystem for devcontainer projects.",
+			Value:       serpent.BoolOf(&devcontainerProjectDiscovery),
+		},
+		{
+			Flag:        "devcontainers-discovery-autostart-enable",
+			Default:     "false",
+			Env:         "CODER_AGENT_DEVCONTAINERS_DISCOVERY_AUTOSTART_ENABLE",
+			Description: "Allow the agent to autostart devcontainer projects it discovers based on their configuration.",
+			Value:       serpent.BoolOf(&devcontainerDiscoveryAutostart),
 		},
 	}
-
+	agentAuth.AttachOptions(cmd, false)
 	return cmd
 }
 
 func ServeHandler(ctx context.Context, logger slog.Logger, handler http.Handler, addr, name string) (closeFunc func()) {
-	logger.Debug(ctx, "http server listening", slog.F("addr", addr), slog.F("name", name))
-
 	// ReadHeaderTimeout is purposefully not enabled. It caused some issues with
 	// websockets over the dev tunnel.
 	// See: https://github.com/coder/coder/pull/3730
@@ -421,42 +464,21 @@ func ServeHandler(ctx context.Context, logger slog.Logger, handler http.Handler,
 		Handler: handler,
 	}
 	go func() {
-		err := srv.ListenAndServe()
-		if err != nil && !xerrors.Is(err, http.ErrServerClosed) {
-			logger.Error(ctx, "http server listen", slog.F("name", name), slog.Error(err))
+		ln, err := net.Listen("tcp", addr)
+		if err != nil {
+			logger.Error(ctx, "http server listen", slog.F("name", name), slog.F("addr", addr), slog.Error(err))
+			return
+		}
+		defer ln.Close()
+		logger.Info(ctx, "http server listening", slog.F("addr", ln.Addr()), slog.F("name", name))
+		if err := srv.Serve(ln); err != nil && !xerrors.Is(err, http.ErrServerClosed) {
+			logger.Error(ctx, "http server serve", slog.F("addr", ln.Addr()), slog.F("name", name), slog.Error(err))
 		}
 	}()
 
 	return func() {
 		_ = srv.Close()
 	}
-}
-
-// lumberjackWriteCloseFixer is a wrapper around an io.WriteCloser that
-// prevents writes after Close. This is necessary because lumberjack
-// re-opens the file on Write.
-type lumberjackWriteCloseFixer struct {
-	w      io.WriteCloser
-	mu     sync.Mutex // Protects following.
-	closed bool
-}
-
-func (c *lumberjackWriteCloseFixer) Close() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.closed = true
-	return c.w.Close()
-}
-
-func (c *lumberjackWriteCloseFixer) Write(p []byte) (int, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if c.closed {
-		return 0, io.ErrClosedPipe
-	}
-	return c.w.Write(p)
 }
 
 // extractPort handles different url strings.
@@ -489,27 +511,4 @@ func urlPort(u string) (int, error) {
 		}
 	}
 	return -1, xerrors.Errorf("invalid port: %s", u)
-}
-
-func prometheusMetricsHandler(prometheusRegistry *prometheus.Registry, logger slog.Logger) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/plain")
-
-		// Based on: https://github.com/tailscale/tailscale/blob/280255acae604796a1113861f5a84e6fa2dc6121/ipn/localapi/localapi.go#L489
-		clientmetric.WritePrometheusExpositionFormat(w)
-
-		metricFamilies, err := prometheusRegistry.Gather()
-		if err != nil {
-			logger.Error(context.Background(), "Prometheus handler can't gather metric families", slog.Error(err))
-			return
-		}
-
-		for _, metricFamily := range metricFamilies {
-			_, err = expfmt.MetricFamilyToText(w, metricFamily)
-			if err != nil {
-				logger.Error(context.Background(), "expfmt.MetricFamilyToText failed", slog.Error(err))
-				return
-			}
-		}
-	})
 }

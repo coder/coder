@@ -71,15 +71,15 @@ func newSSHServerMetrics(registerer prometheus.Registerer) *sshServerMetrics {
 	}
 }
 
-func magicTypeMetricLabel(magicType string) string {
+func magicTypeMetricLabel(magicType MagicSessionType) string {
 	switch magicType {
 	case MagicSessionTypeVSCode:
 	case MagicSessionTypeJetBrains:
-	case "":
-		magicType = "ssh"
+	case MagicSessionTypeSSH:
+	case MagicSessionTypeUnknown:
 	default:
-		magicType = "unknown"
+		magicType = MagicSessionTypeUnknown
 	}
 	// Always be case insensitive
-	return strings.ToLower(magicType)
+	return strings.ToLower(string(magicType))
 }

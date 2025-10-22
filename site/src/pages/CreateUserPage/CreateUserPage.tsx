@@ -1,47 +1,52 @@
-import { useOrganizationId } from "hooks/useOrganizationId";
-import { FC } from "react";
-import { Helmet } from "react-helmet-async";
-import { useNavigate } from "react-router-dom";
-import { CreateUserForm } from "./CreateUserForm";
-import { Margins } from "components/Margins/Margins";
-import { pageTitle } from "utils/page";
-import { useMutation, useQuery, useQueryClient } from "react-query";
 import { authMethods, createUser } from "api/queries/users";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
+import { Margins } from "components/Margins/Margins";
+import { useDashboard } from "modules/dashboard/useDashboard";
+import type { FC } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useNavigate } from "react-router";
+import { pageTitle } from "utils/page";
+import { CreateUserForm } from "./CreateUserForm";
 
-export const Language = {
-  unknownError: "Oops, an unknown error occurred.",
+const _Language = {
+	unknownError: "Oops, an unknown error occurred.",
 };
 
-export const CreateUserPage: FC = () => {
-  const myOrgId = useOrganizationId();
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const createUserMutation = useMutation(createUser(queryClient));
-  const authMethodsQuery = useQuery(authMethods());
+const CreateUserPage: FC = () => {
+	const navigate = useNavigate();
+	const queryClient = useQueryClient();
+	const createUserMutation = useMutation(createUser(queryClient));
+	const authMethodsQuery = useQuery(authMethods());
+	const { showOrganizations } = useDashboard();
 
-  return (
-    <Margins>
-      <Helmet>
-        <title>{pageTitle("Create User")}</title>
-      </Helmet>
+	return (
+		<Margins>
+			<title>{pageTitle("Create User")}</title>
 
-      <CreateUserForm
-        error={createUserMutation.error}
-        authMethods={authMethodsQuery.data}
-        onSubmit={async (user) => {
-          await createUserMutation.mutateAsync(user);
-          displaySuccess("Successfully created user.");
-          navigate("/users");
-        }}
-        onCancel={() => {
-          navigate("/users");
-        }}
-        isLoading={createUserMutation.isLoading}
-        myOrgId={myOrgId}
-      />
-    </Margins>
-  );
+			<CreateUserForm
+				error={createUserMutation.error}
+				isLoading={createUserMutation.isPending}
+				onSubmit={async (user) => {
+					await createUserMutation.mutateAsync({
+						username: user.username,
+						name: user.name,
+						email: user.email,
+						organization_ids: [user.organization],
+						login_type: user.login_type,
+						password: user.password,
+						user_status: null,
+					});
+					displaySuccess("Successfully created user.");
+					navigate("..", { relative: "path" });
+				}}
+				onCancel={() => {
+					navigate("..", { relative: "path" });
+				}}
+				authMethods={authMethodsQuery.data}
+				showOrganizations={showOrganizations}
+			/>
+		</Margins>
+	);
 };
 
 export default CreateUserPage;

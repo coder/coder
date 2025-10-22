@@ -1,146 +1,272 @@
+# Install Coder on Kubernetes
+
+You can install Coder on Kubernetes (K8s) using Helm. We run on most Kubernetes
+distributions, including [OpenShift](./openshift.md).
+
 ## Requirements
 
-Before proceeding, please ensure that you have a Kubernetes cluster running K8s
-1.19+ and have Helm 3.5+ installed.
+- Kubernetes cluster running K8s 1.19+
+- [Helm](https://helm.sh/docs/intro/install/) 3.5+ installed on your local
+  machine
 
-You'll also want to install the
-[latest version of Coder](https://github.com/coder/coder/releases/latest)
-locally in order to log in and manage templates.
+## 1. Create a namespace
 
-## Install Coder with Helm
+Create a namespace for the Coder control plane. In this tutorial, we'll call it
+`coder`.
 
-1. Create a namespace for Coder, such as `coder`:
+```sh
+kubectl create namespace coder
+```
 
-   ```console
-   kubectl create namespace coder
-   ```
+## 2. Create a PostgreSQL instance
 
-1. Create a PostgreSQL deployment. Coder does not manage a database server for
-   you.
+Coder does not manage a database server for you. This is required for storing
+data about your Coder deployment and resources.
 
-   If you're in a public cloud such as
-   [Google Cloud](https://cloud.google.com/sql/docs/postgres/),
-   [AWS](https://aws.amazon.com/rds/postgresql/),
-   [Azure](https://docs.microsoft.com/en-us/azure/postgresql/), or
-   [DigitalOcean](https://www.digitalocean.com/products/managed-databases-postgresql),
-   you can use the managed PostgreSQL offerings they provide. Make sure that the
-   PostgreSQL service is running and accessible from your cluster. It should be
-   in the same network, same project, etc.
+### Managed PostgreSQL (recommended)
 
-   You can install Postgres manually on your cluster using the
-   [Bitnami PostgreSQL Helm chart](https://github.com/bitnami/charts/tree/master/bitnami/postgresql#readme).
-   There are some
-   [helpful guides](https://phoenixnap.com/kb/postgresql-kubernetes) on the
-   internet that explain sensible configurations for this chart. Example:
+If you're in a public cloud such as
+[Google Cloud](https://cloud.google.com/sql/docs/postgres/),
+[AWS](https://aws.amazon.com/rds/postgresql/),
+[Azure](https://docs.microsoft.com/en-us/azure/postgresql/), or
+[DigitalOcean](https://www.digitalocean.com/products/managed-databases-postgresql),
+you can use the managed PostgreSQL offerings they provide. Make sure that the
+PostgreSQL service is running and accessible from your cluster. It should be in
+the same network, same project, etc.
 
-   ```console
-   # Install PostgreSQL
-   helm repo add bitnami https://charts.bitnami.com/bitnami
-   helm install coder-db bitnami/postgresql \
-       --namespace coder \
-       --set auth.username=coder \
-       --set auth.password=coder \
-       --set auth.database=coder \
-       --set persistence.size=10Gi
-   ```
+### In-Cluster PostgreSQL (for proof of concepts)
 
-   The cluster-internal DB URL for the above database is:
+You can install Postgres manually on your cluster using the
+[Bitnami PostgreSQL Helm chart](https://github.com/bitnami/charts/tree/master/bitnami/postgresql#readme).
+There are some [helpful guides](https://phoenixnap.com/kb/postgresql-kubernetes)
+on the internet that explain sensible configurations for this chart. Example:
 
-   ```console
-   postgres://coder:coder@coder-db-postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable
-   ```
+```console
+# Install PostgreSQL
+helm repo add bitnami https://charts.bitnami.com/bitnami
+helm install postgresql bitnami/postgresql \
+    --namespace coder \
+    --set image.repository=bitnamilegacy/postgresql \
+    --set auth.username=coder \
+    --set auth.password=coder \
+    --set auth.database=coder \
+    --set primary.persistence.size=10Gi
+```
 
-   > Ensure you set up periodic backups so you don't lose data.
+The cluster-internal DB URL for the above database is:
 
-   You can use [Postgres operator](https://github.com/zalando/postgres-operator)
-   to manage PostgreSQL deployments on your Kubernetes cluster.
+```shell
+postgres://coder:coder@postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable
+```
 
-1. Create a secret with the database URL:
+You can optionally use the
+[Postgres operator](https://github.com/zalando/postgres-operator) to manage
+PostgreSQL deployments on your Kubernetes cluster.
 
-   ```console
-   # Uses Bitnami PostgreSQL example. If you have another database,
-   # change to the proper URL.
-   kubectl create secret generic coder-db-url -n coder \
-      --from-literal=url="postgres://coder:coder@coder-db-postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable"
-   ```
+## 3. Create the PostgreSQL secret
 
-1. Add the Coder Helm repo:
+Create a secret with the PostgreSQL database URL string. In the case of the
+self-managed PostgreSQL, the address will be:
 
-   ```console
-   helm repo add coder-v2 https://helm.coder.com/v2
-   ```
+```sh
+kubectl create secret generic coder-db-url -n coder \
+  --from-literal=url="postgres://coder:coder@postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable"
+```
 
-1. Create a `values.yaml` with the configuration settings you'd like for your
-   deployment. For example:
+## 4. Install Coder with Helm
 
-   ```yaml
-   coder:
-     # You can specify any environment variables you'd like to pass to Coder
-     # here. Coder consumes environment variables listed in
-     # `coder server --help`, and these environment variables are also passed
-     # to the workspace provisioner (so you can consume them in your Terraform
-     # templates for auth keys etc.).
-     #
-     # Please keep in mind that you should not set `CODER_ADDRESS`,
-     # `CODER_TLS_ENABLE`, `CODER_TLS_CERT_FILE` or `CODER_TLS_KEY_FILE` as
-     # they are already set by the Helm chart and will cause conflicts.
-     env:
-       - name: CODER_PG_CONNECTION_URL
-         valueFrom:
-           secretKeyRef:
-             # You'll need to create a secret called coder-db-url with your
-             # Postgres connection URL like:
-             # postgres://coder:password@postgres:5432/coder?sslmode=disable
-             name: coder-db-url
-             key: url
+```shell
+helm repo add coder-v2 https://helm.coder.com/v2
+```
 
-       # (Optional) For production deployments the access URL should be set.
-       # If you're just trying Coder, access the dashboard via the service IP.
-       - name: CODER_ACCESS_URL
-         value: "https://coder.example.com"
+Create a `values.yaml` with the configuration settings you'd like for your
+deployment. For example:
 
-     #tls:
-     #  secretNames:
-     #    - my-tls-secret-name
-   ```
+```yaml
+coder:
+  # You can specify any environment variables you'd like to pass to Coder
+  # here. Coder consumes environment variables listed in
+  # `coder server --help`, and these environment variables are also passed
+  # to the workspace provisioner (so you can consume them in your Terraform
+  # templates for auth keys etc.).
+  #
+  # Please keep in mind that you should not set `CODER_HTTP_ADDRESS`,
+  # `CODER_TLS_ENABLE`, `CODER_TLS_CERT_FILE` or `CODER_TLS_KEY_FILE` as
+  # they are already set by the Helm chart and will cause conflicts.
+  env:
+    - name: CODER_PG_CONNECTION_URL
+      valueFrom:
+        secretKeyRef:
+          # You'll need to create a secret called coder-db-url with your
+          # Postgres connection URL like:
+          # postgres://coder:password@postgres:5432/coder?sslmode=disable
+          name: coder-db-url
+          key: url
+    # For production deployments, we recommend configuring your own GitHub
+    # OAuth2 provider and disabling the default one.
+    - name: CODER_OAUTH2_GITHUB_DEFAULT_PROVIDER_ENABLE
+      value: "false"
 
-   > You can view our
-   > [Helm README](https://github.com/coder/coder/blob/main/helm#readme) for
-   > details on the values that are available, or you can view the
-   > [values.yaml](https://github.com/coder/coder/blob/main/helm/coder/values.yaml)
-   > file directly.
+    # (Optional) For production deployments the access URL should be set.
+    # If you're just trying Coder, access the dashboard via the service IP.
+    # - name: CODER_ACCESS_URL
+    #   value: "https://coder.example.com"
 
-1. Run the following command to install the chart in your cluster.
+  #tls:
+  #  secretNames:
+  #    - my-tls-secret-name
+```
 
-   ```console
-   helm install coder coder-v2/coder \
-       --namespace coder \
-       --values values.yaml
-   ```
+You can view our
+[Helm README](https://github.com/coder/coder/blob/main/helm/coder#readme) for
+details on the values that are available, or you can view the
+[values.yaml](https://github.com/coder/coder/blob/main/helm/coder/values.yaml)
+file directly.
 
-   You can watch Coder start up by running `kubectl get pods -n coder`. Once
-   Coder has started, the `coder-*` pods should enter the `Running` state.
+We support two release channels: mainline and stable - read the
+[Releases](./releases/index.md) page to learn more about which best suits your team.
 
-1. Log in to Coder
+- **Mainline** Coder release:
 
-   Use `kubectl get svc -n coder` to get the IP address of the LoadBalancer.
-   Visit this in the browser to set up your first account.
+  - **Chart Registry**
 
-   If you do not have a domain, you should set `CODER_ACCESS_URL` to this URL in
-   the Helm chart and upgrade Coder (see below). This allows workspaces to
-   connect to the proper Coder URL.
+    <!-- autoversion(mainline): "--version [version]" -->
+
+    ```shell
+    helm install coder coder-v2/coder \
+        --namespace coder \
+        --values values.yaml \
+        --version 2.27.1
+    ```
+
+  - **OCI Registry**
+
+    <!-- autoversion(mainline): "--version [version]" -->
+
+    ```shell
+    helm install coder oci://ghcr.io/coder/chart/coder \
+        --namespace coder \
+        --values values.yaml \
+        --version 2.27.1
+    ```
+
+- **Stable** Coder release:
+
+  - **Chart Registry**
+
+    <!-- autoversion(stable): "--version [version]" -->
+
+    ```shell
+    helm install coder coder-v2/coder \
+        --namespace coder \
+        --values values.yaml \
+        --version 2.26.2
+    ```
+
+  - **OCI Registry**
+
+    <!-- autoversion(stable): "--version [version]" -->
+
+    ```shell
+    helm install coder oci://ghcr.io/coder/chart/coder \
+        --namespace coder \
+        --values values.yaml \
+        --version 2.26.2
+    ```
+
+You can watch Coder start up by running `kubectl get pods -n coder`. Once Coder
+has started, the `coder-*` pods should enter the `Running` state.
+
+## 5. Log in to Coder 🎉
+
+Use `kubectl get svc -n coder` to get the IP address of the LoadBalancer. Visit
+this in the browser to set up your first account.
+
+If you do not have a domain, you should set `CODER_ACCESS_URL` to this URL in
+the Helm chart and upgrade Coder (see below). This allows workspaces to connect
+to the proper Coder URL.
 
 ## Upgrading Coder via Helm
 
 To upgrade Coder in the future or change values, you can run the following
 command:
 
-```console
+```shell
 helm repo update
 helm upgrade coder coder-v2/coder \
   --namespace coder \
   -f values.yaml
 ```
+
+## Coder Observability Chart
+
+Use the [Observability Helm chart](https://github.com/coder/observability) for a
+pre-built set of dashboards to monitor your control plane over time. It includes
+Grafana, Prometheus, Loki, and Alert Manager out-of-the-box, and can be deployed
+on your existing Grafana instance.
+
+We recommend that all administrators deploying on Kubernetes set the
+observability bundle up with the control plane from the start. For installation
+instructions, visit the
+[observability repository](https://github.com/coder/observability?tab=readme-ov-file#installation).
+
+## Kubernetes Security Reference
+
+Below are common requirements we see from our enterprise customers when
+deploying an application in Kubernetes. This is intended to serve as a
+reference, and not all security requirements may apply to your business.
+
+1. **All container images must be sourced from an internal container registry.**
+
+   - Control plane - To pull the control plane image from the appropriate
+     registry,
+     [update this Helm chart value](https://github.com/coder/coder/blob/f57ce97b5aadd825ddb9a9a129bb823a3725252b/helm/coder/values.yaml#L43-L50).
+   - Workspaces - To pull the workspace image from your registry,
+     [update the Terraform template code here](https://github.com/coder/coder/blob/f57ce97b5aadd825ddb9a9a129bb823a3725252b/examples/templates/kubernetes/main.tf#L271).
+     This assumes your cluster nodes are authenticated to pull from the internal
+     registry.
+
+2. **All containers must run as non-root user**
+
+   - Control plane - Our control plane pod
+     [runs as non-root by default](https://github.com/coder/coder/blob/f57ce97b5aadd825ddb9a9a129bb823a3725252b/helm/coder/values.yaml#L124-L127).
+   - Workspaces - Workspace pod UID is
+     [set in the Terraform template here](https://github.com/coder/coder/blob/f57ce97b5aadd825ddb9a9a129bb823a3725252b/examples/templates/kubernetes/main.tf#L274-L276),
+     and are not required to run as `root`.
+
+3. **Containers cannot run privileged**
+
+   - Coder's control plane does not run as privileged.
+     [We disable](https://github.com/coder/coder/blob/f57ce97b5aadd825ddb9a9a129bb823a3725252b/helm/coder/values.yaml#L141)
+     `allowPrivilegeEscalation`
+     [by default](https://github.com/coder/coder/blob/f57ce97b5aadd825ddb9a9a129bb823a3725252b/helm/coder/values.yaml#L141).
+   - Workspace pods do not require any elevated privileges, with the exception
+     of our `envbox` workspace template (used for docker-in-docker workspaces,
+     not required).
+
+4. **Containers cannot mount host filesystems**
+
+   - Both the control plane and workspace containers do not require any host
+     filesystem mounts.
+
+5. **Containers cannot attach to host network**
+
+   - Both the control plane and workspaces use the Kubernetes networking layer
+     by default, and do not require host network access.
+
+6. **All Kubernetes objects must define resource requests/limits**
+
+   - Both the control plane and workspaces set resource request/limits by
+     default.
+
+7. **All Kubernetes objects must define liveness and readiness probes**
+
+   - Control plane - The control plane Deployment has liveness and readiness
+     probes
+     [configured by default here](https://github.com/coder/coder/blob/f57ce97b5aadd825ddb9a9a129bb823a3725252b/helm/coder/templates/_coder.tpl#L98-L107).
+   - Workspaces - the Kubernetes Deployment template does not configure
+     liveness/readiness probes for the workspace, but this can be added to the
+     Terraform template, and is supported.
 
 ## Load balancing considerations
 
@@ -185,49 +311,16 @@ coder:
 
 ### Azure
 
-In certain enterprise environments, the
-[Azure Application Gateway](https://learn.microsoft.com/en-us/azure/application-gateway/ingress-controller-overview)
-was needed. The Application Gateway supports:
+Certain enterprise environments require the
+[Azure Application Gateway](https://learn.microsoft.com/en-us/azure/application-gateway/ingress-controller-overview).
+The Application Gateway supports:
 
 - Websocket traffic (required for workspace connections)
 - TLS termination
 
-## PostgreSQL Certificates
-
-Your organization may require connecting to the database instance over SSL. To
-supply Coder with the appropriate certificates, and have it connect over SSL,
-follow the steps below:
-
-1. Create the certificate as a secret in your Kubernetes cluster, if not already
-   present:
-
-```console
-$ kubectl create secret tls postgres-certs -n coder --key="postgres.key" --cert="postgres.crt"
-```
-
-1. Define the secret volume and volumeMounts in the Helm chart:
-
-```yaml
-coder:
-  volumes:
-    - name: "pg-certs-mount"
-      secret:
-        secretName: "postgres-certs"
-  volumeMounts:
-    - name: "pg-certs-mount"
-      mountPath: "$HOME/.postgresql"
-      readOnly: true
-```
-
-1. Lastly, your PG connection URL will look like:
-
-```console
-postgres://<user>:<password>@databasehost:<port>/<db-name>?sslmode=require&sslcert=$HOME/.postgresql/postgres.crt&sslkey=$HOME/.postgresql/postgres.key"
-```
-
-> More information on connecting to PostgreSQL databases using certificates can
-> be found
-> [here](https://www.postgresql.org/docs/current/libpq-ssl.html#LIBPQ-SSL-CLIENTCERT).
+Follow our doc on
+[how to deploy Coder on Azure with an Application Gateway](./kubernetes/kubernetes-azure-app-gateway.md)
+for an example.
 
 ## Troubleshooting
 
@@ -241,10 +334,10 @@ Ensure you have an externally-reachable `CODER_ACCESS_URL` set in your helm
 chart. If you do not have a domain set up, this should be the IP address of
 Coder's LoadBalancer (`kubectl get svc -n coder`).
 
-See [troubleshooting templates](../templates/index.md#troubleshooting-templates)
-for more steps.
+See [troubleshooting templates](../admin/templates/troubleshooting.md) for more
+steps.
 
 ## Next steps
 
-- [Configuring Coder](../admin/configure.md)
-- [Templates](../templates/index.md)
+- [Create your first template](../tutorials/template-from-scratch.md)
+- [Control plane configuration](../admin/setup/index.md)

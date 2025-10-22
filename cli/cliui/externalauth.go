@@ -37,6 +37,9 @@ func ExternalAuth(ctx context.Context, writer io.Writer, opts ExternalAuthOption
 		if auth.Authenticated {
 			return nil
 		}
+		if auth.Optional {
+			continue
+		}
 
 		_, _ = fmt.Fprintf(writer, "You must authenticate with %s to create a workspace with this template. Visit:\n\n\t%s\n\n", auth.DisplayName, auth.AuthenticateURL)
 

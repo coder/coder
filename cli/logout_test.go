@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"fmt"
 	"os"
 	"runtime"
 	"testing"
@@ -89,37 +90,14 @@ func TestLogout(t *testing.T) {
 		logout.Stdin = pty.Input()
 		logout.Stdout = pty.Output()
 
-		go func() {
-			defer close(logoutChan)
-			err := logout.Run()
-			assert.ErrorContains(t, err, "You are not logged in. Try logging in using 'coder login <url>'.")
-		}()
-
-		<-logoutChan
-	})
-	t.Run("NoSessionFile", func(t *testing.T) {
-		t.Parallel()
-
-		pty := ptytest.New(t)
-		config := login(t, pty)
-
-		// Ensure session files exist.
-		require.FileExists(t, string(config.URL()))
-		require.FileExists(t, string(config.Session()))
-
-		err := os.Remove(string(config.Session()))
+		executable, err := os.Executable()
 		require.NoError(t, err)
-
-		logoutChan := make(chan struct{})
-		logout, _ := clitest.New(t, "logout", "--global-config", string(config))
-
-		logout.Stdin = pty.Input()
-		logout.Stdout = pty.Output()
+		require.NotEqual(t, "", executable)
 
 		go func() {
 			defer close(logoutChan)
 			err = logout.Run()
-			assert.ErrorContains(t, err, "You are not logged in. Try logging in using 'coder login <url>'.")
+			assert.Contains(t, err.Error(), fmt.Sprintf("Try logging in using '%s login <url>'.", executable))
 		}()
 
 		<-logoutChan

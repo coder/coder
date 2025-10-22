@@ -24,30 +24,19 @@ linters-settings:
     enabled-checks:
       # - appendAssign
       # - appendCombine
-      - argOrder
       # - assignOp
       # - badCall
-      - badCond
       - badLock
       - badRegexp
       - boolExprSimplify
       # - builtinShadow
       - builtinShadowDecl
-      - captLocal
-      - caseOrder
-      - codegenComment
       # - commentedOutCode
       - commentedOutImport
-      - commentFormatting
-      - defaultCaseOrder
       - deferUnlambda
       # - deprecatedComment
       # - docStub
-      - dupArg
-      - dupBranchBody
-      - dupCase
       - dupImport
-      - dupSubExpr
       # - elseif
       - emptyFallthrough
       # - emptyStringTest
@@ -56,8 +45,6 @@ linters-settings:
       # - exitAfterDefer
       # - exposedSyncMutex
       # - filepathJoin
-      - flagDeref
-      - flagName
       - hexLiteral
       # - httpNoBody
       # - hugeParam
@@ -65,47 +52,36 @@ linters-settings:
       # - importShadow
       - indexAlloc
       - initClause
-      - mapKey
       - methodExprCall
       # - nestingReduce
-      - newDeref
       - nilValReturn
       # - octalLiteral
-      - offBy1
       # - paramTypeCombine
       # - preferStringWriter
       # - preferWriteByte
       # - ptrToRefParam
       # - rangeExprCopy
       # - rangeValCopy
-      - regexpMust
       - regexpPattern
       # - regexpSimplify
       - ruleguard
-      - singleCaseSwitch
-      - sloppyLen
       # - sloppyReassign
-      - sloppyTypeAssert
       - sortSlice
       - sprintfQuotedString
       - sqlQuery
       # - stringConcatSimplify
       # - stringXbytes
       # - suspiciousSorting
-      - switchTrue
       - truncateCmp
       - typeAssertChain
       # - typeDefFirst
-      - typeSwitchVar
       # - typeUnparen
-      - underef
       # - unlabelStmt
       # - unlambda
       # - unnamedResult
       # - unnecessaryBlock
       # - unnecessaryDefer
       # - unslice
-      - valSwap
       - weakCond
       # - whyNoLint
       # - wrapperFunc
@@ -175,8 +151,6 @@ linters-settings:
       - name: modifies-value-receiver
       - name: package-comments
       - name: range
-      - name: range-val-address
-      - name: range-val-in-closure
       - name: receiver-naming
       - name: redefines-builtin-id
       - name: string-of-int
@@ -190,12 +164,39 @@ linters-settings:
       - name: unnecessary-stmt
       - name: unreachable-code
       - name: unused-parameter
+        exclude: "**/*_test.go"
       - name: unused-receiver
       - name: var-declaration
       - name: var-naming
       - name: waitgroup-by-value
+  usetesting:
+    # Only os-setenv is enabled because we migrated to usetesting from another linter that
+    # only covered os-setenv.
+    os-setenv: true
+    os-create-temp: false
+    os-mkdir-temp: false
+    os-temp-dir: false
+    os-chdir: false
+    context-background: false
+    context-todo: false
+
+  # irrelevant as of Go v1.22: https://go.dev/blog/loopvar-preview
+  govet:
+    disable:
+      - loopclosure
+  gosec:
+    excludes:
+      # Implicit memory aliasing of items from a range statement (irrelevant as of Go v1.22)
+      - G601
 
 issues:
+  exclude-dirs:
+    - node_modules
+    - .git
+
+  exclude-files:
+    - scripts/rules.go
+
   # Rules listed here: https://github.com/securego/gosec#available-rules
   exclude-rules:
     - path: _test\.go
@@ -207,17 +208,15 @@ issues:
     - path: scripts/*
       linters:
         - exhaustruct
+    - path: scripts/rules.go
+      linters:
+        - ALL
 
   fix: true
   max-issues-per-linter: 0
   max-same-issues: 0
 
 run:
-  skip-dirs:
-    - node_modules
-    - .git
-  skip-files:
-    - scripts/rules.go
   timeout: 10m
 
 # Over time, add more and more linters from
@@ -233,7 +232,6 @@ linters:
     - errname
     - errorlint
     - exhaustruct
-    - exportloopref
     - forcetypeassert
     - gocritic
     # gocyclo is may be useful in the future when we start caring
@@ -264,7 +262,6 @@ linters:
     # - wastedassign
 
     - staticcheck
-    - tenv
     # In Go, it's possible for a package to test it's internal functionality
     # without testing any exported functions. This is enabled to promote
     # decomposing a package before testing it's internals. A function caller
@@ -277,4 +274,5 @@ linters:
     - typecheck
     - unconvert
     - unused
+    - usetesting
     - dupl

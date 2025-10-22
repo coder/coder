@@ -32,7 +32,7 @@ type AuthorizationCheck struct {
 	// Omitting the 'OrganizationID' could produce the incorrect value, as
 	// workspaces have both `user` and `organization` owners.
 	Object AuthorizationObject `json:"object"`
-	Action string              `json:"action" enums:"create,read,update,delete"`
+	Action RBACAction          `json:"action" enums:"create,read,update,delete"`
 }
 
 // AuthorizationObject can represent a "set" of objects, such as: all workspaces in an organization, all workspaces owned by me,
@@ -54,6 +54,9 @@ type AuthorizationObject struct {
 	// are using this option, you should also set the owner ID and organization ID
 	// if possible. Be as specific as possible using all the fields relevant.
 	ResourceID string `json:"resource_id,omitempty"`
+	// AnyOrgOwner (optional) will disregard the org_owner when checking for permissions.
+	// This cannot be set to true if the OrganizationID is set.
+	AnyOrgOwner bool `json:"any_org,omitempty"`
 }
 
 // AuthCheck allows the authenticated user to check if they have the given permissions

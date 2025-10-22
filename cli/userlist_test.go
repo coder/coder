@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,6 +13,7 @@ import (
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty/ptytest"
 )
@@ -20,9 +23,10 @@ func TestUserList(t *testing.T) {
 	t.Run("Table", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		coderdtest.CreateFirstUser(t, client)
+		owner := coderdtest.CreateFirstUser(t, client)
+		userAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleUserAdmin())
 		inv, root := clitest.New(t, "users", "list")
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, userAdmin, root)
 		pty := ptytest.New(t).Attach(inv)
 		errC := make(chan error)
 		go func() {
@@ -35,9 +39,10 @@ func TestUserList(t *testing.T) {
 		t.Parallel()
 
 		client := coderdtest.New(t, nil)
-		coderdtest.CreateFirstUser(t, client)
+		owner := coderdtest.CreateFirstUser(t, client)
+		userAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleUserAdmin())
 		inv, root := clitest.New(t, "users", "list", "-o", "json")
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, userAdmin, root)
 		doneChan := make(chan struct{})
 
 		buf := bytes.NewBuffer(nil)
@@ -53,15 +58,25 @@ func TestUserList(t *testing.T) {
 		var users []codersdk.User
 		err := json.Unmarshal(buf.Bytes(), &users)
 		require.NoError(t, err, "unmarshal JSON output")
-		require.Len(t, users, 1)
-		require.Contains(t, users[0].Email, "coder.com")
+		require.Len(t, users, 2)
+		for _, u := range users {
+			assert.NotEmpty(t, u.ID)
+			assert.NotEmpty(t, u.Email)
+			assert.NotEmpty(t, u.Username)
+			assert.NotEmpty(t, u.Name)
+			assert.NotEmpty(t, u.CreatedAt)
+			assert.NotEmpty(t, u.Status)
+		}
 	})
 	t.Run("NoURLFileErrorHasHelperText", func(t *testing.T) {
 		t.Parallel()
 
+		executable, err := os.Executable()
+		require.NoError(t, err)
+
 		inv, _ := clitest.New(t, "users", "list")
-		err := inv.Run()
-		require.Contains(t, err.Error(), "Try logging in using 'coder login <url>'.")
+		err = inv.Run()
+		require.Contains(t, err.Error(), fmt.Sprintf("Try logging in using '%s login <url>'.", executable))
 	})
 	t.Run("SessionAuthErrorHasHelperText", func(t *testing.T) {
 		t.Parallel()
@@ -74,7 +89,7 @@ func TestUserList(t *testing.T) {
 
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Contains(t, err.Error(), "Try logging in using 'coder login <url>'.")
+		require.Contains(t, err.Error(), "Try logging in using 'coder login'.")
 	})
 }
 
@@ -84,10 +99,11 @@ func TestUserShow(t *testing.T) {
 	t.Run("Table", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		admin := coderdtest.CreateFirstUser(t, client)
-		_, otherUser := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+		owner := coderdtest.CreateFirstUser(t, client)
+		userAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleUserAdmin())
+		_, otherUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 		inv, root := clitest.New(t, "users", "show", otherUser.Username)
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, userAdmin, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t).Attach(inv)
 		go func() {
@@ -104,12 +120,13 @@ func TestUserShow(t *testing.T) {
 
 		ctx := context.Background()
 		client := coderdtest.New(t, nil)
-		admin := coderdtest.CreateFirstUser(t, client)
-		other, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+		owner := coderdtest.CreateFirstUser(t, client)
+		userAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleUserAdmin())
+		other, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 		otherUser, err := other.User(ctx, codersdk.Me)
 		require.NoError(t, err, "fetch other user")
 		inv, root := clitest.New(t, "users", "show", otherUser.Username, "-o", "json")
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, userAdmin, root)
 		doneChan := make(chan struct{})
 
 		buf := bytes.NewBuffer(nil)
@@ -128,5 +145,6 @@ func TestUserShow(t *testing.T) {
 		require.Equal(t, otherUser.ID, newUser.ID)
 		require.Equal(t, otherUser.Username, newUser.Username)
 		require.Equal(t, otherUser.Email, newUser.Email)
+		require.Equal(t, otherUser.Name, newUser.Name)
 	})
 }

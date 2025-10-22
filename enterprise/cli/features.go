@@ -10,41 +10,42 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) features() *clibase.Cmd {
-	cmd := &clibase.Cmd{
+func (r *RootCmd) features() *serpent.Command {
+	cmd := &serpent.Command{
 		Short:   "List Enterprise features",
 		Use:     "features",
 		Aliases: []string{"feature"},
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
-		Children: []*clibase.Cmd{
+		Children: []*serpent.Command{
 			r.featuresList(),
 		},
 	}
 	return cmd
 }
 
-func (r *RootCmd) featuresList() *clibase.Cmd {
+func (r *RootCmd) featuresList() *serpent.Command {
 	var (
-		featureColumns = []string{"Name", "Entitlement", "Enabled", "Limit", "Actual"}
+		featureColumns = []string{"name", "entitlement", "enabled", "limit", "actual"}
 		columns        []string
 		outputFormat   string
 	)
-	client := new(codersdk.Client)
 
-	cmd := &clibase.Cmd{
-		Use:     "list",
-		Aliases: []string{"ls"},
-		Middleware: clibase.Chain(
-			r.InitClient(client),
-		),
-		Handler: func(inv *clibase.Invocation) error {
+	cmd := &serpent.Command{
+		Use:        "list",
+		Aliases:    []string{"ls"},
+		Middleware: serpent.Chain(),
+		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
 			entitlements, err := client.Entitlements(inv.Context())
 			var apiError *codersdk.Error
 			if errors.As(err, &apiError) && apiError.StatusCode() == http.StatusNotFound {
@@ -81,22 +82,20 @@ func (r *RootCmd) featuresList() *clibase.Cmd {
 		},
 	}
 
-	cmd.Options = clibase.OptionSet{
+	cmd.Options = serpent.OptionSet{
 		{
 			Flag:          "column",
 			FlagShorthand: "c",
-			Description: fmt.Sprintf("Specify a column to filter in the table. Available columns are: %s.",
-				strings.Join(featureColumns, ", "),
-			),
-			Default: strings.Join(featureColumns, ","),
-			Value:   clibase.StringArrayOf(&columns),
+			Description:   "Specify columns to filter in the table.",
+			Default:       strings.Join(featureColumns, ","),
+			Value:         serpent.EnumArrayOf(&columns, featureColumns...),
 		},
 		{
 			Flag:          "output",
 			FlagShorthand: "o",
-			Description:   "Output format. Available formats are: table, json.",
+			Description:   "Output format.",
 			Default:       "table",
-			Value:         clibase.StringOf(&outputFormat),
+			Value:         serpent.EnumOf(&outputFormat, "table", "json"),
 		},
 	}
 

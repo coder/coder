@@ -1,63 +1,77 @@
-import { action } from "@storybook/addon-actions";
-import { MockAuthMethods, mockApiError } from "testHelpers/entities";
+import {
+	MockAuthMethodsAll,
+	MockAuthMethodsExternal,
+	MockAuthMethodsPasswordOnly,
+	MockAuthMethodsPasswordTermsOfService,
+	MockBuildInfo,
+	mockApiError,
+} from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import { LoginPageView } from "./LoginPageView";
-import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof LoginPageView> = {
-  title: "pages/LoginPageView",
-  component: LoginPageView,
+	title: "pages/LoginPage",
+	component: LoginPageView,
+	args: {
+		buildInfo: MockBuildInfo,
+	},
 };
 
 export default meta;
 type Story = StoryObj<typeof LoginPageView>;
 
 export const Example: Story = {
-  args: {
-    isLoading: false,
-    onSignIn: action("onSignIn"),
-    context: {
-      data: {
-        authMethods: MockAuthMethods,
-        hasFirstUser: false,
-      },
-    },
-  },
+	args: {
+		authMethods: MockAuthMethodsPasswordOnly,
+	},
+};
+
+export const WithExternalAuthMethods: Story = {
+	args: {
+		authMethods: MockAuthMethodsExternal,
+	},
+};
+
+export const WithAllAuthMethods: Story = {
+	args: {
+		authMethods: MockAuthMethodsAll,
+	},
+};
+
+export const WithTermsOfService: Story = {
+	args: {
+		authMethods: MockAuthMethodsPasswordTermsOfService,
+	},
 };
 
 export const AuthError: Story = {
-  args: {
-    isLoading: false,
-    onSignIn: action("onSignIn"),
-    context: {
-      error: mockApiError({
-        message: "User or password is incorrect",
-        detail: "Please, try again",
-      }),
-      data: {
-        authMethods: MockAuthMethods,
-        hasFirstUser: false,
-      },
-    },
-  },
+	args: {
+		error: mockApiError({
+			message: "Incorrect email or password.",
+		}),
+		authMethods: MockAuthMethodsPasswordOnly,
+	},
 };
 
-export const LoadingInitialData: Story = {
-  args: {
-    isLoading: true,
-    onSignIn: action("onSignIn"),
-    context: {},
-  },
+export const ExternalAuthError: Story = {
+	args: {
+		error: mockApiError({
+			message: "Incorrect email or password.",
+		}),
+		authMethods: MockAuthMethodsAll,
+	},
+};
+
+export const LoadingAuthMethods: Story = {
+	args: {
+		isLoading: true,
+		authMethods: undefined,
+	},
 };
 
 export const SigningIn: Story = {
-  args: {
-    isSigningIn: true,
-    onSignIn: action("onSignIn"),
-    context: {
-      data: {
-        authMethods: MockAuthMethods,
-        hasFirstUser: false,
-      },
-    },
-  },
+	args: {
+		isSigningIn: true,
+		authMethods: MockAuthMethodsPasswordOnly,
+	},
 };

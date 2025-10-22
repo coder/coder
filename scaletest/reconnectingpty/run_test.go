@@ -3,6 +3,7 @@ package reconnectingpty_test
 import (
 	"bytes"
 	"context"
+	"io"
 	"testing"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/scaletest/reconnectingpty"
@@ -29,7 +31,7 @@ func Test_Runner(t *testing.T) {
 
 		runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 			AgentID: agentID,
-			Init: codersdk.WorkspaceAgentReconnectingPTYInit{
+			Init: workspacesdk.AgentReconnectingPTYInit{
 				// Use ; here because it's powershell compatible (vs &&).
 				Command: "echo 'hello world'; sleep 1",
 			},
@@ -41,14 +43,16 @@ func Test_Runner(t *testing.T) {
 
 		logs := bytes.NewBuffer(nil)
 		err := runner.Run(ctx, "1", logs)
-		logStr := logs.String()
-		t.Log("Runner logs:\n\n" + logStr)
 		require.NoError(t, err)
 
-		require.Contains(t, logStr, "Output:")
+		tr := testutil.NewTerminalReader(t, logs)
+		err = tr.ReadUntilString(ctx, "Output:")
+		require.NoError(t, err)
+
 		// OSX: Output:\n\thello world\n
 		// Win: Output:\n\t\x1b[2J\x1b[m\x1b[H\x1b]0;Administrator: C:\\Program Files\\PowerShell\\7\\pwsh.exe\a\x1b[?25hhello world\n
-		require.Contains(t, logStr, "hello world\n")
+		err = tr.ReadUntilString(ctx, "hello world")
+		require.NoError(t, err)
 	})
 
 	t.Run("NoLogOutput", func(t *testing.T) {
@@ -58,7 +62,7 @@ func Test_Runner(t *testing.T) {
 
 		runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 			AgentID: agentID,
-			Init: codersdk.WorkspaceAgentReconnectingPTYInit{
+			Init: workspacesdk.AgentReconnectingPTYInit{
 				Command: "echo 'hello world'",
 			},
 			LogOutput: false,
@@ -69,11 +73,12 @@ func Test_Runner(t *testing.T) {
 
 		logs := bytes.NewBuffer(nil)
 		err := runner.Run(ctx, "1", logs)
-		logStr := logs.String()
-		t.Log("Runner logs:\n\n" + logStr)
 		require.NoError(t, err)
 
-		require.NotContains(t, logStr, "Output:")
+		tr := testutil.NewTerminalReader(t, logs)
+		err = tr.ReadUntilString(ctx, "Output:")
+		require.Error(t, err)
+		require.ErrorIs(t, err, io.EOF)
 	})
 
 	t.Run("Timeout", func(t *testing.T) {
@@ -86,7 +91,7 @@ func Test_Runner(t *testing.T) {
 
 			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 				AgentID: agentID,
-				Init: codersdk.WorkspaceAgentReconnectingPTYInit{
+				Init: workspacesdk.AgentReconnectingPTYInit{
 					Command: "echo 'hello world'",
 				},
 				Timeout:   httpapi.Duration(2 * testutil.WaitSuperLong),
@@ -110,7 +115,7 @@ func Test_Runner(t *testing.T) {
 
 			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 				AgentID: agentID,
-				Init: codersdk.WorkspaceAgentReconnectingPTYInit{
+				Init: workspacesdk.AgentReconnectingPTYInit{
 					Command: "sleep 120",
 				},
 				Timeout:   httpapi.Duration(2 * time.Second),
@@ -139,7 +144,7 @@ func Test_Runner(t *testing.T) {
 
 			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 				AgentID: agentID,
-				Init: codersdk.WorkspaceAgentReconnectingPTYInit{
+				Init: workspacesdk.AgentReconnectingPTYInit{
 					Command: "sleep 120",
 				},
 				Timeout:       httpapi.Duration(2 * time.Second),
@@ -164,7 +169,7 @@ func Test_Runner(t *testing.T) {
 
 			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 				AgentID: agentID,
-				Init: codersdk.WorkspaceAgentReconnectingPTYInit{
+				Init: workspacesdk.AgentReconnectingPTYInit{
 					Command: "echo 'hello world'",
 				},
 				Timeout:       httpapi.Duration(2 * testutil.WaitSuperLong),
@@ -194,11 +199,10 @@ func Test_Runner(t *testing.T) {
 
 			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 				AgentID: agentID,
-				Init: codersdk.WorkspaceAgentReconnectingPTYInit{
+				Init: workspacesdk.AgentReconnectingPTYInit{
 					Command: "echo 'hello world'; sleep 1",
 				},
-				ExpectOutput: "hello world",
-				LogOutput:    false,
+				LogOutput: true,
 			})
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
@@ -206,8 +210,10 @@ func Test_Runner(t *testing.T) {
 
 			logs := bytes.NewBuffer(nil)
 			err := runner.Run(ctx, "1", logs)
-			logStr := logs.String()
-			t.Log("Runner logs:\n\n" + logStr)
+			require.NoError(t, err)
+
+			tr := testutil.NewTerminalReader(t, logs)
+			err = tr.ReadUntilString(ctx, "hello world")
 			require.NoError(t, err)
 		})
 
@@ -218,11 +224,10 @@ func Test_Runner(t *testing.T) {
 
 			runner := reconnectingpty.NewRunner(client, reconnectingpty.Config{
 				AgentID: agentID,
-				Init: codersdk.WorkspaceAgentReconnectingPTYInit{
+				Init: workspacesdk.AgentReconnectingPTYInit{
 					Command: "echo 'hello world'; sleep 1",
 				},
-				ExpectOutput: "bello borld",
-				LogOutput:    false,
+				LogOutput: true,
 			})
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
@@ -230,10 +235,12 @@ func Test_Runner(t *testing.T) {
 
 			logs := bytes.NewBuffer(nil)
 			err := runner.Run(ctx, "1", logs)
-			logStr := logs.String()
-			t.Log("Runner logs:\n\n" + logStr)
+			require.NoError(t, err)
+
+			tr := testutil.NewTerminalReader(t, logs)
+			err = tr.ReadUntilString(ctx, "bello borld")
 			require.Error(t, err)
-			require.ErrorContains(t, err, `expected string "bello borld" not found`)
+			require.ErrorIs(t, err, io.EOF)
 		})
 	})
 }
@@ -273,7 +280,7 @@ func setupRunnerTest(t *testing.T) (client *codersdk.Client, agentID uuid.UUID) 
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
-	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 	_ = agenttest.New(t, client.URL, authToken)

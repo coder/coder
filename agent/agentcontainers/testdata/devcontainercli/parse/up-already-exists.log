@@ -1,0 +1,68 @@
+{"type":"text","level":3,"timestamp":1744102135254,"text":"@devcontainers/cli 0.75.0. Node.js v23.9.0. darwin 24.4.0 arm64."}
+{"type":"start","level":2,"timestamp":1744102135254,"text":"Run: docker buildx version"}
+{"type":"stop","level":2,"timestamp":1744102135300,"text":"Run: docker buildx version","startTimestamp":1744102135254}
+{"type":"text","level":2,"timestamp":1744102135300,"text":"github.com/docker/buildx v0.21.2 1360a9e8d25a2c3d03c2776d53ae62e6ff0a843d\r\n"}
+{"type":"text","level":2,"timestamp":1744102135300,"text":"\u001b[1m\u001b[31m\u001b[39m\u001b[22m\r\n"}
+{"type":"start","level":2,"timestamp":1744102135300,"text":"Run: docker -v"}
+{"type":"stop","level":2,"timestamp":1744102135309,"text":"Run: docker -v","startTimestamp":1744102135300}
+{"type":"start","level":2,"timestamp":1744102135309,"text":"Resolving Remote"}
+{"type":"start","level":2,"timestamp":1744102135311,"text":"Run: git rev-parse --show-cdup"}
+{"type":"stop","level":2,"timestamp":1744102135316,"text":"Run: git rev-parse --show-cdup","startTimestamp":1744102135311}
+{"type":"start","level":2,"timestamp":1744102135316,"text":"Run: docker ps -q -a --filter label=devcontainer.local_folder=/code/devcontainers-template-starter --filter label=devcontainer.config_file=/code/devcontainers-template-starter/.devcontainer/devcontainer.json"}
+{"type":"stop","level":2,"timestamp":1744102135333,"text":"Run: docker ps -q -a --filter label=devcontainer.local_folder=/code/devcontainers-template-starter --filter label=devcontainer.config_file=/code/devcontainers-template-starter/.devcontainer/devcontainer.json","startTimestamp":1744102135316}
+{"type":"start","level":2,"timestamp":1744102135333,"text":"Run: docker inspect --type container 4f22413fe134"}
+{"type":"stop","level":2,"timestamp":1744102135347,"text":"Run: docker inspect --type container 4f22413fe134","startTimestamp":1744102135333}
+{"type":"start","level":2,"timestamp":1744102135348,"text":"Run: docker ps -q -a --filter label=devcontainer.local_folder=/code/devcontainers-template-starter --filter label=devcontainer.config_file=/code/devcontainers-template-starter/.devcontainer/devcontainer.json"}
+{"type":"stop","level":2,"timestamp":1744102135364,"text":"Run: docker ps -q -a --filter label=devcontainer.local_folder=/code/devcontainers-template-starter --filter label=devcontainer.config_file=/code/devcontainers-template-starter/.devcontainer/devcontainer.json","startTimestamp":1744102135348}
+{"type":"start","level":2,"timestamp":1744102135364,"text":"Run: docker inspect --type container 4f22413fe134"}
+{"type":"stop","level":2,"timestamp":1744102135378,"text":"Run: docker inspect --type container 4f22413fe134","startTimestamp":1744102135364}
+{"type":"start","level":2,"timestamp":1744102135379,"text":"Inspecting container"}
+{"type":"start","level":2,"timestamp":1744102135379,"text":"Run: docker inspect --type container 4f22413fe13472200500a66ca057df5aafba6b45743afd499c3f26fc886eb236"}
+{"type":"stop","level":2,"timestamp":1744102135393,"text":"Run: docker inspect --type container 4f22413fe13472200500a66ca057df5aafba6b45743afd499c3f26fc886eb236","startTimestamp":1744102135379}
+{"type":"stop","level":2,"timestamp":1744102135393,"text":"Inspecting container","startTimestamp":1744102135379}
+{"type":"start","level":2,"timestamp":1744102135393,"text":"Run in container: /bin/sh"}
+{"type":"start","level":2,"timestamp":1744102135394,"text":"Run in container: uname -m"}
+{"type":"text","level":2,"timestamp":1744102135428,"text":"aarch64\n"}
+{"type":"text","level":2,"timestamp":1744102135428,"text":""}
+{"type":"stop","level":2,"timestamp":1744102135428,"text":"Run in container: uname -m","startTimestamp":1744102135394}
+{"type":"start","level":2,"timestamp":1744102135428,"text":"Run in container: (cat /etc/os-release || cat /usr/lib/os-release) 2>/dev/null"}
+{"type":"text","level":2,"timestamp":1744102135428,"text":"PRETTY_NAME=\"Debian GNU/Linux 11 (bullseye)\"\nNAME=\"Debian GNU/Linux\"\nVERSION_ID=\"11\"\nVERSION=\"11 (bullseye)\"\nVERSION_CODENAME=bullseye\nID=debian\nHOME_URL=\"https://www.debian.org/\"\nSUPPORT_URL=\"https://www.debian.org/support\"\nBUG_REPORT_URL=\"https://bugs.debian.org/\"\n"}
+{"type":"text","level":2,"timestamp":1744102135428,"text":""}
+{"type":"stop","level":2,"timestamp":1744102135428,"text":"Run in container: (cat /etc/os-release || cat /usr/lib/os-release) 2>/dev/null","startTimestamp":1744102135428}
+{"type":"start","level":2,"timestamp":1744102135429,"text":"Run in container:  (command -v getent >/dev/null 2>&1 && getent passwd 'node' || grep -E '^node|^[^:]*:[^:]*:node:' /etc/passwd || true)"}
+{"type":"stop","level":2,"timestamp":1744102135429,"text":"Run in container:  (command -v getent >/dev/null 2>&1 && getent passwd 'node' || grep -E '^node|^[^:]*:[^:]*:node:' /etc/passwd || true)","startTimestamp":1744102135429}
+{"type":"start","level":2,"timestamp":1744102135430,"text":"Run in container: test -f '/var/devcontainer/.patchEtcEnvironmentMarker'"}
+{"type":"text","level":2,"timestamp":1744102135430,"text":""}
+{"type":"text","level":2,"timestamp":1744102135430,"text":""}
+{"type":"stop","level":2,"timestamp":1744102135430,"text":"Run in container: test -f '/var/devcontainer/.patchEtcEnvironmentMarker'","startTimestamp":1744102135430}
+{"type":"start","level":2,"timestamp":1744102135430,"text":"Run in container: test -f '/var/devcontainer/.patchEtcProfileMarker'"}
+{"type":"text","level":2,"timestamp":1744102135430,"text":""}
+{"type":"text","level":2,"timestamp":1744102135430,"text":""}
+{"type":"stop","level":2,"timestamp":1744102135430,"text":"Run in container: test -f '/var/devcontainer/.patchEtcProfileMarker'","startTimestamp":1744102135430}
+{"type":"text","level":2,"timestamp":1744102135431,"text":"userEnvProbe: loginInteractiveShell (default)"}
+{"type":"text","level":1,"timestamp":1744102135431,"text":"LifecycleCommandExecutionMap: {\n    \"onCreateCommand\": [],\n    \"updateContentCommand\": [],\n    \"postCreateCommand\": [\n        {\n            \"origin\": \"devcontainer.json\",\n            \"command\": \"npm install -g @devcontainers/cli\"\n        }\n    ],\n    \"postStartCommand\": [],\n    \"postAttachCommand\": [],\n    \"initializeCommand\": []\n}"}
+{"type":"text","level":2,"timestamp":1744102135431,"text":"userEnvProbe: not found in cache"}
+{"type":"text","level":2,"timestamp":1744102135431,"text":"userEnvProbe shell: /bin/bash"}
+{"type":"start","level":2,"timestamp":1744102135431,"text":"Run in container: /bin/bash -lic echo -n 5805f204-cd2b-4911-8a88-96de28d5deb7; cat /proc/self/environ; echo -n 5805f204-cd2b-4911-8a88-96de28d5deb7"}
+{"type":"start","level":2,"timestamp":1744102135431,"text":"Run in container: mkdir -p '/home/node/.devcontainer' && CONTENT=\"$(cat '/home/node/.devcontainer/.onCreateCommandMarker' 2>/dev/null || echo ENOENT)\" && [ \"${CONTENT:-2025-04-07T09:21:41.201379807Z}\" != '2025-04-07T09:21:41.201379807Z' ] && echo '2025-04-07T09:21:41.201379807Z' > '/home/node/.devcontainer/.onCreateCommandMarker'"}
+{"type":"text","level":2,"timestamp":1744102135432,"text":""}
+{"type":"text","level":2,"timestamp":1744102135432,"text":""}
+{"type":"text","level":2,"timestamp":1744102135432,"text":"Exit code 1"}
+{"type":"stop","level":2,"timestamp":1744102135432,"text":"Run in container: mkdir -p '/home/node/.devcontainer' && CONTENT=\"$(cat '/home/node/.devcontainer/.onCreateCommandMarker' 2>/dev/null || echo ENOENT)\" && [ \"${CONTENT:-2025-04-07T09:21:41.201379807Z}\" != '2025-04-07T09:21:41.201379807Z' ] && echo '2025-04-07T09:21:41.201379807Z' > '/home/node/.devcontainer/.onCreateCommandMarker'","startTimestamp":1744102135431}
+{"type":"start","level":2,"timestamp":1744102135432,"text":"Run in container: mkdir -p '/home/node/.devcontainer' && CONTENT=\"$(cat '/home/node/.devcontainer/.updateContentCommandMarker' 2>/dev/null || echo ENOENT)\" && [ \"${CONTENT:-2025-04-07T09:21:41.201379807Z}\" != '2025-04-07T09:21:41.201379807Z' ] && echo '2025-04-07T09:21:41.201379807Z' > '/home/node/.devcontainer/.updateContentCommandMarker'"}
+{"type":"text","level":2,"timestamp":1744102135434,"text":""}
+{"type":"text","level":2,"timestamp":1744102135434,"text":""}
+{"type":"text","level":2,"timestamp":1744102135434,"text":"Exit code 1"}
+{"type":"stop","level":2,"timestamp":1744102135434,"text":"Run in container: mkdir -p '/home/node/.devcontainer' && CONTENT=\"$(cat '/home/node/.devcontainer/.updateContentCommandMarker' 2>/dev/null || echo ENOENT)\" && [ \"${CONTENT:-2025-04-07T09:21:41.201379807Z}\" != '2025-04-07T09:21:41.201379807Z' ] && echo '2025-04-07T09:21:41.201379807Z' > '/home/node/.devcontainer/.updateContentCommandMarker'","startTimestamp":1744102135432}
+{"type":"start","level":2,"timestamp":1744102135434,"text":"Run in container: mkdir -p '/home/node/.devcontainer' && CONTENT=\"$(cat '/home/node/.devcontainer/.postCreateCommandMarker' 2>/dev/null || echo ENOENT)\" && [ \"${CONTENT:-2025-04-07T09:21:41.201379807Z}\" != '2025-04-07T09:21:41.201379807Z' ] && echo '2025-04-07T09:21:41.201379807Z' > '/home/node/.devcontainer/.postCreateCommandMarker'"}
+{"type":"text","level":2,"timestamp":1744102135435,"text":""}
+{"type":"text","level":2,"timestamp":1744102135435,"text":""}
+{"type":"text","level":2,"timestamp":1744102135435,"text":"Exit code 1"}
+{"type":"stop","level":2,"timestamp":1744102135435,"text":"Run in container: mkdir -p '/home/node/.devcontainer' && CONTENT=\"$(cat '/home/node/.devcontainer/.postCreateCommandMarker' 2>/dev/null || echo ENOENT)\" && [ \"${CONTENT:-2025-04-07T09:21:41.201379807Z}\" != '2025-04-07T09:21:41.201379807Z' ] && echo '2025-04-07T09:21:41.201379807Z' > '/home/node/.devcontainer/.postCreateCommandMarker'","startTimestamp":1744102135434}
+{"type":"start","level":2,"timestamp":1744102135435,"text":"Run in container: mkdir -p '/home/node/.devcontainer' && CONTENT=\"$(cat '/home/node/.devcontainer/.postStartCommandMarker' 2>/dev/null || echo ENOENT)\" && [ \"${CONTENT:-2025-04-08T08:48:29.406495039Z}\" != '2025-04-08T08:48:29.406495039Z' ] && echo '2025-04-08T08:48:29.406495039Z' > '/home/node/.devcontainer/.postStartCommandMarker'"}
+{"type":"text","level":2,"timestamp":1744102135436,"text":""}
+{"type":"text","level":2,"timestamp":1744102135436,"text":""}
+{"type":"text","level":2,"timestamp":1744102135436,"text":"Exit code 1"}
+{"type":"stop","level":2,"timestamp":1744102135436,"text":"Run in container: mkdir -p '/home/node/.devcontainer' && CONTENT=\"$(cat '/home/node/.devcontainer/.postStartCommandMarker' 2>/dev/null || echo ENOENT)\" && [ \"${CONTENT:-2025-04-08T08:48:29.406495039Z}\" != '2025-04-08T08:48:29.406495039Z' ] && echo '2025-04-08T08:48:29.406495039Z' > '/home/node/.devcontainer/.postStartCommandMarker'","startTimestamp":1744102135435}
+{"type":"stop","level":2,"timestamp":1744102135436,"text":"Resolving Remote","startTimestamp":1744102135309}
+{"outcome":"success","containerId":"4f22413fe13472200500a66ca057df5aafba6b45743afd499c3f26fc886eb236","remoteUser":"node","remoteWorkspaceFolder":"/workspaces/devcontainers-template-starter"}

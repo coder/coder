@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+
+	"github.com/coder/coder/v2/coderd/proxyhealth"
 )
 
 // cspDirectives is a map of all csp fetch directives to their values.
@@ -23,27 +25,40 @@ func (s cspDirectives) Append(d CSPFetchDirective, values ...string) {
 type CSPFetchDirective string
 
 const (
-	cspDirectiveDefaultSrc  = "default-src"
-	cspDirectiveConnectSrc  = "connect-src"
-	cspDirectiveChildSrc    = "child-src"
-	cspDirectiveScriptSrc   = "script-src"
-	cspDirectiveFontSrc     = "font-src"
-	cspDirectiveStyleSrc    = "style-src"
-	cspDirectiveObjectSrc   = "object-src"
-	cspDirectiveManifestSrc = "manifest-src"
-	cspDirectiveFrameSrc    = "frame-src"
-	cspDirectiveImgSrc      = "img-src"
-	cspDirectiveReportURI   = "report-uri"
-	cspDirectiveFormAction  = "form-action"
-	cspDirectiveMediaSrc    = "media-src"
-	cspFrameAncestors       = "frame-ancestors"
-	cspDirectiveWorkerSrc   = "worker-src"
+	CSPDirectiveDefaultSrc  CSPFetchDirective = "default-src"
+	CSPDirectiveConnectSrc  CSPFetchDirective = "connect-src"
+	CSPDirectiveChildSrc    CSPFetchDirective = "child-src"
+	CSPDirectiveScriptSrc   CSPFetchDirective = "script-src"
+	CSPDirectiveFontSrc     CSPFetchDirective = "font-src"
+	CSPDirectiveStyleSrc    CSPFetchDirective = "style-src"
+	CSPDirectiveObjectSrc   CSPFetchDirective = "object-src"
+	CSPDirectiveManifestSrc CSPFetchDirective = "manifest-src"
+	CSPDirectiveFrameSrc    CSPFetchDirective = "frame-src"
+	CSPDirectiveImgSrc      CSPFetchDirective = "img-src"
+	CSPDirectiveReportURI   CSPFetchDirective = "report-uri"
+	CSPDirectiveFormAction  CSPFetchDirective = "form-action"
+	CSPDirectiveMediaSrc    CSPFetchDirective = "media-src"
+	CSPFrameAncestors       CSPFetchDirective = "frame-ancestors"
+	CSPFrameSource          CSPFetchDirective = "frame-src"
+	CSPDirectiveWorkerSrc   CSPFetchDirective = "worker-src"
 )
 
 // CSPHeaders returns a middleware that sets the Content-Security-Policy header
-// for coderd. It takes a function that allows adding supported external websocket
-// hosts. This is primarily to support the terminal connecting to a workspace proxy.
-func CSPHeaders(websocketHosts func() []string) func(next http.Handler) http.Handler {
+// for coderd.
+//
+// Arguments:
+//   - proxyHosts: a function that returns a list of supported proxy hosts
+//     (including the primary).  This is to support the terminal connecting to a
+//     workspace proxy and for embedding apps in an iframe.  The origin of the
+//     requests do not match the url of the proxy, so the CSP list of allowed
+//     hosts must be dynamic and match the current available proxy urls.
+//   - staticAdditions: a map of CSP directives to append to the default CSP headers.
+//     Used to allow specific static additions to the CSP headers. Allows some niche
+//     use cases, such as embedding Coder in an iframe.
+//     Example: https://github.com/coder/coder/issues/15118
+//
+//nolint:revive
+func CSPHeaders(telemetry bool, proxyHosts func() []*proxyhealth.ProxyHost, staticAdditions map[CSPFetchDirective][]string) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Content-Security-Policy disables loading certain content types and can prevent XSS injections.
@@ -53,34 +68,38 @@ func CSPHeaders(websocketHosts func() []string) func(next http.Handler) http.Han
 			//	The list of CSP options: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy/default-src
 			cspSrcs := cspDirectives{
 				// All omitted fetch csp srcs default to this.
-				cspDirectiveDefaultSrc: {"'self'"},
-				cspDirectiveConnectSrc: {"'self'"},
-				cspDirectiveChildSrc:   {"'self'"},
+				CSPDirectiveDefaultSrc: {"'self'"},
+				CSPDirectiveConnectSrc: {"'self'"},
+				CSPDirectiveChildSrc:   {"'self'"},
 				// https://github.com/suren-atoyan/monaco-react/issues/168
-				cspDirectiveScriptSrc: {"'self'"},
-				cspDirectiveStyleSrc:  {"'self' 'unsafe-inline'"},
+				CSPDirectiveScriptSrc: {"'self'"},
+				CSPDirectiveStyleSrc:  {"'self' 'unsafe-inline'"},
 				// data: is used by monaco editor on FE for Syntax Highlight
-				cspDirectiveFontSrc:   {"'self' data:"},
-				cspDirectiveWorkerSrc: {"'self' blob:"},
+				CSPDirectiveFontSrc:   {"'self' data:"},
+				CSPDirectiveWorkerSrc: {"'self' blob:"},
 				// object-src is needed to support code-server
-				cspDirectiveObjectSrc: {"'self'"},
+				CSPDirectiveObjectSrc: {"'self'"},
 				// blob: for loading the pwa manifest for code-server
-				cspDirectiveManifestSrc: {"'self' blob:"},
-				cspDirectiveFrameSrc:    {"'self'"},
+				CSPDirectiveManifestSrc: {"'self' blob:"},
+				CSPDirectiveFrameSrc:    {"'self'"},
 				// data: for loading base64 encoded icons for generic applications.
 				// https: allows loading images from external sources. This is not ideal
 				// 	but is required for the templates page that renders readmes.
 				//	We should find a better solution in the future.
-				cspDirectiveImgSrc:     {"'self' https: data:"},
-				cspDirectiveFormAction: {"'self'"},
-				cspDirectiveMediaSrc:   {"'self'"},
+				CSPDirectiveImgSrc:     {"'self' https: data:"},
+				CSPDirectiveFormAction: {"'self'"},
+				CSPDirectiveMediaSrc:   {"'self'"},
 				// Report all violations back to the server to log
-				cspDirectiveReportURI: {"/api/v2/csp/reports"},
-				cspFrameAncestors:     {"'none'"},
+				CSPDirectiveReportURI: {"/api/v2/csp/reports"},
 
 				// Only scripts can manipulate the dom. This prevents someone from
 				// naming themselves something like '<svg onload="alert(/cross-site-scripting/)" />'.
 				// "require-trusted-types-for" : []string{"'script'"},
+			}
+
+			if telemetry {
+				// If telemetry is enabled, we report to coder.com.
+				cspSrcs.Append(CSPDirectiveConnectSrc, "https://coder.com")
 			}
 
 			// This extra connect-src addition is required to support old webkit
@@ -95,23 +114,32 @@ func CSPHeaders(websocketHosts func() []string) func(next http.Handler) http.Han
 				// We can add both ws:// and wss:// as browsers do not let https
 				// pages to connect to non-tls websocket connections. So this
 				// supports both http & https webpages.
-				cspSrcs.Append(cspDirectiveConnectSrc, fmt.Sprintf("wss://%[1]s ws://%[1]s", host))
+				cspSrcs.Append(CSPDirectiveConnectSrc, fmt.Sprintf("wss://%[1]s ws://%[1]s", host))
 			}
 
-			// The terminal requires a websocket connection to the workspace proxy.
-			// Make sure we allow this connection to healthy proxies.
-			extraConnect := websocketHosts()
+			// The terminal and iframed apps can use workspace proxies (which includes
+			// the primary).  Make sure we allow connections to healthy proxies.
+			extraConnect := proxyHosts()
 			if len(extraConnect) > 0 {
 				for _, extraHost := range extraConnect {
-					if extraHost == "*" {
+					// Allow embedding the app host.
+					cspSrcs.Append(CSPDirectiveFrameSrc, extraHost.AppHost)
+					if extraHost.Host == "*" {
 						// '*' means all
-						cspSrcs.Append(cspDirectiveConnectSrc, "*")
+						cspSrcs.Append(CSPDirectiveConnectSrc, "*")
 						continue
 					}
-					cspSrcs.Append(cspDirectiveConnectSrc, fmt.Sprintf("wss://%[1]s ws://%[1]s", extraHost))
+					// Avoid double-adding r.Host.
+					if extraHost.Host != r.Host {
+						cspSrcs.Append(CSPDirectiveConnectSrc, fmt.Sprintf("wss://%[1]s ws://%[1]s", extraHost.Host))
+					}
 					// We also require this to make http/https requests to the workspace proxy for latency checking.
-					cspSrcs.Append(cspDirectiveConnectSrc, fmt.Sprintf("https://%[1]s http://%[1]s", extraHost))
+					cspSrcs.Append(CSPDirectiveConnectSrc, fmt.Sprintf("https://%[1]s http://%[1]s", extraHost.Host))
 				}
+			}
+
+			for directive, values := range staticAdditions {
+				cspSrcs.Append(directive, values...)
 			}
 
 			var csp strings.Builder

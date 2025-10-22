@@ -21,6 +21,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/websocket"
 
 	"cdr.dev/slog"
 )
@@ -28,9 +29,11 @@ import (
 // These cookies are Coder-specific. If a new one is added or changed, the name
 // shouldn't be likely to conflict with any user-application set cookies.
 // Be sure to strip additional cookies in httpapi.StripCoderCookies!
+// SessionTokenCookie represents the name of the cookie or query parameter the API key is stored in.
+// NOTE: This is declared as a var so that we can override it in `develop.sh` if required.
+var SessionTokenCookie = "coder_session_token"
+
 const (
-	// SessionTokenCookie represents the name of the cookie or query parameter the API key is stored in.
-	SessionTokenCookie = "coder_session_token"
 	// SessionTokenHeader is the custom header to use for authentication.
 	SessionTokenHeader = "Coder-Session-Token"
 	// OAuth2StateCookie is the name of the cookie that stores the oauth2 state.
@@ -45,6 +48,9 @@ const (
 	// SubdomainAppSessionTokenCookie is the name of the cookie that stores an
 	// application-scoped API token on subdomain app domains (both the primary
 	// and proxies).
+	//
+	// To avoid conflicts between multiple proxies, we append an underscore and
+	// a hash suffix to the cookie name.
 	//nolint:gosec
 	SubdomainAppSessionTokenCookie = "coder_subdomain_app_session_token"
 	// SignedAppTokenCookie is the name of the cookie that stores a temporary
@@ -76,8 +82,21 @@ const (
 	// only.
 	CLITelemetryHeader = "Coder-CLI-Telemetry"
 
+	// CoderDesktopTelemetryHeader contains a JSON-encoded representation of Desktop telemetry
+	// fields, including device ID, OS, and Desktop version.
+	CoderDesktopTelemetryHeader = "Coder-Desktop-Telemetry"
+
 	// ProvisionerDaemonPSK contains the authentication pre-shared key for an external provisioner daemon
 	ProvisionerDaemonPSK = "Coder-Provisioner-Daemon-PSK"
+
+	// ProvisionerDaemonKey contains the authentication key for an external provisioner daemon
+	ProvisionerDaemonKey = "Coder-Provisioner-Daemon-Key"
+
+	// BuildVersionHeader contains build information of Coder.
+	BuildVersionHeader = "X-Coder-Build-Version"
+
+	// EntitlementsWarnings contains active warnings for the user's entitlements.
+	EntitlementsWarningHeader = "X-Coder-Entitlements-Warning"
 )
 
 // loggableMimeTypes is a list of MIME types that are safe to log
@@ -89,12 +108,19 @@ var loggableMimeTypes = map[string]struct{}{
 	"text/html": {},
 }
 
+type ClientOption func(*Client)
+
 // New creates a Coder client for the provided URL.
-func New(serverURL *url.URL) *Client {
-	return &Client{
-		URL:        serverURL,
-		HTTPClient: &http.Client{},
+func New(serverURL *url.URL, opts ...ClientOption) *Client {
+	client := &Client{
+		URL:                  serverURL,
+		HTTPClient:           &http.Client{},
+		SessionTokenProvider: FixedSessionTokenProvider{},
 	}
+	for _, opt := range opts {
+		opt(client)
+	}
+	return client
 }
 
 // Client is an HTTP caller for methods to the Coder API.
@@ -102,29 +128,28 @@ func New(serverURL *url.URL) *Client {
 type Client struct {
 	// mu protects the fields sessionToken, logger, and logBodies. These
 	// need to be safe for concurrent access.
-	mu           sync.RWMutex
-	sessionToken string
-	logger       slog.Logger
-	logBodies    bool
+	mu                   sync.RWMutex
+	SessionTokenProvider SessionTokenProvider
+	logger               slog.Logger
+	logBodies            bool
 
 	HTTPClient *http.Client
 	URL        *url.URL
 
-	// SessionTokenHeader is an optional custom header to use for setting tokens. By
-	// default 'Coder-Session-Token' is used.
-	SessionTokenHeader string
-
 	// PlainLogger may be set to log HTTP traffic in a human-readable form.
 	// It uses the LogBodies option.
+	// Deprecated: Use WithPlainLogger to set this.
 	PlainLogger io.Writer
 
 	// Trace can be enabled to propagate tracing spans to the Coder API.
 	// This is useful for tracking a request end-to-end.
+	// Deprecated: Use WithTrace to set this.
 	Trace bool
 
 	// DisableDirectConnections forces any connections to workspaces to go
 	// through DERP, regardless of the BlockEndpoints setting on each
 	// connection.
+	// Deprecated: Use WithDisableDirectConnections to set this.
 	DisableDirectConnections bool
 }
 
@@ -136,6 +161,7 @@ func (c *Client) Logger() slog.Logger {
 }
 
 // SetLogger sets the logger for the client.
+// Deprecated: Use WithLogger to set this.
 func (c *Client) SetLogger(logger slog.Logger) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -150,6 +176,7 @@ func (c *Client) LogBodies() bool {
 }
 
 // SetLogBodies sets whether to log request and response bodies.
+// Deprecated: Use WithLogBodies to set this.
 func (c *Client) SetLogBodies(logBodies bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -160,14 +187,15 @@ func (c *Client) SetLogBodies(logBodies bool) {
 func (c *Client) SessionToken() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.sessionToken
+	return c.SessionTokenProvider.GetSessionToken()
 }
 
-// SetSessionToken returns the currently set token for the client.
+// SetSessionToken sets a fixed token for the client.
+// Deprecated: Create a new client using WithSessionToken instead of changing the token after creation.
 func (c *Client) SetSessionToken(token string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.sessionToken = token
+	c.SessionTokenProvider = FixedSessionTokenProvider{SessionToken: token}
 }
 
 func prefixLines(prefix, s []byte) []byte {
@@ -183,6 +211,17 @@ func prefixLines(prefix, s []byte) []byte {
 // Request performs a HTTP request with the body provided. The caller is
 // responsible for closing the response body.
 func (c *Client) Request(ctx context.Context, method, path string, body interface{}, opts ...RequestOption) (*http.Response, error) {
+	opts = append([]RequestOption{c.SessionTokenProvider.AsRequestOption()}, opts...)
+	return c.RequestWithoutSessionToken(ctx, method, path, body, opts...)
+}
+
+// RequestWithoutSessionToken performs a HTTP request. It is similar to Request, but does not set
+// the session token in the request header, nor does it make a call to the SessionTokenProvider.
+// This allows session token providers to call this method without causing reentrancy issues.
+func (c *Client) RequestWithoutSessionToken(ctx context.Context, method, path string, body interface{}, opts ...RequestOption) (*http.Response, error) {
+	if ctx == nil {
+		return nil, xerrors.Errorf("context should not be nil")
+	}
 	ctx, span := tracing.StartSpanWithName(ctx, tracing.FuncNameSkip(1))
 	defer span.End()
 
@@ -228,12 +267,6 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 	if err != nil {
 		return nil, xerrors.Errorf("create request: %w", err)
 	}
-
-	tokenHeader := c.SessionTokenHeader
-	if tokenHeader == "" {
-		tokenHeader = SessionTokenHeader
-	}
-	req.Header.Set(tokenHeader, c.SessionToken())
 
 	if r != nil {
 		req.Header.Set("Content-Type", "application/json")
@@ -320,14 +353,50 @@ func (c *Client) Request(ctx context.Context, method, path string, body interfac
 	return resp, err
 }
 
+func (c *Client) Dial(ctx context.Context, path string, opts *websocket.DialOptions) (*websocket.Conn, error) {
+	u, err := c.URL.Parse(path)
+	if err != nil {
+		return nil, err
+	}
+
+	if opts == nil {
+		opts = &websocket.DialOptions{}
+	}
+	c.SessionTokenProvider.SetDialOption(opts)
+
+	conn, resp, err := websocket.Dial(ctx, u.String(), opts)
+	if resp != nil && resp.Body != nil {
+		resp.Body.Close()
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return conn, nil
+}
+
+// ExpectJSONMime is a helper function that will assert the content type
+// of the response is application/json.
+func ExpectJSONMime(res *http.Response) error {
+	contentType := res.Header.Get("Content-Type")
+	mimeType := parseMimeType(contentType)
+	if mimeType != "application/json" {
+		return xerrors.Errorf("unexpected non-JSON response %q", contentType)
+	}
+	return nil
+}
+
 // ReadBodyAsError reads the response as a codersdk.Response, and
 // wraps it in a codersdk.Error type for easy marshaling.
+//
+// This will always return an error, so only call it if the response failed
+// your expectations. Usually via status code checking.
+// nolint:staticcheck
 func ReadBodyAsError(res *http.Response) error {
 	if res == nil {
 		return xerrors.Errorf("no body returned")
 	}
 	defer res.Body.Close()
-	contentType := res.Header.Get("Content-Type")
 
 	var requestMethod, requestURL string
 	if res.Request != nil {
@@ -341,7 +410,7 @@ func ReadBodyAsError(res *http.Response) error {
 	if res.StatusCode == http.StatusUnauthorized {
 		// 401 means the user is not logged in
 		// 403 would mean that the user is not authorized
-		helpMessage = "Try logging in using 'coder login <url>'."
+		helpMessage = "Try logging in using 'coder login'."
 	}
 
 	resp, err := io.ReadAll(res.Body)
@@ -349,8 +418,7 @@ func ReadBodyAsError(res *http.Response) error {
 		return xerrors.Errorf("read body: %w", err)
 	}
 
-	mimeType := parseMimeType(contentType)
-	if mimeType != "application/json" {
+	if mimeErr := ExpectJSONMime(res); mimeErr != nil {
 		if len(resp) > 2048 {
 			resp = append(resp[:2048], []byte("...")...)
 		}
@@ -362,7 +430,7 @@ func ReadBodyAsError(res *http.Response) error {
 			method:     requestMethod,
 			url:        requestURL,
 			Response: Response{
-				Message: fmt.Sprintf("unexpected non-JSON response %q", contentType),
+				Message: mimeErr.Error(),
 				Detail:  string(resp),
 			},
 			Helper: helpMessage,
@@ -451,6 +519,16 @@ func (e *Error) Error() string {
 	return builder.String()
 }
 
+// NewTestError is a helper function to create a Error, setting the internal fields. It's generally only useful for
+// testing.
+func NewTestError(statusCode int, method string, u string) *Error {
+	return &Error{
+		statusCode: statusCode,
+		method:     method,
+		url:        u,
+	}
+}
+
 type closeFunc func() error
 
 func (c closeFunc) Close() error {
@@ -498,6 +576,28 @@ func (e ValidationError) Error() string {
 
 var _ error = (*ValidationError)(nil)
 
+// CoderDesktopTelemetry represents the telemetry data sent from Coder Desktop clients.
+// @typescript-ignore CoderDesktopTelemetry
+type CoderDesktopTelemetry struct {
+	DeviceID            string `json:"device_id"`
+	DeviceOS            string `json:"device_os"`
+	CoderDesktopVersion string `json:"coder_desktop_version"`
+}
+
+// FromHeader parses the desktop telemetry from the provided header value.
+// Returns nil if the header is empty or if parsing fails.
+func (t *CoderDesktopTelemetry) FromHeader(headerValue string) error {
+	if headerValue == "" {
+		return nil
+	}
+	return json.Unmarshal([]byte(headerValue), t)
+}
+
+// IsEmpty returns true if all fields in the telemetry data are empty.
+func (t *CoderDesktopTelemetry) IsEmpty() bool {
+	return t.DeviceID == "" && t.DeviceOS == "" && t.CoderDesktopVersion == ""
+}
+
 // IsConnectionError is a convenience function for checking if the source of an
 // error is due to a 'connection refused', 'no such host', etc.
 func IsConnectionError(err error) bool {
@@ -528,5 +628,79 @@ func WithQueryParam(key, value string) RequestOption {
 		q := r.URL.Query()
 		q.Add(key, value)
 		r.URL.RawQuery = q.Encode()
+	}
+}
+
+// HeaderTransport is a http.RoundTripper that adds some headers to all requests.
+// @typescript-ignore HeaderTransport
+type HeaderTransport struct {
+	Transport http.RoundTripper
+	Header    http.Header
+}
+
+var _ http.RoundTripper = &HeaderTransport{}
+
+func (h *HeaderTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	for k, v := range h.Header {
+		for _, vv := range v {
+			req.Header.Add(k, vv)
+		}
+	}
+	if h.Transport == nil {
+		return http.DefaultTransport.RoundTrip(req)
+	}
+	return h.Transport.RoundTrip(req)
+}
+
+func (h *HeaderTransport) CloseIdleConnections() {
+	type closeIdler interface {
+		CloseIdleConnections()
+	}
+	if tr, ok := h.Transport.(closeIdler); ok {
+		tr.CloseIdleConnections()
+	}
+}
+
+// ClientOptions
+
+func WithSessionToken(token string) ClientOption {
+	return func(c *Client) {
+		c.SessionTokenProvider = FixedSessionTokenProvider{SessionToken: token}
+	}
+}
+
+func WithHTTPClient(httpClient *http.Client) ClientOption {
+	return func(c *Client) {
+		c.HTTPClient = httpClient
+	}
+}
+
+func WithLogger(logger slog.Logger) ClientOption {
+	return func(c *Client) {
+		c.logger = logger
+	}
+}
+
+func WithLogBodies() ClientOption {
+	return func(c *Client) {
+		c.logBodies = true
+	}
+}
+
+func WithPlainLogger(plainLogger io.Writer) ClientOption {
+	return func(c *Client) {
+		c.PlainLogger = plainLogger
+	}
+}
+
+func WithTrace() ClientOption {
+	return func(c *Client) {
+		c.Trace = true
+	}
+}
+
+func WithDisableDirectConnections() ClientOption {
+	return func(c *Client) {
+		c.DisableDirectConnections = true
 	}
 }

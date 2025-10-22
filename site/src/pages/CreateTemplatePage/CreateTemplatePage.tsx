@@ -1,101 +1,71 @@
-import { useMachine } from "@xstate/react";
-import { isApiValidationError } from "api/errors";
-import { useDashboard } from "components/Dashboard/DashboardProvider";
+import { createTemplate } from "api/queries/templates";
+import type { TemplateVersion } from "api/typesGenerated";
 import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm";
-import { Loader } from "components/Loader/Loader";
-import { Stack } from "components/Stack/Stack";
-import { useOrganizationId } from "hooks/useOrganizationId";
-import { FC } from "react";
-import { Helmet } from "react-helmet-async";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { linkToTemplate, useLinks } from "modules/navigation";
+import { type FC, useRef, useState } from "react";
+import { useMutation } from "react-query";
+import { useNavigate, useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
-import { createTemplateMachine } from "xServices/createTemplate/createTemplateXService";
-import { CreateTemplateForm } from "./CreateTemplateForm";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { BuildLogsDrawer } from "./BuildLogsDrawer";
+import { DuplicateTemplateView } from "./DuplicateTemplateView";
+import { ImportStarterTemplateView } from "./ImportStarterTemplateView";
+import type { CreateTemplatePageViewProps } from "./types";
+import { UploadTemplateView } from "./UploadTemplateView";
 
 const CreateTemplatePage: FC = () => {
-  const navigate = useNavigate();
-  const organizationId = useOrganizationId();
-  const [searchParams] = useSearchParams();
-  const [state, send] = useMachine(createTemplateMachine, {
-    context: {
-      organizationId,
-      exampleId: searchParams.get("exampleId"),
-      templateNameToCopy: searchParams.get("fromTemplate"),
-    },
-    actions: {
-      onCreate: (_, { data }) => {
-        navigate(`/templates/${data.name}`);
-      },
-    },
-  });
+	const navigate = useNavigate();
+	const getLink = useLinks();
+	const [searchParams] = useSearchParams();
+	const [isBuildLogsOpen, setIsBuildLogsOpen] = useState(false);
+	const [templateVersion, setTemplateVersion] = useState<TemplateVersion>();
+	const createTemplateMutation = useMutation(createTemplate());
+	const variablesSectionRef = useRef<HTMLDivElement>(null);
 
-  const { starterTemplate, error, file, jobError, jobLogs, variables } =
-    state.context;
-  const shouldDisplayForm = !state.hasTag("loading");
-  const { entitlements } = useDashboard();
-  const allowAdvancedScheduling =
-    entitlements.features["advanced_template_scheduling"].enabled;
-  // Requires the template RBAC feature, otherwise disabling everyone access
-  // means no one can access.
-  const allowDisableEveryoneAccess =
-    entitlements.features["template_rbac"].enabled;
-  const allowAutostopRequirement =
-    entitlements.features["template_autostop_requirement"].enabled;
+	const onCancel = () => {
+		navigate(-1);
+	};
 
-  const onCancel = () => {
-    navigate(-1);
-  };
+	const pageViewProps: CreateTemplatePageViewProps = {
+		onCreateTemplate: async (options) => {
+			setIsBuildLogsOpen(true);
+			const template = await createTemplateMutation.mutateAsync({
+				...options,
+				onCreateVersion: setTemplateVersion,
+				onTemplateVersionChanges: setTemplateVersion,
+			});
+			navigate(
+				`${getLink(linkToTemplate(options.organization, template.name))}/files`,
+			);
+		},
+		onOpenBuildLogsDrawer: () => setIsBuildLogsOpen(true),
+		error: createTemplateMutation.error,
+		isCreating: createTemplateMutation.isPending,
+		variablesSectionRef,
+	};
 
-  return (
-    <>
-      <Helmet>
-        <title>{pageTitle("Create Template")}</title>
-      </Helmet>
+	return (
+		<>
+			<title>{pageTitle("Create Template")}</title>
 
-      <FullPageHorizontalForm title="Create Template" onCancel={onCancel}>
-        {state.hasTag("loading") && <Loader />}
+			<FullPageHorizontalForm title="Create Template" onCancel={onCancel}>
+				{searchParams.has("fromTemplate") ? (
+					<DuplicateTemplateView {...pageViewProps} />
+				) : searchParams.has("exampleId") ? (
+					<ImportStarterTemplateView {...pageViewProps} />
+				) : (
+					<UploadTemplateView {...pageViewProps} />
+				)}
+			</FullPageHorizontalForm>
 
-        <Stack spacing={6}>
-          {Boolean(error) && !isApiValidationError(error) && (
-            <ErrorAlert error={error} />
-          )}
-
-          {shouldDisplayForm && (
-            <CreateTemplateForm
-              copiedTemplate={state.context.copiedTemplate}
-              allowAdvancedScheduling={allowAdvancedScheduling}
-              allowDisableEveryoneAccess={allowDisableEveryoneAccess}
-              allowAutostopRequirement={allowAutostopRequirement}
-              error={error}
-              starterTemplate={starterTemplate}
-              isSubmitting={state.hasTag("submitting")}
-              variables={variables}
-              onCancel={onCancel}
-              onSubmit={(data) => {
-                send({
-                  type: "CREATE",
-                  data,
-                });
-              }}
-              upload={{
-                file,
-                isUploading: state.matches("uploading"),
-                onRemove: () => {
-                  send("REMOVE_FILE");
-                },
-                onUpload: (file) => {
-                  send({ type: "UPLOAD_FILE", file });
-                },
-              }}
-              jobError={jobError}
-              logs={jobLogs}
-            />
-          )}
-        </Stack>
-      </FullPageHorizontalForm>
-    </>
-  );
+			<BuildLogsDrawer
+				error={createTemplateMutation.error}
+				open={isBuildLogsOpen}
+				onClose={() => setIsBuildLogsOpen(false)}
+				templateVersion={templateVersion}
+				variablesSectionRef={variablesSectionRef}
+			/>
+		</>
+	);
 };
 
 export default CreateTemplatePage;

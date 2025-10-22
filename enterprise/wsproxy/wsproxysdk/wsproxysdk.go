@@ -3,26 +3,28 @@ package wsproxysdk
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
 	"tailscale.com/tailcfg"
-	"tailscale.com/util/singleflight"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	agpl "github.com/coder/coder/v2/tailnet"
+	"github.com/coder/websocket"
+)
+
+const (
+	// CoderWorkspaceProxyAuthTokenHeader is the header that contains the
+	// resolved real IP address of the client that made the request to the proxy.
+	CoderWorkspaceProxyRealIPHeader = "Coder-Workspace-Proxy-Real-IP"
 )
 
 // Client is a HTTP client for a subset of Coder API routes that external
@@ -37,28 +39,25 @@ type Client struct {
 
 // New creates a external proxy client for the provided primary coder server
 // URL.
-func New(serverURL *url.URL) *Client {
+func New(serverURL *url.URL, sessionToken string) *Client {
 	sdkClient := codersdk.New(serverURL)
-	sdkClient.SessionTokenHeader = httpmw.WorkspaceProxyAuthTokenHeader
-
+	sdkClient.SessionTokenProvider = codersdk.FixedSessionTokenProvider{
+		SessionToken:       sessionToken,
+		SessionTokenHeader: httpmw.WorkspaceProxyAuthTokenHeader,
+	}
 	sdkClientIgnoreRedirects := codersdk.New(serverURL)
-	sdkClientIgnoreRedirects.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+	sdkClientIgnoreRedirects.HTTPClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
-	sdkClientIgnoreRedirects.SessionTokenHeader = httpmw.WorkspaceProxyAuthTokenHeader
+	sdkClientIgnoreRedirects.SessionTokenProvider = codersdk.FixedSessionTokenProvider{
+		SessionToken:       sessionToken,
+		SessionTokenHeader: httpmw.WorkspaceProxyAuthTokenHeader,
+	}
 
 	return &Client{
 		SDKClient:                sdkClient,
 		sdkClientIgnoreRedirects: sdkClientIgnoreRedirects,
 	}
-}
-
-// SetSessionToken sets the session token for the client. An error is returned
-// if the session token is not in the correct format for external proxies.
-func (c *Client) SetSessionToken(token string) error {
-	c.SDKClient.SetSessionToken(token)
-	c.sdkClientIgnoreRedirects.SetSessionToken(token)
-	return nil
 }
 
 // SessionToken returns the currently set token for the client.
@@ -79,8 +78,8 @@ func (c *Client) RequestIgnoreRedirects(ctx context.Context, method, path string
 
 // DialWorkspaceAgent calls the underlying codersdk.Client's DialWorkspaceAgent
 // method.
-func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, options *codersdk.DialWorkspaceAgentOptions) (agentConn *codersdk.WorkspaceAgentConn, err error) {
-	return c.SDKClient.DialWorkspaceAgent(ctx, agentID, options)
+func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, options *workspacesdk.DialAgentOptions) (agentConn workspacesdk.AgentConn, err error) {
+	return workspacesdk.New(c.SDKClient).DialAgent(ctx, agentID, options)
 }
 
 type IssueSignedAppTokenResponse struct {
@@ -91,10 +90,11 @@ type IssueSignedAppTokenResponse struct {
 // IssueSignedAppToken issues a new signed app token for the provided app
 // request. The error page will be returned as JSON. For use in external
 // proxies, use IssueSignedAppTokenHTML instead.
-func (c *Client) IssueSignedAppToken(ctx context.Context, req workspaceapps.IssueTokenRequest) (IssueSignedAppTokenResponse, error) {
+func (c *Client) IssueSignedAppToken(ctx context.Context, req workspaceapps.IssueTokenRequest, clientIP string) (IssueSignedAppTokenResponse, error) {
 	resp, err := c.RequestIgnoreRedirects(ctx, http.MethodPost, "/api/v2/workspaceproxies/me/issue-signed-app-token", req, func(r *http.Request) {
 		// This forces any HTML error pages to be returned as JSON instead.
 		r.Header.Set("Accept", "application/json")
+		r.Header.Set(CoderWorkspaceProxyRealIPHeader, clientIP)
 	})
 	if err != nil {
 		return IssueSignedAppTokenResponse{}, xerrors.Errorf("make request: %w", err)
@@ -112,7 +112,7 @@ func (c *Client) IssueSignedAppToken(ctx context.Context, req workspaceapps.Issu
 // IssueSignedAppTokenHTML issues a new signed app token for the provided app
 // request. The error page will be returned as HTML in most cases, and will be
 // written directly to the provided http.ResponseWriter.
-func (c *Client) IssueSignedAppTokenHTML(ctx context.Context, rw http.ResponseWriter, req workspaceapps.IssueTokenRequest) (IssueSignedAppTokenResponse, bool) {
+func (c *Client) IssueSignedAppTokenHTML(ctx context.Context, rw http.ResponseWriter, req workspaceapps.IssueTokenRequest, clientIP string) (IssueSignedAppTokenResponse, bool) {
 	writeError := func(rw http.ResponseWriter, err error) {
 		res := codersdk.Response{
 			Message: "Internal server error",
@@ -124,6 +124,7 @@ func (c *Client) IssueSignedAppTokenHTML(ctx context.Context, rw http.ResponseWr
 
 	resp, err := c.RequestIgnoreRedirects(ctx, http.MethodPost, "/api/v2/workspaceproxies/me/issue-signed-app-token", req, func(r *http.Request) {
 		r.Header.Set("Accept", "text/html")
+		r.Header.Set(CoderWorkspaceProxyRealIPHeader, clientIP)
 	})
 	if err != nil {
 		writeError(rw, xerrors.Errorf("perform issue signed app token request: %w", err))
@@ -207,7 +208,6 @@ type RegisterWorkspaceProxyRequest struct {
 }
 
 type RegisterWorkspaceProxyResponse struct {
-	AppSecurityKey      string           `json:"app_security_key"`
 	DERPMeshKey         string           `json:"derp_mesh_key"`
 	DERPRegionID        int32            `json:"derp_region_id"`
 	DERPMap             *tailcfg.DERPMap `json:"derp_map"`
@@ -280,135 +280,214 @@ type RegisterWorkspaceProxyLoopOpts struct {
 	// called in a blocking manner, so it should avoid blocking for too long. If
 	// the callback returns an error, the loop will stop immediately and the
 	// error will be returned to the FailureFn.
-	CallbackFn func(ctx context.Context, res RegisterWorkspaceProxyResponse) error
+	CallbackFn func(res RegisterWorkspaceProxyResponse) error
 	// FailureFn is called with the last error returned from the server if the
 	// context is canceled, registration fails for more than MaxFailureCount,
 	// or if any permanent values in the response change.
 	FailureFn func(err error)
 }
 
-// RegisterWorkspaceProxyLoop will register the workspace proxy and then start a
-// goroutine to keep registering periodically in the background.
-//
-// The first response is returned immediately, and subsequent responses will be
-// notified to the given CallbackFn. When the context is canceled the loop will
-// stop immediately and the context error will be returned to the FailureFn.
-//
-// The returned channel will be closed when the loop stops and can be used to
-// ensure the loop is dead before continuing. When a fatal error is encountered,
-// the proxy will be deregistered (with the same ReplicaID and AttemptTimeout)
-// before calling the FailureFn.
-func (c *Client) RegisterWorkspaceProxyLoop(ctx context.Context, opts RegisterWorkspaceProxyLoopOpts) (RegisterWorkspaceProxyResponse, <-chan struct{}, error) {
-	if opts.Interval == 0 {
-		opts.Interval = 30 * time.Second
-	}
-	if opts.MaxFailureCount == 0 {
-		opts.MaxFailureCount = 10
-	}
-	if opts.AttemptTimeout == 0 {
-		opts.AttemptTimeout = 10 * time.Second
-	}
-	if opts.MutateFn == nil {
-		opts.MutateFn = func(_ *RegisterWorkspaceProxyRequest) {}
-	}
-	if opts.CallbackFn == nil {
-		opts.CallbackFn = func(_ context.Context, _ RegisterWorkspaceProxyResponse) error {
-			return nil
-		}
-	}
+type RegisterWorkspaceProxyLoop struct {
+	opts RegisterWorkspaceProxyLoopOpts
+	c    *Client
 
-	failureFn := func(err error) {
-		// We have to use background context here because the original context
-		// may be canceled.
-		deregisterCtx, cancel := context.WithTimeout(context.Background(), opts.AttemptTimeout)
-		defer cancel()
-		deregisterErr := c.DeregisterWorkspaceProxy(deregisterCtx, DeregisterWorkspaceProxyRequest{
-			ReplicaID: opts.Request.ReplicaID,
-		})
-		if deregisterErr != nil {
-			opts.Logger.Error(ctx,
-				"failed to deregister workspace proxy with Coder primary (it will be automatically deregistered shortly)",
-				slog.Error(deregisterErr),
-			)
-		}
+	// runLoopNow takes a response channel to send the response to and triggers
+	// the loop to run immediately if it's waiting.
+	runLoopNow chan chan RegisterWorkspaceProxyResponse
+	closedCtx  context.Context
+	close      context.CancelFunc
+	done       chan struct{}
+}
 
-		if opts.FailureFn != nil {
-			opts.FailureFn(err)
-		}
-	}
-
-	originalRes, err := c.RegisterWorkspaceProxy(ctx, opts.Request)
+func (l *RegisterWorkspaceProxyLoop) register(ctx context.Context) (RegisterWorkspaceProxyResponse, error) {
+	registerCtx, registerCancel := context.WithTimeout(ctx, l.opts.AttemptTimeout)
+	res, err := l.c.RegisterWorkspaceProxy(registerCtx, l.opts.Request)
+	registerCancel()
 	if err != nil {
-		return RegisterWorkspaceProxyResponse{}, nil, xerrors.Errorf("register workspace proxy: %w", err)
+		return RegisterWorkspaceProxyResponse{}, xerrors.Errorf("register workspace proxy: %w", err)
 	}
 
-	done := make(chan struct{})
+	return res, nil
+}
+
+// Start starts the proxy registration loop. The provided context is only used
+// for the initial registration. Use Close() to stop.
+func (l *RegisterWorkspaceProxyLoop) Start(ctx context.Context) (RegisterWorkspaceProxyResponse, error) {
+	if l.opts.Interval == 0 {
+		l.opts.Interval = 15 * time.Second
+	}
+	if l.opts.MaxFailureCount == 0 {
+		l.opts.MaxFailureCount = 10
+	}
+	if l.opts.AttemptTimeout == 0 {
+		l.opts.AttemptTimeout = 10 * time.Second
+	}
+
+	var err error
+	originalRes, err := l.register(ctx)
+	if err != nil {
+		return RegisterWorkspaceProxyResponse{}, xerrors.Errorf("initial registration: %w", err)
+	}
+
 	go func() {
-		defer close(done)
+		defer close(l.done)
 
 		var (
 			failedAttempts = 0
-			ticker         = time.NewTicker(opts.Interval)
+			ticker         = time.NewTicker(l.opts.Interval)
 		)
+
 		for {
+			var respCh chan RegisterWorkspaceProxyResponse
 			select {
-			case <-ctx.Done():
-				failureFn(ctx.Err())
+			case <-l.closedCtx.Done():
+				l.failureFn(xerrors.Errorf("proxy registration loop closed"))
 				return
+			case respCh = <-l.runLoopNow:
 			case <-ticker.C:
 			}
 
-			opts.Logger.Debug(ctx,
+			l.opts.Logger.Debug(context.Background(),
 				"re-registering workspace proxy with Coder primary",
-				slog.F("req", opts.Request),
-				slog.F("timeout", opts.AttemptTimeout),
+				slog.F("req", l.opts.Request),
+				slog.F("timeout", l.opts.AttemptTimeout),
 				slog.F("failed_attempts", failedAttempts),
 			)
-			opts.MutateFn(&opts.Request)
-			registerCtx, cancel := context.WithTimeout(ctx, opts.AttemptTimeout)
-			res, err := c.RegisterWorkspaceProxy(registerCtx, opts.Request)
-			cancel()
+
+			l.mutateFn(&l.opts.Request)
+			resp, err := l.register(l.closedCtx)
 			if err != nil {
 				failedAttempts++
-				opts.Logger.Warn(ctx,
+				l.opts.Logger.Warn(context.Background(),
 					"failed to re-register workspace proxy with Coder primary",
-					slog.F("req", opts.Request),
-					slog.F("timeout", opts.AttemptTimeout),
+					slog.F("req", l.opts.Request),
+					slog.F("timeout", l.opts.AttemptTimeout),
 					slog.F("failed_attempts", failedAttempts),
 					slog.Error(err),
 				)
 
-				if failedAttempts > opts.MaxFailureCount {
-					failureFn(xerrors.Errorf("exceeded re-registration failure count of %d: last error: %w", opts.MaxFailureCount, err))
+				if failedAttempts > l.opts.MaxFailureCount {
+					l.failureFn(xerrors.Errorf("exceeded re-registration failure count of %d: last error: %w", l.opts.MaxFailureCount, err))
 					return
 				}
 				continue
 			}
 			failedAttempts = 0
 
-			if res.AppSecurityKey != originalRes.AppSecurityKey {
-				failureFn(xerrors.New("app security key has changed, proxy must be restarted"))
+			if originalRes.DERPMeshKey != resp.DERPMeshKey {
+				l.failureFn(xerrors.New("DERP mesh key has changed, proxy must be restarted"))
 				return
 			}
-			if res.DERPMeshKey != originalRes.DERPMeshKey {
-				failureFn(xerrors.New("DERP mesh key has changed, proxy must be restarted"))
+			if originalRes.DERPRegionID != resp.DERPRegionID {
+				l.failureFn(xerrors.New("DERP region ID has changed, proxy must be restarted"))
 				return
-			}
-			if res.DERPRegionID != originalRes.DERPRegionID {
-				failureFn(xerrors.New("DERP region ID has changed, proxy must be restarted"))
 			}
 
-			err = opts.CallbackFn(ctx, res)
+			err = l.callbackFn(resp)
 			if err != nil {
-				failureFn(xerrors.Errorf("callback fn returned error: %w", err))
+				l.failureFn(xerrors.Errorf("callback function returned an error: %w", err))
 				return
 			}
 
-			ticker.Reset(opts.Interval)
+			// If we were triggered by RegisterNow(), send the response back.
+			if respCh != nil {
+				respCh <- resp
+				close(respCh)
+			}
+
+			ticker.Reset(l.opts.Interval)
 		}
 	}()
 
-	return originalRes, done, nil
+	return originalRes, nil
+}
+
+// RegisterNow asks the registration loop to register immediately. A timeout of
+// 2x the attempt timeout is used to wait for the response.
+func (l *RegisterWorkspaceProxyLoop) RegisterNow(ctx context.Context) (RegisterWorkspaceProxyResponse, error) {
+	// The channel is closed by the loop after sending the response.
+	respCh := make(chan RegisterWorkspaceProxyResponse, 1)
+	select {
+	case <-ctx.Done():
+		return RegisterWorkspaceProxyResponse{}, ctx.Err()
+	case <-l.done:
+		return RegisterWorkspaceProxyResponse{}, xerrors.New("proxy registration loop closed")
+	case l.runLoopNow <- respCh:
+	}
+	select {
+	case <-ctx.Done():
+		return RegisterWorkspaceProxyResponse{}, ctx.Err()
+	case <-l.done:
+		return RegisterWorkspaceProxyResponse{}, xerrors.New("proxy registration loop closed")
+	case resp := <-respCh:
+		return resp, nil
+	}
+}
+
+func (l *RegisterWorkspaceProxyLoop) Close() {
+	l.close()
+	<-l.done
+}
+
+func (l *RegisterWorkspaceProxyLoop) mutateFn(req *RegisterWorkspaceProxyRequest) {
+	if l.opts.MutateFn != nil {
+		l.opts.MutateFn(req)
+	}
+}
+
+func (l *RegisterWorkspaceProxyLoop) callbackFn(res RegisterWorkspaceProxyResponse) error {
+	if l.opts.CallbackFn != nil {
+		return l.opts.CallbackFn(res)
+	}
+	return nil
+}
+
+func (l *RegisterWorkspaceProxyLoop) failureFn(err error) {
+	// We have to use background context here because the original context may
+	// be canceled.
+	deregisterCtx, cancel := context.WithTimeout(context.Background(), l.opts.AttemptTimeout)
+	defer cancel()
+	deregisterErr := l.c.DeregisterWorkspaceProxy(deregisterCtx, DeregisterWorkspaceProxyRequest{
+		ReplicaID: l.opts.Request.ReplicaID,
+	})
+	if deregisterErr != nil {
+		l.opts.Logger.Error(context.Background(),
+			"failed to deregister workspace proxy with Coder primary (it will be automatically deregistered shortly)",
+			slog.Error(deregisterErr),
+		)
+	}
+
+	if l.opts.FailureFn != nil {
+		l.opts.FailureFn(err)
+	}
+}
+
+// RegisterWorkspaceProxyLoop will register the workspace proxy and then start a
+// goroutine to keep registering periodically in the background.
+//
+// The first response is returned immediately, and subsequent responses will be
+// notified to the given CallbackFn. When the loop is Close()d it will stop
+// immediately and an error will be returned to the FailureFn.
+//
+// When a fatal error is encountered (or the proxy is closed), the proxy will be
+// deregistered (with the same ReplicaID and AttemptTimeout) before calling the
+// FailureFn.
+func (c *Client) RegisterWorkspaceProxyLoop(ctx context.Context, opts RegisterWorkspaceProxyLoopOpts) (*RegisterWorkspaceProxyLoop, RegisterWorkspaceProxyResponse, error) {
+	closedCtx, closeFn := context.WithCancel(context.Background())
+	loop := &RegisterWorkspaceProxyLoop{
+		opts:       opts,
+		c:          c,
+		runLoopNow: make(chan chan RegisterWorkspaceProxyResponse),
+		closedCtx:  closedCtx,
+		close:      closeFn,
+		done:       make(chan struct{}),
+	}
+
+	regResp, err := loop.Start(ctx)
+	if err != nil {
+		return nil, RegisterWorkspaceProxyResponse{}, xerrors.Errorf("start loop: %w", err)
+	}
+	return loop, regResp, nil
 }
 
 type CoordinateMessageType int
@@ -429,187 +508,38 @@ type CoordinateNodes struct {
 	Nodes []*agpl.Node
 }
 
-func (c *Client) DialCoordinator(ctx context.Context) (agpl.MultiAgentConn, error) {
-	ctx, cancel := context.WithCancel(ctx)
+func (c *Client) TailnetDialer() (*workspacesdk.WebsocketDialer, error) {
+	logger := c.SDKClient.Logger().Named("tailnet_dialer")
 
 	coordinateURL, err := c.SDKClient.URL.Parse("/api/v2/workspaceproxies/me/coordinate")
 	if err != nil {
-		cancel()
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
-	coordinateHeaders := make(http.Header)
-	tokenHeader := codersdk.SessionTokenHeader
-	if c.SDKClient.SessionTokenHeader != "" {
-		tokenHeader = c.SDKClient.SessionTokenHeader
-	}
-	coordinateHeaders.Set(tokenHeader, c.SessionToken())
-
-	//nolint:bodyclose
-	conn, _, err := websocket.Dial(ctx, coordinateURL.String(), &websocket.DialOptions{
+	wsOptions := &websocket.DialOptions{
 		HTTPClient: c.SDKClient.HTTPClient,
-		HTTPHeader: coordinateHeaders,
-	})
-	if err != nil {
-		cancel()
-		return nil, xerrors.Errorf("dial coordinate websocket: %w", err)
 	}
+	c.SDKClient.SessionTokenProvider.SetDialOption(wsOptions)
 
-	go httpapi.HeartbeatClose(ctx, cancel, conn)
-
-	nc := websocket.NetConn(ctx, conn, websocket.MessageText)
-	rma := remoteMultiAgentHandler{
-		sdk:              c,
-		nc:               nc,
-		legacyAgentCache: map[uuid.UUID]bool{},
-	}
-
-	ma := (&agpl.MultiAgent{
-		ID:                uuid.New(),
-		AgentIsLegacyFunc: rma.AgentIsLegacy,
-		OnSubscribe:       rma.OnSubscribe,
-		OnUnsubscribe:     rma.OnUnsubscribe,
-		OnNodeUpdate:      rma.OnNodeUpdate,
-		OnRemove:          func(agpl.Queue) { conn.Close(websocket.StatusGoingAway, "closed") },
-	}).Init()
-
-	go func() {
-		defer cancel()
-		dec := json.NewDecoder(nc)
-		for {
-			var msg CoordinateNodes
-			err := dec.Decode(&msg)
-			if err != nil {
-				if xerrors.Is(err, io.EOF) {
-					return
-				}
-
-				c.SDKClient.Logger().Error(ctx, "failed to decode coordinator nodes", slog.Error(err))
-				return
-			}
-
-			err = ma.Enqueue(msg.Nodes)
-			if err != nil {
-				c.SDKClient.Logger().Error(ctx, "enqueue nodes from coordinator", slog.Error(err))
-				continue
-			}
-		}
-	}()
-
-	return ma, nil
+	return workspacesdk.NewWebsocketDialer(logger, coordinateURL, wsOptions), nil
 }
 
-type remoteMultiAgentHandler struct {
-	sdk *Client
-	nc  net.Conn
-
-	legacyMu           sync.RWMutex
-	legacyAgentCache   map[uuid.UUID]bool
-	legacySingleflight singleflight.Group[uuid.UUID, AgentIsLegacyResponse]
+type CryptoKeysResponse struct {
+	CryptoKeys []codersdk.CryptoKey `json:"crypto_keys"`
 }
 
-func (a *remoteMultiAgentHandler) writeJSON(v interface{}) error {
-	data, err := json.Marshal(v)
-	if err != nil {
-		return xerrors.Errorf("json marshal message: %w", err)
-	}
-
-	// Set a deadline so that hung connections don't put back pressure on the system.
-	// Node updates are tiny, so even the dinkiest connection can handle them if it's not hung.
-	err = a.nc.SetWriteDeadline(time.Now().Add(agpl.WriteTimeout))
-	if err != nil {
-		return xerrors.Errorf("set write deadline: %w", err)
-	}
-	_, err = a.nc.Write(data)
-	if err != nil {
-		return xerrors.Errorf("write message: %w", err)
-	}
-
-	// nhooyr.io/websocket has a bugged implementation of deadlines on a websocket net.Conn.  What they are
-	// *supposed* to do is set a deadline for any subsequent writes to complete, otherwise the call to Write()
-	// fails.  What nhooyr.io/websocket does is set a timer, after which it expires the websocket write context.
-	// If this timer fires, then the next write will fail *even if we set a new write deadline*.  So, after
-	// our successful write, it is important that we reset the deadline before it fires.
-	err = a.nc.SetWriteDeadline(time.Time{})
-	if err != nil {
-		return xerrors.Errorf("clear write deadline: %w", err)
-	}
-
-	return nil
-}
-
-func (a *remoteMultiAgentHandler) OnNodeUpdate(_ uuid.UUID, node *agpl.Node) error {
-	return a.writeJSON(CoordinateMessage{
-		Type: CoordinateMessageTypeNodeUpdate,
-		Node: node,
-	})
-}
-
-func (a *remoteMultiAgentHandler) OnSubscribe(_ agpl.Queue, agentID uuid.UUID) (*agpl.Node, error) {
-	return nil, a.writeJSON(CoordinateMessage{
-		Type:    CoordinateMessageTypeSubscribe,
-		AgentID: agentID,
-	})
-}
-
-func (a *remoteMultiAgentHandler) OnUnsubscribe(_ agpl.Queue, agentID uuid.UUID) error {
-	return a.writeJSON(CoordinateMessage{
-		Type:    CoordinateMessageTypeUnsubscribe,
-		AgentID: agentID,
-	})
-}
-
-func (a *remoteMultiAgentHandler) AgentIsLegacy(agentID uuid.UUID) bool {
-	a.legacyMu.RLock()
-	if isLegacy, ok := a.legacyAgentCache[agentID]; ok {
-		a.legacyMu.RUnlock()
-		return isLegacy
-	}
-	a.legacyMu.RUnlock()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	resp, err, _ := a.legacySingleflight.Do(agentID, func() (AgentIsLegacyResponse, error) {
-		return a.sdk.AgentIsLegacy(ctx, agentID)
-	})
-	if err != nil {
-		a.sdk.SDKClient.Logger().Error(ctx, "failed to check agent legacy status", slog.Error(err))
-
-		// Assume that the agent is legacy since this failed, while less
-		// efficient it will always work.
-		return true
-	}
-	// Assume legacy since the agent didn't exist.
-	if !resp.Found {
-		return true
-	}
-
-	a.legacyMu.Lock()
-	a.legacyAgentCache[agentID] = resp.Legacy
-	a.legacyMu.Unlock()
-
-	return resp.Legacy
-}
-
-type AgentIsLegacyResponse struct {
-	Found  bool `json:"found"`
-	Legacy bool `json:"legacy"`
-}
-
-func (c *Client) AgentIsLegacy(ctx context.Context, agentID uuid.UUID) (AgentIsLegacyResponse, error) {
+func (c *Client) CryptoKeys(ctx context.Context, feature codersdk.CryptoKeyFeature) (CryptoKeysResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet,
-		fmt.Sprintf("/api/v2/workspaceagents/%s/legacy", agentID.String()),
-		nil,
+		"/api/v2/workspaceproxies/me/crypto-keys", nil,
+		codersdk.WithQueryParam("feature", string(feature)),
 	)
 	if err != nil {
-		return AgentIsLegacyResponse{}, xerrors.Errorf("make request: %w", err)
+		return CryptoKeysResponse{}, xerrors.Errorf("make request: %w", err)
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return AgentIsLegacyResponse{}, codersdk.ReadBodyAsError(res)
+		return CryptoKeysResponse{}, codersdk.ReadBodyAsError(res)
 	}
-
-	var resp AgentIsLegacyResponse
+	var resp CryptoKeysResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }

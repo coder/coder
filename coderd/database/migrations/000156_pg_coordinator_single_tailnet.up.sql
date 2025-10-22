@@ -1,5 +1,3 @@
-BEGIN;
-
 CREATE TABLE tailnet_client_subscriptions (
 	client_id uuid NOT NULL,
 	coordinator_id uuid NOT NULL,
@@ -84,5 +82,3 @@ ALTER TABLE
 	tailnet_clients
 DROP COLUMN
 	agent_id;
-
-COMMIT;

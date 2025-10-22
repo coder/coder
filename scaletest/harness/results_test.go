@@ -16,6 +16,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/scaletest/harness"
+	"github.com/coder/coder/v2/scaletest/workspacetraffic"
 )
 
 type testError struct {
@@ -44,6 +45,10 @@ func Test_Results(t *testing.T) {
 				StartedAt:  now,
 				Duration:   httpapi.Duration(time.Second),
 				DurationMS: 1000,
+				Metrics: map[string]any{
+					workspacetraffic.BytesReadMetric:    1024,
+					workspacetraffic.BytesWrittenMetric: 2048,
+				},
 			},
 			"test-0/1": {
 				FullID:     "test-0/1",
@@ -54,6 +59,10 @@ func Test_Results(t *testing.T) {
 				StartedAt:  now.Add(333 * time.Millisecond),
 				Duration:   httpapi.Duration(time.Second),
 				DurationMS: 1000,
+				Metrics: map[string]any{
+					workspacetraffic.BytesReadMetric:    512,
+					workspacetraffic.BytesWrittenMetric: 1024,
+				},
 			},
 			"test-0/2": {
 				FullID:     "test-0/2",
@@ -64,6 +73,10 @@ func Test_Results(t *testing.T) {
 				StartedAt:  now.Add(666 * time.Millisecond),
 				Duration:   httpapi.Duration(time.Second),
 				DurationMS: 1000,
+				Metrics: map[string]any{
+					workspacetraffic.BytesReadMetric:    2048,
+					workspacetraffic.BytesWrittenMetric: 4096,
+				},
 			},
 		},
 		Elapsed:   httpapi.Duration(time.Second),
@@ -109,7 +122,11 @@ Test results:
 			"started_at": "2023-10-05T12:03:56.395813665Z",
 			"duration": "1s",
 			"duration_ms": 1000,
-			"error": "test-0/0 error:\n    github.com/coder/coder/v2/scaletest/harness_test.Test_Results\n        [working_directory]/results_test.go:43"
+			"metrics": {
+				"bytes_read": 1024,
+				"bytes_written": 2048
+			},
+			"error": "test-0/0 error:\n    github.com/coder/coder/v2/scaletest/harness_test.Test_Results\n        [working_directory]/results_test.go:44"
 		},
 		"test-0/1": {
 			"full_id": "test-0/1",
@@ -119,6 +136,10 @@ Test results:
 			"started_at": "2023-10-05T12:03:56.728813665Z",
 			"duration": "1s",
 			"duration_ms": 1000,
+			"metrics": {
+				"bytes_read": 512,
+				"bytes_written": 1024
+			},
 			"error": "\u003cnil\u003e"
 		},
 		"test-0/2": {
@@ -129,6 +150,10 @@ Test results:
 			"started_at": "2023-10-05T12:03:57.061813665Z",
 			"duration": "1s",
 			"duration_ms": 1000,
+			"metrics": {
+				"bytes_read": 2048,
+				"bytes_written": 4096
+			},
 			"error": "test-0/2 error"
 		}
 	}

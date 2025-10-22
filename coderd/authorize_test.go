@@ -27,7 +27,7 @@ func TestCheckPermissions(t *testing.T) {
 	memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
 	memberUser, err := memberClient.User(ctx, codersdk.Me)
 	require.NoError(t, err)
-	orgAdminClient, _ := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID, rbac.RoleOrgAdmin(adminUser.OrganizationID))
+	orgAdminClient, _ := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID, rbac.ScopedRoleOrgAdmin(adminUser.OrganizationID))
 	orgAdminUser, err := orgAdminClient.User(ctx, codersdk.Me)
 	require.NoError(t, err)
 
@@ -103,7 +103,7 @@ func TestCheckPermissions(t *testing.T) {
 			Client: orgAdminClient,
 			UserID: orgAdminUser.ID,
 			Check: map[string]bool{
-				readAllUsers:           false,
+				readAllUsers:           true,
 				readMyself:             true,
 				readOwnWorkspaces:      true,
 				readOrgWorkspaces:      true,
@@ -125,8 +125,6 @@ func TestCheckPermissions(t *testing.T) {
 	}
 
 	for _, c := range testCases {
-		c := c
-
 		t.Run("CheckAuthorization/"+c.Name, func(t *testing.T) {
 			t.Parallel()
 

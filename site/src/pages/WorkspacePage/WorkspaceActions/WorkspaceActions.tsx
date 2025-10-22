@@ -1,173 +1,218 @@
-import MenuItem from "@mui/material/MenuItem";
-import Menu from "@mui/material/Menu";
-import { makeStyles } from "@mui/styles";
-import MoreVertOutlined from "@mui/icons-material/MoreVertOutlined";
-import { FC, Fragment, ReactNode, useRef, useState } from "react";
-import { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
+import { deploymentConfig } from "api/queries/deployment";
+import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
+import { useAuthenticated } from "hooks/useAuthenticated";
 import {
-  ActionLoadingButton,
-  CancelButton,
-  DisabledButton,
-  StartButton,
-  StopButton,
-  RestartButton,
-  UpdateButton,
-  ActivateButton,
+	type ActionType,
+	abilitiesByWorkspaceStatus,
+} from "modules/workspaces/actions";
+import type { WorkspacePermissions } from "modules/workspaces/permissions";
+import { WorkspaceMoreActions } from "modules/workspaces/WorkspaceMoreActions/WorkspaceMoreActions";
+import { type FC, Fragment, type ReactNode } from "react";
+import { useQuery } from "react-query";
+import { mustUpdateWorkspace } from "utils/workspace";
+import {
+	ActivateButton,
+	CancelButton,
+	DisabledButton,
+	FavoriteButton,
+	RestartButton,
+	StartButton,
+	StopButton,
+	UpdateButton,
 } from "./Buttons";
-import {
-  ButtonMapping,
-  ButtonTypesEnum,
-  actionsByWorkspaceStatus,
-} from "./constants";
-import SettingsOutlined from "@mui/icons-material/SettingsOutlined";
-import HistoryOutlined from "@mui/icons-material/HistoryOutlined";
-import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
-import IconButton from "@mui/material/IconButton";
+import { DebugButton } from "./DebugButton";
+import { RetryButton } from "./RetryButton";
 
-export interface WorkspaceActionsProps {
-  workspace: Workspace;
-  handleStart: (buildParameters?: WorkspaceBuildParameter[]) => void;
-  handleStop: () => void;
-  handleRestart: (buildParameters?: WorkspaceBuildParameter[]) => void;
-  handleDelete: () => void;
-  handleUpdate: () => void;
-  handleCancel: () => void;
-  handleSettings: () => void;
-  handleChangeVersion: () => void;
-  handleDormantActivate: () => void;
-  isUpdating: boolean;
-  isRestarting: boolean;
-  children?: ReactNode;
-  canChangeVersions: boolean;
+interface WorkspaceActionsProps {
+	workspace: Workspace;
+	isUpdating: boolean;
+	isRestarting: boolean;
+	permissions: WorkspacePermissions;
+	handleToggleFavorite: () => void;
+	handleStart: (buildParameters?: WorkspaceBuildParameter[]) => void;
+	handleStop: () => void;
+	handleRestart: (buildParameters?: WorkspaceBuildParameter[]) => void;
+	handleUpdate: () => void;
+	handleCancel: () => void;
+	handleRetry: (buildParameters?: WorkspaceBuildParameter[]) => void;
+	handleDebug: (buildParameters?: WorkspaceBuildParameter[]) => void;
+	handleDormantActivate: () => void;
 }
 
 export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
-  workspace,
-  handleStart,
-  handleStop,
-  handleRestart,
-  handleDelete,
-  handleUpdate,
-  handleCancel,
-  handleSettings,
-  handleChangeVersion,
-  handleDormantActivate: handleDormantActivate,
-  isUpdating,
-  isRestarting,
-  canChangeVersions,
+	workspace,
+	isUpdating,
+	isRestarting,
+	permissions,
+	handleToggleFavorite,
+	handleStart,
+	handleStop,
+	handleRestart,
+	handleUpdate,
+	handleCancel,
+	handleRetry,
+	handleDebug,
+	handleDormantActivate,
 }) => {
-  const styles = useStyles();
-  const {
-    canCancel,
-    canAcceptJobs,
-    actions: actionsByStatus,
-  } = actionsByWorkspaceStatus(workspace, workspace.latest_build.status);
-  const canBeUpdated = workspace.outdated && canAcceptJobs;
-  const menuTriggerRef = useRef<HTMLButtonElement>(null);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+	const { user } = useAuthenticated();
+	const { data: deployment } = useQuery({
+		...deploymentConfig(),
+		enabled: permissions.deploymentConfig,
+	});
+	const { actions, canCancel, canAcceptJobs } = abilitiesByWorkspaceStatus(
+		workspace,
+		{
+			canDebug: !!deployment?.config.enable_terraform_debug_mode,
+			isOwner: user.roles.some((role) => role.name === "owner"),
+		},
+	);
 
-  // A mapping of button type to the corresponding React component
-  const buttonMapping: ButtonMapping = {
-    [ButtonTypesEnum.update]: <UpdateButton handleAction={handleUpdate} />,
-    [ButtonTypesEnum.updating]: (
-      <UpdateButton loading handleAction={handleUpdate} />
-    ),
-    [ButtonTypesEnum.start]: (
-      <StartButton workspace={workspace} handleAction={handleStart} />
-    ),
-    [ButtonTypesEnum.starting]: (
-      <StartButton loading workspace={workspace} handleAction={handleStart} />
-    ),
-    [ButtonTypesEnum.stop]: <StopButton handleAction={handleStop} />,
-    [ButtonTypesEnum.stopping]: (
-      <StopButton loading handleAction={handleStop} />
-    ),
-    [ButtonTypesEnum.restart]: (
-      <RestartButton workspace={workspace} handleAction={handleRestart} />
-    ),
-    [ButtonTypesEnum.restarting]: (
-      <RestartButton
-        loading
-        workspace={workspace}
-        handleAction={handleRestart}
-      />
-    ),
-    [ButtonTypesEnum.deleting]: <ActionLoadingButton label="Deleting" />,
-    [ButtonTypesEnum.canceling]: <DisabledButton label="Canceling..." />,
-    [ButtonTypesEnum.deleted]: <DisabledButton label="Deleted" />,
-    [ButtonTypesEnum.pending]: <ActionLoadingButton label="Pending..." />,
-    [ButtonTypesEnum.activate]: (
-      <ActivateButton handleAction={handleDormantActivate} />
-    ),
-    [ButtonTypesEnum.activating]: (
-      <ActivateButton loading handleAction={handleDormantActivate} />
-    ),
-  };
+	const mustUpdate = mustUpdateWorkspace(
+		workspace,
+		permissions.updateWorkspaceVersion,
+	);
+	const tooltipText = getTooltipText(
+		workspace,
+		mustUpdate,
+		permissions.updateWorkspaceVersion,
+	);
 
-  // Returns a function that will execute the action and close the menu
-  const onMenuItemClick = (actionFn: () => void) => () => {
-    setIsMenuOpen(false);
-    actionFn();
-  };
+	// A mapping of button type to the corresponding React component
+	const buttonMapping: Record<ActionType, ReactNode> = {
+		updateAndStart: (
+			<UpdateButton
+				handleAction={handleUpdate}
+				isRunning={false}
+				requireActiveVersion={false}
+			/>
+		),
+		updateAndStartRequireActiveVersion: (
+			<UpdateButton
+				handleAction={handleUpdate}
+				isRunning={false}
+				requireActiveVersion={true}
+			/>
+		),
+		updateAndRestart: (
+			<UpdateButton
+				handleAction={handleUpdate}
+				isRunning={true}
+				requireActiveVersion={false}
+			/>
+		),
+		updateAndRestartRequireActiveVersion: (
+			<UpdateButton
+				handleAction={handleUpdate}
+				isRunning={true}
+				requireActiveVersion={true}
+			/>
+		),
+		updating: <UpdateButton loading handleAction={handleUpdate} />,
+		start: (
+			<StartButton
+				workspace={workspace}
+				handleAction={handleStart}
+				disabled={mustUpdate}
+				tooltipText={tooltipText}
+			/>
+		),
+		starting: (
+			<StartButton
+				loading
+				workspace={workspace}
+				handleAction={handleStart}
+				disabled={mustUpdate}
+				tooltipText={tooltipText}
+			/>
+		),
+		stop: <StopButton handleAction={handleStop} />,
+		stopping: <StopButton loading handleAction={handleStop} />,
+		restart: (
+			<RestartButton
+				workspace={workspace}
+				handleAction={handleRestart}
+				disabled={mustUpdate}
+				tooltipText={tooltipText}
+			/>
+		),
+		restarting: (
+			<RestartButton
+				loading
+				workspace={workspace}
+				handleAction={handleRestart}
+				disabled={mustUpdate}
+				tooltipText={tooltipText}
+			/>
+		),
+		deleting: <DisabledButton label="Deleting" />,
+		canceling: <DisabledButton label="Canceling..." />,
+		deleted: <DisabledButton label="Deleted" />,
+		pending: <DisabledButton label="Pending..." />,
+		activate: <ActivateButton handleAction={handleDormantActivate} />,
+		activating: <ActivateButton loading handleAction={handleDormantActivate} />,
+		retry: (
+			<RetryButton
+				handleAction={handleRetry}
+				workspace={workspace}
+				enableBuildParameters={workspace.latest_build.transition === "start"}
+			/>
+		),
+		debug: (
+			<DebugButton
+				handleAction={handleDebug}
+				workspace={workspace}
+				enableBuildParameters={workspace.latest_build.transition === "start"}
+			/>
+		),
+	};
 
-  return (
-    <div className={styles.actions} data-testid="workspace-actions">
-      {canBeUpdated &&
-        (isUpdating
-          ? buttonMapping[ButtonTypesEnum.updating]
-          : buttonMapping[ButtonTypesEnum.update])}
-      {isRestarting && buttonMapping[ButtonTypesEnum.restarting]}
-      {!isRestarting &&
-        actionsByStatus.map((action) => (
-          <Fragment key={action}>{buttonMapping[action]}</Fragment>
-        ))}
-      {canCancel && <CancelButton handleAction={handleCancel} />}
-      <div>
-        <IconButton
-          title="More options"
-          size="small"
-          data-testid="workspace-options-button"
-          aria-controls="workspace-options"
-          aria-haspopup="true"
-          disabled={!canAcceptJobs}
-          ref={menuTriggerRef}
-          onClick={() => setIsMenuOpen(true)}
-        >
-          <MoreVertOutlined />
-        </IconButton>
-        <Menu
-          id="workspace-options"
-          anchorEl={menuTriggerRef.current}
-          open={isMenuOpen}
-          onClose={() => setIsMenuOpen(false)}
-        >
-          <MenuItem onClick={onMenuItemClick(handleSettings)}>
-            <SettingsOutlined />
-            Settings
-          </MenuItem>
-          {canChangeVersions && (
-            <MenuItem onClick={onMenuItemClick(handleChangeVersion)}>
-              <HistoryOutlined />
-              Change version&hellip;
-            </MenuItem>
-          )}
-          <MenuItem
-            onClick={onMenuItemClick(handleDelete)}
-            data-testid="delete-button"
-          >
-            <DeleteOutlined />
-            Delete&hellip;
-          </MenuItem>
-        </Menu>
-      </div>
-    </div>
-  );
+	return (
+		<div
+			css={{ display: "flex", alignItems: "center", gap: 8 }}
+			data-testid="workspace-actions"
+		>
+			{/* Restarting must be handled separately, because it otherwise would appear as stopping */}
+			{isUpdating
+				? buttonMapping.updating
+				: isRestarting
+					? buttonMapping.restarting
+					: actions.map((action) => (
+							<Fragment key={action}>{buttonMapping[action]}</Fragment>
+						))}
+
+			{canCancel && <CancelButton handleAction={handleCancel} />}
+
+			<FavoriteButton
+				workspaceID={workspace.id}
+				isFavorite={workspace.favorite}
+				onToggle={handleToggleFavorite}
+			/>
+
+			<WorkspaceMoreActions workspace={workspace} disabled={!canAcceptJobs} />
+		</div>
+	);
 };
 
-const useStyles = makeStyles((theme) => ({
-  actions: {
-    display: "flex",
-    alignItems: "center",
-    gap: theme.spacing(1.5),
-  },
-}));
+function getTooltipText(
+	workspace: Workspace,
+	mustUpdate: boolean,
+	canChangeVersions: boolean,
+): string {
+	if (!mustUpdate && !canChangeVersions) {
+		return "";
+	}
+
+	if (
+		!mustUpdate &&
+		canChangeVersions &&
+		workspace.template_require_active_version
+	) {
+		return "This template requires automatic updates on workspace startup, but template administrators can ignore this policy.";
+	}
+
+	if (workspace.automatic_updates === "always") {
+		return "Automatic updates are enabled for this workspace. Modify the update policy in workspace settings if you want to preserve the template version.";
+	}
+
+	return "";
+}

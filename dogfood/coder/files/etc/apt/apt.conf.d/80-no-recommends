@@ -1,0 +1,6 @@
+// Do not install recommended packages by default
+APT::Install-Recommends "0";
+
+// Do not install suggested packages by default (this is already
+// the Ubuntu default)
+APT::Install-Suggests "0";

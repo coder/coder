@@ -1,49 +1,51 @@
-import { makeStyles } from "@mui/styles";
-import TableCell from "@mui/material/TableCell";
-import TableRow, { TableRowProps } from "@mui/material/TableRow";
-import { FC, ReactNode, cloneElement, isValidElement } from "react";
+import {
+	TableCell,
+	TableRow,
+	type TableRowProps,
+} from "components/Table/Table";
+import { cloneElement, type FC, isValidElement, type ReactNode } from "react";
 import { Loader } from "../Loader/Loader";
 
 export const TableLoader: FC = () => {
-  const styles = useStyles();
-
-  return (
-    <TableRow>
-      <TableCell colSpan={999} className={styles.cell}>
-        <Loader />
-      </TableCell>
-    </TableRow>
-  );
+	return (
+		<TableRow>
+			<TableCell colSpan={999} className="text-center h-40">
+				<Loader />
+			</TableCell>
+		</TableRow>
+	);
 };
 
-const useStyles = makeStyles((theme) => ({
-  cell: {
-    textAlign: "center",
-    height: theme.spacing(20),
-  },
-}));
+interface TableLoaderSkeletonProps {
+	rows?: number;
+	children?: ReactNode;
+}
 
-export const TableLoaderSkeleton = ({
-  rows = 4,
-  children,
-}: {
-  rows?: number;
-  children: ReactNode;
+export const TableLoaderSkeleton: FC<TableLoaderSkeletonProps> = ({
+	rows = 4,
+	children,
 }) => {
-  if (!isValidElement(children)) {
-    throw new Error(
-      "TableLoaderSkeleton children must be a valid React element",
-    );
-  }
-  return (
-    <>
-      {Array.from({ length: rows }, (_, i) =>
-        cloneElement(children, { key: i }),
-      )}
-    </>
-  );
+	if (!isValidElement(children)) {
+		throw new Error(
+			"TableLoaderSkeleton children must be a valid React element",
+		);
+	}
+	return (
+		<>
+			{Array.from({ length: rows }, (_, i) =>
+				cloneElement(children, { key: i }),
+			)}
+		</>
+	);
 };
 
-export const TableRowSkeleton = (props: TableRowProps) => {
-  return <TableRow role="progressbar" data-testid="loader" {...props} />;
+export const TableRowSkeleton: FC<TableRowProps> = ({
+	children,
+	...rowProps
+}) => {
+	return (
+		<TableRow role="progressbar" data-testid="loader" {...rowProps}>
+			{children}
+		</TableRow>
+	);
 };

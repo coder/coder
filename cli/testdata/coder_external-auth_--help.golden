@@ -1,0 +1,14 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder external-auth
+
+  Manage external authentication
+
+  Authenticate with external services inside of a workspace.
+
+SUBCOMMANDS:
+    access-token    Print auth for an external provider
+
+———
+Run `coder --help` for a list of global options.

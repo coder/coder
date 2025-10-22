@@ -5,12 +5,17 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 
-	"nhooyr.io/websocket"
 	"tailscale.com/derp"
-	"tailscale.com/net/wsconn"
+	"tailscale.com/tailcfg"
+
+	"cdr.dev/slog"
+
+	"github.com/coder/websocket"
 )
 
 // WithWebsocketSupport returns an http.Handler that upgrades
@@ -60,7 +65,7 @@ func WithWebsocketSupport(s *derp.Server, base http.Handler) (http.Handler, func
 				c.Close(websocket.StatusPolicyViolation, "client must speak the derp subprotocol")
 				return
 			}
-			wc := wsconn.NetConn(ctx, c, websocket.MessageBinary)
+			wc := websocket.NetConn(ctx, c, websocket.MessageBinary)
 			brw := bufio.NewReadWriter(bufio.NewReader(wc), bufio.NewWriter(wc))
 			s.Accept(ctx, wc, brw, r.RemoteAddr)
 		}), func() {
@@ -69,4 +74,55 @@ func WithWebsocketSupport(s *derp.Server, base http.Handler) (http.Handler, func
 			waitGroup.Wait()
 			mu.Unlock()
 		}
+}
+
+type DERPMapRewriter interface {
+	RewriteDERPMap(derpMap *tailcfg.DERPMap)
+}
+
+// RewriteDERPMapDefaultRelay rewrites the DERP map to use the given access URL
+// as the "embedded relay" access URL. The passed derp map is modified in place.
+//
+// This is used by clients and agents to rewrite the default DERP relay to use
+// their preferred access URL. Both of these clients can use a different access
+// URL than the deployment has configured (with `--access-url`), so we need to
+// accommodate that and respect the locally configured access URL.
+//
+// Note: passed context is only used for logging.
+func RewriteDERPMapDefaultRelay(ctx context.Context, logger slog.Logger, derpMap *tailcfg.DERPMap, accessURL *url.URL) {
+	if derpMap == nil {
+		return
+	}
+
+	accessPort := 80
+	if accessURL.Scheme == "https" {
+		accessPort = 443
+	}
+	if accessURL.Port() != "" {
+		parsedAccessPort, err := strconv.Atoi(accessURL.Port())
+		if err != nil {
+			// This should never happen because URL.Port() returns the empty string
+			// if the port is not valid.
+			logger.Critical(ctx, "failed to parse URL port, using default port",
+				slog.F("port", accessURL.Port()),
+				slog.F("access_url", accessURL))
+		} else {
+			accessPort = parsedAccessPort
+		}
+	}
+
+	for _, region := range derpMap.Regions {
+		if !region.EmbeddedRelay {
+			continue
+		}
+
+		for _, node := range region.Nodes {
+			if node.STUNOnly {
+				continue
+			}
+			node.HostName = accessURL.Hostname()
+			node.DERPPort = accessPort
+			node.ForceHTTP = accessURL.Scheme == "http"
+		}
+	}
 }

@@ -1,137 +1,202 @@
-import { useMachine } from "@xstate/react";
+import { API } from "api/api";
+import { checkAuthorization } from "api/queries/authCheck";
+import { templateByName } from "api/queries/templates";
+import { workspaceByOwnerAndNameKey } from "api/queries/workspaces";
+import type * as TypesGen from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import { Link } from "components/Link/Link";
 import { Loader } from "components/Loader/Loader";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import dayjs from "dayjs";
 import {
-  scheduleToAutostart,
-  scheduleChanged,
+	scheduleChanged,
+	scheduleToAutostart,
 } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
 import { ttlMsToAutostop } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/ttl";
 import { useWorkspaceSettings } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
-import { FC } from "react";
-import { Helmet } from "react-helmet-async";
-import { Navigate, useNavigate, useParams } from "react-router-dom";
+import { type FC, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useNavigate, useParams } from "react-router";
+import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
-import * as TypesGen from "api/typesGenerated";
-import { workspaceByOwnerAndNameKey } from "api/queries/workspace";
-import { WorkspaceScheduleForm } from "./WorkspaceScheduleForm";
-import { workspaceSchedule } from "xServices/workspaceSchedule/workspaceScheduleXService";
 import {
-  formValuesToAutostartRequest,
-  formValuesToTTLRequest,
+	formValuesToAutostartRequest,
+	formValuesToTTLRequest,
 } from "./formToRequest";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { useQueryClient } from "react-query";
+import { WorkspaceScheduleForm } from "./WorkspaceScheduleForm";
+
+const permissionsToCheck = (workspace: TypesGen.Workspace) =>
+	({
+		updateWorkspace: {
+			object: {
+				resource_type: "workspace",
+				resource_id: workspace.id,
+				owner_id: workspace.owner_id,
+			},
+			action: "update",
+		},
+	}) as const;
+
+const WorkspaceSchedulePage: FC = () => {
+	const params = useParams() as { username: string; workspace: string };
+	const navigate = useNavigate();
+	const username = params.username.replace("@", "");
+	const workspaceName = params.workspace;
+	const queryClient = useQueryClient();
+	const workspace = useWorkspaceSettings();
+	const { data: permissions, error: checkPermissionsError } = useQuery(
+		checkAuthorization({ checks: permissionsToCheck(workspace) }),
+	);
+	const { data: template, error: getTemplateError } = useQuery(
+		templateByName(workspace.organization_id, workspace.template_name),
+	);
+	const submitScheduleMutation = useMutation({
+		mutationFn: submitSchedule,
+		onSuccess: async () => {
+			await queryClient.invalidateQueries({
+				queryKey: workspaceByOwnerAndNameKey(
+					params.username.replace(/^@/, ""),
+					params.workspace,
+				),
+			});
+			displaySuccess("Workspace schedule updated");
+		},
+		onError: () => displayError("Failed to update workspace schedule"),
+	});
+	const error = checkPermissionsError || getTemplateError;
+	const isLoading = !template || !permissions;
+
+	const [isConfirmingApply, setIsConfirmingApply] = useState(false);
+	const { mutate: updateWorkspace } = useMutation({
+		mutationFn: () =>
+			API.startWorkspace(workspace.id, workspace.template_active_version_id),
+	});
+
+	return (
+		<>
+			<title>{pageTitle(workspaceName, "Schedule")}</title>
+
+			<PageHeader css={{ paddingTop: 0 }}>
+				<PageHeaderTitle>Workspace Schedule</PageHeaderTitle>
+			</PageHeader>
+
+			{error && <ErrorAlert error={error} />}
+
+			{isLoading && <Loader />}
+
+			{permissions && !permissions.updateWorkspace && (
+				<Alert severity="error">
+					You don&apos;t have permissions to update the schedule for this
+					workspace.
+				</Alert>
+			)}
+
+			{template &&
+				(workspace.is_prebuild ? (
+					<Alert severity="info">
+						Prebuilt workspaces ignore workspace-level scheduling until they are
+						claimed. For prebuilt workspace specific scheduling refer to the{" "}
+						<Link
+							title="Prebuilt Workspaces Scheduling"
+							href={docs(
+								"/admin/templates/extending-templates/prebuilt-workspaces#scheduling",
+							)}
+							target="_blank"
+							rel="noreferrer"
+						>
+							Prebuilt Workspaces Scheduling
+						</Link>
+						documentation page.
+					</Alert>
+				) : (
+					<WorkspaceScheduleForm
+						template={template}
+						error={submitScheduleMutation.error}
+						initialValues={{
+							...getAutostart(workspace),
+							...getAutostop(workspace),
+						}}
+						isLoading={submitScheduleMutation.isPending}
+						defaultTTL={dayjs.duration(template.default_ttl_ms, "ms").asHours()}
+						onCancel={() => {
+							navigate(`/@${username}/${workspaceName}`);
+						}}
+						onSubmit={async (values) => {
+							const data = {
+								workspace,
+								autostart: formValuesToAutostartRequest(values),
+								ttl: formValuesToTTLRequest(values),
+								autostartChanged: scheduleChanged(
+									getAutostart(workspace),
+									values,
+								),
+								autostopChanged: scheduleChanged(
+									getAutostop(workspace),
+									values,
+								),
+							};
+
+							await submitScheduleMutation.mutateAsync(data);
+
+							if (
+								data.autostopChanged &&
+								getAutostop(workspace).autostopEnabled
+							) {
+								setIsConfirmingApply(true);
+							}
+						}}
+					/>
+				))}
+
+			<ConfirmDialog
+				open={isConfirmingApply}
+				title="Restart workspace?"
+				description="Would you like to restart your workspace now to apply your new autostop setting, or let it apply after your next workspace start?"
+				confirmText="Restart"
+				cancelText="Apply later"
+				hideCancel={false}
+				onConfirm={() => {
+					updateWorkspace();
+					navigate(`/@${username}/${workspaceName}`);
+				}}
+				onClose={() => {
+					navigate(`/@${username}/${workspaceName}`);
+				}}
+			/>
+		</>
+	);
+};
 
 const getAutostart = (workspace: TypesGen.Workspace) =>
-  scheduleToAutostart(workspace.autostart_schedule);
+	scheduleToAutostart(workspace.autostart_schedule);
+
 const getAutostop = (workspace: TypesGen.Workspace) =>
-  ttlMsToAutostop(workspace.ttl_ms);
+	ttlMsToAutostop(workspace.ttl_ms);
 
-export const WorkspaceSchedulePage: FC = () => {
-  const params = useParams() as { username: string; workspace: string };
-  const navigate = useNavigate();
-  const username = params.username.replace("@", "");
-  const workspaceName = params.workspace;
-  const queryClient = useQueryClient();
-  const workspace = useWorkspaceSettings();
-  const [scheduleState, scheduleSend] = useMachine(workspaceSchedule, {
-    context: { workspace },
-  });
-  const {
-    checkPermissionsError,
-    submitScheduleError,
-    getTemplateError,
-    permissions,
-    template,
-  } = scheduleState.context;
+type SubmitScheduleData = {
+	workspace: TypesGen.Workspace;
+	autostart: TypesGen.UpdateWorkspaceAutostartRequest;
+	autostartChanged: boolean;
+	ttl: TypesGen.UpdateWorkspaceTTLRequest;
+	autostopChanged: boolean;
+};
 
-  if (!username || !workspaceName) {
-    return <Navigate to="/workspaces" />;
-  }
+const submitSchedule = async (data: SubmitScheduleData) => {
+	const { autostartChanged, workspace, autostart, autostopChanged, ttl } = data;
+	const actions: Promise<void>[] = [];
 
-  if (scheduleState.matches("done")) {
-    return <Navigate to={`/@${username}/${workspaceName}`} />;
-  }
+	if (autostartChanged) {
+		actions.push(API.putWorkspaceAutostart(workspace.id, autostart));
+	}
 
-  return (
-    <>
-      <Helmet>
-        <title>{pageTitle([workspaceName, "Schedule"])}</title>
-      </Helmet>
-      <PageHeader
-        css={{
-          paddingTop: 0,
-        }}
-      >
-        <PageHeaderTitle>Workspace Schedule</PageHeaderTitle>
-      </PageHeader>
-      {(scheduleState.hasTag("loading") || !template) && <Loader />}
-      {scheduleState.matches("error") && (
-        <ErrorAlert error={checkPermissionsError || getTemplateError} />
-      )}
-      {permissions && !permissions.updateWorkspace && (
-        <Alert severity="error">
-          You don&apos;t have permissions to update the schedule for this
-          workspace.
-        </Alert>
-      )}
-      {template &&
-        workspace &&
-        (scheduleState.matches("presentForm") ||
-          scheduleState.matches("submittingSchedule")) && (
-          <WorkspaceScheduleForm
-            enableAutoStart={template.allow_user_autostart}
-            enableAutoStop={template.allow_user_autostop}
-            submitScheduleError={submitScheduleError}
-            initialValues={{
-              ...getAutostart(workspace),
-              ...getAutostop(workspace),
-            }}
-            isLoading={scheduleState.tags.has("loading")}
-            defaultTTL={dayjs.duration(template.default_ttl_ms, "ms").asHours()}
-            onCancel={() => {
-              navigate(`/@${username}/${workspaceName}`);
-            }}
-            onSubmit={async (values) => {
-              scheduleSend({
-                type: "SUBMIT_SCHEDULE",
-                autostart: formValuesToAutostartRequest(values),
-                ttl: formValuesToTTLRequest(values),
-                autostartChanged: scheduleChanged(
-                  getAutostart(workspace),
-                  values,
-                ),
-                autostopChanged: scheduleChanged(
-                  getAutostop(workspace),
-                  values,
-                ),
-              });
+	if (autostopChanged) {
+		actions.push(API.putWorkspaceAutostop(workspace.id, ttl));
+	}
 
-              await queryClient.invalidateQueries(
-                workspaceByOwnerAndNameKey(params.username, params.workspace),
-              );
-            }}
-          />
-        )}
-      <ConfirmDialog
-        open={scheduleState.matches("showingRestartDialog")}
-        title="Restart workspace?"
-        description="Would you like to restart your workspace now to apply your new autostop setting, or let it apply after your next workspace start?"
-        confirmText="Restart"
-        cancelText="Apply later"
-        hideCancel={false}
-        onConfirm={() => {
-          scheduleSend("RESTART_WORKSPACE");
-        }}
-        onClose={() => {
-          scheduleSend("APPLY_LATER");
-        }}
-      />
-    </>
-  );
+	return Promise.all(actions);
 };
 
 export default WorkspaceSchedulePage;

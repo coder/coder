@@ -13,7 +13,7 @@ type appStatsReporter struct {
 	Client *wsproxysdk.Client
 }
 
-func (r *appStatsReporter) Report(ctx context.Context, stats []workspaceapps.StatsReport) error {
+func (r *appStatsReporter) ReportAppStats(ctx context.Context, stats []workspaceapps.StatsReport) error {
 	err := r.Client.ReportAppStats(ctx, wsproxysdk.ReportAppStatsRequest{
 		Stats: stats,
 	})

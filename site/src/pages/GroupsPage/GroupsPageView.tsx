@@ -1,239 +1,194 @@
-import Button from "@mui/material/Button";
-import Link from "@mui/material/Link";
-import { makeStyles } from "@mui/styles";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
-import ArrowRightAltOutlined from "@mui/icons-material/ArrowRightAltOutlined";
-import AddOutlined from "@mui/icons-material/AddOutlined";
-import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
-import AvatarGroup from "@mui/material/AvatarGroup";
-import { AvatarData } from "components/AvatarData/AvatarData";
+import type { Interpolation, Theme } from "@emotion/react";
+import Skeleton from "@mui/material/Skeleton";
+import type { Group } from "api/typesGenerated";
+import { Avatar } from "components/Avatar/Avatar";
+import { AvatarData } from "components/Avatar/AvatarData";
+import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
+import { Badge } from "components/Badge/Badge";
+import { Button } from "components/Button/Button";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { Stack } from "components/Stack/Stack";
-import {
-  TableLoaderSkeleton,
-  TableRowSkeleton,
-} from "components/TableLoader/TableLoader";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
-import { FC } from "react";
-import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { Paywall } from "components/Paywall/Paywall";
-import { Group } from "api/typesGenerated";
-import { GroupAvatar } from "components/GroupAvatar/GroupAvatar";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "components/Table/Table";
+import {
+	TableLoaderSkeleton,
+	TableRowSkeleton,
+} from "components/TableLoader/TableLoader";
+import { useClickableTableRow } from "hooks";
+import { ChevronRightIcon, PlusIcon } from "lucide-react";
+import type { FC } from "react";
+import { Link as RouterLink, useNavigate } from "react-router";
 import { docs } from "utils/docs";
-import Skeleton from "@mui/material/Skeleton";
-import { Box } from "@mui/system";
-import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
 
-export type GroupsPageViewProps = {
-  groups: Group[] | undefined;
-  canCreateGroup: boolean;
-  isTemplateRBACEnabled: boolean;
+type GroupsPageViewProps = {
+	groups: Group[] | undefined;
+	canCreateGroup: boolean;
+	groupsEnabled: boolean;
 };
 
 export const GroupsPageView: FC<GroupsPageViewProps> = ({
-  groups,
-  canCreateGroup,
-  isTemplateRBACEnabled,
+	groups,
+	canCreateGroup,
+	groupsEnabled,
 }) => {
-  const isLoading = Boolean(groups === undefined);
-  const isEmpty = Boolean(groups && groups.length === 0);
-  const navigate = useNavigate();
-  const styles = useStyles();
+	const isLoading = Boolean(groups === undefined);
+	const isEmpty = Boolean(groups && groups.length === 0);
 
-  return (
-    <>
-      <ChooseOne>
-        <Cond condition={!isTemplateRBACEnabled}>
-          <Paywall
-            message="Groups"
-            description="Organize users into groups with restricted access to templates. You need an Enterprise license to use this feature."
-            cta={
-              <Stack direction="row" alignItems="center">
-                <Button
-                  href={docs("/enterprise")}
-                  target="_blank"
-                  rel="noreferrer"
-                  startIcon={<ArrowRightAltOutlined />}
-                  variant="contained"
-                >
-                  Learn about Enterprise
-                </Button>
+	return (
+		<ChooseOne>
+			<Cond condition={!groupsEnabled}>
+				<Paywall
+					message="Groups"
+					description="Organize users into groups with restricted access to templates. You need a Premium license to use this feature."
+					documentationLink={docs("/admin/users/groups-roles")}
+				/>
+			</Cond>
+			<Cond>
+				<Table>
+					<TableHeader>
+						<TableRow>
+							<TableHead className="w-2/5">Name</TableHead>
+							<TableHead className="w-3/5">Users</TableHead>
+							<TableHead className="w-auto" />
+						</TableRow>
+					</TableHeader>
+					<TableBody>
+						<ChooseOne>
+							<Cond condition={isLoading}>
+								<TableLoader />
+							</Cond>
 
-                <Link
-                  href={docs("/admin/groups")}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Read the docs
-                </Link>
-              </Stack>
-            }
-          />
-        </Cond>
-        <Cond>
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell width="50%">Name</TableCell>
-                  <TableCell width="49%">Users</TableCell>
-                  <TableCell width="1%"></TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                <ChooseOne>
-                  <Cond condition={isLoading}>
-                    <TableLoader />
-                  </Cond>
+							<Cond condition={isEmpty}>
+								<TableRow>
+									<TableCell colSpan={999}>
+										<EmptyState
+											message="No groups yet"
+											description={
+												canCreateGroup
+													? "Create your first group"
+													: "You don't have permission to create a group"
+											}
+											cta={
+												canCreateGroup && (
+													<Button asChild>
+														<RouterLink to="create">
+															<PlusIcon className="size-icon-sm" />
+															Create group
+														</RouterLink>
+													</Button>
+												)
+											}
+										/>
+									</TableCell>
+								</TableRow>
+							</Cond>
 
-                  <Cond condition={isEmpty}>
-                    <TableRow>
-                      <TableCell colSpan={999}>
-                        <EmptyState
-                          message="No groups yet"
-                          description={
-                            canCreateGroup
-                              ? "Create your first group"
-                              : "You don't have permission to create a group"
-                          }
-                          cta={
-                            canCreateGroup && (
-                              <Button
-                                component={RouterLink}
-                                to="/groups/create"
-                                startIcon={<AddOutlined />}
-                                variant="contained"
-                              >
-                                Create group
-                              </Button>
-                            )
-                          }
-                        />
-                      </TableCell>
-                    </TableRow>
-                  </Cond>
-
-                  <Cond>
-                    {groups?.map((group) => {
-                      const groupPageLink = `/groups/${group.id}`;
-
-                      return (
-                        <TableRow
-                          hover
-                          key={group.id}
-                          data-testid={`group-${group.id}`}
-                          tabIndex={0}
-                          onClick={() => {
-                            navigate(groupPageLink);
-                          }}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter") {
-                              navigate(groupPageLink);
-                            }
-                          }}
-                          className={styles.clickableTableRow}
-                        >
-                          <TableCell>
-                            <AvatarData
-                              avatar={
-                                <GroupAvatar
-                                  name={group.display_name || group.name}
-                                  avatarURL={group.avatar_url}
-                                />
-                              }
-                              title={group.display_name || group.name}
-                              subtitle={`${group.members.length} members`}
-                            />
-                          </TableCell>
-
-                          <TableCell>
-                            {group.members.length === 0 && "-"}
-                            <AvatarGroup
-                              max={10}
-                              total={group.members.length}
-                              sx={{ justifyContent: "flex-end" }}
-                            >
-                              {group.members.map((member) => (
-                                <UserAvatar
-                                  key={member.username}
-                                  username={member.username}
-                                  avatarURL={member.avatar_url}
-                                />
-                              ))}
-                            </AvatarGroup>
-                          </TableCell>
-
-                          <TableCell>
-                            <div className={styles.arrowCell}>
-                              <KeyboardArrowRight
-                                className={styles.arrowRight}
-                              />
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </Cond>
-                </ChooseOne>
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Cond>
-      </ChooseOne>
-    </>
-  );
+							<Cond>
+								{groups?.map((group) => (
+									<GroupRow key={group.id} group={group} />
+								))}
+							</Cond>
+						</ChooseOne>
+					</TableBody>
+				</Table>
+			</Cond>
+		</ChooseOne>
+	);
 };
 
-const TableLoader = () => {
-  return (
-    <TableLoaderSkeleton>
-      <TableRowSkeleton>
-        <TableCell>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <AvatarDataSkeleton />
-          </Box>
-        </TableCell>
-        <TableCell>
-          <Skeleton variant="text" width="25%" />
-        </TableCell>
-        <TableCell>
-          <Skeleton variant="text" width="25%" />
-        </TableCell>
-      </TableRowSkeleton>
-    </TableLoaderSkeleton>
-  );
+interface GroupRowProps {
+	group: Group;
+}
+
+const GroupRow: FC<GroupRowProps> = ({ group }) => {
+	const navigate = useNavigate();
+	const rowProps = useClickableTableRow({
+		onClick: () => navigate(group.name),
+	});
+	const memberAvatars = group.members.slice(0, 5);
+	const remainingAvatars = group.members.length - memberAvatars.length;
+
+	return (
+		<TableRow data-testid={`group-${group.id}`} {...rowProps}>
+			<TableCell>
+				<AvatarData
+					avatar={
+						<Avatar
+							size="lg"
+							variant="icon"
+							fallback={group.display_name || group.name}
+							src={group.avatar_url}
+						/>
+					}
+					title={group.display_name || group.name}
+					subtitle={`${group.members.length} members`}
+				/>
+			</TableCell>
+
+			<TableCell>
+				{group.members.length > 0 ? (
+					<div className="flex items-center gap-2">
+						{memberAvatars.map((member) => (
+							<Avatar
+								key={member.username}
+								fallback={member.username}
+								src={member.avatar_url}
+							/>
+						))}
+						{remainingAvatars > 0 && (
+							<Badge className="h-[--avatar-default]">
+								+{remainingAvatars}
+							</Badge>
+						)}
+					</div>
+				) : (
+					"-"
+				)}
+			</TableCell>
+
+			<TableCell>
+				<div css={styles.arrowCell}>
+					<ChevronRightIcon className="size-icon-sm" />
+				</div>
+			</TableCell>
+		</TableRow>
+	);
 };
 
-const useStyles = makeStyles((theme) => ({
-  clickableTableRow: {
-    cursor: "pointer",
+const TableLoader: FC = () => {
+	return (
+		<TableLoaderSkeleton>
+			<TableRowSkeleton>
+				<TableCell>
+					<div css={{ display: "flex", alignItems: "center", gap: 8 }}>
+						<AvatarDataSkeleton />
+					</div>
+				</TableCell>
+				<TableCell>
+					<Skeleton variant="text" width="25%" />
+				</TableCell>
+				<TableCell>
+					<Skeleton variant="text" width="25%" />
+				</TableCell>
+			</TableRowSkeleton>
+		</TableLoaderSkeleton>
+	);
+};
 
-    "&:hover td": {
-      backgroundColor: theme.palette.action.hover,
-    },
-
-    "&:focus": {
-      outline: `1px solid ${theme.palette.secondary.dark}`,
-    },
-
-    "& .MuiTableCell-root:last-child": {
-      paddingRight: theme.spacing(2),
-    },
-  },
-  arrowRight: {
-    color: theme.palette.text.secondary,
-    width: 20,
-    height: 20,
-  },
-  arrowCell: {
-    display: "flex",
-  },
-}));
-
-export default GroupsPageView;
+const styles = {
+	arrowRight: (theme) => ({
+		color: theme.palette.text.secondary,
+		width: 20,
+		height: 20,
+	}),
+	arrowCell: {
+		display: "flex",
+	},
+} satisfies Record<string, Interpolation<Theme>>;

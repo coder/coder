@@ -3,6 +3,7 @@ package workspaceapps
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -13,9 +14,11 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 )
+
+var errWorkspaceStopped = xerrors.New("stopped workspace")
 
 type AccessMethod string
 
@@ -63,7 +66,8 @@ func (r IssueTokenRequest) AppBaseURL() (*url.URL, error) {
 			return nil, xerrors.New("subdomain app hostname is required to generate subdomain app URL")
 		}
 
-		appHost := httpapi.ApplicationURL{
+		appHost := appurl.ApplicationURL{
+			Prefix:        r.AppRequest.Prefix,
 			AppSlugOrPort: r.AppRequest.AppSlugOrPort,
 			AgentName:     r.AppRequest.AgentNameOrID,
 			WorkspaceName: r.AppRequest.WorkspaceNameOrID,
@@ -83,6 +87,9 @@ type Request struct {
 	// for this particular app. For subdomain apps, this should be "/". This is
 	// used for setting the cookie path.
 	BasePath string `json:"base_path"`
+	// Prefix is the prefix of the subdomain app URL. Prefix should have a
+	// trailing "---" if set.
+	Prefix string `json:"app_prefix"`
 
 	// For the following fields, if the AccessMethod is AccessMethodTerminal,
 	// then only AgentNameOrID may be set and it must be a UUID. The other
@@ -117,9 +124,9 @@ func (r Request) Normalize() Request {
 	return req
 }
 
-// Validate ensures the request is correct and contains the necessary
+// Check ensures the request is correct and contains the necessary
 // parameters.
-func (r Request) Validate() error {
+func (r Request) Check() error {
 	switch r.AccessMethod {
 	case AccessMethodPath, AccessMethodSubdomain, AccessMethodTerminal:
 	default:
@@ -170,6 +177,13 @@ func (r Request) Validate() error {
 		return xerrors.New("app slug or port is required")
 	}
 
+	if r.Prefix != "" && r.AccessMethod != AccessMethodSubdomain {
+		return xerrors.New("prefix is only valid for subdomain apps")
+	}
+	if r.Prefix != "" && !strings.HasSuffix(r.Prefix, "---") {
+		return xerrors.New("prefix must have a trailing '---'")
+	}
+
 	return nil
 }
 
@@ -181,16 +195,18 @@ type databaseRequest struct {
 	Workspace database.Workspace
 	// Agent is the agent that the app is running on.
 	Agent database.WorkspaceAgent
+	// App is the app that the user is trying to access.
+	App database.WorkspaceApp
 
 	// AppURL is the resolved URL to the workspace app. This is only set for non
 	// terminal requests.
 	AppURL *url.URL
-	// AppHealth is the health of the app. For terminal requests, this is always
-	// database.WorkspaceAppHealthHealthy.
-	AppHealth database.WorkspaceAppHealth
 	// AppSharingLevel is the sharing level of the app. This is forced to be set
 	// to AppSharingLevelOwner if the access method is terminal.
 	AppSharingLevel database.AppSharingLevel
+	// CorsBehavior is set at the template level for all apps/ports in a workspace, and can
+	// either be the current CORS middleware 'simple' or bypass the cors middleware with 'passthru'.
+	CorsBehavior database.CorsBehavior
 }
 
 // getDatabase does queries to get the owner user, workspace and agent
@@ -249,10 +265,17 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 	if err != nil {
 		return nil, xerrors.Errorf("get workspace agents: %w", err)
 	}
+	build, err := db.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+	if err != nil {
+		return nil, xerrors.Errorf("get latest workspace build: %w", err)
+	}
+	if build.Transition == database.WorkspaceTransitionStop {
+		return nil, errWorkspaceStopped
+	}
 	if len(agents) == 0 {
 		// TODO(@deansheather): return a 404 if there are no agents in the
 		// workspace, requires a different error type.
-		return nil, xerrors.New("no agents in workspace")
+		return nil, xerrors.Errorf("no agents in workspace: %w", sql.ErrNoRows)
 	}
 
 	// Get workspace apps.
@@ -269,13 +292,28 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 	// whether the app is a slug or a port and whether there are multiple agents
 	// in the workspace or not.
 	var (
-		agentNameOrID         = r.AgentNameOrID
-		appURL                string
-		appSharingLevel       database.AppSharingLevel
-		appHealth             = database.WorkspaceAppHealthDisabled
-		portUint, portUintErr = strconv.ParseUint(r.AppSlugOrPort, 10, 16)
+		agentNameOrID   = r.AgentNameOrID
+		app             database.WorkspaceApp
+		appURL          string
+		appSharingLevel database.AppSharingLevel
+		// First check if it's a port-based URL with an optional "s" suffix for HTTPS.
+		potentialPortStr      = strings.TrimSuffix(r.AppSlugOrPort, "s")
+		portUint, portUintErr = strconv.ParseUint(potentialPortStr, 10, 16)
+		corsBehavior          database.CorsBehavior
 	)
+
+	tmpl, err := db.GetTemplateByID(ctx, workspace.TemplateID)
+	if err != nil {
+		return nil, xerrors.Errorf("get template %q: %w", workspace.TemplateID, err)
+	}
+	corsBehavior = tmpl.CorsBehavior
+	//nolint:nestif
 	if portUintErr == nil {
+		protocol := "http"
+		if strings.HasSuffix(r.AppSlugOrPort, "s") {
+			protocol = "https"
+		}
+
 		if r.AccessMethod != AccessMethodSubdomain {
 			// TODO(@deansheather): this should return a 400 instead of a 500.
 			return nil, xerrors.New("port-based URLs are only supported for subdomain-based applications")
@@ -292,14 +330,45 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		}
 
 		// If the app slug is a port number, then route to the port as an
-		// "anonymous app". We only support HTTP for port-based URLs.
+		// "anonymous app".
 		//
 		// This is only supported for subdomain-based applications.
-		appURL = fmt.Sprintf("http://127.0.0.1:%d", portUint)
+		appURL = fmt.Sprintf("%s://127.0.0.1:%d", protocol, portUint)
 		appSharingLevel = database.AppSharingLevelOwner
+
+		// Port sharing authorization
+		agentName := agentNameOrID
+		id, err := uuid.Parse(agentNameOrID)
+		for _, a := range agents {
+			// if err is nil then it's an UUID
+			if err == nil && a.ID == id {
+				agentName = a.Name
+				break
+			}
+			// otherwise it's a name
+			if a.Name == agentNameOrID {
+				break
+			}
+		}
+
+		// First check if there is a port share for the port
+		ps, err := db.GetWorkspaceAgentPortShare(ctx, database.GetWorkspaceAgentPortShareParams{
+			WorkspaceID: workspace.ID,
+			AgentName:   agentName,
+			Port:        int32(portUint),
+		})
+		if err != nil {
+			if !errors.Is(err, sql.ErrNoRows) {
+				return nil, xerrors.Errorf("get workspace agent port share: %w", err)
+			}
+			// No port share found, so we keep default to owner.
+		} else {
+			appSharingLevel = ps.ShareLevel
+		}
 	} else {
-		for _, app := range apps {
-			if app.Slug == r.AppSlugOrPort {
+		for _, a := range apps {
+			if a.Slug == r.AppSlugOrPort {
+				app = a
 				if !app.Url.Valid {
 					return nil, xerrors.Errorf("app URL is not valid")
 				}
@@ -311,7 +380,6 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 					appSharingLevel = database.AppSharingLevelOwner
 				}
 				appURL = app.Url.String
-				appHealth = app.Health
 				break
 			}
 		}
@@ -356,9 +424,10 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		User:            user,
 		Workspace:       workspace,
 		Agent:           agent,
+		App:             app,
 		AppURL:          appURLParsed,
-		AppHealth:       appHealth,
 		AppSharingLevel: appSharingLevel,
+		CorsBehavior:    corsBehavior,
 	}, nil
 }
 
@@ -410,7 +479,6 @@ func (r Request) getDatabaseTerminal(ctx context.Context, db database.Store) (*d
 		Workspace:       workspace,
 		Agent:           agent,
 		AppURL:          nil,
-		AppHealth:       database.WorkspaceAppHealthHealthy,
 		AppSharingLevel: database.AppSharingLevelOwner,
 	}, nil
 }

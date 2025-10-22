@@ -6,6 +6,9 @@ USAGE:
   Edit a user group
 
 OPTIONS:
+  -O, --org string, $CODER_ORGANIZATION
+          Select which organization (uuid or name) to use.
+
   -a, --add-users string-array
           Add users to the group. Accepts emails or IDs.
 

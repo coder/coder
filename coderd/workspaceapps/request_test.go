@@ -58,6 +58,26 @@ func Test_RequestValidate(t *testing.T) {
 			},
 		},
 		{
+			name: "OK5",
+			req: workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodSubdomain,
+				BasePath:          "/",
+				UsernameOrID:      "foo",
+				WorkspaceNameOrID: "bar",
+				AppSlugOrPort:     "8080",
+			},
+		},
+		{
+			name: "OK6",
+			req: workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodSubdomain,
+				BasePath:          "/",
+				UsernameOrID:      "foo",
+				WorkspaceNameOrID: "bar",
+				AppSlugOrPort:     "8080s",
+			},
+		},
+		{
 			name: "NoAccessMethod",
 			req: workspaceapps.Request{
 				AccessMethod:      "",
@@ -154,6 +174,44 @@ func Test_RequestValidate(t *testing.T) {
 			errContains: "app slug or port is required",
 		},
 		{
+			name: "Prefix/OK",
+			req: workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodSubdomain,
+				Prefix:            "blah---",
+				BasePath:          "/",
+				UsernameOrID:      "foo",
+				WorkspaceNameOrID: "bar",
+				AgentNameOrID:     "baz",
+				AppSlugOrPort:     "qux",
+			},
+		},
+		{
+			name: "Prefix/Invalid",
+			req: workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodSubdomain,
+				Prefix:            "blah", // no trailing ---
+				BasePath:          "/",
+				UsernameOrID:      "foo",
+				WorkspaceNameOrID: "bar",
+				AgentNameOrID:     "baz",
+				AppSlugOrPort:     "qux",
+			},
+			errContains: "prefix must have a trailing '---'",
+		},
+		{
+			name: "Prefix/NotAllowedPath",
+			req: workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodPath,
+				Prefix:            "blah---",
+				BasePath:          "/",
+				UsernameOrID:      "foo",
+				WorkspaceNameOrID: "bar",
+				AgentNameOrID:     "baz",
+				AppSlugOrPort:     "qux",
+			},
+			errContains: "prefix is only valid for subdomain apps",
+		},
+		{
 			name: "Terminal/OtherFields/UsernameOrID",
 			req: workspaceapps.Request{
 				AccessMethod:  workspaceapps.AccessMethodTerminal,
@@ -214,14 +272,13 @@ func Test_RequestValidate(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		c := c
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 			req := c.req
 			if !c.noNormalize {
 				req = c.req.Normalize()
 			}
-			err := req.Validate()
+			err := req.Check()
 			if c.errContains == "" {
 				require.NoError(t, err)
 			} else {
@@ -231,6 +288,3 @@ func Test_RequestValidate(t *testing.T) {
 		})
 	}
 }
-
-// getDatabase is tested heavily in auth_test.go, so we don't have specific
-// tests for it here.

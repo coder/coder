@@ -1,140 +1,99 @@
-import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
-import { makeStyles } from "@mui/styles";
-import { TemplateExample } from "api/typesGenerated";
+import type { TemplateExample } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import { CodeExample } from "components/CodeExample/CodeExample";
 import { Stack } from "components/Stack/Stack";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
-import { TemplateExampleCard } from "components/TemplateExampleCard/TemplateExampleCard";
-import { FC } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { TemplateExampleCard } from "modules/templates/TemplateExampleCard/TemplateExampleCard";
+import type { FC } from "react";
+import { Link as RouterLink } from "react-router";
 import { docs } from "utils/docs";
 
 // Those are from https://github.com/coder/coder/tree/main/examples/templates
 const featuredExampleIds = [
-  "docker",
-  "kubernetes",
-  "aws-linux",
-  "aws-windows",
-  "gcp-linux",
-  "gcp-windows",
+	"tasks-docker",
+	"docker",
+	"kubernetes",
+	"aws-linux",
+	"aws-windows",
+	"gcp-linux",
+	"gcp-windows",
 ];
 
 const findFeaturedExamples = (examples: TemplateExample[]) => {
-  const featuredExamples: TemplateExample[] = [];
+	const featuredExamples: TemplateExample[] = [];
 
-  // We loop the featuredExampleIds first to keep the order
-  featuredExampleIds.forEach((exampleId) => {
-    examples.forEach((example) => {
-      if (exampleId === example.id) {
-        featuredExamples.push(example);
-      }
-    });
-  });
+	// We loop the featuredExampleIds first to keep the order
+	for (const exampleId of featuredExampleIds) {
+		for (const example of examples) {
+			if (exampleId === example.id) {
+				featuredExamples.push(example);
+			}
+		}
+	}
 
-  return featuredExamples;
+	return featuredExamples;
 };
 
-export const EmptyTemplates: FC<{
-  canCreateTemplates: boolean;
-  examples: TemplateExample[];
-}> = ({ canCreateTemplates, examples }) => {
-  const styles = useStyles();
-  const featuredExamples = findFeaturedExamples(examples);
+interface EmptyTemplatesProps {
+	canCreateTemplates: boolean;
+	examples: TemplateExample[];
+	isUsingFilter: boolean;
+}
 
-  if (canCreateTemplates) {
-    return (
-      <TableEmpty
-        message="Create a Template"
-        description={
-          <>
-            Templates are written in Terraform and describe the infrastructure
-            for workspaces (e.g., docker_container, aws_instance,
-            kubernetes_pod). Select a starter template below or
-            <Link
-              href={docs("/templates#add-a-template")}
-              target="_blank"
-              rel="noreferrer"
-            >
-              create your own
-            </Link>
-            .
-          </>
-        }
-        cta={
-          <Stack alignItems="center" spacing={4}>
-            <div className={styles.featuredExamples}>
-              {featuredExamples.map((example) => (
-                <TemplateExampleCard
-                  example={example}
-                  key={example.id}
-                  className={styles.template}
-                />
-              ))}
-            </div>
+export const EmptyTemplates: FC<EmptyTemplatesProps> = ({
+	canCreateTemplates,
+	examples,
+	isUsingFilter,
+}) => {
+	if (isUsingFilter) {
+		return <TableEmpty message="No results matched your search" />;
+	}
 
-            <Button
-              size="small"
-              component={RouterLink}
-              to="/starter-templates"
-              className={styles.viewAllButton}
-            >
-              View all starter templates
-            </Button>
-          </Stack>
-        }
-      />
-    );
-  }
+	const featuredExamples = findFeaturedExamples(examples);
 
-  return (
-    <TableEmpty
-      className={styles.withImage}
-      message="Create a Template"
-      description="Contact your Coder administrator to create a template. You can share the code below."
-      cta={<CodeExample code="coder templates init" />}
-      image={
-        <div className={styles.emptyImage}>
-          <img src="/featured/templates.webp" alt="" />
-        </div>
-      }
-    />
-  );
+	if (canCreateTemplates) {
+		return (
+			<TableEmpty
+				message="Create your first template"
+				description={
+					<>
+						Templates are written in Terraform and describe the infrastructure
+						for workspaces. You can start using a starter template below or{" "}
+						<Link
+							href={docs("/admin/templates/creating-templates")}
+							target="_blank"
+							rel="noreferrer"
+						>
+							create your own
+						</Link>
+						.
+					</>
+				}
+				cta={
+					<Stack alignItems="center" spacing={4}>
+						<div className="flex flex-wrap justify-center gap-4">
+							{featuredExamples.map((example) => (
+								<TemplateExampleCard example={example} key={example.id} />
+							))}
+						</div>
+
+						<Button size="sm" asChild css={{ borderRadius: 9999 }}>
+							<RouterLink to="/starter-templates">
+								View all starter templates
+							</RouterLink>
+						</Button>
+					</Stack>
+				}
+			/>
+		);
+	}
+
+	return (
+		<TableEmpty
+			message="Create a Template"
+			description="Contact your Coder administrator to create a template. You can share the code below."
+			cta={<CodeExample secret={false} code="coder templates init" />}
+		/>
+	);
 };
-
-const useStyles = makeStyles((theme) => ({
-  withImage: {
-    paddingBottom: 0,
-  },
-
-  emptyImage: {
-    maxWidth: "50%",
-    height: theme.spacing(40),
-    overflow: "hidden",
-    opacity: 0.85,
-
-    "& img": {
-      maxWidth: "100%",
-    },
-  },
-
-  featuredExamples: {
-    maxWidth: theme.spacing(100),
-    display: "grid",
-    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-    gap: theme.spacing(2),
-    gridAutoRows: "min-content",
-  },
-
-  template: {
-    backgroundColor: theme.palette.background.paperLight,
-
-    "&:hover": {
-      backgroundColor: theme.palette.divider,
-    },
-  },
-
-  viewAllButton: {
-    borderRadius: 9999,
-  },
-}));

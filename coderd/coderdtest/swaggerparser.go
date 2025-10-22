@@ -89,9 +89,9 @@ func parseSwaggerComment(commentGroup *ast.CommentGroup) SwaggerComment {
 		failures:   []response{},
 	}
 	for _, line := range commentGroup.List {
-		// @<annotationName> [args...]
+		// "// @<annotationName> [args...]" -> []string{"//", "@<annotationName>", "args..."}
 		splitN := strings.SplitN(strings.TrimSpace(line.Text), " ", 3)
-		if len(splitN) < 2 {
+		if len(splitN) < 3 {
 			continue // comment prefix without any content
 		}
 
@@ -151,7 +151,7 @@ func VerifySwaggerDefinitions(t *testing.T, router chi.Router, swaggerComments [
 	assertUniqueRoutes(t, swaggerComments)
 	assertSingleAnnotations(t, swaggerComments)
 
-	err := chi.Walk(router, func(method, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
+	err := chi.Walk(router, func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
 		method = strings.ToLower(method)
 		if route != "/" && strings.HasSuffix(route, "/") {
 			route = route[:len(route)-1]
@@ -160,8 +160,9 @@ func VerifySwaggerDefinitions(t *testing.T, router chi.Router, swaggerComments [
 		t.Run(method+" "+route, func(t *testing.T) {
 			t.Parallel()
 
-			// This route is for compatibility purposes and is not documented.
-			if route == "/workspaceagents/me/metadata" {
+			// Wildcard routes break the swaggo parser, so we do not document
+			// them.
+			if strings.HasSuffix(route, "/*") {
 				return
 			}
 
@@ -300,13 +301,22 @@ func assertPathParametersDefined(t *testing.T, comment SwaggerComment) {
 }
 
 func assertSecurityDefined(t *testing.T, comment SwaggerComment) {
+	authorizedSecurityTags := []string{
+		"CoderSessionToken",
+		"CoderProvisionerKey",
+	}
+
 	if comment.router == "/updatecheck" ||
 		comment.router == "/buildinfo" ||
 		comment.router == "/" ||
-		comment.router == "/users/login" {
+		comment.router == "/auth/scopes" ||
+		comment.router == "/users/login" ||
+		comment.router == "/users/otp/request" ||
+		comment.router == "/users/otp/change-password" ||
+		comment.router == "/init-script/{os}/{arch}" {
 		return // endpoints do not require authorization
 	}
-	assert.Equal(t, "CoderSessionToken", comment.security, "@Security must be equal CoderSessionToken")
+	assert.Containsf(t, authorizedSecurityTags, comment.security, "@Security must be either of these options: %v", authorizedSecurityTags)
 }
 
 func assertAccept(t *testing.T, comment SwaggerComment) {
@@ -352,7 +362,10 @@ func assertProduce(t *testing.T, comment SwaggerComment) {
 			(comment.router == "/workspaceagents/me/startup" && comment.method == "post") ||
 			(comment.router == "/workspaceagents/me/startup/logs" && comment.method == "patch") ||
 			(comment.router == "/licenses/{id}" && comment.method == "delete") ||
-			(comment.router == "/debug/coordinator" && comment.method == "get") {
+			(comment.router == "/debug/coordinator" && comment.method == "get") ||
+			(comment.router == "/debug/tailnet" && comment.method == "get") ||
+			(comment.router == "/workspaces/{workspace}/acl" && comment.method == "patch") ||
+			(comment.router == "/init-script/{os}/{arch}" && comment.method == "get") {
 			return // Exception: HTTP 200 is returned without response entity
 		}
 

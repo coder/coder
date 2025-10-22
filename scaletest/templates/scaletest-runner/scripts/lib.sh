@@ -19,11 +19,12 @@ SCALETEST_STATE_DIR="${SCALETEST_RUN_DIR}/state"
 SCALETEST_PHASE_FILE="${SCALETEST_STATE_DIR}/phase"
 # shellcheck disable=SC2034
 SCALETEST_RESULTS_DIR="${SCALETEST_RUN_DIR}/results"
+SCALETEST_LOGS_DIR="${SCALETEST_RUN_DIR}/logs"
 SCALETEST_PPROF_DIR="${SCALETEST_RUN_DIR}/pprof"
 # https://github.com/kubernetes/kubernetes/issues/72501 :-(
-SCALETEST_CODER_BINARY="/tmp/coder-full-${SCALETEST_RUN_ID//:/-}"
+SCALETEST_CODER_BINARY="/tmp/coder-full-${SCALETEST_RUN_ID}"
 
-mkdir -p "${SCALETEST_STATE_DIR}" "${SCALETEST_RESULTS_DIR}" "${SCALETEST_PPROF_DIR}"
+mkdir -p "${SCALETEST_STATE_DIR}" "${SCALETEST_RESULTS_DIR}" "${SCALETEST_LOGS_DIR}" "${SCALETEST_PPROF_DIR}"
 
 coder() {
 	if [[ ! -x "${SCALETEST_CODER_BINARY}" ]]; then
@@ -40,7 +41,7 @@ show_json() {
 set_status() {
 	dry_run=
 	if [[ ${DRY_RUN} == 1 ]]; then
-		dry_run=" (dry-ryn)"
+		dry_run=" (dry-run)"
 	fi
 	prev_status=$(get_status)
 	if [[ ${prev_status} != *"Not started"* ]]; then
@@ -49,6 +50,9 @@ set_status() {
 	echo "$(date -Ins) ${*}${dry_run}" >>"${SCALETEST_STATE_DIR}/status"
 
 	annotate_grafana "status" "Status: ${*}"
+
+	status_lower=$(tr '[:upper:]' '[:lower:]' <<<"${*}")
+	set_pod_status_annotation "${status_lower}"
 }
 lock_status() {
 	chmod 0440 "${SCALETEST_STATE_DIR}/status"
@@ -78,12 +82,12 @@ end_phase() {
 	phase=$(tail -n 1 "${SCALETEST_PHASE_FILE}" | grep "START:${phase_num}:" | cut -d' ' -f3-)
 	if [[ -z ${phase} ]]; then
 		log "BUG: Could not find start phase ${phase_num} in ${SCALETEST_PHASE_FILE}"
-		exit 1
+		return 1
 	fi
 	log "End phase ${phase_num}: ${phase}"
 	echo "$(date -Ins) END:${phase_num}: ${phase}" >>"${SCALETEST_PHASE_FILE}"
 
-	GRAFANA_EXTRA_TAGS="${PHASE_TYPE:-phase-default}" annotate_grafana_end "phase" "Phase ${phase_num}: ${phase}"
+	GRAFANA_EXTRA_TAGS="${PHASE_TYPE:-phase-default}" GRAFANA_ADD_TAGS="${PHASE_ADD_TAGS:-}" annotate_grafana_end "phase" "Phase ${phase_num}: ${phase}"
 }
 get_phase() {
 	if [[ -f "${SCALETEST_PHASE_FILE}" ]]; then
@@ -128,6 +132,7 @@ annotate_grafana() {
 			'{time: $time, tags: $tags | split(","), text: $text}' <<<'{}'
 	)"
 	if [[ ${DRY_RUN} == 1 ]]; then
+		echo "FAKEID:${tags}:${text}:${start}" >>"${SCALETEST_STATE_DIR}/grafana-annotations"
 		log "Would have annotated Grafana, data=${json}"
 		return 0
 	fi
@@ -167,23 +172,27 @@ annotate_grafana_end() {
 		tags="${tags},${GRAFANA_EXTRA_TAGS}"
 	fi
 
-	if [[ ${DRY_RUN} == 1 ]]; then
-		log "Would have updated Grafana annotation (end=${end}): ${text} [${tags}]"
-		return 0
-	fi
-
 	if ! id=$(grep ":${tags}:${text}:${start}" "${SCALETEST_STATE_DIR}/grafana-annotations" | sort -n | tail -n1 | cut -d: -f1); then
 		log "NOTICE: Could not find Grafana annotation to end: '${tags}:${text}:${start}', skipping..."
 		return 0
 	fi
 
-	log "Annotating Grafana (end=${end}): ${text} [${tags}]"
+	log "Updating Grafana annotation (end=${end}): ${text} [${tags}, add=${GRAFANA_ADD_TAGS:-}]"
 
-	json="$(
-		jq \
-			--argjson timeEnd "${end}" \
-			'{timeEnd: $timeEnd}' <<<'{}'
-	)"
+	if [[ -n ${GRAFANA_ADD_TAGS:-} ]]; then
+		json="$(
+			jq -n \
+				--argjson timeEnd "${end}" \
+				--arg tags "${tags},${GRAFANA_ADD_TAGS}" \
+				'{timeEnd: $timeEnd, tags: $tags | split(",")}'
+		)"
+	else
+		json="$(
+			jq -n \
+				--argjson timeEnd "${end}" \
+				'{timeEnd: $timeEnd}'
+		)"
+	fi
 	if [[ ${DRY_RUN} == 1 ]]; then
 		log "Would have patched Grafana annotation: id=${id}, data=${json}"
 		return 0
@@ -247,35 +256,58 @@ set_appearance() {
 		"${CODER_URL}/api/v2/appearance"
 }
 
+namespace() {
+	cat /var/run/secrets/kubernetes.io/serviceaccount/namespace
+}
+coder_pods() {
+	kubectl get pods \
+		--namespace "$(namespace)" \
+		--selector "app.kubernetes.io/name=coder,app.kubernetes.io/part-of=coder" \
+		--output jsonpath='{.items[*].metadata.name}'
+}
+
 # fetch_coder_full fetches the full (non-slim) coder binary from one of the coder pods
 # running in the same namespace as the current pod.
 fetch_coder_full() {
 	if [[ -x "${SCALETEST_CODER_BINARY}" ]]; then
 		log "Full Coder binary already exists at ${SCALETEST_CODER_BINARY}"
-		return
+		return 0
 	fi
-	local pod
-	local namespace
-	namespace=$(</var/run/secrets/kubernetes.io/serviceaccount/namespace)
-	if [[ -z "${namespace}" ]]; then
+	ns=$(namespace)
+	if [[ -z "${ns}" ]]; then
 		log "Could not determine namespace!"
-		exit 1
+		return 1
 	fi
-	log "Namespace from serviceaccount token is ${namespace}"
-	pod=$(kubectl get pods \
-		--namespace "${namespace}" \
-		--selector "app.kubernetes.io/name=coder,app.kubernetes.io/part-of=coder" \
-		--output jsonpath='{.items[0].metadata.name}')
+	log "Namespace from serviceaccount token is ${ns}"
+	pods=$(coder_pods)
+	if [[ -z ${pods} ]]; then
+		log "Could not find coder pods!"
+		return 1
+	fi
+	pod=$(cut -d ' ' -f 1 <<<"${pods}")
 	if [[ -z ${pod} ]]; then
 		log "Could not find coder pod!"
-		exit 1
+		return 1
 	fi
 	log "Fetching full Coder binary from ${pod}"
+	# We need --retries due to https://github.com/kubernetes/kubernetes/issues/60140 :(
 	maybedryrun "${DRY_RUN}" kubectl \
-		--namespace "${namespace}" \
+		--namespace "${ns}" \
 		cp \
 		--container coder \
+		--retries 10 \
 		"${pod}:/opt/coder" "${SCALETEST_CODER_BINARY}"
 	maybedryrun "${DRY_RUN}" chmod +x "${SCALETEST_CODER_BINARY}"
 	log "Full Coder binary downloaded to ${SCALETEST_CODER_BINARY}"
+}
+
+# set_pod_status_annotation annotates the currently running pod with the key
+# com.coder.scaletest.status. It will overwrite the previous status.
+set_pod_status_annotation() {
+	if [[ $# -ne 1 ]]; then
+		log "BUG: Must specify an annotation value"
+		return 1
+	else
+		maybedryrun "${DRY_RUN}" kubectl --namespace "$(namespace)" annotate pod "$(hostname)" "com.coder.scaletest.status=$1" --overwrite
+	fi
 }

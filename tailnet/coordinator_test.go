@@ -2,23 +2,17 @@ package tailnet_test
 
 import (
 	"context"
-	"encoding/json"
-	"net"
-	"net/http"
-	"net/http/httptest"
+	"net/netip"
 	"testing"
-	"time"
 
-	"nhooyr.io/websocket"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	"github.com/coder/coder/v2/tailnet"
+	"github.com/coder/coder/v2/tailnet/proto"
+	"github.com/coder/coder/v2/tailnet/test"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -26,354 +20,261 @@ func TestCoordinator(t *testing.T) {
 	t.Parallel()
 	t.Run("ClientWithoutAgent", func(t *testing.T) {
 		t.Parallel()
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
 		coordinator := tailnet.NewCoordinator(logger)
-		client, server := net.Pipe()
-		sendNode, errChan := tailnet.ServeCoordinator(client, func(node []*tailnet.Node) error {
-			return nil
-		})
-		id := uuid.New()
-		closeChan := make(chan struct{})
-		go func() {
-			err := coordinator.ServeClient(server, id, uuid.New())
-			assert.NoError(t, err)
-			close(closeChan)
+		defer func() {
+			err := coordinator.Close()
+			require.NoError(t, err)
 		}()
-		sendNode(&tailnet.Node{})
+
+		client := test.NewClient(ctx, t, coordinator, "client", uuid.New())
+		defer client.Close(ctx)
+		client.UpdateNode(&proto.Node{
+			Addresses:     []string{tailnet.TailscaleServicePrefix.RandomPrefix().String()},
+			PreferredDerp: 10,
+		})
 		require.Eventually(t, func() bool {
-			return coordinator.Node(id) != nil
+			return coordinator.Node(client.ID) != nil
 		}, testutil.WaitShort, testutil.IntervalFast)
-		require.NoError(t, client.Close())
-		require.NoError(t, server.Close())
-		<-errChan
-		<-closeChan
+	})
+
+	t.Run("ClientWithoutAgent_InvalidIPBits", func(t *testing.T) {
+		t.Parallel()
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		coordinator := tailnet.NewCoordinator(logger)
+		defer func() {
+			err := coordinator.Close()
+			require.NoError(t, err)
+		}()
+
+		client := test.NewClient(ctx, t, coordinator, "client", uuid.New())
+		defer client.Close(ctx)
+
+		client.UpdateNode(&proto.Node{
+			Addresses: []string{
+				netip.PrefixFrom(tailnet.TailscaleServicePrefix.RandomAddr(), 64).String(),
+			},
+			PreferredDerp: 10,
+		})
+		client.AssertEventuallyResponsesClosed(
+			tailnet.AuthorizationError{Wrapped: tailnet.InvalidAddressBitsError{Bits: 64}}.Error())
 	})
 
 	t.Run("AgentWithoutClients", func(t *testing.T) {
 		t.Parallel()
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
 		coordinator := tailnet.NewCoordinator(logger)
-		client, server := net.Pipe()
-		sendNode, errChan := tailnet.ServeCoordinator(client, func(node []*tailnet.Node) error {
-			return nil
-		})
-		id := uuid.New()
-		closeChan := make(chan struct{})
-		go func() {
-			err := coordinator.ServeAgent(server, id, "")
-			assert.NoError(t, err)
-			close(closeChan)
+		defer func() {
+			err := coordinator.Close()
+			require.NoError(t, err)
 		}()
-		sendNode(&tailnet.Node{})
+
+		agent := test.NewAgent(ctx, t, coordinator, "agent")
+		defer agent.Close(ctx)
+		agent.UpdateNode(&proto.Node{
+			Addresses: []string{
+				tailnet.TailscaleServicePrefix.PrefixFromUUID(agent.ID).String(),
+			},
+			PreferredDerp: 10,
+		})
 		require.Eventually(t, func() bool {
-			return coordinator.Node(id) != nil
+			return coordinator.Node(agent.ID) != nil
 		}, testutil.WaitShort, testutil.IntervalFast)
-		err := client.Close()
-		require.NoError(t, err)
-		<-errChan
-		<-closeChan
+	})
+
+	t.Run("AgentWithoutClients_InvalidIP", func(t *testing.T) {
+		t.Parallel()
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		coordinator := tailnet.NewCoordinator(logger)
+		defer func() {
+			err := coordinator.Close()
+			require.NoError(t, err)
+		}()
+		agent := test.NewAgent(ctx, t, coordinator, "agent")
+		defer agent.Close(ctx)
+		prefix := tailnet.TailscaleServicePrefix.RandomPrefix()
+		agent.UpdateNode(&proto.Node{
+			Addresses:     []string{prefix.String()},
+			PreferredDerp: 10,
+		})
+		agent.AssertEventuallyResponsesClosed(
+			tailnet.AuthorizationError{Wrapped: tailnet.InvalidNodeAddressError{Addr: prefix.Addr().String()}}.Error())
+	})
+
+	t.Run("AgentWithoutClients_InvalidBits", func(t *testing.T) {
+		t.Parallel()
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		coordinator := tailnet.NewCoordinator(logger)
+		defer func() {
+			err := coordinator.Close()
+			require.NoError(t, err)
+		}()
+		agent := test.NewAgent(ctx, t, coordinator, "agent")
+		defer agent.Close(ctx)
+		agent.UpdateNode(&proto.Node{
+			Addresses: []string{
+				netip.PrefixFrom(
+					tailnet.TailscaleServicePrefix.AddrFromUUID(agent.ID), 64).String(),
+			},
+			PreferredDerp: 10,
+		})
+		agent.AssertEventuallyResponsesClosed(
+			tailnet.AuthorizationError{Wrapped: tailnet.InvalidAddressBitsError{Bits: 64}}.Error())
 	})
 
 	t.Run("AgentWithClient", func(t *testing.T) {
 		t.Parallel()
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t)
 		coordinator := tailnet.NewCoordinator(logger)
-
-		// in this test we use real websockets to test use of deadlines
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
-		defer cancel()
-		agentWS, agentServerWS := websocketConn(ctx, t)
-		defer agentWS.Close()
-		agentNodeChan := make(chan []*tailnet.Node)
-		sendAgentNode, agentErrChan := tailnet.ServeCoordinator(agentWS, func(nodes []*tailnet.Node) error {
-			agentNodeChan <- nodes
-			return nil
-		})
-		agentID := uuid.New()
-		closeAgentChan := make(chan struct{})
-		go func() {
-			err := coordinator.ServeAgent(agentServerWS, agentID, "")
-			assert.NoError(t, err)
-			close(closeAgentChan)
+		defer func() {
+			err := coordinator.Close()
+			require.NoError(t, err)
 		}()
-		sendAgentNode(&tailnet.Node{PreferredDERP: 1})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+		agent := test.NewAgent(ctx, t, coordinator, "agent")
+		defer agent.Close(ctx)
+		agent.UpdateDERP(1)
 		require.Eventually(t, func() bool {
-			return coordinator.Node(agentID) != nil
+			return coordinator.Node(agent.ID) != nil
 		}, testutil.WaitShort, testutil.IntervalFast)
 
-		clientWS, clientServerWS := websocketConn(ctx, t)
-		defer clientWS.Close()
-		defer clientServerWS.Close()
-		clientNodeChan := make(chan []*tailnet.Node)
-		sendClientNode, clientErrChan := tailnet.ServeCoordinator(clientWS, func(nodes []*tailnet.Node) error {
-			clientNodeChan <- nodes
-			return nil
-		})
-		clientID := uuid.New()
-		closeClientChan := make(chan struct{})
-		go func() {
-			err := coordinator.ServeClient(clientServerWS, clientID, agentID)
-			assert.NoError(t, err)
-			close(closeClientChan)
-		}()
-		select {
-		case agentNodes := <-clientNodeChan:
-			require.Len(t, agentNodes, 1)
-		case <-ctx.Done():
-			t.Fatal("timed out")
-		}
-		sendClientNode(&tailnet.Node{PreferredDERP: 2})
-		clientNodes := <-agentNodeChan
-		require.Len(t, clientNodes, 1)
+		client := test.NewClient(ctx, t, coordinator, "client", agent.ID)
+		defer client.Close(ctx)
+		client.AssertEventuallyHasDERP(agent.ID, 1)
 
-		// wait longer than the internal wait timeout.
-		// this tests for regression of https://github.com/coder/coder/issues/7428
-		time.Sleep(tailnet.WriteTimeout * 3 / 2)
+		client.UpdateDERP(2)
+		agent.AssertEventuallyHasDERP(client.ID, 2)
 
 		// Ensure an update to the agent node reaches the client!
-		sendAgentNode(&tailnet.Node{PreferredDERP: 3})
-		select {
-		case agentNodes := <-clientNodeChan:
-			require.Len(t, agentNodes, 1)
-		case <-ctx.Done():
-			t.Fatal("timed out")
-		}
+		agent.UpdateDERP(3)
+		client.AssertEventuallyHasDERP(agent.ID, 3)
 
-		// Close the agent WebSocket so a new one can connect.
-		err := agentWS.Close()
-		require.NoError(t, err)
-		<-agentErrChan
-		<-closeAgentChan
+		// Close the agent so a new one can connect.
+		agent.Close(ctx)
 
 		// Create a new agent connection. This is to simulate a reconnect!
-		agentWS, agentServerWS = net.Pipe()
-		defer agentWS.Close()
-		agentNodeChan = make(chan []*tailnet.Node)
-		_, agentErrChan = tailnet.ServeCoordinator(agentWS, func(nodes []*tailnet.Node) error {
-			agentNodeChan <- nodes
-			return nil
-		})
-		closeAgentChan = make(chan struct{})
-		go func() {
-			err := coordinator.ServeAgent(agentServerWS, agentID, "")
-			assert.NoError(t, err)
-			close(closeAgentChan)
-		}()
-		// Ensure the existing listening client sends it's node immediately!
-		clientNodes = <-agentNodeChan
-		require.Len(t, clientNodes, 1)
-
-		err = agentWS.Close()
-		require.NoError(t, err)
-		<-agentErrChan
-		<-closeAgentChan
-
-		err = clientWS.Close()
-		require.NoError(t, err)
-		<-clientErrChan
-		<-closeClientChan
+		agent = test.NewPeer(ctx, t, coordinator, "agent", test.WithID(agent.ID))
+		defer agent.Close(ctx)
+		// Ensure the agent gets the existing client node immediately!
+		agent.AssertEventuallyHasDERP(client.ID, 2)
 	})
 
 	t.Run("AgentDoubleConnect", func(t *testing.T) {
 		t.Parallel()
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t)
 		coordinator := tailnet.NewCoordinator(logger)
+		ctx := testutil.Context(t, testutil.WaitShort)
 
-		agentWS1, agentServerWS1 := net.Pipe()
-		defer agentWS1.Close()
-		agentNodeChan1 := make(chan []*tailnet.Node)
-		sendAgentNode1, agentErrChan1 := tailnet.ServeCoordinator(agentWS1, func(nodes []*tailnet.Node) error {
-			agentNodeChan1 <- nodes
-			return nil
-		})
 		agentID := uuid.New()
-		closeAgentChan1 := make(chan struct{})
-		go func() {
-			err := coordinator.ServeAgent(agentServerWS1, agentID, "")
-			assert.NoError(t, err)
-			close(closeAgentChan1)
-		}()
-		sendAgentNode1(&tailnet.Node{PreferredDERP: 1})
+		agent1 := test.NewPeer(ctx, t, coordinator, "agent1", test.WithID(agentID))
+		defer agent1.Close(ctx)
+		agent1.UpdateDERP(1)
 		require.Eventually(t, func() bool {
 			return coordinator.Node(agentID) != nil
 		}, testutil.WaitShort, testutil.IntervalFast)
 
-		clientWS, clientServerWS := net.Pipe()
-		defer clientWS.Close()
-		defer clientServerWS.Close()
-		clientNodeChan := make(chan []*tailnet.Node)
-		sendClientNode, clientErrChan := tailnet.ServeCoordinator(clientWS, func(nodes []*tailnet.Node) error {
-			clientNodeChan <- nodes
-			return nil
-		})
-		clientID := uuid.New()
-		closeClientChan := make(chan struct{})
-		go func() {
-			err := coordinator.ServeClient(clientServerWS, clientID, agentID)
-			assert.NoError(t, err)
-			close(closeClientChan)
-		}()
-		agentNodes := <-clientNodeChan
-		require.Len(t, agentNodes, 1)
-		sendClientNode(&tailnet.Node{PreferredDERP: 2})
-		clientNodes := <-agentNodeChan1
-		require.Len(t, clientNodes, 1)
+		client := test.NewPeer(ctx, t, coordinator, "client")
+		defer client.Close(ctx)
+		client.AddTunnel(agentID)
+		client.AssertEventuallyHasDERP(agent1.ID, 1)
+
+		client.UpdateDERP(2)
+		agent1.AssertEventuallyHasDERP(client.ID, 2)
 
 		// Ensure an update to the agent node reaches the client!
-		sendAgentNode1(&tailnet.Node{PreferredDERP: 3})
-		agentNodes = <-clientNodeChan
-		require.Len(t, agentNodes, 1)
+		agent1.UpdateDERP(3)
+		client.AssertEventuallyHasDERP(agent1.ID, 3)
 
 		// Create a new agent connection without disconnecting the old one.
-		agentWS2, agentServerWS2 := net.Pipe()
-		defer agentWS2.Close()
-		agentNodeChan2 := make(chan []*tailnet.Node)
-		_, agentErrChan2 := tailnet.ServeCoordinator(agentWS2, func(nodes []*tailnet.Node) error {
-			agentNodeChan2 <- nodes
-			return nil
-		})
-		closeAgentChan2 := make(chan struct{})
-		go func() {
-			err := coordinator.ServeAgent(agentServerWS2, agentID, "")
-			assert.NoError(t, err)
-			close(closeAgentChan2)
-		}()
+		agent2 := test.NewPeer(ctx, t, coordinator, "agent2", test.WithID(agentID))
+		defer agent2.Close(ctx)
 
-		// Ensure the existing listening client sends it's node immediately!
-		clientNodes = <-agentNodeChan2
-		require.Len(t, clientNodes, 1)
+		// Ensure the existing client node gets sent immediately!
+		agent2.AssertEventuallyHasDERP(client.ID, 2)
 
-		counts, ok := coordinator.(interface {
-			NodeCount() int
-			AgentCount() int
-		})
-		if !ok {
-			t.Fatal("coordinator should have NodeCount() and AgentCount()")
-		}
+		// This original agent channels should've been closed forcefully.
+		agent1.AssertEventuallyResponsesClosed(tailnet.CloseErrOverwritten)
+	})
 
-		assert.Equal(t, 2, counts.NodeCount())
-		assert.Equal(t, 1, counts.AgentCount())
+	t.Run("AgentAck", func(t *testing.T) {
+		t.Parallel()
+		logger := testutil.Logger(t)
+		coordinator := tailnet.NewCoordinator(logger)
+		ctx := testutil.Context(t, testutil.WaitShort)
 
-		err := agentWS2.Close()
-		require.NoError(t, err)
-		<-agentErrChan2
-		<-closeAgentChan2
+		test.ReadyForHandshakeTest(ctx, t, coordinator)
+	})
 
-		err = clientWS.Close()
-		require.NoError(t, err)
-		<-clientErrChan
-		<-closeClientChan
+	t.Run("AgentAck_NoPermission", func(t *testing.T) {
+		t.Parallel()
+		logger := testutil.Logger(t)
+		coordinator := tailnet.NewCoordinator(logger)
+		ctx := testutil.Context(t, testutil.WaitShort)
 
-		// This original agent websocket should've been closed forcefully.
-		<-agentErrChan1
-		<-closeAgentChan1
+		test.ReadyForHandshakeNoPermissionTest(ctx, t, coordinator)
 	})
 }
 
-// TestCoordinator_AgentUpdateWhileClientConnects tests for regression on
-// https://github.com/coder/coder/issues/7295
-func TestCoordinator_AgentUpdateWhileClientConnects(t *testing.T) {
+func TestCoordinator_BidirectionalTunnels(t *testing.T) {
 	t.Parallel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	coordinator := tailnet.NewCoordinator(logger)
-	agentWS, agentServerWS := net.Pipe()
-	defer agentWS.Close()
-
-	agentID := uuid.New()
-	go func() {
-		err := coordinator.ServeAgent(agentServerWS, agentID, "")
-		assert.NoError(t, err)
-	}()
-
-	// send an agent update before the client connects so that there is
-	// node data available to send right away.
-	aNode := tailnet.Node{PreferredDERP: 0}
-	aData, err := json.Marshal(&aNode)
-	require.NoError(t, err)
-	err = agentWS.SetWriteDeadline(time.Now().Add(testutil.WaitShort))
-	require.NoError(t, err)
-	_, err = agentWS.Write(aData)
-	require.NoError(t, err)
-
-	require.Eventually(t, func() bool {
-		return coordinator.Node(agentID) != nil
-	}, testutil.WaitShort, testutil.IntervalFast)
-
-	// Connect from the client
-	clientWS, clientServerWS := net.Pipe()
-	defer clientWS.Close()
-	clientID := uuid.New()
-	go func() {
-		err := coordinator.ServeClient(clientServerWS, clientID, agentID)
-		assert.NoError(t, err)
-	}()
-
-	// peek one byte from the node update, so we know the coordinator is
-	// trying to write to the client.
-	// buffer needs to be 2 characters longer because return value is a list
-	// so, it needs [ and ]
-	buf := make([]byte, len(aData)+2)
-	err = clientWS.SetReadDeadline(time.Now().Add(testutil.WaitShort))
-	require.NoError(t, err)
-	n, err := clientWS.Read(buf[:1])
-	require.NoError(t, err)
-	require.Equal(t, 1, n)
-
-	// send a second update
-	aNode.PreferredDERP = 1
-	require.NoError(t, err)
-	aData, err = json.Marshal(&aNode)
-	require.NoError(t, err)
-	err = agentWS.SetWriteDeadline(time.Now().Add(testutil.WaitShort))
-	require.NoError(t, err)
-	_, err = agentWS.Write(aData)
-	require.NoError(t, err)
-
-	// read the rest of the update from the client, should be initial node.
-	err = clientWS.SetReadDeadline(time.Now().Add(testutil.WaitShort))
-	require.NoError(t, err)
-	n, err = clientWS.Read(buf[1:])
-	require.NoError(t, err)
-	require.Equal(t, len(buf)-1, n)
-	var cNodes []*tailnet.Node
-	err = json.Unmarshal(buf, &cNodes)
-	require.NoError(t, err)
-	require.Len(t, cNodes, 1)
-	require.Equal(t, 0, cNodes[0].PreferredDERP)
-
-	// read second update
-	// without a fix for https://github.com/coder/coder/issues/7295 our
-	// read would time out here.
-	err = clientWS.SetReadDeadline(time.Now().Add(testutil.WaitShort))
-	require.NoError(t, err)
-	n, err = clientWS.Read(buf)
-	require.NoError(t, err)
-	require.Equal(t, len(buf), n)
-	err = json.Unmarshal(buf, &cNodes)
-	require.NoError(t, err)
-	require.Len(t, cNodes, 1)
-	require.Equal(t, 1, cNodes[0].PreferredDERP)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	test.BidirectionalTunnels(ctx, t, coordinator)
 }
 
-func websocketConn(ctx context.Context, t *testing.T) (client net.Conn, server net.Conn) {
-	t.Helper()
-	sc := make(chan net.Conn, 1)
-	s := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		wss, err := websocket.Accept(rw, r, nil)
-		require.NoError(t, err)
-		conn := websocket.NetConn(r.Context(), wss, websocket.MessageBinary)
-		sc <- conn
-		close(sc) // there can be only one
+func TestCoordinator_GracefulDisconnect(t *testing.T) {
+	t.Parallel()
+	logger := testutil.Logger(t)
+	coordinator := tailnet.NewCoordinator(logger)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	test.GracefulDisconnectTest(ctx, t, coordinator)
+}
 
-		// hold open until context canceled
-		<-ctx.Done()
-	}))
-	t.Cleanup(s.Close)
-	// nolint: bodyclose
-	wsc, _, err := websocket.Dial(ctx, s.URL, nil)
-	require.NoError(t, err)
-	client = websocket.NetConn(ctx, wsc, websocket.MessageBinary)
-	server, ok := <-sc
-	require.True(t, ok)
-	return client, server
+func TestCoordinator_Lost(t *testing.T) {
+	t.Parallel()
+	logger := testutil.Logger(t)
+	coordinator := tailnet.NewCoordinator(logger)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	test.LostTest(ctx, t, coordinator)
+}
+
+// TestCoordinatorPropogatedPeerContext tests that the context for a specific peer
+// is propogated through to the `Authorize“ method of the coordinatee auth
+func TestCoordinatorPropogatedPeerContext(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := testutil.Logger(t)
+
+	peerCtx := context.WithValue(ctx, test.FakeSubjectKey{}, struct{}{})
+	peerCtx, peerCtxCancel := context.WithCancel(peerCtx)
+	peerID := uuid.UUID{0x01}
+	agentID := uuid.UUID{0x02}
+
+	c1 := tailnet.NewCoordinator(logger)
+	t.Cleanup(func() {
+		err := c1.Close()
+		require.NoError(t, err)
+	})
+
+	ch := make(chan struct{})
+	auth := test.FakeCoordinateeAuth{
+		Chan: ch,
+	}
+
+	reqs, _ := c1.Coordinate(peerCtx, peerID, "peer1", auth)
+
+	testutil.RequireSend(ctx, t, reqs, &proto.CoordinateRequest{AddTunnel: &proto.CoordinateRequest_Tunnel{Id: tailnet.UUIDToByteSlice(agentID)}})
+	_ = testutil.TryReceive(ctx, t, ch)
+	// If we don't cancel the context, the coordinator close will wait until the
+	// peer request loop finishes, which will be after the timeout
+	peerCtxCancel()
 }

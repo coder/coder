@@ -1,16 +1,14 @@
 package agenttest
 
 import (
-	"context"
 	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // New starts a new agent for use in tests.
@@ -24,7 +22,7 @@ func New(t testing.TB, coderURL *url.URL, agentToken string, opts ...func(*agent
 	t.Helper()
 
 	var o agent.Options
-	log := slogtest.Make(t, nil).Leveled(slog.LevelDebug).Named("agent")
+	log := testutil.Logger(t).Named("agent")
 	o.Logger = log
 
 	for _, opt := range opts {
@@ -32,16 +30,9 @@ func New(t testing.TB, coderURL *url.URL, agentToken string, opts ...func(*agent
 	}
 
 	if o.Client == nil {
-		agentClient := agentsdk.New(coderURL)
-		agentClient.SetSessionToken(agentToken)
+		agentClient := agentsdk.New(coderURL, agentsdk.WithFixedToken(agentToken))
 		agentClient.SDK.SetLogger(log)
 		o.Client = agentClient
-	}
-
-	if o.ExchangeToken == nil {
-		o.ExchangeToken = func(_ context.Context) (string, error) {
-			return agentToken, nil
-		}
 	}
 
 	if o.LogDir == "" {

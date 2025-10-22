@@ -15,10 +15,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/pty"
 	"github.com/coder/coder/v2/testutil"
-
-	"cdr.dev/slog/sloggers/slogtest"
 )
 
 const longScript = `
@@ -36,10 +35,12 @@ func Test_sessionStart_orphan(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancel()
-	logger := slogtest.Make(t, nil)
-	s, err := NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), 0, "")
+	logger := testutil.Logger(t)
+	s, err := NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), agentexec.DefaultExecer, nil)
 	require.NoError(t, err)
 	defer s.Close()
+	err = s.UpdateHostSigner(42)
+	assert.NoError(t, err)
 
 	// Here we're going to call the handler directly with a faked SSH session
 	// that just uses io.Pipes instead of a network socket.  There is a large
@@ -63,7 +64,7 @@ func Test_sessionStart_orphan(t *testing.T) {
 		// we don't really care what the error is here.  In the larger scenario,
 		// the client has disconnected, so we can't return any error information
 		// to them.
-		_ = s.startPTYSession(sess, "ssh", cmd, ptyInfo, windowSize)
+		_ = s.startPTYSession(logger, sess, "ssh", cmd, ptyInfo, windowSize)
 	}()
 
 	readDone := make(chan struct{})
@@ -114,6 +115,11 @@ type testSSHContext struct {
 	context.Context
 }
 
+var (
+	_ gliderssh.Context = testSSHContext{}
+	_ ptySession        = &testSession{}
+)
+
 func newTestSession(ctx context.Context) (toClient *io.PipeReader, fromClient *io.PipeWriter, s ptySession) {
 	toClient, fromPty := io.Pipe()
 	toPty, fromClient := io.Pipe()
@@ -142,6 +148,10 @@ func (s *testSession) Read(p []byte) (n int, err error) {
 
 func (s *testSession) Write(p []byte) (n int, err error) {
 	return s.fromPty.Write(p)
+}
+
+func (*testSession) Signals(_ chan<- gliderssh.Signal) {
+	// Not implemented, but will be called.
 }
 
 func (testSSHContext) Lock() {

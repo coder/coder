@@ -10,29 +10,28 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/coder/coder/v2/codersdk"
-
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
+
+	"github.com/coder/coder/v2/coderd/agentmetrics"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
+	"github.com/coder/quartz"
 )
 
-const (
-	agentNameLabel     = "agent_name"
-	usernameLabel      = "username"
-	workspaceNameLabel = "workspace_name"
-)
+const defaultRefreshRate = time.Minute
 
 // ActiveUsers tracks the number of users that have authenticated within the past hour.
-func ActiveUsers(ctx context.Context, registerer prometheus.Registerer, db database.Store, duration time.Duration) (func(), error) {
+func ActiveUsers(ctx context.Context, logger slog.Logger, registerer prometheus.Registerer, db database.Store, duration time.Duration) (func(), error) {
 	if duration == 0 {
-		duration = 5 * time.Minute
+		duration = defaultRefreshRate
 	}
 
 	gauge := prometheus.NewGauge(prometheus.GaugeOpts{
@@ -61,6 +60,7 @@ func ActiveUsers(ctx context.Context, registerer prometheus.Registerer, db datab
 
 			apiKeys, err := db.GetAPIKeysLastUsedAfter(ctx, dbtime.Now().Add(-1*time.Hour))
 			if err != nil {
+				logger.Error(ctx, "get api keys for active users prometheus metric", slog.Error(err))
 				continue
 			}
 			distinctUsers := map[uuid.UUID]struct{}{}
@@ -76,28 +76,162 @@ func ActiveUsers(ctx context.Context, registerer prometheus.Registerer, db datab
 	}, nil
 }
 
-// Workspaces tracks the total number of workspaces with labels on status.
-func Workspaces(ctx context.Context, registerer prometheus.Registerer, db database.Store, duration time.Duration) (func(), error) {
+// Users tracks the total number of registered users, partitioned by status.
+func Users(ctx context.Context, logger slog.Logger, clk quartz.Clock, registerer prometheus.Registerer, db database.Store, duration time.Duration) (func(), error) {
 	if duration == 0 {
-		duration = 5 * time.Minute
+		// It's not super important this tracks real-time.
+		duration = defaultRefreshRate * 5
 	}
 
 	gauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "api",
-		Name:      "workspace_latest_build_total",
-		Help:      "The latest workspace builds with a status.",
+		Name:      "total_user_count",
+		Help:      "The total number of registered users, partitioned by status.",
 	}, []string{"status"})
 	err := registerer.Register(gauge)
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("register total_user_count gauge: %w", err)
 	}
-	// This exists so the prometheus metric exports immediately when set.
-	// It helps with tests so they don't have to wait for a tick.
-	gauge.WithLabelValues("pending").Set(0)
 
 	ctx, cancelFunc := context.WithCancel(ctx)
 	done := make(chan struct{})
+	ticker := clk.NewTicker(duration)
+	go func() {
+		defer close(done)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+
+			gauge.Reset()
+			//nolint:gocritic // This is a system service that needs full access
+			//to the users table.
+			users, err := db.GetUsers(dbauthz.AsSystemRestricted(ctx), database.GetUsersParams{})
+			if err != nil {
+				logger.Error(ctx, "get all users for prometheus metrics", slog.Error(err))
+				continue
+			}
+
+			for _, user := range users {
+				gauge.WithLabelValues(string(user.Status)).Inc()
+			}
+		}
+	}()
+	return func() {
+		cancelFunc()
+		<-done
+	}, nil
+}
+
+// Workspaces tracks the total number of workspaces with labels on status.
+func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.Registerer, db database.Store, duration time.Duration) (func(), error) {
+	if duration == 0 {
+		duration = defaultRefreshRate
+	}
+
+	// TODO: deprecated: remove in the future
+	// See: https://github.com/coder/coder/issues/12999
+	// Deprecation reason: gauge metrics should avoid suffix `_total``
+	workspaceLatestBuildTotalsDeprecated := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "coderd",
+		Subsystem: "api",
+		Name:      "workspace_latest_build_total",
+		Help:      "DEPRECATED: use coderd_api_workspace_latest_build instead",
+	}, []string{"status"})
+	if err := registerer.Register(workspaceLatestBuildTotalsDeprecated); err != nil {
+		return nil, err
+	}
+
+	workspaceLatestBuildTotals := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "coderd",
+		Subsystem: "api",
+		Name:      "workspace_latest_build",
+		Help:      "The current number of workspace builds by status for all non-deleted workspaces.",
+	}, []string{"status"})
+	if err := registerer.Register(workspaceLatestBuildTotals); err != nil {
+		return nil, err
+	}
+
+	workspaceLatestBuildStatuses := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "coderd",
+		Name:      "workspace_latest_build_status",
+		Help:      "The current workspace statuses by template, transition, and owner for all non-deleted workspaces.",
+	}, []string{"status", "template_name", "template_version", "workspace_owner", "workspace_transition"})
+	if err := registerer.Register(workspaceLatestBuildStatuses); err != nil {
+		return nil, err
+	}
+
+	workspaceCreationTotal := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "coderd",
+			Name:      "workspace_creation_total",
+			Help:      "Total regular (non-prebuilt) workspace creations by organization, template, and preset.",
+		},
+		[]string{"organization_name", "template_name", "preset_name"},
+	)
+	if err := registerer.Register(workspaceCreationTotal); err != nil {
+		return nil, err
+	}
+
+	ctx, cancelFunc := context.WithCancel(ctx)
+	done := make(chan struct{})
+
+	updateWorkspaceMetrics := func() {
+		// Don't count deleted workspaces as part of these metrics.
+		ws, err := db.GetWorkspacesForWorkspaceMetrics(ctx)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				workspaceLatestBuildTotals.Reset()
+				workspaceLatestBuildStatuses.Reset()
+			} else {
+				logger.Warn(ctx, "failed to load active workspaces for metrics", slog.Error(err))
+			}
+			return
+		}
+
+		workspaceLatestBuildTotals.Reset()
+		workspaceLatestBuildStatuses.Reset()
+
+		for _, w := range ws {
+			status := string(w.LatestBuildStatus)
+			workspaceLatestBuildTotals.WithLabelValues(status).Add(1)
+			// TODO: deprecated: remove in the future
+			workspaceLatestBuildTotalsDeprecated.WithLabelValues(status).Add(1)
+
+			workspaceLatestBuildStatuses.WithLabelValues(
+				status,
+				w.TemplateName,
+				w.TemplateVersionName.String,
+				w.OwnerUsername,
+				string(w.LatestBuildTransition),
+			).Add(1)
+		}
+
+		// Update regular workspaces (without a prebuild transition) creation counter
+		regularWorkspaces, err := db.GetRegularWorkspaceCreateMetrics(ctx)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				workspaceCreationTotal.Reset()
+			} else {
+				logger.Warn(ctx, "failed to load regular workspaces for metrics", slog.Error(err))
+			}
+			return
+		}
+
+		workspaceCreationTotal.Reset()
+
+		for _, regularWorkspace := range regularWorkspaces {
+			workspaceCreationTotal.WithLabelValues(
+				regularWorkspace.OrganizationName,
+				regularWorkspace.TemplateName,
+				regularWorkspace.PresetName,
+			).Add(float64(regularWorkspace.CreatedCount))
+		}
+	}
 
 	// Use time.Nanosecond to force an initial tick. It will be reset to the
 	// correct duration after executing once.
@@ -105,24 +239,7 @@ func Workspaces(ctx context.Context, registerer prometheus.Registerer, db databa
 	doTick := func() {
 		defer ticker.Reset(duration)
 
-		builds, err := db.GetLatestWorkspaceBuilds(ctx)
-		if err != nil {
-			return
-		}
-		jobIDs := make([]uuid.UUID, 0, len(builds))
-		for _, build := range builds {
-			jobIDs = append(jobIDs, build.JobID)
-		}
-		jobs, err := db.GetProvisionerJobsByIDs(ctx, jobIDs)
-		if err != nil {
-			return
-		}
-
-		gauge.Reset()
-		for _, job := range jobs {
-			status := codersdk.ProvisionerJobStatus(job.JobStatus)
-			gauge.WithLabelValues(string(status)).Add(1)
-		}
+		updateWorkspaceMetrics()
 	}
 
 	go func() {
@@ -146,7 +263,7 @@ func Workspaces(ctx context.Context, registerer prometheus.Registerer, db databa
 // Agents tracks the total number of workspaces with labels on status.
 func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Registerer, db database.Store, coordinator *atomic.Pointer[tailnet.Coordinator], derpMapFn func() *tailcfg.DERPMap, agentInactiveDisconnectTimeout, duration time.Duration) (func(), error) {
 	if duration == 0 {
-		duration = 1 * time.Minute
+		duration = defaultRefreshRate
 	}
 
 	agentsGauge := NewCachedGaugeVec(prometheus.NewGaugeVec(prometheus.GaugeOpts{
@@ -154,7 +271,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 		Subsystem: "agents",
 		Name:      "up",
 		Help:      "The number of active agents per workspace.",
-	}, []string{usernameLabel, workspaceNameLabel, "template_name", "template_version"}))
+	}, []string{agentmetrics.LabelUsername, agentmetrics.LabelWorkspaceName, agentmetrics.LabelTemplateName, "template_version"}))
 	err := registerer.Register(agentsGauge)
 	if err != nil {
 		return nil, err
@@ -165,7 +282,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 		Subsystem: "agents",
 		Name:      "connections",
 		Help:      "Agent connections with statuses.",
-	}, []string{agentNameLabel, usernameLabel, workspaceNameLabel, "status", "lifecycle_state", "tailnet_node"}))
+	}, []string{agentmetrics.LabelAgentName, agentmetrics.LabelUsername, agentmetrics.LabelWorkspaceName, "status", "lifecycle_state", "tailnet_node"}))
 	err = registerer.Register(agentsConnectionsGauge)
 	if err != nil {
 		return nil, err
@@ -176,7 +293,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 		Subsystem: "agents",
 		Name:      "connection_latencies_seconds",
 		Help:      "Agent connection latencies in seconds.",
-	}, []string{agentNameLabel, usernameLabel, workspaceNameLabel, "derp_region", "preferred"}))
+	}, []string{agentmetrics.LabelAgentName, agentmetrics.LabelUsername, agentmetrics.LabelWorkspaceName, "derp_region", "preferred"}))
 	err = registerer.Register(agentsConnectionLatenciesGauge)
 	if err != nil {
 		return nil, err
@@ -187,7 +304,7 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 		Subsystem: "agents",
 		Name:      "apps",
 		Help:      "Agent applications with statuses.",
-	}, []string{agentNameLabel, usernameLabel, workspaceNameLabel, "app_name", "health"}))
+	}, []string{agentmetrics.LabelAgentName, agentmetrics.LabelUsername, agentmetrics.LabelWorkspaceName, "app_name", "health"}))
 	err = registerer.Register(agentsAppsGauge)
 	if err != nil {
 		return nil, err
@@ -227,92 +344,66 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 			timer := prometheus.NewTimer(metricsCollectorAgents)
 			derpMap := derpMapFn()
 
-			workspaceRows, err := db.GetWorkspaces(ctx, database.GetWorkspacesParams{
-				AgentInactiveDisconnectTimeoutSeconds: int64(agentInactiveDisconnectTimeout.Seconds()),
-			})
+			workspaceAgents, err := db.GetWorkspaceAgentsForMetrics(ctx)
 			if err != nil {
-				logger.Error(ctx, "can't get workspace rows", slog.Error(err))
+				logger.Error(ctx, "can't get workspace agents", slog.Error(err))
 				goto done
 			}
 
-			for _, workspace := range workspaceRows {
-				templateName := workspace.TemplateName
-				templateVersionName := workspace.TemplateVersionName.String
-				if !workspace.TemplateVersionName.Valid {
+			for _, agent := range workspaceAgents {
+				// Collect information about agents
+				templateVersionName := agent.TemplateVersionName.String
+				if !agent.TemplateVersionName.Valid {
 					templateVersionName = "unknown"
 				}
+				agentsGauge.WithLabelValues(VectorOperationAdd, 1, agent.OwnerUsername, agent.WorkspaceName, agent.TemplateName, templateVersionName)
 
-				user, err := db.GetUserByID(ctx, workspace.OwnerID)
-				if err != nil {
-					logger.Error(ctx, "can't get user from the database", slog.F("user_id", workspace.OwnerID), slog.Error(err))
-					agentsGauge.WithLabelValues(VectorOperationAdd, 0, user.Username, workspace.Name, templateName, templateVersionName)
-					continue
+				connectionStatus := agent.WorkspaceAgent.Status(agentInactiveDisconnectTimeout)
+				node := (*coordinator.Load()).Node(agent.WorkspaceAgent.ID)
+
+				tailnetNode := "unknown"
+				if node != nil {
+					tailnetNode = node.ID.String()
 				}
 
-				agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
-				if err != nil {
-					logger.Error(ctx, "can't get workspace agents", slog.F("workspace_id", workspace.ID), slog.Error(err))
-					agentsGauge.WithLabelValues(VectorOperationAdd, 0, user.Username, workspace.Name, templateName, templateVersionName)
-					continue
-				}
+				agentsConnectionsGauge.WithLabelValues(VectorOperationSet, 1, agent.WorkspaceAgent.Name, agent.OwnerUsername, agent.WorkspaceName, string(connectionStatus.Status), string(agent.WorkspaceAgent.LifecycleState), tailnetNode)
 
-				if len(agents) == 0 {
-					logger.Debug(ctx, "workspace agents are unavailable", slog.F("workspace_id", workspace.ID))
-					agentsGauge.WithLabelValues(VectorOperationAdd, 0, user.Username, workspace.Name, templateName, templateVersionName)
-					continue
-				}
-
-				for _, agent := range agents {
-					// Collect information about agents
-					agentsGauge.WithLabelValues(VectorOperationAdd, 1, user.Username, workspace.Name, templateName, templateVersionName)
-
-					connectionStatus := agent.Status(agentInactiveDisconnectTimeout)
-					node := (*coordinator.Load()).Node(agent.ID)
-
-					tailnetNode := "unknown"
-					if node != nil {
-						tailnetNode = node.ID.String()
-					}
-
-					agentsConnectionsGauge.WithLabelValues(VectorOperationSet, 1, agent.Name, user.Username, workspace.Name, string(connectionStatus.Status), string(agent.LifecycleState), tailnetNode)
-
-					if node == nil {
-						logger.Debug(ctx, "can't read in-memory node for agent", slog.F("agent_id", agent.ID))
-					} else {
-						// Collect information about connection latencies
-						for rawRegion, latency := range node.DERPLatency {
-							regionParts := strings.SplitN(rawRegion, "-", 2)
-							regionID, err := strconv.Atoi(regionParts[0])
-							if err != nil {
-								logger.Error(ctx, "can't convert DERP region", slog.F("agent_id", agent.ID), slog.F("raw_region", rawRegion), slog.Error(err))
-								continue
-							}
-
-							region, found := derpMap.Regions[regionID]
-							if !found {
-								// It's possible that a workspace agent is using an old DERPMap
-								// and reports regions that do not exist. If that's the case,
-								// report the region as unknown!
-								region = &tailcfg.DERPRegion{
-									RegionID:   regionID,
-									RegionName: fmt.Sprintf("Unnamed %d", regionID),
-								}
-							}
-
-							agentsConnectionLatenciesGauge.WithLabelValues(VectorOperationSet, latency, agent.Name, user.Username, workspace.Name, region.RegionName, fmt.Sprintf("%v", node.PreferredDERP == regionID))
+				if node == nil {
+					logger.Debug(ctx, "can't read in-memory node for agent", slog.F("agent_id", agent.WorkspaceAgent.ID))
+				} else {
+					// Collect information about connection latencies
+					for rawRegion, latency := range node.DERPLatency {
+						regionParts := strings.SplitN(rawRegion, "-", 2)
+						regionID, err := strconv.Atoi(regionParts[0])
+						if err != nil {
+							logger.Error(ctx, "can't convert DERP region", slog.F("agent_id", agent.WorkspaceAgent.ID), slog.F("raw_region", rawRegion), slog.Error(err))
+							continue
 						}
-					}
 
-					// Collect information about registered applications
-					apps, err := db.GetWorkspaceAppsByAgentID(ctx, agent.ID)
-					if err != nil && !errors.Is(err, sql.ErrNoRows) {
-						logger.Error(ctx, "can't get workspace apps", slog.F("agent_id", agent.ID), slog.Error(err))
-						continue
-					}
+						region, found := derpMap.Regions[regionID]
+						if !found {
+							// It's possible that a workspace agent is using an old DERPMap
+							// and reports regions that do not exist. If that's the case,
+							// report the region as unknown!
+							region = &tailcfg.DERPRegion{
+								RegionID:   regionID,
+								RegionName: fmt.Sprintf("Unnamed %d", regionID),
+							}
+						}
 
-					for _, app := range apps {
-						agentsAppsGauge.WithLabelValues(VectorOperationAdd, 1, agent.Name, user.Username, workspace.Name, app.DisplayName, string(app.Health))
+						agentsConnectionLatenciesGauge.WithLabelValues(VectorOperationSet, latency, agent.WorkspaceAgent.Name, agent.OwnerUsername, agent.WorkspaceName, region.RegionName, fmt.Sprintf("%v", node.PreferredDERP == regionID))
 					}
+				}
+
+				// Collect information about registered applications
+				apps, err := db.GetWorkspaceAppsByAgentID(ctx, agent.WorkspaceAgent.ID)
+				if err != nil && !errors.Is(err, sql.ErrNoRows) {
+					logger.Error(ctx, "can't get workspace apps", slog.F("agent_id", agent.WorkspaceAgent.ID), slog.Error(err))
+					continue
+				}
+
+				for _, app := range apps {
+					agentsAppsGauge.WithLabelValues(VectorOperationAdd, 1, agent.WorkspaceAgent.Name, agent.OwnerUsername, agent.WorkspaceName, app.DisplayName, string(app.Health))
 				}
 			}
 
@@ -333,10 +424,17 @@ func Agents(ctx context.Context, logger slog.Logger, registerer prometheus.Regis
 	}, nil
 }
 
-func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.Registerer, db database.Store, initialCreateAfter time.Time, duration time.Duration) (func(), error) {
+// nolint:revive // This will be removed alongside the workspaceusage experiment
+func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.Registerer, db database.Store, initialCreateAfter time.Time, duration time.Duration, aggregateByLabels []string, usage bool) (func(), error) {
 	if duration == 0 {
-		duration = 1 * time.Minute
+		duration = defaultRefreshRate
 	}
+
+	if len(aggregateByLabels) == 0 {
+		aggregateByLabels = agentmetrics.LabelAgentStats
+	}
+
+	aggregateByLabels = filterAcceptableAgentLabels(aggregateByLabels)
 
 	metricsCollectorAgentStats := prometheus.NewHistogram(prometheus.HistogramOpts{
 		Namespace: "coderd",
@@ -355,7 +453,7 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		Subsystem: "agentstats",
 		Name:      "tx_bytes",
 		Help:      "Agent Tx bytes",
-	}, []string{agentNameLabel, usernameLabel, workspaceNameLabel}))
+	}, aggregateByLabels))
 	err = registerer.Register(agentStatsTxBytesGauge)
 	if err != nil {
 		return nil, err
@@ -366,7 +464,7 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		Subsystem: "agentstats",
 		Name:      "rx_bytes",
 		Help:      "Agent Rx bytes",
-	}, []string{agentNameLabel, usernameLabel, workspaceNameLabel}))
+	}, aggregateByLabels))
 	err = registerer.Register(agentStatsRxBytesGauge)
 	if err != nil {
 		return nil, err
@@ -377,7 +475,7 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		Subsystem: "agentstats",
 		Name:      "connection_count",
 		Help:      "The number of established connections by agent",
-	}, []string{agentNameLabel, usernameLabel, workspaceNameLabel}))
+	}, aggregateByLabels))
 	err = registerer.Register(agentStatsConnectionCountGauge)
 	if err != nil {
 		return nil, err
@@ -388,7 +486,7 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		Subsystem: "agentstats",
 		Name:      "connection_median_latency_seconds",
 		Help:      "The median agent connection latency in seconds",
-	}, []string{agentNameLabel, usernameLabel, workspaceNameLabel}))
+	}, aggregateByLabels))
 	err = registerer.Register(agentStatsConnectionMedianLatencyGauge)
 	if err != nil {
 		return nil, err
@@ -399,7 +497,7 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		Subsystem: "agentstats",
 		Name:      "session_count_jetbrains",
 		Help:      "The number of session established by JetBrains",
-	}, []string{agentNameLabel, usernameLabel, workspaceNameLabel}))
+	}, aggregateByLabels))
 	err = registerer.Register(agentStatsSessionCountJetBrainsGauge)
 	if err != nil {
 		return nil, err
@@ -410,7 +508,7 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		Subsystem: "agentstats",
 		Name:      "session_count_reconnecting_pty",
 		Help:      "The number of session established by reconnecting PTY",
-	}, []string{agentNameLabel, usernameLabel, workspaceNameLabel}))
+	}, aggregateByLabels))
 	err = registerer.Register(agentStatsSessionCountReconnectingPTYGauge)
 	if err != nil {
 		return nil, err
@@ -421,7 +519,7 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		Subsystem: "agentstats",
 		Name:      "session_count_ssh",
 		Help:      "The number of session established by SSH",
-	}, []string{agentNameLabel, usernameLabel, workspaceNameLabel}))
+	}, aggregateByLabels))
 	err = registerer.Register(agentStatsSessionCountSSHGauge)
 	if err != nil {
 		return nil, err
@@ -432,7 +530,7 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		Subsystem: "agentstats",
 		Name:      "session_count_vscode",
 		Help:      "The number of session established by VSCode",
-	}, []string{agentNameLabel, usernameLabel, workspaceNameLabel}))
+	}, aggregateByLabels))
 	err = registerer.Register(agentStatsSessionCountVSCodeGauge)
 	if err != nil {
 		return nil, err
@@ -459,21 +557,46 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 			timer := prometheus.NewTimer(metricsCollectorAgentStats)
 
 			checkpoint := time.Now()
-			stats, err := db.GetWorkspaceAgentStatsAndLabels(ctx, createdAfter)
+			var (
+				stats []database.GetWorkspaceAgentStatsAndLabelsRow
+				err   error
+			)
+			if usage {
+				var agentUsageStats []database.GetWorkspaceAgentUsageStatsAndLabelsRow
+				agentUsageStats, err = db.GetWorkspaceAgentUsageStatsAndLabels(ctx, createdAfter)
+				stats = make([]database.GetWorkspaceAgentStatsAndLabelsRow, 0, len(agentUsageStats))
+				for _, agentUsageStat := range agentUsageStats {
+					stats = append(stats, database.GetWorkspaceAgentStatsAndLabelsRow(agentUsageStat))
+				}
+			} else {
+				stats, err = db.GetWorkspaceAgentStatsAndLabels(ctx, createdAfter)
+			}
 			if err != nil {
 				logger.Error(ctx, "can't get agent stats", slog.Error(err))
 			} else {
 				for _, agentStat := range stats {
-					agentStatsRxBytesGauge.WithLabelValues(VectorOperationAdd, float64(agentStat.RxBytes), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
-					agentStatsTxBytesGauge.WithLabelValues(VectorOperationAdd, float64(agentStat.TxBytes), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
+					var labelValues []string
+					for _, label := range aggregateByLabels {
+						switch label {
+						case agentmetrics.LabelUsername:
+							labelValues = append(labelValues, agentStat.Username)
+						case agentmetrics.LabelWorkspaceName:
+							labelValues = append(labelValues, agentStat.WorkspaceName)
+						case agentmetrics.LabelAgentName:
+							labelValues = append(labelValues, agentStat.AgentName)
+						}
+					}
 
-					agentStatsConnectionCountGauge.WithLabelValues(VectorOperationSet, float64(agentStat.ConnectionCount), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
-					agentStatsConnectionMedianLatencyGauge.WithLabelValues(VectorOperationSet, agentStat.ConnectionMedianLatencyMS/1000.0 /* (to seconds) */, agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
+					agentStatsRxBytesGauge.WithLabelValues(VectorOperationAdd, float64(agentStat.RxBytes), labelValues...)
+					agentStatsTxBytesGauge.WithLabelValues(VectorOperationAdd, float64(agentStat.TxBytes), labelValues...)
 
-					agentStatsSessionCountJetBrainsGauge.WithLabelValues(VectorOperationSet, float64(agentStat.SessionCountJetBrains), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
-					agentStatsSessionCountReconnectingPTYGauge.WithLabelValues(VectorOperationSet, float64(agentStat.SessionCountReconnectingPTY), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
-					agentStatsSessionCountSSHGauge.WithLabelValues(VectorOperationSet, float64(agentStat.SessionCountSSH), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
-					agentStatsSessionCountVSCodeGauge.WithLabelValues(VectorOperationSet, float64(agentStat.SessionCountVSCode), agentStat.AgentName, agentStat.Username, agentStat.WorkspaceName)
+					agentStatsConnectionCountGauge.WithLabelValues(VectorOperationSet, float64(agentStat.ConnectionCount), labelValues...)
+					agentStatsConnectionMedianLatencyGauge.WithLabelValues(VectorOperationSet, agentStat.ConnectionMedianLatencyMS/1000.0 /* (to seconds) */, labelValues...)
+
+					agentStatsSessionCountJetBrainsGauge.WithLabelValues(VectorOperationSet, float64(agentStat.SessionCountJetBrains), labelValues...)
+					agentStatsSessionCountReconnectingPTYGauge.WithLabelValues(VectorOperationSet, float64(agentStat.SessionCountReconnectingPTY), labelValues...)
+					agentStatsSessionCountSSHGauge.WithLabelValues(VectorOperationSet, float64(agentStat.SessionCountSSH), labelValues...)
+					agentStatsSessionCountVSCodeGauge.WithLabelValues(VectorOperationSet, float64(agentStat.SessionCountVSCode), labelValues...)
 				}
 
 				if len(stats) > 0 {
@@ -501,4 +624,44 @@ func AgentStats(ctx context.Context, logger slog.Logger, registerer prometheus.R
 		cancelFunc()
 		<-done
 	}, nil
+}
+
+// Experiments registers a metric which indicates whether each experiment is enabled or not.
+func Experiments(registerer prometheus.Registerer, active codersdk.Experiments) error {
+	experimentsGauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "coderd",
+		Name:      "experiments",
+		Help:      "Indicates whether each experiment is enabled (1) or not (0)",
+	}, []string{"experiment"})
+	if err := registerer.Register(experimentsGauge); err != nil {
+		return err
+	}
+
+	for _, exp := range codersdk.ExperimentsSafe {
+		var val float64
+		for _, enabled := range active {
+			if exp == enabled {
+				val = 1
+				break
+			}
+		}
+
+		experimentsGauge.WithLabelValues(string(exp)).Set(val)
+	}
+
+	return nil
+}
+
+// filterAcceptableAgentLabels handles a slightly messy situation whereby `prometheus-aggregate-agent-stats-by` can control on
+// which labels agent stats are aggregated, but for these specific metrics in this file there is no `template` label value,
+// and therefore we have to exclude it from the list of acceptable labels.
+func filterAcceptableAgentLabels(labels []string) []string {
+	out := make([]string, 0, len(labels))
+	for _, label := range labels {
+		if label != agentmetrics.LabelTemplateName {
+			out = append(out, label)
+		}
+	}
+
+	return out
 }

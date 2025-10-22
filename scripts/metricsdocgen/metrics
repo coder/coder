@@ -1,3 +1,36 @@
+# HELP coderd_oauth2_external_requests_rate_limit_next_reset_unix Unix timestamp of the next interval
+# TYPE coderd_oauth2_external_requests_rate_limit_next_reset_unix gauge
+coderd_oauth2_external_requests_rate_limit_next_reset_unix{name="primary-github",resource="core"} 1.704835507e+09
+coderd_oauth2_external_requests_rate_limit_next_reset_unix{name="secondary-github",resource="core"} 1.704835507e+09
+# HELP coderd_oauth2_external_requests_rate_limit_remaining The remaining number of allowed requests in this interval.
+# TYPE coderd_oauth2_external_requests_rate_limit_remaining gauge
+coderd_oauth2_external_requests_rate_limit_remaining{name="primary-github",resource="core"} 4852
+coderd_oauth2_external_requests_rate_limit_remaining{name="secondary-github",resource="core"} 4867
+# HELP coderd_oauth2_external_requests_rate_limit_reset_in_seconds Seconds until the next interval
+# TYPE coderd_oauth2_external_requests_rate_limit_reset_in_seconds gauge
+coderd_oauth2_external_requests_rate_limit_reset_in_seconds{name="primary-github",resource="core"} 63.617162731
+coderd_oauth2_external_requests_rate_limit_reset_in_seconds{name="secondary-github",resource="core"} 121.82186601
+# HELP coderd_oauth2_external_requests_rate_limit The total number of allowed requests per interval.
+# TYPE coderd_oauth2_external_requests_rate_limit gauge
+coderd_oauth2_external_requests_rate_limit{name="primary-github",resource="core-unauthorized"} 5000
+coderd_oauth2_external_requests_rate_limit{name="secondary-github",resource="core-unauthorized"} 5000
+# HELP coderd_oauth2_external_requests_rate_limit_total DEPRECATED: use coderd_oauth2_external_requests_rate_limit instead
+# TYPE coderd_oauth2_external_requests_rate_limit_total gauge
+coderd_oauth2_external_requests_rate_limit_total{name="primary-github",resource="core-unauthorized"} 5000
+coderd_oauth2_external_requests_rate_limit_total{name="secondary-github",resource="core-unauthorized"} 5000
+# HELP coderd_oauth2_external_requests_rate_limit_used The number of requests made in this interval.
+# TYPE coderd_oauth2_external_requests_rate_limit_used gauge
+coderd_oauth2_external_requests_rate_limit_used{name="primary-github",resource="core"} 148
+coderd_oauth2_external_requests_rate_limit_used{name="secondary-github",resource="core"} 133
+# HELP coderd_oauth2_external_requests_total The total number of api calls made to external oauth2 providers. 'status_code' will be 0 if the request failed with no response.
+# TYPE coderd_oauth2_external_requests_total counter
+coderd_oauth2_external_requests_total{name="primary-github",source="AppInstallations",status_code="200"} 12
+coderd_oauth2_external_requests_total{name="primary-github",source="Exchange",status_code="200"} 1
+coderd_oauth2_external_requests_total{name="primary-github",source="TokenSource",status_code="200"} 1
+coderd_oauth2_external_requests_total{name="primary-github",source="ValidateToken",status_code="200"} 16
+coderd_oauth2_external_requests_total{name="secondary-github",source="AppInstallations",status_code="403"} 4
+coderd_oauth2_external_requests_total{name="secondary-github",source="Exchange",status_code="200"} 2
+coderd_oauth2_external_requests_total{name="secondary-github",source="ValidateToken",status_code="200"} 5
 # HELP coderd_agents_apps Agent applications with statuses.
 # TYPE coderd_agents_apps gauge
 coderd_agents_apps{agent_name="main",app_name="code-server",health="healthy",username="admin",workspace_name="workspace-1"} 1
@@ -15,15 +48,24 @@ coderd_agents_connections{agent_name="main",lifecycle_state="start_timeout",stat
 coderd_agents_connections{agent_name="main",lifecycle_state="start_timeout",status="connected",tailnet_node="nodeid:3779bd45d00be0eb",username="admin",workspace_name="workspace-1"} 1
 # HELP coderd_agents_up The number of active agents per workspace.
 # TYPE coderd_agents_up gauge
-coderd_agents_up{username="admin",workspace_name="workspace-1"} 1
-coderd_agents_up{username="admin",workspace_name="workspace-2"} 1
-coderd_agents_up{username="admin",workspace_name="workspace-3"} 1
+coderd_agents_up{template_name="docker", username="admin",workspace_name="workspace-1"} 1
+coderd_agents_up{template_name="docker", username="admin",workspace_name="workspace-2"} 1
+coderd_agents_up{template_name="gcp", username="admin",workspace_name="workspace-3"} 1
+# HELP coderd_agentstats_startup_script_seconds The number of seconds the startup script took to execute.
+# TYPE coderd_agentstats_startup_script_seconds gauge
+coderd_agentstats_startup_script_seconds{agent_name="main",success="true",template_name="docker",username="admin",workspace_name="workspace-1"} 1.969900304
+# HELP agent_scripts_executed_total Total number of scripts executed by the Coder agent. Includes cron scheduled scripts.
+# TYPE agent_scripts_executed_total counter
+agent_scripts_executed_total{agent_name="main",success="true",template_name="docker",username="admin",workspace_name="workspace-1"} 1
 # HELP coderd_agentstats_connection_count The number of established connections by agent
 # TYPE coderd_agentstats_connection_count gauge
 coderd_agentstats_connection_count{agent_name="main",username="admin",workspace_name="workspace1"} 2
 # HELP coderd_agentstats_connection_median_latency_seconds The median agent connection latency
 # TYPE coderd_agentstats_connection_median_latency_seconds gauge
 coderd_agentstats_connection_median_latency_seconds{agent_name="main",username="admin",workspace_name="workspace1"} 0.001784
+# HELP coderd_agentstats_currently_reachable_peers The number of peers (e.g. clients) that are currently reachable over the encrypted network.
+# TYPE coderd_agentstats_currently_reachable_peers gauge
+coderd_agentstats_currently_reachable_peers{agent_name="main",connection_type="derp",template_name="docker",username="admin",workspace_name="workspace1"} 0
 # HELP coderd_agentstats_rx_bytes Agent Rx bytes
 # TYPE coderd_agentstats_rx_bytes gauge
 coderd_agentstats_rx_bytes{agent_name="main",username="admin",workspace_name="workspace1"} 7731
@@ -609,9 +651,30 @@ coderd_api_requests_processed_total{code="401",method="GET",path="/api/v2/users/
 coderd_api_requests_processed_total{code="401",method="GET",path="/api/v2/users/{user}/*"} 2
 coderd_api_requests_processed_total{code="401",method="GET",path="/api/v2/workspaces"} 1
 coderd_api_requests_processed_total{code="401",method="POST",path="/api/v2/files"} 1
-# HELP coderd_api_workspace_latest_build_total The latest workspace builds with a status.
+# HELP coderd_api_workspace_latest_build The latest workspace builds with a status.
+# TYPE coderd_api_workspace_latest_build gauge
+coderd_api_workspace_latest_build{status="succeeded"} 1
+# HELP coderd_api_workspace_latest_build_total DEPRECATED: use coderd_api_workspace_latest_build instead
 # TYPE coderd_api_workspace_latest_build_total gauge
 coderd_api_workspace_latest_build_total{status="succeeded"} 1
+# HELP coderd_insights_applications_usage_seconds The application usage per template.
+# TYPE coderd_insights_applications_usage_seconds gauge
+coderd_insights_applications_usage_seconds{application_name="JetBrains",slug="",template_name="code-server-pod"} 1
+# HELP coderd_insights_parameters The parameter usage per template.
+# TYPE coderd_insights_parameters gauge
+coderd_insights_parameters{parameter_name="cpu",parameter_type="string",parameter_value="8",template_name="code-server-pod"} 1
+# HELP coderd_insights_templates_active_users The number of active users of the template.
+# TYPE coderd_insights_templates_active_users gauge
+coderd_insights_templates_active_users{template_name="code-server-pod"} 1
+# HELP coderd_license_active_users The number of active users.
+# TYPE coderd_license_active_users gauge
+coderd_license_active_users 1
+# HELP coderd_license_limit_users The user seats limit based on the active Coder license.
+# TYPE coderd_license_limit_users gauge
+coderd_license_limit_users 25
+# HELP coderd_license_user_limit_enabled Returns 1 if the current license enforces the user limit.
+# TYPE coderd_license_user_limit_enabled gauge
+coderd_license_user_limit_enabled 1
 # HELP coderd_metrics_collector_agents_execution_seconds Histogram for duration of agents metrics collection in seconds.
 # TYPE coderd_metrics_collector_agents_execution_seconds histogram
 coderd_metrics_collector_agents_execution_seconds_bucket{le="0.001"} 0
@@ -644,11 +707,61 @@ coderd_provisionerd_job_timings_seconds_count{provisioner="terraform",status="su
 # HELP coderd_provisionerd_jobs_current The number of currently running provisioner jobs.
 # TYPE coderd_provisionerd_jobs_current gauge
 coderd_provisionerd_jobs_current{provisioner="terraform"} 0
+# HELP coderd_provisionerd_num_daemons The number of provisioner daemons.
+# TYPE coderd_provisionerd_num_daemons gauge
+coderd_provisionerd_num_daemons 3
+# HELP coderd_provisionerd_workspace_build_timings_seconds The time taken for a workspace to build.
+# TYPE coderd_provisionerd_workspace_build_timings_seconds histogram
+coderd_provisionerd_workspace_build_timings_seconds_bucket{status="success",template_name="docker",template_version="gallant_wright0",workspace_transition="START",le="1"} 0
+coderd_provisionerd_workspace_build_timings_seconds_bucket{status="success",template_name="docker",template_version="gallant_wright0",workspace_transition="START",le="10"} 0
+coderd_provisionerd_workspace_build_timings_seconds_bucket{status="success",template_name="docker",template_version="gallant_wright0",workspace_transition="START",le="30"} 0
+coderd_provisionerd_workspace_build_timings_seconds_bucket{status="success",template_name="docker",template_version="gallant_wright0",workspace_transition="START",le="60"} 1
+coderd_provisionerd_workspace_build_timings_seconds_bucket{status="success",template_name="docker",template_version="gallant_wright0",workspace_transition="START",le="300"} 1
+coderd_provisionerd_workspace_build_timings_seconds_bucket{status="success",template_name="docker",template_version="gallant_wright0",workspace_transition="START",le="600"} 1
+coderd_provisionerd_workspace_build_timings_seconds_bucket{status="success",template_name="docker",template_version="gallant_wright0",workspace_transition="START",le="1800"} 1
+coderd_provisionerd_workspace_build_timings_seconds_bucket{status="success",template_name="docker",template_version="gallant_wright0",workspace_transition="START",le="3600"} 1
+coderd_provisionerd_workspace_build_timings_seconds_bucket{status="success",template_name="docker",template_version="gallant_wright0",workspace_transition="START",le="+Inf"} 1
+coderd_provisionerd_workspace_build_timings_seconds_sum{status="success",template_name="docker",template_version="gallant_wright0",workspace_transition="START"} 31.042659852
+coderd_provisionerd_workspace_build_timings_seconds_count{status="success",template_name="docker",template_version="gallant_wright0",workspace_transition="START"} 1
+# HELP coderd_workspace_latest_build_status The current workspace statuses by template, transition, and owner.
+# TYPE coderd_workspace_latest_build_status gauge
+coderd_workspace_latest_build_status{status="failed",template_name="docker",template_version="sweet_gould9",workspace_owner="admin",workspace_transition="stop"} 1
 # HELP coderd_workspace_builds_total The number of workspaces started, updated, or deleted.
 # TYPE coderd_workspace_builds_total counter
 coderd_workspace_builds_total{action="START",owner_email="admin@coder.com",status="failed",template_name="docker",template_version="gallant_wright0",workspace_name="test1"} 1
 coderd_workspace_builds_total{action="START",owner_email="admin@coder.com",status="success",template_name="docker",template_version="gallant_wright0",workspace_name="test1"} 1
 coderd_workspace_builds_total{action="STOP",owner_email="admin@coder.com",status="success",template_name="docker",template_version="gallant_wright0",workspace_name="test1"} 1
+# HELP coderd_workspace_creation_total Total regular (non-prebuilt) workspace creations by organization, template, and preset.
+# TYPE coderd_workspace_creation_total counter
+coderd_workspace_creation_total{organization_name="{organization}",preset_name="",template_name="docker"} 1
+# HELP coderd_workspace_creation_duration_seconds Time to create a workspace by organization, template, preset, and type (regular or prebuild).
+# TYPE coderd_workspace_creation_duration_seconds histogram
+coderd_workspace_creation_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",type="prebuild",le="1"} 0
+coderd_workspace_creation_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",type="prebuild",le="10"} 1
+coderd_workspace_creation_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",type="prebuild",le="30"} 1
+coderd_workspace_creation_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",type="prebuild",le="60"} 1
+coderd_workspace_creation_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",type="prebuild",le="300"} 1
+coderd_workspace_creation_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",type="prebuild",le="600"} 1
+coderd_workspace_creation_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",type="prebuild",le="1800"} 1
+coderd_workspace_creation_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",type="prebuild",le="3600"} 1
+coderd_workspace_creation_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",type="prebuild",le="+Inf"} 1
+coderd_workspace_creation_duration_seconds_sum{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",type="prebuild"} 4.406214
+coderd_workspace_creation_duration_seconds_count{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",type="prebuild"} 1
+# HELP coderd_prebuilt_workspace_claim_duration_seconds Time to claim a prebuilt workspace by organization, template, and preset.
+# TYPE coderd_prebuilt_workspace_claim_duration_seconds histogram
+coderd_prebuilt_workspace_claim_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",le="1"} 0
+coderd_prebuilt_workspace_claim_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",le="5"} 1
+coderd_prebuilt_workspace_claim_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",le="10"} 1
+coderd_prebuilt_workspace_claim_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",le="20"} 1
+coderd_prebuilt_workspace_claim_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",le="30"} 1
+coderd_prebuilt_workspace_claim_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",le="60"} 1
+coderd_prebuilt_workspace_claim_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",le="120"} 1
+coderd_prebuilt_workspace_claim_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",le="180"} 1
+coderd_prebuilt_workspace_claim_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",le="240"} 1
+coderd_prebuilt_workspace_claim_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",le="300"} 1
+coderd_prebuilt_workspace_claim_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",le="+Inf"} 1
+coderd_prebuilt_workspace_claim_duration_seconds_sum{organization_name="{organization}",preset_name="Falkenstein",template_name="docker"} 4.860075
+coderd_prebuilt_workspace_claim_duration_seconds_count{organization_name="{organization}",preset_name="Falkenstein",template_name="docker"} 1
 # HELP go_gc_duration_seconds A summary of the pause duration of garbage collection cycles.
 # TYPE go_gc_duration_seconds summary
 go_gc_duration_seconds{quantile="0"} 2.4056e-05

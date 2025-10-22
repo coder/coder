@@ -1,108 +1,111 @@
-import { useMe } from "hooks";
-import { BaseOption } from "./options";
-import { getUsers } from "api/api";
-import { UseFilterMenuOptions, useFilterMenu } from "./menu";
-import { FilterSearchMenu, OptionItem } from "./filter";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { API } from "api/api";
+import { Avatar } from "components/Avatar/Avatar";
+import {
+	SelectFilter,
+	type SelectFilterOption,
+	SelectFilterSearch,
+} from "components/Filter/SelectFilter";
+import { useAuthenticated } from "hooks";
+import type { FC } from "react";
+import { type UseFilterMenuOptions, useFilterMenu } from "./menu";
 
-export type UserOption = BaseOption & {
-  avatarUrl?: string;
-};
+export const DEFAULT_USER_FILTER_WIDTH = 175;
 
 export const useUserFilterMenu = ({
-  value,
-  onChange,
-  enabled,
-}: Pick<
-  UseFilterMenuOptions<UserOption>,
-  "value" | "onChange" | "enabled"
->) => {
-  const me = useMe();
+	value,
+	onChange,
+	enabled,
+}: Pick<UseFilterMenuOptions, "value" | "onChange" | "enabled">) => {
+	const { user: me } = useAuthenticated();
 
-  const addMeAsFirstOption = (options: UserOption[]) => {
-    options = options.filter((option) => option.value !== me.username);
-    return [
-      { label: me.username, value: me.username, avatarUrl: me.avatar_url },
-      ...options,
-    ];
-  };
+	const addMeAsFirstOption = (options: readonly SelectFilterOption[]) => {
+		const filtered = options.filter((o) => o.value !== me.username);
+		return [
+			{
+				label: me.username,
+				value: me.username,
+				startIcon: (
+					<Avatar fallback={me.username} src={me.avatar_url} size="sm" />
+				),
+			},
+			...filtered,
+		];
+	};
 
-  return useFilterMenu({
-    onChange,
-    enabled,
-    value,
-    id: "owner",
-    getSelectedOption: async () => {
-      if (value === "me") {
-        return {
-          label: me.username,
-          value: me.username,
-          avatarUrl: me.avatar_url,
-        };
-      }
+	return useFilterMenu({
+		onChange,
+		enabled,
+		value,
+		id: "owner",
+		getSelectedOption: async () => {
+			if (value === "me") {
+				return {
+					label: me.username,
+					value: me.username,
+					startIcon: (
+						<Avatar fallback={me.username} src={me.avatar_url} size="sm" />
+					),
+				};
+			}
 
-      const usersRes = await getUsers({ q: value, limit: 1 });
-      const firstUser = usersRes.users.at(0);
-      if (firstUser && firstUser.username === value) {
-        return {
-          label: firstUser.username,
-          value: firstUser.username,
-          avatarUrl: firstUser.avatar_url,
-        };
-      }
-      return null;
-    },
-    getOptions: async (query) => {
-      const usersRes = await getUsers({ q: query, limit: 25 });
-      let options: UserOption[] = usersRes.users.map((user) => ({
-        label: user.username,
-        value: user.username,
-        avatarUrl: user.avatar_url,
-      }));
-      options = addMeAsFirstOption(options);
-      return options;
-    },
-  });
+			const usersRes = await API.getUsers({ q: value, limit: 1 });
+			const firstUser = usersRes.users.at(0);
+			if (firstUser && firstUser.username === value) {
+				return {
+					label: firstUser.username,
+					value: firstUser.username,
+					startIcon: (
+						<Avatar
+							fallback={firstUser.username}
+							src={firstUser.avatar_url}
+							size="sm"
+						/>
+					),
+				};
+			}
+			return null;
+		},
+		getOptions: async (query) => {
+			const usersRes = await API.getUsers({ q: query, limit: 25 });
+			let options = usersRes.users.map<SelectFilterOption>((user) => ({
+				label: user.username,
+				value: user.username,
+				startIcon: (
+					<Avatar fallback={user.username} src={user.avatar_url} size="sm" />
+				),
+			}));
+			options = addMeAsFirstOption(options);
+			return options;
+		},
+	});
 };
 
 export type UserFilterMenu = ReturnType<typeof useUserFilterMenu>;
 
-export const UserMenu = (menu: UserFilterMenu) => {
-  return (
-    <FilterSearchMenu
-      id="users-menu"
-      menu={menu}
-      label={
-        menu.selectedOption ? (
-          <UserOptionItem option={menu.selectedOption} />
-        ) : (
-          "All users"
-        )
-      }
-    >
-      {(itemProps) => <UserOptionItem {...itemProps} />}
-    </FilterSearchMenu>
-  );
-};
+interface UserMenuProps {
+	menu: UserFilterMenu;
+	placeholder?: string;
+	width?: number;
+}
 
-const UserOptionItem = ({
-  option,
-  isSelected,
-}: {
-  option: UserOption;
-  isSelected?: boolean;
-}) => {
-  return (
-    <OptionItem
-      option={option}
-      isSelected={isSelected}
-      left={
-        <UserAvatar
-          username={option.label}
-          avatarURL={option.avatarUrl}
-          sx={{ width: 16, height: 16, fontSize: 8 }}
-        />
-      }
-    />
-  );
+export const UserMenu: FC<UserMenuProps> = ({ menu, width, placeholder }) => {
+	return (
+		<SelectFilter
+			label="Select user"
+			placeholder={placeholder ?? "All users"}
+			emptyText="No users found"
+			options={menu.searchOptions}
+			onSelect={menu.selectOption}
+			selectedOption={menu.selectedOption ?? undefined}
+			selectFilterSearch={
+				<SelectFilterSearch
+					inputProps={{ "aria-label": "Search user" }}
+					placeholder="Search user..."
+					value={menu.query}
+					onChange={menu.setQuery}
+				/>
+			}
+			width={width}
+		/>
+	);
 };

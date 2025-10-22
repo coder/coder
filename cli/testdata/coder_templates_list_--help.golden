@@ -8,13 +8,11 @@ USAGE:
   Aliases: ls
 
 OPTIONS:
-  -c, --column string-array (default: name,last updated,used by)
-          Columns to display in table output. Available columns: name, created
-          at, last updated, organization id, provisioner, active version id,
-          used by, default ttl.
+  -c, --column [name|created at|last updated|organization id|organization name|provisioner|active version id|used by|default ttl] (default: name,organization name,last updated,used by)
+          Columns to display in table output.
 
-  -o, --output string (default: table)
-          Output format. Available formats: table, json.
+  -o, --output table|json (default: table)
+          Output format.
 
 ———
 Run `coder --help` for a list of global options.

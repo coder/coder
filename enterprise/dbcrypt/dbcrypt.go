@@ -60,7 +60,7 @@ type dbCrypt struct {
 	database.Store
 }
 
-func (db *dbCrypt) InTx(function func(database.Store) error, txOpts *sql.TxOptions) error {
+func (db *dbCrypt) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
 	return db.Store.InTx(func(s database.Store) error {
 		return function(&dbCrypt{
 			primaryCipherDigest: db.primaryCipherDigest,
@@ -261,6 +261,96 @@ func (db *dbCrypt) UpdateExternalAuthLink(ctx context.Context, params database.U
 	return link, nil
 }
 
+func (db *dbCrypt) UpdateExternalAuthLinkRefreshToken(ctx context.Context, params database.UpdateExternalAuthLinkRefreshTokenParams) error {
+	// We would normally use a sql.NullString here, but sqlc does not want to make
+	// a params struct with a nullable string.
+	var digest sql.NullString
+	if params.OAuthRefreshTokenKeyID != "" {
+		digest.String = params.OAuthRefreshTokenKeyID
+		digest.Valid = true
+	}
+	if err := db.encryptField(&params.OAuthRefreshToken, &digest); err != nil {
+		return err
+	}
+
+	return db.Store.UpdateExternalAuthLinkRefreshToken(ctx, params)
+}
+
+func (db *dbCrypt) GetCryptoKeys(ctx context.Context) ([]database.CryptoKey, error) {
+	keys, err := db.Store.GetCryptoKeys(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for i := range keys {
+		if err := db.decryptField(&keys[i].Secret.String, keys[i].SecretKeyID); err != nil {
+			return nil, err
+		}
+	}
+	return keys, nil
+}
+
+func (db *dbCrypt) GetLatestCryptoKeyByFeature(ctx context.Context, feature database.CryptoKeyFeature) (database.CryptoKey, error) {
+	key, err := db.Store.GetLatestCryptoKeyByFeature(ctx, feature)
+	if err != nil {
+		return database.CryptoKey{}, err
+	}
+	if err := db.decryptField(&key.Secret.String, key.SecretKeyID); err != nil {
+		return database.CryptoKey{}, err
+	}
+	return key, nil
+}
+
+func (db *dbCrypt) GetCryptoKeyByFeatureAndSequence(ctx context.Context, params database.GetCryptoKeyByFeatureAndSequenceParams) (database.CryptoKey, error) {
+	key, err := db.Store.GetCryptoKeyByFeatureAndSequence(ctx, params)
+	if err != nil {
+		return database.CryptoKey{}, err
+	}
+	if err := db.decryptField(&key.Secret.String, key.SecretKeyID); err != nil {
+		return database.CryptoKey{}, err
+	}
+	return key, nil
+}
+
+func (db *dbCrypt) InsertCryptoKey(ctx context.Context, params database.InsertCryptoKeyParams) (database.CryptoKey, error) {
+	if err := db.encryptField(&params.Secret.String, &params.SecretKeyID); err != nil {
+		return database.CryptoKey{}, err
+	}
+	key, err := db.Store.InsertCryptoKey(ctx, params)
+	if err != nil {
+		return database.CryptoKey{}, err
+	}
+	if err := db.decryptField(&key.Secret.String, key.SecretKeyID); err != nil {
+		return database.CryptoKey{}, err
+	}
+	return key, nil
+}
+
+func (db *dbCrypt) UpdateCryptoKeyDeletesAt(ctx context.Context, arg database.UpdateCryptoKeyDeletesAtParams) (database.CryptoKey, error) {
+	key, err := db.Store.UpdateCryptoKeyDeletesAt(ctx, arg)
+	if err != nil {
+		return database.CryptoKey{}, err
+	}
+	if err := db.decryptField(&key.Secret.String, key.SecretKeyID); err != nil {
+		return database.CryptoKey{}, err
+	}
+	return key, nil
+}
+
+func (db *dbCrypt) GetCryptoKeysByFeature(ctx context.Context, feature database.CryptoKeyFeature) ([]database.CryptoKey, error) {
+	keys, err := db.Store.GetCryptoKeysByFeature(ctx, feature)
+	if err != nil {
+		return nil, err
+	}
+
+	for i := range keys {
+		if err := db.decryptField(&keys[i].Secret.String, keys[i].SecretKeyID); err != nil {
+			return nil, err
+		}
+	}
+
+	return keys, nil
+}
+
 func (db *dbCrypt) encryptField(field *string, digest *sql.NullString) error {
 	// If no cipher is loaded, then we can't encrypt anything!
 	if db.ciphers == nil || db.primaryCipherDigest == "" {
@@ -370,5 +460,5 @@ func (db *dbCrypt) ensureEncrypted(ctx context.Context) error {
 			ActiveKeyDigest: db.primaryCipherDigest,
 			Test:            testValue,
 		})
-	}, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
+	}, &database.TxOptions{Isolation: sql.LevelRepeatableRead})
 }

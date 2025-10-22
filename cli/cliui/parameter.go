@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
+	"github.com/coder/serpent"
 )
 
-func RichParameter(inv *clibase.Invocation, templateVersionParameter codersdk.TemplateVersionParameter) (string, error) {
+func RichParameter(inv *serpent.Invocation, templateVersionParameter codersdk.TemplateVersionParameter, defaultOverrides map[string]string) (string, error) {
 	label := templateVersionParameter.Name
 	if templateVersionParameter.DisplayName != "" {
 		label = templateVersionParameter.DisplayName
@@ -26,19 +26,29 @@ func RichParameter(inv *clibase.Invocation, templateVersionParameter codersdk.Te
 		_, _ = fmt.Fprintln(inv.Stdout, "  "+strings.TrimSpace(strings.Join(strings.Split(templateVersionParameter.DescriptionPlaintext, "\n"), "\n  "))+"\n")
 	}
 
+	defaultValue := templateVersionParameter.DefaultValue
+	if v, ok := defaultOverrides[templateVersionParameter.Name]; ok {
+		defaultValue = v
+	}
+
 	var err error
 	var value string
-	if templateVersionParameter.Type == "list(string)" {
+	switch {
+	case templateVersionParameter.Type == "list(string)":
 		// Move the cursor up a single line for nicer display!
 		_, _ = fmt.Fprint(inv.Stdout, "\033[1A")
 
-		var options []string
-		err = json.Unmarshal([]byte(templateVersionParameter.DefaultValue), &options)
+		var defaults []string
+		err = json.Unmarshal([]byte(templateVersionParameter.DefaultValue), &defaults)
 		if err != nil {
 			return "", err
 		}
 
-		values, err := MultiSelect(inv, options)
+		values, err := RichMultiSelect(inv, RichMultiSelectOptions{
+			Options:           templateVersionParameter.Options,
+			Defaults:          defaults,
+			EnableCustomInput: templateVersionParameter.FormType == "tag-select",
+		})
 		if err == nil {
 			v, err := json.Marshal(&values)
 			if err != nil {
@@ -52,13 +62,13 @@ func RichParameter(inv *clibase.Invocation, templateVersionParameter codersdk.Te
 			)
 			value = string(v)
 		}
-	} else if len(templateVersionParameter.Options) > 0 {
+	case len(templateVersionParameter.Options) > 0:
 		// Move the cursor up a single line for nicer display!
 		_, _ = fmt.Fprint(inv.Stdout, "\033[1A")
 		var richParameterOption *codersdk.TemplateVersionParameterOption
 		richParameterOption, err = RichSelect(inv, RichSelectOptions{
 			Options:    templateVersionParameter.Options,
-			Default:    templateVersionParameter.DefaultValue,
+			Default:    defaultValue,
 			HideSearch: true,
 		})
 		if err == nil {
@@ -66,10 +76,10 @@ func RichParameter(inv *clibase.Invocation, templateVersionParameter codersdk.Te
 			pretty.Fprintf(inv.Stdout, DefaultStyles.Prompt, "%s\n", richParameterOption.Name)
 			value = richParameterOption.Value
 		}
-	} else {
+	default:
 		text := "Enter a value"
 		if !templateVersionParameter.Required {
-			text += fmt.Sprintf(" (default: %q)", templateVersionParameter.DefaultValue)
+			text += fmt.Sprintf(" (default: %q)", defaultValue)
 		}
 		text += ":"
 
@@ -87,7 +97,7 @@ func RichParameter(inv *clibase.Invocation, templateVersionParameter codersdk.Te
 
 	// If they didn't specify anything, use the default value if set.
 	if len(templateVersionParameter.Options) == 0 && value == "" {
-		value = templateVersionParameter.DefaultValue
+		value = defaultValue
 	}
 
 	return value, nil

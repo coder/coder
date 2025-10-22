@@ -1,8 +1,6 @@
 package cli_test
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -10,21 +8,22 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/provisioner/echo"
-	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -61,11 +60,14 @@ func sshConfigFileRead(t *testing.T, name string) string {
 func TestConfigSSH(t *testing.T) {
 	t.Parallel()
 
+	if runtime.GOOS == "windows" {
+		t.Skip("See coder/internal#117")
+	}
+
 	const hostname = "test-coder."
 	const expectedKey = "ConnectionAttempts"
-	const removeKey = "ConnectionTimeout"
-	client := coderdtest.New(t, &coderdtest.Options{
-		IncludeProvisionerDaemon: true,
+	const removeKey = "ConnectTimeout"
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 		ConfigSSH: codersdk.SSHConfigResponse{
 			HostnamePrefix: hostname,
 			SSHConfigOptions: map[string]string{
@@ -75,33 +77,16 @@ func TestConfigSSH(t *testing.T) {
 			},
 		},
 	})
-	user := coderdtest.CreateFirstUser(t, client)
-	authToken := uuid.NewString()
-	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Response{{
-			Type: &proto.Response_Plan{
-				Plan: &proto.PlanComplete{
-					Resources: []*proto.Resource{{
-						Name: "example",
-						Type: "aws_instance",
-						Agents: []*proto.Agent{{
-							Id:   uuid.NewString(),
-							Name: "example",
-						}},
-					}},
-				},
-			},
-		}},
-		ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
-	})
-	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-	_ = agenttest.New(t, client.URL, authToken)
-	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
-	agentConn, err := client.DialWorkspaceAgent(context.Background(), resources[0].Agents[0].ID, nil)
+	owner := coderdtest.CreateFirstUser(t, client)
+	member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: owner.OrganizationID,
+		OwnerID:        memberUser.ID,
+	}).WithAgent().Do()
+	_ = agenttest.New(t, client.URL, r.AgentToken)
+	resources := coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
+	agentConn, err := workspacesdk.New(client).
+		DialAgent(context.Background(), resources[0].Agents[0].ID, nil)
 	require.NoError(t, err)
 	defer agentConn.Close()
 
@@ -145,7 +130,7 @@ func TestConfigSSH(t *testing.T) {
 		"--ssh-option", "Port "+strconv.Itoa(tcpAddr.Port),
 		"--ssh-config-file", sshConfigFile,
 		"--skip-proxy-command")
-	clitest.SetupConfig(t, client, root)
+	clitest.SetupConfig(t, member, root)
 	pty := ptytest.New(t)
 	inv.Stdin = pty.Input()
 	inv.Stdout = pty.Output()
@@ -171,7 +156,7 @@ func TestConfigSSH(t *testing.T) {
 
 	home := filepath.Dir(filepath.Dir(sshConfigFile))
 	// #nosec
-	sshCmd := exec.Command("ssh", "-F", sshConfigFile, hostname+workspace.Name, "echo", "test")
+	sshCmd := exec.Command("ssh", "-F", sshConfigFile, hostname+r.Workspace.Name, "echo", "test")
 	pty = ptytest.New(t)
 	// Set HOME because coder config is included from ~/.ssh/coder.
 	sshCmd.Env = append(sshCmd.Env, fmt.Sprintf("HOME=%s", home))
@@ -182,6 +167,48 @@ func TestConfigSSH(t *testing.T) {
 
 	_ = listener.Close()
 	<-copyDone
+}
+
+func TestConfigSSH_MissingDirectory(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("See coder/internal#117")
+	}
+
+	client := coderdtest.New(t, nil)
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	// Create a temporary directory but don't create .ssh subdirectory
+	tmpdir := t.TempDir()
+	sshConfigPath := filepath.Join(tmpdir, ".ssh", "config")
+
+	// Run config-ssh with a non-existent .ssh directory
+	args := []string{
+		"config-ssh",
+		"--ssh-config-file", sshConfigPath,
+		"--yes", // Skip confirmation prompts
+	}
+	inv, root := clitest.New(t, args...)
+	clitest.SetupConfig(t, client, root)
+
+	err := inv.Run()
+	require.NoError(t, err, "config-ssh should succeed with non-existent directory")
+
+	// Verify that the .ssh directory was created
+	sshDir := filepath.Dir(sshConfigPath)
+	_, err = os.Stat(sshDir)
+	require.NoError(t, err, ".ssh directory should exist")
+
+	// Verify that the config file was created
+	_, err = os.Stat(sshConfigPath)
+	require.NoError(t, err, "config file should exist")
+
+	// Check that the directory has proper permissions (rwx for owner, none for
+	// group and everyone)
+	sshDirInfo, err := os.Stat(sshDir)
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0o700), sshDirInfo.Mode().Perm(), "directory should have rwx------ permissions")
 }
 
 func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
@@ -205,20 +232,20 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 		ssh string
 	}
 	type wantConfig struct {
-		ssh        string
+		ssh        []string
 		regexMatch string
 	}
 	type match struct {
 		match, write string
 	}
 	tests := []struct {
-		name         string
-		args         []string
-		matches      []match
-		writeConfig  writeConfig
-		wantConfig   wantConfig
-		wantErr      bool
-		echoResponse *echo.Responses
+		name        string
+		args        []string
+		matches     []match
+		writeConfig writeConfig
+		wantConfig  wantConfig
+		wantErr     bool
+		hasAgent    bool
 	}{
 		{
 			name: "Config file is created",
@@ -226,10 +253,10 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 				{match: "Continue?", write: "yes"},
 			},
 			wantConfig: wantConfig{
-				ssh: strings.Join([]string{
-					baseHeader,
-					"",
-				}, "\n"),
+				ssh: []string{
+					headerStart,
+					headerEnd,
+				},
 			},
 		},
 		{
@@ -241,42 +268,17 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 				}, "\n"),
 			},
 			wantConfig: wantConfig{
-				ssh: strings.Join([]string{
-					"Host myhost",
-					"	HostName myhost",
-					baseHeader,
-					"",
-				}, "\n"),
+				ssh: []string{
+					strings.Join([]string{
+						"Host myhost",
+						"	HostName myhost",
+					}, "\n"),
+					headerStart,
+					headerEnd,
+				},
 			},
 			matches: []match{
 				{match: "Continue?", write: "yes"},
-			},
-		},
-		{
-			name: "Section is not moved on re-run",
-			writeConfig: writeConfig{
-				ssh: strings.Join([]string{
-					"Host myhost",
-					"	HostName myhost",
-					"",
-					baseHeader,
-					"",
-					"Host otherhost",
-					"	HostName otherhost",
-					"",
-				}, "\n"),
-			},
-			wantConfig: wantConfig{
-				ssh: strings.Join([]string{
-					"Host myhost",
-					"	HostName myhost",
-					"",
-					baseHeader,
-					"",
-					"Host otherhost",
-					"	HostName otherhost",
-					"",
-				}, "\n"),
 			},
 		},
 		{
@@ -294,20 +296,24 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 				}, "\n"),
 			},
 			wantConfig: wantConfig{
-				ssh: strings.Join([]string{
-					"Host myhost",
-					"	HostName myhost",
-					"",
-					headerStart,
-					"# Last config-ssh options:",
-					"# :ssh-option=ForwardAgent=yes",
-					"#",
-					headerEnd,
-					"",
-					"Host otherhost",
-					"	HostName otherhost",
-					"",
-				}, "\n"),
+				ssh: []string{
+					strings.Join([]string{
+						"Host myhost",
+						"	HostName myhost",
+						"",
+						headerStart,
+						"# Last config-ssh options:",
+						"# :ssh-option=ForwardAgent=yes",
+						"#",
+					}, "\n"),
+					strings.Join([]string{
+						headerEnd,
+						"",
+						"Host otherhost",
+						"	HostName otherhost",
+						"",
+					}, "\n"),
+				},
 			},
 			args: []string{
 				"--ssh-option", "ForwardAgent=yes",
@@ -325,10 +331,13 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 				}, "\n"),
 			},
 			wantConfig: wantConfig{
-				ssh: strings.Join([]string{
-					baseHeader,
-					"",
-				}, "\n"),
+				ssh: []string{
+					headerStart,
+					strings.Join([]string{
+						headerEnd,
+						"",
+					}, "\n"),
+				},
 			},
 			matches: []match{
 				{match: "Continue?", write: "yes"},
@@ -340,14 +349,18 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 				ssh: "",
 			},
 			wantConfig: wantConfig{
-				ssh: strings.Join([]string{
-					headerStart,
-					"# Last config-ssh options:",
-					"# :ssh-option=ForwardAgent=yes",
-					"#",
-					headerEnd,
-					"",
-				}, "\n"),
+				ssh: []string{
+					strings.Join([]string{
+						headerStart,
+						"# Last config-ssh options:",
+						"# :ssh-option=ForwardAgent=yes",
+						"#",
+					}, "\n"),
+					strings.Join([]string{
+						headerEnd,
+						"",
+					}, "\n"),
+				},
 			},
 			args: []string{"--ssh-option", "ForwardAgent=yes"},
 			matches: []match{
@@ -362,14 +375,18 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 				}, "\n"),
 			},
 			wantConfig: wantConfig{
-				ssh: strings.Join([]string{
-					headerStart,
-					"# Last config-ssh options:",
-					"# :ssh-option=ForwardAgent=yes",
-					"#",
-					headerEnd,
-					"",
-				}, "\n"),
+				ssh: []string{
+					strings.Join([]string{
+						headerStart,
+						"# Last config-ssh options:",
+						"# :ssh-option=ForwardAgent=yes",
+						"#",
+					}, "\n"),
+					strings.Join([]string{
+						headerEnd,
+						"",
+					}, "\n"),
+				},
 			},
 			args: []string{"--ssh-option", "ForwardAgent=yes"},
 			matches: []match{
@@ -389,39 +406,18 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 				}, "\n"),
 			},
 			wantConfig: wantConfig{
-				ssh: strings.Join([]string{
-					baseHeader,
-					"",
-				}, "\n"),
+				ssh: []string{
+					headerStart,
+					strings.Join([]string{
+						headerEnd,
+						"",
+					}, "\n"),
+				},
 			},
 			matches: []match{
 				{match: "Use new options?", write: "yes"},
 				{match: "Continue?", write: "yes"},
 			},
-		},
-		{
-			name: "No prompt on no changes",
-			writeConfig: writeConfig{
-				ssh: strings.Join([]string{
-					headerStart,
-					"# Last config-ssh options:",
-					"# :ssh-option=ForwardAgent=yes",
-					"#",
-					headerEnd,
-					"",
-				}, "\n"),
-			},
-			wantConfig: wantConfig{
-				ssh: strings.Join([]string{
-					headerStart,
-					"# Last config-ssh options:",
-					"# :ssh-option=ForwardAgent=yes",
-					"#",
-					headerEnd,
-					"",
-				}, "\n"),
-			},
-			args: []string{"--ssh-option", "ForwardAgent=yes"},
 		},
 		{
 			name: "No changes when continue = no",
@@ -436,14 +432,14 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 				}, "\n"),
 			},
 			wantConfig: wantConfig{
-				ssh: strings.Join([]string{
+				ssh: []string{strings.Join([]string{
 					headerStart,
 					"# Last config-ssh options:",
 					"# :ssh-option=ForwardAgent=yes",
 					"#",
 					headerEnd,
 					"",
-				}, "\n"),
+				}, "\n")},
 			},
 			args: []string{"--ssh-option", "ForwardAgent=no"},
 			matches: []match{
@@ -464,31 +460,42 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 				}, "\n"),
 			},
 			wantConfig: wantConfig{
-				ssh: strings.Join([]string{
-					// Last options overwritten.
-					baseHeader,
-					"",
-				}, "\n"),
+				ssh: []string{
+					headerStart,
+					headerEnd,
+				},
 			},
 			args: []string{"--yes"},
 		},
 		{
 			name: "Serialize supported flags",
 			wantConfig: wantConfig{
-				ssh: strings.Join([]string{
-					headerStart,
-					"# Last config-ssh options:",
-					"# :wait=yes",
-					"# :ssh-host-prefix=coder-test.",
-					"#",
-					headerEnd,
-					"",
-				}, "\n"),
+				ssh: []string{
+					strings.Join([]string{
+						headerStart,
+						"# Last config-ssh options:",
+						"# :wait=yes",
+						"# :ssh-host-prefix=coder-test.",
+						"# :hostname-suffix=coder-suffix",
+						"# :header=X-Test-Header=foo",
+						"# :header=X-Test-Header2=bar",
+						"# :header-command=echo h1=v1 h2=\"v2\" h3='v3'",
+						"#",
+					}, "\n"),
+					strings.Join([]string{
+						headerEnd,
+						"",
+					}, "\n"),
+				},
 			},
 			args: []string{
 				"--yes",
 				"--wait=yes",
 				"--ssh-host-prefix", "coder-test.",
+				"--hostname-suffix", "coder-suffix",
+				"--header", "X-Test-Header=foo",
+				"--header", "X-Test-Header2=bar",
+				"--header-command", "echo h1=v1 h2=\"v2\" h3='v3'",
 			},
 		},
 		{
@@ -505,15 +512,20 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 				}, "\n"),
 			},
 			wantConfig: wantConfig{
-				ssh: strings.Join([]string{
-					headerStart,
-					"# Last config-ssh options:",
-					"# :wait=no",
-					"# :ssh-option=ForwardAgent=yes",
-					"#",
-					headerEnd,
-					"",
-				}, "\n"),
+				ssh: []string{
+					strings.Join(
+						[]string{
+							headerStart,
+							"# Last config-ssh options:",
+							"# :wait=no",
+							"# :ssh-option=ForwardAgent=yes",
+							"#",
+						}, "\n"),
+					strings.Join([]string{
+						headerEnd,
+						"",
+					}, "\n"),
+				},
 			},
 			args: []string{
 				"--use-previous-options",
@@ -529,10 +541,10 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 				}, "\n"),
 			},
 			wantConfig: wantConfig{
-				ssh: strings.Join([]string{
+				ssh: []string{strings.Join([]string{
 					baseHeader,
 					"",
-				}, "\n"),
+				}, "\n")},
 			},
 			args: []string{
 				"--ssh-option", "ForwardAgent=yes",
@@ -575,30 +587,121 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			args: []string{
 				"-y", "--coder-binary-path", "/foo/bar/coder",
 			},
-			wantErr: false,
-			echoResponse: &echo.Responses{
-				Parse:          echo.ParseComplete,
-				ProvisionApply: echo.ProvisionApplyWithAgent(""),
-			},
+			wantErr:  false,
+			hasAgent: true,
 			wantConfig: wantConfig{
 				regexMatch: "ProxyCommand /foo/bar/coder",
 			},
 		},
+		{
+			name: "Header",
+			args: []string{
+				"--yes",
+				"--header", "X-Test-Header=foo",
+				"--header", "X-Test-Header2=bar",
+			},
+			wantErr:  false,
+			hasAgent: true,
+			wantConfig: wantConfig{
+				regexMatch: `ProxyCommand .* --header "X-Test-Header=foo" --header "X-Test-Header2=bar" ssh .* --ssh-host-prefix coder. %h`,
+			},
+		},
+		{
+			name: "Header command",
+			args: []string{
+				"--yes",
+				"--header-command", "echo h1=v1",
+			},
+			wantErr:  false,
+			hasAgent: true,
+			wantConfig: wantConfig{
+				regexMatch: `ProxyCommand .* --header-command "echo h1=v1" ssh .* --ssh-host-prefix coder. %h`,
+			},
+		},
+		{
+			name: "Header command with double quotes",
+			args: []string{
+				"--yes",
+				"--header-command", "echo h1=v1 h2=\"v2\"",
+			},
+			wantErr:  false,
+			hasAgent: true,
+			wantConfig: wantConfig{
+				regexMatch: `ProxyCommand .* --header-command "echo h1=v1 h2=\\\"v2\\\"" ssh .* --ssh-host-prefix coder. %h`,
+			},
+		},
+		{
+			name: "Header command with single quotes",
+			args: []string{
+				"--yes",
+				"--header-command", "echo h1=v1 h2='v2'",
+			},
+			wantErr:  false,
+			hasAgent: true,
+			wantConfig: wantConfig{
+				regexMatch: `ProxyCommand .* --header-command "echo h1=v1 h2='v2'" ssh .* --ssh-host-prefix coder. %h`,
+			},
+		},
+		{
+			name: "Multiple remote forwards",
+			args: []string{
+				"--yes",
+				"--ssh-option", "RemoteForward 2222 192.168.11.1:2222",
+				"--ssh-option", "RemoteForward 2223 192.168.11.1:2223",
+			},
+			wantErr:  false,
+			hasAgent: true,
+			wantConfig: wantConfig{
+				regexMatch: "RemoteForward 2222 192.168.11.1:2222.*\n.*RemoteForward 2223 192.168.11.1:2223",
+			},
+		},
+		{
+			name: "Hostname Suffix",
+			args: []string{
+				"--yes",
+				"--ssh-option", "Foo=bar",
+				"--hostname-suffix", "testy",
+			},
+			wantErr:  false,
+			hasAgent: true,
+			wantConfig: wantConfig{
+				ssh: []string{
+					"Host *.testy",
+					"Foo=bar",
+					"ConnectTimeout=0",
+					"StrictHostKeyChecking=no",
+					"UserKnownHostsFile=/dev/null",
+					"LogLevel ERROR",
+				},
+				regexMatch: `Match host \*\.testy !exec ".* connect exists %h"\n\tProxyCommand .* ssh .* --hostname-suffix testy %h`,
+			},
+		},
+		{
+			name: "Hostname Prefix and Suffix",
+			args: []string{
+				"--yes",
+				"--ssh-host-prefix", "presto.",
+				"--hostname-suffix", "testy",
+			},
+			wantErr:  false,
+			hasAgent: true,
+			wantConfig: wantConfig{
+				ssh: []string{"Host presto.*", "Match host *.testy !exec"},
+			},
+		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var (
-				client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-				user      = coderdtest.CreateFirstUser(t, client)
-				version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, tt.echoResponse)
-				_         = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-				project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-				workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
-				_         = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-			)
+			client, db := coderdtest.NewWithDatabase(t, nil)
+			user := coderdtest.CreateFirstUser(t, client)
+			if tt.hasAgent {
+				_ = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+					OrganizationID: user.OrganizationID,
+					OwnerID:        user.UserID,
+				}).WithAgent().Do()
+			}
 
 			// Prepare ssh config files.
 			sshConfigName := sshConfigFileName(t)
@@ -612,6 +715,7 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			}
 			args = append(args, tt.args...)
 			inv, root := clitest.New(t, args...)
+			//nolint:gocritic // This has always ran with the admin user.
 			clitest.SetupConfig(t, client, root)
 
 			pty := ptytest.New(t)
@@ -632,10 +736,15 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 
 			<-done
 
-			if tt.wantConfig.ssh != "" || tt.wantConfig.regexMatch != "" {
+			if len(tt.wantConfig.ssh) != 0 || tt.wantConfig.regexMatch != "" {
 				got := sshConfigFileRead(t, sshConfigName)
-				if tt.wantConfig.ssh != "" {
-					assert.Equal(t, tt.wantConfig.ssh, got)
+				// Require that the generated config has the expected snippets in order.
+				for _, want := range tt.wantConfig.ssh {
+					idx := strings.Index(got, want)
+					if idx == -1 {
+						require.Contains(t, got, want)
+					}
+					got = got[idx+len(want):]
 				}
 				if tt.wantConfig.regexMatch != "" {
 					assert.Regexp(t, tt.wantConfig.regexMatch, got, "regex match")
@@ -643,138 +752,4 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestConfigSSH_Hostnames(t *testing.T) {
-	t.Parallel()
-
-	type resourceSpec struct {
-		name   string
-		agents []string
-	}
-	tests := []struct {
-		name      string
-		resources []resourceSpec
-		expected  []string
-	}{
-		{
-			name: "one resource with one agent",
-			resources: []resourceSpec{
-				{name: "foo", agents: []string{"agent1"}},
-			},
-			expected: []string{"coder.@", "coder.@.agent1"},
-		},
-		{
-			name: "one resource with two agents",
-			resources: []resourceSpec{
-				{name: "foo", agents: []string{"agent1", "agent2"}},
-			},
-			expected: []string{"coder.@.agent1", "coder.@.agent2"},
-		},
-		{
-			name: "two resources with one agent",
-			resources: []resourceSpec{
-				{name: "foo", agents: []string{"agent1"}},
-				{name: "bar"},
-			},
-			expected: []string{"coder.@", "coder.@.agent1"},
-		},
-		{
-			name: "two resources with two agents",
-			resources: []resourceSpec{
-				{name: "foo", agents: []string{"agent1"}},
-				{name: "bar", agents: []string{"agent2"}},
-			},
-			expected: []string{"coder.@.agent1", "coder.@.agent2"},
-		},
-	}
-
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			var resources []*proto.Resource
-			for _, resourceSpec := range tt.resources {
-				resource := &proto.Resource{
-					Name: resourceSpec.name,
-					Type: "aws_instance",
-				}
-				for _, agentName := range resourceSpec.agents {
-					resource.Agents = append(resource.Agents, &proto.Agent{
-						Id:   uuid.NewString(),
-						Name: agentName,
-					})
-				}
-				resources = append(resources, resource)
-			}
-
-			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-			user := coderdtest.CreateFirstUser(t, client)
-			// authToken := uuid.NewString()
-			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID,
-				echo.WithResources(resources))
-			coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-			workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-
-			sshConfigFile := sshConfigFileName(t)
-
-			inv, root := clitest.New(t, "config-ssh", "--ssh-config-file", sshConfigFile)
-			clitest.SetupConfig(t, client, root)
-
-			pty := ptytest.New(t)
-			inv.Stdin = pty.Input()
-			inv.Stdout = pty.Output()
-			clitest.Start(t, inv)
-
-			matches := []struct {
-				match, write string
-			}{
-				{match: "Continue?", write: "yes"},
-			}
-			for _, m := range matches {
-				pty.ExpectMatch(m.match)
-				pty.WriteLine(m.write)
-			}
-
-			pty.ExpectMatch("Updated")
-
-			var expectedHosts []string
-			for _, hostnamePattern := range tt.expected {
-				hostname := strings.ReplaceAll(hostnamePattern, "@", workspace.Name)
-				expectedHosts = append(expectedHosts, hostname)
-			}
-
-			hosts := sshConfigFileParseHosts(t, sshConfigFile)
-			require.ElementsMatch(t, expectedHosts, hosts)
-		})
-	}
-}
-
-// sshConfigFileParseHosts reads a file in the format of .ssh/config and extracts
-// the hostnames that are listed in "Host" directives.
-func sshConfigFileParseHosts(t *testing.T, name string) []string {
-	t.Helper()
-	b, err := os.ReadFile(name)
-	require.NoError(t, err)
-
-	var result []string
-	lineScanner := bufio.NewScanner(bytes.NewBuffer(b))
-	for lineScanner.Scan() {
-		line := lineScanner.Text()
-		line = strings.TrimSpace(line)
-
-		tokenScanner := bufio.NewScanner(bytes.NewBufferString(line))
-		tokenScanner.Split(bufio.ScanWords)
-		ok := tokenScanner.Scan()
-		if ok && tokenScanner.Text() == "Host" {
-			for tokenScanner.Scan() {
-				result = append(result, tokenScanner.Text())
-			}
-		}
-	}
-
-	return result
 }

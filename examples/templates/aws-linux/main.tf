@@ -3,6 +3,9 @@ terraform {
     coder = {
       source = "coder/coder"
     }
+    cloudinit = {
+      source = "hashicorp/cloudinit"
+    }
     aws = {
       source = "hashicorp/aws"
     }
@@ -140,8 +143,8 @@ provider "aws" {
   region = data.coder_parameter.region.value
 }
 
-data "coder_workspace" "me" {
-}
+data "coder_workspace" "me" {}
+data "coder_workspace_owner" "me" {}
 
 data "aws_ami" "ubuntu" {
   most_recent = true
@@ -157,17 +160,14 @@ data "aws_ami" "ubuntu" {
 }
 
 resource "coder_agent" "dev" {
-  count                  = data.coder_workspace.me.start_count
-  arch                   = "amd64"
-  auth                   = "aws-instance-identity"
-  os                     = "linux"
-  startup_script_timeout = 180
-  startup_script         = <<-EOT
+  count          = data.coder_workspace.me.start_count
+  arch           = "amd64"
+  auth           = "aws-instance-identity"
+  os             = "linux"
+  startup_script = <<-EOT
     set -e
 
-    # install and start code-server
-    curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.11.0
-    /tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
+    # Add any commands that should be executed at workspace startup (e.g install requirements, start a program, etc) here
   EOT
 
   metadata {
@@ -193,55 +193,59 @@ resource "coder_agent" "dev" {
   }
 }
 
-resource "coder_app" "code-server" {
-  count        = data.coder_workspace.me.start_count
-  agent_id     = coder_agent.dev[0].id
-  slug         = "code-server"
-  display_name = "code-server"
-  url          = "http://localhost:13337/?folder=/home/coder"
-  icon         = "/icon/code.svg"
-  subdomain    = false
-  share        = "owner"
+# See https://registry.coder.com/modules/coder/code-server
+module "code-server" {
+  count  = data.coder_workspace.me.start_count
+  source = "registry.coder.com/modules/code-server/coder"
 
-  healthcheck {
-    url       = "http://localhost:13337/healthz"
-    interval  = 3
-    threshold = 10
-  }
+  # This ensures that the latest non-breaking version of the module gets downloaded, you can also pin the module version to prevent breaking changes in production.
+  version = "~> 1.0"
+
+  agent_id = coder_agent.dev[0].id
+  order    = 1
+}
+
+# See https://registry.coder.com/modules/coder/jetbrains
+module "jetbrains" {
+  count      = data.coder_workspace.me.start_count
+  source     = "registry.coder.com/coder/jetbrains/coder"
+  version    = "~> 1.0"
+  agent_id   = coder_agent.dev[0].id
+  agent_name = "dev"
+  folder     = "/home/coder"
 }
 
 locals {
+  hostname   = lower(data.coder_workspace.me.name)
   linux_user = "coder"
-  user_data = data.coder_workspace.me.start_count > 0 ? trimspace(<<EOT
-Content-Type: multipart/mixed; boundary="//"
-MIME-Version: 1.0
+}
 
---//
-Content-Type: text/cloud-config; charset="us-ascii"
-MIME-Version: 1.0
-Content-Transfer-Encoding: 7bit
-Content-Disposition: attachment; filename="cloud-config.txt"
+data "cloudinit_config" "user_data" {
+  gzip          = false
+  base64_encode = false
 
-#cloud-config
-cloud_final_modules:
-- [scripts-user, always]
-hostname: ${lower(data.coder_workspace.me.name)}
-users:
-- name: ${local.linux_user}
-  sudo: ALL=(ALL) NOPASSWD:ALL
-  shell: /bin/bash
+  boundary = "//"
 
---//
-Content-Type: text/x-shellscript; charset="us-ascii"
-MIME-Version: 1.0
-Content-Transfer-Encoding: 7bit
-Content-Disposition: attachment; filename="userdata.txt"
+  part {
+    filename     = "cloud-config.yaml"
+    content_type = "text/cloud-config"
 
-#!/bin/bash
-sudo -u ${local.linux_user} sh -c '${coder_agent.dev[0].init_script}'
---//--
-EOT
-  ) : ""
+    content = templatefile("${path.module}/cloud-init/cloud-config.yaml.tftpl", {
+      hostname   = local.hostname
+      linux_user = local.linux_user
+    })
+  }
+
+  part {
+    filename     = "userdata.sh"
+    content_type = "text/x-shellscript"
+
+    content = templatefile("${path.module}/cloud-init/userdata.sh.tftpl", {
+      linux_user = local.linux_user
+
+      init_script = try(coder_agent.dev[0].init_script, "")
+    })
+  }
 }
 
 resource "aws_instance" "dev" {
@@ -249,11 +253,14 @@ resource "aws_instance" "dev" {
   availability_zone = "${data.coder_parameter.region.value}a"
   instance_type     = data.coder_parameter.instance_type.value
 
-  user_data = local.user_data
+  user_data = data.cloudinit_config.user_data.rendered
   tags = {
-    Name = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
+    Name = "coder-${data.coder_workspace_owner.me.name}-${data.coder_workspace.me.name}"
     # Required if you are using our example policy, see template README
     Coder_Provisioned = "true"
+  }
+  lifecycle {
+    ignore_changes = [ami]
   }
 }
 

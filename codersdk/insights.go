@@ -200,6 +200,15 @@ const (
 	TemplateAppsTypeApp     TemplateAppsType = "app"
 )
 
+// Enums define the display name of the builtin app reported.
+const (
+	TemplateBuiltinAppDisplayNameVSCode      string = "Visual Studio Code"
+	TemplateBuiltinAppDisplayNameJetBrains   string = "JetBrains"
+	TemplateBuiltinAppDisplayNameWebTerminal string = "Web Terminal"
+	TemplateBuiltinAppDisplayNameSSH         string = "SSH"
+	TemplateBuiltinAppDisplayNameSFTP        string = "SFTP"
+)
+
 // TemplateAppUsage shows the usage of an app for one or more templates.
 type TemplateAppUsage struct {
 	TemplateIDs []uuid.UUID      `json:"template_ids" format:"uuid"`
@@ -208,6 +217,7 @@ type TemplateAppUsage struct {
 	Slug        string           `json:"slug" example:"vscode"`
 	Icon        string           `json:"icon"`
 	Seconds     int64            `json:"seconds" example:"80500"`
+	TimesUsed   int64            `json:"times_used" example:"2"`
 }
 
 // TemplateParameterUsage shows the usage of a parameter for one or more
@@ -270,5 +280,36 @@ func (c *Client) TemplateInsights(ctx context.Context, req TemplateInsightsReque
 		return TemplateInsightsResponse{}, ReadBodyAsError(resp)
 	}
 	var result TemplateInsightsResponse
+	return result, json.NewDecoder(resp.Body).Decode(&result)
+}
+
+type GetUserStatusCountsResponse struct {
+	StatusCounts map[UserStatus][]UserStatusChangeCount `json:"status_counts"`
+}
+
+type UserStatusChangeCount struct {
+	Date  time.Time `json:"date" format:"date-time"`
+	Count int64     `json:"count" example:"10"`
+}
+
+type GetUserStatusCountsRequest struct {
+	Offset time.Time `json:"offset" format:"date-time"`
+}
+
+func (c *Client) GetUserStatusCounts(ctx context.Context, req GetUserStatusCountsRequest) (GetUserStatusCountsResponse, error) {
+	qp := url.Values{}
+	qp.Add("offset", req.Offset.Format(insightsTimeLayout))
+
+	reqURL := fmt.Sprintf("/api/v2/insights/user-status-counts?%s", qp.Encode())
+	resp, err := c.Request(ctx, http.MethodGet, reqURL, nil)
+	if err != nil {
+		return GetUserStatusCountsResponse{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return GetUserStatusCountsResponse{}, ReadBodyAsError(resp)
+	}
+	var result GetUserStatusCountsResponse
 	return result, json.NewDecoder(resp.Body).Decode(&result)
 }

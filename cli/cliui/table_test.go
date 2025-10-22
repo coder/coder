@@ -1,6 +1,7 @@
 package cliui_test
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 type stringWrapper struct {
@@ -23,19 +25,24 @@ func (s stringWrapper) String() string {
 	return s.str
 }
 
+type myString string
+
 type tableTest1 struct {
-	Name        string      `table:"name,default_sort"`
-	NotIncluded string      // no table tag
-	Age         int         `table:"age"`
-	Roles       []string    `table:"roles"`
-	Sub1        tableTest2  `table:"sub_1,recursive"`
-	Sub2        *tableTest2 `table:"sub_2,recursive"`
-	Sub3        tableTest3  `table:"sub 3,recursive"`
-	Sub4        tableTest2  `table:"sub 4"` // not recursive
+	Name        string         `table:"name,default_sort"`
+	AltName     *stringWrapper `table:"alt_name"`
+	NotIncluded string         // no table tag
+	Age         int            `table:"age"`
+	Roles       []string       `table:"roles"`
+	Sub1        tableTest2     `table:"sub_1,recursive"`
+	Sub2        *tableTest2    `table:"sub_2,recursive"`
+	Sub3        tableTest3     `table:"sub 3,recursive"`
+	Sub4        tableTest2     `table:"sub 4"` // not recursive
 
 	// Types with special formatting.
-	Time    time.Time  `table:"time"`
-	TimePtr *time.Time `table:"time_ptr"`
+	Time     time.Time         `table:"time"`
+	TimePtr  *time.Time        `table:"time_ptr"`
+	NullTime codersdk.NullTime `table:"null_time"`
+	MyString *myString         `table:"my_string"`
 }
 
 type tableTest2 struct {
@@ -46,25 +53,27 @@ type tableTest2 struct {
 
 type tableTest3 struct {
 	NotIncluded string     // no table tag
-	Sub         tableTest2 `table:"inner,recursive,default_sort"`
+	Sub         tableTest2 `table:"inner,recursive"`
 }
 
 type tableTest4 struct {
 	Inline    tableTest2 `table:"ignored,recursive_inline"`
-	SortField string     `table:"sort_field,default_sort"`
+	SortField string     `table:"sort_field"`
 }
 
 func Test_DisplayTable(t *testing.T) {
 	t.Parallel()
 
 	someTime := time.Date(2022, 8, 2, 15, 49, 10, 0, time.UTC)
+	myStr := myString("my string")
 
 	// Not sorted by name or age to test sorting.
 	in := []tableTest1{
 		{
-			Name:  "bar",
-			Age:   20,
-			Roles: []string{"a"},
+			Name:    "bar",
+			AltName: &stringWrapper{str: "bar alt"},
+			Age:     20,
+			Roles:   []string{"a"},
 			Sub1: tableTest2{
 				Name: stringWrapper{str: "bar1"},
 				Age:  21,
@@ -82,6 +91,13 @@ func Test_DisplayTable(t *testing.T) {
 			},
 			Time:    someTime,
 			TimePtr: nil,
+			NullTime: codersdk.NullTime{
+				NullTime: sql.NullTime{
+					Time:  someTime,
+					Valid: true,
+				},
+			},
+			MyString: &myStr,
 		},
 		{
 			Name:  "foo",
@@ -138,10 +154,10 @@ func Test_DisplayTable(t *testing.T) {
 		t.Parallel()
 
 		expected := `
-NAME  AGE  ROLES    SUB 1 NAME  SUB 1 AGE  SUB 2 NAME  SUB 2 AGE  SUB 3 INNER NAME  SUB 3 INNER AGE  SUB 4       TIME                  TIME PTR
-bar    20  [a]      bar1               21  <nil>       <nil>      bar3                           23  {bar4 24 }  2022-08-02T15:49:10Z  <nil>
-baz    30  []       baz1               31  <nil>       <nil>      baz3                           33  {baz4 34 }  2022-08-02T15:49:10Z  <nil>
-foo    10  [a b c]  foo1               11  foo2        12         foo3                           13  {foo4 14 }  2022-08-02T15:49:10Z  2022-08-02T15:49:10Z
+NAME  ALT NAME  AGE  ROLES      SUB 1 NAME  SUB 1 AGE  SUB 2 NAME  SUB 2 AGE  SUB 3 INNER NAME  SUB 3 INNER AGE  SUB 4       TIME                  TIME PTR              NULL TIME             MY STRING
+bar   bar alt    20  [a]        bar1               21  <nil>       <nil>      bar3                           23  {bar4 24 }  2022-08-02T15:49:10Z  <nil>                 2022-08-02T15:49:10Z  my string
+baz   <nil>      30  []         baz1               31  <nil>       <nil>      baz3                           33  {baz4 34 }  2022-08-02T15:49:10Z  <nil>                 <nil>                 <nil>
+foo   <nil>      10  [a, b, c]  foo1               11  foo2        12         foo3                           13  {foo4 14 }  2022-08-02T15:49:10Z  2022-08-02T15:49:10Z  <nil>                 <nil>
 		`
 
 		// Test with non-pointer values.
@@ -153,7 +169,6 @@ foo    10  [a b c]  foo1               11  foo2        12         foo3          
 		// Test with pointer values.
 		inPtr := make([]*tableTest1, len(in))
 		for i, v := range in {
-			v := v
 			inPtr[i] = &v
 		}
 		out, err = cliui.DisplayTable(inPtr, "", nil)
@@ -165,10 +180,10 @@ foo    10  [a b c]  foo1               11  foo2        12         foo3          
 		t.Parallel()
 
 		expected := `
-NAME  AGE  ROLES    SUB 1 NAME  SUB 1 AGE  SUB 2 NAME  SUB 2 AGE  SUB 3 INNER NAME  SUB 3 INNER AGE  SUB 4       TIME                  TIME PTR
-foo    10  [a b c]  foo1               11  foo2        12         foo3                           13  {foo4 14 }  2022-08-02T15:49:10Z  2022-08-02T15:49:10Z
-bar    20  [a]      bar1               21  <nil>       <nil>      bar3                           23  {bar4 24 }  2022-08-02T15:49:10Z  <nil>
-baz    30  []       baz1               31  <nil>       <nil>      baz3                           33  {baz4 34 }  2022-08-02T15:49:10Z  <nil>
+NAME  ALT NAME  AGE  ROLES      SUB 1 NAME  SUB 1 AGE  SUB 2 NAME  SUB 2 AGE  SUB 3 INNER NAME  SUB 3 INNER AGE  SUB 4       TIME                  TIME PTR              NULL TIME             MY STRING
+foo   <nil>      10  [a, b, c]  foo1               11  foo2        12         foo3                           13  {foo4 14 }  2022-08-02T15:49:10Z  2022-08-02T15:49:10Z  <nil>                 <nil>
+bar   bar alt    20  [a]        bar1               21  <nil>       <nil>      bar3                           23  {bar4 24 }  2022-08-02T15:49:10Z  <nil>                 2022-08-02T15:49:10Z  my string
+baz   <nil>      30  []         baz1               31  <nil>       <nil>      baz3                           33  {baz4 34 }  2022-08-02T15:49:10Z  <nil>                 <nil>                 <nil>
 		`
 
 		out, err := cliui.DisplayTable(in, "age", nil)
@@ -218,6 +233,42 @@ Alice   25
 		compareTables(t, expected, out)
 	})
 
+	// This test ensures we can display dynamically typed slices
+	t.Run("Interfaces", func(t *testing.T) {
+		t.Parallel()
+
+		in := []any{tableTest1{}}
+		out, err := cliui.DisplayTable(in, "", nil)
+		t.Log("rendered table:\n" + out)
+		require.NoError(t, err)
+		other := []tableTest1{{}}
+		expected, err := cliui.DisplayTable(other, "", nil)
+		require.NoError(t, err)
+		compareTables(t, expected, out)
+	})
+
+	t.Run("WithSeparator", func(t *testing.T) {
+		t.Parallel()
+		expected := `
+NAME  ALT NAME  AGE  ROLES      SUB 1 NAME  SUB 1 AGE  SUB 2 NAME  SUB 2 AGE  SUB 3 INNER NAME  SUB 3 INNER AGE  SUB 4       TIME                  TIME PTR              NULL TIME               MY STRING
+bar   bar alt    20  [a]        bar1               21  <nil>       <nil>      bar3                           23  {bar4 24 }  2022-08-02T15:49:10Z  <nil>                 2022-08-02T15:49:10Z    my string
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+baz   <nil>      30  []         baz1               31  <nil>       <nil>      baz3                           33  {baz4 34 }  2022-08-02T15:49:10Z  <nil>                 <nil>                   <nil>
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+foo   <nil>      10  [a, b, c]  foo1               11  foo2        12         foo3                           13  {foo4 14 }  2022-08-02T15:49:10Z  2022-08-02T15:49:10Z  <nil>                   <nil>
+		`
+
+		var inlineIn []any
+		for _, v := range in {
+			inlineIn = append(inlineIn, v)
+			inlineIn = append(inlineIn, cliui.TableSeparator{})
+		}
+		out, err := cliui.DisplayTable(inlineIn, "", nil)
+		t.Log("rendered table:\n" + out)
+		require.NoError(t, err)
+		compareTables(t, expected, out)
+	})
+
 	// This test ensures that safeties against invalid use of `table` tags
 	// causes errors (even without data).
 	t.Run("Errors", func(t *testing.T) {
@@ -252,14 +303,6 @@ Alice   25
 				t.Parallel()
 
 				var in []any
-				_, err := cliui.DisplayTable(in, "", nil)
-				require.Error(t, err)
-			})
-
-			t.Run("WithData", func(t *testing.T) {
-				t.Parallel()
-
-				in := []any{tableTest1{}}
 				_, err := cliui.DisplayTable(in, "", nil)
 				require.Error(t, err)
 			})

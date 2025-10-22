@@ -1,21 +1,15 @@
-import { action } from "@storybook/addon-actions";
-import { UseTabResult } from "hooks/useTab";
 import {
-  mockApiError,
-  MockOrganization,
-  MockTemplate,
-  MockTemplateVersion,
+	MockTemplate,
+	MockTemplateVersion,
+	MockTemplateVersionWithMarkdownMessage,
+	mockApiError,
 } from "testHelpers/entities";
+import { withDashboardProvider } from "testHelpers/storybook";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
-  TemplateVersionPageView,
-  TemplateVersionPageViewProps,
+	TemplateVersionPageView,
+	type TemplateVersionPageViewProps,
 } from "./TemplateVersionPageView";
-import type { Meta, StoryObj } from "@storybook/react";
-
-const tab: UseTabResult = {
-  value: "0",
-  set: action("changeTab"),
-};
 
 const readmeContent = `---
 name:Template test
@@ -29,27 +23,25 @@ You can add instructions here
 \`\`\``;
 
 const defaultArgs: TemplateVersionPageViewProps = {
-  tab,
-  templateName: MockTemplate.name,
-  versionName: MockTemplateVersion.name,
-  context: {
-    templateName: MockTemplate.name,
-    orgId: MockOrganization.id,
-    versionName: MockTemplateVersion.name,
-    currentVersion: MockTemplateVersion,
-    currentFiles: {
-      "README.md": readmeContent,
-      "main.tf": `{}`,
-      "some.tpl": `{{.Name}}`,
-      "some.sh": `echo "Hello world"`,
-    },
-  },
+	organizationName: MockTemplate.organization_name,
+	templateName: MockTemplate.name,
+	versionName: MockTemplateVersion.name,
+	currentVersion: MockTemplateVersion,
+	currentFiles: {
+		"README.md": readmeContent,
+		"main.tf": "{}",
+		"some.tpl": "{{.Name}}",
+		"some.sh": `echo "Hello world"`,
+	},
+	baseFiles: undefined,
+	error: undefined,
 };
 
 const meta: Meta<typeof TemplateVersionPageView> = {
-  title: "pages/TemplateVersionPageView",
-  component: TemplateVersionPageView,
-  args: defaultArgs,
+	title: "pages/TemplateVersionPage",
+	decorators: [withDashboardProvider],
+	component: TemplateVersionPageView,
+	args: defaultArgs,
 };
 
 export default meta;
@@ -57,15 +49,19 @@ type Story = StoryObj<typeof TemplateVersionPageView>;
 
 export const Default: Story = {};
 
-export const Error: Story = {
-  args: {
-    context: {
-      ...defaultArgs.context,
-      currentVersion: undefined,
-      currentFiles: undefined,
-      error: mockApiError({
-        message: "Error on loading the template version",
-      }),
-    },
-  },
+export const LongVersionMessage: Story = {
+	args: {
+		currentVersion: MockTemplateVersionWithMarkdownMessage,
+	},
+};
+
+export const WithError: Story = {
+	args: {
+		...defaultArgs,
+		currentVersion: undefined,
+		currentFiles: undefined,
+		error: mockApiError({
+			message: "Error on loading the template version",
+		}),
+	},
 };

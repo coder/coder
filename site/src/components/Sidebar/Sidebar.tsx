@@ -1,44 +1,115 @@
-import Box, { BoxProps } from "@mui/material/Box";
-import { styled } from "@mui/styles";
-import { colors } from "theme/colors";
+import { Stack } from "components/Stack/Stack";
+import type { ElementType, FC, ReactNode } from "react";
+import { Link, NavLink } from "react-router";
+import { cn } from "utils/cn";
 
-export const Sidebar = styled((props: BoxProps) => (
-  <Box {...props} component="nav" />
-))(({ theme }) => ({
-  width: theme.spacing(32),
-  flexShrink: 0,
-  borderRight: `1px solid ${theme.palette.divider}`,
-  height: "100%",
-  overflowY: "auto",
-}));
+interface SidebarProps {
+	children?: ReactNode;
+	className?: string;
+}
 
-export const SidebarItem = styled(
-  ({ active, ...props }: BoxProps & { active?: boolean }) => (
-    <Box component="button" {...props} />
-  ),
-)(({ theme, active }) => ({
-  background: active ? colors.gray[13] : "none",
-  border: "none",
-  fontSize: 14,
-  width: "100%",
-  textAlign: "left",
-  padding: theme.spacing(0, 3),
-  cursor: "pointer",
-  pointerEvents: active ? "none" : "auto",
-  color: active ? theme.palette.text.primary : theme.palette.text.secondary,
-  "&:hover": {
-    background: theme.palette.action.hover,
-    color: theme.palette.text.primary,
-  },
-  paddingTop: theme.spacing(1.25),
-  paddingBottom: theme.spacing(1.25),
-}));
+export const Sidebar: FC<SidebarProps> = ({ className, children }) => {
+	return <nav className={cn("w-60 flex-shrink-0", className)}>{children}</nav>;
+};
 
-export const SidebarCaption = styled(Box)(({ theme }) => ({
-  fontSize: 10,
-  textTransform: "uppercase",
-  fontWeight: 500,
-  color: theme.palette.text.secondary,
-  padding: theme.spacing(1.5, 3),
-  letterSpacing: "0.5px",
-}));
+interface SidebarHeaderProps {
+	avatar: ReactNode;
+	title: ReactNode;
+	subtitle: ReactNode;
+	linkTo?: string;
+}
+
+const titleStyles = {
+	normal:
+		"text-semibold overflow-hidden whitespace-nowrap text-content-primary",
+};
+
+export const SidebarHeader: FC<SidebarHeaderProps> = ({
+	avatar,
+	title,
+	subtitle,
+	linkTo,
+}) => {
+	return (
+		<Stack direction="row" spacing={1} className="mb-4">
+			{avatar}
+			<div
+				css={{
+					overflow: "hidden",
+					display: "flex",
+					flexDirection: "column",
+				}}
+			>
+				{linkTo ? (
+					<Link className={cn(titleStyles.normal, "no-underline")} to={linkTo}>
+						{title}
+					</Link>
+				) : (
+					<span className={titleStyles.normal}>{title}</span>
+				)}
+				<span className="text-content-secondary text-sm overflow-hidden overflow-ellipsis">
+					{subtitle}
+				</span>
+			</div>
+		</Stack>
+	);
+};
+
+interface SettingsSidebarNavItemProps {
+	children?: ReactNode;
+	href: string;
+	end?: boolean;
+}
+
+export const SettingsSidebarNavItem: FC<SettingsSidebarNavItemProps> = ({
+	children,
+	href,
+	end,
+}) => {
+	return (
+		<NavLink
+			end={end}
+			to={href}
+			className={({ isActive }) =>
+				cn(
+					"relative text-sm text-content-secondary no-underline font-medium py-2 px-3 hover:bg-surface-secondary rounded-md transition ease-in-out duration-150",
+					isActive && "font-semibold text-content-primary",
+				)
+			}
+		>
+			{children}
+		</NavLink>
+	);
+};
+
+interface SidebarNavItemProps {
+	children?: ReactNode;
+	icon: ElementType;
+	href: string;
+}
+
+export const SidebarNavItem: FC<SidebarNavItemProps> = ({
+	children,
+	href,
+	icon: Icon,
+}) => {
+	return (
+		<NavLink
+			end
+			to={href}
+			className={({ isActive }) =>
+				cn(
+					"block relative text-sm text-inherit mb-px p-3 pl-4 rounded-sm",
+					"transition-colors no-underline hover:bg-surface-secondary",
+					isActive &&
+						"bg-surface-secondary border-0 border-solid border-l-[3px] border-highlight-sky",
+				)
+			}
+		>
+			<Stack alignItems="center" spacing={1.5} direction="row">
+				<Icon className="size-4" />
+				{children}
+			</Stack>
+		</NavLink>
+	);
+};

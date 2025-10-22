@@ -1,89 +1,47 @@
-import Box from "@mui/material/Box"
-import { makeStyles } from "@mui/styles"
-import { ComponentProps, FC, PropsWithChildren } from "react"
-import { combineClasses } from "utils/combineClasses"
+import type { FC, HTMLAttributes, ReactNode } from "react";
+import { cn } from "utils/cn";
 
-export const Stats: FC<ComponentProps<typeof Box>> = (props) => {
-  const styles = useStyles()
-  return (
-    <Box
-      {...props}
-      className={combineClasses([styles.stats, props.className])}
-    />
-  )
+export const Stats: FC<HTMLAttributes<HTMLDivElement>> = ({
+	children,
+	className,
+	...attrs
+}) => {
+	return (
+		<div
+			className={cn(
+				"p-4 rounded-[8px] block flex-wrap items-center m-0 text-content-secondary border border-solid border-border text-sm leading-relaxed font-normal md:py-0 md:flex",
+				className,
+			)}
+			{...attrs}
+		>
+			{children}
+		</div>
+	);
+};
+
+interface StatsItemProps extends HTMLAttributes<HTMLDivElement> {
+	label: string;
+	value: ReactNode;
 }
 
-export const StatsItem: FC<
-  {
-    label: string
-    value: string | number | JSX.Element
-  } & ComponentProps<typeof Box>
-> = ({ label, value, ...divProps }) => {
-  const styles = useStyles()
-
-  return (
-    <Box
-      {...divProps}
-      className={combineClasses([styles.statItem, divProps.className])}
-    >
-      <span className={styles.statsLabel}>{label}:</span>
-      <span className={styles.statsValue}>{value}</span>
-    </Box>
-  )
-}
-
-const useStyles = makeStyles((theme) => ({
-  stats: {
-    ...theme.typography.body2,
-    paddingLeft: theme.spacing(2),
-    paddingRight: theme.spacing(2),
-    borderRadius: theme.shape.borderRadius,
-    border: `1px solid ${theme.palette.divider}`,
-    display: "flex",
-    alignItems: "center",
-    color: theme.palette.text.secondary,
-    margin: "0px",
-    flexWrap: "wrap",
-
-    [theme.breakpoints.down("md")]: {
-      display: "block",
-      padding: theme.spacing(2),
-    },
-  },
-
-  statItem: {
-    padding: theme.spacing(1.75),
-    paddingLeft: theme.spacing(2),
-    paddingRight: theme.spacing(2),
-    display: "flex",
-    alignItems: "baseline",
-    gap: theme.spacing(1),
-
-    [theme.breakpoints.down("md")]: {
-      padding: theme.spacing(1),
-    },
-  },
-
-  statsLabel: {
-    display: "block",
-    wordWrap: "break-word",
-  },
-
-  statsValue: {
-    marginTop: theme.spacing(0.25),
-    display: "flex",
-    wordWrap: "break-word",
-    color: theme.palette.text.primary,
-    alignItems: "center",
-
-    "& a": {
-      color: theme.palette.text.primary,
-      textDecoration: "none",
-      fontWeight: 600,
-
-      "&:hover": {
-        textDecoration: "underline",
-      },
-    },
-  },
-}))
+export const StatsItem: FC<StatsItemProps> = ({
+	label,
+	value,
+	className,
+	...attrs
+}) => {
+	return (
+		<div
+			className={cn(
+				"text-sm p-2 flex items-baseline gap-2 md:py-3.5 md:px-4",
+				className,
+			)}
+			{...attrs}
+		>
+			<span className="block break-words">{label}:</span>
+			<span className="flex items-center break-words text-content-primary [&_a]:text-content-primary [&_a]:no-underline [&_a]:font-semibold [&_a:hover]:no-underline">
+				{value}
+			</span>
+		</div>
+	);
+};

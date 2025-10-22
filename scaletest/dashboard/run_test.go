@@ -3,14 +3,17 @@ package dashboard_test
 import (
 	"context"
 	"math/rand"
+	"net/url"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/scaletest/dashboard"
@@ -46,18 +49,34 @@ func Test_Run(t *testing.T) {
 		IgnoreErrors: true,
 	})
 	m := &testMetrics{}
+	var (
+		waitLoadedCalled atomic.Bool
+		screenshotCalled atomic.Bool
+	)
+	cancelDone := make(chan struct{})
 	cfg := dashboard.Config{
 		Interval: 500 * time.Millisecond,
 		Jitter:   100 * time.Millisecond,
 		Logger:   log,
 		Headless: true,
-		ActionFunc: func(_ context.Context, rnd func(int) int) (dashboard.Label, dashboard.Action, error) {
+		WaitLoaded: func(_ context.Context, _ time.Time) error {
+			waitLoadedCalled.Store(true)
+			return nil
+		},
+		ActionFunc: func(_ context.Context, _ slog.Logger, rnd func(int) int, _ time.Time) (dashboard.Label, dashboard.Action, error) {
 			if rnd(2) == 0 {
 				return "fails", failAction, nil
 			}
 			return "succeeds", successAction, nil
 		},
+		Screenshot: func(_ context.Context, name string) (string, error) {
+			screenshotCalled.Store(true)
+			return "/fake/path/to/" + name + ".png", nil
+		},
 		RandIntn: rg.Intn,
+		InitChromeDPCtx: func(ctx context.Context, _ slog.Logger, _ *url.URL, _ string, _ bool) (context.Context, context.CancelFunc, error) {
+			return ctx, func() { close(cancelDone) }, nil
+		},
 	}
 	r := dashboard.NewRunner(client, m, cfg)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -70,6 +89,8 @@ func Test_Run(t *testing.T) {
 	err, ok := <-done
 	assert.True(t, ok)
 	require.NoError(t, err)
+	_, ok = <-cancelDone
+	require.False(t, ok, "cancel should have been called")
 
 	for _, dur := range m.ObservedDurations["succeeds"] {
 		assert.NotZero(t, dur)

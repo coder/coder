@@ -1,0 +1,128 @@
+{{/* This template is used by application handlers to render allowing oauth2
+links */}}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Application {{.AppName}}</title>
+    <style>
+      * {
+        padding: 0;
+        margin: 0;
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        background-color: #05060b;
+        color: #f7f9fd;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: sans-serif;
+        font-size: 16px;
+        height: 100%;
+      }
+
+      .container {
+        --side-padding: 24px;
+        width: 100%;
+        max-width: calc(320px + var(--side-padding) * 2);
+        padding: 0 var(--side-padding);
+        text-align: center;
+      }
+
+      .icons-container {
+        align-items: center;
+        display: flex;
+        justify-content: center;
+        margin-bottom: 24px;
+      }
+
+      .coder-svg,
+      .app-icon {
+        width: 80px;
+      }
+
+      .connect-symbol {
+        font-size: 40px;
+        font-weight: bold;
+        margin: 0 10px;
+      }
+
+      h1 {
+        font-weight: 700;
+        font-size: 36px;
+        margin-bottom: 8px;
+      }
+
+      p,
+      li {
+        color: #b2bfd7;
+        line-height: 140%;
+      }
+
+      .user-name {
+        font-weight: bold;
+      }
+
+      .button-group {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        margin-top: 24px;
+      }
+
+      .button-group a,
+      .button-group button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 6px 16px;
+        border-radius: 4px;
+        border: 1px solid #2c3854;
+        text-decoration: none;
+        background: none;
+        font-size: inherit;
+        color: inherit;
+        width: 200px;
+        height: 42px;
+        cursor: pointer;
+      }
+
+      .button-group a:hover,
+      .button-group button:hover {
+        border-color: hsl(222, 31%, 40%);
+      }
+
+      .button-group .primary-button {
+        background-color: #2c3854;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="icons-container">
+        {{- if .AppIcon }}
+        <img class="app-icon" src="{{ .AppIcon }}" />
+        <div class="connect-symbol">+</div>
+        {{end}}
+        <img class="coder-svg" src="/icon/coder.svg" alt="Coder" />
+      </div>
+      <h1>Authorize {{ .AppName }}</h1>
+      <p>
+        Allow {{ .AppName }} to have full access to your
+        <span class="user-name">{{ .Username }}</span> account?
+      </p>
+      <div class="button-group">
+        <form method="POST" style="display: inline;">
+          <button type="submit" class="primary-button">Allow</button>
+        </form>
+        <a href="{{ .CancelURI }}">Cancel</a>
+      </div>
+    </div>
+  </body>
+</html>

@@ -1,13 +1,27 @@
-import * as API from "api/api";
+import { API } from "api/api";
 
-const getWorkspaceQuotaQueryKey = (username: string) => [
-  username,
-  "workspaceQuota",
+export const getWorkspaceQuotaQueryKey = (
+	organizationName: string,
+	username: string,
+) => {
+	return ["workspaceQuota", organizationName, username];
+};
+
+export const workspaceQuota = (organizationName: string, username: string) => {
+	return {
+		queryKey: getWorkspaceQuotaQueryKey(organizationName, username),
+		queryFn: () => API.getWorkspaceQuota(organizationName, username),
+	};
+};
+
+export const getWorkspaceResolveAutostartQueryKey = (workspaceId: string) => [
+	workspaceId,
+	"workspaceResolveAutostart",
 ];
 
-export const workspaceQuota = (username: string) => {
-  return {
-    queryKey: getWorkspaceQuotaQueryKey(username),
-    queryFn: () => API.getWorkspaceQuota(username),
-  };
+export const workspaceResolveAutostart = (workspaceId: string) => {
+	return {
+		queryKey: getWorkspaceResolveAutostartQueryKey(workspaceId),
+		queryFn: () => API.getWorkspaceResolveAutostart(workspaceId),
+	};
 };

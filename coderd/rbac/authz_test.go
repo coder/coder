@@ -7,10 +7,13 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/testutil"
 )
 
 type benchmarkCase struct {
@@ -38,7 +41,7 @@ func benchmarkUserCases() (cases []benchmarkCase, users uuid.UUID, orgs []uuid.U
 			Name: "NoRoles",
 			Actor: rbac.Subject{
 				ID:    user.String(),
-				Roles: rbac.RoleNames{},
+				Roles: rbac.RoleIdentifiers{},
 				Scope: rbac.ScopeAll,
 			},
 		},
@@ -46,7 +49,7 @@ func benchmarkUserCases() (cases []benchmarkCase, users uuid.UUID, orgs []uuid.U
 			Name: "Admin",
 			Actor: rbac.Subject{
 				// Give some extra roles that an admin might have
-				Roles:  rbac.RoleNames{rbac.RoleOrgMember(orgs[0]), "auditor", rbac.RoleOwner(), rbac.RoleMember()},
+				Roles:  rbac.RoleIdentifiers{rbac.ScopedRoleOrgMember(orgs[0]), rbac.RoleAuditor(), rbac.RoleOwner(), rbac.RoleMember()},
 				ID:     user.String(),
 				Scope:  rbac.ScopeAll,
 				Groups: noiseGroups,
@@ -55,7 +58,7 @@ func benchmarkUserCases() (cases []benchmarkCase, users uuid.UUID, orgs []uuid.U
 		{
 			Name: "OrgAdmin",
 			Actor: rbac.Subject{
-				Roles:  rbac.RoleNames{rbac.RoleOrgMember(orgs[0]), rbac.RoleOrgAdmin(orgs[0]), rbac.RoleMember()},
+				Roles:  rbac.RoleIdentifiers{rbac.ScopedRoleOrgMember(orgs[0]), rbac.ScopedRoleOrgAdmin(orgs[0]), rbac.RoleMember()},
 				ID:     user.String(),
 				Scope:  rbac.ScopeAll,
 				Groups: noiseGroups,
@@ -65,7 +68,7 @@ func benchmarkUserCases() (cases []benchmarkCase, users uuid.UUID, orgs []uuid.U
 			Name: "OrgMember",
 			Actor: rbac.Subject{
 				// Member of 2 orgs
-				Roles:  rbac.RoleNames{rbac.RoleOrgMember(orgs[0]), rbac.RoleOrgMember(orgs[1]), rbac.RoleMember()},
+				Roles:  rbac.RoleIdentifiers{rbac.ScopedRoleOrgMember(orgs[0]), rbac.ScopedRoleOrgMember(orgs[1]), rbac.RoleMember()},
 				ID:     user.String(),
 				Scope:  rbac.ScopeAll,
 				Groups: noiseGroups,
@@ -75,10 +78,10 @@ func benchmarkUserCases() (cases []benchmarkCase, users uuid.UUID, orgs []uuid.U
 			Name: "ManyRoles",
 			Actor: rbac.Subject{
 				// Admin of many orgs
-				Roles: rbac.RoleNames{
-					rbac.RoleOrgMember(orgs[0]), rbac.RoleOrgAdmin(orgs[0]),
-					rbac.RoleOrgMember(orgs[1]), rbac.RoleOrgAdmin(orgs[1]),
-					rbac.RoleOrgMember(orgs[2]), rbac.RoleOrgAdmin(orgs[2]),
+				Roles: rbac.RoleIdentifiers{
+					rbac.ScopedRoleOrgMember(orgs[0]), rbac.ScopedRoleOrgAdmin(orgs[0]),
+					rbac.ScopedRoleOrgMember(orgs[1]), rbac.ScopedRoleOrgAdmin(orgs[1]),
+					rbac.ScopedRoleOrgMember(orgs[2]), rbac.ScopedRoleOrgAdmin(orgs[2]),
 					rbac.RoleMember(),
 				},
 				ID:     user.String(),
@@ -90,10 +93,10 @@ func benchmarkUserCases() (cases []benchmarkCase, users uuid.UUID, orgs []uuid.U
 			Name: "ManyRolesCachedSubject",
 			Actor: rbac.Subject{
 				// Admin of many orgs
-				Roles: rbac.RoleNames{
-					rbac.RoleOrgMember(orgs[0]), rbac.RoleOrgAdmin(orgs[0]),
-					rbac.RoleOrgMember(orgs[1]), rbac.RoleOrgAdmin(orgs[1]),
-					rbac.RoleOrgMember(orgs[2]), rbac.RoleOrgAdmin(orgs[2]),
+				Roles: rbac.RoleIdentifiers{
+					rbac.ScopedRoleOrgMember(orgs[0]), rbac.ScopedRoleOrgAdmin(orgs[0]),
+					rbac.ScopedRoleOrgMember(orgs[1]), rbac.ScopedRoleOrgAdmin(orgs[1]),
+					rbac.ScopedRoleOrgMember(orgs[2]), rbac.ScopedRoleOrgAdmin(orgs[2]),
 					rbac.RoleMember(),
 				},
 				ID:     user.String(),
@@ -105,7 +108,7 @@ func benchmarkUserCases() (cases []benchmarkCase, users uuid.UUID, orgs []uuid.U
 			Name: "AdminWithScope",
 			Actor: rbac.Subject{
 				// Give some extra roles that an admin might have
-				Roles:  rbac.RoleNames{rbac.RoleOrgMember(orgs[0]), "auditor", rbac.RoleOwner(), rbac.RoleMember()},
+				Roles:  rbac.RoleIdentifiers{rbac.ScopedRoleOrgMember(orgs[0]), rbac.RoleAuditor(), rbac.RoleOwner(), rbac.RoleMember()},
 				ID:     user.String(),
 				Scope:  rbac.ScopeApplicationConnect,
 				Groups: noiseGroups,
@@ -116,8 +119,8 @@ func benchmarkUserCases() (cases []benchmarkCase, users uuid.UUID, orgs []uuid.U
 			Name: "StaticRoles",
 			Actor: rbac.Subject{
 				// Give some extra roles that an admin might have
-				Roles: rbac.RoleNames{
-					"auditor", rbac.RoleOwner(), rbac.RoleMember(),
+				Roles: rbac.RoleIdentifiers{
+					rbac.RoleAuditor(), rbac.RoleOwner(), rbac.RoleMember(),
 					rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin(),
 				},
 				ID:     user.String(),
@@ -130,8 +133,8 @@ func benchmarkUserCases() (cases []benchmarkCase, users uuid.UUID, orgs []uuid.U
 			Name: "StaticRolesWithCache",
 			Actor: rbac.Subject{
 				// Give some extra roles that an admin might have
-				Roles: rbac.RoleNames{
-					"auditor", rbac.RoleOwner(), rbac.RoleMember(),
+				Roles: rbac.RoleIdentifiers{
+					rbac.RoleAuditor(), rbac.RoleOwner(), rbac.RoleMember(),
 					rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin(),
 				},
 				ID:     user.String(),
@@ -145,7 +148,7 @@ func benchmarkUserCases() (cases []benchmarkCase, users uuid.UUID, orgs []uuid.U
 
 // BenchmarkRBACAuthorize benchmarks the rbac.Authorize method.
 //
-//	go test -run=^$ -bench BenchmarkRBACAuthorize -benchmem -memprofile memprofile.out -cpuprofile profile.out
+//	go test -run=^$ -bench '^BenchmarkRBACAuthorize$' -benchmem -memprofile memprofile.out -cpuprofile profile.out
 func BenchmarkRBACAuthorize(b *testing.B) {
 	benchCases, user, orgs := benchmarkUserCases()
 	users := append([]uuid.UUID{},
@@ -157,7 +160,7 @@ func BenchmarkRBACAuthorize(b *testing.B) {
 
 	// There is no caching that occurs because a fresh context is used for each
 	// call. And the context needs 'WithCacheCtx' to work.
-	authorizer := rbac.NewCachingAuthorizer(prometheus.NewRegistry())
+	authorizer := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
 	// This benchmarks all the simple cases using just user permissions. Groups
 	// are added as noise, but do not do anything.
 	for _, c := range benchCases {
@@ -165,7 +168,7 @@ func BenchmarkRBACAuthorize(b *testing.B) {
 			objects := benchmarkSetup(orgs, users, b.N)
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				allowed := authorizer.Authorize(context.Background(), c.Actor, rbac.ActionRead, objects[b.N%len(objects)])
+				allowed := authorizer.Authorize(context.Background(), c.Actor, policy.ActionRead, objects[b.N%len(objects)])
 				_ = allowed
 			}
 		})
@@ -175,7 +178,7 @@ func BenchmarkRBACAuthorize(b *testing.B) {
 // BenchmarkRBACAuthorizeGroups benchmarks the rbac.Authorize method and leverages
 // groups for authorizing rather than the permissions/roles.
 //
-//	go test -bench BenchmarkRBACAuthorizeGroups -benchmem -memprofile memprofile.out -cpuprofile profile.out
+//	go test -bench '^BenchmarkRBACAuthorizeGroups$' -benchmem -memprofile memprofile.out -cpuprofile profile.out
 func BenchmarkRBACAuthorizeGroups(b *testing.B) {
 	benchCases, user, orgs := benchmarkUserCases()
 	users := append([]uuid.UUID{},
@@ -184,35 +187,35 @@ func BenchmarkRBACAuthorizeGroups(b *testing.B) {
 		uuid.MustParse("0632b012-49e0-4d70-a5b3-f4398f1dcd52"),
 		uuid.MustParse("70dbaa7a-ea9c-4f68-a781-97b08af8461d"),
 	)
-	authorizer := rbac.NewCachingAuthorizer(prometheus.NewRegistry())
+	authorizer := rbac.NewAuthorizer(prometheus.NewRegistry())
 
 	// Same benchmark cases, but this time groups will be used to match.
 	// Some '*' permissions will still match, but using a fake action reduces
 	// the chance.
-	neverMatchAction := rbac.Action("never-match-action")
+	neverMatchAction := policy.Action("never-match-action")
 	for _, c := range benchCases {
 		b.Run(c.Name+"GroupACL", func(b *testing.B) {
 			userGroupAllow := uuid.NewString()
 			c.Actor.Groups = append(c.Actor.Groups, userGroupAllow)
 			c.Actor.Scope = rbac.ScopeAll
 			objects := benchmarkSetup(orgs, users, b.N, func(object rbac.Object) rbac.Object {
-				m := map[string][]rbac.Action{
+				m := map[string][]policy.Action{
 					// Add the user's group
 					// Noise
-					uuid.NewString(): {rbac.ActionCreate, rbac.ActionRead, rbac.ActionUpdate, rbac.ActionDelete},
-					uuid.NewString(): {rbac.ActionCreate, rbac.ActionRead, rbac.ActionUpdate},
-					uuid.NewString(): {rbac.ActionCreate, rbac.ActionRead},
-					uuid.NewString(): {rbac.ActionCreate},
-					uuid.NewString(): {rbac.ActionRead, rbac.ActionUpdate, rbac.ActionDelete},
-					uuid.NewString(): {rbac.ActionRead, rbac.ActionUpdate},
+					uuid.NewString(): {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					uuid.NewString(): {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
+					uuid.NewString(): {policy.ActionCreate, policy.ActionRead},
+					uuid.NewString(): {policy.ActionCreate},
+					uuid.NewString(): {policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					uuid.NewString(): {policy.ActionRead, policy.ActionUpdate},
 				}
 				for _, g := range c.Actor.Groups {
 					// Every group the user is in will be added, but it will not match the perms. This makes the
 					// authorizer look at many groups before finding the one that matches.
-					m[g] = []rbac.Action{rbac.ActionCreate, rbac.ActionRead, rbac.ActionUpdate, rbac.ActionDelete}
+					m[g] = []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete}
 				}
 				// This is the only group that will give permission.
-				m[userGroupAllow] = []rbac.Action{neverMatchAction}
+				m[userGroupAllow] = []policy.Action{neverMatchAction}
 				return object.WithGroupACL(m)
 			})
 			b.ResetTimer()
@@ -226,7 +229,7 @@ func BenchmarkRBACAuthorizeGroups(b *testing.B) {
 
 // BenchmarkRBACFilter benchmarks the rbac.Filter method.
 //
-//	go test -bench BenchmarkRBACFilter -benchmem -memprofile memprofile.out -cpuprofile profile.out
+//	go test -bench '^BenchmarkRBACFilter$' -benchmem -memprofile memprofile.out -cpuprofile profile.out
 func BenchmarkRBACFilter(b *testing.B) {
 	benchCases, user, orgs := benchmarkUserCases()
 	users := append([]uuid.UUID{},
@@ -236,13 +239,13 @@ func BenchmarkRBACFilter(b *testing.B) {
 		uuid.MustParse("70dbaa7a-ea9c-4f68-a781-97b08af8461d"),
 	)
 
-	authorizer := rbac.NewCachingAuthorizer(prometheus.NewRegistry())
+	authorizer := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
 
 	for _, c := range benchCases {
 		b.Run("PrepareOnly-"+c.Name, func(b *testing.B) {
 			obType := rbac.ResourceWorkspace.Type
 			for i := 0; i < b.N; i++ {
-				_, err := authorizer.Prepare(context.Background(), c.Actor, rbac.ActionRead, obType)
+				_, err := authorizer.Prepare(context.Background(), c.Actor, policy.ActionRead, obType)
 				require.NoError(b, err)
 			}
 		})
@@ -252,7 +255,7 @@ func BenchmarkRBACFilter(b *testing.B) {
 		b.Run(c.Name, func(b *testing.B) {
 			objects := benchmarkSetup(orgs, users, b.N)
 			b.ResetTimer()
-			allowed, err := rbac.Filter(context.Background(), authorizer, c.Actor, rbac.ActionRead, objects)
+			allowed, err := rbac.Filter(context.Background(), authorizer, c.Actor, policy.ActionRead, objects)
 			require.NoError(b, err)
 			_ = allowed
 		})
@@ -261,9 +264,9 @@ func BenchmarkRBACFilter(b *testing.B) {
 
 func benchmarkSetup(orgs []uuid.UUID, users []uuid.UUID, size int, opts ...func(object rbac.Object) rbac.Object) []rbac.Object {
 	// Create a "random" but deterministic set of objects.
-	aclList := map[string][]rbac.Action{
-		uuid.NewString(): {rbac.ActionRead, rbac.ActionUpdate},
-		uuid.NewString(): {rbac.ActionCreate},
+	aclList := map[string][]policy.Action{
+		uuid.NewString(): {policy.ActionRead, policy.ActionUpdate},
+		uuid.NewString(): {policy.ActionCreate},
 	}
 	objectList := make([]rbac.Object, size)
 	for i := range objectList {
@@ -285,7 +288,7 @@ func benchmarkSetup(orgs []uuid.UUID, users []uuid.UUID, size int, opts ...func(
 // BenchmarkCacher benchmarks the performance of the cacher.
 func BenchmarkCacher(b *testing.B) {
 	ctx := context.Background()
-	authz := rbac.Cacher(&coderdtest.FakeAuthorizer{AlwaysReturn: nil})
+	authz := rbac.Cacher(&coderdtest.FakeAuthorizer{})
 
 	rats := []int{1, 10, 100}
 
@@ -295,7 +298,7 @@ func BenchmarkCacher(b *testing.B) {
 			var (
 				subj   rbac.Subject
 				obj    rbac.Object
-				action rbac.Action
+				action policy.Action
 			)
 			for i := 0; i < b.N; i++ {
 				if i%rat == 0 {
@@ -311,7 +314,7 @@ func BenchmarkCacher(b *testing.B) {
 	}
 }
 
-func TestCacher(t *testing.T) {
+func TestCache(t *testing.T) {
 	t.Parallel()
 
 	t.Run("NoCache", func(t *testing.T) {
@@ -319,7 +322,7 @@ func TestCacher(t *testing.T) {
 
 		ctx := context.Background()
 		rec := &coderdtest.RecordingAuthorizer{
-			Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: nil},
+			Wrapped: &coderdtest.FakeAuthorizer{},
 		}
 		subj, obj, action := coderdtest.RandomRBACSubject(), coderdtest.RandomRBACObject(), coderdtest.RandomRBACAction()
 
@@ -337,7 +340,7 @@ func TestCacher(t *testing.T) {
 
 		ctx := context.Background()
 		rec := &coderdtest.RecordingAuthorizer{
-			Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: nil},
+			Wrapped: &coderdtest.FakeAuthorizer{},
 		}
 		authz := rbac.Cacher(rec)
 		subj, obj, action := coderdtest.RandomRBACSubject(), coderdtest.RandomRBACObject(), coderdtest.RandomRBACAction()
@@ -351,12 +354,53 @@ func TestCacher(t *testing.T) {
 		require.NoError(t, rec.AllAsserted(), "all assertions should have been made")
 	})
 
+	t.Run("DontCacheTransientErrors", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx           = testutil.Context(t, testutil.WaitShort)
+			authOut       = make(chan error, 1) // buffered to not block
+			authorizeFunc = func(ctx context.Context, subject rbac.Subject, action policy.Action, object rbac.Object) error {
+				// Just return what you're told.
+				return testutil.TryReceive(ctx, t, authOut)
+			}
+			ma                = &rbac.MockAuthorizer{AuthorizeFunc: authorizeFunc}
+			rec               = &coderdtest.RecordingAuthorizer{Wrapped: ma}
+			authz             = rbac.Cacher(rec)
+			subj, obj, action = coderdtest.RandomRBACSubject(), coderdtest.RandomRBACObject(), coderdtest.RandomRBACAction()
+		)
+
+		// First call will result in a transient error. This should not be cached.
+		testutil.RequireSend(ctx, t, authOut, context.Canceled)
+		err := authz.Authorize(ctx, subj, action, obj)
+		assert.ErrorIs(t, err, context.Canceled)
+
+		// A subsequent call should still hit the authorizer.
+		testutil.RequireSend(ctx, t, authOut, nil)
+		err = authz.Authorize(ctx, subj, action, obj)
+		assert.NoError(t, err)
+		// This should be cached and not hit the wrapped authorizer again.
+		err = authz.Authorize(ctx, subj, action, obj)
+		assert.NoError(t, err)
+
+		// Let's change the subject.
+		subj, obj, action = coderdtest.RandomRBACSubject(), coderdtest.RandomRBACObject(), coderdtest.RandomRBACAction()
+
+		// A third will be a legit error
+		testutil.RequireSend(ctx, t, authOut, assert.AnError)
+		err = authz.Authorize(ctx, subj, action, obj)
+		assert.EqualError(t, err, assert.AnError.Error())
+		// This should be cached and not hit the wrapped authorizer again.
+		err = authz.Authorize(ctx, subj, action, obj)
+		assert.EqualError(t, err, assert.AnError.Error())
+	})
+
 	t.Run("MultipleSubjects", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := context.Background()
 		rec := &coderdtest.RecordingAuthorizer{
-			Wrapped: &coderdtest.FakeAuthorizer{AlwaysReturn: nil},
+			Wrapped: &coderdtest.FakeAuthorizer{},
 		}
 		authz := rbac.Cacher(rec)
 		subj1, obj1, action1 := coderdtest.RandomRBACSubject(), coderdtest.RandomRBACObject(), coderdtest.RandomRBACAction()

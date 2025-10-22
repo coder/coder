@@ -1,114 +1,112 @@
-import { type FC, type ReactNode, useMemo, forwardRef } from "react";
-import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
-import { colors } from "theme/colors";
+import type { Interpolation, Theme } from "@emotion/react";
+import CircularProgress, {
+	type CircularProgressProps,
+} from "@mui/material/CircularProgress";
+import {
+	type FC,
+	forwardRef,
+	type HTMLAttributes,
+	type ReactNode,
+	useMemo,
+} from "react";
+import type { ThemeRole } from "theme/roles";
 
-export type PillType =
-  | "primary"
-  | "secondary"
-  | "error"
-  | "warning"
-  | "info"
-  | "success"
-  | "neutral";
+type PillProps = HTMLAttributes<HTMLDivElement> & {
+	icon?: ReactNode;
+	type?: ThemeRole;
+	size?: "md" | "lg";
+};
 
-export interface PillProps {
-  className?: string;
-  icon?: ReactNode;
-  text: ReactNode;
-  type?: PillType;
-  lightBorder?: boolean;
-  title?: string;
-}
+const themeStyles = (type: ThemeRole) => (theme: Theme) => {
+	const palette = theme.roles[type];
+	return {
+		backgroundColor: palette.background,
+		borderColor: palette.outline,
+	};
+};
 
-const themeOverrides = {
-  primary: (lightBorder) => ({
-    backgroundColor: colors.blue[13],
-    borderColor: lightBorder ? colors.blue[5] : colors.blue[7],
-  }),
-  secondary: (lightBorder) => ({
-    backgroundColor: colors.indigo[13],
-    borderColor: lightBorder ? colors.indigo[6] : colors.indigo[8],
-  }),
-  neutral: (lightBorder) => ({
-    backgroundColor: colors.gray[13],
-    borderColor: lightBorder ? colors.gray[6] : colors.gray[8],
-  }),
-} satisfies Record<string, (lightBorder?: boolean) => Interpolation<Theme>>;
-
-const themeStyles =
-  (type: PillType, lightBorder?: boolean) => (theme: Theme) => {
-    const palette = theme.palette[type];
-    return {
-      backgroundColor: palette.dark,
-      borderColor: lightBorder ? palette.light : palette.main,
-    };
-  };
+const PILL_HEIGHT = 24;
+const PILL_ICON_SIZE = 14;
+const PILL_ICON_SPACING = (PILL_HEIGHT - PILL_ICON_SIZE) / 2;
 
 export const Pill: FC<PillProps> = forwardRef<HTMLDivElement, PillProps>(
-  (props, ref) => {
-    const {
-      lightBorder,
-      icon,
-      text = null,
-      type = "neutral",
-      ...attrs
-    } = props;
-    const theme = useTheme();
+	(props, ref) => {
+		const {
+			icon,
+			type = "inactive",
+			children,
+			size = "md",
+			...divProps
+		} = props;
+		const typeStyles = useMemo(() => themeStyles(type), [type]);
 
-    const typeStyles = useMemo(() => {
-      if (type in themeOverrides) {
-        return themeOverrides[type as keyof typeof themeOverrides](lightBorder);
-      }
-      return themeStyles(type, lightBorder);
-    }, [type, lightBorder]);
-
-    return (
-      <div
-        ref={ref}
-        css={[
-          {
-            cursor: "default",
-            display: "inline-flex",
-            alignItems: "center",
-            borderWidth: 1,
-            borderStyle: "solid",
-            borderRadius: 99999,
-            fontSize: 12,
-            color: "#FFF",
-            height: theme.spacing(3),
-            paddingLeft: icon ? theme.spacing(0.75) : theme.spacing(1.5),
-            paddingRight: theme.spacing(1.5),
-            whiteSpace: "nowrap",
-            fontWeight: 400,
-          },
-          typeStyles,
-        ]}
-        role="status"
-        {...attrs}
-      >
-        {icon && (
-          <div
-            css={css`
-              margin-right: ${theme.spacing(0.5)};
-              width: ${theme.spacing(1.75)};
-              height: ${theme.spacing(1.75)};
-              line-height: 0;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-
-              & > img,
-              & > svg {
-                width: ${theme.spacing(1.75)};
-                height: ${theme.spacing(1.75)};
-              }
-            `}
-          >
-            {icon}
-          </div>
-        )}
-        {text}
-      </div>
-    );
-  },
+		return (
+			<div
+				ref={ref}
+				css={[
+					styles.pill,
+					Boolean(icon) && size === "md" && styles.pillWithIcon,
+					size === "lg" && styles.pillLg,
+					Boolean(icon) && size === "lg" && styles.pillLgWithIcon,
+					typeStyles,
+				]}
+				{...divProps}
+			>
+				{icon}
+				{children}
+			</div>
+		);
+	},
 );
+
+export const PillSpinner: FC<CircularProgressProps> = (props) => {
+	return (
+		<CircularProgress size={PILL_ICON_SIZE} css={styles.spinner} {...props} />
+	);
+};
+
+const styles = {
+	pill: (theme) => ({
+		fontSize: 12,
+		color: theme.experimental.l1.text,
+		cursor: "default",
+		display: "inline-flex",
+		alignItems: "center",
+		whiteSpace: "nowrap",
+		fontWeight: 400,
+		borderWidth: 1,
+		borderStyle: "solid",
+		borderRadius: 99999,
+		lineHeight: 1,
+		height: PILL_HEIGHT,
+		gap: PILL_ICON_SPACING,
+		paddingLeft: 12,
+		paddingRight: 12,
+
+		"& svg": {
+			width: PILL_ICON_SIZE,
+			height: PILL_ICON_SIZE,
+		},
+	}),
+
+	pillWithIcon: {
+		paddingLeft: PILL_ICON_SPACING,
+	},
+
+	pillLg: {
+		gap: PILL_ICON_SPACING * 2,
+		padding: "14px 16px",
+	},
+
+	pillLgWithIcon: {
+		paddingLeft: PILL_ICON_SPACING * 2,
+	},
+
+	spinner: (theme) => ({
+		color: theme.experimental.l1.text,
+		// It is necessary to align it with the MUI Icons internal padding
+		"& svg": {
+			transform: "scale(.75)",
+		},
+	}),
+} satisfies Record<string, Interpolation<Theme>>;

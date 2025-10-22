@@ -1,0 +1,624 @@
+package appurl_test
+
+import (
+	"fmt"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+)
+
+func TestApplicationURLString(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		Name     string
+		URL      appurl.ApplicationURL
+		Expected string
+	}{
+		{
+			Name:     "Empty",
+			URL:      appurl.ApplicationURL{},
+			Expected: "----",
+		},
+		{
+			Name: "AppName",
+			URL: appurl.ApplicationURL{
+				AppSlugOrPort: "app",
+				AgentName:     "agent",
+				WorkspaceName: "workspace",
+				Username:      "user",
+			},
+			Expected: "app--agent--workspace--user",
+		},
+		{
+			Name: "Port",
+			URL: appurl.ApplicationURL{
+				AppSlugOrPort: "8080",
+				AgentName:     "agent",
+				WorkspaceName: "workspace",
+				Username:      "user",
+			},
+			Expected: "8080--agent--workspace--user",
+		},
+		{
+			Name: "Prefix",
+			URL: appurl.ApplicationURL{
+				Prefix:        "yolo---",
+				AppSlugOrPort: "app",
+				AgentName:     "agent",
+				WorkspaceName: "workspace",
+				Username:      "user",
+			},
+			Expected: "yolo---app--agent--workspace--user",
+		},
+		{
+			Name: "5DigitAppSlug",
+			URL: appurl.ApplicationURL{
+				AppSlugOrPort: "30000",
+				AgentName:     "",
+				WorkspaceName: "workspace",
+				Username:      "user",
+			},
+			Expected: "30000--workspace--user",
+		},
+		{
+			Name: "4DigitPort",
+			URL: appurl.ApplicationURL{
+				AppSlugOrPort: "1234",
+				AgentName:     "agent",
+				WorkspaceName: "workspace",
+				Username:      "user",
+			},
+			Expected: "1234--agent--workspace--user",
+		},
+		{
+			Name: "3DigitPort",
+			URL: appurl.ApplicationURL{
+				AppSlugOrPort: "123",
+				AgentName:     "",
+				WorkspaceName: "workspace",
+				Username:      "user",
+			},
+			Expected: "123--workspace--user",
+		},
+		{
+			Name: "LegacyAppSlug_WithAgent_StillWorks",
+			URL: appurl.ApplicationURL{
+				AppSlugOrPort: "myapp",
+				AgentName:     "agent",
+				WorkspaceName: "workspace",
+				Username:      "user",
+			},
+			Expected: "myapp--agent--workspace--user",
+		},
+		{
+			Name: "AppSlug_WithNumbers",
+			URL: appurl.ApplicationURL{
+				AppSlugOrPort: "app123",
+				AgentName:     "",
+				WorkspaceName: "workspace",
+				Username:      "user",
+			},
+			Expected: "app123--workspace--user",
+		},
+		{
+			Name: "NumbersWithLetters",
+			URL: appurl.ApplicationURL{
+				AppSlugOrPort: "8080abc",
+				AgentName:     "",
+				WorkspaceName: "workspace",
+				Username:      "user",
+			},
+			Expected: "8080abc--workspace--user",
+		},
+	}
+
+	for _, c := range testCases {
+		t.Run(c.Name, func(t *testing.T) {
+			t.Parallel()
+
+			require.Equal(t, c.Expected, c.URL.String())
+		})
+	}
+}
+
+func TestParseSubdomainAppURL(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		Name          string
+		Subdomain     string
+		Expected      appurl.ApplicationURL
+		ExpectedError string
+	}{
+		{
+			Name:          "Invalid_Empty",
+			Subdomain:     "test",
+			Expected:      appurl.ApplicationURL{},
+			ExpectedError: "invalid application url format",
+		},
+		{
+			Name:          "Invalid_Workspace.Agent--App",
+			Subdomain:     "workspace.agent--app",
+			Expected:      appurl.ApplicationURL{},
+			ExpectedError: "invalid application url format",
+		},
+		{
+			Name:          "Invalid_Workspace--App",
+			Subdomain:     "workspace--app",
+			Expected:      appurl.ApplicationURL{},
+			ExpectedError: "invalid application url format",
+		},
+		{
+			Name:      "Valid_App--Workspace--User",
+			Subdomain: "app--workspace--user",
+			Expected: appurl.ApplicationURL{
+				AppSlugOrPort: "app",
+				AgentName:     "", // Agent name is optional when app slug is present
+				WorkspaceName: "workspace",
+				Username:      "user",
+			},
+		},
+		{
+			Name:          "Invalid_TooManyComponents",
+			Subdomain:     "1--2--3--4--5",
+			Expected:      appurl.ApplicationURL{},
+			ExpectedError: "invalid application url format",
+		},
+		{
+			Name:          "Invalid_Port--Workspace--User",
+			Subdomain:     "8080--workspace--user",
+			Expected:      appurl.ApplicationURL{},
+			ExpectedError: "agent name is required for port-based URLs",
+		},
+		// Correct
+		{
+			Name:      "AppName--Agent--Workspace--User",
+			Subdomain: "app--agent--workspace--user",
+			Expected: appurl.ApplicationURL{
+				AppSlugOrPort: "app",
+				AgentName:     "",
+				WorkspaceName: "workspace",
+				Username:      "user",
+			},
+		},
+		{
+			Name:      "Port--Agent--Workspace--User",
+			Subdomain: "8080--agent--workspace--user",
+			Expected: appurl.ApplicationURL{
+				AppSlugOrPort: "8080",
+				AgentName:     "agent",
+				WorkspaceName: "workspace",
+				Username:      "user",
+			},
+		},
+		{
+			Name:      "Port--Agent--Workspace--User",
+			Subdomain: "8080s--agent--workspace--user",
+			Expected: appurl.ApplicationURL{
+				AppSlugOrPort: "8080s",
+				AgentName:     "agent",
+				WorkspaceName: "workspace",
+				Username:      "user",
+			},
+		},
+		{
+			Name:      "HyphenatedNames",
+			Subdomain: "app-slug--agent-name--workspace-name--user-name",
+			Expected: appurl.ApplicationURL{
+				AppSlugOrPort: "app-slug",
+				AgentName:     "",
+				WorkspaceName: "workspace-name",
+				Username:      "user-name",
+			},
+		},
+		{
+			Name:      "Prefix",
+			Subdomain: "dean---was---here---app--agent--workspace--user",
+			Expected: appurl.ApplicationURL{
+				Prefix:        "dean---was---here---",
+				AppSlugOrPort: "app",
+				AgentName:     "",
+				WorkspaceName: "workspace",
+				Username:      "user",
+			},
+		},
+		{
+			Name:      "5DigitAppSlug--Workspace--User",
+			Subdomain: "30000--workspace--user",
+			Expected: appurl.ApplicationURL{
+				AppSlugOrPort: "30000",
+				AgentName:     "",
+				WorkspaceName: "workspace",
+				Username:      "user",
+			},
+		},
+		{
+			Name:          "Invalid_4DigitPort--Workspace--User",
+			Subdomain:     "1234--workspace--user",
+			Expected:      appurl.ApplicationURL{},
+			ExpectedError: "agent name is required for port-based URLs",
+		},
+		{
+			Name:      "3DigitPort_WithoutAgent",
+			Subdomain: "123--workspace--user",
+			Expected: appurl.ApplicationURL{
+				AppSlugOrPort: "123",
+				AgentName:     "",
+				WorkspaceName: "workspace",
+				Username:      "user",
+			},
+		},
+		{
+			Name:          "Invalid_4DigitPortS_WithoutAgent",
+			Subdomain:     "8080s--workspace--user",
+			Expected:      appurl.ApplicationURL{},
+			ExpectedError: "agent name is required for port-based URLs",
+		},
+		{
+			Name:      "ParseLegacyAppSlug_WithAgent",
+			Subdomain: "myapp--agent--workspace--user",
+			Expected: appurl.ApplicationURL{
+				AppSlugOrPort: "myapp",
+				AgentName:     "",
+				WorkspaceName: "workspace",
+				Username:      "user",
+			},
+		},
+	}
+
+	for _, c := range testCases {
+		t.Run(c.Name, func(t *testing.T) {
+			t.Parallel()
+
+			app, err := appurl.ParseSubdomainAppURL(c.Subdomain)
+			if c.ExpectedError == "" {
+				require.NoError(t, err)
+				require.Equal(t, c.Expected, app, "expected app")
+			} else {
+				require.ErrorContains(t, err, c.ExpectedError, "expected error")
+			}
+		})
+	}
+}
+
+func TestCompileHostnamePattern(t *testing.T) {
+	t.Parallel()
+
+	type matchCase struct {
+		input string
+		// empty string denotes no match
+		match string
+	}
+
+	type testCase struct {
+		name          string
+		pattern       string
+		errorContains string
+		// expectedRegex only needs to contain the inner part of the regex, not
+		// the prefix and suffix checks.
+		expectedRegex string
+		matchCases    []matchCase
+	}
+
+	testCases := []testCase{
+		{
+			name:          "Invalid_ContainsHTTP",
+			pattern:       "http://*.hi.com",
+			errorContains: "must not contain a scheme",
+		},
+		{
+			name:          "Invalid_ContainsHTTPS",
+			pattern:       "https://*.hi.com",
+			errorContains: "must not contain a scheme",
+		},
+		{
+			name:          "Invalid_StartPeriod",
+			pattern:       ".hi.com",
+			errorContains: "must not start or end with a period",
+		},
+		{
+			name:          "Invalid_EndPeriod",
+			pattern:       "hi.com.",
+			errorContains: "must not start or end with a period",
+		},
+		{
+			name:          "Invalid_Empty",
+			pattern:       "",
+			errorContains: "must contain at least two labels",
+		},
+		{
+			name:          "Invalid_SingleLabel",
+			pattern:       "hi",
+			errorContains: "must contain at least two labels",
+		},
+		{
+			name:          "Invalid_NoWildcard",
+			pattern:       "hi.com",
+			errorContains: "must contain exactly one asterisk",
+		},
+		{
+			name:          "Invalid_MultipleWildcards",
+			pattern:       "**.hi.com",
+			errorContains: "must contain exactly one asterisk",
+		},
+		{
+			name:          "Invalid_WildcardNotFirst",
+			pattern:       "hi.*.com",
+			errorContains: "must only contain an asterisk at the beginning",
+		},
+		{
+			name:          "Invalid_BadLabel1",
+			pattern:       "*.h_i.com",
+			errorContains: "contains invalid label",
+		},
+		{
+			name:          "Invalid_BadLabel2",
+			pattern:       "*.hi-.com",
+			errorContains: "contains invalid label",
+		},
+		{
+			name:          "Invalid_BadLabel3",
+			pattern:       "*.-hi.com",
+			errorContains: "contains invalid label",
+		},
+
+		{
+			name:    "Valid_ContainsPort",
+			pattern: "*.hi.com:8080",
+			// Although a port is provided, the regex already matches any port.
+			// So it is ignored for validation purposes.
+			expectedRegex: `([^.]+)\.hi\.com`,
+		},
+		{
+			name:          "Valid_Simple",
+			pattern:       "*.hi",
+			expectedRegex: `([^.]+)\.hi`,
+			matchCases: []matchCase{
+				{
+					input: "hi",
+					match: "",
+				},
+				{
+					input: "hi.com",
+					match: "",
+				},
+				{
+					input: "hi.hi.hi",
+					match: "",
+				},
+				{
+					input: "abcd.hi",
+					match: "abcd",
+				},
+				{
+					input: "abcd.hi.",
+					match: "abcd",
+				},
+				{
+					input: "  abcd.hi.  ",
+					match: "abcd",
+				},
+				{
+					input: "abcd.hi:8080",
+					match: "abcd",
+				},
+				{
+					input: "ab__invalid__cd-.hi",
+					// Invalid subdomains still match the pattern because they
+					// managed to make it to the webserver anyways.
+					match: "ab__invalid__cd-",
+				},
+			},
+		},
+		{
+			name:          "Valid_MultiLevel",
+			pattern:       "*.hi.com",
+			expectedRegex: `([^.]+)\.hi\.com`,
+			matchCases: []matchCase{
+				{
+					input: "hi.com",
+					match: "",
+				},
+				{
+					input: "abcd.hi.com",
+					match: "abcd",
+				},
+				{
+					input: "ab__invalid__cd-.hi.com",
+					match: "ab__invalid__cd-",
+				},
+			},
+		},
+		{
+			name:          "Valid_WildcardSuffix1",
+			pattern:       `*a.hi.com`,
+			expectedRegex: `([^.]+)a\.hi\.com`,
+			matchCases: []matchCase{
+				{
+					input: "hi.com",
+					match: "",
+				},
+				{
+					input: "abcd.hi.com",
+					match: "",
+				},
+				{
+					input: "ab__invalid__cd-.hi.com",
+					match: "",
+				},
+				{
+					input: "abcda.hi.com",
+					match: "abcd",
+				},
+				{
+					input: "ab__invalid__cd-a.hi.com",
+					match: "ab__invalid__cd-",
+				},
+			},
+		},
+		{
+			name:          "Valid_WildcardSuffix2",
+			pattern:       `*-test.hi.com`,
+			expectedRegex: `([^.]+)-test\.hi\.com`,
+			matchCases: []matchCase{
+				{
+					input: "hi.com",
+					match: "",
+				},
+				{
+					input: "abcd.hi.com",
+					match: "",
+				},
+				{
+					input: "ab__invalid__cd-.hi.com",
+					match: "",
+				},
+				{
+					input: "abcd-test.hi.com",
+					match: "abcd",
+				},
+				{
+					input: "ab__invalid__cd-test.hi.com",
+					match: "ab__invalid__cd",
+				},
+			},
+		},
+	}
+
+	for _, c := range testCases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			regex, err := appurl.CompileHostnamePattern(c.pattern)
+			if c.errorContains == "" {
+				require.NoError(t, err)
+
+				expected := `^\s*` + c.expectedRegex + `\.?(:\d+)?\s*$`
+				require.Equal(t, expected, regex.String(), "generated regex does not match")
+
+				for i, m := range c.matchCases {
+					t.Run(fmt.Sprintf("MatchCase%d", i), func(t *testing.T) {
+						t.Parallel()
+
+						match, ok := appurl.ExecuteHostnamePattern(regex, m.input)
+						if m.match == "" {
+							require.False(t, ok)
+						} else {
+							require.True(t, ok)
+							require.Equal(t, m.match, match)
+						}
+					})
+				}
+			} else {
+				require.Error(t, err)
+				require.ErrorContains(t, err, c.errorContains)
+			}
+		})
+	}
+}
+
+func TestConvertAppURLForCSP(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		host     string
+		wildcard string
+		expected string
+	}{
+		{
+			name:     "Empty",
+			host:     "example.com",
+			wildcard: "",
+			expected: "example.com",
+		},
+		{
+			name:     "NoAsterisk",
+			host:     "example.com",
+			wildcard: "coder.com",
+			expected: "coder.com",
+		},
+		{
+			name:     "Asterisk",
+			host:     "example.com",
+			wildcard: "*.coder.com",
+			expected: "*.coder.com",
+		},
+		{
+			name:     "FirstPrefix",
+			host:     "example.com",
+			wildcard: "*--apps.coder.com",
+			expected: "*.coder.com",
+		},
+		{
+			name:     "FirstSuffix",
+			host:     "example.com",
+			wildcard: "apps--*.coder.com",
+			expected: "*.coder.com",
+		},
+		{
+			name:     "Middle",
+			host:     "example.com",
+			wildcard: "apps.*.com",
+			expected: "example.com",
+		},
+	}
+
+	for _, c := range testCases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, c.expected, appurl.ConvertAppHostForCSP(c.host, c.wildcard))
+		})
+	}
+}
+
+func TestURLGenerationVsParsing(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		Name           string
+		AppSlugOrPort  string
+		AgentName      string
+		ExpectedParsed string
+	}{
+		{
+			Name:           "AppSlug_AgentOmittedInParsing",
+			AppSlugOrPort:  "myapp",
+			AgentName:      "agent",
+			ExpectedParsed: "",
+		},
+		{
+			Name:           "4DigitPort_AgentPreserved",
+			AppSlugOrPort:  "8080",
+			AgentName:      "agent",
+			ExpectedParsed: "agent",
+		},
+		{
+			Name:           "5DigitAppSlug_AgentOmittedInParsing",
+			AppSlugOrPort:  "30000",
+			AgentName:      "agent",
+			ExpectedParsed: "",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+			original := appurl.ApplicationURL{
+				AppSlugOrPort: tc.AppSlugOrPort,
+				AgentName:     tc.AgentName,
+				WorkspaceName: "workspace",
+				Username:      "user",
+			}
+
+			urlString := original.String()
+			parsed, err := appurl.ParseSubdomainAppURL(urlString)
+			require.NoError(t, err)
+
+			require.Equal(t, tc.ExpectedParsed, parsed.AgentName,
+				"Agent name should be '%s' after parsing", tc.ExpectedParsed)
+		})
+	}
+}

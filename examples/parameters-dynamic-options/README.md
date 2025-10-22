@@ -7,7 +7,7 @@ icon: /icon/docker.png
 
 # Overview
 
-This Coder template presents use of [dynamic](https://developer.hashicorp.com/terraform/language/expressions/dynamic-blocks) [parameter options](https://coder.com/docs/v2/latest/templates/parameters#options) and Terraform [locals](https://developer.hashicorp.com/terraform/language/values/locals).
+This Coder template presents use of [dynamic](https://developer.hashicorp.com/terraform/language/expressions/dynamic-blocks) [parameter options](https://coder.com/docs/templates/parameters#options) and Terraform [locals](https://developer.hashicorp.com/terraform/language/values/locals).
 
 ## Use case
 
@@ -35,6 +35,5 @@ Update the template and push it using the following command:
 ./scripts/coder-dev.sh templates push examples-parameters-dynamic-options \
   -d examples/parameters-dynamic-options \
   --variables-file examples/parameters-dynamic-options/variables.yml \
-  --create \
   -y
 ```

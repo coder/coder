@@ -4,6 +4,9 @@
 # [#pr-deployments](https://codercom.slack.com/archives/C05DNE982E8) Slack channel
 
 set -euo pipefail
+# shellcheck source=scripts/lib.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+cdroot
 
 # default settings
 dryRun=false
@@ -64,6 +67,9 @@ if $confirm; then
 	fi
 fi
 
+# Authenticate gh CLI
+gh_auth
+
 # get branch name and pr number
 branchName=$(gh pr view --json headRefName | jq -r .headRefName)
 prNumber=$(gh pr view --json number | jq -r .number)
@@ -84,4 +90,4 @@ echo "experiments: ${experiments}"
 echo "build: ${build}"
 echo "deploy: ${deploy}"
 
-gh workflow run pr-deploy.yaml --ref "${branchName}" -f "pr_number=${prNumber}" -f "experiments=${experiments}" -f "build=${build}" -f "deploy=${deploy}"
+gh workflow run pr-deploy.yaml --ref "${branchName}" -f "experiments=${experiments}" -f "build=${build}" -f "deploy=${deploy}"

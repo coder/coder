@@ -14,11 +14,13 @@ USAGE:
        $ coder templates init
 
 SUBCOMMANDS:
-    features           List Enterprise features
-    groups             Manage groups
-    licenses           Add, delete, and list licenses
-    provisionerd       Manage provisioner daemons
-    server             Start a Coder server
+    external-workspaces    Create or manage external workspaces
+    features               List Enterprise features
+    groups                 Manage groups
+    licenses               Add, delete, and list licenses
+    prebuilds              Manage Coder prebuilds
+    provisioner            View and manage provisioner daemons and jobs
+    server                 Start a Coder server
 
 GLOBAL OPTIONS: 
 Global options are applied to all commands. They can be set using environment
@@ -29,6 +31,16 @@ variables or flags.
 
       --disable-direct-connections bool, $CODER_DISABLE_DIRECT_CONNECTIONS
           Disable direct (P2P) connections to workspaces.
+
+      --disable-network-telemetry bool, $CODER_DISABLE_NETWORK_TELEMETRY
+          Disable network telemetry. Network telemetry is collected when
+          connecting to workspaces using the CLI, and is forwarded to the
+          server. If telemetry is also enabled on the server, it may be sent to
+          Coder. Network telemetry is used to measure network quality and detect
+          regressions.
+
+      --force-tty bool, $CODER_FORCE_TTY
+          Force the use of a TTY.
 
       --global-config string, $CODER_CONFIG_DIR (default: ~/.config/coderv2)
           Path to the global `coder` config directory.

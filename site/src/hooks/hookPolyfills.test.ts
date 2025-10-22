@@ -1,48 +1,41 @@
 import { renderHook } from "@testing-library/react";
 import { useEffectEvent } from "./hookPolyfills";
 
-function renderEffectEvent<TArgs extends unknown[], TReturn = unknown>(
-  callbackArg: (...args: TArgs) => TReturn,
-) {
-  return renderHook(
-    ({ callback }: { callback: typeof callbackArg }) => {
-      return useEffectEvent(callback);
-    },
-    {
-      initialProps: { callback: callbackArg },
-    },
-  );
-}
+describe(useEffectEvent.name, () => {
+	function renderEffectEvent<TArgs extends unknown[], TReturn = unknown>(
+		callbackArg: (...args: TArgs) => TReturn,
+	) {
+		type Callback = typeof callbackArg;
+		type Props = Readonly<{ callback: Callback }>;
 
-describe(`${useEffectEvent.name}`, () => {
-  it("Should maintain a stable reference across all renders", () => {
-    const callback = jest.fn();
-    const { result, rerender } = renderEffectEvent(callback);
+		return renderHook<Callback, Props>(
+			({ callback }) => useEffectEvent(callback),
+			{ initialProps: { callback: callbackArg } },
+		);
+	}
 
-    const firstResult = result.current;
-    for (let i = 0; i < 5; i++) {
-      rerender({ callback });
-    }
+	it("Should maintain a stable reference across all renders", () => {
+		const callback = jest.fn();
+		const { result, rerender } = renderEffectEvent(callback);
 
-    expect(result.current).toBe(firstResult);
-    expect.hasAssertions();
-  });
+		const firstResult = result.current;
+		for (let i = 0; i < 5; i++) {
+			rerender({ callback });
+		}
 
-  it("Should always call the most recent callback passed in", () => {
-    let value: "A" | "B" | "C" = "A";
-    const flipToB = () => {
-      value = "B";
-    };
+		expect(result.current).toBe(firstResult);
+		expect.hasAssertions();
+	});
 
-    const flipToC = () => {
-      value = "C";
-    };
+	it("Should always call the most recent callback passed in", () => {
+		const mockCallback1 = jest.fn();
+		const mockCallback2 = jest.fn();
 
-    const { result, rerender } = renderEffectEvent(flipToB);
-    rerender({ callback: flipToC });
+		const { result, rerender } = renderEffectEvent(mockCallback1);
+		rerender({ callback: mockCallback2 });
 
-    result.current();
-    expect(value).toEqual("C");
-    expect.hasAssertions();
-  });
+		result.current();
+		expect(mockCallback1).not.toBeCalled();
+		expect(mockCallback2).toBeCalledTimes(1);
+	});
 });

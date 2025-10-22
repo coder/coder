@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,7 +15,6 @@ import (
 
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/scaletest/harness"
 	"github.com/coder/coder/v2/scaletest/loadtestutil"
 )
@@ -26,11 +26,6 @@ type Runner struct {
 	workspaceID uuid.UUID
 }
 
-var (
-	_ harness.Runnable  = &Runner{}
-	_ harness.Cleanable = &Runner{}
-)
-
 func NewRunner(client *codersdk.Client, cfg Config) *Runner {
 	return &Runner{
 		client: client,
@@ -39,7 +34,7 @@ func NewRunner(client *codersdk.Client, cfg Config) *Runner {
 }
 
 // Run implements Runnable.
-func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
+func (r *Runner) RunReturningWorkspace(ctx context.Context, id string, logs io.Writer) (codersdk.Workspace, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -50,22 +45,44 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 
 	req := r.cfg.Request
 	if req.Name == "" {
-		randName, err := cryptorand.HexString(8)
+		randName, err := loadtestutil.GenerateWorkspaceName(id)
 		if err != nil {
-			return xerrors.Errorf("generate random name for workspace: %w", err)
+			return codersdk.Workspace{}, xerrors.Errorf("generate random name for workspace: %w", err)
 		}
-		req.Name = "test-" + randName
+		req.Name = randName
 	}
 
 	workspace, err := r.client.CreateWorkspace(ctx, r.cfg.OrganizationID, r.cfg.UserID, req)
 	if err != nil {
-		return xerrors.Errorf("create workspace: %w", err)
+		return codersdk.Workspace{}, xerrors.Errorf("create workspace: %w", err)
 	}
 	r.workspaceID = workspace.ID
 
-	err = waitForBuild(ctx, logs, r.client, workspace.LatestBuild.ID)
-	if err != nil {
-		return xerrors.Errorf("wait for build: %w", err)
+	if r.cfg.NoWaitForBuild {
+		_, _ = fmt.Fprintln(logs, "Skipping waiting for build")
+	} else {
+		err = waitForBuild(ctx, logs, r.client, workspace.LatestBuild.ID)
+		if err != nil {
+			for i := 0; i < r.cfg.Retry; i++ {
+				_, _ = fmt.Fprintf(logs, "Retrying build %d/%d...\n", i+1, r.cfg.Retry)
+
+				workspace.LatestBuild, err = r.client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+					Transition:          codersdk.WorkspaceTransitionStart,
+					RichParameterValues: req.RichParameterValues,
+					TemplateVersionID:   req.TemplateVersionID,
+				})
+				if err != nil {
+					return codersdk.Workspace{}, xerrors.Errorf("create workspace build: %w", err)
+				}
+				err = waitForBuild(ctx, logs, r.client, workspace.LatestBuild.ID)
+				if err == nil {
+					break
+				}
+			}
+			if err != nil {
+				return codersdk.Workspace{}, xerrors.Errorf("wait for build: %w", err)
+			}
+		}
 	}
 
 	if r.cfg.NoWaitForAgents {
@@ -74,19 +91,16 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 		_, _ = fmt.Fprintln(logs, "")
 		err = waitForAgents(ctx, logs, r.client, workspace.ID)
 		if err != nil {
-			return xerrors.Errorf("wait for agent: %w", err)
+			return codersdk.Workspace{}, xerrors.Errorf("wait for agent: %w", err)
 		}
 	}
 
-	return nil
-}
-
-func (r *Runner) WorkspaceID() (uuid.UUID, error) {
-	if r.workspaceID == uuid.Nil {
-		return uuid.Nil, xerrors.New("workspace ID not set")
+	workspace, err = r.client.Workspace(ctx, workspace.ID)
+	if err != nil {
+		return codersdk.Workspace{}, xerrors.Errorf("get workspace %q: %w", workspace.ID.String(), err)
 	}
 
-	return r.workspaceID, nil
+	return workspace, nil
 }
 
 // CleanupRunner is a runner that deletes a workspace in the Run phase.
@@ -106,26 +120,32 @@ func NewCleanupRunner(client *codersdk.Client, workspaceID uuid.UUID) *CleanupRu
 
 // Run implements Runnable.
 func (r *CleanupRunner) Run(ctx context.Context, _ string, logs io.Writer) error {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	logs = loadtestutil.NewSyncWriter(logs)
+	logger := slog.Make(sloghuman.Sink(logs)).Leveled(slog.LevelDebug)
 	if r.workspaceID == uuid.Nil {
 		return nil
 	}
-	ctx, span := tracing.StartSpan(ctx)
-	defer span.End()
-
-	logs = loadtestutil.NewSyncWriter(logs)
-	logger := slog.Make(sloghuman.Sink(logs)).Leveled(slog.LevelDebug)
+	logger.Info(ctx, "deleting workspace", slog.F("workspace_id", r.workspaceID))
 	r.client.SetLogger(logger)
 	r.client.SetLogBodies(true)
 
 	ws, err := r.client.Workspace(ctx, r.workspaceID)
 	if err != nil {
+		var sdkErr *codersdk.Error
+		if xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
+			logger.Info(ctx, "workspace not found, skipping delete", slog.F("workspace_id", r.workspaceID))
+			return nil
+		}
 		return err
 	}
 
 	build, err := r.client.WorkspaceBuild(ctx, ws.LatestBuild.ID)
 	if err == nil && build.Job.Status.Active() {
 		// mark the build as canceled
-		if err = r.client.CancelWorkspaceBuild(ctx, build.ID); err == nil {
+		logger.Info(ctx, "canceling workspace build", slog.F("build_id", build.ID), slog.F("workspace_id", r.workspaceID))
+		if err = r.client.CancelWorkspaceBuild(ctx, build.ID, codersdk.CancelWorkspaceBuildParams{}); err == nil {
 			// Wait for the job to cancel before we delete it
 			_ = waitForBuild(ctx, logs, r.client, build.ID) // it will return a "build canceled" error
 		} else {
@@ -151,12 +171,11 @@ func (r *CleanupRunner) Run(ctx context.Context, _ string, logs io.Writer) error
 }
 
 // Cleanup implements Cleanable by wrapping CleanupRunner.
-func (r *Runner) Cleanup(ctx context.Context, id string) error {
-	// TODO: capture these logs
+func (r *Runner) Cleanup(ctx context.Context, id string, w io.Writer) error {
 	return (&CleanupRunner{
 		client:      r.client,
 		workspaceID: r.workspaceID,
-	}).Run(ctx, id, io.Discard)
+	}).Run(ctx, id, w)
 }
 
 func waitForBuild(ctx context.Context, w io.Writer, client *codersdk.Client, buildID uuid.UUID) error {

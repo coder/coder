@@ -6,12 +6,11 @@ USAGE:
   Aliases: ls
 
 OPTIONS:
-  -c, --column string-array (default: Name,Entitlement,Enabled,Limit,Actual)
-          Specify a column to filter in the table. Available columns are: Name,
-          Entitlement, Enabled, Limit, Actual.
+  -c, --column [name|entitlement|enabled|limit|actual] (default: name,entitlement,enabled,limit,actual)
+          Specify columns to filter in the table.
 
-  -o, --output string (default: table)
-          Output format. Available formats are: table, json.
+  -o, --output table|json (default: table)
+          Output format.
 
 ———
 Run `coder --help` for a list of global options.

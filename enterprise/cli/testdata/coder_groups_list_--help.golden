@@ -6,12 +6,14 @@ USAGE:
   List user groups
 
 OPTIONS:
-  -c, --column string-array (default: name,display name,organization id,members,avatar url)
-          Columns to display in table output. Available columns: name, display
-          name, organization id, members, avatar url.
+  -O, --org string, $CODER_ORGANIZATION
+          Select which organization (uuid or name) to use.
 
-  -o, --output string (default: table)
-          Output format. Available formats: table, json.
+  -c, --column [name|display name|organization id|members|avatar url] (default: name,display name,organization id,members,avatar url)
+          Columns to display in table output.
+
+  -o, --output table|json (default: table)
+          Output format.
 
 ———
 Run `coder --help` for a list of global options.

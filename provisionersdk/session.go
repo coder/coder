@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"hash/crc32"
 	"io"
 	"os"
 	"path/filepath"
@@ -16,6 +17,9 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
+
+	protobuf "google.golang.org/protobuf/proto"
 
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
@@ -99,7 +103,11 @@ func (s *Session) requestReader(done <-chan struct{}) <-chan *proto.Request {
 		for {
 			req, err := s.stream.Recv()
 			if err != nil {
-				s.Logger.Info(s.Context(), "recv done on Session", slog.Error(err))
+				if !xerrors.Is(err, io.EOF) {
+					s.Logger.Warn(s.Context(), "recv done on Session", slog.Error(err))
+				} else {
+					s.Logger.Info(s.Context(), "recv done on Session")
+				}
 				return
 			}
 			select {
@@ -156,6 +164,33 @@ func (s *Session) handleRequests() error {
 				return err
 			}
 			resp.Type = &proto.Response_Plan{Plan: complete}
+
+			if protobuf.Size(resp) > drpcsdk.MaxMessageSize {
+				// It is likely the modules that is pushing the message size over the limit.
+				// Send the modules over a stream of messages instead.
+				s.Logger.Info(s.Context(), "plan response too large, sending modules as stream",
+					slog.F("size_bytes", len(complete.ModuleFiles)),
+				)
+				dataUp, chunks := proto.BytesToDataUpload(proto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, complete.ModuleFiles)
+
+				complete.ModuleFiles = nil // sent over the stream
+				complete.ModuleFilesHash = dataUp.DataHash
+				resp.Type = &proto.Response_Plan{Plan: complete}
+
+				err := s.stream.Send(&proto.Response{Type: &proto.Response_DataUpload{DataUpload: dataUp}})
+				if err != nil {
+					complete.Error = fmt.Sprintf("send data upload: %s", err.Error())
+				} else {
+					for i, chunk := range chunks {
+						err := s.stream.Send(&proto.Response{Type: &proto.Response_ChunkPiece{ChunkPiece: chunk}})
+						if err != nil {
+							complete.Error = fmt.Sprintf("send data piece upload %d/%d: %s", i, dataUp.Chunks, err.Error())
+							break
+						}
+					}
+				}
+			}
+
 			if complete.Error == "" {
 				planned = true
 			}
@@ -216,6 +251,11 @@ func (s *Session) extractArchive() error {
 			}
 			return xerrors.Errorf("read template source archive: %w", err)
 		}
+		s.Logger.Debug(context.Background(), "read archive entry",
+			slog.F("name", header.Name),
+			slog.F("mod_time", header.ModTime),
+			slog.F("size", header.Size))
+
 		// Security: don't untar absolute or relative paths, as this can allow a malicious tar to overwrite
 		// files outside the workdir.
 		if !filepath.IsLocal(header.Name) {
@@ -253,8 +293,11 @@ func (s *Session) extractArchive() error {
 			if err != nil {
 				return xerrors.Errorf("create file %q (mode %s): %w", headerPath, mode, err)
 			}
+
+			hash := crc32.NewIEEE()
+			hashReader := io.TeeReader(reader, hash)
 			// Max file size of 10MiB.
-			size, err := io.CopyN(file, reader, 10<<20)
+			size, err := io.CopyN(file, hashReader, 10<<20)
 			if xerrors.Is(err, io.EOF) {
 				err = nil
 			}
@@ -270,7 +313,7 @@ func (s *Session) extractArchive() error {
 				slog.F("size_bytes", size),
 				slog.F("path", headerPath),
 				slog.F("mode", mode),
-			)
+				slog.F("checksum", fmt.Sprintf("%x", hash.Sum(nil))))
 		}
 	}
 	return nil

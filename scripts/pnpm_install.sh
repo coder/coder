@@ -33,3 +33,6 @@ pnpm_flags+=("$@")
 
 echo "+ pnpm install ${pnpm_flags[*]}"
 pnpm install "${pnpm_flags[@]}"
+
+# Used for Makefile optimizations
+touch node_modules/.installed

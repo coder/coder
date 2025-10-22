@@ -10,7 +10,6 @@ import (
 	"go.uber.org/goleak"
 
 	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/enterprise/provisionerd"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -21,7 +20,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
 func TestRemoteConnector_Mainline(t *testing.T) {
@@ -34,12 +33,11 @@ func TestRemoteConnector_Mainline(t *testing.T) {
 		{name: "Smokescreen", smokescreen: true},
 	}
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 			defer cancel()
-			logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+			logger := testutil.Logger(t)
 			exec := &testExecutor{
 				t:           t,
 				logger:      logger,
@@ -93,7 +91,7 @@ func TestRemoteConnector_BadToken(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	exec := &testExecutor{
 		t:             t,
 		logger:        logger,
@@ -123,7 +121,7 @@ func TestRemoteConnector_BadJobID(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	exec := &testExecutor{
 		t:             t,
 		logger:        logger,
@@ -155,7 +153,7 @@ func TestRemoteConnector_BadCert(t *testing.T) {
 	require.NoError(t, err)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	exec := &testExecutor{
 		t:            t,
 		logger:       logger,
@@ -185,7 +183,7 @@ func TestRemoteConnector_Fuzz(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	exec := newFuzzExecutor(t, logger)
 	uut, err := provisionerd.NewRemoteConnector(ctx, logger.Named("connector"), exec)
 	require.NoError(t, err)
@@ -206,7 +204,6 @@ func TestRemoteConnector_Fuzz(t *testing.T) {
 	case <-exec.done:
 		// Connector hung up on the fuzzer
 	}
-	require.Less(t, exec.bytesFuzzed, 2<<20, "should not allow more than 1 MiB")
 	connectCtxCancel()
 	var resp agpl.ConnectResponse
 	select {
@@ -223,7 +220,7 @@ func TestRemoteConnector_CancelConnect(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	exec := &testExecutor{
 		t:         t,
 		logger:    logger,

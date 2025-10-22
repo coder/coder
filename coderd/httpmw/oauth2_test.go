@@ -7,13 +7,13 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 type testOAuth2Provider struct {
@@ -50,7 +50,7 @@ func TestOAuth2(t *testing.T) {
 		t.Parallel()
 		req := httptest.NewRequest("GET", "/", nil)
 		res := httptest.NewRecorder()
-		httpmw.ExtractOAuth2(nil, nil, nil)(nil).ServeHTTP(res, req)
+		httpmw.ExtractOAuth2(nil, nil, codersdk.HTTPCookieConfig{}, nil)(nil).ServeHTTP(res, req)
 		require.Equal(t, http.StatusBadRequest, res.Result().StatusCode)
 	})
 	t.Run("RedirectWithoutCode", func(t *testing.T) {
@@ -58,7 +58,7 @@ func TestOAuth2(t *testing.T) {
 		req := httptest.NewRequest("GET", "/?redirect="+url.QueryEscape("/dashboard"), nil)
 		res := httptest.NewRecorder()
 		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)
-		httpmw.ExtractOAuth2(tp, nil, nil)(nil).ServeHTTP(res, req)
+		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, nil)(nil).ServeHTTP(res, req)
 		location := res.Header().Get("Location")
 		if !assert.NotEmpty(t, location) {
 			return
@@ -67,12 +67,37 @@ func TestOAuth2(t *testing.T) {
 		cookie := res.Result().Cookies()[1]
 		require.Equal(t, "/dashboard", cookie.Value)
 	})
+	t.Run("OnlyPathBaseRedirect", func(t *testing.T) {
+		t.Parallel()
+		// Construct a URI to a potentially malicious
+		// site and assert that we omit the host
+		// when redirecting the request.
+		uri := &url.URL{
+			Scheme:   "https",
+			Host:     "some.bad.domain.com",
+			Path:     "/sadf/asdfasdf",
+			RawQuery: "foo=hello&bar=world",
+		}
+		expectedValue := uri.Path + "?" + uri.RawQuery
+		req := httptest.NewRequest("GET", "/?redirect="+url.QueryEscape(uri.String()), nil)
+		res := httptest.NewRecorder()
+		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)
+		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, nil)(nil).ServeHTTP(res, req)
+		location := res.Header().Get("Location")
+		if !assert.NotEmpty(t, location) {
+			return
+		}
+		require.Len(t, res.Result().Cookies(), 2)
+		cookie := res.Result().Cookies()[1]
+		require.Equal(t, expectedValue, cookie.Value)
+	})
+
 	t.Run("NoState", func(t *testing.T) {
 		t.Parallel()
 		req := httptest.NewRequest("GET", "/?code=something", nil)
 		res := httptest.NewRecorder()
 		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)
-		httpmw.ExtractOAuth2(tp, nil, nil)(nil).ServeHTTP(res, req)
+		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, nil)(nil).ServeHTTP(res, req)
 		require.Equal(t, http.StatusBadRequest, res.Result().StatusCode)
 	})
 	t.Run("NoStateCookie", func(t *testing.T) {
@@ -80,7 +105,7 @@ func TestOAuth2(t *testing.T) {
 		req := httptest.NewRequest("GET", "/?code=something&state=test", nil)
 		res := httptest.NewRecorder()
 		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)
-		httpmw.ExtractOAuth2(tp, nil, nil)(nil).ServeHTTP(res, req)
+		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, nil)(nil).ServeHTTP(res, req)
 		require.Equal(t, http.StatusUnauthorized, res.Result().StatusCode)
 	})
 	t.Run("MismatchedState", func(t *testing.T) {
@@ -92,7 +117,7 @@ func TestOAuth2(t *testing.T) {
 		})
 		res := httptest.NewRecorder()
 		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)
-		httpmw.ExtractOAuth2(tp, nil, nil)(nil).ServeHTTP(res, req)
+		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, nil)(nil).ServeHTTP(res, req)
 		require.Equal(t, http.StatusUnauthorized, res.Result().StatusCode)
 	})
 	t.Run("ExchangeCodeAndState", func(t *testing.T) {
@@ -108,7 +133,7 @@ func TestOAuth2(t *testing.T) {
 		})
 		res := httptest.NewRecorder()
 		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)
-		httpmw.ExtractOAuth2(tp, nil, nil)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, nil)(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 			state := httpmw.OAuth2(r)
 			require.Equal(t, "/dashboard", state.Redirect)
 		})).ServeHTTP(res, req)
@@ -119,7 +144,7 @@ func TestOAuth2(t *testing.T) {
 		res := httptest.NewRecorder()
 		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline, oauth2.SetAuthURLParam("foo", "bar"))
 		authOpts := map[string]string{"foo": "bar"}
-		httpmw.ExtractOAuth2(tp, nil, authOpts)(nil).ServeHTTP(res, req)
+		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, authOpts)(nil).ServeHTTP(res, req)
 		location := res.Header().Get("Location")
 		// Ideally we would also assert that the location contains the query params
 		// we set in the auth URL but this would essentially be testing the oauth2 package.
@@ -128,16 +153,21 @@ func TestOAuth2(t *testing.T) {
 	})
 	t.Run("PresetConvertState", func(t *testing.T) {
 		t.Parallel()
-		customState := namesgenerator.GetRandomName(1)
+		customState := testutil.GetRandomName(t)
 		req := httptest.NewRequest("GET", "/?oidc_merge_state="+customState+"&redirect="+url.QueryEscape("/dashboard"), nil)
 		res := httptest.NewRecorder()
 		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)
-		httpmw.ExtractOAuth2(tp, nil, nil)(nil).ServeHTTP(res, req)
+		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{
+			Secure:   true,
+			SameSite: "none",
+		}, nil)(nil).ServeHTTP(res, req)
 
 		found := false
 		for _, cookie := range res.Result().Cookies() {
 			if cookie.Name == codersdk.OAuth2StateCookie {
 				require.Equal(t, cookie.Value, customState, "expected state")
+				require.Equal(t, true, cookie.Secure, "cookie set to secure")
+				require.Equal(t, http.SameSiteNoneMode, cookie.SameSite, "same-site = none")
 				found = true
 			}
 		}

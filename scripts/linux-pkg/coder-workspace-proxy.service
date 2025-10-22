@@ -1,6 +1,6 @@
 [Unit]
 Description="Coder - external workspace proxy server"
-Documentation=https://coder.com/docs/coder-oss
+Documentation=https://coder.com/docs
 Requires=network-online.target
 After=network-online.target
 ConditionFileNotEmpty=/etc/coder.d/coder-workspace-proxy.env

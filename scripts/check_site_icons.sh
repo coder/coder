@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set -euo pipefail
 # shellcheck source=scripts/lib.sh
@@ -16,6 +16,7 @@ exceptions=(
 	"do.png"
 	"gcp.png"
 	"k8s.png"
+	"ruby.png"
 )
 
 function is_exception() {

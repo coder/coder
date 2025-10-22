@@ -8,13 +8,27 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 # shellcheck disable=SC1091,SC1090
 source "${SCRIPT_DIR}/lib.sh"
 
+# Ensure that extant environment variables do not override
+# the config dir we use to override auth for dev.coder.com.
+unset CODER_SESSION_TOKEN
+unset CODER_URL
+
 GOOS="$(go env GOOS)"
 GOARCH="$(go env GOARCH)"
+CODER_AGENT_URL="${CODER_AGENT_URL:-}"
+DEVELOP_IN_CODER="${DEVELOP_IN_CODER:-0}"
+DEBUG_DELVE="${DEBUG_DELVE:-0}"
 BINARY_TYPE=coder-slim
 if [[ ${1:-} == server ]]; then
 	BINARY_TYPE=coder
 fi
 if [[ ${1:-} == wsproxy ]] && [[ ${2:-} == server ]]; then
+	BINARY_TYPE=coder
+fi
+if [[ ${1:-} == exp ]] && [[ ${2:-} == scaletest ]]; then
+	BINARY_TYPE=coder
+fi
+if [[ ${1:-} == provisionerd ]]; then
 	BINARY_TYPE=coder
 fi
 RELATIVE_BINARY_PATH="build/${BINARY_TYPE}_${GOOS}_${GOARCH}"
@@ -25,13 +39,24 @@ pushd "$PROJECT_ROOT"
 mkdir -p ./.coderv2
 CODER_DEV_BIN="$(realpath "$RELATIVE_BINARY_PATH")"
 CODER_DEV_DIR="$(realpath ./.coderv2)"
+CODER_DELVE_DEBUG_BIN=$(realpath "./build/coder_debug_${GOOS}_${GOARCH}")
 popd
+
+if [ -n "${CODER_AGENT_URL}" ]; then
+	DEVELOP_IN_CODER=1
+fi
 
 case $BINARY_TYPE in
 coder-slim)
 	# Ensure the coder slim binary is always up-to-date with local
 	# changes, this simplifies usage of this script for development.
-	make -j "${RELATIVE_BINARY_PATH}"
+	# NOTE: we send all output of `make` to /dev/null so that we do not break
+	# scripts that read the output of this command.
+	if [[ -t 1 ]]; then
+		DEVELOP_IN_CODER="${DEVELOP_IN_CODER}" make -j "${RELATIVE_BINARY_PATH}"
+	else
+		DEVELOP_IN_CODER="${DEVELOP_IN_CODER}" make -j "${RELATIVE_BINARY_PATH}" >/dev/null 2>&1
+	fi
 	;;
 coder)
 	if [[ ! -x "${CODER_DEV_BIN}" ]]; then
@@ -49,4 +74,23 @@ coder)
 	;;
 esac
 
-exec "${CODER_DEV_BIN}" --global-config "${CODER_DEV_DIR}" "$@"
+runcmd=("${CODER_DEV_BIN}")
+if [[ "${DEBUG_DELVE}" == 1 ]]; then
+	set -x
+	build_flags=(
+		--os "$GOOS"
+		--arch "$GOARCH"
+		--output "$CODER_DELVE_DEBUG_BIN"
+		--debug
+	)
+	if [[ "$BINARY_TYPE" == "coder-slim" ]]; then
+		build_flags+=(--slim)
+	fi
+	# All the prerequisites should be built above when we refreshed the regular
+	# binary, so we can just build the debug binary here without having to worry
+	# about/use the makefile.
+	./scripts/build_go.sh "${build_flags[@]}"
+	runcmd=(dlv exec --headless --continue --listen 127.0.0.1:12345 --accept-multiclient "$CODER_DELVE_DEBUG_BIN" --)
+fi
+
+exec "${runcmd[@]}" --global-config "${CODER_DEV_DIR}" "$@"

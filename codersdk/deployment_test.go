@@ -1,13 +1,22 @@
 package codersdk_test
 
 import (
+	"bytes"
+	"embed"
+	"encoding/json"
+	"fmt"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 
-	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/serpent"
+
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -60,16 +69,20 @@ func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 		"External Token Encryption Keys": {
 			yaml: true,
 		},
-		// These complex objects should be configured through YAML.
-		"Support Links": {
+		"External Auth Providers": {
+			// Technically External Auth Providers can be provided through the env,
+			// but bypassing serpent. See cli.ReadExternalAuthProvidersFromEnv.
 			flag: true,
 			env:  true,
 		},
-		"External Auth Providers": {
-			// Technically External Auth Providers can be provided through the env,
-			// but bypassing clibase. See cli.ReadExternalAuthProvidersFromEnv.
-			flag: true,
-			env:  true,
+		"Provisioner Daemon Pre-shared Key (PSK)": {
+			yaml: true,
+		},
+		"Email Auth: Password": {
+			yaml: true,
+		},
+		"Notifications: Email Auth: Password": {
+			yaml: true,
 		},
 	}
 
@@ -126,7 +139,7 @@ func TestSSHConfig_ParseOptions(t *testing.T) {
 
 	testCases := []struct {
 		Name          string
-		ConfigOptions clibase.StringArray
+		ConfigOptions serpent.StringArray
 		ExpectError   bool
 		Expect        map[string]string
 	}{
@@ -183,7 +196,6 @@ func TestSSHConfig_ParseOptions(t *testing.T) {
 	}
 
 	for _, tt := range testCases {
-		tt := tt
 		t.Run(tt.Name, func(t *testing.T) {
 			t.Parallel()
 			c := codersdk.SSHConfig{
@@ -205,45 +217,69 @@ func TestTimezoneOffsets(t *testing.T) {
 
 	testCases := []struct {
 		Name           string
+		Now            time.Time
 		Loc            *time.Location
 		ExpectedOffset int
 	}{
 		{
-			Name:           "UTX",
+			Name:           "UTC",
 			Loc:            time.UTC,
 			ExpectedOffset: 0,
 		},
+
 		{
 			Name:           "Eastern",
+			Now:            time.Date(2021, 2, 1, 0, 0, 0, 0, time.UTC),
 			Loc:            must(time.LoadLocation("America/New_York")),
-			ExpectedOffset: -4,
+			ExpectedOffset: 5,
+		},
+		{
+			// Daylight savings is on the 14th of March to Nov 7 in 2021
+			Name:           "EasternDaylightSavings",
+			Now:            time.Date(2021, 3, 16, 0, 0, 0, 0, time.UTC),
+			Loc:            must(time.LoadLocation("America/New_York")),
+			ExpectedOffset: 4,
 		},
 		{
 			Name:           "Central",
+			Now:            time.Date(2021, 2, 1, 0, 0, 0, 0, time.UTC),
 			Loc:            must(time.LoadLocation("America/Chicago")),
-			ExpectedOffset: -5,
+			ExpectedOffset: 6,
+		},
+		{
+			Name:           "CentralDaylightSavings",
+			Now:            time.Date(2021, 3, 16, 0, 0, 0, 0, time.UTC),
+			Loc:            must(time.LoadLocation("America/Chicago")),
+			ExpectedOffset: 5,
 		},
 		{
 			Name:           "Ireland",
+			Now:            time.Date(2021, 2, 1, 0, 0, 0, 0, time.UTC),
 			Loc:            must(time.LoadLocation("Europe/Dublin")),
-			ExpectedOffset: 1,
+			ExpectedOffset: 0,
+		},
+		{
+			Name:           "IrelandDaylightSavings",
+			Now:            time.Date(2021, 4, 3, 0, 0, 0, 0, time.UTC),
+			Loc:            must(time.LoadLocation("Europe/Dublin")),
+			ExpectedOffset: -1,
 		},
 		{
 			Name: "HalfHourTz",
+			Now:  time.Date(2024, 1, 20, 6, 0, 0, 0, must(time.LoadLocation("Asia/Yangon"))),
 			// This timezone is +6:30, but the function rounds to the nearest hour.
 			// This is intentional because our DAUs endpoint only covers 1-hour offsets.
 			// If the user is in a non-hour timezone, they get the closest hour bucket.
 			Loc:            must(time.LoadLocation("Asia/Yangon")),
-			ExpectedOffset: 6,
+			ExpectedOffset: -6,
 		},
 	}
 
 	for _, c := range testCases {
-		c := c
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 
-			offset := codersdk.TimezoneOffsetHour(c.Loc)
+			offset := codersdk.TimezoneOffsetHourWithTime(c.Now, c.Loc)
 			require.Equal(t, c.ExpectedOffset, offset)
 		})
 	}
@@ -254,4 +290,402 @@ func must[T any](value T, err error) T {
 		panic(err)
 	}
 	return value
+}
+
+func TestDeploymentValues_Validate_RefreshLifetime(t *testing.T) {
+	t.Parallel()
+
+	mk := func(access, refresh time.Duration) *codersdk.DeploymentValues {
+		dv := &codersdk.DeploymentValues{}
+		dv.Sessions.DefaultDuration = serpent.Duration(access)
+		dv.Sessions.RefreshDefaultDuration = serpent.Duration(refresh)
+		return dv
+	}
+
+	t.Run("EqualDurations_Error", func(t *testing.T) {
+		t.Parallel()
+		dv := mk(1*time.Hour, 1*time.Hour)
+		err := dv.Validate()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "must be strictly greater")
+	})
+
+	t.Run("RefreshShorter_Error", func(t *testing.T) {
+		t.Parallel()
+		dv := mk(2*time.Hour, 1*time.Hour)
+		err := dv.Validate()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "must be strictly greater")
+	})
+
+	t.Run("RefreshZero_Error", func(t *testing.T) {
+		t.Parallel()
+		dv := mk(1*time.Hour, 0)
+		err := dv.Validate()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "must be strictly greater")
+	})
+
+	t.Run("AccessUninitialized_Error", func(t *testing.T) {
+		t.Parallel()
+		// Access duration is zero (uninitialized); refresh is valid.
+		dv := mk(0, 48*time.Hour)
+		err := dv.Validate()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "developer error: sessions configuration appears uninitialized")
+	})
+
+	t.Run("RefreshLonger_OK", func(t *testing.T) {
+		t.Parallel()
+		dv := mk(1*time.Hour, 48*time.Hour)
+		err := dv.Validate()
+		require.NoError(t, err)
+	})
+}
+
+func TestDeploymentValues_DurationFormatNanoseconds(t *testing.T) {
+	t.Parallel()
+
+	set := (&codersdk.DeploymentValues{}).Options()
+	for _, s := range set {
+		if s.Value.Type() != "duration" {
+			continue
+		}
+		// Just make sure the annotation is set.
+		// If someone wants to not format a duration, they can
+		// explicitly set the annotation to false.
+		if s.Annotations.IsSet("format_duration") {
+			continue
+		}
+		t.Logf("Option %q is a duration but does not have the format_duration annotation.", s.Name)
+		t.Log("To fix this, add the following to the option declaration:")
+		t.Log(`Annotations: serpent.Annotations{}.Mark(annotationFormatDurationNS, "true"),`)
+		t.FailNow()
+	}
+}
+
+//go:embed testdata/*
+var testData embed.FS
+
+func TestExternalAuthYAMLConfig(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		// The windows marshal function uses different line endings.
+		// Not worth the effort getting this to work on windows.
+		t.SkipNow()
+	}
+
+	file := func(t *testing.T, name string) string {
+		data, err := testData.ReadFile(fmt.Sprintf("testdata/%s", name))
+		require.NoError(t, err, "read testdata file %q", name)
+		return string(data)
+	}
+	githubCfg := codersdk.ExternalAuthConfig{
+		Type:                "github",
+		ClientID:            "client_id",
+		ClientSecret:        "client_secret",
+		ID:                  "id",
+		AuthURL:             "https://example.com/auth",
+		TokenURL:            "https://example.com/token",
+		ValidateURL:         "https://example.com/validate",
+		RevokeURL:           "https://example.com/revoke",
+		AppInstallURL:       "https://example.com/install",
+		AppInstallationsURL: "https://example.com/installations",
+		NoRefresh:           true,
+		Scopes:              []string{"user:email", "read:org"},
+		ExtraTokenKeys:      []string{"extra", "token"},
+		DeviceFlow:          true,
+		DeviceCodeURL:       "https://example.com/device",
+		Regex:               "^https://example.com/.*$",
+		DisplayName:         "GitHub",
+		DisplayIcon:         "/static/icons/github.svg",
+		MCPURL:              "https://api.githubcopilot.com/mcp/",
+		MCPToolAllowRegex:   ".*",
+		MCPToolDenyRegex:    "create_gist",
+	}
+
+	// Input the github section twice for testing a slice of configs.
+	inputYAML := func() string {
+		f := file(t, "githubcfg.yaml")
+		lines := strings.SplitN(f, "\n", 2)
+		// Append github config twice
+		return f + lines[1]
+	}()
+
+	expected := []codersdk.ExternalAuthConfig{
+		githubCfg, githubCfg,
+	}
+
+	dv := codersdk.DeploymentValues{}
+	opts := dv.Options()
+	// replace any tabs with the proper space indentation
+	inputYAML = strings.ReplaceAll(inputYAML, "\t", "  ")
+
+	// This is the order things are done in the cli, so just
+	// keep it the same.
+	var n yaml.Node
+	err := yaml.Unmarshal([]byte(inputYAML), &n)
+	require.NoError(t, err)
+
+	err = n.Decode(&opts)
+	require.NoError(t, err)
+	require.ElementsMatchf(t, expected, dv.ExternalAuthConfigs.Value, "from yaml")
+
+	var out bytes.Buffer
+	enc := yaml.NewEncoder(&out)
+	enc.SetIndent(2)
+	err = enc.Encode(dv.ExternalAuthConfigs)
+	require.NoError(t, err)
+
+	// Because we only marshal the 1 section, the correct section name is not applied.
+	output := strings.Replace(out.String(), "value:", "externalAuthProviders:", 1)
+	require.Equal(t, inputYAML, output, "re-marshaled is the same as input")
+}
+
+func TestFeatureComparison(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		Name     string
+		A        codersdk.Feature
+		B        codersdk.Feature
+		Expected int
+	}{
+		{
+			Name:     "Empty",
+			Expected: 0,
+		},
+		// Entitlement check
+		//		Entitled
+		{
+			Name:     "EntitledVsGracePeriod",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod},
+			Expected: 1,
+		},
+		{
+			Name: "EntitledVsGracePeriodLimits",
+			A:    codersdk.Feature{Entitlement: codersdk.EntitlementEntitled},
+			// Entitled should still win here
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: ptr.Ref[int64](100), Actual: ptr.Ref[int64](50)},
+			Expected: 1,
+		},
+		{
+			Name:     "EntitledVsNotEntitled",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementNotEntitled},
+			Expected: 3,
+		},
+		{
+			Name:     "EntitledVsUnknown",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled},
+			B:        codersdk.Feature{Entitlement: ""},
+			Expected: 4,
+		},
+		//		GracePeriod
+		{
+			Name:     "GracefulVsNotEntitled",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementNotEntitled},
+			Expected: 2,
+		},
+		{
+			Name:     "GracefulVsUnknown",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod},
+			B:        codersdk.Feature{Entitlement: ""},
+			Expected: 3,
+		},
+		//		NotEntitled
+		{
+			Name:     "NotEntitledVsUnknown",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementNotEntitled},
+			B:        codersdk.Feature{Entitlement: ""},
+			Expected: 1,
+		},
+		// --
+		{
+			Name:     "EntitledVsGracePeriodCapable",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref[int64](100), Actual: ptr.Ref[int64](200)},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: ptr.Ref[int64](300), Actual: ptr.Ref[int64](200)},
+			Expected: -1,
+		},
+		// UserLimits
+		{
+			// Tests an exceeded limit that is entitled vs a graceful limit that
+			// is not exceeded. This is the edge case that we should use the graceful period
+			// instead of the entitled.
+			Name:     "UserLimitExceeded",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(200))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: ptr.Ref(int64(300)), Actual: ptr.Ref(int64(200))},
+			Expected: -1,
+		},
+		{
+			Name:     "UserLimitExceededNoEntitled",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(200))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementNotEntitled, Limit: ptr.Ref(int64(300)), Actual: ptr.Ref(int64(200))},
+			Expected: 3,
+		},
+		{
+			Name:     "HigherLimit",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(110)), Actual: ptr.Ref(int64(200))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(200))},
+			Expected: 10, // Diff in the limit #
+		},
+		{
+			Name:     "HigherActual",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(300))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(200))},
+			Expected: 100, // Diff in the actual #
+		},
+		{
+			Name:     "LimitExists",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(50))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: nil, Actual: ptr.Ref(int64(200))},
+			Expected: 1,
+		},
+		{
+			Name:     "LimitExistsGrace",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(50))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementGracePeriod, Limit: nil, Actual: ptr.Ref(int64(200))},
+			Expected: 1,
+		},
+		{
+			Name:     "ActualExists",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(50))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: nil},
+			Expected: 1,
+		},
+		{
+			Name:     "NotNils",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(50))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: nil, Actual: nil},
+			Expected: 1,
+		},
+		{
+			Name:     "EnabledVsDisabled",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Enabled: true, Limit: ptr.Ref(int64(300)), Actual: ptr.Ref(int64(200))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(300)), Actual: ptr.Ref(int64(200))},
+			Expected: 1,
+		},
+		{
+			Name:     "NotNils",
+			A:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: ptr.Ref(int64(100)), Actual: ptr.Ref(int64(50))},
+			B:        codersdk.Feature{Entitlement: codersdk.EntitlementEntitled, Limit: nil, Actual: nil},
+			Expected: 1,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+
+			r := tc.A.Compare(tc.B)
+			logIt := !assert.Equal(t, tc.Expected, r)
+
+			// Comparisons should be like addition. A - B = -1 * (B - A)
+			r = tc.B.Compare(tc.A)
+			logIt = logIt || !assert.Equalf(t, tc.Expected*-1, r, "the inverse comparison should also be true")
+			if logIt {
+				ad, _ := json.Marshal(tc.A)
+				bd, _ := json.Marshal(tc.B)
+				t.Logf("a = %s\nb = %s", ad, bd)
+			}
+		})
+	}
+}
+
+// TestPremiumSuperSet tests that the "premium" feature set is a superset of the
+// "enterprise" feature set.
+func TestPremiumSuperSet(t *testing.T) {
+	t.Parallel()
+
+	enterprise := codersdk.FeatureSetEnterprise
+	premium := codersdk.FeatureSetPremium
+
+	// Premium > Enterprise
+	require.Greater(t, len(premium.Features()), len(enterprise.Features()), "premium should have more features than enterprise")
+
+	// Premium ⊃ Enterprise
+	require.Subset(t, premium.Features(), enterprise.Features(), "premium should be a superset of enterprise. If this fails, update the premium feature set to include all enterprise features.")
+
+	// Premium = All Features EXCEPT usage limit features
+	expectedPremiumFeatures := []codersdk.FeatureName{}
+	for _, feature := range codersdk.FeatureNames {
+		if feature.UsesLimit() {
+			continue
+		}
+		expectedPremiumFeatures = append(expectedPremiumFeatures, feature)
+	}
+	require.NotEmpty(t, expectedPremiumFeatures, "expectedPremiumFeatures should not be empty")
+	require.ElementsMatch(t, premium.Features(), expectedPremiumFeatures, "premium should contain all features except usage limit features")
+
+	// This check exists because if you misuse the slices.Delete, you can end up
+	// with zero'd values.
+	require.NotContains(t, enterprise.Features(), "", "enterprise should not contain empty string")
+	require.NotContains(t, premium.Features(), "", "premium should not contain empty string")
+}
+
+func TestNotificationsCanBeDisabled(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                       string
+		expectNotificationsEnabled bool
+		environment                []serpent.EnvVar
+	}{
+		{
+			name:                       "NoDeliveryMethodSet",
+			environment:                []serpent.EnvVar{},
+			expectNotificationsEnabled: false,
+		},
+		{
+			name: "SMTP_DeliveryMethodSet",
+			environment: []serpent.EnvVar{
+				{
+					Name:  "CODER_EMAIL_SMARTHOST",
+					Value: "localhost:587",
+				},
+			},
+			expectNotificationsEnabled: true,
+		},
+		{
+			name: "Webhook_DeliveryMethodSet",
+			environment: []serpent.EnvVar{
+				{
+					Name:  "CODER_NOTIFICATIONS_WEBHOOK_ENDPOINT",
+					Value: "https://example.com/webhook",
+				},
+			},
+			expectNotificationsEnabled: true,
+		},
+		{
+			name: "WebhookAndSMTP_DeliveryMethodSet",
+			environment: []serpent.EnvVar{
+				{
+					Name:  "CODER_NOTIFICATIONS_WEBHOOK_ENDPOINT",
+					Value: "https://example.com/webhook",
+				},
+				{
+					Name:  "CODER_EMAIL_SMARTHOST",
+					Value: "localhost:587",
+				},
+			},
+			expectNotificationsEnabled: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			dv := codersdk.DeploymentValues{}
+			opts := dv.Options()
+
+			err := opts.ParseEnv(tt.environment)
+			require.NoError(t, err)
+
+			require.Equal(t, tt.expectNotificationsEnabled, dv.Notifications.Enabled())
+		})
+	}
 }

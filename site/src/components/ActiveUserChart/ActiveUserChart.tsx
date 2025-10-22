@@ -1,129 +1,132 @@
-import Box from "@mui/material/Box";
-import { Theme } from "@mui/material/styles";
-import useTheme from "@mui/styles/useTheme";
 import {
-  CategoryScale,
-  Chart as ChartJS,
-  ChartOptions,
-  defaults,
-  Filler,
-  Legend,
-  LinearScale,
-  LineElement,
-  TimeScale,
-  Title,
-  Tooltip,
-  PointElement,
-} from "chart.js";
-import "chartjs-adapter-date-fns";
+	type ChartConfig,
+	ChartContainer,
+	ChartTooltip,
+	ChartTooltipContent,
+} from "components/Chart/Chart";
 import {
-  HelpTooltip,
-  HelpTooltipTitle,
-  HelpTooltipText,
+	HelpTooltip,
+	HelpTooltipContent,
+	HelpTooltipIconTrigger,
+	HelpTooltipText,
+	HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
-import dayjs from "dayjs";
-import { FC } from "react";
-import { Line } from "react-chartjs-2";
+import type { FC } from "react";
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  TimeScale,
-  LineElement,
-  PointElement,
-  Filler,
-  Title,
-  Tooltip,
-  Legend,
-);
-
-export interface ActiveUserChartProps {
-  data: { date: string; amount: number }[];
-  interval: "day" | "week";
+const chartConfig = {
+	amount: {
+		label: "Active Users",
+		color: "hsl(var(--highlight-purple))",
+	},
+} satisfies ChartConfig;
+interface ActiveUserChartProps {
+	data: { date: string; amount: number }[];
 }
 
-export const ActiveUserChart: FC<ActiveUserChartProps> = ({
-  data,
-  interval,
-}) => {
-  const theme: Theme = useTheme();
+export const ActiveUserChart: FC<ActiveUserChartProps> = ({ data }) => {
+	return (
+		<ChartContainer config={chartConfig} className="aspect-auto h-full">
+			<AreaChart
+				accessibilityLayer
+				data={data}
+				margin={{
+					top: 10,
+					left: 0,
+					right: 0,
+				}}
+			>
+				<CartesianGrid vertical={false} />
+				<XAxis
+					dataKey="date"
+					tickLine={false}
+					tickMargin={12}
+					minTickGap={24}
+					tickFormatter={(value: string) =>
+						new Date(value).toLocaleDateString(undefined, {
+							month: "short",
+							day: "numeric",
+						})
+					}
+				/>
+				<YAxis
+					dataKey="amount"
+					tickLine={false}
+					axisLine={false}
+					tickMargin={12}
+					tickFormatter={(value: number) => {
+						return value === 0 ? "" : value.toLocaleString();
+					}}
+				/>
+				<ChartTooltip
+					cursor={false}
+					content={
+						<ChartTooltipContent
+							className="font-medium text-content-secondary"
+							labelClassName="text-content-primary"
+							labelFormatter={(_, p) => {
+								const item = p[0];
+								return `${item.value} active users`;
+							}}
+							formatter={(_v, _n, item) => {
+								const date = new Date(item.payload.date);
+								return date.toLocaleString(undefined, {
+									month: "long",
+									day: "2-digit",
+								});
+							}}
+						/>
+					}
+				/>
+				<defs>
+					<linearGradient id="fillAmount" x1="0" y1="0" x2="0" y2="1">
+						<stop
+							offset="5%"
+							stopColor="var(--color-amount)"
+							stopOpacity={0.8}
+						/>
+						<stop
+							offset="95%"
+							stopColor="var(--color-amount)"
+							stopOpacity={0.1}
+						/>
+					</linearGradient>
+				</defs>
 
-  const labels = data.map((val) => dayjs(val.date).format("YYYY-MM-DD"));
-  const chartData = data.map((val) => val.amount);
-
-  defaults.font.family = theme.typography.fontFamily as string;
-  defaults.color = theme.palette.text.secondary;
-
-  const options: ChartOptions<"line"> = {
-    responsive: true,
-    plugins: {
-      legend: {
-        display: false,
-      },
-      tooltip: {
-        displayColors: false,
-        callbacks: {
-          title: (context) => {
-            const date = new Date(context[0].parsed.x);
-            return date.toLocaleDateString();
-          },
-        },
-      },
-    },
-    scales: {
-      y: {
-        suggestedMin: 0,
-        ticks: {
-          precision: 0,
-        },
-      },
-
-      x: {
-        ticks: {
-          stepSize: data.length > 10 ? 2 : undefined,
-        },
-        type: "time",
-        time: {
-          unit: interval,
-        },
-      },
-    },
-    maintainAspectRatio: false,
-  };
-
-  return (
-    <Line
-      data-chromatic="ignore"
-      data={{
-        labels: labels,
-        datasets: [
-          {
-            label: `${interval === "day" ? "Daily" : "Weekly"} Active Users`,
-            data: chartData,
-            pointBackgroundColor: theme.palette.info.light,
-            pointBorderColor: theme.palette.info.light,
-            borderColor: theme.palette.info.light,
-            backgroundColor: theme.palette.info.dark,
-            fill: "origin",
-          },
-        ],
-      }}
-      options={options}
-    />
-  );
+				<Area
+					isAnimationActive={false}
+					dataKey="amount"
+					type="linear"
+					fill="url(#fillAmount)"
+					fillOpacity={0.4}
+					stroke="var(--color-amount)"
+					stackId="a"
+				/>
+			</AreaChart>
+		</ChartContainer>
+	);
 };
 
-export const ActiveUsersTitle = () => {
-  return (
-    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-      Active Users
-      <HelpTooltip size="small">
-        <HelpTooltipTitle>How do we calculate active users?</HelpTooltipTitle>
-        <HelpTooltipText>
-          When a connection is initiated to a user&apos;s workspace they are
-          considered an active user. e.g. apps, web terminal, SSH
-        </HelpTooltipText>
-      </HelpTooltip>
-    </Box>
-  );
+type ActiveUsersTitleProps = {
+	interval: "day" | "week";
+};
+
+export const ActiveUsersTitle: FC<ActiveUsersTitleProps> = ({ interval }) => {
+	return (
+		<div className="flex items-center gap-2">
+			{interval === "day" ? "Daily" : "Weekly"} Active Users
+			<HelpTooltip>
+				<HelpTooltipIconTrigger size="small" />
+				<HelpTooltipContent>
+					<HelpTooltipTitle>How do we calculate active users?</HelpTooltipTitle>
+					<HelpTooltipText>
+						When a connection is initiated to a user&apos;s workspace they are
+						considered an active user. e.g. apps, web terminal, SSH. This is for
+						measuring user activity and has no connection to license
+						consumption.
+					</HelpTooltipText>
+				</HelpTooltipContent>
+			</HelpTooltip>
+		</div>
+	);
 };

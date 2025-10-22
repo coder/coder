@@ -17,15 +17,13 @@ import (
 	"tailscale.com/derp/derphttp"
 	"tailscale.com/types/key"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/enterprise/derpmesh"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/testutil"
 )
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
 func TestDERPMesh(t *testing.T) {
@@ -49,19 +47,19 @@ func TestDERPMesh(t *testing.T) {
 		firstServer, firstServerURL := startDERP(t, tlsConfig)
 		defer firstServer.Close()
 		secondServer, secondServerURL := startDERP(t, tlsConfig)
-		firstMesh := derpmesh.New(slogtest.Make(t, nil).Named("first").Leveled(slog.LevelDebug), firstServer, tlsConfig)
+		firstMesh := derpmesh.New(testutil.Logger(t).Named("first"), firstServer, tlsConfig)
 		firstMesh.SetAddresses([]string{secondServerURL}, false)
-		secondMesh := derpmesh.New(slogtest.Make(t, nil).Named("second").Leveled(slog.LevelDebug), secondServer, tlsConfig)
+		secondMesh := derpmesh.New(testutil.Logger(t).Named("second"), secondServer, tlsConfig)
 		secondMesh.SetAddresses([]string{firstServerURL}, false)
 		defer firstMesh.Close()
 		defer secondMesh.Close()
 
 		first := key.NewNode()
 		second := key.NewNode()
-		firstClient, err := derphttp.NewClient(first, secondServerURL, tailnet.Logger(slogtest.Make(t, nil)))
+		firstClient, err := derphttp.NewClient(first, secondServerURL, tailnet.Logger(testutil.Logger(t)))
 		require.NoError(t, err)
 		firstClient.TLSConfig = tlsConfig
-		secondClient, err := derphttp.NewClient(second, firstServerURL, tailnet.Logger(slogtest.Make(t, nil)))
+		secondClient, err := derphttp.NewClient(second, firstServerURL, tailnet.Logger(testutil.Logger(t)))
 		require.NoError(t, err)
 		secondClient.TLSConfig = tlsConfig
 		err = secondClient.Connect(context.Background())
@@ -95,7 +93,7 @@ func TestDERPMesh(t *testing.T) {
 		// This tests messages passing through multiple DERP servers.
 		t.Parallel()
 		server, serverURL := startDERP(t, tlsConfig)
-		mesh := derpmesh.New(slogtest.Make(t, nil).Named("first").Leveled(slog.LevelDebug), server, tlsConfig)
+		mesh := derpmesh.New(testutil.Logger(t).Named("first"), server, tlsConfig)
 		mesh.SetAddresses([]string{"http://fake.com"}, false)
 		// This should trigger a removal...
 		mesh.SetAddresses([]string{}, false)
@@ -103,10 +101,10 @@ func TestDERPMesh(t *testing.T) {
 
 		first := key.NewNode()
 		second := key.NewNode()
-		firstClient, err := derphttp.NewClient(first, serverURL, tailnet.Logger(slogtest.Make(t, nil)))
+		firstClient, err := derphttp.NewClient(first, serverURL, tailnet.Logger(testutil.Logger(t)))
 		require.NoError(t, err)
 		firstClient.TLSConfig = tlsConfig
-		secondClient, err := derphttp.NewClient(second, serverURL, tailnet.Logger(slogtest.Make(t, nil)))
+		secondClient, err := derphttp.NewClient(second, serverURL, tailnet.Logger(testutil.Logger(t)))
 		require.NoError(t, err)
 		secondClient.TLSConfig = tlsConfig
 		err = secondClient.Connect(context.Background())
@@ -141,7 +139,7 @@ func TestDERPMesh(t *testing.T) {
 		serverURLs := make([]string, 0, 20)
 		for i := 0; i < 20; i++ {
 			server, url := startDERP(t, tlsConfig)
-			mesh := derpmesh.New(slogtest.Make(t, nil).Named("mesh").Leveled(slog.LevelDebug), server, tlsConfig)
+			mesh := derpmesh.New(testutil.Logger(t).Named("mesh"), server, tlsConfig)
 			t.Cleanup(func() {
 				_ = server.Close()
 				_ = mesh.Close()
@@ -155,10 +153,10 @@ func TestDERPMesh(t *testing.T) {
 
 		first := key.NewNode()
 		second := key.NewNode()
-		firstClient, err := derphttp.NewClient(first, serverURLs[9], tailnet.Logger(slogtest.Make(t, nil)))
+		firstClient, err := derphttp.NewClient(first, serverURLs[9], tailnet.Logger(testutil.Logger(t)))
 		require.NoError(t, err)
 		firstClient.TLSConfig = tlsConfig
-		secondClient, err := derphttp.NewClient(second, serverURLs[16], tailnet.Logger(slogtest.Make(t, nil)))
+		secondClient, err := derphttp.NewClient(second, serverURLs[16], tailnet.Logger(testutil.Logger(t)))
 		require.NoError(t, err)
 		secondClient.TLSConfig = tlsConfig
 		err = secondClient.Connect(context.Background())
@@ -193,9 +191,9 @@ func TestDERPMesh(t *testing.T) {
 		firstServer, firstServerURL := startDERP(t, tlsConfig)
 		defer firstServer.Close()
 		secondServer, secondServerURL := startDERP(t, tlsConfig)
-		firstMesh := derpmesh.New(slogtest.Make(t, nil).Named("first").Leveled(slog.LevelDebug), firstServer, tlsConfig)
+		firstMesh := derpmesh.New(testutil.Logger(t).Named("first"), firstServer, tlsConfig)
 		firstMesh.SetAddresses([]string{secondServerURL}, false)
-		secondMesh := derpmesh.New(slogtest.Make(t, nil).Named("second").Leveled(slog.LevelDebug), secondServer, tlsConfig)
+		secondMesh := derpmesh.New(testutil.Logger(t).Named("second"), secondServer, tlsConfig)
 		// Ensures that the client properly re-adds the address after it's removed.
 		secondMesh.SetAddresses([]string{firstServerURL}, true)
 		secondMesh.SetAddresses([]string{}, true)
@@ -205,10 +203,10 @@ func TestDERPMesh(t *testing.T) {
 
 		first := key.NewNode()
 		second := key.NewNode()
-		firstClient, err := derphttp.NewClient(first, secondServerURL, tailnet.Logger(slogtest.Make(t, nil)))
+		firstClient, err := derphttp.NewClient(first, secondServerURL, tailnet.Logger(testutil.Logger(t)))
 		require.NoError(t, err)
 		firstClient.TLSConfig = tlsConfig
-		secondClient, err := derphttp.NewClient(second, firstServerURL, tailnet.Logger(slogtest.Make(t, nil)))
+		secondClient, err := derphttp.NewClient(second, firstServerURL, tailnet.Logger(testutil.Logger(t)))
 		require.NoError(t, err)
 		secondClient.TLSConfig = tlsConfig
 		err = secondClient.Connect(context.Background())
@@ -258,7 +256,7 @@ func recvData(t *testing.T, client *derphttp.Client) []byte {
 }
 
 func startDERP(t *testing.T, tlsConfig *tls.Config) (*derp.Server, string) {
-	logf := tailnet.Logger(slogtest.Make(t, nil))
+	logf := tailnet.Logger(testutil.Logger(t))
 	d := derp.NewServer(key.NewNode(), logf)
 	d.SetMeshKey("some-key")
 	server := httptest.NewUnstartedServer(derphttp.Handler(d))

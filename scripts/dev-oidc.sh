@@ -10,6 +10,7 @@ set -euo pipefail
 
 KEYCLOAK_VERSION="${KEYCLOAK_VERSION:-22.0}"
 
+# NOTE: the trailing space in "lastName" is intentional.
 cat <<EOF >/tmp/example-realm.json
 {
   "realm": "coder",
@@ -23,6 +24,8 @@ cat <<EOF >/tmp/example-realm.json
     {
       "username": "oidcuser",
       "email": "oidcuser@coder.com",
+      "firstName": "OIDC",
+      "lastName": "user ",
       "emailVerified": true,
       "enabled": true,
       "credentials": [
@@ -46,6 +49,17 @@ cat <<EOF >/tmp/example-realm.json
       "baseUrl": "/coder",
       "redirectUris": ["*"],
       "secret": "coder"
+    },
+    {
+      "clientId": "coder-public",
+      "publicClient": true,
+      "directAccessGrantsEnabled": true,
+      "enabled": true,
+      "fullScopeAllowed": true,
+      "baseUrl": "/coder",
+      "redirectUris": [
+        "*"
+      ]
     }
   ]
 }
@@ -76,6 +90,9 @@ hostname=$(hostname -f)
 export CODER_OIDC_ISSUER_URL="http://${hostname}:9080/realms/coder"
 export CODER_OIDC_CLIENT_ID=coder
 export CODER_OIDC_CLIENT_SECRET=coder
+# Comment out the two lines above, and comment in the line below,
+# to configure OIDC auth using a public client.
+# export CODER_OIDC_CLIENT_ID=coder-public
 export CODER_DEV_ACCESS_URL="http://${hostname}:8080"
 
 exec "${SCRIPT_DIR}/develop.sh" "$@"

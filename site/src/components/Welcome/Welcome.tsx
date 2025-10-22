@@ -1,53 +1,29 @@
-import { makeStyles } from "@mui/styles";
-import Typography from "@mui/material/Typography";
-import { FC, PropsWithChildren } from "react";
+import type { FC, PropsWithChildren } from "react";
 import { CoderIcon } from "../Icons/CoderIcon";
 
 const Language = {
-  defaultMessage: (
-    <>
-      Welcome to <strong>Coder</strong>
-    </>
-  ),
+	defaultMessage: (
+		<>
+			Welcome to <strong>Coder</strong>
+		</>
+	),
 };
 
-export const Welcome: FC<
-  PropsWithChildren<{ message?: JSX.Element | string }>
-> = ({ message = Language.defaultMessage }) => {
-  const styles = useStyles();
+type WelcomeProps = Readonly<
+	PropsWithChildren<{
+		className?: string;
+	}>
+>;
+export const Welcome: FC<WelcomeProps> = ({ children, className }) => {
+	return (
+		<div className={className}>
+			<div className="flex justify-center pb-1">
+				<CoderIcon className="w-12 h-12" />
+			</div>
 
-  return (
-    <div>
-      <div className={styles.logoBox}>
-        <CoderIcon className={styles.logo} />
-      </div>
-      <Typography className={styles.title} variant="h1">
-        {message}
-      </Typography>
-    </div>
-  );
+			<h1 className="text-center text-3xl font-normal m-0 leading-[1.1] pb-4 [&_strong]:font-semibold">
+				{children || Language.defaultMessage}
+			</h1>
+		</div>
+	);
 };
-
-const useStyles = makeStyles((theme) => ({
-  logoBox: {
-    display: "flex",
-    justifyContent: "center",
-  },
-  logo: {
-    color: theme.palette.text.primary,
-    fontSize: theme.spacing(8),
-  },
-  title: {
-    textAlign: "center",
-    fontSize: theme.spacing(4),
-    fontWeight: 400,
-    margin: 0,
-    marginBottom: theme.spacing(2),
-    marginTop: theme.spacing(2),
-    lineHeight: 1.25,
-
-    "& strong": {
-      fontWeight: 600,
-    },
-  },
-}));

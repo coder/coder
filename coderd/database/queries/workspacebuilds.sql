@@ -76,34 +76,16 @@ LIMIT
 	1;
 
 -- name: GetLatestWorkspaceBuildsByWorkspaceIDs :many
-SELECT wb.*
-FROM (
-    SELECT
-        workspace_id, MAX(build_number) as max_build_number
-    FROM
-		workspace_build_with_user AS workspace_builds
-    WHERE
-        workspace_id = ANY(@ids :: uuid [ ])
-    GROUP BY
-        workspace_id
-) m
-JOIN
-	 workspace_build_with_user AS wb
-ON m.workspace_id = wb.workspace_id AND m.max_build_number = wb.build_number;
-
--- name: GetLatestWorkspaceBuilds :many
-SELECT wb.*
-FROM (
-    SELECT
-        workspace_id, MAX(build_number) as max_build_number
-    FROM
-		workspace_build_with_user AS workspace_builds
-    GROUP BY
-        workspace_id
-) m
-JOIN
-	 workspace_build_with_user AS wb
-ON m.workspace_id = wb.workspace_id AND m.max_build_number = wb.build_number;
+SELECT
+	DISTINCT ON (workspace_id)
+	*
+FROM
+	workspace_build_with_user AS workspace_builds
+WHERE
+	workspace_id = ANY(@ids :: uuid [ ])
+ORDER BY
+	workspace_id, build_number DESC -- latest first
+;
 
 -- name: InsertWorkspaceBuild :exec
 INSERT INTO
@@ -120,10 +102,11 @@ INSERT INTO
 		provisioner_state,
 		deadline,
 		max_deadline,
-		reason
+		reason,
+		template_version_preset_id
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13);
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14);
 
 -- name: UpdateWorkspaceBuildCostByID :exec
 UPDATE
@@ -140,7 +123,15 @@ SET
 	deadline = @deadline::timestamptz,
 	max_deadline = @max_deadline::timestamptz,
 	updated_at = @updated_at::timestamptz
-WHERE id = @id::uuid;
+FROM
+	workspaces
+WHERE
+	workspace_builds.id = @id::uuid
+	AND workspace_builds.workspace_id = workspaces.id
+	-- Prebuilt workspaces (identified by having the prebuilds system user as owner_id)
+	-- are managed by the reconciliation loop, not the lifecycle executor which handles
+	-- deadline and max_deadline
+	AND workspaces.owner_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::UUID;
 
 -- name: UpdateWorkspaceBuildProvisionerStateByID :exec
 UPDATE
@@ -179,3 +170,77 @@ WHERE
 	wb.transition = 'start'::workspace_transition
 AND
 	pj.completed_at IS NOT NULL;
+
+-- name: GetWorkspaceBuildStatsByTemplates :many
+SELECT
+    w.template_id,
+	t.name AS template_name,
+	t.display_name AS template_display_name,
+	t.organization_id AS template_organization_id,
+    COUNT(*) AS total_builds,
+    COUNT(CASE WHEN pj.job_status = 'failed' THEN 1 END) AS failed_builds
+FROM
+    workspace_build_with_user AS wb
+JOIN
+    workspaces AS w ON
+    wb.workspace_id = w.id
+JOIN
+    provisioner_jobs AS pj ON
+    wb.job_id = pj.id
+JOIN
+    templates AS t ON
+	w.template_id = t.id
+WHERE
+    wb.created_at >= @since
+    AND pj.completed_at IS NOT NULL
+GROUP BY
+    w.template_id, template_name, template_display_name, template_organization_id
+ORDER BY
+    template_name ASC;
+
+-- name: GetFailedWorkspaceBuildsByTemplateID :many
+SELECT
+	tv.name AS template_version_name,
+	u.username AS workspace_owner_username,
+	w.name AS workspace_name,
+	w.id AS workspace_id,
+	wb.build_number AS workspace_build_number
+FROM
+	workspace_build_with_user AS wb
+JOIN
+	workspaces AS w
+ON
+	wb.workspace_id = w.id
+JOIN
+    users AS u
+ON
+    w.owner_id = u.id
+JOIN
+	provisioner_jobs AS pj
+ON
+	wb.job_id = pj.id
+JOIN
+	templates AS t
+ON
+	w.template_id = t.id
+JOIN
+	template_versions AS tv
+ON
+	wb.template_version_id = tv.id
+WHERE
+	w.template_id = $1
+	AND wb.created_at >= @since
+	AND pj.completed_at IS NOT NULL
+	AND pj.job_status = 'failed'
+ORDER BY
+	tv.name ASC, wb.build_number DESC;
+
+-- name: UpdateWorkspaceBuildFlagsByID :exec
+UPDATE
+	workspace_builds
+SET
+	has_ai_task = @has_ai_task,
+	ai_task_sidebar_app_id = @sidebar_app_id,
+	has_external_agent = @has_external_agent,
+	updated_at = @updated_at::timestamptz
+WHERE id = @id::uuid;

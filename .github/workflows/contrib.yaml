@@ -2,7 +2,8 @@ name: contrib
 
 on:
   issue_comment:
-    types: [created]
+    types: [created, edited]
+  # zizmor: ignore[dangerous-triggers] We explicitly want to run on pull_request_target.
   pull_request_target:
     types:
       - opened
@@ -10,35 +11,30 @@ on:
       - synchronize
       - labeled
       - unlabeled
-      - opened
       - reopened
       - edited
+      # For jobs that don't run on draft PRs.
+      - ready_for_review
+
+permissions:
+  contents: read
 
 # Only run one instance per PR to ensure in-order execution.
 concurrency: pr-${{ github.ref }}
 
 jobs:
-  # Dependabot is annoying, but this makes it a bit less so.
-  auto-approve-dependabot:
+  cla:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request_target'
     permissions:
       pull-requests: write
     steps:
-      - name: auto-approve dependabot
-        uses: hmarr/auto-approve-action@v3
-        if: github.actor == 'dependabot[bot]'
-
-  cla:
-    runs-on: ubuntu-latest
-    steps:
       - name: cla
         if: (github.event.comment.body == 'recheck' || github.event.comment.body == 'I have read the CLA Document and I hereby sign the CLA') || github.event_name == 'pull_request_target'
-        uses: contributor-assistant/github-action@v2.3.1
+        uses: contributor-assistant/github-action@ca4a40a7d1004f18d9960b404b97e5f30a505a08 # v2.6.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # the below token should have repo scope and must be manually added by you in the repository's secret
-          PERSONAL_ACCESS_TOKEN: ${{ secrets.CDRCOMMUNITY_GITHUB_TOKEN }}
+          PERSONAL_ACCESS_TOKEN: ${{ secrets.CDRCI2_GITHUB_TOKEN }}
         with:
           remote-organization-name: "coder"
           remote-repository-name: "cla"
@@ -47,15 +43,17 @@ jobs:
           # branch should not be protected
           branch: "main"
           # Some users have signed a corporate CLA with Coder so are exempt from signing our community one.
-          allowlist: "coryb,aaronlehmann,dependabot*"
+          allowlist: "coryb,aaronlehmann,dependabot*,blink-so*"
 
   release-labels:
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
     # Skip tagging for draft PRs.
-    if: ${{ github.event_name == 'pull_request_target' && success() && !github.event.pull_request.draft }}
+    if: ${{ github.event_name == 'pull_request_target' && !github.event.pull_request.draft }}
     steps:
       - name: release-labels
-        uses: actions/github-script@v6
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
           # This script ensures PR title and labels are in sync:
           #
@@ -87,7 +85,7 @@ jobs:
               repo: context.repo.repo,
             }
 
-            if (action === "opened" || action === "reopened") {
+            if (action === "opened" || action === "reopened" || action === "ready_for_review") {
               if (isBreakingTitle && !labels.includes(releaseLabels.breaking)) {
                 console.log('Add "%s" label', releaseLabels.breaking)
                 await github.rest.issues.addLabels({

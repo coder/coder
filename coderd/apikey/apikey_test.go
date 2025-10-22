@@ -10,11 +10,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestGenerate(t *testing.T) {
@@ -30,75 +28,85 @@ func TestGenerate(t *testing.T) {
 		{
 			name: "OK",
 			params: apikey.CreateParams{
-				UserID:           uuid.New(),
-				LoginType:        database.LoginTypeOIDC,
-				DeploymentValues: &codersdk.DeploymentValues{},
-				ExpiresAt:        time.Now().Add(time.Hour),
-				LifetimeSeconds:  int64(time.Hour.Seconds()),
-				TokenName:        "hello",
-				RemoteAddr:       "1.2.3.4",
-				Scope:            database.APIKeyScopeApplicationConnect,
+				UserID:          uuid.New(),
+				LoginType:       database.LoginTypeOIDC,
+				DefaultLifetime: time.Duration(0),
+				ExpiresAt:       time.Now().Add(time.Hour),
+				LifetimeSeconds: int64(time.Hour.Seconds()),
+				TokenName:       "hello",
+				RemoteAddr:      "1.2.3.4",
+				Scope:           database.ApiKeyScopeCoderApplicationConnect,
 			},
 		},
 		{
 			name: "InvalidScope",
 			params: apikey.CreateParams{
-				UserID:           uuid.New(),
-				LoginType:        database.LoginTypeOIDC,
-				DeploymentValues: &codersdk.DeploymentValues{},
-				ExpiresAt:        time.Now().Add(time.Hour),
-				LifetimeSeconds:  int64(time.Hour.Seconds()),
-				TokenName:        "hello",
-				RemoteAddr:       "1.2.3.4",
-				Scope:            database.APIKeyScope("test"),
+				UserID:          uuid.New(),
+				LoginType:       database.LoginTypeOIDC,
+				DefaultLifetime: time.Duration(0),
+				ExpiresAt:       time.Now().Add(time.Hour),
+				LifetimeSeconds: int64(time.Hour.Seconds()),
+				TokenName:       "hello",
+				RemoteAddr:      "1.2.3.4",
+				Scope:           database.APIKeyScope("test"),
 			},
 			fail: true,
 		},
 		{
 			name: "DeploymentSessionDuration",
 			params: apikey.CreateParams{
-				UserID:    uuid.New(),
-				LoginType: database.LoginTypeOIDC,
-				DeploymentValues: &codersdk.DeploymentValues{
-					SessionDuration: clibase.Duration(time.Hour),
-				},
+				UserID:          uuid.New(),
+				LoginType:       database.LoginTypeOIDC,
+				DefaultLifetime: time.Hour,
 				LifetimeSeconds: 0,
 				ExpiresAt:       time.Time{},
 				TokenName:       "hello",
 				RemoteAddr:      "1.2.3.4",
-				Scope:           database.APIKeyScopeApplicationConnect,
+				Scope:           database.ApiKeyScopeCoderApplicationConnect,
+			},
+		},
+		{
+			name: "LifetimeSeconds",
+			params: apikey.CreateParams{
+				UserID:          uuid.New(),
+				LoginType:       database.LoginTypeOIDC,
+				DefaultLifetime: time.Duration(0),
+				LifetimeSeconds: int64(time.Hour.Seconds()),
+				ExpiresAt:       time.Time{},
+				TokenName:       "hello",
+				RemoteAddr:      "1.2.3.4",
+				Scope:           database.ApiKeyScopeCoderApplicationConnect,
 			},
 		},
 		{
 			name: "DefaultIP",
 			params: apikey.CreateParams{
-				UserID:           uuid.New(),
-				LoginType:        database.LoginTypeOIDC,
-				DeploymentValues: &codersdk.DeploymentValues{},
-				ExpiresAt:        time.Now().Add(time.Hour),
-				LifetimeSeconds:  int64(time.Hour.Seconds()),
-				TokenName:        "hello",
-				RemoteAddr:       "",
-				Scope:            database.APIKeyScopeApplicationConnect,
+				UserID:          uuid.New(),
+				LoginType:       database.LoginTypeOIDC,
+				DefaultLifetime: time.Duration(0),
+				ExpiresAt:       time.Now().Add(time.Hour),
+				LifetimeSeconds: int64(time.Hour.Seconds()),
+				TokenName:       "hello",
+				RemoteAddr:      "",
+				Scope:           database.ApiKeyScopeCoderApplicationConnect,
 			},
 		},
 		{
 			name: "DefaultScope",
 			params: apikey.CreateParams{
-				UserID:           uuid.New(),
-				LoginType:        database.LoginTypeOIDC,
-				DeploymentValues: &codersdk.DeploymentValues{},
-				ExpiresAt:        time.Now().Add(time.Hour),
-				LifetimeSeconds:  int64(time.Hour.Seconds()),
-				TokenName:        "hello",
-				RemoteAddr:       "1.2.3.4",
-				Scope:            "",
+				UserID:          uuid.New(),
+				LoginType:       database.LoginTypeOIDC,
+				DefaultLifetime: time.Duration(0),
+				ExpiresAt:       time.Now().Add(time.Hour),
+				LifetimeSeconds: int64(time.Hour.Seconds()),
+				TokenName:       "hello",
+				RemoteAddr:      "1.2.3.4",
+				Scope:           "",
 			},
 		},
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -119,27 +127,29 @@ func TestGenerate(t *testing.T) {
 
 			// Assert that the hashed secret is correct.
 			hashed := sha256.Sum256([]byte(keytokens[1]))
-			assert.ElementsMatch(t, hashed, key.HashedSecret[:])
+			assert.ElementsMatch(t, hashed, key.HashedSecret)
 
 			assert.Equal(t, tc.params.UserID, key.UserID)
 			assert.WithinDuration(t, dbtime.Now(), key.CreatedAt, time.Second*5)
 			assert.WithinDuration(t, dbtime.Now(), key.UpdatedAt, time.Second*5)
 
-			if tc.params.LifetimeSeconds > 0 {
+			switch {
+			case tc.params.LifetimeSeconds > 0:
 				assert.Equal(t, tc.params.LifetimeSeconds, key.LifetimeSeconds)
-			} else if !tc.params.ExpiresAt.IsZero() {
+			case !tc.params.ExpiresAt.IsZero():
 				// Should not be a delta greater than 5 seconds.
 				assert.InDelta(t, time.Until(tc.params.ExpiresAt).Seconds(), key.LifetimeSeconds, 5)
-			} else {
-				assert.Equal(t, int64(tc.params.DeploymentValues.SessionDuration.Value().Seconds()), key.LifetimeSeconds)
+			default:
+				assert.Equal(t, int64(tc.params.DefaultLifetime.Seconds()), key.LifetimeSeconds)
 			}
 
-			if !tc.params.ExpiresAt.IsZero() {
+			switch {
+			case !tc.params.ExpiresAt.IsZero():
 				assert.Equal(t, tc.params.ExpiresAt.UTC(), key.ExpiresAt)
-			} else if tc.params.LifetimeSeconds > 0 {
-				assert.WithinDuration(t, dbtime.Now().Add(time.Duration(tc.params.LifetimeSeconds)), key.ExpiresAt, time.Second*5)
-			} else {
-				assert.WithinDuration(t, dbtime.Now().Add(tc.params.DeploymentValues.SessionDuration.Value()), key.ExpiresAt, time.Second*5)
+			case tc.params.LifetimeSeconds > 0:
+				assert.WithinDuration(t, dbtime.Now().Add(time.Duration(tc.params.LifetimeSeconds)*time.Second), key.ExpiresAt, time.Second*5)
+			default:
+				assert.WithinDuration(t, dbtime.Now().Add(tc.params.DefaultLifetime), key.ExpiresAt, time.Second*5)
 			}
 
 			if tc.params.RemoteAddr != "" {
@@ -149,9 +159,9 @@ func TestGenerate(t *testing.T) {
 			}
 
 			if tc.params.Scope != "" {
-				assert.Equal(t, tc.params.Scope, key.Scope)
+				assert.True(t, key.Scopes.Has(tc.params.Scope))
 			} else {
-				assert.Equal(t, database.APIKeyScopeAll, key.Scope)
+				assert.True(t, key.Scopes.Has(database.ApiKeyScopeCoderAll))
 			}
 
 			if tc.params.TokenName != "" {

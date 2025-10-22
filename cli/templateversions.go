@@ -8,49 +8,96 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/pretty"
+	"github.com/coder/serpent"
 )
 
-func (r *RootCmd) templateVersions() *clibase.Cmd {
-	cmd := &clibase.Cmd{
+func (r *RootCmd) templateVersions() *serpent.Command {
+	cmd := &serpent.Command{
 		Use:     "versions",
 		Short:   "Manage different versions of the specified template",
 		Aliases: []string{"version"},
-		Long: formatExamples(
-			example{
+		Long: FormatExamples(
+			Example{
 				Description: "List versions of a specific template",
 				Command:     "coder templates versions list my-template",
 			},
 		),
-		Handler: func(inv *clibase.Invocation) error {
+		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
-		Children: []*clibase.Cmd{
+		Children: []*serpent.Command{
 			r.templateVersionsList(),
+			r.archiveTemplateVersion(),
+			r.unarchiveTemplateVersion(),
+			r.templateVersionsPromote(),
 		},
 	}
 
 	return cmd
 }
 
-func (r *RootCmd) templateVersionsList() *clibase.Cmd {
+func (r *RootCmd) templateVersionsList() *serpent.Command {
+	defaultColumns := []string{
+		"name",
+		"created at",
+		"created by",
+		"status",
+		"active",
+	}
 	formatter := cliui.NewOutputFormatter(
-		cliui.TableFormat([]templateVersionRow{}, nil),
+		cliui.TableFormat([]templateVersionRow{}, defaultColumns),
 		cliui.JSONFormat(),
 	)
-	client := new(codersdk.Client)
+	orgContext := NewOrganizationContext()
 
-	cmd := &clibase.Cmd{
+	var includeArchived serpent.Bool
+
+	cmd := &serpent.Command{
 		Use: "list <template>",
-		Middleware: clibase.Chain(
-			clibase.RequireNArgs(1),
-			r.InitClient(client),
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(1),
+			func(next serpent.HandlerFunc) serpent.HandlerFunc {
+				return func(i *serpent.Invocation) error {
+					// This is the only way to dynamically add the "archived"
+					// column if '--include-archived' is true.
+					// It does not make sense to show this column if the
+					// flag is false.
+					if includeArchived {
+						for _, opt := range i.Command.Options {
+							if opt.Flag == "column" {
+								if opt.ValueSource == serpent.ValueSourceDefault {
+									v, ok := opt.Value.(*serpent.EnumArray)
+									if ok {
+										// Add the extra new default column.
+										_ = v.Append("Archived")
+									}
+								}
+								break
+							}
+						}
+					}
+					return next(i)
+				}
+			},
 		),
 		Short: "List all the versions of the specified template",
-		Handler: func(inv *clibase.Invocation) error {
-			organization, err := CurrentOrganization(inv, client)
+		Options: serpent.OptionSet{
+			{
+				Name:        "include-archived",
+				Description: "Include archived versions in the result list.",
+				Flag:        "include-archived",
+				Value:       &includeArchived,
+			},
+		},
+		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+			organization, err := orgContext.Selected(inv, client)
 			if err != nil {
 				return xerrors.Errorf("get current organization: %w", err)
 			}
@@ -59,7 +106,8 @@ func (r *RootCmd) templateVersionsList() *clibase.Cmd {
 				return xerrors.Errorf("get template by name: %w", err)
 			}
 			req := codersdk.TemplateVersionsByTemplateRequest{
-				TemplateID: template.ID,
+				TemplateID:      template.ID,
+				IncludeArchived: includeArchived.Value(),
 			}
 
 			versions, err := client.TemplateVersionsByTemplate(inv.Context(), req)
@@ -78,6 +126,7 @@ func (r *RootCmd) templateVersionsList() *clibase.Cmd {
 		},
 	}
 
+	orgContext.AttachOptions(cmd)
 	formatter.AttachOptions(&cmd.Options)
 	return cmd
 }
@@ -92,6 +141,7 @@ type templateVersionRow struct {
 	CreatedBy string    `json:"-" table:"created by"`
 	Status    string    `json:"-" table:"status"`
 	Active    string    `json:"-" table:"active"`
+	Archived  string    `json:"-" table:"archived"`
 }
 
 // templateVersionsToRows converts a list of template versions to a list of rows
@@ -104,6 +154,11 @@ func templateVersionsToRows(activeVersionID uuid.UUID, templateVersions ...coder
 			activeStatus = cliui.Keyword("Active")
 		}
 
+		archivedStatus := ""
+		if templateVersion.Archived {
+			archivedStatus = pretty.Sprint(cliui.DefaultStyles.Warn, "Archived")
+		}
+
 		rows[i] = templateVersionRow{
 			TemplateVersion: templateVersion,
 			Name:            templateVersion.Name,
@@ -111,8 +166,72 @@ func templateVersionsToRows(activeVersionID uuid.UUID, templateVersions ...coder
 			CreatedBy:       templateVersion.CreatedBy.Username,
 			Status:          strings.Title(string(templateVersion.Job.Status)),
 			Active:          activeStatus,
+			Archived:        archivedStatus,
 		}
 	}
 
 	return rows
+}
+
+func (r *RootCmd) templateVersionsPromote() *serpent.Command {
+	var (
+		templateName        string
+		templateVersionName string
+		orgContext          = NewOrganizationContext()
+	)
+	cmd := &serpent.Command{
+		Use:   "promote --template=<template_name> --template-version=<template_version_name>",
+		Short: "Promote a template version to active.",
+		Long:  "Promote an existing template version to be the active version for the specified template.",
+		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+			organization, err := orgContext.Selected(inv, client)
+			if err != nil {
+				return err
+			}
+
+			template, err := client.TemplateByName(inv.Context(), organization.ID, templateName)
+			if err != nil {
+				return xerrors.Errorf("get template by name: %w", err)
+			}
+
+			version, err := client.TemplateVersionByName(inv.Context(), template.ID, templateVersionName)
+			if err != nil {
+				return xerrors.Errorf("get template version by name: %w", err)
+			}
+
+			err = client.UpdateActiveTemplateVersion(inv.Context(), template.ID, codersdk.UpdateActiveTemplateVersion{
+				ID: version.ID,
+			})
+			if err != nil {
+				return xerrors.Errorf("update active template version: %w", err)
+			}
+
+			_, _ = fmt.Fprintf(inv.Stdout, "Successfully promoted version %q to active for template %q\n", templateVersionName, templateName)
+			return nil
+		},
+	}
+
+	cmd.Options = serpent.OptionSet{
+		{
+			Flag:          "template",
+			FlagShorthand: "t",
+			Env:           "CODER_TEMPLATE_NAME",
+			Description:   "Specify the template name.",
+			Required:      true,
+			Value:         serpent.StringOf(&templateName),
+		},
+		{
+			Flag:        "template-version",
+			Description: "Specify the template version name to promote.",
+			Env:         "CODER_TEMPLATE_VERSION_NAME",
+			Required:    true,
+			Value:       serpent.StringOf(&templateVersionName),
+		},
+	}
+	orgContext.AttachOptions(cmd)
+	return cmd
 }

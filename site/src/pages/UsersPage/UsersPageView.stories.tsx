@@ -1,44 +1,47 @@
-import { Meta, StoryObj } from "@storybook/react";
 import {
-  MockUser,
-  MockUser2,
-  MockAssignableSiteRoles,
-  mockApiError,
-  MockAuthMethods,
+	MockAssignableSiteRoles,
+	MockAuthMethodsPasswordOnly,
+	MockUserMember,
+	MockUserOwner,
+	mockApiError,
 } from "testHelpers/entities";
-import { UsersPageView } from "./UsersPageView";
-import { ComponentProps } from "react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
-  MockMenu,
-  getDefaultFilterProps,
+	getDefaultFilterProps,
+	MockMenu,
 } from "components/Filter/storyHelpers";
+import { mockSuccessResult } from "components/PaginationWidget/PaginationContainer.mocks";
+import type { UsePaginatedQueryResult } from "hooks/usePaginatedQuery";
+import type { ComponentProps } from "react";
+import { UsersPageView } from "./UsersPageView";
 
 type FilterProps = ComponentProps<typeof UsersPageView>["filterProps"];
 
 const defaultFilterProps = getDefaultFilterProps<FilterProps>({
-  query: "owner:me",
-  menus: {
-    status: MockMenu,
-  },
-  values: {
-    status: "active",
-  },
+	query: "owner:me",
+	menus: {
+		status: MockMenu,
+	},
+	values: {
+		status: "active",
+	},
 });
 
 const meta: Meta<typeof UsersPageView> = {
-  title: "pages/UsersPageView",
-  component: UsersPageView,
-  args: {
-    page: 1,
-    limit: 25,
-    isNonInitialPage: false,
-    users: [MockUser, MockUser2],
-    roles: MockAssignableSiteRoles,
-    count: 2,
-    canEditUsers: true,
-    filterProps: defaultFilterProps,
-    authMethods: MockAuthMethods,
-  },
+	title: "pages/UsersPageView",
+	component: UsersPageView,
+	args: {
+		isNonInitialPage: false,
+		users: [MockUserOwner, MockUserMember],
+		roles: MockAssignableSiteRoles,
+		canEditUsers: true,
+		filterProps: defaultFilterProps,
+		authMethods: MockAuthMethodsPasswordOnly,
+		usersQuery: {
+			...mockSuccessResult,
+			totalRecords: 2,
+		} as UsePaginatedQueryResult,
+	},
 };
 
 export default meta;
@@ -46,43 +49,55 @@ type Story = StoryObj<typeof UsersPageView>;
 
 export const Admin: Story = {};
 
-export const SmallViewport = {
-  parameters: {
-    chromatic: { viewports: [600] },
-  },
+export const SmallViewport: Story = {
+	parameters: {
+		chromatic: { viewports: [600] },
+	},
 };
 
-export const Member = {
-  args: { canEditUsers: false },
+export const Member: Story = {
+	args: { canEditUsers: false },
 };
 
-export const Empty = {
-  args: { users: [], count: 0 },
+export const Empty: Story = {
+	args: {
+		users: [],
+		usersQuery: {
+			...mockSuccessResult,
+			totalRecords: 0,
+		} as UsePaginatedQueryResult,
+	},
 };
 
-export const EmptyPage = {
-  args: {
-    users: [],
-    count: 0,
-    isNonInitialPage: true,
-  },
+export const EmptyPage: Story = {
+	args: {
+		users: [],
+		isNonInitialPage: true,
+		usersQuery: {
+			...mockSuccessResult,
+			totalRecords: 0,
+		} as UsePaginatedQueryResult,
+	},
 };
 
-export const Error = {
-  args: {
-    users: undefined,
-    count: 0,
-    filterProps: {
-      ...defaultFilterProps,
-      error: mockApiError({
-        message: "Invalid user search query.",
-        validations: [
-          {
-            field: "status",
-            detail: `Query param "status" has invalid value: "inactive" is not a valid user status`,
-          },
-        ],
-      }),
-    },
-  },
+export const WithError: Story = {
+	args: {
+		users: undefined,
+		usersQuery: {
+			...mockSuccessResult,
+			totalRecords: 0,
+		} as UsePaginatedQueryResult,
+		filterProps: {
+			...defaultFilterProps,
+			error: mockApiError({
+				message: "Invalid user search query.",
+				validations: [
+					{
+						field: "status",
+						detail: `Query param "status" has invalid value: "inactive" is not a valid user status`,
+					},
+				],
+			}),
+		},
+	},
 };

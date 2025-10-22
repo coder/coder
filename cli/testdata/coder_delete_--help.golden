@@ -7,6 +7,10 @@ USAGE:
 
   Aliases: rm
 
+    - Delete a workspace for another user (if you have permission):
+  
+       $ coder delete <username>/<workspace_name>
+
 OPTIONS:
       --orphan bool
           Delete a workspace without deleting its resources. This can delete a

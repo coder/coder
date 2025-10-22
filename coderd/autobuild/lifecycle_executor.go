@@ -3,27 +3,36 @@ package autobuild
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"fmt"
 	"net/http"
-	"strconv"
+	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/coderd/files"
+	"github.com/coder/coder/v2/coderd/pproflabel"
+
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/schedule"
-	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // Executor automatically starts or stops workspaces.
@@ -31,31 +40,60 @@ type Executor struct {
 	ctx                   context.Context
 	db                    database.Store
 	ps                    pubsub.Pubsub
+	fileCache             *files.Cache
 	templateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore]
+	accessControlStore    *atomic.Pointer[dbauthz.AccessControlStore]
 	auditor               *atomic.Pointer[audit.Auditor]
+	buildUsageChecker     *atomic.Pointer[wsbuilder.UsageChecker]
 	log                   slog.Logger
 	tick                  <-chan time.Time
 	statsCh               chan<- Stats
+	// NotificationsEnqueuer handles enqueueing notifications for delivery by SMTP, webhook, etc.
+	notificationsEnqueuer notifications.Enqueuer
+	reg                   prometheus.Registerer
+	experiments           codersdk.Experiments
+
+	metrics executorMetrics
+}
+
+type executorMetrics struct {
+	autobuildExecutionDuration prometheus.Histogram
 }
 
 // Stats contains information about one run of Executor.
 type Stats struct {
 	Transitions map[uuid.UUID]database.WorkspaceTransition
 	Elapsed     time.Duration
-	Error       error
+	Errors      map[uuid.UUID]error
 }
 
 // New returns a new wsactions executor.
-func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, tss *atomic.Pointer[schedule.TemplateScheduleStore], auditor *atomic.Pointer[audit.Auditor], log slog.Logger, tick <-chan time.Time) *Executor {
+func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, fc *files.Cache, reg prometheus.Registerer, tss *atomic.Pointer[schedule.TemplateScheduleStore], auditor *atomic.Pointer[audit.Auditor], acs *atomic.Pointer[dbauthz.AccessControlStore], buildUsageChecker *atomic.Pointer[wsbuilder.UsageChecker], log slog.Logger, tick <-chan time.Time, enqueuer notifications.Enqueuer, exp codersdk.Experiments) *Executor {
+	factory := promauto.With(reg)
 	le := &Executor{
 		//nolint:gocritic // Autostart has a limited set of permissions.
 		ctx:                   dbauthz.AsAutostart(ctx),
 		db:                    db,
 		ps:                    ps,
+		fileCache:             fc,
 		templateScheduleStore: tss,
 		tick:                  tick,
 		log:                   log.Named("autobuild"),
 		auditor:               auditor,
+		accessControlStore:    acs,
+		buildUsageChecker:     buildUsageChecker,
+		notificationsEnqueuer: enqueuer,
+		reg:                   reg,
+		experiments:           exp,
+		metrics: executorMetrics{
+			autobuildExecutionDuration: factory.NewHistogram(prometheus.HistogramOpts{
+				Namespace: "coderd",
+				Subsystem: "lifecycle",
+				Name:      "autobuild_execution_duration_seconds",
+				Help:      "Duration of each autobuild execution.",
+				Buckets:   prometheus.DefBuckets,
+			}),
+		},
 	}
 	return le
 }
@@ -71,42 +109,72 @@ func (e *Executor) WithStatsChannel(ch chan<- Stats) *Executor {
 // tick from its channel. It will stop when its context is Done, or when
 // its channel is closed.
 func (e *Executor) Run() {
-	go func() {
+	pproflabel.Go(e.ctx, pproflabel.Service(pproflabel.ServiceLifecycles), func(ctx context.Context) {
 		for {
 			select {
-			case <-e.ctx.Done():
+			case <-ctx.Done():
 				return
 			case t, ok := <-e.tick:
 				if !ok {
 					return
 				}
 				stats := e.runOnce(t)
-				if stats.Error != nil {
-					e.log.Error(e.ctx, "error running once", slog.Error(stats.Error))
-				}
+				e.metrics.autobuildExecutionDuration.Observe(stats.Elapsed.Seconds())
 				if e.statsCh != nil {
 					select {
-					case <-e.ctx.Done():
+					case <-ctx.Done():
 						return
 					case e.statsCh <- stats:
 					}
 				}
-				e.log.Debug(e.ctx, "run stats", slog.F("elapsed", stats.Elapsed), slog.F("transitions", stats.Transitions))
+				e.log.Debug(ctx, "run stats", slog.F("elapsed", stats.Elapsed), slog.F("transitions", stats.Transitions))
 			}
 		}
-	}()
+	})
+}
+
+// hasValidProvisioner checks whether there is at least one valid (non-stale, correct tags) provisioner
+// based on time t and the tags maps (such as from a templateVersionJob).
+func (e *Executor) hasValidProvisioner(ctx context.Context, tx database.Store, t time.Time, ws database.Workspace, tags map[string]string) (bool, error) {
+	queryParams := database.GetProvisionerDaemonsByOrganizationParams{
+		OrganizationID: ws.OrganizationID,
+		WantTags:       tags,
+	}
+
+	// nolint: gocritic // The user (in this case, the user/context for autostart builds) may not have the full
+	// permissions to read provisioner daemons, but we need to check if there's any for the job prior to the
+	// execution of the job via autostart to fix: https://github.com/coder/coder/issues/17941
+	provisionerDaemons, err := tx.GetProvisionerDaemonsByOrganization(dbauthz.AsSystemReadProvisionerDaemons(ctx), queryParams)
+	if err != nil {
+		return false, xerrors.Errorf("get provisioner daemons: %w", err)
+	}
+
+	logger := e.log.With(slog.F("tags", tags))
+	// Check if any provisioners are active (not stale)
+	for _, pd := range provisionerDaemons {
+		if pd.LastSeenAt.Valid {
+			age := t.Sub(pd.LastSeenAt.Time)
+			if age <= provisionerdserver.StaleInterval {
+				logger.Debug(ctx, "hasValidProvisioner: found active provisioner",
+					slog.F("daemon_id", pd.ID),
+				)
+				return true, nil
+			}
+		}
+	}
+	logger.Debug(ctx, "hasValidProvisioner: no active provisioners found")
+	return false, nil
 }
 
 func (e *Executor) runOnce(t time.Time) Stats {
-	var err error
 	stats := Stats{
 		Transitions: make(map[uuid.UUID]database.WorkspaceTransition),
+		Errors:      make(map[uuid.UUID]error),
 	}
 	// we build the map of transitions concurrently, so need a mutex to serialize writes to the map
 	statsMu := sync.Mutex{}
 	defer func() {
 		stats.Elapsed = time.Since(t)
-		stats.Error = err
 	}()
 	currentTick := t.Truncate(time.Minute)
 
@@ -120,11 +188,27 @@ func (e *Executor) runOnce(t time.Time) Stats {
 	// NOTE: If a workspace build is created with a given TTL and then the user either
 	//       changes or unsets the TTL, the deadline for the workspace build will not
 	//       have changed. This behavior is as expected per #2229.
-	workspaces, err := e.db.GetWorkspacesEligibleForTransition(e.ctx, t)
+	workspaces, err := e.db.GetWorkspacesEligibleForTransition(e.ctx, currentTick)
 	if err != nil {
 		e.log.Error(e.ctx, "get workspaces for autostart or autostop", slog.Error(err))
 		return stats
 	}
+
+	// Sort the workspaces by build template version ID so that we can group
+	// identical template versions together. This is a slight (and imperfect)
+	// optimization.
+	//
+	// `wsbuilder` needs to load the terraform files for a given template version
+	// into memory. If 2 workspaces are using the same template version, they will
+	// share the same files in the FileCache. This only happens if the builds happen
+	// in parallel.
+	// TODO: Actually make sure the cache has the files in the cache for the full
+	//  set of identical template versions. Then unload the files when the builds
+	//  are done. Right now, this relies on luck for the 10 goroutine workers to
+	//  overlap and keep the file reference in the cache alive.
+	slices.SortFunc(workspaces, func(a, b database.GetWorkspacesEligibleForTransitionRow) int {
+		return strings.Compare(a.BuildTemplateVersionID.UUID.String(), b.BuildTemplateVersionID.UUID.String())
+	})
 
 	// We only use errgroup here for convenience of API, not for early
 	// cancellation. This means we only return nil errors in th eg.Go.
@@ -134,141 +218,278 @@ func (e *Executor) runOnce(t time.Time) Stats {
 
 	for _, ws := range workspaces {
 		wsID := ws.ID
-		log := e.log.With(slog.F("workspace_id", wsID))
+		wsName := ws.Name
+		log := e.log.With(
+			slog.F("workspace_id", wsID),
+			slog.F("workspace_name", wsName),
+		)
 
 		eg.Go(func() error {
-			var job *database.ProvisionerJob
-			err := e.db.InTx(func(tx database.Store) error {
-				// Re-check eligibility since the first check was outside the
-				// transaction and the workspace settings may have changed.
-				ws, err := tx.GetWorkspaceByID(e.ctx, wsID)
-				if err != nil {
-					log.Error(e.ctx, "get workspace autostart failed", slog.Error(err))
-					return nil
-				}
-
-				// Determine the workspace state based on its latest build.
-				latestBuild, err := tx.GetLatestWorkspaceBuildByWorkspaceID(e.ctx, ws.ID)
-				if err != nil {
-					log.Warn(e.ctx, "get latest workspace build", slog.Error(err))
-					return nil
-				}
-				templateSchedule, err := (*(e.templateScheduleStore.Load())).Get(e.ctx, tx, ws.TemplateID)
-				if err != nil {
-					log.Warn(e.ctx, "get template schedule options", slog.Error(err))
-					return nil
-				}
-
-				latestJob, err := tx.GetProvisionerJobByID(e.ctx, latestBuild.JobID)
-				if err != nil {
-					log.Warn(e.ctx, "get last provisioner job for workspace %q: %w", slog.Error(err))
-					return nil
-				}
-
-				nextTransition, reason, err := getNextTransition(ws, latestBuild, latestJob, templateSchedule, currentTick)
-				if err != nil {
-					log.Debug(e.ctx, "skipping workspace", slog.Error(err))
-					return nil
-				}
-
-				var build *database.WorkspaceBuild
-				if nextTransition != "" {
-					builder := wsbuilder.New(ws, nextTransition).
-						SetLastWorkspaceBuildInTx(&latestBuild).
-						SetLastWorkspaceBuildJobInTx(&latestJob).
-						Reason(reason)
-					log.Debug(e.ctx, "auto building workspace", slog.F("transition", nextTransition))
-					if nextTransition == database.WorkspaceTransitionStart &&
-						ws.AutomaticUpdates == database.AutomaticUpdatesAlways {
-						log.Debug(e.ctx, "autostarting with active version")
-						builder = builder.ActiveVersion()
-					}
-
-					build, job, err = builder.Build(e.ctx, tx, nil)
-					if err != nil {
-						log.Error(e.ctx, "unable to transition workspace",
-							slog.F("transition", nextTransition),
-							slog.Error(err),
-						)
-						return nil
-					}
-				}
-
-				//  Transition the workspace to dormant if it has breached the template's
-				// threshold for inactivity.
-				if reason == database.BuildReasonAutolock {
-					wsOld := ws
-					ws, err = tx.UpdateWorkspaceDormantDeletingAt(e.ctx, database.UpdateWorkspaceDormantDeletingAtParams{
-						ID: ws.ID,
-						DormantAt: sql.NullTime{
-							Time:  dbtime.Now(),
-							Valid: true,
-						},
-					})
-
-					auditBuild(e.ctx, e.log, *e.auditor.Load(), auditParams{
-						Build:   build,
-						Job:     latestJob,
-						Reason:  reason,
-						Old:     wsOld,
-						New:     ws,
-						Success: err == nil,
-					})
-
-					if err != nil {
-						log.Error(e.ctx, "unable to transition workspace to dormant",
-							slog.F("transition", nextTransition),
-							slog.Error(err),
-						)
-						return nil
-					}
-
-					log.Info(e.ctx, "dormant workspace",
-						slog.F("last_used_at", ws.LastUsedAt),
-						slog.F("time_til_dormant", templateSchedule.TimeTilDormant),
-						slog.F("since_last_used_at", time.Since(ws.LastUsedAt)),
-					)
-				}
-
-				if reason == database.BuildReasonAutodelete {
-					log.Info(e.ctx, "deleted workspace",
-						slog.F("dormant_at", ws.DormantAt.Time),
-						slog.F("time_til_dormant_autodelete", templateSchedule.TimeTilDormantAutoDelete),
-					)
-				}
-
-				if nextTransition == "" {
-					return nil
-				}
-
-				statsMu.Lock()
-				stats.Transitions[ws.ID] = nextTransition
-				statsMu.Unlock()
-
-				log.Info(e.ctx, "scheduling workspace transition",
-					slog.F("transition", nextTransition),
-					slog.F("reason", reason),
+			err := func() error {
+				var (
+					job                   *database.ProvisionerJob
+					auditLog              *auditParams
+					shouldNotifyDormancy  bool
+					nextBuild             *database.WorkspaceBuild
+					activeTemplateVersion database.TemplateVersion
+					ws                    database.Workspace
+					tmpl                  database.Template
+					didAutoUpdate         bool
 				)
+				err := e.db.InTx(func(tx database.Store) error {
+					var err error
 
-				return nil
+					ok, err := tx.TryAcquireLock(e.ctx, database.GenLockID(fmt.Sprintf("lifecycle-executor:%s", wsID)))
+					if err != nil {
+						return xerrors.Errorf("try acquire lifecycle executor lock: %w", err)
+					}
+					if !ok {
+						log.Debug(e.ctx, "unable to acquire lock for workspace, skipping")
+						return nil
+					}
 
-				// Run with RepeatableRead isolation so that the build process sees the same data
-				// as our calculation that determines whether an autobuild is necessary.
-			}, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
-			if err != nil {
-				log.Error(e.ctx, "workspace scheduling failed", slog.Error(err))
-			}
-			if job != nil && err == nil {
-				// Note that we can't refactor such that posting the job happens inside wsbuilder because it's called
-				// with an outer transaction like this, and we need to make sure the outer transaction commits before
-				// posting the job.  If we post before the transaction commits, provisionerd might try to acquire the
-				// job, fail, and then sit idle instead of picking up the job.
-				err = provisionerjobs.PostJob(e.ps, *job)
-				if err != nil {
-					// Client probably doesn't care about this error, so just log it.
-					log.Error(e.ctx, "failed to post provisioner job to pubsub", slog.Error(err))
+					// Re-check eligibility since the first check was outside the
+					// transaction and the workspace settings may have changed.
+					ws, err = tx.GetWorkspaceByID(e.ctx, wsID)
+					if err != nil {
+						return xerrors.Errorf("get workspace by id: %w", err)
+					}
+
+					user, err := tx.GetUserByID(e.ctx, ws.OwnerID)
+					if err != nil {
+						return xerrors.Errorf("get user by id: %w", err)
+					}
+
+					// Determine the workspace state based on its latest build.
+					latestBuild, err := tx.GetLatestWorkspaceBuildByWorkspaceID(e.ctx, ws.ID)
+					if err != nil {
+						return xerrors.Errorf("get latest workspace build: %w", err)
+					}
+
+					latestJob, err := tx.GetProvisionerJobByID(e.ctx, latestBuild.JobID)
+					if err != nil {
+						return xerrors.Errorf("get latest provisioner job: %w", err)
+					}
+
+					templateSchedule, err := (*(e.templateScheduleStore.Load())).Get(e.ctx, tx, ws.TemplateID)
+					if err != nil {
+						return xerrors.Errorf("get template scheduling options: %w", err)
+					}
+
+					// If next start at is not valid we need to re-compute it
+					if !ws.NextStartAt.Valid && ws.AutostartSchedule.Valid {
+						next, err := schedule.NextAllowedAutostart(currentTick, ws.AutostartSchedule.String, templateSchedule)
+						if err == nil {
+							nextStartAt := sql.NullTime{Valid: true, Time: dbtime.Time(next.UTC())}
+							if err = tx.UpdateWorkspaceNextStartAt(e.ctx, database.UpdateWorkspaceNextStartAtParams{
+								ID:          wsID,
+								NextStartAt: nextStartAt,
+							}); err != nil {
+								return xerrors.Errorf("update workspace next start at: %w", err)
+							}
+
+							// Save re-fetching the workspace
+							ws.NextStartAt = nextStartAt
+						}
+					}
+
+					tmpl, err = tx.GetTemplateByID(e.ctx, ws.TemplateID)
+					if err != nil {
+						return xerrors.Errorf("get template by ID: %w", err)
+					}
+
+					activeTemplateVersion, err = tx.GetTemplateVersionByID(e.ctx, tmpl.ActiveVersionID)
+					if err != nil {
+						return xerrors.Errorf("get active template version by ID: %w", err)
+					}
+
+					accessControl := (*(e.accessControlStore.Load())).GetTemplateAccessControl(tmpl)
+
+					nextTransition, reason, err := getNextTransition(user, ws, latestBuild, latestJob, templateSchedule, currentTick)
+					if err != nil {
+						log.Debug(e.ctx, "skipping workspace", slog.Error(err))
+						// err is used to indicate that a workspace is not eligible
+						// so returning nil here is ok although ultimately the distinction
+						// doesn't matter since the transaction is  read-only up to
+						// this point.
+						return nil
+					}
+
+					// Get the template version job to access tags
+					templateVersionJob, err := tx.GetProvisionerJobByID(e.ctx, activeTemplateVersion.JobID)
+					if err != nil {
+						return xerrors.Errorf("get template version job: %w", err)
+					}
+
+					// Before creating the workspace build, check for available provisioners
+					hasProvisioners, err := e.hasValidProvisioner(e.ctx, tx, t, ws, templateVersionJob.Tags)
+					if err != nil {
+						return xerrors.Errorf("check provisioner availability: %w", err)
+					}
+					if !hasProvisioners {
+						log.Warn(e.ctx, "skipping autostart - no available provisioners")
+						return nil // Skip this workspace
+					}
+
+					if nextTransition != "" {
+						builder := wsbuilder.New(ws, nextTransition, *e.buildUsageChecker.Load()).
+							SetLastWorkspaceBuildInTx(&latestBuild).
+							SetLastWorkspaceBuildJobInTx(&latestJob).
+							Experiments(e.experiments).
+							Reason(reason)
+						log.Debug(e.ctx, "auto building workspace", slog.F("transition", nextTransition))
+						if nextTransition == database.WorkspaceTransitionStart &&
+							useActiveVersion(accessControl, ws) {
+							log.Debug(e.ctx, "autostarting with active version")
+							builder = builder.ActiveVersion()
+
+							if latestBuild.TemplateVersionID != tmpl.ActiveVersionID {
+								// control flag to know if the workspace was auto-updated,
+								// so the lifecycle executor can notify the user
+								didAutoUpdate = true
+							}
+						}
+
+						nextBuild, job, _, err = builder.Build(e.ctx, tx, e.fileCache, nil, audit.WorkspaceBuildBaggage{IP: "127.0.0.1"})
+						if err != nil {
+							return xerrors.Errorf("build workspace with transition %q: %w", nextTransition, err)
+						}
+					}
+
+					// Transition the workspace to dormant if it has breached the template's
+					// threshold for inactivity.
+					if reason == database.BuildReasonDormancy {
+						wsOld := ws
+						wsNew, err := tx.UpdateWorkspaceDormantDeletingAt(e.ctx, database.UpdateWorkspaceDormantDeletingAtParams{
+							ID: ws.ID,
+							DormantAt: sql.NullTime{
+								Time:  dbtime.Now(),
+								Valid: true,
+							},
+						})
+						if err != nil {
+							return xerrors.Errorf("update workspace dormant deleting at: %w", err)
+						}
+
+						auditLog = &auditParams{
+							Old: wsOld.WorkspaceTable(),
+							New: wsNew,
+						}
+						// To keep the `ws` accurate without doing a sql fetch
+						ws.DormantAt = wsNew.DormantAt
+
+						shouldNotifyDormancy = true
+
+						log.Info(e.ctx, "dormant workspace",
+							slog.F("last_used_at", ws.LastUsedAt),
+							slog.F("time_til_dormant", templateSchedule.TimeTilDormant),
+							slog.F("since_last_used_at", time.Since(ws.LastUsedAt)),
+						)
+					}
+
+					if reason == database.BuildReasonAutodelete {
+						log.Info(e.ctx, "deleted workspace",
+							slog.F("dormant_at", ws.DormantAt.Time),
+							slog.F("time_til_dormant_autodelete", templateSchedule.TimeTilDormantAutoDelete),
+						)
+					}
+
+					if nextTransition == "" {
+						return nil
+					}
+
+					statsMu.Lock()
+					stats.Transitions[ws.ID] = nextTransition
+					statsMu.Unlock()
+
+					log.Info(e.ctx, "scheduling workspace transition",
+						slog.F("transition", nextTransition),
+						slog.F("reason", reason),
+					)
+
+					return nil
+
+					// Run with RepeatableRead isolation so that the build process sees the same data
+					// as our calculation that determines whether an autobuild is necessary.
+				}, &database.TxOptions{
+					Isolation:    sql.LevelRepeatableRead,
+					TxIdentifier: "lifecycle",
+				})
+				if auditLog != nil {
+					// If the transition didn't succeed then updating the workspace
+					// to indicate dormant didn't either.
+					auditLog.Success = err == nil
+					auditBuild(e.ctx, log, *e.auditor.Load(), *auditLog)
 				}
+				if didAutoUpdate && err == nil {
+					nextBuildReason := ""
+					if nextBuild != nil {
+						nextBuildReason = string(nextBuild.Reason)
+					}
+
+					templateVersionMessage := activeTemplateVersion.Message
+					if templateVersionMessage == "" {
+						templateVersionMessage = "None provided"
+					}
+
+					if _, err := e.notificationsEnqueuer.Enqueue(e.ctx, ws.OwnerID, notifications.TemplateWorkspaceAutoUpdated,
+						map[string]string{
+							"name":                     ws.Name,
+							"initiator":                "autobuild",
+							"reason":                   nextBuildReason,
+							"template_version_name":    activeTemplateVersion.Name,
+							"template_version_message": templateVersionMessage,
+						}, "autobuild",
+						// Associate this notification with all the related entities.
+						ws.ID, ws.OwnerID, ws.TemplateID, ws.OrganizationID,
+					); err != nil {
+						log.Warn(e.ctx, "failed to notify of autoupdated workspace", slog.Error(err))
+					}
+				}
+				if err != nil {
+					return xerrors.Errorf("transition workspace: %w", err)
+				}
+				if job != nil {
+					// Note that we can't refactor such that posting the job happens inside wsbuilder because it's called
+					// with an outer transaction like this, and we need to make sure the outer transaction commits before
+					// posting the job.  If we post before the transaction commits, provisionerd might try to acquire the
+					// job, fail, and then sit idle instead of picking up the job.
+					err = provisionerjobs.PostJob(e.ps, *job)
+					if err != nil {
+						return xerrors.Errorf("post provisioner job to pubsub: %w", err)
+					}
+				}
+				if shouldNotifyDormancy {
+					dormantTime := dbtime.Now().Add(time.Duration(tmpl.TimeTilDormant))
+					_, err = e.notificationsEnqueuer.Enqueue(
+						e.ctx,
+						ws.OwnerID,
+						notifications.TemplateWorkspaceDormant,
+						map[string]string{
+							"name":           ws.Name,
+							"reason":         "inactivity exceeded the dormancy threshold",
+							"timeTilDormant": humanize.Time(dormantTime),
+						},
+						"lifecycle_executor",
+						ws.ID,
+						ws.OwnerID,
+						ws.TemplateID,
+						ws.OrganizationID,
+					)
+					if err != nil {
+						log.Warn(e.ctx, "failed to notify of workspace marked as dormant", slog.Error(err), slog.F("workspace_id", ws.ID))
+					}
+				}
+				return nil
+			}()
+			if err != nil && !xerrors.Is(err, context.Canceled) {
+				log.Error(e.ctx, "failed to transition workspace", slog.Error(err))
+				statsMu.Lock()
+				stats.Errors[wsID] = err
+				statsMu.Unlock()
 			}
+			// Even though we got an error we still return nil  to avoid
+			// short-circuiting the evaluation loop.
 			return nil
 		})
 	}
@@ -289,6 +510,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 // may be "transitioning" to a new state (such as an inactive, stopped
 // workspace transitioning to the dormant state).
 func getNextTransition(
+	user database.User,
 	ws database.Workspace,
 	latestBuild database.WorkspaceBuild,
 	latestJob database.ProvisionerJob,
@@ -300,20 +522,20 @@ func getNextTransition(
 	error,
 ) {
 	switch {
-	case isEligibleForAutostop(ws, latestBuild, latestJob, currentTick):
+	case isEligibleForAutostop(user, ws, latestBuild, latestJob, currentTick):
 		return database.WorkspaceTransitionStop, database.BuildReasonAutostop, nil
-	case isEligibleForAutostart(ws, latestBuild, latestJob, templateSchedule, currentTick):
+	case isEligibleForAutostart(user, ws, latestBuild, latestJob, templateSchedule, currentTick):
 		return database.WorkspaceTransitionStart, database.BuildReasonAutostart, nil
 	case isEligibleForFailedStop(latestBuild, latestJob, templateSchedule, currentTick):
 		return database.WorkspaceTransitionStop, database.BuildReasonAutostop, nil
 	case isEligibleForDormantStop(ws, templateSchedule, currentTick):
 		// Only stop started workspaces.
 		if latestBuild.Transition == database.WorkspaceTransitionStart {
-			return database.WorkspaceTransitionStop, database.BuildReasonAutolock, nil
+			return database.WorkspaceTransitionStop, database.BuildReasonDormancy, nil
 		}
 		// We shouldn't transition the workspace but we should still
 		// make it dormant.
-		return "", database.BuildReasonAutolock, nil
+		return "", database.BuildReasonDormancy, nil
 
 	case isEligibleForDelete(ws, templateSchedule, latestBuild, latestJob, currentTick):
 		return database.WorkspaceTransitionDelete, database.BuildReasonAutodelete, nil
@@ -323,7 +545,12 @@ func getNextTransition(
 }
 
 // isEligibleForAutostart returns true if the workspace should be autostarted.
-func isEligibleForAutostart(ws database.Workspace, build database.WorkspaceBuild, job database.ProvisionerJob, templateSchedule schedule.TemplateScheduleOptions, currentTick time.Time) bool {
+func isEligibleForAutostart(user database.User, ws database.Workspace, build database.WorkspaceBuild, job database.ProvisionerJob, templateSchedule schedule.TemplateScheduleOptions, currentTick time.Time) bool {
+	// Don't attempt to autostart workspaces for suspended users.
+	if user.Status != database.UserStatusActive {
+		return false
+	}
+
 	// Don't attempt to autostart failed workspaces.
 	if job.JobStatus == database.ProvisionerJobStatusFailed {
 		return false
@@ -346,19 +573,19 @@ func isEligibleForAutostart(ws database.Workspace, build database.WorkspaceBuild
 		return false
 	}
 
-	sched, err := cron.Weekly(ws.AutostartSchedule.String)
+	// Get the next allowed autostart time after the build's creation time,
+	// based on the workspace's schedule and the template's allowed days.
+	nextTransition, err := schedule.NextAllowedAutostart(build.CreatedAt, ws.AutostartSchedule.String, templateSchedule)
 	if err != nil {
 		return false
 	}
-	// Round down to the nearest minute, as this is the finest granularity cron supports.
-	// Truncate is probably not necessary here, but doing it anyway to be sure.
-	nextTransition := sched.Next(build.CreatedAt).Truncate(time.Minute)
 
+	// Must use '.Before' vs '.After' so equal times are considered "valid for autostart".
 	return !currentTick.Before(nextTransition)
 }
 
-// isEligibleForAutostart returns true if the workspace should be autostopped.
-func isEligibleForAutostop(ws database.Workspace, build database.WorkspaceBuild, job database.ProvisionerJob, currentTick time.Time) bool {
+// isEligibleForAutostop returns true if the workspace should be autostopped.
+func isEligibleForAutostop(user database.User, ws database.Workspace, build database.WorkspaceBuild, job database.ProvisionerJob, currentTick time.Time) bool {
 	if job.JobStatus == database.ProvisionerJobStatusFailed {
 		return false
 	}
@@ -366,6 +593,10 @@ func isEligibleForAutostop(ws database.Workspace, build database.WorkspaceBuild,
 	// If the workspace is dormant we should not autostop it.
 	if ws.DormantAt.Valid {
 		return false
+	}
+
+	if build.Transition == database.WorkspaceTransitionStart && user.Status == database.UserStatusSuspended {
+		return true
 	}
 
 	// A workspace must be started in order for it to be auto-stopped.
@@ -417,44 +648,32 @@ func isEligibleForFailedStop(build database.WorkspaceBuild, job database.Provisi
 }
 
 type auditParams struct {
-	Build   *database.WorkspaceBuild
-	Job     database.ProvisionerJob
-	Reason  database.BuildReason
-	Old     database.Workspace
-	New     database.Workspace
+	Old     database.WorkspaceTable
+	New     database.WorkspaceTable
 	Success bool
 }
 
 func auditBuild(ctx context.Context, log slog.Logger, auditor audit.Auditor, params auditParams) {
-	fields := audit.AdditionalFields{
-		WorkspaceName: params.New.Name,
-		BuildReason:   params.Reason,
-	}
-
-	if params.Build != nil {
-		fields.BuildNumber = strconv.FormatInt(int64(params.Build.BuildNumber), 10)
-	}
-
-	raw, err := json.Marshal(fields)
-	if err != nil {
-		log.Error(ctx, "marshal resource info for successful job", slog.Error(err))
-	}
-
 	status := http.StatusInternalServerError
 	if params.Success {
 		status = http.StatusOK
 	}
 
-	audit.WorkspaceBuildAudit(ctx, &audit.BuildAuditParams[database.Workspace]{
-		Audit:            auditor,
-		Log:              log,
-		UserID:           params.Job.InitiatorID,
-		OrganizationID:   params.New.OrganizationID,
-		JobID:            params.Job.ID,
-		Action:           database.AuditActionWrite,
-		Old:              params.Old,
-		New:              params.New,
-		Status:           status,
-		AdditionalFields: raw,
+	audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.WorkspaceTable]{
+		Audit:          auditor,
+		Log:            log,
+		UserID:         params.New.OwnerID,
+		OrganizationID: params.New.OrganizationID,
+		// Right now there's no request associated with an autobuild
+		// operation.
+		RequestID: uuid.Nil,
+		Action:    database.AuditActionWrite,
+		Old:       params.Old,
+		New:       params.New,
+		Status:    status,
 	})
+}
+
+func useActiveVersion(opts dbauthz.TemplateAccessControl, ws database.Workspace) bool {
+	return opts.RequireActiveVersion || ws.AutomaticUpdates == database.AutomaticUpdatesAlways
 }

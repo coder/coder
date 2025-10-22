@@ -5,11 +5,13 @@ package pty_test
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"testing"
 
 	"github.com/coder/coder/v2/pty"
 	"github.com/coder/coder/v2/pty/ptytest"
+	"github.com/coder/coder/v2/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -17,7 +19,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
 func TestStart(t *testing.T) {
@@ -43,6 +45,18 @@ func TestStart(t *testing.T) {
 		t.Parallel()
 		ptty, ps := ptytest.Start(t, pty.Command("cmd.exe"))
 		err := ps.Kill()
+		assert.NoError(t, err)
+		err = ps.Wait()
+		var exitErr *exec.ExitError
+		require.True(t, xerrors.As(err, &exitErr))
+		assert.NotEqual(t, 0, exitErr.ExitCode())
+		err = ptty.Close()
+		require.NoError(t, err)
+	})
+	t.Run("Interrupt", func(t *testing.T) {
+		t.Parallel()
+		ptty, ps := ptytest.Start(t, pty.Command("cmd.exe"))
+		err := ps.Signal(os.Interrupt) // Actually does kill.
 		assert.NoError(t, err)
 		err = ps.Wait()
 		var exitErr *exec.ExitError

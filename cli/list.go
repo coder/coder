@@ -1,95 +1,93 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
-	"github.com/coder/pretty"
-
-	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/coder/v2/coderd/schedule/cron"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/pretty"
+	"github.com/coder/serpent"
 )
 
 // workspaceListRow is the type provided to the OutputFormatter. This is a bit
 // dodgy but it's the only way to do complex display code for one format vs. the
 // other.
-type workspaceListRow struct {
+type WorkspaceListRow struct {
 	// For JSON format:
 	codersdk.Workspace `table:"-"`
 
 	// For table format:
-	WorkspaceName string `json:"-" table:"workspace,default_sort"`
-	Template      string `json:"-" table:"template"`
-	Status        string `json:"-" table:"status"`
-	Healthy       string `json:"-" table:"healthy"`
-	LastBuilt     string `json:"-" table:"last built"`
-	Outdated      bool   `json:"-" table:"outdated"`
-	StartsAt      string `json:"-" table:"starts at"`
-	StopsAfter    string `json:"-" table:"stops after"`
-	DailyCost     string `json:"-" table:"daily cost"`
+	Favorite         bool      `json:"-" table:"favorite"`
+	WorkspaceName    string    `json:"-" table:"workspace,default_sort"`
+	OrganizationID   uuid.UUID `json:"-" table:"organization id"`
+	OrganizationName string    `json:"-" table:"organization name"`
+	Template         string    `json:"-" table:"template"`
+	Status           string    `json:"-" table:"status"`
+	Healthy          string    `json:"-" table:"healthy"`
+	LastBuilt        string    `json:"-" table:"last built"`
+	CurrentVersion   string    `json:"-" table:"current version"`
+	Outdated         bool      `json:"-" table:"outdated"`
+	StartsAt         string    `json:"-" table:"starts at"`
+	StartsNext       string    `json:"-" table:"starts next"`
+	StopsAfter       string    `json:"-" table:"stops after"`
+	StopsNext        string    `json:"-" table:"stops next"`
+	DailyCost        string    `json:"-" table:"daily cost"`
 }
 
-func workspaceListRowFromWorkspace(now time.Time, usersByID map[uuid.UUID]codersdk.User, workspace codersdk.Workspace) workspaceListRow {
+func WorkspaceListRowFromWorkspace(now time.Time, workspace codersdk.Workspace) WorkspaceListRow {
 	status := codersdk.WorkspaceDisplayStatus(workspace.LatestBuild.Job.Status, workspace.LatestBuild.Transition)
 
 	lastBuilt := now.UTC().Sub(workspace.LatestBuild.Job.CreatedAt).Truncate(time.Second)
-	autostartDisplay := "-"
-	if !ptr.NilOrEmpty(workspace.AutostartSchedule) {
-		if sched, err := cron.Weekly(*workspace.AutostartSchedule); err == nil {
-			autostartDisplay = fmt.Sprintf("%s %s (%s)", sched.Time(), sched.DaysOfWeek(), sched.Location())
-		}
-	}
-
-	autostopDisplay := "-"
-	if !ptr.NilOrZero(workspace.TTLMillis) {
-		dur := time.Duration(*workspace.TTLMillis) * time.Millisecond
-		autostopDisplay = durationDisplay(dur)
-		if !workspace.LatestBuild.Deadline.IsZero() && workspace.LatestBuild.Deadline.Time.After(now) && status == "Running" {
-			remaining := time.Until(workspace.LatestBuild.Deadline.Time)
-			autostopDisplay = fmt.Sprintf("%s (%s)", autostopDisplay, relative(remaining))
-		}
-	}
+	schedRow := scheduleListRowFromWorkspace(now, workspace)
 
 	healthy := ""
 	if status == "Starting" || status == "Started" {
 		healthy = strconv.FormatBool(workspace.Health.Healthy)
 	}
-	user := usersByID[workspace.OwnerID]
-	return workspaceListRow{
-		Workspace:     workspace,
-		WorkspaceName: user.Username + "/" + workspace.Name,
-		Template:      workspace.TemplateName,
-		Status:        status,
-		Healthy:       healthy,
-		LastBuilt:     durationDisplay(lastBuilt),
-		Outdated:      workspace.Outdated,
-		StartsAt:      autostartDisplay,
-		StopsAfter:    autostopDisplay,
-		DailyCost:     strconv.Itoa(int(workspace.LatestBuild.DailyCost)),
+	favIco := " "
+	if workspace.Favorite {
+		favIco = "★"
+	}
+	workspaceName := favIco + " " + workspace.OwnerName + "/" + workspace.Name
+	return WorkspaceListRow{
+		Favorite:         workspace.Favorite,
+		Workspace:        workspace,
+		WorkspaceName:    workspaceName,
+		OrganizationID:   workspace.OrganizationID,
+		OrganizationName: workspace.OrganizationName,
+		Template:         workspace.TemplateName,
+		Status:           status,
+		Healthy:          healthy,
+		LastBuilt:        durationDisplay(lastBuilt),
+		CurrentVersion:   workspace.LatestBuild.TemplateVersionName,
+		Outdated:         workspace.Outdated,
+		StartsAt:         schedRow.StartsAt,
+		StartsNext:       schedRow.StartsNext,
+		StopsAfter:       schedRow.StopsAfter,
+		StopsNext:        schedRow.StopsNext,
+		DailyCost:        strconv.Itoa(int(workspace.LatestBuild.DailyCost)),
 	}
 }
 
-func (r *RootCmd) list() *clibase.Cmd {
+func (r *RootCmd) list() *serpent.Command {
 	var (
-		all               bool
-		defaultQuery      = "owner:me"
-		searchQuery       string
-		displayWorkspaces []workspaceListRow
-		formatter         = cliui.NewOutputFormatter(
+		filter    cliui.WorkspaceFilter
+		formatter = cliui.NewOutputFormatter(
 			cliui.TableFormat(
-				[]workspaceListRow{},
+				[]WorkspaceListRow{},
 				[]string{
 					"workspace",
 					"template",
 					"status",
 					"healthy",
 					"last built",
+					"current version",
 					"outdated",
 					"starts at",
 					"stops after",
@@ -97,30 +95,51 @@ func (r *RootCmd) list() *clibase.Cmd {
 			),
 			cliui.JSONFormat(),
 		)
+		sharedWithMe bool
 	)
-	client := new(codersdk.Client)
-	cmd := &clibase.Cmd{
+	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
 		Use:         "list",
 		Short:       "List workspaces",
 		Aliases:     []string{"ls"},
-		Middleware: clibase.Chain(
-			clibase.RequireNArgs(0),
-			r.InitClient(client),
+		Middleware: serpent.Chain(
+			serpent.RequireNArgs(0),
 		),
-		Handler: func(inv *clibase.Invocation) error {
-			filter := codersdk.WorkspaceFilter{
-				FilterQuery: searchQuery,
-			}
-			if all && searchQuery == defaultQuery {
-				filter.FilterQuery = ""
-			}
-
-			res, err := client.Workspaces(inv.Context(), filter)
+		Options: serpent.OptionSet{
+			{
+				Name:        "shared-with-me",
+				Description: "Show workspaces shared with you.",
+				Flag:        "shared-with-me",
+				Value:       serpent.BoolOf(&sharedWithMe),
+				Hidden:      true,
+			},
+		},
+		Handler: func(inv *serpent.Invocation) error {
+			client, err := r.InitClient(inv)
 			if err != nil {
 				return err
 			}
-			if len(res.Workspaces) == 0 {
+
+			workspaceFilter := filter.Filter()
+			if sharedWithMe {
+				user, err := client.User(inv.Context(), codersdk.Me)
+				if err != nil {
+					return xerrors.Errorf("fetch current user: %w", err)
+				}
+				workspaceFilter.SharedWithUser = user.ID.String()
+
+				// Unset the default query that conflicts with the --shared-with-me flag
+				if workspaceFilter.FilterQuery == "owner:me" {
+					workspaceFilter.FilterQuery = ""
+				}
+			}
+
+			res, err := QueryConvertWorkspaces(inv.Context(), client, workspaceFilter, WorkspaceListRowFromWorkspace)
+			if err != nil {
+				return err
+			}
+
+			if len(res) == 0 && formatter.FormatID() != cliui.JSONFormat().ID() {
 				pretty.Fprintf(inv.Stderr, cliui.DefaultStyles.Prompt, "No workspaces found! Create one:\n")
 				_, _ = fmt.Fprintln(inv.Stderr)
 				_, _ = fmt.Fprintln(inv.Stderr, "  "+pretty.Sprint(cliui.DefaultStyles.Code, "coder create <name>"))
@@ -128,23 +147,7 @@ func (r *RootCmd) list() *clibase.Cmd {
 				return nil
 			}
 
-			userRes, err := client.Users(inv.Context(), codersdk.UsersRequest{})
-			if err != nil {
-				return err
-			}
-
-			usersByID := map[uuid.UUID]codersdk.User{}
-			for _, user := range userRes.Users {
-				usersByID[user.ID] = user
-			}
-
-			now := time.Now()
-			displayWorkspaces = make([]workspaceListRow, len(res.Workspaces))
-			for i, workspace := range res.Workspaces {
-				displayWorkspaces[i] = workspaceListRowFromWorkspace(now, usersByID, workspace)
-			}
-
-			out, err := formatter.Format(inv.Context(), displayWorkspaces)
+			out, err := formatter.Format(inv.Context(), res)
 			if err != nil {
 				return err
 			}
@@ -153,22 +156,25 @@ func (r *RootCmd) list() *clibase.Cmd {
 			return err
 		},
 	}
-	cmd.Options = clibase.OptionSet{
-		{
-			Flag:          "all",
-			FlagShorthand: "a",
-			Description:   "Specifies whether all workspaces will be listed or not.",
-
-			Value: clibase.BoolOf(&all),
-		},
-		{
-			Flag:        "search",
-			Description: "Search for a workspace with a query.",
-			Default:     defaultQuery,
-			Value:       clibase.StringOf(&searchQuery),
-		},
-	}
-
+	filter.AttachOptions(&cmd.Options)
 	formatter.AttachOptions(&cmd.Options)
 	return cmd
+}
+
+// queryConvertWorkspaces is a helper function for converting
+// codersdk.Workspaces to a different type.
+// It's used by the list command to convert workspaces to
+// WorkspaceListRow, and by the schedule command to
+// convert workspaces to scheduleListRow.
+func QueryConvertWorkspaces[T any](ctx context.Context, client *codersdk.Client, filter codersdk.WorkspaceFilter, convertF func(time.Time, codersdk.Workspace) T) ([]T, error) {
+	var empty []T
+	workspaces, err := client.Workspaces(ctx, filter)
+	if err != nil {
+		return empty, xerrors.Errorf("query workspaces: %w", err)
+	}
+	converted := make([]T, len(workspaces.Workspaces))
+	for i, workspace := range workspaces.Workspaces {
+		converted[i] = convertF(time.Now(), workspace)
+	}
+	return converted, nil
 }

@@ -5,8 +5,10 @@ import (
 	"os"
 	"reflect"
 	"runtime"
+	"strings"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -25,6 +27,7 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"Group":           {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"APIKey":          {codersdk.AuditActionLogin, codersdk.AuditActionLogout, codersdk.AuditActionRegister, codersdk.AuditActionCreate, codersdk.AuditActionDelete},
 	"License":         {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
+	"Task":            {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 }
 
 type Action string
@@ -50,6 +53,26 @@ type Table map[string]map[string]Action
 var AuditableResources = auditMap(auditableResourcesTypes)
 
 var auditableResourcesTypes = map[any]map[string]Action{
+	&database.AuditableOrganizationMember{}: {
+		"username":        ActionTrack,
+		"user_id":         ActionTrack,
+		"organization_id": ActionIgnore, // Never changes.
+		"created_at":      ActionTrack,
+		"updated_at":      ActionTrack,
+		"roles":           ActionTrack,
+	},
+	&database.CustomRole{}: {
+		"name":             ActionTrack,
+		"display_name":     ActionTrack,
+		"site_permissions": ActionTrack,
+		"org_permissions":  ActionTrack,
+		"user_permissions": ActionTrack,
+		"organization_id":  ActionIgnore, // Never changes.
+
+		"id":         ActionIgnore,
+		"created_at": ActionIgnore,
+		"updated_at": ActionIgnore,
+	},
 	&database.GitSSHKey{}: {
 		"user_id":     ActionTrack,
 		"created_at":  ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
@@ -62,6 +85,9 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"created_at":                        ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
 		"updated_at":                        ActionIgnore, // Changes, but is implicit and not helpful in a diff.
 		"organization_id":                   ActionIgnore, /// Never changes.
+		"organization_name":                 ActionIgnore, // Ignore these changes
+		"organization_display_name":         ActionIgnore, // Ignore these changes
+		"organization_icon":                 ActionIgnore, // Ignore these changes
 		"deleted":                           ActionIgnore, // Changes, but is implicit when a delete event is fired.
 		"name":                              ActionTrack,
 		"display_name":                      ActionTrack,
@@ -70,11 +96,12 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"description":                       ActionTrack,
 		"icon":                              ActionTrack,
 		"default_ttl":                       ActionTrack,
-		"max_ttl":                           ActionTrack,
+		"autostart_block_days_of_week":      ActionTrack,
 		"autostop_requirement_days_of_week": ActionTrack,
 		"autostop_requirement_weeks":        ActionTrack,
 		"created_by":                        ActionTrack,
 		"created_by_username":               ActionIgnore,
+		"created_by_name":                   ActionIgnore,
 		"created_by_avatar_url":             ActionIgnore,
 		"group_acl":                         ActionTrack,
 		"user_acl":                          ActionTrack,
@@ -84,6 +111,12 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"failure_ttl":                       ActionTrack,
 		"time_til_dormant":                  ActionTrack,
 		"time_til_dormant_autodelete":       ActionTrack,
+		"require_active_version":            ActionTrack,
+		"deprecated":                        ActionTrack,
+		"max_port_sharing_level":            ActionTrack,
+		"activity_bump":                     ActionTrack,
+		"use_classic_parameter_flow":        ActionTrack,
+		"cors_behavior":                     ActionTrack,
 	},
 	&database.TemplateVersion{}: {
 		"id":                      ActionTrack,
@@ -99,23 +132,33 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"external_auth_providers": ActionIgnore, // Not helpful because this can only change when new versions are added.
 		"created_by_avatar_url":   ActionIgnore,
 		"created_by_username":     ActionIgnore,
+		"created_by_name":         ActionIgnore,
+		"archived":                ActionTrack,
+		"source_example_id":       ActionIgnore, // Never changes.
+		"has_ai_task":             ActionIgnore, // Never changes.
+		"has_external_agent":      ActionIgnore, // Never changes.
 	},
 	&database.User{}: {
-		"id":                   ActionTrack,
-		"email":                ActionTrack,
-		"username":             ActionTrack,
-		"hashed_password":      ActionSecret, // Do not expose a users hashed password.
-		"created_at":           ActionIgnore, // Never changes.
-		"updated_at":           ActionIgnore, // Changes, but is implicit and not helpful in a diff.
-		"status":               ActionTrack,
-		"rbac_roles":           ActionTrack,
-		"login_type":           ActionTrack,
-		"avatar_url":           ActionIgnore,
-		"last_seen_at":         ActionIgnore,
-		"deleted":              ActionTrack,
-		"quiet_hours_schedule": ActionTrack,
+		"id":                           ActionTrack,
+		"email":                        ActionTrack,
+		"username":                     ActionTrack,
+		"hashed_password":              ActionSecret, // Do not expose a users hashed password.
+		"created_at":                   ActionIgnore, // Never changes.
+		"updated_at":                   ActionIgnore, // Changes, but is implicit and not helpful in a diff.
+		"status":                       ActionTrack,
+		"rbac_roles":                   ActionTrack,
+		"login_type":                   ActionTrack,
+		"avatar_url":                   ActionIgnore,
+		"last_seen_at":                 ActionIgnore,
+		"deleted":                      ActionTrack,
+		"quiet_hours_schedule":         ActionTrack,
+		"name":                         ActionTrack,
+		"github_com_user_id":           ActionIgnore,
+		"hashed_one_time_passcode":     ActionIgnore,
+		"one_time_passcode_expires_at": ActionTrack,
+		"is_system":                    ActionTrack, // Should never change, but track it anyway.
 	},
-	&database.Workspace{}: {
+	&database.WorkspaceTable{}: {
 		"id":                 ActionTrack,
 		"created_at":         ActionIgnore, // Never changes.
 		"updated_at":         ActionIgnore, // Changes, but is implicit and not helpful in a diff.
@@ -130,24 +173,33 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"dormant_at":         ActionTrack,
 		"deleting_at":        ActionTrack,
 		"automatic_updates":  ActionTrack,
+		"favorite":           ActionTrack,
+		"next_start_at":      ActionTrack,
+		"group_acl":          ActionTrack,
+		"user_acl":           ActionTrack,
 	},
 	&database.WorkspaceBuild{}: {
-		"id":                      ActionIgnore,
-		"created_at":              ActionIgnore,
-		"updated_at":              ActionIgnore,
-		"workspace_id":            ActionIgnore,
-		"template_version_id":     ActionTrack,
-		"build_number":            ActionIgnore,
-		"transition":              ActionIgnore,
-		"initiator_id":            ActionIgnore,
-		"provisioner_state":       ActionIgnore,
-		"job_id":                  ActionIgnore,
-		"deadline":                ActionIgnore,
-		"reason":                  ActionIgnore,
-		"daily_cost":              ActionIgnore,
-		"max_deadline":            ActionIgnore,
-		"initiator_by_avatar_url": ActionIgnore,
-		"initiator_by_username":   ActionIgnore,
+		"id":                         ActionIgnore,
+		"created_at":                 ActionIgnore,
+		"updated_at":                 ActionIgnore,
+		"workspace_id":               ActionIgnore,
+		"template_version_id":        ActionTrack,
+		"build_number":               ActionIgnore,
+		"transition":                 ActionIgnore,
+		"initiator_id":               ActionIgnore,
+		"provisioner_state":          ActionIgnore,
+		"job_id":                     ActionIgnore,
+		"deadline":                   ActionIgnore,
+		"reason":                     ActionIgnore,
+		"daily_cost":                 ActionIgnore,
+		"max_deadline":               ActionIgnore,
+		"initiator_by_avatar_url":    ActionIgnore,
+		"initiator_by_username":      ActionIgnore,
+		"initiator_by_name":          ActionIgnore,
+		"template_version_preset_id": ActionIgnore, // Never changes.
+		"has_ai_task":                ActionIgnore, // Never changes.
+		"ai_task_sidebar_app_id":     ActionIgnore, // Never changes.
+		"has_external_agent":         ActionIgnore, // Never changes.
 	},
 	&database.AuditableGroup{}: {
 		"id":              ActionTrack,
@@ -170,7 +222,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"login_type":       ActionIgnore,
 		"lifetime_seconds": ActionIgnore,
 		"ip_address":       ActionIgnore,
-		"scope":            ActionIgnore,
+		"scopes":           ActionIgnore,
+		"allow_list":       ActionIgnore,
 		"token_name":       ActionIgnore,
 	},
 	&database.AuditOAuthConvertState{}: {
@@ -179,6 +232,18 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"from_login_type": ActionTrack,
 		"to_login_type":   ActionTrack,
 		"user_id":         ActionTrack,
+	},
+	&database.HealthSettings{}: {
+		"id":                     ActionIgnore,
+		"dismissed_healthchecks": ActionTrack,
+	},
+	&database.NotificationsSettings{}: {
+		"id":              ActionIgnore,
+		"notifier_paused": ActionTrack,
+	},
+	&database.PrebuildsSettings{}: {
+		"id":                    ActionIgnore,
+		"reconciliation_paused": ActionTrack,
 	},
 	// TODO: track an ID here when the below ticket is completed:
 	// https://github.com/coder/coder/pull/6012
@@ -203,6 +268,97 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"derp_enabled":        ActionTrack,
 		"derp_only":           ActionTrack,
 		"region_id":           ActionTrack,
+		"version":             ActionTrack,
+	},
+	&database.OAuth2ProviderApp{}: {
+		"id":                     ActionIgnore,
+		"created_at":             ActionIgnore,
+		"updated_at":             ActionIgnore,
+		"name":                   ActionTrack,
+		"icon":                   ActionTrack,
+		"callback_url":           ActionTrack,
+		"redirect_uris":          ActionTrack,
+		"client_type":            ActionTrack,
+		"dynamically_registered": ActionTrack,
+		// RFC 7591 Dynamic Client Registration fields
+		"client_id_issued_at":        ActionIgnore, // Timestamp, not security relevant
+		"client_secret_expires_at":   ActionTrack,  // Security relevant - expiration policy
+		"grant_types":                ActionTrack,  // Security relevant - authorization capabilities
+		"response_types":             ActionTrack,  // Security relevant - response flow types
+		"token_endpoint_auth_method": ActionTrack,  // Security relevant - auth method
+		"scope":                      ActionTrack,  // Security relevant - permissions scope
+		"contacts":                   ActionTrack,  // Contact info for responsible parties
+		"client_uri":                 ActionTrack,  // Client identification info
+		"logo_uri":                   ActionTrack,  // Client branding
+		"tos_uri":                    ActionTrack,  // Legal compliance
+		"policy_uri":                 ActionTrack,  // Legal compliance
+		"jwks_uri":                   ActionTrack,  // Security relevant - key location
+		"jwks":                       ActionSecret, // Security sensitive - actual keys
+		"software_id":                ActionTrack,  // Client software identification
+		"software_version":           ActionTrack,  // Client software version
+		// RFC 7592 Management fields - sensitive data
+		"registration_access_token": ActionSecret, // Secret token for client management
+		"registration_client_uri":   ActionTrack,  // Management endpoint URI
+	},
+	&database.OAuth2ProviderAppSecret{}: {
+		"id":             ActionIgnore,
+		"created_at":     ActionIgnore,
+		"last_used_at":   ActionIgnore,
+		"hashed_secret":  ActionIgnore,
+		"display_secret": ActionIgnore,
+		"app_id":         ActionIgnore,
+		"secret_prefix":  ActionIgnore,
+	},
+	&database.Organization{}: {
+		"id":           ActionIgnore,
+		"name":         ActionTrack,
+		"description":  ActionTrack,
+		"deleted":      ActionTrack,
+		"created_at":   ActionIgnore,
+		"updated_at":   ActionTrack,
+		"is_default":   ActionTrack,
+		"display_name": ActionTrack,
+		"icon":         ActionTrack,
+	},
+	&database.NotificationTemplate{}: {
+		"id":                 ActionIgnore,
+		"name":               ActionTrack,
+		"title_template":     ActionTrack,
+		"body_template":      ActionTrack,
+		"actions":            ActionTrack,
+		"group":              ActionTrack,
+		"method":             ActionTrack,
+		"kind":               ActionTrack,
+		"enabled_by_default": ActionTrack,
+	},
+	&idpsync.OrganizationSyncSettings{}: {
+		"field":          ActionTrack,
+		"mapping":        ActionTrack,
+		"assign_default": ActionTrack,
+	},
+	&idpsync.GroupSyncSettings{}: {
+		"field":                      ActionTrack,
+		"mapping":                    ActionTrack,
+		"regex_filter":               ActionTrack,
+		"auto_create_missing_groups": ActionTrack,
+		// Configured in env vars
+		"legacy_group_name_mapping": ActionIgnore,
+	},
+	&idpsync.RoleSyncSettings{}: {
+		"field":   ActionTrack,
+		"mapping": ActionTrack,
+	},
+	&database.TaskTable{}: {
+		"id":                  ActionTrack,
+		"organization_id":     ActionIgnore, // Never changes.
+		"owner_id":            ActionTrack,
+		"name":                ActionTrack,
+		"workspace_id":        ActionTrack,
+		"template_version_id": ActionTrack,
+		"template_parameters": ActionTrack,
+		"prompt":              ActionTrack,
+		"created_at":          ActionIgnore, // Never changes.
+		"deleted_at":          ActionIgnore, // Changes, but is implicit when a delete event is fired.
 	},
 }
 
@@ -253,6 +409,7 @@ func entry(v any, f map[string]Action) (string, map[string]Action) {
 			// This field is explicitly ignored.
 			continue
 		}
+		jsonTag = strings.TrimSuffix(jsonTag, ",omitempty")
 		if _, ok := fcpy[jsonTag]; !ok {
 			_, _ = fmt.Fprintf(os.Stderr, "ERROR: Audit table entry missing action for field %q in type %q\nPlease update the auditable resource types in: %s\n", d.FieldType.Name, name, self())
 			//nolint:revive

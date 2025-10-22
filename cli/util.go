@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/util/tz"
+	"github.com/coder/serpent"
 )
 
 var (
@@ -17,6 +19,19 @@ var (
 	errInvalidTimeFormat     = xerrors.New("Start time must be in the format hh:mm[am|pm] or HH:MM")
 	errUnsupportedTimezone   = xerrors.New("The location you provided looks like a timezone. Check https://ipinfo.io for your location.")
 )
+
+// userSetOption returns true if the option was set by the user.
+// This is helpful if the zero value of a flag is meaningful, and you need
+// to distinguish between the user setting the flag to the zero value and
+// the user not setting the flag at all.
+func userSetOption(inv *serpent.Invocation, flagName string) bool {
+	for _, opt := range inv.Command.Options {
+		if opt.Name == flagName {
+			return !(opt.ValueSource == serpent.ValueSourceNone || opt.ValueSource == serpent.ValueSourceDefault)
+		}
+	}
+	return false
+}
 
 // durationDisplay formats a duration for easier display:
 //   - Durations of 24 hours or greater are displays as Xd
@@ -60,6 +75,17 @@ func durationDisplay(d time.Duration) string {
 		}
 	}
 	return sign + durationDisplay
+}
+
+// timeDisplay formats a time in the local timezone
+// in RFC3339 format.
+func timeDisplay(t time.Time) string {
+	localTz, err := tz.TimezoneIANA()
+	if err != nil {
+		localTz = time.UTC
+	}
+
+	return t.In(localTz).Format(time.RFC3339)
 }
 
 // relative relativizes a duration with the prefix "ago" or "in"
@@ -141,7 +167,7 @@ func parseCLISchedule(parts ...string) (*cron.Schedule, error) {
 func parseDuration(raw string) (time.Duration, error) {
 	// If the user input a raw number, assume minutes
 	if isDigit(raw) {
-		raw = raw + "m"
+		raw += "m"
 	}
 	d, err := time.ParseDuration(raw)
 	if err != nil {
@@ -154,6 +180,78 @@ func isDigit(s string) bool {
 	return strings.IndexFunc(s, func(c rune) bool {
 		return c < '0' || c > '9'
 	}) == -1
+}
+
+// extendedParseDuration is a more lenient version of parseDuration that allows
+// for more flexible input formats and cumulative durations.
+// It allows for some extra units:
+//   - d (days, interpreted as 24h)
+//   - y (years, interpreted as 8_760h)
+//
+// FIXME: handle fractional values as discussed in https://github.com/coder/coder/pull/15040#discussion_r1799261736
+func extendedParseDuration(raw string) (time.Duration, error) {
+	var d int64
+	isPositive := true
+
+	// handle negative durations by checking for a leading '-'
+	if strings.HasPrefix(raw, "-") {
+		raw = raw[1:]
+		isPositive = false
+	}
+
+	if raw == "" {
+		return 0, xerrors.Errorf("invalid duration: %q", raw)
+	}
+
+	// Regular expression to match any characters that do not match the expected duration format
+	invalidCharRe := regexp.MustCompile(`[^0-9|nsuµhdym]+`)
+	if invalidCharRe.MatchString(raw) {
+		return 0, xerrors.Errorf("invalid duration format: %q", raw)
+	}
+
+	// Regular expression to match numbers followed by 'd', 'y', or time units
+	re := regexp.MustCompile(`(-?\d+)(ns|us|µs|ms|s|m|h|d|y)`)
+	matches := re.FindAllStringSubmatch(raw, -1)
+
+	for _, match := range matches {
+		var num int64
+		num, err := strconv.ParseInt(match[1], 10, 0)
+		if err != nil {
+			return 0, xerrors.Errorf("invalid duration: %q", match[1])
+		}
+
+		switch match[2] {
+		case "d":
+			// we want to check if d + num * int64(24*time.Hour) would overflow
+			if d > (1<<63-1)-num*int64(24*time.Hour) {
+				return 0, xerrors.Errorf("invalid duration: %q", raw)
+			}
+			d += num * int64(24*time.Hour)
+		case "y":
+			// we want to check if d + num * int64(8760*time.Hour) would overflow
+			if d > (1<<63-1)-num*int64(8760*time.Hour) {
+				return 0, xerrors.Errorf("invalid duration: %q", raw)
+			}
+			d += num * int64(8760*time.Hour)
+		case "h", "m", "s", "ns", "us", "µs", "ms":
+			partDuration, err := time.ParseDuration(match[0])
+			if err != nil {
+				return 0, xerrors.Errorf("invalid duration: %q", match[0])
+			}
+			if d > (1<<63-1)-int64(partDuration) {
+				return 0, xerrors.Errorf("invalid duration: %q", raw)
+			}
+			d += int64(partDuration)
+		default:
+			return 0, xerrors.Errorf("invalid duration unit: %q", match[2])
+		}
+	}
+
+	if !isPositive {
+		return -time.Duration(d), nil
+	}
+
+	return time.Duration(d), nil
 }
 
 // parseTime attempts to parse a time (no date) from the given string using a number of layouts.

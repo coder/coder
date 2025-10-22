@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -31,10 +32,11 @@ func TestTemplateEdit(t *testing.T) {
 	t.Run("FirstEmptyThenModified", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 
 		// Test the cli command.
 		name := "new-template-name"
@@ -56,7 +58,7 @@ func TestTemplateEdit(t *testing.T) {
 			"--allow-user-cancel-workspace-jobs=" + strconv.FormatBool(allowUserCancelWorkspaceJobs),
 		}
 		inv, root := clitest.New(t, cmdArgs...)
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, templateAdmin, root)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		err := inv.WithContext(ctx).Run()
@@ -76,10 +78,11 @@ func TestTemplateEdit(t *testing.T) {
 	t.Run("FirstEmptyThenNotModified", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 
 		// Test the cli command.
 		cmdArgs := []string{
@@ -90,10 +93,11 @@ func TestTemplateEdit(t *testing.T) {
 			"--description", template.Description,
 			"--icon", template.Icon,
 			"--default-ttl", (time.Duration(template.DefaultTTLMillis) * time.Millisecond).String(),
+			"--activity-bump", (time.Duration(template.ActivityBumpMillis) * time.Millisecond).String(),
 			"--allow-user-cancel-workspace-jobs=" + strconv.FormatBool(template.AllowUserCancelWorkspaceJobs),
 		}
 		inv, root := clitest.New(t, cmdArgs...)
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, templateAdmin, root)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		err := inv.WithContext(ctx).Run()
@@ -112,10 +116,11 @@ func TestTemplateEdit(t *testing.T) {
 	t.Run("InvalidDisplayName", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 
 		// Test the cli command.
 		cmdArgs := []string{
@@ -126,7 +131,7 @@ func TestTemplateEdit(t *testing.T) {
 			"--display-name", " a-b-c",
 		}
 		inv, root := clitest.New(t, cmdArgs...)
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, templateAdmin, root)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		err := inv.WithContext(ctx).Run()
@@ -144,15 +149,16 @@ func TestTemplateEdit(t *testing.T) {
 	t.Run("WithPropertiesThenModified", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		initialDisplayName := "This is a template"
 		initialDescription := "This is description"
 		initialIcon := "/img/icon.png"
 
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.DisplayName = initialDisplayName
 			ctr.Description = initialDescription
 			ctr.Icon = initialIcon
@@ -178,7 +184,7 @@ func TestTemplateEdit(t *testing.T) {
 			"--icon", icon,
 		}
 		inv, root := clitest.New(t, cmdArgs...)
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, templateAdmin, root)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		err = inv.WithContext(ctx).Run()
@@ -196,15 +202,16 @@ func TestTemplateEdit(t *testing.T) {
 	t.Run("WithPropertiesThenEmptyEdit", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		initialDisplayName := "This is a template"
 		initialDescription := "This is description"
 		initialIcon := "/img/icon.png"
 
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.DisplayName = initialDisplayName
 			ctr.Description = initialDescription
 			ctr.Icon = initialIcon
@@ -222,9 +229,12 @@ func TestTemplateEdit(t *testing.T) {
 			"templates",
 			"edit",
 			template.Name,
+			"--description", "",
+			"--display-name", "",
+			"--icon", "",
 		}
 		inv, root := clitest.New(t, cmdArgs...)
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, templateAdmin, root)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		err = inv.WithContext(ctx).Run()
@@ -242,15 +252,16 @@ func TestTemplateEdit(t *testing.T) {
 		assert.Equal(t, "", updated.Icon)
 		assert.Equal(t, "", updated.DisplayName)
 	})
-	t.Run("AutostopRequirement", func(t *testing.T) {
+	t.Run("Autostop/startRequirement", func(t *testing.T) {
 		t.Parallel()
 		t.Run("BlockedAGPL", func(t *testing.T) {
 			t.Parallel()
 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-			user := coderdtest.CreateFirstUser(t, client)
-			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			owner := coderdtest.CreateFirstUser(t, client)
+			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+			version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 				ctr.DefaultTTLMillis = nil
 				ctr.AutostopRequirement = nil
 			})
@@ -279,10 +290,15 @@ func TestTemplateEdit(t *testing.T) {
 						"--autostop-requirement-weeks", "1",
 					},
 				},
+				{
+					name: "AutostartDays",
+					flags: []string{
+						"--autostart-requirement-weekdays", "monday",
+					},
+				},
 			}
 
 			for _, c := range cases {
-				c := c
 				t.Run(c.name, func(t *testing.T) {
 					t.Parallel()
 
@@ -293,7 +309,7 @@ func TestTemplateEdit(t *testing.T) {
 					}
 					cmdArgs = append(cmdArgs, c.flags...)
 					inv, root := clitest.New(t, cmdArgs...)
-					clitest.SetupConfig(t, client, root)
+					clitest.SetupConfig(t, templateAdmin, root)
 
 					ctx := testutil.Context(t, testutil.WaitLong)
 					err := inv.WithContext(ctx).Run()
@@ -314,6 +330,8 @@ func TestTemplateEdit(t *testing.T) {
 					assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
 					assert.Equal(t, template.AutostopRequirement.DaysOfWeek, updated.AutostopRequirement.DaysOfWeek)
 					assert.Equal(t, template.AutostopRequirement.Weeks, updated.AutostopRequirement.Weeks)
+					assert.Equal(t, template.AutostartRequirement.DaysOfWeek, updated.AutostartRequirement.DaysOfWeek)
+					assert.Equal(t, template.AutostartRequirement.DaysOfWeek, updated.AutostartRequirement.DaysOfWeek)
 				})
 			}
 		})
@@ -321,10 +339,11 @@ func TestTemplateEdit(t *testing.T) {
 		t.Run("BlockedNotEntitled", func(t *testing.T) {
 			t.Parallel()
 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-			user := coderdtest.CreateFirstUser(t, client)
-			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			owner := coderdtest.CreateFirstUser(t, client)
+			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+			version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 				ctr.DefaultTTLMillis = nil
 				ctr.AutostopRequirement = nil
 			})
@@ -366,7 +385,7 @@ func TestTemplateEdit(t *testing.T) {
 			proxyURL, err := url.Parse(proxy.URL)
 			require.NoError(t, err)
 			proxyClient := codersdk.New(proxyURL)
-			proxyClient.SetSessionToken(client.SessionToken())
+			proxyClient.SetSessionToken(templateAdmin.SessionToken())
 			t.Cleanup(proxyClient.HTTPClient.CloseIdleConnections)
 
 			cases := []struct {
@@ -396,7 +415,6 @@ func TestTemplateEdit(t *testing.T) {
 			}
 
 			for _, c := range cases {
-				c := c
 				t.Run(c.name, func(t *testing.T) {
 					t.Parallel()
 
@@ -428,16 +446,18 @@ func TestTemplateEdit(t *testing.T) {
 					assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
 					assert.Equal(t, template.AutostopRequirement.DaysOfWeek, updated.AutostopRequirement.DaysOfWeek)
 					assert.Equal(t, template.AutostopRequirement.Weeks, updated.AutostopRequirement.Weeks)
+					assert.Equal(t, template.AutostartRequirement.DaysOfWeek, updated.AutostartRequirement.DaysOfWeek)
 				})
 			}
 		})
 		t.Run("Entitled", func(t *testing.T) {
 			t.Parallel()
 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-			user := coderdtest.CreateFirstUser(t, client)
-			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			owner := coderdtest.CreateFirstUser(t, client)
+			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+			version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 				ctr.DefaultTTLMillis = nil
 				ctr.AutostopRequirement = nil
 			})
@@ -496,7 +516,7 @@ func TestTemplateEdit(t *testing.T) {
 			proxyURL, err := url.Parse(proxy.URL)
 			require.NoError(t, err)
 			proxyClient := codersdk.New(proxyURL)
-			proxyClient.SetSessionToken(client.SessionToken())
+			proxyClient.SetSessionToken(templateAdmin.SessionToken())
 			t.Cleanup(proxyClient.HTTPClient.CloseIdleConnections)
 
 			// Test the cli command.
@@ -527,228 +547,20 @@ func TestTemplateEdit(t *testing.T) {
 			assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
 			assert.Equal(t, template.AutostopRequirement.DaysOfWeek, updated.AutostopRequirement.DaysOfWeek)
 			assert.Equal(t, template.AutostopRequirement.Weeks, updated.AutostopRequirement.Weeks)
+			assert.Equal(t, template.AutostartRequirement.DaysOfWeek, updated.AutostartRequirement.DaysOfWeek)
 		})
 	})
-	// TODO(@dean): remove this test when we remove max_ttl
-	t.Run("MaxTTL", func(t *testing.T) {
-		t.Parallel()
-		t.Run("BlockedAGPL", func(t *testing.T) {
-			t.Parallel()
-			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-			user := coderdtest.CreateFirstUser(t, client)
-			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-				ctr.DefaultTTLMillis = nil
-				ctr.MaxTTLMillis = nil
-			})
 
-			// Test the cli command.
-			cmdArgs := []string{
-				"templates",
-				"edit",
-				template.Name,
-				"--max-ttl", "1h",
-			}
-			inv, root := clitest.New(t, cmdArgs...)
-			clitest.SetupConfig(t, client, root)
-
-			ctx := testutil.Context(t, testutil.WaitLong)
-			err := inv.WithContext(ctx).Run()
-			require.Error(t, err)
-			require.ErrorContains(t, err, "appears to be an AGPL deployment")
-
-			// Assert that the template metadata did not change.
-			updated, err := client.Template(context.Background(), template.ID)
-			require.NoError(t, err)
-			assert.Equal(t, template.Name, updated.Name)
-			assert.Equal(t, template.Description, updated.Description)
-			assert.Equal(t, template.Icon, updated.Icon)
-			assert.Equal(t, template.DisplayName, updated.DisplayName)
-			assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
-			assert.Equal(t, template.MaxTTLMillis, updated.MaxTTLMillis)
-		})
-
-		t.Run("BlockedNotEntitled", func(t *testing.T) {
-			t.Parallel()
-			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-			user := coderdtest.CreateFirstUser(t, client)
-			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-				ctr.DefaultTTLMillis = nil
-				ctr.MaxTTLMillis = nil
-			})
-
-			// Make a proxy server that will return a valid entitlements
-			// response, but without advanced scheduling entitlement.
-			proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if r.URL.Path == "/api/v2/entitlements" {
-					res := codersdk.Entitlements{
-						Features:         map[codersdk.FeatureName]codersdk.Feature{},
-						Warnings:         []string{},
-						Errors:           []string{},
-						HasLicense:       true,
-						Trial:            true,
-						RequireTelemetry: false,
-					}
-					for _, feature := range codersdk.FeatureNames {
-						res.Features[feature] = codersdk.Feature{
-							Entitlement: codersdk.EntitlementNotEntitled,
-							Enabled:     false,
-							Limit:       nil,
-							Actual:      nil,
-						}
-					}
-					httpapi.Write(r.Context(), w, http.StatusOK, res)
-					return
-				}
-
-				// Otherwise, proxy the request to the real API server.
-				rp := httputil.NewSingleHostReverseProxy(client.URL)
-				tp := &http.Transport{}
-				defer tp.CloseIdleConnections()
-				rp.Transport = tp
-				rp.ServeHTTP(w, r)
-			}))
-			defer proxy.Close()
-
-			// Create a new client that uses the proxy server.
-			proxyURL, err := url.Parse(proxy.URL)
-			require.NoError(t, err)
-			proxyClient := codersdk.New(proxyURL)
-			proxyClient.SetSessionToken(client.SessionToken())
-			t.Cleanup(proxyClient.HTTPClient.CloseIdleConnections)
-
-			// Test the cli command.
-			cmdArgs := []string{
-				"templates",
-				"edit",
-				template.Name,
-				"--max-ttl", "1h",
-			}
-			inv, root := clitest.New(t, cmdArgs...)
-			clitest.SetupConfig(t, proxyClient, root)
-
-			ctx := testutil.Context(t, testutil.WaitLong)
-			err = inv.WithContext(ctx).Run()
-			require.Error(t, err)
-			require.ErrorContains(t, err, "license is not entitled")
-
-			// Assert that the template metadata did not change.
-			updated, err := client.Template(context.Background(), template.ID)
-			require.NoError(t, err)
-			assert.Equal(t, template.Name, updated.Name)
-			assert.Equal(t, template.Description, updated.Description)
-			assert.Equal(t, template.Icon, updated.Icon)
-			assert.Equal(t, template.DisplayName, updated.DisplayName)
-			assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
-			assert.Equal(t, template.MaxTTLMillis, updated.MaxTTLMillis)
-		})
-		t.Run("Entitled", func(t *testing.T) {
-			t.Parallel()
-			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-			user := coderdtest.CreateFirstUser(t, client)
-			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-				ctr.DefaultTTLMillis = nil
-				ctr.MaxTTLMillis = nil
-			})
-
-			// Make a proxy server that will return a valid entitlements
-			// response, including a valid advanced scheduling entitlement.
-			var updateTemplateCalled int64
-			proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if r.URL.Path == "/api/v2/entitlements" {
-					res := codersdk.Entitlements{
-						Features:         map[codersdk.FeatureName]codersdk.Feature{},
-						Warnings:         []string{},
-						Errors:           []string{},
-						HasLicense:       true,
-						Trial:            true,
-						RequireTelemetry: false,
-					}
-					for _, feature := range codersdk.FeatureNames {
-						var one int64 = 1
-						res.Features[feature] = codersdk.Feature{
-							Entitlement: codersdk.EntitlementNotEntitled,
-							Enabled:     true,
-							Limit:       &one,
-							Actual:      &one,
-						}
-					}
-					httpapi.Write(r.Context(), w, http.StatusOK, res)
-					return
-				}
-				if strings.HasPrefix(r.URL.Path, "/api/v2/templates/") {
-					body, err := io.ReadAll(r.Body)
-					require.NoError(t, err)
-					_ = r.Body.Close()
-
-					var req codersdk.UpdateTemplateMeta
-					err = json.Unmarshal(body, &req)
-					require.NoError(t, err)
-					assert.Equal(t, time.Hour.Milliseconds(), req.MaxTTLMillis)
-
-					r.Body = io.NopCloser(bytes.NewReader(body))
-					atomic.AddInt64(&updateTemplateCalled, 1)
-					// We still want to call the real route.
-				}
-
-				// Otherwise, proxy the request to the real API server.
-				rp := httputil.NewSingleHostReverseProxy(client.URL)
-				tp := &http.Transport{}
-				defer tp.CloseIdleConnections()
-				rp.Transport = tp
-				rp.ServeHTTP(w, r)
-			}))
-			defer proxy.Close()
-
-			// Create a new client that uses the proxy server.
-			proxyURL, err := url.Parse(proxy.URL)
-			require.NoError(t, err)
-			proxyClient := codersdk.New(proxyURL)
-			proxyClient.SetSessionToken(client.SessionToken())
-			t.Cleanup(proxyClient.HTTPClient.CloseIdleConnections)
-
-			// Test the cli command.
-			cmdArgs := []string{
-				"templates",
-				"edit",
-				template.Name,
-				"--max-ttl", "1h",
-			}
-			inv, root := clitest.New(t, cmdArgs...)
-			clitest.SetupConfig(t, proxyClient, root)
-
-			ctx := testutil.Context(t, testutil.WaitLong)
-			err = inv.WithContext(ctx).Run()
-			require.NoError(t, err)
-
-			require.EqualValues(t, 1, atomic.LoadInt64(&updateTemplateCalled))
-
-			// Assert that the template metadata did not change. We verify the
-			// correct request gets sent to the server already.
-			updated, err := client.Template(context.Background(), template.ID)
-			require.NoError(t, err)
-			assert.Equal(t, template.Name, updated.Name)
-			assert.Equal(t, template.Description, updated.Description)
-			assert.Equal(t, template.Icon, updated.Icon)
-			assert.Equal(t, template.DisplayName, updated.DisplayName)
-			assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
-			assert.Equal(t, template.MaxTTLMillis, updated.MaxTTLMillis)
-		})
-	})
 	t.Run("AllowUserScheduling", func(t *testing.T) {
 		t.Parallel()
 		t.Run("BlockedAGPL", func(t *testing.T) {
 			t.Parallel()
 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-			user := coderdtest.CreateFirstUser(t, client)
-			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			owner := coderdtest.CreateFirstUser(t, client)
+			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+			version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 				ctr.DefaultTTLMillis = nil
 				ctr.AutostopRequirement = nil
 				ctr.FailureTTLMillis = nil
@@ -763,7 +575,7 @@ func TestTemplateEdit(t *testing.T) {
 				"--allow-user-autostart=false",
 			}
 			inv, root := clitest.New(t, cmdArgs...)
-			clitest.SetupConfig(t, client, root)
+			clitest.SetupConfig(t, templateAdmin, root)
 
 			ctx := testutil.Context(t, testutil.WaitLong)
 			err := inv.WithContext(ctx).Run()
@@ -778,7 +590,7 @@ func TestTemplateEdit(t *testing.T) {
 				"--allow-user-autostop=false",
 			}
 			inv, root = clitest.New(t, cmdArgs...)
-			clitest.SetupConfig(t, client, root)
+			clitest.SetupConfig(t, templateAdmin, root)
 
 			ctx = testutil.Context(t, testutil.WaitLong)
 			err = inv.WithContext(ctx).Run()
@@ -795,6 +607,7 @@ func TestTemplateEdit(t *testing.T) {
 			assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
 			assert.Equal(t, template.AutostopRequirement.DaysOfWeek, updated.AutostopRequirement.DaysOfWeek)
 			assert.Equal(t, template.AutostopRequirement.Weeks, updated.AutostopRequirement.Weeks)
+			assert.Equal(t, template.AutostartRequirement.DaysOfWeek, updated.AutostartRequirement.DaysOfWeek)
 			assert.Equal(t, template.AllowUserAutostart, updated.AllowUserAutostart)
 			assert.Equal(t, template.AllowUserAutostop, updated.AllowUserAutostop)
 			assert.Equal(t, template.FailureTTLMillis, updated.FailureTTLMillis)
@@ -804,10 +617,11 @@ func TestTemplateEdit(t *testing.T) {
 		t.Run("BlockedNotEntitled", func(t *testing.T) {
 			t.Parallel()
 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-			user := coderdtest.CreateFirstUser(t, client)
-			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			owner := coderdtest.CreateFirstUser(t, client)
+			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+			version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 
 			// Make a proxy server that will return a valid entitlements
 			// response, but without advanced scheduling entitlement.
@@ -846,7 +660,7 @@ func TestTemplateEdit(t *testing.T) {
 			proxyURL, err := url.Parse(proxy.URL)
 			require.NoError(t, err)
 			proxyClient := codersdk.New(proxyURL)
-			proxyClient.SetSessionToken(client.SessionToken())
+			proxyClient.SetSessionToken(templateAdmin.SessionToken())
 			t.Cleanup(proxyClient.HTTPClient.CloseIdleConnections)
 
 			// Test the cli command with --allow-user-autostart.
@@ -889,6 +703,7 @@ func TestTemplateEdit(t *testing.T) {
 			assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
 			assert.Equal(t, template.AutostopRequirement.DaysOfWeek, updated.AutostopRequirement.DaysOfWeek)
 			assert.Equal(t, template.AutostopRequirement.Weeks, updated.AutostopRequirement.Weeks)
+			assert.Equal(t, template.AutostartRequirement.DaysOfWeek, updated.AutostartRequirement.DaysOfWeek)
 			assert.Equal(t, template.AllowUserAutostart, updated.AllowUserAutostart)
 			assert.Equal(t, template.AllowUserAutostop, updated.AllowUserAutostop)
 			assert.Equal(t, template.FailureTTLMillis, updated.FailureTTLMillis)
@@ -897,10 +712,11 @@ func TestTemplateEdit(t *testing.T) {
 		t.Run("Entitled", func(t *testing.T) {
 			t.Parallel()
 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-			user := coderdtest.CreateFirstUser(t, client)
-			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			owner := coderdtest.CreateFirstUser(t, client)
+			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+			version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 
 			// Make a proxy server that will return a valid entitlements
 			// response, including a valid advanced scheduling entitlement.
@@ -956,7 +772,7 @@ func TestTemplateEdit(t *testing.T) {
 			proxyURL, err := url.Parse(proxy.URL)
 			require.NoError(t, err)
 			proxyClient := codersdk.New(proxyURL)
-			proxyClient.SetSessionToken(client.SessionToken())
+			proxyClient.SetSessionToken(templateAdmin.SessionToken())
 			t.Cleanup(proxyClient.HTTPClient.CloseIdleConnections)
 
 			// Test the cli command.
@@ -987,10 +803,74 @@ func TestTemplateEdit(t *testing.T) {
 			assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
 			assert.Equal(t, template.AutostopRequirement.DaysOfWeek, updated.AutostopRequirement.DaysOfWeek)
 			assert.Equal(t, template.AutostopRequirement.Weeks, updated.AutostopRequirement.Weeks)
+			assert.Equal(t, template.AutostartRequirement.DaysOfWeek, updated.AutostartRequirement.DaysOfWeek)
 			assert.Equal(t, template.AllowUserAutostart, updated.AllowUserAutostart)
 			assert.Equal(t, template.AllowUserAutostop, updated.AllowUserAutostop)
 			assert.Equal(t, template.FailureTTLMillis, updated.FailureTTLMillis)
 			assert.Equal(t, template.TimeTilDormantMillis, updated.TimeTilDormantMillis)
 		})
+	})
+
+	t.Run("RequireActiveVersion", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {})
+
+		// Test the cli command with --allow-user-autostart.
+		cmdArgs := []string{
+			"templates",
+			"edit",
+			template.Name,
+			"--require-active-version",
+		}
+		inv, root := clitest.New(t, cmdArgs...)
+		//nolint
+		clitest.SetupConfig(t, client, root)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		err := inv.WithContext(ctx).Run()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "appears to be an AGPL deployment")
+	})
+	t.Run("DefaultValues", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.Name = "random"
+			ctr.Icon = "/icon/foobar.png"
+			ctr.DisplayName = "Foobar"
+			ctr.Description = "Some description"
+		})
+
+		// We need to change some field to get a db write.
+		cmdArgs := []string{
+			"templates",
+			"edit",
+			template.Name,
+			"--name", "something-new",
+		}
+		inv, root := clitest.New(t, cmdArgs...)
+		//nolint
+		clitest.SetupConfig(t, client, root)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		updated, err := client.Template(context.Background(), template.ID)
+		require.NoError(t, err)
+		assert.Equal(t, "something-new", updated.Name)
+		assert.Equal(t, template.Icon, updated.Icon)
+		assert.Equal(t, template.DisplayName, updated.DisplayName)
+		assert.Equal(t, template.Description, updated.Description)
+		assert.Equal(t, template.DeprecationMessage, updated.DeprecationMessage)
 	})
 }

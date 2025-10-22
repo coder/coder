@@ -3,6 +3,8 @@ package cli_test
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"runtime"
 	"testing"
 
@@ -14,7 +16,9 @@ import (
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty/ptytest"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestLogin(t *testing.T) {
@@ -36,6 +40,39 @@ func TestLogin(t *testing.T) {
 		require.ErrorContains(t, err, errMsg)
 	})
 
+	t.Run("InitialUserNonCoderURLFail", func(t *testing.T) {
+		t.Parallel()
+
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte("Not Found"))
+		}))
+		defer ts.Close()
+
+		badLoginURL := ts.URL
+		root, _ := clitest.New(t, "login", badLoginURL)
+		err := root.Run()
+		errMsg := fmt.Sprintf("Failed to check server %q for first user, is the URL correct and is coder accessible from your browser?", badLoginURL)
+		require.ErrorContains(t, err, errMsg)
+	})
+
+	t.Run("InitialUserNonCoderURLSuccess", func(t *testing.T) {
+		t.Parallel()
+
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set(codersdk.BuildVersionHeader, "something")
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte("Not Found"))
+		}))
+		defer ts.Close()
+
+		badLoginURL := ts.URL
+		root, _ := clitest.New(t, "login", badLoginURL)
+		err := root.Run()
+		// this means we passed the check for a valid coder server
+		require.ErrorContains(t, err, "the initial user cannot be created in non-interactive mode")
+	})
+
 	t.Run("InitialUserTTY", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
@@ -53,11 +90,18 @@ func TestLogin(t *testing.T) {
 
 		matches := []string{
 			"first user?", "yes",
-			"username", "testuser",
-			"email", "user@coder.com",
-			"password", "SomeSecurePassword!",
-			"password", "SomeSecurePassword!", // Confirm.
+			"username", coderdtest.FirstUserParams.Username,
+			"name", coderdtest.FirstUserParams.Name,
+			"email", coderdtest.FirstUserParams.Email,
+			"password", coderdtest.FirstUserParams.Password,
+			"password", coderdtest.FirstUserParams.Password, // confirm
 			"trial", "yes",
+			"firstName", coderdtest.TrialUserParams.FirstName,
+			"lastName", coderdtest.TrialUserParams.LastName,
+			"phoneNumber", coderdtest.TrialUserParams.PhoneNumber,
+			"jobTitle", coderdtest.TrialUserParams.JobTitle,
+			"companyName", coderdtest.TrialUserParams.CompanyName,
+			// `developers` and `country` `cliui.Select` automatically selects the first option during tests.
 		}
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
@@ -67,6 +111,116 @@ func TestLogin(t *testing.T) {
 		}
 		pty.ExpectMatch("Welcome to Coder")
 		<-doneChan
+		ctx := testutil.Context(t, testutil.WaitShort)
+		resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    coderdtest.FirstUserParams.Email,
+			Password: coderdtest.FirstUserParams.Password,
+		})
+		require.NoError(t, err)
+		client.SetSessionToken(resp.SessionToken)
+		me, err := client.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		assert.Equal(t, coderdtest.FirstUserParams.Username, me.Username)
+		assert.Equal(t, coderdtest.FirstUserParams.Name, me.Name)
+		assert.Equal(t, coderdtest.FirstUserParams.Email, me.Email)
+	})
+
+	t.Run("InitialUserTTYWithNoTrial", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		// The --force-tty flag is required on Windows, because the `isatty` library does not
+		// accurately detect Windows ptys when they are not attached to a process:
+		// https://github.com/mattn/go-isatty/issues/59
+		doneChan := make(chan struct{})
+		root, _ := clitest.New(t, "login", "--force-tty", client.URL.String())
+		pty := ptytest.New(t).Attach(root)
+		go func() {
+			defer close(doneChan)
+			err := root.Run()
+			assert.NoError(t, err)
+		}()
+
+		matches := []string{
+			"first user?", "yes",
+			"username", coderdtest.FirstUserParams.Username,
+			"name", coderdtest.FirstUserParams.Name,
+			"email", coderdtest.FirstUserParams.Email,
+			"password", coderdtest.FirstUserParams.Password,
+			"password", coderdtest.FirstUserParams.Password, // confirm
+			"trial", "no",
+		}
+		for i := 0; i < len(matches); i += 2 {
+			match := matches[i]
+			value := matches[i+1]
+			pty.ExpectMatch(match)
+			pty.WriteLine(value)
+		}
+		pty.ExpectMatch("Welcome to Coder")
+		<-doneChan
+		ctx := testutil.Context(t, testutil.WaitShort)
+		resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    coderdtest.FirstUserParams.Email,
+			Password: coderdtest.FirstUserParams.Password,
+		})
+		require.NoError(t, err)
+		client.SetSessionToken(resp.SessionToken)
+		me, err := client.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		assert.Equal(t, coderdtest.FirstUserParams.Username, me.Username)
+		assert.Equal(t, coderdtest.FirstUserParams.Name, me.Name)
+		assert.Equal(t, coderdtest.FirstUserParams.Email, me.Email)
+	})
+
+	t.Run("InitialUserTTYNameOptional", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		// The --force-tty flag is required on Windows, because the `isatty` library does not
+		// accurately detect Windows ptys when they are not attached to a process:
+		// https://github.com/mattn/go-isatty/issues/59
+		doneChan := make(chan struct{})
+		root, _ := clitest.New(t, "login", "--force-tty", client.URL.String())
+		pty := ptytest.New(t).Attach(root)
+		go func() {
+			defer close(doneChan)
+			err := root.Run()
+			assert.NoError(t, err)
+		}()
+
+		matches := []string{
+			"first user?", "yes",
+			"username", coderdtest.FirstUserParams.Username,
+			"name", "",
+			"email", coderdtest.FirstUserParams.Email,
+			"password", coderdtest.FirstUserParams.Password,
+			"password", coderdtest.FirstUserParams.Password, // confirm
+			"trial", "yes",
+			"firstName", coderdtest.TrialUserParams.FirstName,
+			"lastName", coderdtest.TrialUserParams.LastName,
+			"phoneNumber", coderdtest.TrialUserParams.PhoneNumber,
+			"jobTitle", coderdtest.TrialUserParams.JobTitle,
+			"companyName", coderdtest.TrialUserParams.CompanyName,
+			// `developers` and `country` `cliui.Select` automatically selects the first option during tests.
+		}
+		for i := 0; i < len(matches); i += 2 {
+			match := matches[i]
+			value := matches[i+1]
+			pty.ExpectMatch(match)
+			pty.WriteLine(value)
+		}
+		pty.ExpectMatch("Welcome to Coder")
+		<-doneChan
+		ctx := testutil.Context(t, testutil.WaitShort)
+		resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    coderdtest.FirstUserParams.Email,
+			Password: coderdtest.FirstUserParams.Password,
+		})
+		require.NoError(t, err)
+		client.SetSessionToken(resp.SessionToken)
+		me, err := client.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		assert.Equal(t, coderdtest.FirstUserParams.Username, me.Username)
+		assert.Equal(t, coderdtest.FirstUserParams.Email, me.Email)
+		assert.Empty(t, me.Name)
 	})
 
 	t.Run("InitialUserTTYFlag", func(t *testing.T) {
@@ -80,13 +234,21 @@ func TestLogin(t *testing.T) {
 
 		clitest.Start(t, inv)
 
+		pty.ExpectMatch(fmt.Sprintf("Attempting to authenticate with flag URL: '%s'", client.URL.String()))
 		matches := []string{
 			"first user?", "yes",
-			"username", "testuser",
-			"email", "user@coder.com",
-			"password", "SomeSecurePassword!",
-			"password", "SomeSecurePassword!", // Confirm.
+			"username", coderdtest.FirstUserParams.Username,
+			"name", coderdtest.FirstUserParams.Name,
+			"email", coderdtest.FirstUserParams.Email,
+			"password", coderdtest.FirstUserParams.Password,
+			"password", coderdtest.FirstUserParams.Password, // confirm
 			"trial", "yes",
+			"firstName", coderdtest.TrialUserParams.FirstName,
+			"lastName", coderdtest.TrialUserParams.LastName,
+			"phoneNumber", coderdtest.TrialUserParams.PhoneNumber,
+			"jobTitle", coderdtest.TrialUserParams.JobTitle,
+			"companyName", coderdtest.TrialUserParams.CompanyName,
+			// `developers` and `country` `cliui.Select` automatically selects the first option during tests.
 		}
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
@@ -95,6 +257,18 @@ func TestLogin(t *testing.T) {
 			pty.WriteLine(value)
 		}
 		pty.ExpectMatch("Welcome to Coder")
+		ctx := testutil.Context(t, testutil.WaitShort)
+		resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    coderdtest.FirstUserParams.Email,
+			Password: coderdtest.FirstUserParams.Password,
+		})
+		require.NoError(t, err)
+		client.SetSessionToken(resp.SessionToken)
+		me, err := client.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		assert.Equal(t, coderdtest.FirstUserParams.Username, me.Username)
+		assert.Equal(t, coderdtest.FirstUserParams.Name, me.Name)
+		assert.Equal(t, coderdtest.FirstUserParams.Email, me.Email)
 	})
 
 	t.Run("InitialUserFlags", func(t *testing.T) {
@@ -102,13 +276,78 @@ func TestLogin(t *testing.T) {
 		client := coderdtest.New(t, nil)
 		inv, _ := clitest.New(
 			t, "login", client.URL.String(),
-			"--first-user-username", "testuser", "--first-user-email", "user@coder.com",
-			"--first-user-password", "SomeSecurePassword!", "--first-user-trial",
+			"--first-user-username", coderdtest.FirstUserParams.Username,
+			"--first-user-full-name", coderdtest.FirstUserParams.Name,
+			"--first-user-email", coderdtest.FirstUserParams.Email,
+			"--first-user-password", coderdtest.FirstUserParams.Password,
+			"--first-user-trial",
 		)
 		pty := ptytest.New(t).Attach(inv)
 		w := clitest.StartWithWaiter(t, inv)
+		pty.ExpectMatch("firstName")
+		pty.WriteLine(coderdtest.TrialUserParams.FirstName)
+		pty.ExpectMatch("lastName")
+		pty.WriteLine(coderdtest.TrialUserParams.LastName)
+		pty.ExpectMatch("phoneNumber")
+		pty.WriteLine(coderdtest.TrialUserParams.PhoneNumber)
+		pty.ExpectMatch("jobTitle")
+		pty.WriteLine(coderdtest.TrialUserParams.JobTitle)
+		pty.ExpectMatch("companyName")
+		pty.WriteLine(coderdtest.TrialUserParams.CompanyName)
+		// `developers` and `country` `cliui.Select` automatically selects the first option during tests.
 		pty.ExpectMatch("Welcome to Coder")
 		w.RequireSuccess()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    coderdtest.FirstUserParams.Email,
+			Password: coderdtest.FirstUserParams.Password,
+		})
+		require.NoError(t, err)
+		client.SetSessionToken(resp.SessionToken)
+		me, err := client.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		assert.Equal(t, coderdtest.FirstUserParams.Username, me.Username)
+		assert.Equal(t, coderdtest.FirstUserParams.Name, me.Name)
+		assert.Equal(t, coderdtest.FirstUserParams.Email, me.Email)
+	})
+
+	t.Run("InitialUserFlagsNameOptional", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		inv, _ := clitest.New(
+			t, "login", client.URL.String(),
+			"--first-user-username", coderdtest.FirstUserParams.Username,
+			"--first-user-email", coderdtest.FirstUserParams.Email,
+			"--first-user-password", coderdtest.FirstUserParams.Password,
+			"--first-user-trial",
+		)
+		pty := ptytest.New(t).Attach(inv)
+		w := clitest.StartWithWaiter(t, inv)
+		pty.ExpectMatch("firstName")
+		pty.WriteLine(coderdtest.TrialUserParams.FirstName)
+		pty.ExpectMatch("lastName")
+		pty.WriteLine(coderdtest.TrialUserParams.LastName)
+		pty.ExpectMatch("phoneNumber")
+		pty.WriteLine(coderdtest.TrialUserParams.PhoneNumber)
+		pty.ExpectMatch("jobTitle")
+		pty.WriteLine(coderdtest.TrialUserParams.JobTitle)
+		pty.ExpectMatch("companyName")
+		pty.WriteLine(coderdtest.TrialUserParams.CompanyName)
+		// `developers` and `country` `cliui.Select` automatically selects the first option during tests.
+		pty.ExpectMatch("Welcome to Coder")
+		w.RequireSuccess()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    coderdtest.FirstUserParams.Email,
+			Password: coderdtest.FirstUserParams.Password,
+		})
+		require.NoError(t, err)
+		client.SetSessionToken(resp.SessionToken)
+		me, err := client.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+		assert.Equal(t, coderdtest.FirstUserParams.Username, me.Username)
+		assert.Equal(t, coderdtest.FirstUserParams.Email, me.Email)
+		assert.Empty(t, me.Name)
 	})
 
 	t.Run("InitialUserTTYConfirmPasswordFailAndReprompt", func(t *testing.T) {
@@ -130,10 +369,11 @@ func TestLogin(t *testing.T) {
 
 		matches := []string{
 			"first user?", "yes",
-			"username", "testuser",
-			"email", "user@coder.com",
-			"password", "MyFirstSecurePassword!",
-			"password", "MyNonMatchingSecurePassword!", // Confirm.
+			"username", coderdtest.FirstUserParams.Username,
+			"name", coderdtest.FirstUserParams.Name,
+			"email", coderdtest.FirstUserParams.Email,
+			"password", coderdtest.FirstUserParams.Password,
+			"password", "something completely different",
 		}
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
@@ -145,12 +385,21 @@ func TestLogin(t *testing.T) {
 		// Validate that we reprompt for matching passwords.
 		pty.ExpectMatch("Passwords do not match")
 		pty.ExpectMatch("Enter a " + pretty.Sprint(cliui.DefaultStyles.Field, "password"))
-
-		pty.WriteLine("SomeSecurePassword!")
+		pty.WriteLine(coderdtest.FirstUserParams.Password)
 		pty.ExpectMatch("Confirm")
-		pty.WriteLine("SomeSecurePassword!")
+		pty.WriteLine(coderdtest.FirstUserParams.Password)
 		pty.ExpectMatch("trial")
 		pty.WriteLine("yes")
+		pty.ExpectMatch("firstName")
+		pty.WriteLine(coderdtest.TrialUserParams.FirstName)
+		pty.ExpectMatch("lastName")
+		pty.WriteLine(coderdtest.TrialUserParams.LastName)
+		pty.ExpectMatch("phoneNumber")
+		pty.WriteLine(coderdtest.TrialUserParams.PhoneNumber)
+		pty.ExpectMatch("jobTitle")
+		pty.WriteLine(coderdtest.TrialUserParams.JobTitle)
+		pty.ExpectMatch("companyName")
+		pty.WriteLine(coderdtest.TrialUserParams.CompanyName)
 		pty.ExpectMatch("Welcome to Coder")
 		<-doneChan
 	})
@@ -169,6 +418,7 @@ func TestLogin(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
+		pty.ExpectMatch(fmt.Sprintf("Attempting to authenticate with argument URL: '%s'", client.URL.String()))
 		pty.ExpectMatch("Paste your token here:")
 		pty.WriteLine(client.SessionToken())
 		if runtime.GOOS != "windows" {
@@ -176,6 +426,52 @@ func TestLogin(t *testing.T) {
 			pty.ExpectMatch(client.SessionToken())
 		}
 		pty.ExpectMatch("Welcome to Coder")
+		<-doneChan
+	})
+
+	t.Run("ExistingUserURLSavedInConfig", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		url := client.URL.String()
+		coderdtest.CreateFirstUser(t, client)
+
+		inv, root := clitest.New(t, "login", "--no-open")
+		clitest.SetupConfig(t, client, root)
+
+		doneChan := make(chan struct{})
+		pty := ptytest.New(t).Attach(inv)
+		go func() {
+			defer close(doneChan)
+			err := inv.Run()
+			assert.NoError(t, err)
+		}()
+
+		pty.ExpectMatch(fmt.Sprintf("Attempting to authenticate with config URL: '%s'", url))
+		pty.ExpectMatch("Paste your token here:")
+		pty.WriteLine(client.SessionToken())
+		<-doneChan
+	})
+
+	t.Run("ExistingUserURLSavedInEnv", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		url := client.URL.String()
+		coderdtest.CreateFirstUser(t, client)
+
+		inv, _ := clitest.New(t, "login", "--no-open")
+		inv.Environ.Set("CODER_URL", url)
+
+		doneChan := make(chan struct{})
+		pty := ptytest.New(t).Attach(inv)
+		go func() {
+			defer close(doneChan)
+			err := inv.Run()
+			assert.NoError(t, err)
+		}()
+
+		pty.ExpectMatch(fmt.Sprintf("Attempting to authenticate with environment URL: '%s'", url))
+		pty.ExpectMatch("Paste your token here:")
+		pty.WriteLine(client.SessionToken())
 		<-doneChan
 	})
 
@@ -219,5 +515,26 @@ func TestLogin(t *testing.T) {
 		require.NoError(t, err)
 		// This **should not be equal** to the token we passed in.
 		require.NotEqual(t, client.SessionToken(), sessionFile)
+	})
+
+	t.Run("KeepOrganizationContext", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		first := coderdtest.CreateFirstUser(t, client)
+		root, cfg := clitest.New(t, "login", client.URL.String(), "--token", client.SessionToken())
+
+		err := cfg.Organization().Write(first.OrganizationID.String())
+		require.NoError(t, err, "write bad org to config")
+
+		err = root.Run()
+		require.NoError(t, err)
+		sessionFile, err := cfg.Session().Read()
+		require.NoError(t, err)
+		require.NotEqual(t, client.SessionToken(), sessionFile)
+
+		// Organization config should be deleted since the org does not exist
+		selected, err := cfg.Organization().Read()
+		require.NoError(t, err)
+		require.Equal(t, selected, first.OrganizationID.String())
 	})
 }

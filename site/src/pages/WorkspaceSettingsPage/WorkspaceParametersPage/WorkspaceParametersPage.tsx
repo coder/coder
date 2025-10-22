@@ -1,106 +1,190 @@
-import { getWorkspaceParameters, postWorkspaceBuild } from "api/api";
-import { Helmet } from "react-helmet-async";
-import { pageTitle } from "utils/page";
-import { useWorkspaceSettings } from "../WorkspaceSettingsLayout";
-import { useMutation, useQuery } from "react-query";
-import { Loader } from "components/Loader/Loader";
-import {
-  WorkspaceParametersFormValues,
-  WorkspaceParametersForm,
-} from "./WorkspaceParametersForm";
-import { useNavigate } from "react-router-dom";
-import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
-import { FC } from "react";
+import { API } from "api/api";
 import { isApiValidationError } from "api/errors";
+import { checkAuthorization } from "api/queries/authCheck";
+import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { WorkspaceBuildParameter } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
+import { EmptyState } from "components/EmptyState/EmptyState";
+import { Loader } from "components/Loader/Loader";
+import { ExternalLinkIcon } from "lucide-react";
+import type { FC } from "react";
+import { useMutation, useQuery } from "react-query";
+import { useNavigate } from "react-router";
+import { docs } from "utils/docs";
+import { pageTitle } from "utils/page";
+import {
+	type WorkspacePermissions,
+	workspaceChecks,
+} from "../../../modules/workspaces/permissions";
+import { useWorkspaceSettings } from "../WorkspaceSettingsLayout";
+import {
+	WorkspaceParametersForm,
+	type WorkspaceParametersFormValues,
+} from "./WorkspaceParametersForm";
 
-const WorkspaceParametersPage = () => {
-  const workspace = useWorkspaceSettings();
-  const parameters = useQuery({
-    queryKey: ["workspace", workspace.id, "parameters"],
-    queryFn: () => getWorkspaceParameters(workspace),
-  });
-  const navigate = useNavigate();
-  const updateParameters = useMutation({
-    mutationFn: (buildParameters: WorkspaceBuildParameter[]) =>
-      postWorkspaceBuild(workspace.id, {
-        transition: "start",
-        rich_parameter_values: buildParameters,
-      }),
-    onSuccess: () => {
-      navigate(`/${workspace.owner_name}/${workspace.name}`);
-    },
-  });
+const WorkspaceParametersPage: FC = () => {
+	const workspace = useWorkspaceSettings();
+	const parameters = useQuery({
+		queryKey: ["workspace", workspace.id, "parameters"],
+		queryFn: () => API.getWorkspaceParameters(workspace),
+	});
+	const navigate = useNavigate();
+	const updateParameters = useMutation({
+		mutationFn: (buildParameters: WorkspaceBuildParameter[]) =>
+			API.postWorkspaceBuild(workspace.id, {
+				transition: "start",
+				rich_parameter_values: buildParameters,
+				reason: "dashboard",
+			}),
+		onSuccess: () => {
+			navigate(`/${workspace.owner_name}/${workspace.name}`);
+		},
+	});
 
-  return (
-    <>
-      <Helmet>
-        <title>{pageTitle([workspace.name, "Parameters"])}</title>
-      </Helmet>
+	// Permissions
+	const checks = workspace ? workspaceChecks(workspace) : {};
+	const permissionsQuery = useQuery({
+		...checkAuthorization({ checks }),
+		enabled: workspace !== undefined,
+	});
+	const permissions = permissionsQuery.data as WorkspacePermissions | undefined;
+	const canChangeVersions = Boolean(permissions?.updateWorkspaceVersion);
 
-      <WorkspaceParametersPageView
-        data={parameters.data}
-        submitError={updateParameters.error}
-        isSubmitting={updateParameters.isLoading}
-        onSubmit={(values) => {
-          // When updating the parameters, the API does not accept immutable
-          // values so we need to filter them
-          const onlyMultableValues = parameters
-            .data!.templateVersionRichParameters.filter((p) => p.mutable)
-            .map(
-              (p) =>
-                values.rich_parameter_values.find((v) => v.name === p.name)!,
-            );
-          updateParameters.mutate(onlyMultableValues);
-        }}
-        onCancel={() => {
-          navigate("../..");
-        }}
-      />
-    </>
-  );
+	const templatePermissionsQuery = useQuery({
+		...checkAuthorization({
+			checks: {
+				canUpdateTemplate: {
+					object: {
+						resource_type: "template",
+						resource_id: workspace.template_id,
+					},
+					action: "update",
+				},
+			},
+		}),
+		enabled: workspace !== undefined,
+	});
+
+	const templatePermissions = templatePermissionsQuery.data as
+		| { canUpdateTemplate: boolean }
+		| undefined;
+
+	return (
+		<>
+			<title>{pageTitle(workspace.name, "Parameters")}</title>
+
+			<WorkspaceParametersPageView
+				workspace={workspace}
+				canChangeVersions={canChangeVersions}
+				templatePermissions={templatePermissions}
+				data={parameters.data}
+				submitError={updateParameters.error}
+				isSubmitting={updateParameters.isPending}
+				onSubmit={(values) => {
+					if (!parameters.data) {
+						return;
+					}
+					// When updating the parameters, the API does not accept immutable
+					// values so we need to filter them
+					const onlyMultableValues =
+						parameters.data.templateVersionRichParameters
+							.filter((p) => p.mutable)
+							.map((p) => {
+								const value = values.rich_parameter_values.find(
+									(v) => v.name === p.name,
+								);
+								if (!value) {
+									throw new Error(`Missing value for parameter ${p.name}`);
+								}
+								return value;
+							});
+					updateParameters.mutate(onlyMultableValues);
+				}}
+				onCancel={() => {
+					navigate("../..");
+				}}
+			/>
+		</>
+	);
 };
 
-export type WorkspaceParametersPageViewProps = {
-  data: Awaited<ReturnType<typeof getWorkspaceParameters>> | undefined;
-  submitError: unknown;
-  isSubmitting: boolean;
-  onSubmit: (formValues: WorkspaceParametersFormValues) => void;
-  onCancel: () => void;
+type WorkspaceParametersPageViewProps = {
+	workspace: Workspace;
+	canChangeVersions: boolean;
+	templatePermissions: { canUpdateTemplate: boolean } | undefined;
+	data: Awaited<ReturnType<typeof API.getWorkspaceParameters>> | undefined;
+	submitError: unknown;
+	isSubmitting: boolean;
+	onSubmit: (formValues: WorkspaceParametersFormValues) => void;
+	onCancel: () => void;
 };
 
 export const WorkspaceParametersPageView: FC<
-  WorkspaceParametersPageViewProps
-> = ({ data, submitError, isSubmitting, onSubmit, onCancel }) => {
-  return (
-    <>
-      <PageHeader
-        css={{
-          paddingTop: 0,
-        }}
-      >
-        <PageHeaderTitle>Workspace parameters</PageHeaderTitle>
-      </PageHeader>
+	WorkspaceParametersPageViewProps
+> = ({
+	workspace,
+	canChangeVersions,
+	templatePermissions,
+	data,
+	submitError,
+	onSubmit,
+	isSubmitting,
+	onCancel,
+}) => {
+	return (
+		<div className="flex flex-col gap-10">
+			<header className="flex flex-col items-start gap-2">
+				<span className="flex flex-row justify-between w-full items-center gap-2">
+					<h1 className="text-3xl m-0">Workspace parameters</h1>
+				</span>
+			</header>
 
-      {submitError && !isApiValidationError(submitError) && (
-        <ErrorAlert error={submitError} sx={{ mb: 6 }} />
-      )}
+			{submitError && !isApiValidationError(submitError) ? (
+				<ErrorAlert error={submitError} css={{ marginBottom: 48 }} />
+			) : null}
 
-      {data ? (
-        <WorkspaceParametersForm
-          buildParameters={data.buildParameters}
-          templateVersionRichParameters={data.templateVersionRichParameters}
-          error={submitError}
-          isSubmitting={isSubmitting}
-          onSubmit={onSubmit}
-          onCancel={onCancel}
-        />
-      ) : (
-        <Loader />
-      )}
-    </>
-  );
+			{data ? (
+				data.templateVersionRichParameters.length > 0 ? (
+					<WorkspaceParametersForm
+						workspace={workspace}
+						canChangeVersions={canChangeVersions}
+						templatePermissions={templatePermissions}
+						autofillParams={data.buildParameters.map((p) => ({
+							...p,
+							source: "active_build",
+						}))}
+						templateVersionRichParameters={data.templateVersionRichParameters}
+						error={submitError}
+						isSubmitting={isSubmitting}
+						onSubmit={onSubmit}
+						onCancel={onCancel}
+					/>
+				) : (
+					<EmptyState
+						message="This workspace has no parameters"
+						cta={
+							<Button asChild>
+								<a
+									href={docs("/admin/templates/extending-templates/parameters")}
+									target="_blank"
+									rel="noreferrer"
+								>
+									<ExternalLinkIcon className="size-icon-xs" />
+									Learn more about parameters
+								</a>
+							</Button>
+						}
+						css={(theme) => ({
+							border: `1px solid ${theme.palette.divider}`,
+							borderRadius: 8,
+						})}
+					/>
+				)
+			) : (
+				<Loader />
+			)}
+		</div>
+	);
 };
 
 export default WorkspaceParametersPage;

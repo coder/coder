@@ -11,12 +11,11 @@ SUBCOMMANDS:
     mem     Show memory usage, in gigabytes.
 
 OPTIONS:
-  -c, --column string-array (default: host_cpu,host_memory,home_disk,container_cpu,container_memory)
-          Columns to display in table output. Available columns: host cpu, host
-          memory, home disk, container cpu, container memory.
+  -c, --column [host cpu|host memory|home disk|container cpu|container memory] (default: host cpu,host memory,home disk,container cpu,container memory)
+          Columns to display in table output.
 
-  -o, --output string (default: table)
-          Output format. Available formats: table, json.
+  -o, --output table|json (default: table)
+          Output format.
 
 ———
 Run `coder --help` for a list of global options.

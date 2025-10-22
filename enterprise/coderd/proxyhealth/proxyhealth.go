@@ -3,6 +3,7 @@ package proxyhealth
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -20,6 +21,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
+	agplproxyhealth "github.com/coder/coder/v2/coderd/proxyhealth"
+	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -62,7 +65,7 @@ type ProxyHealth struct {
 
 	// Cached values for quick access to the health of proxies.
 	cache      *atomic.Pointer[map[uuid.UUID]ProxyStatus]
-	proxyHosts *atomic.Pointer[[]string]
+	proxyHosts *atomic.Pointer[[]*agplproxyhealth.ProxyHost]
 
 	// PromMetrics
 	healthCheckDuration prometheus.Histogram
@@ -115,7 +118,7 @@ func New(opts *Options) (*ProxyHealth, error) {
 		logger:              opts.Logger,
 		client:              client,
 		cache:               &atomic.Pointer[map[uuid.UUID]ProxyStatus]{},
-		proxyHosts:          &atomic.Pointer[[]string]{},
+		proxyHosts:          &atomic.Pointer[[]*agplproxyhealth.ProxyHost]{},
 		healthCheckDuration: healthCheckDuration,
 		healthCheckResults:  healthCheckResults,
 	}, nil
@@ -143,9 +146,9 @@ func (p *ProxyHealth) Run(ctx context.Context) {
 }
 
 func (p *ProxyHealth) storeProxyHealth(statuses map[uuid.UUID]ProxyStatus) {
-	var proxyHosts []string
+	var proxyHosts []*agplproxyhealth.ProxyHost
 	for _, s := range statuses {
-		if s.ProxyHost != "" {
+		if s.ProxyHost != nil {
 			proxyHosts = append(proxyHosts, s.ProxyHost)
 		}
 	}
@@ -189,23 +192,22 @@ type ProxyStatus struct {
 	// then the proxy in hand. AKA if the proxy was updated, and the status was for
 	// an older proxy.
 	Proxy database.WorkspaceProxy
-	// ProxyHost is the host:port of the proxy url. This is included in the status
-	// to make sure the proxy url is a valid URL. It also makes it easier to
-	// escalate errors if the url.Parse errors (should never happen).
-	ProxyHost string
+	// ProxyHost is the base host:port and app host of the proxy. This is included
+	// in the status to make sure the proxy url is a valid URL. It also makes it
+	// easier to escalate errors if the url.Parse errors (should never happen).
+	ProxyHost *agplproxyhealth.ProxyHost
 	Status    Status
 	Report    codersdk.ProxyHealthReport
 	CheckedAt time.Time
 }
 
-// ProxyHosts returns the host:port of all healthy proxies.
-// This can be computed from HealthStatus, but is cached to avoid the
-// caller needing to loop over all proxies to compute this on all
-// static web requests.
-func (p *ProxyHealth) ProxyHosts() []string {
+// ProxyHosts returns the host:port and wildcard host of all healthy proxies.
+// This can be computed from HealthStatus, but is cached to avoid the caller
+// needing to loop over all proxies to compute this on all static web requests.
+func (p *ProxyHealth) ProxyHosts() []*agplproxyhealth.ProxyHost {
 	ptr := p.proxyHosts.Load()
 	if ptr == nil {
-		return []string{}
+		return []*agplproxyhealth.ProxyHost{}
 	}
 	return *ptr
 }
@@ -215,7 +217,7 @@ func (p *ProxyHealth) ProxyHosts() []string {
 // unreachable.
 func (p *ProxyHealth) runOnce(ctx context.Context, now time.Time) (map[uuid.UUID]ProxyStatus, error) {
 	// Record from the given time.
-	defer p.healthCheckDuration.Observe(time.Since(now).Seconds())
+	defer func() { p.healthCheckDuration.Observe(time.Since(now).Seconds()) }()
 
 	//nolint:gocritic // Proxy health is a system service.
 	proxies, err := p.db.GetWorkspaceProxies(dbauthz.AsSystemRestricted(ctx))
@@ -238,7 +240,6 @@ func (p *ProxyHealth) runOnce(ctx context.Context, now time.Time) (map[uuid.UUID
 		}
 		// Each proxy needs to have a status set. Make a local copy for the
 		// call to be run async.
-		proxy := proxy
 		status := ProxyStatus{
 			Proxy:     proxy,
 			CheckedAt: now,
@@ -275,8 +276,33 @@ func (p *ProxyHealth) runOnce(ctx context.Context, now time.Time) (map[uuid.UUID
 			case err == nil && resp.StatusCode == http.StatusOK:
 				err := json.NewDecoder(resp.Body).Decode(&status.Report)
 				if err != nil {
+					isCoderErr := xerrors.Errorf("proxy url %q is not a coder proxy instance, verify the url is correct", reqURL)
+					if resp.Header.Get(codersdk.BuildVersionHeader) != "" {
+						isCoderErr = xerrors.Errorf("proxy url %q is a coder instance, but unable to decode the response payload. Could this be a primary coderd and not a proxy?", reqURL)
+					}
+
+					// If the response is not json, then the user likely input a bad url that returns status code 200.
+					// This is very common, since most webpages do return a 200. So let's improve the error message.
+					if notJSONErr := codersdk.ExpectJSONMime(resp); notJSONErr != nil {
+						err = errors.Join(
+							isCoderErr,
+							xerrors.Errorf("attempted to query health at %q but got back the incorrect content type: %w", reqURL, notJSONErr),
+						)
+
+						status.Report.Errors = []string{
+							err.Error(),
+						}
+						status.Status = Unhealthy
+						break
+					}
+
 					// If we cannot read the report, mark the proxy as unhealthy.
-					status.Report.Errors = []string{fmt.Sprintf("failed to decode health report: %s", err.Error())}
+					status.Report.Errors = []string{
+						errors.Join(
+							isCoderErr,
+							xerrors.Errorf("received a status code 200, but failed to decode health report body: %w", err),
+						).Error(),
+					}
 					status.Status = Unhealthy
 					break
 				}
@@ -295,19 +321,17 @@ func (p *ProxyHealth) runOnce(ctx context.Context, now time.Time) (map[uuid.UUID
 				// readable.
 				builder.WriteString(fmt.Sprintf("unexpected status code %d. ", resp.StatusCode))
 				builder.WriteString(fmt.Sprintf("\nEncountered error, send a request to %q from the Coderd environment to debug this issue.", reqURL))
+				// err will always be non-nil
 				err := codersdk.ReadBodyAsError(resp)
-				if err != nil {
-					var apiErr *codersdk.Error
-					if xerrors.As(err, &apiErr) {
-						builder.WriteString(fmt.Sprintf("\nError Message: %s\nError Detail: %s", apiErr.Message, apiErr.Detail))
-						for _, v := range apiErr.Validations {
-							// Pretty sure this is not possible from the called endpoint, but just in case.
-							builder.WriteString(fmt.Sprintf("\n\tValidation: %s=%s", v.Field, v.Detail))
-						}
-					} else {
-						builder.WriteString(fmt.Sprintf("\nError: %s", err.Error()))
+				var apiErr *codersdk.Error
+				if xerrors.As(err, &apiErr) {
+					builder.WriteString(fmt.Sprintf("\nError Message: %s\nError Detail: %s", apiErr.Message, apiErr.Detail))
+					for _, v := range apiErr.Validations {
+						// Pretty sure this is not possible from the called endpoint, but just in case.
+						builder.WriteString(fmt.Sprintf("\n\tValidation: %s=%s", v.Field, v.Detail))
 					}
 				}
+				builder.WriteString(fmt.Sprintf("\nError: %s", err.Error()))
 
 				status.Report.Errors = []string{builder.String()}
 			case err != nil:
@@ -326,7 +350,10 @@ func (p *ProxyHealth) runOnce(ctx context.Context, now time.Time) (map[uuid.UUID
 				status.Report.Errors = append(status.Report.Errors, fmt.Sprintf("failed to parse proxy url: %s", err.Error()))
 				status.Status = Unhealthy
 			}
-			status.ProxyHost = u.Host
+			status.ProxyHost = &agplproxyhealth.ProxyHost{
+				Host:    u.Host,
+				AppHost: appurl.ConvertAppHostForCSP(u.Host, proxy.WildcardHostname),
+			}
 
 			// Set the prometheus metric correctly.
 			switch status.Status {

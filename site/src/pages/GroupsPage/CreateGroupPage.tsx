@@ -1,35 +1,35 @@
-import { useOrganizationId } from "hooks/useOrganizationId";
-import { FC } from "react";
-import { Helmet } from "react-helmet-async";
-import { useNavigate } from "react-router-dom";
-import { pageTitle } from "utils/page";
-import CreateGroupPageView from "./CreateGroupPageView";
-import { useMutation, useQueryClient } from "react-query";
 import { createGroup } from "api/queries/groups";
+import type { FC } from "react";
+import { useMutation, useQueryClient } from "react-query";
+import { useNavigate, useParams } from "react-router";
+import { pageTitle } from "utils/page";
+import { CreateGroupPageView } from "./CreateGroupPageView";
 
-export const CreateGroupPage: FC = () => {
-  const queryClient = useQueryClient();
-  const navigate = useNavigate();
-  const organizationId = useOrganizationId();
-  const createGroupMutation = useMutation(createGroup(queryClient));
+const CreateGroupPage: FC = () => {
+	const queryClient = useQueryClient();
+	const navigate = useNavigate();
+	const { organization } = useParams() as { organization: string };
+	const createGroupMutation = useMutation(
+		createGroup(queryClient, organization ?? "default"),
+	);
 
-  return (
-    <>
-      <Helmet>
-        <title>{pageTitle("Create Group")}</title>
-      </Helmet>
-      <CreateGroupPageView
-        onSubmit={async (data) => {
-          const newGroup = await createGroupMutation.mutateAsync({
-            organizationId,
-            ...data,
-          });
-          navigate(`/groups/${newGroup.id}`);
-        }}
-        formErrors={createGroupMutation.error}
-        isLoading={createGroupMutation.isLoading}
-      />
-    </>
-  );
+	return (
+		<>
+			<title>{pageTitle("Create Group")}</title>
+
+			<CreateGroupPageView
+				onSubmit={async (data) => {
+					const newGroup = await createGroupMutation.mutateAsync(data);
+					navigate(
+						organization
+							? `/organizations/${organization}/groups/${newGroup.name}`
+							: `/deployment/groups/${newGroup.name}`,
+					);
+				}}
+				error={createGroupMutation.error}
+				isLoading={createGroupMutation.isPending}
+			/>
+		</>
+	);
 };
 export default CreateGroupPage;
