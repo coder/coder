@@ -12,6 +12,11 @@ type TaskStatusLinkProps = {
 };
 
 export const TaskStatusLink: FC<TaskStatusLinkProps> = ({ uri }) => {
+	// Don't render anything if the URI is empty or whitespace-only
+	if (!uri || uri.trim() === "") {
+		return null;
+	}
+
 	let icon = <ExternalLinkIcon />;
 	let label = uri;
 

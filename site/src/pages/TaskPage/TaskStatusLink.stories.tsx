@@ -70,3 +70,15 @@ export const Long: Story = {
 		uri: "https://dev.coder.com/this-is-a/long-url/to-test/how-the-truncation/looks",
 	},
 };
+
+export const Empty: Story = {
+	args: {
+		uri: "",
+	},
+};
+
+export const Whitespace: Story = {
+	args: {
+		uri: "   ",
+	},
+};
