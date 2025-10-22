@@ -45,10 +45,15 @@ To import the template and begin configuring it, follow the [documentation in th
 
 A template becomes a Task template if it defines a `coder_ai_task` resource and a `coder_parameter` named `"AI Prompt"`. Coder analyzes template files during template version import to determine if these requirements are met. Try adding this terraform block to an existing template where you'll add our Claude Code module. Note: the `coder_ai_task` resource is defined within the [Claude Code Module](https://registry.coder.com/modules/coder/claude-code?tab=readme), so it's not defined within this block.
 
+
 ```hcl
-data "coder_parameter" "ai_prompt" {
-    name = "AI Prompt"
-    type = "string"
+terraform {
+  required_providers {
+    coder = {
+      source = "coder/coder"
+      version = ">= 2.12"
+    }
+  }
 }
 
 data "coder_parameter" "setup_script" {
@@ -66,7 +71,7 @@ data "coder_parameter" "setup_script" {
 # Or use a custom agent:
 module "claude-code" {
   source   = "registry.coder.com/coder/claude-code/coder"
-  version  = "3.0.1"
+  version  = "4.0.0"
   agent_id = coder_agent.example.id
   workdir  = "/home/coder/project"
 
@@ -77,7 +82,7 @@ module "claude-code" {
   claude_code_version = "1.0.82" # Pin to a specific version
   agentapi_version    = "v0.6.1"
 
-  ai_prompt = data.coder_parameter.ai_prompt.value
+  ai_prompt = coder_task.task.prompt
   model     = "sonnet"
 
   # Optional: run your pre-flight script
@@ -97,6 +102,10 @@ module "claude-code" {
   EOF
 }
 
+resource "coder_ai_task" "task" {
+  app_id = module.claude-code.task_app_id
+}
+
 # Rename to `anthropic_oauth_token` if using the Oauth Token
 variable "anthropic_api_key" {
   type        = string
@@ -105,12 +114,64 @@ variable "anthropic_api_key" {
 }
 ```
 
-> [!NOTE]
-> This definition is not final and may change while Tasks is in beta. After any changes, we guarantee backwards compatibility for one minor Coder version. After that, you may need to update your template to continue using it with Tasks.
-
 Because Tasks run unpredictable AI agents, often for background tasks, we recommend creating a separate template for Coder Tasks with limited permissions. You can always duplicate your existing template, then apply separate network policies/firewalls/permissions to the template. From there, follow the docs for one of our [built-in modules for agents](https://registry.coder.com/modules?search=tag%3Atasks) in order to add it to your template, configure your LLM provider.
 
 Alternatively, follow our guide for [custom agents](./custom-agents.md).
+
+## Migrating Task Templates for Coder version 2.28.0
+
+Prior to Coder version 2.28.0, the definition of a Coder task was different to the above. It required the following to be defined in the template:
+
+1. A Coder parameter specifically named `"AI Prompt"`,
+2. A `coder_workspace_app` that runs the `coder/agentapi` binary,
+3. A `coder_ai_task` resource in the template that sets `sidebar_app.id`. This was generally defined in Coder modules specific to AI Tasks.
+
+Note that 2 and 3 were generally handled by the `coder/agentapi` Terraform module.
+
+The pre-2.28.0 definition will be supported until the release of 2.29.0. You will need to update your Tasks-enabled templates to continue using Tasks after this release.
+
+You can view an [example here](https://github.com/coder/coder/pull/20426). Alternatively, follow the steps below:
+
+1. Update the Coder Terraform provider to at least version 2.12.0:
+
+```diff
+terraform {
+  required_providers {
+    coder = {
+      source = "coder/coder"
+-      version = "x.y.z"
++      version = ">= 2.12"
+    }
+  }
+}
+```
+
+1. Define a `coder_ai_task` resource in your template:
+
+```diff
++resource "coder_ai_task" "task" {}
+```
+
+1. Update the version of the respective AI agent module (e.g. `claude-code`) to at least 4.0.0 and provide the prompt from `coder_ai_task.prompt` instead of the "AI Prompt" parameter:
+
+```diff
+module "claude-code" {
+  source              = "registry.coder.com/coder/claude-code/coder"
+-  version             = "4.0.0"
++  version             = "4.0.0"
+    ...
+-  ai_prompt           = data.coder_parameter.ai_prompt.value
++  ai_prompt           = coder_ai_task.task.prompt
+}
+```
+
+1. Update the `coder_ai_task` resource and set `app_id` to the `task_app_id` output of the module:
+
+```diff
+resource "coder_ai_task" "task" {
++ app_id = module.claude-code.task_app_id
+}
+```
 
 ## Customizing the Task UI
 
