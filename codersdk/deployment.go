@@ -984,9 +984,10 @@ func DefaultSupportLinks(docsURL string) []LinkConfig {
 			Icon:   "bug",
 		},
 		{
-			Name:   "Join the Coder Discord",
-			Target: "https://coder.com/chat?utm_source=coder&utm_medium=coder&utm_campaign=server-footer",
-			Icon:   "chat",
+			Name:     "Join the Coder Discord",
+			Target:   "https://discord.gg/coder",
+			Icon:     "chat",
+			Location: "navbar",
 		},
 		{
 			Name:   "Star the Repo",
@@ -3339,7 +3340,9 @@ type SupportConfig struct {
 type LinkConfig struct {
 	Name   string `json:"name" yaml:"name"`
 	Target string `json:"target" yaml:"target"`
-	Icon   string `json:"icon" yaml:"icon" enums:"bug,chat,docs"`
+	Icon   string `json:"icon" yaml:"icon" enums:"bug,chat,docs,star"`
+
+	Location string `json:"location,omitempty" yaml:"location,omitempty" enums:"navbar,dropdown"`
 }
 
 // Validate checks cross-field constraints for deployment values.
