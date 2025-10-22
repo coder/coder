@@ -15,8 +15,7 @@ OPTIONS:
           coder-support-$(date +%s).zip.
 
       --pprof bool, $CODER_SUPPORT_BUNDLE_PPROF
-          Collect pprof data from the Coder deployment. Requires
-          CODER_PPROF_ENDPOINT to be set.
+          Collect pprof data from the Coder deployment.
 
       --template string, $CODER_SUPPORT_BUNDLE_TEMPLATE
           Template name to include in the support bundle. Use

@@ -68,4 +68,4 @@ Template name to include in the support bundle. Use org_name/template_name if te
 | Type        | <code>bool</code>                        |
 | Environment | <code>$CODER_SUPPORT_BUNDLE_PPROF</code> |
 
-Collect pprof data from the Coder deployment. Requires CODER_PPROF_ENDPOINT to be set.
+Collect pprof data from the Coder deployment.

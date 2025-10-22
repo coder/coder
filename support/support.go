@@ -53,6 +53,7 @@ type Deployment struct {
 	Entitlements   *codersdk.Entitlements       `json:"entitlements"`
 	HealthSettings *healthsdk.HealthSettings    `json:"health_settings"`
 	Workspaces     *codersdk.WorkspacesResponse `json:"workspaces"`
+	Prometheus     []byte                       `json:"prometheus"`
 }
 
 type Network struct {
@@ -105,6 +106,7 @@ type Pprof struct {
 
 type PprofCollection struct {
 	Heap         []byte    `json:"heap,omitempty"`
+	Allocs       []byte    `json:"allocs,omitempty"`
 	Profile      []byte    `json:"profile,omitempty"`
 	Block        []byte    `json:"block,omitempty"`
 	Mutex        []byte    `json:"mutex,omitempty"`
@@ -112,6 +114,7 @@ type PprofCollection struct {
 	Threadcreate []byte    `json:"threadcreate,omitempty"`
 	Trace        []byte    `json:"trace,omitempty"`
 	Cmdline      string    `json:"cmdline,omitempty"`
+	Symbol       string    `json:"symbol,omitempty"`
 	CollectedAt  time.Time `json:"collected_at"`
 	EndpointURL  string    `json:"endpoint_url"`
 }
@@ -133,8 +136,8 @@ type Deps struct {
 	WorkspacesTotalCap int
 	// TemplateID optionally specifies a template to capture (active version).
 	TemplateID uuid.UUID
-	// PprofEndpoint is the pprof server endpoint URL for collecting profiling data.
-	PprofEndpoint string
+	// CollectPprof toggles server and agent pprof collection.
+	CollectPprof bool
 }
 
 // ctxKeyWorkspacesCap is used to plumb the workspace cap into DeploymentInfo
@@ -308,7 +311,51 @@ func DeploymentInfo(ctx context.Context, client *codersdk.Client, log slog.Logge
 		log.Error(ctx, "fetch deployment information", slog.Error(err))
 	}
 
+	if d.Config != nil && d.Config.Values != nil {
+		prometheusCfg := d.Config.Values.Prometheus
+		if prometheusCfg.Enable.Value() {
+			metrics, err := fetchPrometheusMetrics(ctx, client, log)
+			if err != nil {
+				log.Warn(ctx, "fetch coderd prometheus metrics", slog.Error(err))
+			} else {
+				d.Prometheus = metrics
+			}
+		}
+	}
+
 	return d
+}
+
+func fetchPrometheusMetrics(ctx context.Context, client *codersdk.Client, log slog.Logger) ([]byte, error) {
+	if client == nil {
+		return nil, xerrors.New("nil client")
+	}
+
+	reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	resp, err := client.Request(reqCtx, http.MethodGet, "/api/v2/debug/metrics", nil)
+	if err != nil {
+		return nil, xerrors.Errorf("request metrics: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, xerrors.Errorf("read metrics body: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		log.Debug(ctx, "coderd prometheus metrics fetch non-200",
+			slog.F("status", resp.StatusCode), slog.F("body_len", len(body)))
+		return nil, xerrors.Errorf("unexpected status code %d", resp.StatusCode)
+	}
+
+	trimmed := bytes.TrimSpace(body)
+	if len(trimmed) == 0 {
+		return nil, xerrors.New("empty prometheus metrics response")
+	}
+	return append([]byte(nil), trimmed...), nil
 }
 
 func NetworkInfo(ctx context.Context, client *codersdk.Client, log slog.Logger) Network {
@@ -470,7 +517,7 @@ func WorkspaceInfo(ctx context.Context, client *codersdk.Client, log slog.Logger
 	return w
 }
 
-func AgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, agentID uuid.UUID, _ string) Agent {
+func AgentInfo(ctx context.Context, client *codersdk.Client, log slog.Logger, agentID uuid.UUID) Agent {
 	var (
 		a  Agent
 		eg errgroup.Group
@@ -621,8 +668,8 @@ func connectedAgentInfo(ctx context.Context, client *codersdk.Client, log slog.L
 	return closer
 }
 
-func PprofInfo(ctx context.Context, endpointURL string, log slog.Logger) *PprofCollection {
-	if endpointURL == "" {
+func PprofInfo(ctx context.Context, client *codersdk.Client, log slog.Logger) *PprofCollection {
+	if client == nil {
 		return nil
 	}
 
@@ -631,73 +678,77 @@ func PprofInfo(ctx context.Context, endpointURL string, log slog.Logger) *PprofC
 		eg errgroup.Group
 	)
 
-	p.EndpointURL = endpointURL
+	if client.URL != nil {
+		if u, err := client.URL.Parse("/api/v2/debug/pprof"); err == nil {
+			p.EndpointURL = u.String()
+		}
+	}
+	if p.EndpointURL == "" {
+		p.EndpointURL = "/api/v2/debug/pprof"
+	}
 	p.CollectedAt = time.Now()
 
-	// Define pprof endpoints to collect
+	const basePath = "/api/v2/debug/pprof"
 	endpoints := map[string]func([]byte){
-		"/debug/pprof/heap": func(data []byte) {
+		"/allocs": func(data []byte) {
+			p.Allocs = compressData(data)
+		},
+		"/heap": func(data []byte) {
 			p.Heap = compressData(data)
 		},
-		"/debug/pprof/profile?seconds=30": func(data []byte) {
+		"/profile?seconds=30": func(data []byte) {
 			p.Profile = compressData(data)
 		},
-		"/debug/pprof/block": func(data []byte) {
+		"/block": func(data []byte) {
 			p.Block = compressData(data)
 		},
-		"/debug/pprof/mutex": func(data []byte) {
+		"/mutex": func(data []byte) {
 			p.Mutex = compressData(data)
 		},
-		"/debug/pprof/goroutine": func(data []byte) {
+		"/goroutine": func(data []byte) {
 			p.Goroutine = compressData(data)
 		},
-		"/debug/pprof/threadcreate": func(data []byte) {
+		"/threadcreate": func(data []byte) {
 			p.Threadcreate = compressData(data)
 		},
-		"/debug/pprof/trace?seconds=30": func(data []byte) {
+		"/trace?seconds=30": func(data []byte) {
 			p.Trace = compressData(data)
 		},
-		"/debug/pprof/cmdline": func(data []byte) {
+		"/cmdline": func(data []byte) {
 			p.Cmdline = string(data)
+		},
+		"/symbol": func(data []byte) {
+			p.Symbol = string(data)
 		},
 	}
 
-	// Collect each endpoint in parallel
 	for endpoint, setter := range endpoints {
-		endpoint, setter := endpoint, setter // capture loop variables
+		endpoint, setter := endpoint, setter
 		eg.Go(func() error {
-			fullURL := strings.TrimSuffix(endpointURL, "/") + endpoint
-
-			// Set longer timeout for profile and trace endpoints (they take 30 seconds)
 			timeout := 10 * time.Second
 			if strings.Contains(endpoint, "seconds=30") {
 				timeout = 45 * time.Second
 			}
 
-			ctx, cancel := context.WithTimeout(ctx, timeout)
+			reqCtx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
 
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, fullURL, nil)
+			resp, err := client.Request(reqCtx, http.MethodGet, basePath+endpoint, nil)
 			if err != nil {
-				log.Warn(ctx, "failed to create pprof request", slog.F("endpoint", endpoint), slog.Error(err))
-				return nil
-			}
-
-			resp, err := http.DefaultClient.Do(req)
-			if err != nil {
-				log.Warn(ctx, "failed to fetch pprof data", slog.F("endpoint", endpoint), slog.Error(err))
+				log.Warn(reqCtx, "failed to fetch pprof data", slog.F("endpoint", endpoint), slog.Error(err))
 				return nil
 			}
 			defer resp.Body.Close()
 
 			if resp.StatusCode != http.StatusOK {
-				log.Warn(ctx, "pprof endpoint returned non-200 status", slog.F("endpoint", endpoint), slog.F("status", resp.StatusCode))
+				log.Warn(reqCtx, "pprof endpoint returned non-200 status",
+					slog.F("endpoint", endpoint), slog.F("status", resp.StatusCode))
 				return nil
 			}
 
 			data, err := io.ReadAll(resp.Body)
 			if err != nil {
-				log.Warn(ctx, "failed to read pprof response", slog.F("endpoint", endpoint), slog.Error(err))
+				log.Warn(reqCtx, "failed to read pprof response", slog.F("endpoint", endpoint), slog.Error(err))
 				return nil
 			}
 
@@ -745,6 +796,9 @@ func PprofInfoFromAgent(ctx context.Context, conn workspacesdk.AgentConn, log sl
 
 	// Define agent pprof endpoints - these go through the agent connection
 	endpoints := map[string]func([]byte){
+		"/debug/pprof/allocs": func(data []byte) {
+			p.Allocs = compressData(data)
+		},
 		"/debug/pprof/heap": func(data []byte) {
 			p.Heap = compressData(data)
 		},
@@ -768,6 +822,9 @@ func PprofInfoFromAgent(ctx context.Context, conn workspacesdk.AgentConn, log sl
 		},
 		"/debug/pprof/cmdline": func(data []byte) {
 			p.Cmdline = string(data)
+		},
+		"/debug/pprof/symbol": func(data []byte) {
+			p.Symbol = string(data)
 		},
 	}
 
@@ -911,7 +968,7 @@ func Run(ctx context.Context, d *Deps) (*Bundle, error) {
 		return nil
 	})
 	eg.Go(func() error {
-		ai := AgentInfo(ctx, d.Client, d.Log, d.AgentID, d.PprofEndpoint)
+		ai := AgentInfo(ctx, d.Client, d.Log, d.AgentID)
 		b.Agent = ai
 		return nil
 	})
@@ -958,19 +1015,17 @@ func Run(ctx context.Context, d *Deps) (*Bundle, error) {
 
 	// Optional: collect pprof data if endpoint is provided
 	eg.Go(func() error {
-		if d.PprofEndpoint == "" {
+		if !d.CollectPprof {
 			return nil
 		}
 
 		var pprof Pprof
 
-		// Always collect server pprof data
-		serverPprof := PprofInfo(ctx, d.PprofEndpoint, d.Log)
+		serverPprof := PprofInfo(ctx, d.Client, d.Log)
 		if serverPprof != nil {
 			pprof.Server = serverPprof
 		}
 
-		// If we have an agent, also collect agent pprof data
 		if d.AgentID != uuid.Nil {
 			conn, err := workspacesdk.New(d.Client).
 				DialAgent(ctx, d.AgentID, &workspacesdk.DialAgentOptions{

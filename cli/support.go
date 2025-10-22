@@ -70,7 +70,6 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 	var workspacesTotalCap64 int64 = 1000
 	var templateName string
 	var pprof bool
-	var pprofEndpoint string
 	cmd := &serpent.Command{
 		Use:   "bundle <workspace> [<agent>]",
 		Short: "Generate a support bundle to troubleshoot issues connecting to a workspace.",
@@ -79,16 +78,6 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 			serpent.RequireRangeArgs(0, 2),
 		),
 		Handler: func(inv *serpent.Invocation) error {
-			// Validate pprof configuration
-			if pprof && pprofEndpoint == "" {
-				return xerrors.Errorf("--pprof requires CODER_PPROF_ENDPOINT to be set")
-			}
-			if pprof {
-				if _, err := url.Parse(pprofEndpoint); err != nil {
-					return xerrors.Errorf("invalid CODER_PPROF_ENDPOINT URL: %w", err)
-				}
-			}
-
 			client, err := r.InitClient(inv)
 			if err != nil {
 				return err
@@ -219,7 +208,7 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 				AgentID:            agtID,
 				WorkspacesTotalCap: int(workspacesTotalCap64),
 				TemplateID:         templateID,
-				PprofEndpoint:      pprofEndpoint,
+				CollectPprof:       pprof,
 			}
 
 			bun, err := support.Run(inv.Context(), &deps)
@@ -270,15 +259,8 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 		{
 			Flag:        "pprof",
 			Env:         "CODER_SUPPORT_BUNDLE_PPROF",
-			Description: "Collect pprof data from the Coder deployment. Requires CODER_PPROF_ENDPOINT to be set.",
+			Description: "Collect pprof data from the Coder deployment.",
 			Value:       serpent.BoolOf(&pprof),
-		},
-		{
-			Flag:        "pprof-endpoint",
-			Env:         "CODER_PPROF_ENDPOINT",
-			Description: "The pprof server endpoint to collect data from. Required when --pprof is enabled.",
-			Value:       serpent.StringOf(&pprofEndpoint),
-			Hidden:      true,
 		},
 	}
 
@@ -513,6 +495,7 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 		"agent/client_magicsock.html":    string(src.Agent.ClientMagicsockHTML),
 		"agent/startup_logs.txt":         humanizeAgentLogs(src.Agent.StartupLogs),
 		"agent/prometheus.txt":           string(src.Agent.Prometheus),
+		"deployment/prometheus.txt":      string(src.Deployment.Prometheus),
 		"cli_logs.txt":                   string(src.CLILogs),
 		"logs.txt":                       strings.Join(src.Logs, "\n"),
 		"network/coordinator_debug.html": src.Network.CoordinatorDebug,
@@ -562,13 +545,14 @@ func writePprofData(pprof support.Pprof, dest *zip.Writer) error {
 func writePprofCollection(basePath string, collection *support.PprofCollection, dest *zip.Writer) error {
 	// Define the pprof files to write with their extensions
 	files := map[string][]byte{
+		"allocs.prof.gz":       collection.Allocs,
 		"heap.prof.gz":         collection.Heap,
 		"profile.prof.gz":      collection.Profile,
 		"block.prof.gz":        collection.Block,
 		"mutex.prof.gz":        collection.Mutex,
 		"goroutine.prof.gz":    collection.Goroutine,
 		"threadcreate.prof.gz": collection.Threadcreate,
-		"trace.trace.gz":       collection.Trace,
+		"trace.gz":             collection.Trace,
 	}
 
 	// Write binary pprof files
@@ -594,6 +578,17 @@ func writePprofCollection(basePath string, collection *support.PprofCollection, 
 		}
 		if _, err := f.Write([]byte(collection.Cmdline)); err != nil {
 			return xerrors.Errorf("write cmdline file %q: %w", filePath, err)
+		}
+	}
+
+	if collection.Symbol != "" {
+		filePath := basePath + "/symbol.txt"
+		f, err := dest.Create(filePath)
+		if err != nil {
+			return xerrors.Errorf("create symbol file %q: %w", filePath, err)
+		}
+		if _, err := f.Write([]byte(collection.Symbol)); err != nil {
+			return xerrors.Errorf("write symbol file %q: %w", filePath, err)
 		}
 	}
 
