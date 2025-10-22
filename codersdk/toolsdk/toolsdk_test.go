@@ -126,12 +126,32 @@ func TestTools(t *testing.T) {
 	t.Run("GetWorkspace", func(t *testing.T) {
 		tb, err := toolsdk.NewDeps(memberClient)
 		require.NoError(t, err)
-		result, err := testTool(t, toolsdk.GetWorkspace, tb, toolsdk.GetWorkspaceArgs{
-			WorkspaceID: r.Workspace.ID.String(),
-		})
 
-		require.NoError(t, err)
-		require.Equal(t, r.Workspace.ID, result.ID, "expected the workspace ID to match")
+		tests := []struct {
+			name      string
+			workspace string
+		}{
+			{
+				name:      "ByID",
+				workspace: r.Workspace.ID.String(),
+			},
+			{
+				name:      "ByName",
+				workspace: r.Workspace.Name,
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				result, err := testTool(t, toolsdk.GetWorkspace, tb, toolsdk.GetWorkspaceArgs{
+					WorkspaceID: tt.workspace,
+				})
+				require.NoError(t, err)
+				require.Equal(t, r.Workspace.ID, result.ID, "expected the workspace ID to match")
+			})
+		}
 	})
 
 	t.Run("ListTemplates", func(t *testing.T) {
