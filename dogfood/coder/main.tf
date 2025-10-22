@@ -855,7 +855,7 @@ module "claude-code" {
   workdir             = local.repo_dir
   claude_code_version = "latest"
   order               = 999
-  claude_api_key      = data.coder_workspace_owner.me.session_token
+  claude_api_key      = data.coder_workspace_owner.me.session_token # To Enable AI Bridge integration
   agentapi_version    = "latest"
 
   system_prompt       = local.claude_system_prompt
