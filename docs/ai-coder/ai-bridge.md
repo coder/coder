@@ -81,6 +81,42 @@ Bridge is compatible with _[Google Vertex AI](https://cloud.google.com/vertex-ai
 > [!NOTE]
 > See [Supported APIs](#supported-apis) section below for a comprehensive list.
 
+## Client Configuration
+
+Once AI Bridge is enabled on the server, users need to configure their AI coding tools to use it. This section explains how to point clients to AI Bridge.
+
+### Setting Base URLs
+
+Configure your AI client to point to your Coder deployment's AI Bridge endpoints:
+
+- **OpenAI-compatible clients**: Set `OPENAI_BASE_URL` to `https://coder.example.com/api/experimental/aibridge/openai/v1`
+- **Anthropic-compatible clients**: Set `ANTHROPIC_BASE_URL` to `https://coder.example.com/api/experimental/aibridge/anthropic`
+
+Replace `coder.example.com` with your actual Coder deployment URL.
+
+### Authentication
+
+Instead of using provider-specific API keys (OpenAI/Anthropic keys), clients authenticate using your **Coder session token** or **API key**:
+
+- **OpenAI clients**: Set `OPENAI_API_KEY` to your Coder session token or API key
+- **Anthropic clients**: Set `ANTHROPIC_API_KEY` to your Coder session token or API key
+
+You can generate a Coder API key using:
+
+```sh
+coder tokens create
+```
+
+### Compatibility Notes
+
+Most AI coding assistants that support custom base URLs can work with AI Bridge. However, client-specific configuration requirements vary:
+
+- Some clients require specific URL formats or authentication methods
+- Some clients may proxy requests through their own servers, limiting compatibility
+- Some clients may not support custom base URLs at all
+
+Consult your specific AI client's documentation for details on configuring custom API endpoints.
+
 ## Collected Data
 
 Bridge collects:
