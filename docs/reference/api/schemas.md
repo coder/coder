@@ -5272,7 +5272,8 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 {
   "authorization": "string",
   "device_authorization": "string",
-  "token": "string"
+  "token": "string",
+  "token_revoke": "string"
 }
 ```
 
@@ -5283,6 +5284,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `authorization`        | string | false    |              |                                   |
 | `device_authorization` | string | false    |              | Device authorization is optional. |
 | `token`                | string | false    |              |                                   |
+| `token_revoke`         | string | false    |              |                                   |
 
 ## codersdk.OAuth2AuthorizationServerMetadata
 
@@ -5594,7 +5596,8 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "endpoints": {
     "authorization": "string",
     "device_authorization": "string",
-    "token": "string"
+    "token": "string",
+    "token_revoke": "string"
   },
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",

@@ -3082,6 +3082,45 @@ const docTemplate = `{
                 }
             }
         },
+        "/oauth2/revoke": {
+            "post": {
+                "consumes": [
+                    "application/x-www-form-urlencoded"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Revoke OAuth2 tokens (RFC 7009).",
+                "operationId": "oauth2-token-revocation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Client ID for authentication",
+                        "name": "client_id",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "The token to revoke",
+                        "name": "token",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Hint about token type (access_token or refresh_token)",
+                        "name": "token_type_hint",
+                        "in": "formData"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Token successfully revoked"
+                    }
+                }
+            }
+        },
         "/oauth2/tokens": {
             "post": {
                 "produces": [
@@ -15352,6 +15391,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "token": {
+                    "type": "string"
+                },
+                "token_revoke": {
                     "type": "string"
                 }
             }

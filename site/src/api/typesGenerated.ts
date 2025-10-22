@@ -2889,6 +2889,7 @@ export interface NullHCLString {
 export interface OAuth2AppEndpoints {
 	readonly authorization: string;
 	readonly token: string;
+	readonly token_revoke: string;
 	/**
 	 * DeviceAuth is optional.
 	 */
