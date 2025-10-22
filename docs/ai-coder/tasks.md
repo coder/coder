@@ -128,7 +128,9 @@ Prior to Coder version 2.28.0, the definition of a Coder task was different to t
 
 Note that 2 and 3 were generally handled by the `coder/agentapi` Terraform module.
 
-The pre-2.28.0 definition will be supported until the release of 2.29.0. You will need to update your Tasks-enabled templates as follows:
+The pre-2.28.0 definition will be supported until the release of 2.29.0. You will need to update your Tasks-enabled templates to continue using Tasks after this release.
+
+You can view an [example here](https://github.com/coder/coder/pull/20426). Alternatively, follow the steps below:
 
 1. Update the Coder Terraform provider to at least version 2.12.0:
 
