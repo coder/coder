@@ -15,10 +15,9 @@ curl -X GET http://coder-server:8080/api/v2/api/experimental/tasks \
 
 ### Parameters
 
-| Name     | In    | Type   | Required | Description                                                                   |
-|----------|-------|--------|----------|-------------------------------------------------------------------------------|
-| `owner`  | query | string | false    | Filter by owner (username, UUID, or 'me' for current user)                    |
-| `status` | query | string | false    | Filter by task status (pending, initializing, active, paused, error, unknown) |
+| Name | In    | Type   | Required | Description                                                                                                         |
+|------|-------|--------|----------|---------------------------------------------------------------------------------------------------------------------|
+| `q`  | query | string | false    | Search query for filtering tasks. Supports: owner:<username/uuid/me>, organization:<org-name/uuid>, status:<status> |
 
 ### Example responses
 

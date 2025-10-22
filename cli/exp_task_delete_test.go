@@ -56,7 +56,7 @@ func TestExpTaskDelete(t *testing.T) {
 				taskID := uuid.MustParse(id1)
 				return func(w http.ResponseWriter, r *http.Request) {
 					switch {
-					case r.Method == http.MethodGet && r.URL.Path == "/api/experimental/tasks" && r.URL.Query().Get("owner") == "me":
+					case r.Method == http.MethodGet && r.URL.Path == "/api/experimental/tasks" && r.URL.Query().Get("q") == "owner:\"me\"":
 						c.nameResolves.Add(1)
 						httpapi.Write(r.Context(), w, http.StatusOK, struct {
 							Tasks []codersdk.Task `json:"tasks"`
@@ -110,7 +110,7 @@ func TestExpTaskDelete(t *testing.T) {
 				firstID := uuid.MustParse(id3)
 				return func(w http.ResponseWriter, r *http.Request) {
 					switch {
-					case r.Method == http.MethodGet && r.URL.Path == "/api/experimental/tasks" && r.URL.Query().Get("owner") == "me":
+					case r.Method == http.MethodGet && r.URL.Path == "/api/experimental/tasks" && r.URL.Query().Get("q") == "owner:\"me\"":
 						c.nameResolves.Add(1)
 						httpapi.Write(r.Context(), w, http.StatusOK, struct {
 							Tasks []codersdk.Task `json:"tasks"`
@@ -151,7 +151,7 @@ func TestExpTaskDelete(t *testing.T) {
 			buildHandler: func(_ *testCounters) http.HandlerFunc {
 				return func(w http.ResponseWriter, r *http.Request) {
 					switch {
-					case r.Method == http.MethodGet && r.URL.Path == "/api/experimental/tasks" && r.URL.Query().Get("owner") == "me":
+					case r.Method == http.MethodGet && r.URL.Path == "/api/experimental/tasks" && r.URL.Query().Get("q") == "owner:\"me\"":
 						httpapi.Write(r.Context(), w, http.StatusOK, struct {
 							Tasks []codersdk.Task `json:"tasks"`
 							Count int             `json:"count"`
@@ -174,7 +174,7 @@ func TestExpTaskDelete(t *testing.T) {
 				taskID := uuid.MustParse(id5)
 				return func(w http.ResponseWriter, r *http.Request) {
 					switch {
-					case r.Method == http.MethodGet && r.URL.Path == "/api/experimental/tasks" && r.URL.Query().Get("owner") == "me":
+					case r.Method == http.MethodGet && r.URL.Path == "/api/experimental/tasks" && r.URL.Query().Get("q") == "owner:\"me\"":
 						c.nameResolves.Add(1)
 						httpapi.Write(r.Context(), w, http.StatusOK, struct {
 							Tasks []codersdk.Task `json:"tasks"`

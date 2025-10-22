@@ -151,14 +151,8 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Filter by owner (username, UUID, or 'me' for current user)",
-                        "name": "owner",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Filter by task status (pending, initializing, active, paused, error, unknown)",
-                        "name": "status",
+                        "description": "Search query for filtering tasks. Supports: owner:\u003cusername/uuid/me\u003e, organization:\u003corg-name/uuid\u003e, status:\u003cstatus\u003e",
+                        "name": "q",
                         "in": "query"
                     }
                 ],
