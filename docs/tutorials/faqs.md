@@ -562,7 +562,7 @@ solution.
 
 ## How do I change the access URL for my Coder server?
 
-You may want to change the default domain that's used to access coder, i.e. `yourcompany.coder.com` and find yourself unfamilar with the process.
+You may want to change the default domain that's used to access coder, i.e. `yourcompany.coder.com` and find yourself unfamiliar with the process.
 
 To change the access URL associated with your server, you can edit any of the following variables:
 
