@@ -638,19 +638,19 @@ func TestTasks(t *testing.T) {
 					Id:      0,
 					Content: "Welcome, user!",
 					Role:    agentapisdk.RoleAgent,
-					Time:    time.Date(2025, 9, 25, 10, 42, 48, 751774125, time.UTC),
+					Time:    time.Date(2025, 9, 25, 10, 42, 48, 0, time.UTC),
 				},
 				{
 					Id:      1,
 					Content: "Hello, agent!",
 					Role:    agentapisdk.RoleUser,
-					Time:    time.Date(2025, 9, 25, 10, 46, 42, 880996296, time.UTC),
+					Time:    time.Date(2025, 9, 25, 10, 46, 42, 0, time.UTC),
 				},
 				{
 					Id:      2,
 					Content: "What would you like to work on today?",
 					Role:    agentapisdk.RoleAgent,
-					Time:    time.Date(2025, 9, 25, 10, 46, 50, 747761102, time.UTC),
+					Time:    time.Date(2025, 9, 25, 10, 46, 50, 0, time.UTC),
 				},
 			},
 		}
