@@ -80,7 +80,7 @@ const TasksPage: FC = () => {
 						<section>
 							{permissions.viewDeploymentConfig && (
 								<section
-									className="mt-6 flex justify-between"
+									className="mt-6 pt-6 border-t border-border flex justify-between"
 									aria-label="Controls"
 								>
 									<div className="flex items-center bg-surface-secondary rounded p-1">
