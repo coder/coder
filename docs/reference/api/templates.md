@@ -460,6 +460,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "created_by": {
     "avatar_url": "http://example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
     "username": "string"
   },
   "has_external_agent": true,
@@ -561,6 +562,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "created_by": {
     "avatar_url": "http://example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
     "username": "string"
   },
   "has_external_agent": true,
@@ -686,6 +688,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "created_by": {
     "avatar_url": "http://example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
     "username": "string"
   },
   "has_external_agent": true,
@@ -1294,6 +1297,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions \
     "created_by": {
       "avatar_url": "http://example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
       "username": "string"
     },
     "has_external_agent": true,
@@ -1374,6 +1378,7 @@ Status Code **200**
 | `» created_by`              | [codersdk.MinimalUser](schemas.md#codersdkminimaluser)                       | false    |              |                                                                                                                                                                     |
 | `»» avatar_url`             | string(uri)                                                                  | false    |              |                                                                                                                                                                     |
 | `»» id`                     | string(uuid)                                                                 | true     |              |                                                                                                                                                                     |
+| `»» name`                   | string                                                                       | false    |              |                                                                                                                                                                     |
 | `»» username`               | string                                                                       | true     |              |                                                                                                                                                                     |
 | `» has_external_agent`      | boolean                                                                      | false    |              |                                                                                                                                                                     |
 | `» id`                      | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
@@ -1579,6 +1584,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions/{templ
     "created_by": {
       "avatar_url": "http://example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
       "username": "string"
     },
     "has_external_agent": true,
@@ -1659,6 +1665,7 @@ Status Code **200**
 | `» created_by`              | [codersdk.MinimalUser](schemas.md#codersdkminimaluser)                       | false    |              |                                                                                                                                                                     |
 | `»» avatar_url`             | string(uri)                                                                  | false    |              |                                                                                                                                                                     |
 | `»» id`                     | string(uuid)                                                                 | true     |              |                                                                                                                                                                     |
+| `»» name`                   | string                                                                       | false    |              |                                                                                                                                                                     |
 | `»» username`               | string                                                                       | true     |              |                                                                                                                                                                     |
 | `» has_external_agent`      | boolean                                                                      | false    |              |                                                                                                                                                                     |
 | `» id`                      | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
@@ -1754,6 +1761,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion} \
   "created_by": {
     "avatar_url": "http://example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
     "username": "string"
   },
   "has_external_agent": true,
@@ -1864,6 +1872,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
   "created_by": {
     "avatar_url": "http://example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
     "username": "string"
   },
   "has_external_agent": true,
