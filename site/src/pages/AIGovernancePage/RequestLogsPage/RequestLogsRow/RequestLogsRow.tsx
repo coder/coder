@@ -24,9 +24,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 
 	return (
 		<>
-			<TableRow
-				className={cn("select-none cursor-pointer hover:bg-surface-secondary")}
-			>
+			<TableRow className={cn("select-none hover:bg-surface-secondary")}>
 				<TableCell>
 					<Button
 						variant="subtle"
