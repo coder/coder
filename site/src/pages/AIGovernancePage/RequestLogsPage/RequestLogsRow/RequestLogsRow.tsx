@@ -1,4 +1,5 @@
 import type { AIBridgeInterception } from "api/typesGenerated";
+import { Avatar } from "components/Avatar/Avatar";
 import { Button } from "components/Button/Button";
 import { TableCell, TableRow } from "components/Table/Table";
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
@@ -47,9 +48,16 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 					</Button>
 				</TableCell>
 				<TableCell>
-					{new Date(interception.started_at).toLocaleString()}
+					<div css={{ display: "flex", alignItems: "center", gap: 12 }}>
+						<Avatar
+							fallback={interception.initiator.username}
+							src={interception.initiator.avatar_url}
+						/>
+						<div css={{ fontWeight: 500 }}>
+							{interception.initiator.username}
+						</div>
+					</div>
 				</TableCell>
-				<TableCell>{interception.initiator.username}</TableCell>
 				<TableCell>
 					{hasPrompt && interception.user_prompts[0].prompt}
 				</TableCell>
