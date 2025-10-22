@@ -48,7 +48,6 @@ export const RequestLogsPageView: FC<RequestLogsPageViewProps> = ({
 			<Table>
 				<TableHeader>
 					<TableRow>
-						<TableHead></TableHead>
 						<TableHead>Timestamp</TableHead>
 						<TableHead>User</TableHead>
 						<TableHead>Prompt</TableHead>

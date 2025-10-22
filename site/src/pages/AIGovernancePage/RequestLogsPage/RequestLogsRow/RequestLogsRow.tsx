@@ -1,4 +1,5 @@
 import type { AIBridgeInterception } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import { TableCell, TableRow } from "components/Table/Table";
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 import { type FC, useState } from "react";
@@ -27,19 +28,23 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 				onClick={() => setIsOpen(!isOpen)}
 			>
 				<TableCell>
-					<div
-						css={{
-							display: "flex",
-							alignItems: "center",
-							justifyContent: "center",
-						}}
+					<Button
+						variant="subtle"
+						size="sm"
+						className={cn([
+							isOpen && "text-content-primary",
+							"p-0 h-auto min-w-0 align-middle",
+						])}
+						onClick={() => setIsOpen(!isOpen)}
 					>
 						{isOpen ? (
 							<ChevronDownIcon size={16} />
 						) : (
 							<ChevronRightIcon size={16} />
 						)}
-					</div>
+						<span className="sr-only">({isOpen ? "Hide" : "Show more"})</span>
+						{new Date(interception.started_at).toLocaleString()}
+					</Button>
 				</TableCell>
 				<TableCell>
 					{new Date(interception.started_at).toLocaleString()}
