@@ -72,6 +72,66 @@ export const ReadOnlyPresetPrompt: Story = {
 	},
 };
 
+export const SubmitEnabledWhenPromptNotEmpty: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const prompt = await canvas.findByLabelText(/prompt/i);
+		await userEvent.type(prompt, MockNewTaskData.prompt);
+
+		const submitButton = canvas.getByRole("button", { name: /run task/i });
+		expect(submitButton).toBeEnabled();
+	},
+};
+
+export const SubmitDisabledWhenPromptEmpty: Story = {
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+
+		await step("No prompt", async () => {
+			const submitButton = canvas.getByRole("button", { name: /run task/i });
+			expect(submitButton).toBeDisabled();
+		});
+
+		await step("Whitespace prompt", async () => {
+			const prompt = await canvas.findByLabelText(/prompt/i);
+			await userEvent.type(prompt, "   ");
+
+			const submitButton = canvas.getByRole("button", { name: /run task/i });
+			expect(submitButton).toBeDisabled();
+		});
+	},
+};
+
+export const Submitting: Story = {
+	decorators: [withGlobalSnackbar],
+	beforeEach: () => {
+		spyOn(API.experimental, "createTask").mockImplementation(
+			() =>
+				// Never resolve to keep the component in the submitting state for visual testing.
+				new Promise(() => {}),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const prompt = await canvas.findByLabelText(/prompt/i);
+		await userEvent.type(
+			prompt,
+			"Lorem ipsum dolor sit amet, consectetur adipiscing elit.{enter}{enter}Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+		);
+
+		const submitButton = canvas.getByRole("button", { name: /run task/i });
+		await waitFor(() => expect(submitButton).toBeEnabled());
+		await userEvent.click(submitButton);
+	},
+	parameters: {
+		chromatic: {
+			disableSnapshot: true,
+		},
+	},
+};
+
 export const OnSuccess: Story = {
 	decorators: [withGlobalSnackbar],
 	parameters: {
@@ -113,6 +173,11 @@ export const OnSuccess: Story = {
 			const body = within(canvasElement.ownerDocument.body);
 			const successMessage = await body.findByText(/task created/i);
 			expect(successMessage).toBeInTheDocument();
+		});
+
+		await step("Clears prompt", async () => {
+			const prompt = await canvas.findByLabelText(/prompt/i);
+			expect(prompt).toHaveValue("");
 		});
 	},
 };

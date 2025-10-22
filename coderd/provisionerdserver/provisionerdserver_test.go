@@ -3003,9 +3003,9 @@ func TestCompleteJob(t *testing.T) {
 						OwnerID:        user.ID,
 						OrganizationID: pd.OrganizationID,
 					})
-					var taskTable database.TaskTable
+					var genTask database.Task
 					if tc.isTask {
-						taskTable = dbgen.Task(t, db, database.TaskTable{
+						genTask = dbgen.Task(t, db, database.TaskTable{
 							OwnerID:           user.ID,
 							OrganizationID:    pd.OrganizationID,
 							WorkspaceID:       uuid.NullUUID{UUID: workspaceTable.ID, Valid: true},
@@ -3081,7 +3081,7 @@ func TestCompleteJob(t *testing.T) {
 					require.Equal(t, tc.expectHasAiTask, build.HasAITask.Bool)
 
 					if tc.isTask {
-						task, err := db.GetTaskByID(ctx, taskTable.ID)
+						task, err := db.GetTaskByID(ctx, genTask.ID)
 						require.NoError(t, err)
 						require.Equal(t, tc.expectTaskStatus, task.Status)
 					}

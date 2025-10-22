@@ -115,8 +115,14 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Cursor pagination after ID",
+                        "description": "Cursor pagination after ID (cannot be used with offset)",
                         "name": "after_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Offset pagination (cannot be used with after_id)",
+                        "name": "offset",
                         "in": "query"
                     }
                 ],
@@ -951,6 +957,138 @@ const docTemplate = `{
                             "$ref": "#/definitions/healthsdk.UpdateHealthSettings"
                         }
                     }
+                }
+            }
+        },
+        "/debug/metrics": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Debug"
+                ],
+                "summary": "Debug metrics",
+                "operationId": "debug-metrics",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/debug/pprof": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Debug"
+                ],
+                "summary": "Debug pprof index",
+                "operationId": "debug-pprof-index",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/debug/pprof/cmdline": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Debug"
+                ],
+                "summary": "Debug pprof cmdline",
+                "operationId": "debug-pprof-cmdline",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/debug/pprof/profile": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Debug"
+                ],
+                "summary": "Debug pprof profile",
+                "operationId": "debug-pprof-profile",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/debug/pprof/symbol": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Debug"
+                ],
+                "summary": "Debug pprof symbol",
+                "operationId": "debug-pprof-symbol",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/debug/pprof/trace": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Debug"
+                ],
+                "summary": "Debug pprof trace",
+                "operationId": "debug-pprof-trace",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
                 }
             }
         },
@@ -11549,9 +11687,8 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
-                "initiator_id": {
-                    "type": "string",
-                    "format": "uuid"
+                "initiator": {
+                    "$ref": "#/definitions/codersdk.MinimalUser"
                 },
                 "metadata": {
                     "type": "object",
@@ -11595,6 +11732,9 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.AIBridgeInterception"
                     }
+                },
+                "total": {
+                    "type": "integer"
                 }
             }
         },
@@ -11971,6 +12111,7 @@ const docTemplate = `{
                 "workspace:delete",
                 "workspace:delete_agent",
                 "workspace:read",
+                "workspace:share",
                 "workspace:ssh",
                 "workspace:start",
                 "workspace:stop",
@@ -11988,6 +12129,7 @@ const docTemplate = `{
                 "workspace_dormant:delete",
                 "workspace_dormant:delete_agent",
                 "workspace_dormant:read",
+                "workspace_dormant:share",
                 "workspace_dormant:ssh",
                 "workspace_dormant:start",
                 "workspace_dormant:stop",
@@ -12167,6 +12309,7 @@ const docTemplate = `{
                 "APIKeyScopeWorkspaceDelete",
                 "APIKeyScopeWorkspaceDeleteAgent",
                 "APIKeyScopeWorkspaceRead",
+                "APIKeyScopeWorkspaceShare",
                 "APIKeyScopeWorkspaceSsh",
                 "APIKeyScopeWorkspaceStart",
                 "APIKeyScopeWorkspaceStop",
@@ -12184,6 +12327,7 @@ const docTemplate = `{
                 "APIKeyScopeWorkspaceDormantDelete",
                 "APIKeyScopeWorkspaceDormantDeleteAgent",
                 "APIKeyScopeWorkspaceDormantRead",
+                "APIKeyScopeWorkspaceDormantShare",
                 "APIKeyScopeWorkspaceDormantSsh",
                 "APIKeyScopeWorkspaceDormantStart",
                 "APIKeyScopeWorkspaceDormantStop",
@@ -13832,6 +13976,9 @@ const docTemplate = `{
                 "docs_url": {
                     "$ref": "#/definitions/serpent.URL"
                 },
+                "enable_authz_recording": {
+                    "type": "boolean"
+                },
                 "enable_terraform_debug_mode": {
                     "type": "boolean"
                 },
@@ -14922,6 +15069,9 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
                 },
                 "username": {
                     "type": "string"
@@ -16926,6 +17076,7 @@ const docTemplate = `{
                 "read",
                 "read_personal",
                 "ssh",
+                "share",
                 "unassign",
                 "update",
                 "update_personal",
@@ -16944,6 +17095,7 @@ const docTemplate = `{
                 "ActionRead",
                 "ActionReadPersonal",
                 "ActionSSH",
+                "ActionShare",
                 "ActionUnassign",
                 "ActionUpdate",
                 "ActionUpdatePersonal",
@@ -20744,6 +20896,9 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
                 },
                 "role": {
                     "enum": [

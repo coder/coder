@@ -1436,6 +1436,14 @@ func (q *querier) CleanTailnetTunnels(ctx context.Context) error {
 	return q.db.CleanTailnetTunnels(ctx)
 }
 
+func (q *querier) CountAIBridgeInterceptions(ctx context.Context, arg database.CountAIBridgeInterceptionsParams) (int64, error) {
+	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceAibridgeInterception.Type)
+	if err != nil {
+		return 0, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
+	}
+	return q.db.CountAuthorizedAIBridgeInterceptions(ctx, arg, prep)
+}
+
 func (q *querier) CountAuditLogs(ctx context.Context, arg database.CountAuditLogsParams) (int64, error) {
 	// Shortcut if the user is an owner. The SQL filter is noticeable,
 	// and this is an easy win for owners. Which is the common case.
@@ -1792,7 +1800,7 @@ func (q *querier) DeleteWorkspaceACLByID(ctx context.Context, id uuid.UUID) erro
 		return w.WorkspaceTable(), nil
 	}
 
-	return fetchAndExec(q.log, q.auth, policy.ActionUpdate, fetch, q.db.DeleteWorkspaceACLByID)(ctx, id)
+	return fetchAndExec(q.log, q.auth, policy.ActionShare, fetch, q.db.DeleteWorkspaceACLByID)(ctx, id)
 }
 
 func (q *querier) DeleteWorkspaceAgentPortShare(ctx context.Context, arg database.DeleteWorkspaceAgentPortShareParams) error {
@@ -3388,7 +3396,7 @@ func (q *querier) GetWorkspaceACLByID(ctx context.Context, id uuid.UUID) (databa
 	if err != nil {
 		return database.GetWorkspaceACLByIDRow{}, err
 	}
-	if err := q.authorizeContext(ctx, policy.ActionCreate, workspace); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionShare, workspace); err != nil {
 		return database.GetWorkspaceACLByIDRow{}, err
 	}
 	return q.db.GetWorkspaceACLByID(ctx, id)
@@ -3550,6 +3558,13 @@ func (q *querier) GetWorkspaceAgentsCreatedAfter(ctx context.Context, createdAt 
 		return nil, err
 	}
 	return q.db.GetWorkspaceAgentsCreatedAfter(ctx, createdAt)
+}
+
+func (q *querier) GetWorkspaceAgentsForMetrics(ctx context.Context) ([]database.GetWorkspaceAgentsForMetricsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceAgentsForMetrics(ctx)
 }
 
 func (q *querier) GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkspaceAgent, error) {
@@ -3855,6 +3870,13 @@ func (q *querier) GetWorkspacesByTemplateID(ctx context.Context, templateID uuid
 
 func (q *querier) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]database.GetWorkspacesEligibleForTransitionRow, error) {
 	return q.db.GetWorkspacesEligibleForTransition(ctx, now)
+}
+
+func (q *querier) GetWorkspacesForWorkspaceMetrics(ctx context.Context) ([]database.GetWorkspacesForWorkspaceMetricsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspacesForWorkspaceMetrics(ctx)
 }
 
 func (q *querier) InsertAIBridgeInterception(ctx context.Context, arg database.InsertAIBridgeInterceptionParams) (database.AIBridgeInterception, error) {
@@ -4439,7 +4461,7 @@ func (q *querier) InsertWorkspaceResourceMetadata(ctx context.Context, arg datab
 	return q.db.InsertWorkspaceResourceMetadata(ctx, arg)
 }
 
-func (q *querier) ListAIBridgeInterceptions(ctx context.Context, arg database.ListAIBridgeInterceptionsParams) ([]database.AIBridgeInterception, error) {
+func (q *querier) ListAIBridgeInterceptions(ctx context.Context, arg database.ListAIBridgeInterceptionsParams) ([]database.ListAIBridgeInterceptionsRow, error) {
 	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceAibridgeInterception.Type)
 	if err != nil {
 		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
@@ -5298,7 +5320,7 @@ func (q *querier) UpdateWorkspaceACLByID(ctx context.Context, arg database.Updat
 		return w.WorkspaceTable(), nil
 	}
 
-	return fetchAndExec(q.log, q.auth, policy.ActionCreate, fetch, q.db.UpdateWorkspaceACLByID)(ctx, arg)
+	return fetchAndExec(q.log, q.auth, policy.ActionShare, fetch, q.db.UpdateWorkspaceACLByID)(ctx, arg)
 }
 
 func (q *querier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg database.UpdateWorkspaceAgentConnectionByIDParams) error {
@@ -5848,9 +5870,16 @@ func (q *querier) CountAuthorizedConnectionLogs(ctx context.Context, arg databas
 	return q.CountConnectionLogs(ctx, arg)
 }
 
-func (q *querier) ListAuthorizedAIBridgeInterceptions(ctx context.Context, arg database.ListAIBridgeInterceptionsParams, _ rbac.PreparedAuthorized) ([]database.AIBridgeInterception, error) {
+func (q *querier) ListAuthorizedAIBridgeInterceptions(ctx context.Context, arg database.ListAIBridgeInterceptionsParams, _ rbac.PreparedAuthorized) ([]database.ListAIBridgeInterceptionsRow, error) {
 	// TODO: Delete this function, all ListAIBridgeInterceptions should be authorized. For now just call ListAIBridgeInterceptions on the authz querier.
 	// This cannot be deleted for now because it's included in the
 	// database.Store interface, so dbauthz needs to implement it.
 	return q.ListAIBridgeInterceptions(ctx, arg)
+}
+
+func (q *querier) CountAuthorizedAIBridgeInterceptions(ctx context.Context, arg database.CountAIBridgeInterceptionsParams, _ rbac.PreparedAuthorized) (int64, error) {
+	// TODO: Delete this function, all CountAIBridgeInterceptions should be authorized. For now just call CountAIBridgeInterceptions on the authz querier.
+	// This cannot be deleted for now because it's included in the
+	// database.Store interface, so dbauthz needs to implement it.
+	return q.CountAIBridgeInterceptions(ctx, arg)
 }

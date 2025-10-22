@@ -19,7 +19,8 @@ curl -X GET http://coder-server:8080/api/v2/api/experimental/aibridge/intercepti
 |------------|-------|---------|----------|------------------------------------------------------------------------------------------------------------------------|
 | `q`        | query | string  | false    | Search query in the format `key:value`. Available keys are: initiator, provider, model, started_after, started_before. |
 | `limit`    | query | integer | false    | Page limit                                                                                                             |
-| `after_id` | query | string  | false    | Cursor pagination after ID                                                                                             |
+| `after_id` | query | string  | false    | Cursor pagination after ID (cannot be used with offset)                                                                |
+| `offset`   | query | integer | false    | Offset pagination (cannot be used with after_id)                                                                       |
 
 ### Example responses
 
@@ -30,7 +31,12 @@ curl -X GET http://coder-server:8080/api/v2/api/experimental/aibridge/intercepti
   "results": [
     {
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
+      "initiator": {
+        "avatar_url": "http://example.com",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string",
+        "username": "string"
+      },
       "metadata": {
         "property1": null,
         "property2": null
@@ -83,7 +89,8 @@ curl -X GET http://coder-server:8080/api/v2/api/experimental/aibridge/intercepti
         }
       ]
     }
-  ]
+  ],
+  "total": 0
 }
 ```
 

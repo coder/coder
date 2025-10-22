@@ -707,6 +707,22 @@ coderd_provisionerd_job_timings_seconds_count{provisioner="terraform",status="su
 # HELP coderd_provisionerd_jobs_current The number of currently running provisioner jobs.
 # TYPE coderd_provisionerd_jobs_current gauge
 coderd_provisionerd_jobs_current{provisioner="terraform"} 0
+# HELP coderd_provisionerd_num_daemons The number of provisioner daemons.
+# TYPE coderd_provisionerd_num_daemons gauge
+coderd_provisionerd_num_daemons 3
+# HELP coderd_provisionerd_workspace_build_timings_seconds The time taken for a workspace to build.
+# TYPE coderd_provisionerd_workspace_build_timings_seconds histogram
+coderd_provisionerd_workspace_build_timings_seconds_bucket{status="success",template_name="docker",template_version="gallant_wright0",workspace_transition="START",le="1"} 0
+coderd_provisionerd_workspace_build_timings_seconds_bucket{status="success",template_name="docker",template_version="gallant_wright0",workspace_transition="START",le="10"} 0
+coderd_provisionerd_workspace_build_timings_seconds_bucket{status="success",template_name="docker",template_version="gallant_wright0",workspace_transition="START",le="30"} 0
+coderd_provisionerd_workspace_build_timings_seconds_bucket{status="success",template_name="docker",template_version="gallant_wright0",workspace_transition="START",le="60"} 1
+coderd_provisionerd_workspace_build_timings_seconds_bucket{status="success",template_name="docker",template_version="gallant_wright0",workspace_transition="START",le="300"} 1
+coderd_provisionerd_workspace_build_timings_seconds_bucket{status="success",template_name="docker",template_version="gallant_wright0",workspace_transition="START",le="600"} 1
+coderd_provisionerd_workspace_build_timings_seconds_bucket{status="success",template_name="docker",template_version="gallant_wright0",workspace_transition="START",le="1800"} 1
+coderd_provisionerd_workspace_build_timings_seconds_bucket{status="success",template_name="docker",template_version="gallant_wright0",workspace_transition="START",le="3600"} 1
+coderd_provisionerd_workspace_build_timings_seconds_bucket{status="success",template_name="docker",template_version="gallant_wright0",workspace_transition="START",le="+Inf"} 1
+coderd_provisionerd_workspace_build_timings_seconds_sum{status="success",template_name="docker",template_version="gallant_wright0",workspace_transition="START"} 31.042659852
+coderd_provisionerd_workspace_build_timings_seconds_count{status="success",template_name="docker",template_version="gallant_wright0",workspace_transition="START"} 1
 # HELP coderd_workspace_latest_build_status The current workspace statuses by template, transition, and owner.
 # TYPE coderd_workspace_latest_build_status gauge
 coderd_workspace_latest_build_status{status="failed",template_name="docker",template_version="sweet_gould9",workspace_owner="admin",workspace_transition="stop"} 1
@@ -729,8 +745,8 @@ coderd_workspace_creation_duration_seconds_bucket{organization_name="{organizati
 coderd_workspace_creation_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",type="prebuild",le="1800"} 1
 coderd_workspace_creation_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",type="prebuild",le="3600"} 1
 coderd_workspace_creation_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",type="prebuild",le="+Inf"} 1
-coderd_workspace_creation_duration_seconds_sum{organization_name="{organization}",preset_name="Falkenstein",template_name="template-example",type="prebuild"} 4.406214
-coderd_workspace_creation_duration_seconds_count{organization_name="{organization}",preset_name="Falkenstein",template_name="template-example",type="prebuild"} 1
+coderd_workspace_creation_duration_seconds_sum{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",type="prebuild"} 4.406214
+coderd_workspace_creation_duration_seconds_count{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",type="prebuild"} 1
 # HELP coderd_prebuilt_workspace_claim_duration_seconds Time to claim a prebuilt workspace by organization, template, and preset.
 # TYPE coderd_prebuilt_workspace_claim_duration_seconds histogram
 coderd_prebuilt_workspace_claim_duration_seconds_bucket{organization_name="{organization}",preset_name="Falkenstein",template_name="docker",le="1"} 0
