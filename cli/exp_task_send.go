@@ -60,7 +60,7 @@ func (r *RootCmd) taskSend() *serpent.Command {
 				taskInput = inv.Args[1]
 			}
 
-			task, err := resolveTask(ctx, client, identifier)
+			task, err := exp.TaskByIdentifier(ctx, identifier)
 			if err != nil {
 				return xerrors.Errorf("resolve task: %w", err)
 			}

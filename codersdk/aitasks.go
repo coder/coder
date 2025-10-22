@@ -255,6 +255,72 @@ func (c *ExperimentalClient) TaskByID(ctx context.Context, id uuid.UUID) (Task, 
 	return task, nil
 }
 
+func splitTaskIdentifier(identifier string) (owner string, taskName string, err error) {
+	parts := strings.Split(identifier, "/")
+
+	switch len(parts) {
+	case 1:
+		owner = Me
+		taskName = parts[0]
+	case 2:
+		owner = parts[0]
+		taskName = parts[1]
+	default:
+		return "", "", xerrors.Errorf("invalid task identifier: %q", identifier)
+	}
+	return owner, taskName, nil
+}
+
+// TaskByIdentifier fetches and returns a task by an identifier, which may be
+// either a UUID, a name (for a task owned by the current user), or a
+// "user/task" combination, where user is either a username or UUID.
+//
+// Since there is no TaskByOwnerAndName endpoint yet, this function uses the
+// list endpoint with filtering when a name is provided.
+func (c *ExperimentalClient) TaskByIdentifier(ctx context.Context, identifier string) (Task, error) {
+	identifier = strings.TrimSpace(identifier)
+
+	// Try parsing as UUID first.
+	if taskID, err := uuid.Parse(identifier); err == nil {
+		return c.TaskByID(ctx, taskID)
+	}
+
+	// Not a UUID, treat as identifier.
+	owner, taskName, err := splitTaskIdentifier(identifier)
+	if err != nil {
+		return Task{}, err
+	}
+
+	tasks, err := c.Tasks(ctx, &TasksFilter{
+		Owner: owner,
+	})
+	if err != nil {
+		return Task{}, xerrors.Errorf("list tasks for owner %q: %w", owner, err)
+	}
+
+	if taskID, err := uuid.Parse(taskName); err == nil {
+		// Find task by ID.
+		for _, task := range tasks {
+			if task.ID == taskID {
+				return task, nil
+			}
+		}
+	} else {
+		// Find task by name.
+		for _, task := range tasks {
+			if task.Name == taskName {
+				return task, nil
+			}
+		}
+	}
+
+	// Mimic resource not found from API.
+	var notFoundErr error = &Error{
+		Response: Response{Message: "Resource not found or you do not have access to this resource"},
+	}
+	return Task{}, xerrors.Errorf("task %q not found for owner %q: %w", taskName, owner, notFoundErr)
+}
+
 // DeleteTask deletes a task by its ID.
 //
 // Experimental: This method is experimental and may change in the future.

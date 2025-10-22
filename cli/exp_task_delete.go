@@ -48,7 +48,7 @@ func (r *RootCmd) taskDelete() *serpent.Command {
 
 			var tasks []codersdk.Task
 			for _, identifier := range inv.Args {
-				task, err := resolveTask(ctx, client, identifier)
+				task, err := exp.TaskByIdentifier(ctx, identifier)
 				if err != nil {
 					return xerrors.Errorf("resolve task %q: %w", identifier, err)
 				}

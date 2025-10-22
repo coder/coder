@@ -1909,7 +1909,7 @@ var DeleteTask = Tool[DeleteTaskArgs, codersdk.Response]{
 
 		expClient := codersdk.NewExperimentalClient(deps.coderClient)
 
-		task, err := resolveTask(ctx, expClient, args.TaskID)
+		task, err := expClient.TaskByIdentifier(ctx, args.TaskID)
 		if err != nil {
 			return codersdk.Response{}, xerrors.Errorf("resolve task: %w", err)
 		}
@@ -2004,7 +2004,7 @@ var GetTaskStatus = Tool[GetTaskStatusArgs, GetTaskStatusResponse]{
 
 		expClient := codersdk.NewExperimentalClient(deps.coderClient)
 
-		task, err := resolveTask(ctx, expClient, args.TaskID)
+		task, err := expClient.TaskByIdentifier(ctx, args.TaskID)
 		if err != nil {
 			return GetTaskStatusResponse{}, xerrors.Errorf("resolve task %q: %w", args.TaskID, err)
 		}
@@ -2051,7 +2051,7 @@ var SendTaskInput = Tool[SendTaskInputArgs, codersdk.Response]{
 
 		expClient := codersdk.NewExperimentalClient(deps.coderClient)
 
-		task, err := resolveTask(ctx, expClient, args.TaskID)
+		task, err := expClient.TaskByIdentifier(ctx, args.TaskID)
 		if err != nil {
 			return codersdk.Response{}, xerrors.Errorf("resolve task %q: %w", args.TaskID, err)
 		}
@@ -2095,7 +2095,7 @@ var GetTaskLogs = Tool[GetTaskLogsArgs, codersdk.TaskLogsResponse]{
 
 		expClient := codersdk.NewExperimentalClient(deps.coderClient)
 
-		task, err := resolveTask(ctx, expClient, args.TaskID)
+		task, err := expClient.TaskByIdentifier(ctx, args.TaskID)
 		if err != nil {
 			return codersdk.TaskLogsResponse{}, err
 		}
@@ -2178,51 +2178,4 @@ func taskIDDescription(action string) string {
 
 func userDescription(action string) string {
 	return fmt.Sprintf("Username or ID of the user for which to %s. Omit or use the `me` keyword to %s for the authenticated user.", action, action)
-}
-
-// resolveTask fetches and returns a task by an identifier, which may be either
-// a UUID, a bare name (for a task owned by the current user), or a "user/task"
-// combination, where user is either a username or UUID.
-//
-// Since there is no TaskByOwnerAndName endpoint yet, this function uses the
-// list endpoint with filtering when a name is provided.
-func resolveTask(ctx context.Context, exp *codersdk.ExperimentalClient, identifier string) (codersdk.Task, error) {
-	identifier = strings.TrimSpace(identifier)
-
-	// Try parsing as UUID first.
-	if taskID, err := uuid.Parse(identifier); err == nil {
-		return exp.TaskByID(ctx, taskID)
-	}
-
-	// Not a UUID, treat as identifier.
-	taskName, owner := splitNameAndOwner(identifier)
-
-	tasks, err := exp.Tasks(ctx, &codersdk.TasksFilter{
-		Owner: owner,
-	})
-	if err != nil {
-		return codersdk.Task{}, xerrors.Errorf("list tasks for owner %q: %w", owner, err)
-	}
-
-	if taskID, err := uuid.Parse(taskName); err == nil {
-		// Find task by ID.
-		for _, task := range tasks {
-			if task.ID == taskID {
-				return task, nil
-			}
-		}
-	} else {
-		// Find task by name.
-		for _, task := range tasks {
-			if task.Name == taskName {
-				return task, nil
-			}
-		}
-	}
-
-	// Mimic resource not found from API.
-	var notFoundErr error = &codersdk.Error{
-		Response: codersdk.Response{Message: "Resource not found or you do not have access to this resource"},
-	}
-	return codersdk.Task{}, xerrors.Errorf("task %q not found for owner %q: %w", taskName, owner, notFoundErr)
 }
