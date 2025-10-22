@@ -288,23 +288,23 @@ WHERE
 UPDATE provisioner_jobs
 SET
 	canceled_at = @now::timestamptz,
-    completed_at = @now::timestamptz
+	completed_at = @now::timestamptz
 WHERE id IN (
-    SELECT pj.id
-    FROM provisioner_jobs pj
-    INNER JOIN workspace_builds wb ON wb.job_id = pj.id
-    INNER JOIN workspaces w ON w.id = wb.workspace_id
-    WHERE
-        w.template_id = @template_id
-        AND wb.template_version_id = @template_version_id
+	SELECT pj.id
+	FROM provisioner_jobs pj
+	INNER JOIN workspace_builds wb ON wb.job_id = pj.id
+	INNER JOIN workspaces w ON w.id = wb.workspace_id
+	WHERE
+		w.template_id = @template_id
+		AND wb.template_version_id = @template_version_id
 		-- Prebuilds system user: prebuild-related provisioner jobs
-        AND w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
-        AND wb.transition = 'start'::workspace_transition
-        AND pj.job_status = 'pending'::provisioner_job_status
+		AND w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
+		AND wb.transition = 'start'::workspace_transition
+		AND pj.job_status = 'pending'::provisioner_job_status
 		-- Pending jobs that have not yet been picked up by a provisioner
 		AND pj.worker_id IS NULL
-        AND pj.canceled_at IS NULL
-        AND pj.completed_at IS NULL
+		AND pj.canceled_at IS NULL
+		AND pj.completed_at IS NULL
 )
 RETURNING id;
 
