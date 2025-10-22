@@ -83,25 +83,25 @@ Bridge is compatible with _[Google Vertex AI](https://cloud.google.com/vertex-ai
 
 ## Client Configuration
 
-Once AI Bridge is enabled on the server, users need to configure their AI coding tools to use it. This section explains how to point clients to AI Bridge.
+Once AI Bridge is enabled on the server, your users need to configure their AI coding tools to use it. This section explains how users should configure their clients to connect to AI Bridge.
 
 ### Setting Base URLs
 
-Configure your AI client to point to your Coder deployment's AI Bridge endpoints:
+Configure your AI client to point to your Coder deployment's AI Bridge endpoints. The exact configuration method varies by client—some use environment variables, others use configuration files or UI settings:
 
-- **OpenAI-compatible clients**: Set `OPENAI_BASE_URL` to `https://coder.example.com/api/experimental/aibridge/openai/v1`
-- **Anthropic-compatible clients**: Set `ANTHROPIC_BASE_URL` to `https://coder.example.com/api/experimental/aibridge/anthropic`
+- **OpenAI-compatible clients**: Set the base URL (commonly via the `OPENAI_BASE_URL` environment variable) to `https://coder.example.com/api/experimental/aibridge/openai/v1`
+- **Anthropic-compatible clients**: Set the base URL (commonly via the `ANTHROPIC_BASE_URL` environment variable) to `https://coder.example.com/api/experimental/aibridge/anthropic`
 
 Replace `coder.example.com` with your actual Coder deployment URL.
 
 ### Authentication
 
-Instead of using provider-specific API keys (OpenAI/Anthropic keys), clients authenticate using your **Coder session token** or **API key**:
+Instead of distributing provider-specific API keys (OpenAI/Anthropic keys) to users, they authenticate to AI Bridge using their **Coder session token** or **API key**:
 
-- **OpenAI clients**: Set `OPENAI_API_KEY` to your Coder session token or API key
-- **Anthropic clients**: Set `ANTHROPIC_API_KEY` to your Coder session token or API key
+- **OpenAI clients**: Users set `OPENAI_API_KEY` to their Coder session token or API key
+- **Anthropic clients**: Users set `ANTHROPIC_API_KEY` to their Coder session token or API key
 
-You can generate a Coder API key using:
+Users can generate a Coder API key using:
 
 ```sh
 coder tokens create
