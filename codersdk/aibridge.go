@@ -13,7 +13,7 @@ import (
 
 type AIBridgeInterception struct {
 	ID          uuid.UUID            `json:"id" format:"uuid"`
-	InitiatorID uuid.UUID            `json:"initiator_id" format:"uuid"`
+	Initiator   MinimalUser          `json:"initiator"`
 	Provider    string               `json:"provider"`
 	Model       string               `json:"model"`
 	Metadata    map[string]any       `json:"metadata"`

@@ -10387,9 +10387,8 @@
 					"type": "string",
 					"format": "uuid"
 				},
-				"initiator_id": {
-					"type": "string",
-					"format": "uuid"
+				"initiator": {
+					"$ref": "#/definitions/codersdk.MinimalUser"
 				},
 				"metadata": {
 					"type": "object",
@@ -13490,7 +13489,11 @@
 			"properties": {
 				"icon": {
 					"type": "string",
-					"enum": ["bug", "chat", "docs"]
+					"enum": ["bug", "chat", "docs", "star"]
+				},
+				"location": {
+					"type": "string",
+					"enum": ["navbar", "dropdown"]
 				},
 				"name": {
 					"type": "string"
@@ -13632,6 +13635,9 @@
 				"id": {
 					"type": "string",
 					"format": "uuid"
+				},
+				"name": {
+					"type": "string"
 				},
 				"username": {
 					"type": "string"
@@ -19210,6 +19216,9 @@
 				"id": {
 					"type": "string",
 					"format": "uuid"
+				},
+				"name": {
+					"type": "string"
 				},
 				"role": {
 					"enum": ["admin", "use"],
