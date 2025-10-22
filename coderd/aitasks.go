@@ -593,9 +593,9 @@ func (api *API) tasksList(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Tags Experimental
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
-// @Param id path string true "Task ID" format(uuid)
+// @Param task path string true "Task ID" format(uuid)
 // @Success 200 {object} codersdk.Task
-// @Router /api/experimental/tasks/{user}/{id} [get]
+// @Router /api/experimental/tasks/{user}/{task} [get]
 //
 // EXPERIMENTAL: This endpoint is experimental and not guaranteed to be stable.
 // taskGet is an experimental endpoint to fetch a single AI task by ID
@@ -605,7 +605,7 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 
-	idStr := chi.URLParam(r, "id")
+	idStr := chi.URLParam(r, "task")
 	taskID, err := uuid.Parse(idStr)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -710,9 +710,9 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Tags Experimental
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
-// @Param id path string true "Task ID" format(uuid)
+// @Param task path string true "Task ID" format(uuid)
 // @Success 202 "Task deletion initiated"
-// @Router /api/experimental/tasks/{user}/{id} [delete]
+// @Router /api/experimental/tasks/{user}/{task} [delete]
 //
 // EXPERIMENTAL: This endpoint is experimental and not guaranteed to be stable.
 // taskDelete is an experimental endpoint to delete a task by ID.
@@ -733,7 +733,7 @@ func (api *API) taskDelete(rw http.ResponseWriter, r *http.Request) {
 				return
 			}
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error fetching workspace.",
+				Message: "Internal error fetching task workspace before deleting task.",
 				Detail:  err.Error(),
 			})
 			return
@@ -784,10 +784,10 @@ func (api *API) taskDelete(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Tags Experimental
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
-// @Param id path string true "Task ID" format(uuid)
+// @Param task path string true "Task ID" format(uuid)
 // @Param request body codersdk.TaskSendRequest true "Task input request"
 // @Success 204 "Input sent successfully"
-// @Router /api/experimental/tasks/{user}/{id}/send [post]
+// @Router /api/experimental/tasks/{user}/{task}/send [post]
 //
 // EXPERIMENTAL: This endpoint is experimental and not guaranteed to be stable.
 // taskSend submits task input to the tasks sidebar app by dialing the agent
@@ -796,7 +796,7 @@ func (api *API) taskDelete(rw http.ResponseWriter, r *http.Request) {
 func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	idStr := chi.URLParam(r, "id")
+	idStr := chi.URLParam(r, "task")
 	taskID, err := uuid.Parse(idStr)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -866,9 +866,9 @@ func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Tags Experimental
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
-// @Param id path string true "Task ID" format(uuid)
+// @Param task path string true "Task ID" format(uuid)
 // @Success 200 {object} codersdk.TaskLogsResponse
-// @Router /api/experimental/tasks/{user}/{id}/logs [get]
+// @Router /api/experimental/tasks/{user}/{task}/logs [get]
 //
 // EXPERIMENTAL: This endpoint is experimental and not guaranteed to be stable.
 // taskLogs reads task output by dialing the agent directly over the tailnet.
@@ -876,7 +876,7 @@ func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 func (api *API) taskLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	idStr := chi.URLParam(r, "id")
+	idStr := chi.URLParam(r, "task")
 	taskID, err := uuid.Parse(idStr)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{

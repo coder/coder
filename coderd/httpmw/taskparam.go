@@ -23,12 +23,12 @@ func TaskParam(r *http.Request) database.Task {
 	return task
 }
 
-// ExtractTaskParam grabs a task from the "id" URL parameter by UUID.
+// ExtractTaskParam grabs a task from the "task" URL parameter by UUID.
 func ExtractTaskParam(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
-			taskID, parsed := ParseUUIDParam(rw, r, "id")
+			taskID, parsed := ParseUUIDParam(rw, r, "task")
 			if !parsed {
 				return
 			}

@@ -57,7 +57,7 @@ func TestTaskParam(t *testing.T) {
 		rtr.Use(httpmw.ExtractTaskParam(db))
 		rtr.Get("/", nil)
 		r, _ := setup(db)
-		chi.RouteContext(r.Context()).URLParams.Add("id", uuid.NewString())
+		chi.RouteContext(r.Context()).URLParams.Add("task", uuid.NewString())
 		rw := httptest.NewRecorder()
 		rtr.ServeHTTP(rw, r)
 
@@ -109,7 +109,7 @@ func TestTaskParam(t *testing.T) {
 			WorkspaceID:       uuid.NullUUID{UUID: workspace.ID, Valid: true},
 			Prompt:            "test prompt",
 		})
-		chi.RouteContext(r.Context()).URLParams.Add("id", task.ID.String())
+		chi.RouteContext(r.Context()).URLParams.Add("task", task.ID.String())
 		rw := httptest.NewRecorder()
 		rtr.ServeHTTP(rw, r)
 
