@@ -66,33 +66,77 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 			{isOpen && (
 				<TableRow>
 					<TableCell colSpan={999} className="p-4 border-t-0">
-						<dl
-							className={cn([
-								"text-xs text-content-secondary",
-								"m-0 grid grid-cols-[auto_1fr] gap-x-4 items-center",
-								"[&_dd]:text-content-primary [&_dd]:font-mono [&_dd]:leading-[22px] [&_dt]:font-medium",
-							])}
-						>
-							<dt>Request ID:</dt>
-							<dd data-chromatic="ignore">{interception.id}</dd>
+						<div className="flex flex-col gap-4">
+							<dl
+								className={cn([
+									"text-xs text-content-secondary",
+									"m-0 grid grid-cols-[auto_1fr] gap-x-4 items-center",
+									"[&_dd]:text-content-primary [&_dd]:font-mono [&_dd]:leading-[22px] [&_dt]:font-medium",
+								])}
+							>
+								<dt>Request ID:</dt>
+								<dd data-chromatic="ignore">{interception.id}</dd>
 
-							<dt>Timestamp:</dt>
-							<dd data-chromatic="ignore">
-								{new Date(interception.started_at).toLocaleString()}
-							</dd>
+								<dt>Timestamp:</dt>
+								<dd data-chromatic="ignore">
+									{new Date(interception.started_at).toLocaleString()}
+								</dd>
 
-							<dt>Initiator:</dt>
-							<dd data-chromatic="ignore">{interception.initiator.username}</dd>
+								<dt>Initiator:</dt>
+								<dd data-chromatic="ignore">
+									{interception.initiator.username}
+								</dd>
 
-							<dt>Model:</dt>
-							<dd data-chromatic="ignore">{interception.model}</dd>
+								<dt>Model:</dt>
+								<dd data-chromatic="ignore">{interception.model}</dd>
 
-							<dt>Total Tokens:</dt>
-							<dd data-chromatic="ignore">{tokens}</dd>
+								<dt>Total Tokens:</dt>
+								<dd data-chromatic="ignore">{tokens}</dd>
 
-							<dt>Tool Calls:</dt>
-							<dd data-chromatic="ignore">{interception.tool_usages.length}</dd>
-						</dl>
+								<dt>Tool Calls:</dt>
+								<dd data-chromatic="ignore">
+									{interception.tool_usages.length}
+								</dd>
+							</dl>
+
+							{interception.user_prompts.length > 0 && (
+								<div className="flex flex-col gap-2">
+									<div>Prompts</div>
+									<div
+										className={"bg-surface-secondary rounded-md p-4"}
+										data-chromatic="ignore"
+									>
+										{interception.user_prompts.map((prompt) => prompt.prompt)}
+									</div>
+								</div>
+							)}
+
+							{interception.tool_usages.length > 0 && (
+								<div className="flex flex-col gap-2">
+									<div>Tool Usages</div>
+									<div
+										className={"bg-surface-secondary rounded-md p-4"}
+										data-chromatic="ignore"
+									>
+										{interception.tool_usages.map((toolUsage) => {
+											return (
+												<dl
+													key={toolUsage.id}
+													className={cn([
+														"text-xs text-content-secondary",
+														"m-0 grid grid-cols-[auto_1fr] gap-x-4 items-center",
+														"[&_dt]:text-content-primary [&_dd]:font-mono [&_dt]:leading-[22px] [&_dt]:font-medium",
+													])}
+												>
+													<dt>{toolUsage.tool}</dt>
+													<dd>{toolUsage.input}</dd>
+												</dl>
+											);
+										})}
+									</div>
+								</div>
+							)}
+						</div>
 					</TableCell>
 				</TableRow>
 			)}
