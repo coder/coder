@@ -1531,8 +1531,20 @@ type WorkspaceWriteFileArgs struct {
 
 var WorkspaceWriteFile = Tool[WorkspaceWriteFileArgs, codersdk.Response]{
 	Tool: aisdk.Tool{
-		Name:        ToolNameWorkspaceWriteFile,
-		Description: `Write a file in a workspace.`,
+		Name: ToolNameWorkspaceWriteFile,
+		Description: `Write a file in a workspace.
+
+If a file write fails due to syntax errors or encoding issues, do NOT switch
+to using bash commands as a workaround. Instead:
+
+	1. Read the error message carefully to identify the issue
+	2. Fix the content encoding/syntax
+	3. Retry with this tool
+
+The content parameter expects base64-encoded bytes. Ensure your source content
+is correct before encoding it. If you encounter errors, decode and verify the
+content you are trying to write, then re-encode it properly.
+`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
 				"workspace": map[string]any{
