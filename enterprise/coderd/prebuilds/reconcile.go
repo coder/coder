@@ -645,7 +645,10 @@ func (c *StoreReconciler) executeReconciliationAction(ctx context.Context, logge
 
 	case prebuilds.ActionTypeCancelPending:
 		// Cancel pending prebuild jobs from non-active template versions to avoid
-		// provisioning obsolete workspaces that would immediately be deprovisioned
+		// provisioning obsolete workspaces that would immediately be deprovisioned.
+		// This uses a criteria-based update to ensure only jobs that are still pending
+		// at execution time are canceled, avoiding race conditions where jobs may have
+		// transitioned to running status between query and update.
 		// nolint:gocritic // System operation to cancel obsolete pending prebuild jobs
 		canceledJobs, err := c.store.UpdatePrebuildProvisionerJobWithCancel(
 			dbauthz.AsSystemRestricted(ctx),

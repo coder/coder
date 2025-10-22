@@ -121,7 +121,7 @@ type ReconciliationActions struct {
 }
 
 func (ra *ReconciliationActions) IsNoop() bool {
-	return ra.Create == 0 && len(ra.DeleteIDs) == 0 && ra.BackoffUntil.IsZero()
+	return ra.ActionType != ActionTypeCancelPending && ra.Create == 0 && len(ra.DeleteIDs) == 0 && ra.BackoffUntil.IsZero()
 }
 
 // MatchesCron interprets a cron spec as a continuous time range,

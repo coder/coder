@@ -3745,6 +3745,10 @@ func (s *MethodTestSuite) TestPrebuilds() {
 		dbm.EXPECT().CountInProgressPrebuilds(gomock.Any()).Return([]database.CountInProgressPrebuildsRow{}, nil).AnyTimes()
 		check.Args().Asserts(rbac.ResourceWorkspace.All(), policy.ActionRead)
 	}))
+	s.Run("CountPendingNonActivePrebuilds", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().CountPendingNonActivePrebuilds(gomock.Any()).Return([]database.CountPendingNonActivePrebuildsRow{}, nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceWorkspace.All(), policy.ActionRead)
+	}))
 	s.Run("GetPresetsAtFailureLimit", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().GetPresetsAtFailureLimit(gomock.Any(), int64(0)).Return([]database.GetPresetsAtFailureLimitRow{}, nil).AnyTimes()
 		check.Args(int64(0)).Asserts(rbac.ResourceTemplate.All(), policy.ActionViewInsights)
