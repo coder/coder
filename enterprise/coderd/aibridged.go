@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"slices"
 
 	"golang.org/x/xerrors"
 	"storj.io/drpc/drpcmux"
@@ -16,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
@@ -121,22 +121,9 @@ func (api *API) CreateInMemoryAIBridgeServer(dialCtx context.Context) (client ai
 // @Router /api/experimental/aibridge/log-requests [post]
 func (api *API) aiBridgeSetRequestLogging(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	apiKey := httpmw.APIKey(r)
 
-	// Check if user has owner role.
-	user, err := api.Database.GetUserByID(ctx, apiKey.UserID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get user.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	if !slices.Contains(user.RBACRoles, rbac.RoleOwner().String()) {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Only users with the 'owner' role can toggle request logging.",
-		})
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
 		return
 	}
 
@@ -149,7 +136,7 @@ func (api *API) aiBridgeSetRequestLogging(rw http.ResponseWriter, r *http.Reques
 
 	api.Logger.Info(ctx, "upstream request logging state changed",
 		slog.F("enabled", req.Enabled),
-		slog.F("user_id", apiKey.UserID),
+		slog.F("user_id", httpmw.APIKey(r).UserID),
 	)
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{

@@ -164,7 +164,9 @@ func TestIntegration(t *testing.T) {
 	require.NoError(t, err)
 
 	logger := testutil.Logger(t)
-	providers := []aibridge.Provider{aibridge.NewOpenAIProvider(aibridge.ProviderConfig{BaseURL: mockOpenAI.URL})}
+	openAIProvider, err := aibridge.NewOpenAIProvider(aibridge.NewProviderConfig(mockOpenAI.URL, "", ""))
+	require.NoError(t, err)
+	providers := []aibridge.Provider{openAIProvider}
 	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger)
 	require.NoError(t, err)
 

@@ -4,6 +4,7 @@ package cli
 
 import (
 	"context"
+	"os"
 
 	"golang.org/x/xerrors"
 
@@ -20,18 +21,29 @@ func newAIBridgeDaemon(coderAPI *coderd.API) (*aibridged.Server, error) {
 	logger := coderAPI.Logger.Named("aibridged")
 
 	// Setup supported providers.
-	openAIConfig := &aibridge.ProviderConfig{
-		BaseURL: coderAPI.DeploymentValues.AI.BridgeConfig.OpenAI.BaseURL.String(),
-		Key:     coderAPI.DeploymentValues.AI.BridgeConfig.OpenAI.Key.String(),
+	openAIConfig := aibridge.NewProviderConfig(
+		coderAPI.DeploymentValues.AI.BridgeConfig.OpenAI.BaseURL.String(),
+		coderAPI.DeploymentValues.AI.BridgeConfig.OpenAI.Key.String(),
+		os.TempDir(), // TODO: configurable?
+	)
+	anthropicConfig := aibridge.NewProviderConfig(
+		coderAPI.DeploymentValues.AI.BridgeConfig.Anthropic.BaseURL.String(),
+		coderAPI.DeploymentValues.AI.BridgeConfig.Anthropic.Key.String(),
+		os.TempDir(), // TODO: configurable?
+	)
+
+	openAIProvider, err := aibridge.NewOpenAIProvider(openAIConfig)
+	if err != nil {
+		return nil, xerrors.Errorf("create openai provider: %w", err)
 	}
-	anthropicConfig := &aibridge.ProviderConfig{
-		BaseURL: coderAPI.DeploymentValues.AI.BridgeConfig.Anthropic.BaseURL.String(),
-		Key:     coderAPI.DeploymentValues.AI.BridgeConfig.Anthropic.Key.String(),
+	anthropicProvider, err := aibridge.NewAnthropicProvider(anthropicConfig)
+	if err != nil {
+		return nil, xerrors.Errorf("create anthropic provider: %w", err)
 	}
 
 	providers := []aibridge.Provider{
-		aibridge.NewOpenAIProvider(openAIConfig),
-		aibridge.NewAnthropicProvider(anthropicConfig),
+		openAIProvider,
+		anthropicProvider,
 	}
 
 	// Store provider configs so we can update them when logging is toggled.
