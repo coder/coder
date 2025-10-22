@@ -107,11 +107,13 @@ You can generate a Coder API key using:
 coder tokens create
 ```
 
-### Compatibility Notes
+or in templates using the [`data.coder_workspace_owner.me.session_token`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_owner#session_token-1)
+
+#### Compatibility Notes
 
 Most AI coding assistants that support custom base URLs can work with AI Bridge. However, client-specific configuration requirements vary:
 
-- Some clients require specific URL formats or authentication methods
+- Some clients require specific URL formats
 - Some clients may proxy requests through their own servers, limiting compatibility
 - Some clients may not support custom base URLs at all
 
