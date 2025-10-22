@@ -3269,21 +3269,6 @@ func (mr *MockStoreMockRecorder) GetTemplateByID(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateByID", reflect.TypeOf((*MockStore)(nil).GetTemplateByID), ctx, id)
 }
 
-// GetTemplateByIDWithLock mocks base method.
-func (m *MockStore) GetTemplateByIDWithLock(ctx context.Context, id uuid.UUID) (database.TemplateTable, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTemplateByIDWithLock", ctx, id)
-	ret0, _ := ret[0].(database.TemplateTable)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetTemplateByIDWithLock indicates an expected call of GetTemplateByIDWithLock.
-func (mr *MockStoreMockRecorder) GetTemplateByIDWithLock(ctx, id any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateByIDWithLock", reflect.TypeOf((*MockStore)(nil).GetTemplateByIDWithLock), ctx, id)
-}
-
 // GetTemplateByOrganizationAndName mocks base method.
 func (m *MockStore) GetTemplateByOrganizationAndName(ctx context.Context, arg database.GetTemplateByOrganizationAndNameParams) (database.Template, error) {
 	m.ctrl.T.Helper()

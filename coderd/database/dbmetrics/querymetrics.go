@@ -1545,13 +1545,6 @@ func (m queryMetricsStore) GetTemplateByID(ctx context.Context, id uuid.UUID) (d
 	return template, err
 }
 
-func (m queryMetricsStore) GetTemplateByIDWithLock(ctx context.Context, id uuid.UUID) (database.TemplateTable, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetTemplateByIDWithLock(ctx, id)
-	m.queryLatencies.WithLabelValues("GetTemplateByIDWithLock").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetTemplateByOrganizationAndName(ctx context.Context, arg database.GetTemplateByOrganizationAndNameParams) (database.Template, error) {
 	start := time.Now()
 	template, err := m.s.GetTemplateByOrganizationAndName(ctx, arg)

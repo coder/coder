@@ -1020,11 +1020,6 @@ func (s *MethodTestSuite) TestTemplate() {
 		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()
 		check.Args(t1.ID).Asserts(t1, policy.ActionRead).Returns(t1)
 	}))
-	s.Run("GetTemplateByIDWithLock", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		tt1 := testutil.Fake(s.T(), faker, database.TemplateTable{})
-		dbm.EXPECT().GetTemplateByIDWithLock(gomock.Any(), tt1.ID).Return(tt1, nil).AnyTimes()
-		check.Args(tt1.ID).Asserts(tt1, policy.ActionRead).Returns(tt1)
-	}))
 	s.Run("GetTemplateByOrganizationAndName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		t1 := testutil.Fake(s.T(), faker, database.Template{})
 		arg := database.GetTemplateByOrganizationAndNameParams{Name: t1.Name, OrganizationID: t1.OrganizationID}

@@ -5,14 +5,8 @@ FROM
 	template_with_names
 WHERE
 	id = $1
-LIMIT 1;
-
--- name: GetTemplateByIDWithLock :one
--- Gets a template by ID with an exclusive lock for update.
-SELECT *
-FROM templates
-WHERE id = $1
-FOR UPDATE;
+LIMIT
+	1;
 
 -- name: GetTemplatesWithFilter :many
 SELECT

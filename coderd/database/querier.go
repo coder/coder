@@ -345,8 +345,6 @@ type sqlcQuerier interface {
 	GetTemplateAppInsightsByTemplate(ctx context.Context, arg GetTemplateAppInsightsByTemplateParams) ([]GetTemplateAppInsightsByTemplateRow, error)
 	GetTemplateAverageBuildTime(ctx context.Context, templateID uuid.NullUUID) (GetTemplateAverageBuildTimeRow, error)
 	GetTemplateByID(ctx context.Context, id uuid.UUID) (Template, error)
-	// Gets a template by ID with an exclusive lock for update.
-	GetTemplateByIDWithLock(ctx context.Context, id uuid.UUID) (TemplateTable, error)
 	GetTemplateByOrganizationAndName(ctx context.Context, arg GetTemplateByOrganizationAndNameParams) (Template, error)
 	GetTemplateDAUs(ctx context.Context, arg GetTemplateDAUsParams) ([]GetTemplateDAUsRow, error)
 	// GetTemplateInsights returns the aggregate user-produced usage of all

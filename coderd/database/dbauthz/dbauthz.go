@@ -2942,30 +2942,6 @@ func (q *querier) GetTemplateByID(ctx context.Context, id uuid.UUID) (database.T
 	return fetch(q.log, q.auth, q.db.GetTemplateByID)(ctx, id)
 }
 
-// GetTemplateByIDWithLock acquires an exclusive lock on the template row and returns the template data.
-// This method MUST be called within a transaction, otherwise the lock will be released immediately after
-// acquisition, defeating its purpose.
-func (q *querier) GetTemplateByIDWithLock(ctx context.Context, id uuid.UUID) (database.TemplateTable, error) {
-	act, ok := ActorFromContext(ctx)
-	if !ok {
-		return database.TemplateTable{}, ErrNoActor
-	}
-
-	// Acquire the lock on the templates table
-	templateTable, err := q.db.GetTemplateByIDWithLock(ctx, id)
-	if err != nil {
-		return database.TemplateTable{}, xerrors.Errorf("acquire template lock: %w", err)
-	}
-
-	// Authorize read access to the template
-	err = q.auth.Authorize(ctx, act, policy.ActionRead, templateTable.RBACObject())
-	if err != nil {
-		return database.TemplateTable{}, logNotAuthorizedError(ctx, q.log, err)
-	}
-
-	return templateTable, nil
-}
-
 func (q *querier) GetTemplateByOrganizationAndName(ctx context.Context, arg database.GetTemplateByOrganizationAndNameParams) (database.Template, error) {
 	return fetch(q.log, q.auth, q.db.GetTemplateByOrganizationAndName)(ctx, arg)
 }
