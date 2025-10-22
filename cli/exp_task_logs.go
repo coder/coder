@@ -45,7 +45,7 @@ func (r *RootCmd) taskLogs() *serpent.Command {
 				identifier = inv.Args[0]
 			)
 
-			task, err := resolveTask(ctx, client, identifier)
+			task, err := exp.TaskByIdentifier(ctx, identifier)
 			if err != nil {
 				return xerrors.Errorf("resolve task %q: %w", identifier, err)
 			}

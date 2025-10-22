@@ -1,12 +1,10 @@
-package cli
+package codersdk
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/coder/coder/v2/codersdk"
 )
 
 func Test_splitTaskIdentifier(t *testing.T) {
@@ -22,7 +20,7 @@ func Test_splitTaskIdentifier(t *testing.T) {
 		{
 			name:          "bare task name",
 			identifier:    "mytask",
-			expectedOwner: codersdk.Me,
+			expectedOwner: Me,
 			expectedTask:  "mytask",
 			expectErr:     false,
 		},
