@@ -5,7 +5,6 @@ import {
 	PageHeaderTitle,
 } from "components/PageHeader/PageHeader";
 import type { FC, ReactNode } from "react";
-
 export interface FullPageFormProps {
 	title: string;
 	detail?: ReactNode;

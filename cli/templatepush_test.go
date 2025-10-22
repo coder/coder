@@ -852,54 +852,6 @@ func TestTemplatePush(t *testing.T) {
 			require.Equal(t, "foobar", templateVariables[1].Value)
 		})
 
-		t.Run("VariableIsRequiredButNotProvided", func(t *testing.T) {
-			t.Parallel()
-			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-			owner := coderdtest.CreateFirstUser(t, client)
-			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
-
-			templateVersion := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, createEchoResponsesWithTemplateVariables(initialTemplateVariables))
-			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, templateVersion.ID)
-			template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, templateVersion.ID)
-
-			// Test the cli command.
-			//nolint:gocritic
-			modifiedTemplateVariables := append(initialTemplateVariables,
-				&proto.TemplateVariable{
-					Name:        "second_variable",
-					Description: "This is the second variable.",
-					Type:        "string",
-					Required:    true,
-				},
-			)
-			source := clitest.CreateTemplateVersionSource(t, createEchoResponsesWithTemplateVariables(modifiedTemplateVariables))
-			inv, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example")
-			clitest.SetupConfig(t, templateAdmin, root)
-			pty := ptytest.New(t)
-			inv.Stdin = pty.Input()
-			inv.Stdout = pty.Output()
-
-			execDone := make(chan error)
-			go func() {
-				execDone <- inv.Run()
-			}()
-
-			matches := []struct {
-				match string
-				write string
-			}{
-				{match: "Upload", write: "yes"},
-			}
-			for _, m := range matches {
-				pty.ExpectMatch(m.match)
-				pty.WriteLine(m.write)
-			}
-
-			wantErr := <-execDone
-			require.Error(t, wantErr)
-			require.Contains(t, wantErr.Error(), "required template variables need values")
-		})
-
 		t.Run("VariableIsOptionalButNotProvided", func(t *testing.T) {
 			t.Parallel()
 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
@@ -1114,6 +1066,240 @@ func TestTemplatePush(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, templateVersions, 2)
 			require.Equal(t, "example", templateVersions[1].Name)
+		})
+
+		t.Run("PromptForDifferentRequiredTypes", func(t *testing.T) {
+			t.Parallel()
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			owner := coderdtest.CreateFirstUser(t, client)
+			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+			templateVariables := []*proto.TemplateVariable{
+				{
+					Name:        "string_var",
+					Description: "A string variable",
+					Type:        "string",
+					Required:    true,
+				},
+				{
+					Name:        "number_var",
+					Description: "A number variable",
+					Type:        "number",
+					Required:    true,
+				},
+				{
+					Name:        "bool_var",
+					Description: "A boolean variable",
+					Type:        "bool",
+					Required:    true,
+				},
+				{
+					Name:        "sensitive_var",
+					Description: "A sensitive variable",
+					Type:        "string",
+					Required:    true,
+					Sensitive:   true,
+				},
+			}
+
+			source := clitest.CreateTemplateVersionSource(t, createEchoResponsesWithTemplateVariables(templateVariables))
+			inv, root := clitest.New(t, "templates", "push", "test-template", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho))
+			clitest.SetupConfig(t, templateAdmin, root)
+			pty := ptytest.New(t).Attach(inv)
+
+			execDone := make(chan error)
+			go func() {
+				execDone <- inv.Run()
+			}()
+
+			// Select "Yes" for the "Upload <template_path>" prompt
+			pty.ExpectMatch("Upload")
+			pty.WriteLine("yes")
+
+			pty.ExpectMatch("var.string_var")
+			pty.ExpectMatch("Enter value:")
+			pty.WriteLine("test-string")
+
+			pty.ExpectMatch("var.number_var")
+			pty.ExpectMatch("Enter value:")
+			pty.WriteLine("42")
+
+			// Boolean variable automatically selects the first option ("true")
+			pty.ExpectMatch("var.bool_var")
+
+			pty.ExpectMatch("var.sensitive_var")
+			pty.ExpectMatch("Enter value:")
+			pty.WriteLine("secret-value")
+
+			require.NoError(t, <-execDone)
+		})
+
+		t.Run("ValidateNumberInput", func(t *testing.T) {
+			t.Parallel()
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			owner := coderdtest.CreateFirstUser(t, client)
+			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+			templateVariables := []*proto.TemplateVariable{
+				{
+					Name:        "number_var",
+					Description: "A number that requires validation",
+					Type:        "number",
+					Required:    true,
+				},
+			}
+
+			source := clitest.CreateTemplateVersionSource(t, createEchoResponsesWithTemplateVariables(templateVariables))
+			inv, root := clitest.New(t, "templates", "push", "test-template", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho))
+			clitest.SetupConfig(t, templateAdmin, root)
+			pty := ptytest.New(t).Attach(inv)
+
+			execDone := make(chan error)
+			go func() {
+				execDone <- inv.Run()
+			}()
+
+			// Select "Yes" for the "Upload <template_path>" prompt
+			pty.ExpectMatch("Upload")
+			pty.WriteLine("yes")
+
+			pty.ExpectMatch("var.number_var")
+
+			pty.WriteLine("not-a-number")
+			pty.ExpectMatch("must be a valid number")
+
+			pty.WriteLine("123.45")
+
+			require.NoError(t, <-execDone)
+		})
+
+		t.Run("DontPromptForDefaultValues", func(t *testing.T) {
+			t.Parallel()
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			owner := coderdtest.CreateFirstUser(t, client)
+			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+			templateVariables := []*proto.TemplateVariable{
+				{
+					Name:         "with_default",
+					Type:         "string",
+					Required:     true,
+					DefaultValue: "default-value",
+				},
+				{
+					Name:     "without_default",
+					Type:     "string",
+					Required: true,
+				},
+			}
+
+			source := clitest.CreateTemplateVersionSource(t, createEchoResponsesWithTemplateVariables(templateVariables))
+			inv, root := clitest.New(t, "templates", "push", "test-template", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho))
+			clitest.SetupConfig(t, templateAdmin, root)
+			pty := ptytest.New(t).Attach(inv)
+
+			execDone := make(chan error)
+			go func() {
+				execDone <- inv.Run()
+			}()
+
+			// Select "Yes" for the "Upload <template_path>" prompt
+			pty.ExpectMatch("Upload")
+			pty.WriteLine("yes")
+
+			pty.ExpectMatch("var.without_default")
+			pty.WriteLine("test-value")
+
+			require.NoError(t, <-execDone)
+		})
+
+		t.Run("VariableSourcesPriority", func(t *testing.T) {
+			t.Parallel()
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			owner := coderdtest.CreateFirstUser(t, client)
+			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+			templateVariables := []*proto.TemplateVariable{
+				{
+					Name:        "cli_flag_var",
+					Description: "Variable provided via CLI flag",
+					Type:        "string",
+					Required:    true,
+				},
+				{
+					Name:        "file_var",
+					Description: "Variable provided via file",
+					Type:        "string",
+					Required:    true,
+				},
+				{
+					Name:        "prompt_var",
+					Description: "Variable provided via prompt",
+					Type:        "string",
+					Required:    true,
+				},
+				{
+					Name:        "cli_overrides_file_var",
+					Description: "Variable in both CLI and file",
+					Type:        "string",
+					Required:    true,
+				},
+			}
+
+			source := clitest.CreateTemplateVersionSource(t, createEchoResponsesWithTemplateVariables(templateVariables))
+
+			// Create a temporary variables file.
+			tempDir := t.TempDir()
+			removeTmpDirUntilSuccessAfterTest(t, tempDir)
+			variablesFile, err := os.CreateTemp(tempDir, "variables*.yaml")
+			require.NoError(t, err)
+			_, err = variablesFile.WriteString(`file_var: from-file
+cli_overrides_file_var: from-file`)
+			require.NoError(t, err)
+			require.NoError(t, variablesFile.Close())
+
+			inv, root := clitest.New(t, "templates", "push", "test-template",
+				"--directory", source,
+				"--test.provisioner", string(database.ProvisionerTypeEcho),
+				"--variables-file", variablesFile.Name(),
+				"--variable", "cli_flag_var=from-cli-flag",
+				"--variable", "cli_overrides_file_var=from-cli-override",
+			)
+			clitest.SetupConfig(t, templateAdmin, root)
+			pty := ptytest.New(t).Attach(inv)
+
+			execDone := make(chan error)
+			go func() {
+				execDone <- inv.Run()
+			}()
+
+			// Select "Yes" for the "Upload <template_path>" prompt
+			pty.ExpectMatch("Upload")
+			pty.WriteLine("yes")
+
+			// Only check for prompt_var, other variables should not prompt
+			pty.ExpectMatch("var.prompt_var")
+			pty.ExpectMatch("Enter value:")
+			pty.WriteLine("from-prompt")
+
+			require.NoError(t, <-execDone)
+
+			template, err := client.TemplateByName(context.Background(), owner.OrganizationID, "test-template")
+			require.NoError(t, err)
+
+			templateVersionVars, err := client.TemplateVersionVariables(context.Background(), template.ActiveVersionID)
+			require.NoError(t, err)
+			require.Len(t, templateVersionVars, 4)
+
+			varMap := make(map[string]string)
+			for _, tv := range templateVersionVars {
+				varMap[tv.Name] = tv.Value
+			}
+
+			require.Equal(t, "from-cli-flag", varMap["cli_flag_var"])
+			require.Equal(t, "from-file", varMap["file_var"])
+			require.Equal(t, "from-prompt", varMap["prompt_var"])
+			require.Equal(t, "from-cli-override", varMap["cli_overrides_file_var"])
 		})
 	})
 }

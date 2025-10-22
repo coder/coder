@@ -1051,7 +1051,7 @@ func TestUpdateUserProfile(t *testing.T) {
 		require.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[numLogs-1].Action)
 	})
 
-	t.Run("UpdateSelfAsMember", func(t *testing.T) {
+	t.Run("UpdateSelfAsMember_Name", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
@@ -1060,24 +1060,77 @@ func TestUpdateUserProfile(t *testing.T) {
 		firstUser := coderdtest.CreateFirstUser(t, client)
 		numLogs++ // add an audit log for login
 
-		memberClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		memberClient, memberUser := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		numLogs++ // add an audit log for user creation
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		newName := coderdtest.RandomName(t)
+		userProfile, err := memberClient.UpdateUserProfile(ctx, codersdk.Me, codersdk.UpdateUserProfileRequest{
+			Name:     newName,
+			Username: memberUser.Username,
+		})
+		numLogs++ // add an audit log for user update
+		numLogs++ // add an audit log for API key creation
+
+		require.NoError(t, err)
+		require.Equal(t, memberUser.Username, userProfile.Username)
+		require.Equal(t, newName, userProfile.Name)
+
+		require.Len(t, auditor.AuditLogs(), numLogs)
+		require.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[numLogs-1].Action)
+	})
+
+	t.Run("UpdateSelfAsMember_Username", func(t *testing.T) {
+		t.Parallel()
+		auditor := audit.NewMock()
+		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
+
+		firstUser := coderdtest.CreateFirstUser(t, client)
+		memberClient, memberUser := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		newUsername := coderdtest.RandomUsername(t)
+		_, err := memberClient.UpdateUserProfile(ctx, codersdk.Me, codersdk.UpdateUserProfileRequest{
+			Name:     memberUser.Name,
+			Username: newUsername,
+		})
+
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+	})
+
+	t.Run("UpdateMemberAsAdmin_Username", func(t *testing.T) {
+		t.Parallel()
+		auditor := audit.NewMock()
+		adminClient := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
+		numLogs := len(auditor.AuditLogs())
+
+		adminUser := coderdtest.CreateFirstUser(t, adminClient)
+		numLogs++ // add an audit log for login
+
+		_, memberUser := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
 		numLogs++ // add an audit log for user creation
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
 		newUsername := coderdtest.RandomUsername(t)
-		newName := coderdtest.RandomName(t)
-		userProfile, err := memberClient.UpdateUserProfile(ctx, codersdk.Me, codersdk.UpdateUserProfileRequest{
+		userProfile, err := adminClient.UpdateUserProfile(ctx, codersdk.Me, codersdk.UpdateUserProfileRequest{
+			Name:     memberUser.Name,
 			Username: newUsername,
-			Name:     newName,
 		})
+
 		numLogs++ // add an audit log for user update
 		numLogs++ // add an audit log for API key creation
 
 		require.NoError(t, err)
 		require.Equal(t, newUsername, userProfile.Username)
-		require.Equal(t, newName, userProfile.Name)
+		require.Equal(t, memberUser.Name, userProfile.Name)
 
 		require.Len(t, auditor.AuditLogs(), numLogs)
 		require.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[numLogs-1].Action)

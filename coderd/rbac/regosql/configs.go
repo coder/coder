@@ -54,7 +54,7 @@ func AuditLogConverter() *sqltypes.VariableConverter {
 	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
 		resourceIDMatcher(),
 		sqltypes.StringVarMatcher("COALESCE(audit_logs.organization_id :: text, '')", []string{"input", "object", "org_owner"}),
-		// Aduit logs have no user owner, only owner by an organization.
+		// Audit logs have no user owner, only owner by an organization.
 		sqltypes.AlwaysFalse(userOwnerMatcher()),
 	)
 	matcher.RegisterMatcher(
@@ -72,6 +72,21 @@ func ConnectionLogConverter() *sqltypes.VariableConverter {
 		sqltypes.AlwaysFalse(userOwnerMatcher()),
 	)
 	matcher.RegisterMatcher(
+		sqltypes.AlwaysFalse(groupACLMatcher(matcher)),
+		sqltypes.AlwaysFalse(userACLMatcher(matcher)),
+	)
+	return matcher
+}
+
+func AIBridgeInterceptionConverter() *sqltypes.VariableConverter {
+	matcher := sqltypes.NewVariableConverter().RegisterMatcher(
+		resourceIDMatcher(),
+		// AIBridge interceptions are not tied to any organization.
+		sqltypes.StringVarMatcher("''", []string{"input", "object", "org_owner"}),
+		sqltypes.StringVarMatcher("initiator_id :: text", []string{"input", "object", "owner"}),
+	)
+	matcher.RegisterMatcher(
+		// No ACLs on the aibridge interception type
 		sqltypes.AlwaysFalse(groupACLMatcher(matcher)),
 		sqltypes.AlwaysFalse(userACLMatcher(matcher)),
 	)

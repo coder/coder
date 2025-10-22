@@ -90,6 +90,7 @@ const (
 	// enterprise/coderd/license/license.go for the license format.
 	FeatureManagedAgentLimit      FeatureName = "managed_agent_limit"
 	FeatureWorkspaceExternalAgent FeatureName = "workspace_external_agent"
+	FeatureAIBridge               FeatureName = "aibridge"
 )
 
 var (
@@ -117,6 +118,7 @@ var (
 		FeatureWorkspacePrebuilds,
 		FeatureManagedAgentLimit,
 		FeatureWorkspaceExternalAgent,
+		FeatureAIBridge,
 	}
 
 	// FeatureNamesMap is a map of all feature names for quick lookups.
@@ -136,6 +138,8 @@ func (n FeatureName) Humanize() string {
 		return "Template RBAC"
 	case FeatureSCIM:
 		return "SCIM"
+	case FeatureAIBridge:
+		return "AI Bridge"
 	default:
 		return strings.Title(strings.ReplaceAll(string(n), "_", " "))
 	}
@@ -483,6 +487,7 @@ type DeploymentValues struct {
 	Sessions                        SessionLifetime                      `json:"session_lifetime,omitempty" typescript:",notnull"`
 	DisablePasswordAuth             serpent.Bool                         `json:"disable_password_auth,omitempty" typescript:",notnull"`
 	Support                         SupportConfig                        `json:"support,omitempty" typescript:",notnull"`
+	EnableAuthzRecording            serpent.Bool                         `json:"enable_authz_recording,omitempty" typescript:",notnull"`
 	ExternalAuthConfigs             serpent.Struct[[]ExternalAuthConfig] `json:"external_auth,omitempty" typescript:",notnull"`
 	SSHConfig                       SSHConfig                            `json:"config_ssh,omitempty" typescript:",notnull"`
 	WgtunnelHost                    serpent.String                       `json:"wgtunnel_host,omitempty" typescript:",notnull"`
@@ -3288,6 +3293,19 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "key",
 			Hidden:      true,
+		},
+		{
+			Name: "Enable Authorization Recordings",
+			Description: "All api requests will have a header including all authorization calls made during the request. " +
+				"This is used for debugging purposes and only available for dev builds.",
+			Required: false,
+			Flag:     "enable-authz-recordings",
+			Env:      "CODER_ENABLE_AUTHZ_RECORDINGS",
+			Default:  "false",
+			Value:    &c.EnableAuthzRecording,
+			// Do not show this option ever. It is a developer tool only, and not to be
+			// used externally.
+			Hidden: true,
 		},
 	}
 

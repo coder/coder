@@ -1,6 +1,5 @@
 import { templateExamples } from "api/queries/templates";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { useParams } from "react-router";
 import { pageTitle } from "utils/page";
@@ -15,9 +14,7 @@ const StarterTemplatePage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle(starterTemplate?.name ?? exampleId)}</title>
-			</Helmet>
+			<title>{pageTitle(starterTemplate?.name ?? exampleId)}</title>
 
 			<StarterTemplatePageView
 				starterTemplate={starterTemplate}

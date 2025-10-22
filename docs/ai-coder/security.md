@@ -19,16 +19,10 @@ not access or upload sensitive information.
 
 Many agents require API keys to access external services. It is recommended to
 create a separate API key for your agent with the minimum permissions required.
-This will likely involve editing your template for Agents to set different scopes or tokens
-from the standard one.
+This will likely involve editing your template for Agents to set different scopes or tokens from the standard one.
 
 Additional guidance and tooling is coming in future releases of Coder.
 
-## Set Up Agent Boundaries (Premium)
+## Set Up Agent Boundaries
 
-Agent Boundaries add an additional layer and isolation of security between the
-agent and the rest of the environment inside of your Coder workspace, allowing
-humans to have more privileges and access compared to agents inside the same
-workspace.
-
-- [Contact us for more information](https://coder.com/contact) and for early access to agent boundaries
+Agent Boundaries are process-level "agent firewalls" that lets you restrict and audit what AI agents can access within Coder workspaces. To learn more about this feature, see [Agent Boundary](./agent-boundary.md).

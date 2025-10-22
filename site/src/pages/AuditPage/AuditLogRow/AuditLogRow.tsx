@@ -1,13 +1,13 @@
 import type { CSSObject, Interpolation, Theme } from "@emotion/react";
 import Collapse from "@mui/material/Collapse";
 import Link from "@mui/material/Link";
-import TableCell from "@mui/material/TableCell";
 import Tooltip from "@mui/material/Tooltip";
 import type { AuditLog, BuildReason } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Stack } from "components/Stack/Stack";
 import { StatusPill } from "components/StatusPill/StatusPill";
+import { TableCell } from "components/Table/Table";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
 import { InfoIcon, NetworkIcon } from "lucide-react";
 import { type FC, useState } from "react";

@@ -2850,6 +2850,8 @@ func TestCompleteJob(t *testing.T) {
 				seedFunc         func(context.Context, testing.TB, database.Store) error // If you need to insert other resources
 				transition       database.WorkspaceTransition
 				input            *proto.CompletedJob_WorkspaceBuild
+				isTask           bool
+				expectTaskStatus database.TaskStatus
 				expectHasAiTask  bool
 				expectUsageEvent bool
 			}
@@ -2862,6 +2864,7 @@ func TestCompleteJob(t *testing.T) {
 					input:      &proto.CompletedJob_WorkspaceBuild{
 						// No AiTasks defined.
 					},
+					isTask:           false,
 					expectHasAiTask:  false,
 					expectUsageEvent: false,
 				},
@@ -2894,6 +2897,8 @@ func TestCompleteJob(t *testing.T) {
 							},
 						},
 					},
+					isTask:           true,
+					expectTaskStatus: database.TaskStatusInitializing,
 					expectHasAiTask:  true,
 					expectUsageEvent: true,
 				},
@@ -2912,6 +2917,8 @@ func TestCompleteJob(t *testing.T) {
 							},
 						},
 					},
+					isTask:           true,
+					expectTaskStatus: database.TaskStatusInitializing,
 					expectHasAiTask:  false,
 					expectUsageEvent: false,
 				},
@@ -2944,6 +2951,8 @@ func TestCompleteJob(t *testing.T) {
 							},
 						},
 					},
+					isTask:           true,
+					expectTaskStatus: database.TaskStatusPaused,
 					expectHasAiTask:  true,
 					expectUsageEvent: false,
 				},
@@ -2955,6 +2964,8 @@ func TestCompleteJob(t *testing.T) {
 						AiTasks:   []*sdkproto.AITask{},
 						Resources: []*sdkproto.Resource{},
 					},
+					isTask:           true,
+					expectTaskStatus: database.TaskStatusPaused,
 					expectHasAiTask:  true,
 					expectUsageEvent: false,
 				},
@@ -2992,6 +3003,15 @@ func TestCompleteJob(t *testing.T) {
 						OwnerID:        user.ID,
 						OrganizationID: pd.OrganizationID,
 					})
+					var genTask database.Task
+					if tc.isTask {
+						genTask = dbgen.Task(t, db, database.TaskTable{
+							OwnerID:           user.ID,
+							OrganizationID:    pd.OrganizationID,
+							WorkspaceID:       uuid.NullUUID{UUID: workspaceTable.ID, Valid: true},
+							TemplateVersionID: version.ID,
+						})
+					}
 
 					ctx := testutil.Context(t, testutil.WaitShort)
 					if tc.seedFunc != nil {
@@ -3059,6 +3079,12 @@ func TestCompleteJob(t *testing.T) {
 					require.NoError(t, err)
 					require.True(t, build.HasAITask.Valid) // We ALWAYS expect a value to be set, therefore not nil, i.e. valid = true.
 					require.Equal(t, tc.expectHasAiTask, build.HasAITask.Bool)
+
+					if tc.isTask {
+						task, err := db.GetTaskByID(ctx, genTask.ID)
+						require.NoError(t, err)
+						require.Equal(t, tc.expectTaskStatus, task.Status)
+					}
 
 					if tc.expectHasAiTask && build.Transition != database.WorkspaceTransitionStop {
 						require.Equal(t, sidebarAppID, build.AITaskSidebarAppID.UUID.String())

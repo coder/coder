@@ -1,4 +1,3 @@
-import ArrowDownwardOutlined from "@mui/icons-material/ArrowDownwardOutlined";
 import { infiniteWorkspaceBuilds } from "api/queries/workspaceBuilds";
 import type { Workspace } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
@@ -10,6 +9,7 @@ import {
 } from "components/FullPageLayout/Sidebar";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { Spinner } from "components/Spinner/Spinner";
+import { ArrowDownIcon } from "lucide-react";
 import {
 	WorkspaceBuildData,
 	WorkspaceBuildDataSkeleton,
@@ -57,7 +57,7 @@ export const HistorySidebar: FC<HistorySidebarProps> = ({ workspace }) => {
 								className="w-full"
 							>
 								<Spinner loading={buildsQuery.isFetchingNextPage}>
-									<ArrowDownwardOutlined />
+									<ArrowDownIcon />
 								</Spinner>
 								Show more builds
 							</Button>

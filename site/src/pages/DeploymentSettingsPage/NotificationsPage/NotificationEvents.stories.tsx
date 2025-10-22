@@ -1,4 +1,4 @@
-import { MockNotificationTemplates } from "testHelpers/entities";
+import { MockSystemNotificationTemplates } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
 import { selectTemplatesByGroup } from "api/queries/notifications";
@@ -13,7 +13,7 @@ const meta: Meta<typeof NotificationEvents> = {
 	args: {
 		defaultMethod: "smtp",
 		availableMethods: ["smtp", "webhook"],
-		templatesByGroup: selectTemplatesByGroup(MockNotificationTemplates),
+		templatesByGroup: selectTemplatesByGroup(MockSystemNotificationTemplates),
 		deploymentConfig: baseMeta.parameters.deploymentValues,
 	},
 	...baseMeta,
@@ -60,7 +60,7 @@ export const Toggle: Story = {
 		spyOn(API, "updateNotificationTemplateMethod").mockResolvedValue();
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
-		const tmpl = MockNotificationTemplates[4];
+		const tmpl = MockSystemNotificationTemplates[4];
 		const option = await canvas.findByText(tmpl.name);
 		const li = option.closest("li");
 		if (!li) {
@@ -79,7 +79,7 @@ export const ToggleError: Story = {
 		spyOn(API, "updateNotificationTemplateMethod").mockRejectedValue({});
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
-		const tmpl = MockNotificationTemplates[4];
+		const tmpl = MockSystemNotificationTemplates[4];
 		const option = await canvas.findByText(tmpl.name);
 		const li = option.closest("li");
 		if (!li) {

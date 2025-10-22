@@ -95,6 +95,7 @@ func (r *RootCmd) list() *serpent.Command {
 			),
 			cliui.JSONFormat(),
 		)
+		sharedWithMe bool
 	)
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
@@ -104,13 +105,36 @@ func (r *RootCmd) list() *serpent.Command {
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
 		),
+		Options: serpent.OptionSet{
+			{
+				Name:        "shared-with-me",
+				Description: "Show workspaces shared with you.",
+				Flag:        "shared-with-me",
+				Value:       serpent.BoolOf(&sharedWithMe),
+				Hidden:      true,
+			},
+		},
 		Handler: func(inv *serpent.Invocation) error {
 			client, err := r.InitClient(inv)
 			if err != nil {
 				return err
 			}
 
-			res, err := QueryConvertWorkspaces(inv.Context(), client, filter.Filter(), WorkspaceListRowFromWorkspace)
+			workspaceFilter := filter.Filter()
+			if sharedWithMe {
+				user, err := client.User(inv.Context(), codersdk.Me)
+				if err != nil {
+					return xerrors.Errorf("fetch current user: %w", err)
+				}
+				workspaceFilter.SharedWithUser = user.ID.String()
+
+				// Unset the default query that conflicts with the --shared-with-me flag
+				if workspaceFilter.FilterQuery == "owner:me" {
+					workspaceFilter.FilterQuery = ""
+				}
+			}
+
+			res, err := QueryConvertWorkspaces(inv.Context(), client, workspaceFilter, WorkspaceListRowFromWorkspace)
 			if err != nil {
 				return err
 			}

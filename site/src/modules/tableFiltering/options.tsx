@@ -19,7 +19,6 @@ import {
 	SelectFilterSearch,
 } from "components/Filter/SelectFilter";
 import type { FC } from "react";
-
 // Organization helpers ////////////////////////////////////////////////////////
 
 export const useOrganizationsFilterMenu = ({

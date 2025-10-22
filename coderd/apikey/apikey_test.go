@@ -35,7 +35,7 @@ func TestGenerate(t *testing.T) {
 				LifetimeSeconds: int64(time.Hour.Seconds()),
 				TokenName:       "hello",
 				RemoteAddr:      "1.2.3.4",
-				Scope:           database.APIKeyScopeApplicationConnect,
+				Scope:           database.ApiKeyScopeCoderApplicationConnect,
 			},
 		},
 		{
@@ -62,7 +62,7 @@ func TestGenerate(t *testing.T) {
 				ExpiresAt:       time.Time{},
 				TokenName:       "hello",
 				RemoteAddr:      "1.2.3.4",
-				Scope:           database.APIKeyScopeApplicationConnect,
+				Scope:           database.ApiKeyScopeCoderApplicationConnect,
 			},
 		},
 		{
@@ -75,7 +75,7 @@ func TestGenerate(t *testing.T) {
 				ExpiresAt:       time.Time{},
 				TokenName:       "hello",
 				RemoteAddr:      "1.2.3.4",
-				Scope:           database.APIKeyScopeApplicationConnect,
+				Scope:           database.ApiKeyScopeCoderApplicationConnect,
 			},
 		},
 		{
@@ -88,7 +88,7 @@ func TestGenerate(t *testing.T) {
 				LifetimeSeconds: int64(time.Hour.Seconds()),
 				TokenName:       "hello",
 				RemoteAddr:      "",
-				Scope:           database.APIKeyScopeApplicationConnect,
+				Scope:           database.ApiKeyScopeCoderApplicationConnect,
 			},
 		},
 		{
@@ -161,7 +161,7 @@ func TestGenerate(t *testing.T) {
 			if tc.params.Scope != "" {
 				assert.True(t, key.Scopes.Has(tc.params.Scope))
 			} else {
-				assert.True(t, key.Scopes.Has(database.APIKeyScopeAll))
+				assert.True(t, key.Scopes.Has(database.ApiKeyScopeCoderAll))
 			}
 
 			if tc.params.TokenName != "" {

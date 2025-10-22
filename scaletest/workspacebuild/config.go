@@ -19,6 +19,9 @@ type Config struct {
 	// NoWaitForAgents determines whether the test should wait for the workspace
 	// agents to connect before returning.
 	NoWaitForAgents bool `json:"no_wait_for_agents"`
+	// NoWaitForBuild determines whether the test should wait for the workspace
+	// build to complete before returning.
+	NoWaitForBuild bool `json:"no_wait_for_build"`
 	// Retry determines how many times to retry starting a workspace build if it
 	// fails.
 	Retry int `json:"retry"`

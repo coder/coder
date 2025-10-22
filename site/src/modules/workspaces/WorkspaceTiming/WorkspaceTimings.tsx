@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import Button from "@mui/material/Button";
 import Collapse from "@mui/material/Collapse";
 import Skeleton from "@mui/material/Skeleton";
 import type {
@@ -7,6 +6,7 @@ import type {
 	AgentScriptTiming,
 	ProvisionerTiming,
 } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import sortBy from "lodash/sortBy";
 import uniqBy from "lodash/uniqBy";
 import { ChevronDownIcon, ChevronUpIcon } from "lucide-react";
@@ -96,7 +96,7 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 		<div css={styles.collapse}>
 			<Button
 				disabled={isLoading}
-				variant="text"
+				variant="subtle"
 				css={styles.collapseTrigger}
 				onClick={() => setIsOpen((o) => !o)}
 			>

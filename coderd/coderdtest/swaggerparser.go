@@ -160,8 +160,9 @@ func VerifySwaggerDefinitions(t *testing.T, router chi.Router, swaggerComments [
 		t.Run(method+" "+route, func(t *testing.T) {
 			t.Parallel()
 
-			// This route is for compatibility purposes and is not documented.
-			if route == "/workspaceagents/me/metadata" {
+			// Wildcard routes break the swaggo parser, so we do not document
+			// them.
+			if strings.HasSuffix(route, "/*") {
 				return
 			}
 
@@ -308,6 +309,7 @@ func assertSecurityDefined(t *testing.T, comment SwaggerComment) {
 	if comment.router == "/updatecheck" ||
 		comment.router == "/buildinfo" ||
 		comment.router == "/" ||
+		comment.router == "/auth/scopes" ||
 		comment.router == "/users/login" ||
 		comment.router == "/users/otp/request" ||
 		comment.router == "/users/otp/change-password" ||

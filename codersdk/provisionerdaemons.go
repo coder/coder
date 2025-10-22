@@ -175,6 +175,12 @@ func JobIsMissingParameterErrorCode(code JobErrorCode) bool {
 	return string(code) == runner.MissingParameterErrorCode
 }
 
+// JobIsMissingRequiredTemplateVariableErrorCode returns whether the error is a missing a required template
+// variable error. This can indicate to consumers that they need to provide required template variables.
+func JobIsMissingRequiredTemplateVariableErrorCode(code JobErrorCode) bool {
+	return string(code) == runner.RequiredTemplateVariablesErrorCode
+}
+
 // ProvisionerJob describes the job executed by the provisioning daemon.
 type ProvisionerJob struct {
 	ID               uuid.UUID              `json:"id" format:"uuid" table:"id"`
@@ -192,6 +198,7 @@ type ProvisionerJob struct {
 	QueuePosition    int                    `json:"queue_position" table:"queue position"`
 	QueueSize        int                    `json:"queue_size" table:"queue size"`
 	OrganizationID   uuid.UUID              `json:"organization_id" format:"uuid" table:"organization id"`
+	InitiatorID      uuid.UUID              `json:"initiator_id" format:"uuid" table:"initiator id"`
 	Input            ProvisionerJobInput    `json:"input" table:"input,recursive_inline"`
 	Type             ProvisionerJobType     `json:"type" table:"type"`
 	AvailableWorkers []uuid.UUID            `json:"available_workers,omitempty" format:"uuid" table:"available workers"`

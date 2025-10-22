@@ -20,6 +20,9 @@ type DynamicParameterTemplateParams struct {
 	Plan           json.RawMessage
 	ModulesArchive []byte
 
+	// ExtraFiles are additional files to include in the template, beyond the MainTF.
+	ExtraFiles map[string][]byte
+
 	// Uses a zip archive instead of a tar
 	Zip bool
 
@@ -36,9 +39,17 @@ type DynamicParameterTemplateParams struct {
 func DynamicParameterTemplate(t *testing.T, client *codersdk.Client, org uuid.UUID, args DynamicParameterTemplateParams) (codersdk.Template, codersdk.TemplateVersion) {
 	t.Helper()
 
-	files := echo.WithExtraFiles(map[string][]byte{
+	// Start with main.tf
+	extraFiles := map[string][]byte{
 		"main.tf": []byte(args.MainTF),
-	})
+	}
+
+	// Add any additional files
+	for name, content := range args.ExtraFiles {
+		extraFiles[name] = content
+	}
+
+	files := echo.WithExtraFiles(extraFiles)
 	files.ProvisionPlan = []*proto.Response{{
 		Type: &proto.Response_Plan{
 			Plan: &proto.PlanComplete{

@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -172,8 +173,10 @@ func addUser(t *testing.T, db database.Store, roles ...string) (database.User, s
 		LastUsed:     dbtime.Now(),
 		ExpiresAt:    dbtime.Now().Add(time.Minute),
 		LoginType:    database.LoginTypePassword,
-		Scopes:       database.APIKeyScopes{database.APIKeyScopeAll},
-		AllowList:    database.AllowList{database.AllowListWildcard()},
+		Scopes:       database.APIKeyScopes{database.ApiKeyScopeCoderAll},
+		AllowList: database.AllowList{
+			{Type: policy.WildcardSymbol, ID: policy.WildcardSymbol},
+		},
 		IPAddress: pqtype.Inet{
 			IPNet: net.IPNet{
 				IP:   net.ParseIP("0.0.0.0"),

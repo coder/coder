@@ -13,11 +13,13 @@ export const SelectGroup = SelectPrimitive.Group;
 
 export const SelectValue = SelectPrimitive.Value;
 
+export type SelectTriggerProps = React.ComponentPropsWithoutRef<
+	typeof SelectPrimitive.Trigger
+>;
+
 export const SelectTrigger = React.forwardRef<
 	React.ElementRef<typeof SelectPrimitive.Trigger>,
-	React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger> & {
-		id?: string;
-	}
+	SelectTriggerProps
 >(({ className, children, id, ...props }, ref) => (
 	<SelectPrimitive.Trigger
 		ref={ref}

@@ -9,7 +9,6 @@ import {
 import { DecoratorHelpers } from "@storybook/addon-themes";
 import isChromatic from "chromatic/isChromatic";
 import { StrictMode } from "react";
-import { HelmetProvider } from "react-helmet-async";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { withRouter } from "storybook-addon-remix-react-router";
 import "theme/globalFonts";
@@ -62,14 +61,6 @@ export const parameters: Parameters = {
 	},
 };
 
-const withHelmet: Decorator = (Story) => {
-	return (
-		<HelmetProvider>
-			<Story />
-		</HelmetProvider>
-	);
-};
-
 const withQuery: Decorator = (Story, { parameters }) => {
 	const queryClient = new QueryClient({
 		defaultOptions: {
@@ -118,12 +109,7 @@ const withTheme: Decorator = (Story, context) => {
 	);
 };
 
-export const decorators: Decorator[] = [
-	withRouter,
-	withQuery,
-	withHelmet,
-	withTheme,
-];
+export const decorators: Decorator[] = [withRouter, withQuery, withTheme];
 
 // Try to fix storybook rendering fonts inconsistently
 // https://www.chromatic.com/docs/font-loading/#solution-c-check-fonts-have-loaded-in-a-loader

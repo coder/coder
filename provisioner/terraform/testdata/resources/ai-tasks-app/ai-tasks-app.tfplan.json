@@ -1,0 +1,187 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.13.0",
+  "planned_values": {
+    "root_module": {
+      "resources": [
+        {
+          "address": "coder_ai_task.a[0]",
+          "mode": "managed",
+          "type": "coder_ai_task",
+          "name": "a",
+          "index": 0,
+          "provider_name": "registry.terraform.io/coder/coder",
+          "schema_version": 1,
+          "values": {
+            "app_id": "5ece4674-dd35-4f16-88c8-82e40e72e2fd",
+            "sidebar_app": []
+          },
+          "sensitive_values": {
+            "sidebar_app": []
+          }
+        }
+      ]
+    }
+  },
+  "resource_changes": [
+    {
+      "address": "coder_ai_task.a[0]",
+      "mode": "managed",
+      "type": "coder_ai_task",
+      "name": "a",
+      "index": 0,
+      "provider_name": "registry.terraform.io/coder/coder",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "app_id": "5ece4674-dd35-4f16-88c8-82e40e72e2fd",
+          "sidebar_app": []
+        },
+        "after_unknown": {
+          "id": true,
+          "prompt": true,
+          "sidebar_app": []
+        },
+        "before_sensitive": false,
+        "after_sensitive": {
+          "sidebar_app": []
+        }
+      }
+    }
+  ],
+  "prior_state": {
+    "format_version": "1.0",
+    "terraform_version": "1.13.0",
+    "values": {
+      "root_module": {
+        "resources": [
+          {
+            "address": "data.coder_provisioner.me",
+            "mode": "data",
+            "type": "coder_provisioner",
+            "name": "me",
+            "provider_name": "registry.terraform.io/coder/coder",
+            "schema_version": 1,
+            "values": {
+              "arch": "amd64",
+              "id": "6e0bee77-2319-4094-a29e-6d14412399d2",
+              "os": "linux"
+            },
+            "sensitive_values": {}
+          },
+          {
+            "address": "data.coder_workspace.me",
+            "mode": "data",
+            "type": "coder_workspace",
+            "name": "me",
+            "provider_name": "registry.terraform.io/coder/coder",
+            "schema_version": 1,
+            "values": {
+              "access_port": 443,
+              "access_url": "https://dev.coder.com/",
+              "id": "5c06d6ea-101b-4069-8d14-7179df66ebcc",
+              "is_prebuild": false,
+              "is_prebuild_claim": false,
+              "name": "coder",
+              "prebuild_count": 0,
+              "start_count": 1,
+              "template_id": "",
+              "template_name": "",
+              "template_version": "",
+              "transition": "start"
+            },
+            "sensitive_values": {}
+          },
+          {
+            "address": "data.coder_workspace_owner.me",
+            "mode": "data",
+            "type": "coder_workspace_owner",
+            "name": "me",
+            "provider_name": "registry.terraform.io/coder/coder",
+            "schema_version": 0,
+            "values": {
+              "email": "default@example.com",
+              "full_name": "coder",
+              "groups": [],
+              "id": "8796d8d7-88f1-445a-bea7-65f5cf530b95",
+              "login_type": null,
+              "name": "default",
+              "oidc_access_token": "",
+              "rbac_roles": [],
+              "session_token": "",
+              "ssh_private_key": "",
+              "ssh_public_key": ""
+            },
+            "sensitive_values": {
+              "groups": [],
+              "oidc_access_token": true,
+              "rbac_roles": [],
+              "session_token": true,
+              "ssh_private_key": true
+            }
+          }
+        ]
+      }
+    }
+  },
+  "configuration": {
+    "provider_config": {
+      "coder": {
+        "name": "coder",
+        "full_name": "registry.terraform.io/coder/coder",
+        "version_constraint": ">= 2.0.0"
+      }
+    },
+    "root_module": {
+      "resources": [
+        {
+          "address": "coder_ai_task.a",
+          "mode": "managed",
+          "type": "coder_ai_task",
+          "name": "a",
+          "provider_config_key": "coder",
+          "expressions": {
+            "app_id": {
+              "constant_value": "5ece4674-dd35-4f16-88c8-82e40e72e2fd"
+            }
+          },
+          "schema_version": 1,
+          "count_expression": {
+            "constant_value": 1
+          }
+        },
+        {
+          "address": "data.coder_provisioner.me",
+          "mode": "data",
+          "type": "coder_provisioner",
+          "name": "me",
+          "provider_config_key": "coder",
+          "schema_version": 1
+        },
+        {
+          "address": "data.coder_workspace.me",
+          "mode": "data",
+          "type": "coder_workspace",
+          "name": "me",
+          "provider_config_key": "coder",
+          "schema_version": 1
+        },
+        {
+          "address": "data.coder_workspace_owner.me",
+          "mode": "data",
+          "type": "coder_workspace_owner",
+          "name": "me",
+          "provider_config_key": "coder",
+          "schema_version": 0
+        }
+      ]
+    }
+  },
+  "timestamp": "2025-10-09T14:27:27Z",
+  "applyable": true,
+  "complete": true,
+  "errored": false
+}

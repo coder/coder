@@ -42,13 +42,20 @@ func TestGeneration(t *testing.T) {
 			err = gen.IncludeGenerate("./" + dir)
 			require.NoError(t, err)
 
+			// Include minimal references needed for tests that use external types.
+			for pkg, prefix := range map[string]string{
+				"github.com/google/uuid": "",
+			} {
+				require.NoError(t, gen.IncludeReference(pkg, prefix))
+			}
+
 			err = TypeMappings(gen)
 			require.NoError(t, err)
 
 			ts, err := gen.ToTypescript()
 			require.NoError(t, err)
 
-			TsMutations(ts)
+			TSMutations(ts)
 
 			output, err := ts.Serialize()
 			require.NoError(t, err)

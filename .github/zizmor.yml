@@ -1,0 +1,4 @@
+rules:
+  cache-poisoning:
+    ignore:
+      - "ci.yaml:184"

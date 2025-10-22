@@ -15,6 +15,7 @@
     "queue_position": 0,
     "queue_size": 0,
     "organization_id": "===========[first org ID]===========",
+    "initiator_id": "==========[first user ID]===========",
     "input": {
       "template_version_id": "============[version ID]============"
     },
@@ -45,6 +46,7 @@
     "queue_position": 0,
     "queue_size": 0,
     "organization_id": "===========[first org ID]===========",
+    "initiator_id": "==========[first user ID]===========",
     "input": {
       "workspace_build_id": "========[workspace build ID]========"
     },

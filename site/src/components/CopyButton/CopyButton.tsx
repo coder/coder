@@ -19,9 +19,7 @@ export const CopyButton: FC<CopyButtonProps> = ({
 	label,
 	...buttonProps
 }) => {
-	const { showCopiedSuccess, copyToClipboard } = useClipboard({
-		textToCopy: text,
-	});
+	const { showCopiedSuccess, copyToClipboard } = useClipboard();
 
 	return (
 		<TooltipProvider>
@@ -30,7 +28,7 @@ export const CopyButton: FC<CopyButtonProps> = ({
 					<Button
 						size="icon"
 						variant="subtle"
-						onClick={copyToClipboard}
+						onClick={() => copyToClipboard(text)}
 						{...buttonProps}
 					>
 						{showCopiedSuccess ? <CheckIcon /> : <CopyIcon />}

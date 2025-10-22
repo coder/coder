@@ -21,7 +21,6 @@ import { useAuthenticated } from "hooks";
 import { usePaginatedQuery } from "hooks/usePaginatedQuery";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, useState } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
@@ -104,9 +103,7 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("Users")}</title>
-			</Helmet>
+			<title>{pageTitle("Users")}</title>
 
 			<UsersPageView
 				oidcRoleSyncEnabled={oidcRoleSyncEnabled}

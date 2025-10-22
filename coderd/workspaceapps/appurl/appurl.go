@@ -14,10 +14,12 @@ import (
 var (
 	// nameRegex is the same as our UsernameRegex without the ^ and $.
 	nameRegex = "[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*"
-	appURL    = regexp.MustCompile(fmt.Sprintf(
-		// {PORT/APP_SLUG}--{AGENT_NAME}--{WORKSPACE_NAME}--{USERNAME}
-		`^(?P<AppSlug>%[1]s)--(?P<AgentName>%[1]s)--(?P<WorkspaceName>%[1]s)--(?P<Username>%[1]s)$`,
+	// Supports apps with and without agent name
+	// Format: {PORT/APP_SLUG}[--{AGENT_NAME}]--{WORKSPACE_NAME}--{USERNAME}
+	appURL = regexp.MustCompile(fmt.Sprintf(
+		`^(?P<AppSlug>%[1]s)(?:--(?P<AgentName>%[1]s))?--(?P<WorkspaceName>%[1]s)--(?P<Username>%[1]s)$`,
 		nameRegex))
+	PortRegex = regexp.MustCompile(`^\d{4}s?$`)
 
 	validHostnameLabelRegex = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
 )
@@ -67,8 +69,10 @@ func (a ApplicationURL) String() string {
 	var appURL strings.Builder
 	_, _ = appURL.WriteString(a.Prefix)
 	_, _ = appURL.WriteString(a.AppSlugOrPort)
-	_, _ = appURL.WriteString("--")
-	_, _ = appURL.WriteString(a.AgentName)
+	if a.AgentName != "" {
+		_, _ = appURL.WriteString("--")
+		_, _ = appURL.WriteString(a.AgentName)
+	}
 	_, _ = appURL.WriteString("--")
 	_, _ = appURL.WriteString(a.WorkspaceName)
 	_, _ = appURL.WriteString("--")
@@ -81,7 +85,10 @@ func (a ApplicationURL) String() string {
 // `{variable}` syntax to extract these parts. For testing purposes and for
 // completeness of this package, we include it.
 func (a ApplicationURL) Path() string {
-	return fmt.Sprintf("/@%s/%s.%s/apps/%s", a.Username, a.WorkspaceName, a.AgentName, a.AppSlugOrPort)
+	if a.AgentName != "" {
+		return fmt.Sprintf("/@%s/%s.%s/apps/%s", a.Username, a.WorkspaceName, a.AgentName, a.AppSlugOrPort)
+	}
+	return fmt.Sprintf("/@%s/%s/apps/%s", a.Username, a.WorkspaceName, a.AppSlugOrPort)
 }
 
 // PortInfo returns the port, protocol, and whether the AppSlugOrPort is a port or not.
@@ -140,13 +147,18 @@ func (a *ApplicationURL) ChangePortProtocol(target string) ApplicationURL {
 //
 // Subdomains should be in the form:
 //
-//		({PREFIX}---)?{PORT{s?}/APP_SLUG}--{AGENT_NAME}--{WORKSPACE_NAME}--{USERNAME}
-//		e.g.
-//	     https://8080--main--dev--dean.hi.c8s.io
-//	     https://8080s--main--dev--dean.hi.c8s.io
-//	     https://app--main--dev--dean.hi.c8s.io
-//	     https://prefix---8080--main--dev--dean.hi.c8s.io
-//	     https://prefix---app--main--dev--dean.hi.c8s.io
+//	({PREFIX}---)?{PORT{s?}/APP_SLUG}[--{AGENT_NAME}]--{WORKSPACE_NAME}--{USERNAME}
+//
+// Where agent name is:
+//   - REQUIRED for ports: 8080--agent--workspace--user, 8080s--agent--workspace--user
+//   - OPTIONAL for app slugs: myapp--workspace--user (agent name omitted)
+//
+// Examples:
+//   - https://8080--main--dev--dean.hi.c8s.io (port with required agent)
+//   - https://8080s--main--dev--dean.hi.c8s.io (port with required agent)
+//   - https://app--dev--dean.hi.c8s.io (app slug, no agent name required)
+//   - https://prefix---8080--main--dev--dean.hi.c8s.io (port with prefix)
+//   - https://prefix---app--dev--dean.hi.c8s.io (app slug with prefix)
 //
 // The optional prefix is permitted to allow customers to put additional URL at
 // the beginning of their application URL (i.e. if they want to simulate
@@ -154,9 +166,6 @@ func (a *ApplicationURL) ChangePortProtocol(target string) ApplicationURL {
 //
 // Prefix requires three hyphens at the end to separate it from the rest of the
 // URL so we can add/remove segments in the future from the parsing logic.
-//
-// TODO(dean): make the agent name optional when using the app slug. This will
-// reduce the character count for app URLs.
 func ParseSubdomainAppURL(subdomain string) (ApplicationURL, error) {
 	var (
 		prefixSegments = strings.Split(subdomain, "---")
@@ -167,18 +176,29 @@ func ParseSubdomainAppURL(subdomain string) (ApplicationURL, error) {
 		subdomain = prefixSegments[len(prefixSegments)-1]
 	}
 
-	matches := appURL.FindAllStringSubmatch(subdomain, -1)
-	if len(matches) == 0 {
+	matches := appURL.FindStringSubmatch(subdomain)
+	if matches == nil {
 		return ApplicationURL{}, xerrors.Errorf("invalid application url format: %q", subdomain)
 	}
-	matchGroup := matches[0]
+
+	appSlug := matches[appURL.SubexpIndex("AppSlug")]
+	agentName := matches[appURL.SubexpIndex("AgentName")]
+
+	// Agent name is optional for app slugs but required for ports
+	if PortRegex.MatchString(appSlug) {
+		if agentName == "" {
+			return ApplicationURL{}, xerrors.Errorf("agent name is required for port-based URLs: %q", subdomain)
+		}
+	} else {
+		agentName = ""
+	}
 
 	return ApplicationURL{
 		Prefix:        prefix,
-		AppSlugOrPort: matchGroup[appURL.SubexpIndex("AppSlug")],
-		AgentName:     matchGroup[appURL.SubexpIndex("AgentName")],
-		WorkspaceName: matchGroup[appURL.SubexpIndex("WorkspaceName")],
-		Username:      matchGroup[appURL.SubexpIndex("Username")],
+		AppSlugOrPort: appSlug,
+		AgentName:     agentName,
+		WorkspaceName: matches[appURL.SubexpIndex("WorkspaceName")],
+		Username:      matches[appURL.SubexpIndex("Username")],
 	}, nil
 }
 

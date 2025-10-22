@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "~> 2.9"
+      version = ">= 2.12.0"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -151,13 +151,6 @@ data "coder_parameter" "image_type" {
   }
 }
 
-variable "anthropic_api_key" {
-  type        = string
-  description = "The API key used to authenticate with the Anthropic API."
-  default     = ""
-  sensitive   = true
-}
-
 locals {
   default_regions = {
     // keys should match group names
@@ -276,6 +269,13 @@ data "coder_workspace_tags" "tags" {
   }
 }
 
+data "coder_workspace_tags" "prebuild" {
+  count = data.coder_workspace_owner.me.name == "prebuilds" ? 1 : 0
+  tags = {
+    "is_prebuild" = "true"
+  }
+}
+
 data "coder_parameter" "ide_choices" {
   type        = "list(string)"
   name        = "Select IDEs"
@@ -371,7 +371,7 @@ module "git-config" {
 module "git-clone" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/git-clone/coder"
-  version  = "1.1.1"
+  version  = "1.2.0"
   agent_id = coder_agent.dev.id
   url      = "https://github.com/coder/coder"
   base_dir = local.repo_base_dir
@@ -473,30 +473,14 @@ module "devcontainers-cli" {
   agent_id = coder_agent.dev.id
 }
 
-module "claude-code" {
-  count               = local.has_ai_prompt ? data.coder_workspace.me.start_count : 0
-  source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = "2.2.0"
-  agent_id            = coder_agent.dev.id
-  folder              = local.repo_dir
-  install_claude_code = true
-  claude_code_version = "latest"
-  order               = 999
-
-  experiment_report_tasks        = true
-  experiment_post_install_script = <<-EOT
-    claude mcp add playwright npx -- @playwright/mcp@latest --headless --isolated --no-sandbox
-    claude mcp add desktop-commander npx -- @wonderwhy-er/desktop-commander@latest
-  EOT
-}
-
-
 resource "coder_agent" "dev" {
   arch = "amd64"
   os   = "linux"
   dir  = local.repo_dir
   env = {
     OIDC_TOKEN : data.coder_workspace_owner.me.oidc_access_token,
+    # To Enable AI Bridge integration
+    ANTHROPIC_BASE_URL : "https://dev.coder.com/api/experimental/aibridge/anthropic",
   }
   startup_script_behavior = "blocking"
 
@@ -834,12 +818,8 @@ resource "coder_metadata" "container_info" {
   }
 }
 
-resource "coder_env" "claude_system_prompt" {
-  count    = local.has_ai_prompt ? data.coder_workspace.me.start_count : 0
-  agent_id = coder_agent.dev.id
-  name     = "CODER_MCP_CLAUDE_SYSTEM_PROMPT"
-  value    = <<-EOT
-    <system>
+locals {
+  claude_system_prompt = <<-EOT
     -- Framing --
     You are a helpful Coding assistant. Aim to autonomously investigate
     and solve issues the user gives you and test your work, whenever possible.
@@ -848,7 +828,6 @@ resource "coder_env" "claude_system_prompt" {
     but opt for autonomy.
 
     -- Tool Selection --
-    - coder_report_task: providing status updates or requesting user input.
     - playwright: previewing your changes after you made them
       to confirm it worked as expected
     -	desktop-commander - use only for commands that keep running
@@ -860,46 +839,31 @@ resource "coder_env" "claude_system_prompt" {
     - Stays running? → desktop-commander
     - Finishes immediately? → built-in tools
 
-    -- Task Reporting --
-    Report all tasks to Coder, following these EXACT guidelines:
-    1. Be granular. If you are investigating with multiple steps, report each step
-    to coder.
-    2. IMMEDIATELY report status after receiving ANY user message
-    3. Use "state": "working" when actively processing WITHOUT needing
-    additional user input
-    4. Use "state": "complete" only when finished with a task
-    5. Use "state": "failure" when you need ANY user input, lack sufficient
-    details, or encounter blockers
-
-    In your summary:
-    - Be specific about what you're doing
-    - Clearly indicate what information you need from the user when in
-    "failure" state
-    - Keep it under 160 characters
-    - Make it actionable
-
     -- Context --
     There is an existing application in the current directory.
     Be sure to read CLAUDE.md before making any changes.
 
     This is a real-world production application. As such, make sure to think carefully, use TODO lists, and plan carefully before making changes.
-    </system>
   EOT
 }
 
-resource "coder_env" "claude_task_prompt" {
-  count    = local.has_ai_prompt ? data.coder_workspace.me.start_count : 0
-  agent_id = coder_agent.dev.id
-  name     = "CODER_MCP_CLAUDE_TASK_PROMPT"
-  value    = data.coder_parameter.ai_prompt.value
-}
+module "claude-code" {
+  count               = local.has_ai_prompt ? data.coder_workspace.me.start_count : 0
+  source              = "dev.registry.coder.com/coder/claude-code/coder"
+  version             = "3.1.1"
+  agent_id            = coder_agent.dev.id
+  workdir             = local.repo_dir
+  claude_code_version = "latest"
+  order               = 999
+  claude_api_key      = data.coder_workspace_owner.me.session_token # To Enable AI Bridge integration
+  agentapi_version    = "latest"
 
-# coder exp mcp configure claude-code reads from CLAUDE_API_KEY
-resource "coder_env" "claude_api_key" {
-  count    = local.has_ai_prompt ? data.coder_workspace.me.start_count : 0
-  agent_id = coder_agent.dev.id
-  name     = "CLAUDE_API_KEY"
-  value    = var.anthropic_api_key
+  system_prompt       = local.claude_system_prompt
+  ai_prompt           = data.coder_parameter.ai_prompt.value
+  post_install_script = <<-EOT
+    claude mcp add playwright npx -- @playwright/mcp@latest --headless --isolated --no-sandbox
+    claude mcp add desktop-commander npx -- @wonderwhy-er/desktop-commander@latest
+  EOT
 }
 
 resource "coder_app" "develop_sh" {

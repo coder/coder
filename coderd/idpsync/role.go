@@ -93,6 +93,7 @@ func (s AGPLIDPSync) SyncRoles(ctx context.Context, db database.Store, user data
 			OrganizationID: uuid.Nil,
 			UserID:         user.ID,
 			IncludeSystem:  false,
+			GithubUserID:   0,
 		})
 		if err != nil {
 			return xerrors.Errorf("get organizations by user id: %w", err)

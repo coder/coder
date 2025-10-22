@@ -12,7 +12,6 @@ import { useDashboard } from "modules/dashboard/useDashboard";
 import { useOrganizationsFilterMenu } from "modules/tableFiltering/options";
 import { ACTIVE_BUILD_STATUSES } from "modules/workspaces/status";
 import { type FC, useMemo, useState } from "react";
-import { Helmet } from "react-helmet-async";
 import { useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
@@ -144,9 +143,7 @@ const WorkspacesPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("Workspaces")}</title>
-			</Helmet>
+			<title>{pageTitle("Workspaces")}</title>
 
 			<WorkspacesPageView
 				canCreateTemplate={permissions.createTemplates}

@@ -1,6 +1,7 @@
 import {
+	MockCustomNotificationTemplates,
 	MockNotificationMethodsResponse,
-	MockNotificationTemplates,
+	MockSystemNotificationTemplates,
 	MockUserOwner,
 } from "testHelpers/entities";
 import {
@@ -11,6 +12,7 @@ import {
 } from "testHelpers/storybook";
 import type { Meta } from "@storybook/react-vite";
 import {
+	customNotificationTemplatesKey,
 	notificationDispatchMethodsKey,
 	systemNotificationTemplatesKey,
 } from "api/queries/notifications";
@@ -187,7 +189,14 @@ export const baseMeta = {
 	parameters: {
 		experiments: ["notifications"],
 		queries: [
-			{ key: systemNotificationTemplatesKey, data: MockNotificationTemplates },
+			{
+				key: systemNotificationTemplatesKey,
+				data: MockSystemNotificationTemplates,
+			},
+			{
+				key: customNotificationTemplatesKey,
+				data: MockCustomNotificationTemplates,
+			},
 			{
 				key: notificationDispatchMethodsKey,
 				data: MockNotificationMethodsResponse,

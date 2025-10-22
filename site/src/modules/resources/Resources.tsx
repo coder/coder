@@ -1,5 +1,5 @@
-import Button from "@mui/material/Button";
 import type { WorkspaceAgent, WorkspaceResource } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Stack } from "components/Stack/Stack";
 import { type FC, type JSX, useState } from "react";
@@ -37,8 +37,9 @@ export const Resources: FC<ResourcesProps> = ({ resources, agentRow }) => {
 			{hasHideResources && (
 				<div className="flex items-center justify-center mt-4">
 					<Button
+						variant="outline"
 						className="rounded-full w-full max-w-[260px]"
-						size="small"
+						size="sm"
 						onClick={() => setShouldDisplayHideResources((v) => !v)}
 					>
 						{shouldDisplayHideResources ? "Hide" : "Show hidden"} resources

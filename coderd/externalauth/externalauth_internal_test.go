@@ -19,6 +19,7 @@ func TestGitlabDefaults(t *testing.T) {
 		AuthURL:     "https://gitlab.com/oauth/authorize",
 		TokenURL:    "https://gitlab.com/oauth/token",
 		ValidateURL: "https://gitlab.com/oauth/token/info",
+		RevokeURL:   "https://gitlab.com/oauth/revoke",
 		DisplayName: "GitLab",
 		DisplayIcon: "/icon/gitlab.svg",
 		Regex:       `^(https?://)?gitlab\.com(/.*)?$`,
@@ -79,6 +80,7 @@ func TestGitlabDefaults(t *testing.T) {
 				config.AuthURL = "https://gitlab.company.org/oauth/authorize?foo=bar"
 				config.ValidateURL = "https://gitlab.company.org/oauth/token/info"
 				config.TokenURL = "https://gitlab.company.org/oauth/token"
+				config.RevokeURL = "https://gitlab.company.org/oauth/revoke"
 				config.Regex = `^(https?://)?gitlab\.company\.org(/.*)?$`
 			},
 		},
@@ -90,6 +92,7 @@ func TestGitlabDefaults(t *testing.T) {
 				AuthURL:     "https://auth.com/auth",
 				ValidateURL: "https://validate.com/validate",
 				TokenURL:    "https://token.com/token",
+				RevokeURL:   "https://token.com/revoke",
 				Regex:       "random",
 			},
 			expected: cloud,
@@ -97,6 +100,7 @@ func TestGitlabDefaults(t *testing.T) {
 				config.AuthURL = "https://auth.com/auth"
 				config.ValidateURL = "https://validate.com/validate"
 				config.TokenURL = "https://token.com/token"
+				config.RevokeURL = "https://token.com/revoke"
 				config.Regex = `random`
 			},
 		},

@@ -35,8 +35,4 @@ func (NoopClaimer) Claim(context.Context, time.Time, uuid.UUID, string, uuid.UUI
 	return nil, ErrAGPLDoesNotSupportPrebuiltWorkspaces
 }
 
-func (NoopClaimer) Initiator() uuid.UUID {
-	return uuid.Nil
-}
-
 var DefaultClaimer Claimer = NoopClaimer{}

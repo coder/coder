@@ -47,7 +47,7 @@ async function verifyStrictTransportSecurity(
 	}
 
 	const configOption = page.locator(
-		`div.options-table .option-${flag} .option-value-string`,
+		`table.options-table .option-${flag} .option-value-string`,
 	);
 	await expect(configOption).toHaveText("Disabled");
 }

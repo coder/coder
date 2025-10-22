@@ -158,7 +158,7 @@ func Test_Runner(t *testing.T) {
 		})
 
 		logs := bytes.NewBuffer(nil)
-		err := runner.Run(ctx, "1", logs)
+		_, err := runner.RunReturningWorkspace(ctx, "1", logs)
 		logsStr := logs.String()
 		t.Log("Runner logs:\n\n" + logsStr)
 		require.NoError(t, err)
@@ -224,7 +224,7 @@ func Test_Runner(t *testing.T) {
 		})
 
 		logs := bytes.NewBuffer(nil)
-		err := runner.Run(ctx, "1", logs)
+		_, err := runner.RunReturningWorkspace(ctx, "1", logs)
 		logsStr := logs.String()
 		t.Log("Runner logs:\n\n" + logsStr)
 		require.Error(t, err)
@@ -271,7 +271,7 @@ func Test_Runner(t *testing.T) {
 		})
 
 		logs := bytes.NewBuffer(nil)
-		err := runner.Run(ctx, "1", logs)
+		_, err := runner.RunReturningWorkspace(ctx, "1", logs)
 		logsStr := logs.String()
 		t.Log("Runner logs:\n\n" + logsStr)
 		require.Error(t, err)

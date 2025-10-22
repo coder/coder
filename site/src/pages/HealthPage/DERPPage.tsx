@@ -1,14 +1,13 @@
 import { useTheme } from "@emotion/react";
-import LocationOnOutlined from "@mui/icons-material/LocationOnOutlined";
-import Button from "@mui/material/Button";
 import type {
 	HealthcheckReport,
 	HealthSeverity,
 	NetcheckReport,
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
+import { Button } from "components/Button/Button";
+import { MapPinIcon } from "lucide-react";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { Link, useOutletContext } from "react-router";
 import { pageTitle } from "utils/page";
 import {
@@ -51,9 +50,7 @@ const DERPPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("DERP - Health")}</title>
-			</Helmet>
+			<title>{pageTitle("DERP - Health")}</title>
 
 			<Header>
 				<HeaderTitle>
@@ -103,24 +100,18 @@ const DERPPage: FC = () => {
 							})
 							.map(({ severity, region }) => {
 								return (
-									<Button
-										startIcon={
-											<LocationOnOutlined
-												css={{
-													width: 16,
-													height: 16,
+									<Button variant="outline" key={region!.RegionID} asChild>
+										<Link to={`/health/derp/regions/${region!.RegionID}`}>
+											<MapPinIcon
+												style={{
 													color: healthyColor(
 														theme,
 														severity as HealthSeverity,
 													),
 												}}
 											/>
-										}
-										component={Link}
-										to={`/health/derp/regions/${region!.RegionID}`}
-										key={region!.RegionID}
-									>
-										{region!.RegionName}
+											{region!.RegionName}
+										</Link>
 									</Button>
 								);
 							})}

@@ -28,7 +28,13 @@ WHERE
 		  WHEN @include_system::bool THEN TRUE
 		  ELSE
 			  is_system = false
-	END;
+	END
+  -- Filter by github user ID. Note that this requires a join on the users table.
+  AND CASE
+    WHEN @github_user_id :: bigint != 0 THEN
+      users.github_com_user_id = @github_user_id
+    ELSE true
+  END;
 
 -- name: InsertOrganizationMember :one
 INSERT INTO

@@ -1,10 +1,4 @@
 import { css } from "@emotion/react";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
 import type { DeploymentValues, ExternalAuthConfig } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { PremiumBadge } from "components/Badges/Badges";
@@ -14,6 +8,14 @@ import {
 	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "components/SettingsHeader/SettingsHeader";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "components/Table/Table";
 import type { FC } from "react";
 import { docs } from "utils/docs";
 
@@ -60,9 +62,8 @@ export const ExternalAuthSettingsPageView: FC<
 				</Alert>
 			</div>
 
-			<TableContainer>
-				<Table
-					css={css`
+			<Table
+				css={css`
             & td {
               padding-top: 24px;
               padding-bottom: 24px;
@@ -73,38 +74,37 @@ export const ExternalAuthSettingsPageView: FC<
               padding-left: 32px;
             }
           `}
-				>
-					<TableHead>
+			>
+				<TableHeader>
+					<TableRow>
+						<TableHead className="w-1/3">ID</TableHead>
+						<TableHead className="w-1/3">Client ID</TableHead>
+						<TableHead className="w-1/3">Match</TableHead>
+					</TableRow>
+				</TableHeader>
+				<TableBody>
+					{((config.external_auth === null ||
+						config.external_auth?.length === 0) && (
 						<TableRow>
-							<TableCell width="25%">ID</TableCell>
-							<TableCell width="25%">Client ID</TableCell>
-							<TableCell width="25%">Match</TableCell>
+							<TableCell colSpan={999}>
+								<div css={{ textAlign: "center" }}>
+									No providers have been configured!
+								</div>
+							</TableCell>
 						</TableRow>
-					</TableHead>
-					<TableBody>
-						{((config.external_auth === null ||
-							config.external_auth?.length === 0) && (
-							<TableRow>
-								<TableCell colSpan={999}>
-									<div css={{ textAlign: "center" }}>
-										No providers have been configured!
-									</div>
-								</TableCell>
-							</TableRow>
-						)) ||
-							config.external_auth?.map((git: ExternalAuthConfig) => {
-								const name = git.id || git.type;
-								return (
-									<TableRow key={name}>
-										<TableCell>{name}</TableCell>
-										<TableCell>{git.client_id}</TableCell>
-										<TableCell>{git.regex || "Not Set"}</TableCell>
-									</TableRow>
-								);
-							})}
-					</TableBody>
-				</Table>
-			</TableContainer>
+					)) ||
+						config.external_auth?.map((git: ExternalAuthConfig) => {
+							const name = git.id || git.type;
+							return (
+								<TableRow key={name}>
+									<TableCell>{name}</TableCell>
+									<TableCell>{git.client_id}</TableCell>
+									<TableCell>{git.regex || "Not Set"}</TableCell>
+								</TableRow>
+							);
+						})}
+				</TableBody>
+			</Table>
 		</>
 	);
 };

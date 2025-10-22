@@ -1,4 +1,3 @@
-import Button from "@mui/material/Button";
 import type { ApiErrorResponse } from "api/errors";
 import {
 	exchangeExternalAuthDevice,
@@ -6,6 +5,7 @@ import {
 	externalAuthProvider,
 } from "api/queries/externalAuth";
 import { isAxiosError } from "axios";
+import { Button } from "components/Button/Button";
 import {
 	isExchangeErrorRetryable,
 	newRetryDelay,
@@ -91,6 +91,7 @@ const ExternalAuthPage: FC = () => {
 					</p>
 					<br />
 					<Button
+						variant="outline"
 						onClick={() => {
 							// Redirect to the auth flow again. *crosses fingers*
 							window.location.href = `/external-auth/${provider}/callback`;

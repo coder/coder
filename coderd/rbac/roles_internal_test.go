@@ -249,17 +249,38 @@ func TestRoleByName(t *testing.T) {
 	})
 }
 
-// SameAs compares 2 roles for equality.
+func TestDeduplicatePermissions(t *testing.T) {
+	t.Parallel()
+
+	perms := []Permission{
+		{ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead},
+		{ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead},
+		{ResourceType: ResourceWorkspace.Type, Action: policy.ActionUpdate},
+		{ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead, Negate: true},
+		{ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead, Negate: true},
+	}
+
+	got := DeduplicatePermissions(perms)
+	want := []Permission{
+		{ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead},
+		{ResourceType: ResourceWorkspace.Type, Action: policy.ActionUpdate},
+		{ResourceType: ResourceWorkspace.Type, Action: policy.ActionRead, Negate: true},
+	}
+
+	require.Equal(t, want, got)
+}
+
+// equalRoles compares 2 roles for equality.
 func equalRoles(t *testing.T, a, b Role) {
 	require.Equal(t, a.Identifier, b.Identifier, "role names")
 	require.Equal(t, a.DisplayName, b.DisplayName, "role display names")
 	require.ElementsMatch(t, a.Site, b.Site, "site permissions")
 	require.ElementsMatch(t, a.User, b.User, "user permissions")
-	require.Equal(t, len(a.Org), len(b.Org), "same number of org roles")
+	require.Equal(t, len(a.ByOrgID), len(b.ByOrgID), "same number of org roles")
 
-	for ak, av := range a.Org {
-		bv, ok := b.Org[ak]
+	for ak, av := range a.ByOrgID {
+		bv, ok := b.ByOrgID[ak]
 		require.True(t, ok, "org permissions missing: %s", ak)
-		require.ElementsMatchf(t, av, bv, "org %s permissions", ak)
+		require.ElementsMatchf(t, av.Org, bv.Org, "org %s permissions", ak)
 	}
 }

@@ -16,7 +16,6 @@ import type { TemplateFilterState } from "./TemplatesPage";
 import { TemplatesPageView } from "./TemplatesPageView";
 
 const defaultFilterProps = getDefaultFilterProps<TemplateFilterState>({
-	query: "deprecated:false",
 	menus: {
 		organizations: MockMenu,
 	},
@@ -118,7 +117,7 @@ export const WithFilteredAllTemplates: Story = {
 		filterState: {
 			filter: {
 				...defaultFilterProps.filter,
-				query: "deprecated:false searchnotfound",
+				query: "searchnotfound",
 				values: {},
 				used: true,
 			},

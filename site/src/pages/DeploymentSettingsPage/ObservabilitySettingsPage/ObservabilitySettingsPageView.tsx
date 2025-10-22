@@ -4,11 +4,6 @@ import {
 	EnterpriseBadge,
 	PremiumBadge,
 } from "components/Badges/Badges";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "components/deprecated/Popover/Popover";
 import { PopoverPaywall } from "components/Paywall/PopoverPaywall";
 import {
 	SettingsHeader,
@@ -17,6 +12,12 @@ import {
 	SettingsHeaderTitle,
 } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import type { FC } from "react";
 import { deploymentGroupHasParent } from "utils/deployOptions";
 import { docs } from "utils/docs";
@@ -52,25 +53,31 @@ export const ObservabilitySettingsPageView: FC<
 				</SettingsHeader>
 
 				<Badges>
-					<Popover mode="hover">
-						{featureAuditLogEnabled && !isPremium ? (
-							<EnterpriseBadge />
-						) : (
-							<PopoverTrigger>
-								<span>
-									<PremiumBadge />
-								</span>
-							</PopoverTrigger>
-						)}
+					<TooltipProvider>
+						<Tooltip delayDuration={0}>
+							{featureAuditLogEnabled && !isPremium ? (
+								<EnterpriseBadge />
+							) : (
+								<TooltipTrigger asChild>
+									<span>
+										<PremiumBadge />
+									</span>
+								</TooltipTrigger>
+							)}
 
-						<PopoverContent css={{ transform: "translateY(-28px)" }}>
-							<PopoverPaywall
-								message="Observability"
-								description="With a Premium license, you can monitor your application with logs and metrics."
-								documentationLink="https://coder.com/docs/admin/appearance"
-							/>
-						</PopoverContent>
-					</Popover>
+							<TooltipContent
+								sideOffset={-28}
+								collisionPadding={16}
+								className="p-0"
+							>
+								<PopoverPaywall
+									message="Observability"
+									description="With a Premium license, you can monitor your application with logs and metrics."
+									documentationLink="https://coder.com/docs/admin/appearance"
+								/>
+							</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
 				</Badges>
 			</div>
 

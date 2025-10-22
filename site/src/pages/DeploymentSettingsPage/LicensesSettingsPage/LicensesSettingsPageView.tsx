@@ -1,5 +1,4 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import MuiButton from "@mui/material/Button";
 import MuiLink from "@mui/material/Link";
 import Skeleton from "@mui/material/Skeleton";
 import Tooltip from "@mui/material/Tooltip";
@@ -75,13 +74,12 @@ const LicensesSettingsPageView: FC<Props> = ({
 				</SettingsHeader>
 
 				<Stack direction="row" spacing={2}>
-					<MuiButton
-						component={Link}
-						to="/deployment/licenses/add"
-						startIcon={<PlusIcon className="size-icon-sm" />}
-					>
-						Add a license
-					</MuiButton>
+					<Button variant="outline" asChild>
+						<Link to="/deployment/licenses/add">
+							<PlusIcon />
+							Add a license
+						</Link>
+					</Button>
 					<Tooltip title="Refresh license entitlements. This is done automatically every 10 minutes.">
 						<Button
 							disabled={isRefreshing}

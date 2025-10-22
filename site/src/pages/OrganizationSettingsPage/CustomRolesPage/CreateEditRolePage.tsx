@@ -11,7 +11,6 @@ import { Loader } from "components/Loader/Loader";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "modules/permissions/RequirePermission";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router";
 import { pageTitle } from "utils/page";
@@ -53,13 +52,11 @@ const CreateEditRolePage: FC = () => {
 					: organizationPermissions.createOrgRoles
 			}
 		>
-			<Helmet>
-				<title>
-					{pageTitle(
-						role !== undefined ? "Edit Custom Role" : "Create Custom Role",
-					)}
-				</title>
-			</Helmet>
+			<title>
+				{pageTitle(
+					role !== undefined ? "Edit Custom Role" : "Create Custom Role",
+				)}
+			</title>
 
 			<CreateEditRolePageView
 				role={role}

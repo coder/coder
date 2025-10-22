@@ -128,7 +128,6 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 
 		// Hidden
 		r.connectCmd(),
-		r.expCmd(),
 		gitssh(),
 		r.support(),
 		r.vpnDaemon(),
@@ -137,13 +136,44 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 	}
 }
 
+// AGPLExperimental returns all AGPL experimental subcommands.
+func (r *RootCmd) AGPLExperimental() []*serpent.Command {
+	return []*serpent.Command{
+		r.scaletestCmd(),
+		r.errorExample(),
+		r.mcpCommand(),
+		r.promptExample(),
+		r.rptyCommand(),
+		r.tasksCommand(),
+		r.boundary(),
+	}
+}
+
+// AGPL returns all AGPL commands including any non-core commands that are
+// duplicated in the Enterprise CLI.
 func (r *RootCmd) AGPL() []*serpent.Command {
 	all := append(
 		r.CoreSubcommands(),
 		r.Server( /* Do not import coderd here. */ nil),
 		r.Provisioners(),
+		ExperimentalCommand(r.AGPLExperimental()),
 	)
 	return all
+}
+
+// ExperimentalCommand creates an experimental command that is hidden and has
+// the given subcommands.
+func ExperimentalCommand(subcommands []*serpent.Command) *serpent.Command {
+	cmd := &serpent.Command{
+		Use:   "exp",
+		Short: "Internal commands for testing and experimentation. These are prone to breaking changes with no notice.",
+		Handler: func(i *serpent.Invocation) error {
+			return i.Command.HelpHandler(i)
+		},
+		Hidden:   true,
+		Children: subcommands,
+	}
+	return cmd
 }
 
 // RunWithSubcommands runs the root command with the given subcommands.

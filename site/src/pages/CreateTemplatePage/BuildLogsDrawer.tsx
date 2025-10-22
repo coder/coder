@@ -1,10 +1,10 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import Button from "@mui/material/Button";
 import Drawer from "@mui/material/Drawer";
 import IconButton from "@mui/material/IconButton";
 import { visuallyHidden } from "@mui/utils";
 import { JobError } from "api/queries/templates";
 import type { TemplateVersion } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import { Loader } from "components/Loader/Loader";
 import { TriangleAlertIcon, XIcon } from "lucide-react";
 import { AlertVariant } from "modules/provisioners/ProvisionerAlert";
@@ -103,8 +103,8 @@ const MissingVariablesBanner: FC<MissingVariablesBannerProps> = ({
 				</p>
 				<Button
 					css={bannerStyles.button}
-					size="small"
-					variant="outlined"
+					size="sm"
+					variant="outline"
 					onClick={onFillVariables}
 				>
 					Fill variables

@@ -187,6 +187,13 @@ func (m queryMetricsStore) CleanTailnetTunnels(ctx context.Context) error {
 	return r0
 }
 
+func (m queryMetricsStore) CountAIBridgeInterceptions(ctx context.Context, arg database.CountAIBridgeInterceptionsParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.CountAIBridgeInterceptions(ctx, arg)
+	m.queryLatencies.WithLabelValues("CountAIBridgeInterceptions").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) CountAuditLogs(ctx context.Context, arg database.CountAuditLogsParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.CountAuditLogs(ctx, arg)
@@ -593,6 +600,34 @@ func (m queryMetricsStore) GetAIBridgeInterceptionByID(ctx context.Context, id u
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAIBridgeInterceptions(ctx context.Context) ([]database.AIBridgeInterception, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIBridgeInterceptions(ctx)
+	m.queryLatencies.WithLabelValues("GetAIBridgeInterceptions").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAIBridgeTokenUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]database.AIBridgeTokenUsage, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIBridgeTokenUsagesByInterceptionID(ctx, interceptionID)
+	m.queryLatencies.WithLabelValues("GetAIBridgeTokenUsagesByInterceptionID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAIBridgeToolUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]database.AIBridgeToolUsage, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIBridgeToolUsagesByInterceptionID(ctx, interceptionID)
+	m.queryLatencies.WithLabelValues("GetAIBridgeToolUsagesByInterceptionID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAIBridgeUserPromptsByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]database.AIBridgeUserPrompt, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIBridgeUserPromptsByInterceptionID(ctx, interceptionID)
+	m.queryLatencies.WithLabelValues("GetAIBridgeUserPromptsByInterceptionID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
 	start := time.Now()
 	apiKey, err := m.s.GetAPIKeyByID(ctx, id)
@@ -954,6 +989,13 @@ func (m queryMetricsStore) GetLatestCryptoKeyByFeature(ctx context.Context, feat
 	start := time.Now()
 	r0, r1 := m.s.GetLatestCryptoKeyByFeature(ctx, feature)
 	m.queryLatencies.WithLabelValues("GetLatestCryptoKeyByFeature").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetLatestWorkspaceAppStatusesByAppID(ctx context.Context, appID uuid.UUID) ([]database.WorkspaceAppStatus, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetLatestWorkspaceAppStatusesByAppID(ctx, appID)
+	m.queryLatencies.WithLabelValues("GetLatestWorkspaceAppStatusesByAppID").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -1447,6 +1489,20 @@ func (m queryMetricsStore) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uu
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetTaskByID(ctx context.Context, id uuid.UUID) (database.Task, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTaskByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetTaskByID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetTaskByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.Task, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTaskByWorkspaceID(ctx, workspaceID)
+	m.queryLatencies.WithLabelValues("GetTaskByWorkspaceID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetTelemetryItem(ctx context.Context, key string) (database.TelemetryItem, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetTelemetryItem(ctx, key)
@@ -1923,6 +1979,13 @@ func (m queryMetricsStore) GetWorkspaceAgentsCreatedAfter(ctx context.Context, c
 	return agents, err
 }
 
+func (m queryMetricsStore) GetWorkspaceAgentsForMetrics(ctx context.Context) ([]database.GetWorkspaceAgentsForMetricsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceAgentsForMetrics(ctx)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentsForMetrics").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkspaceAgent, error) {
 	start := time.Now()
 	agents, err := m.s.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspaceID)
@@ -2175,6 +2238,13 @@ func (m queryMetricsStore) GetWorkspacesEligibleForTransition(ctx context.Contex
 	return workspaces, err
 }
 
+func (m queryMetricsStore) GetWorkspacesForWorkspaceMetrics(ctx context.Context) ([]database.GetWorkspacesForWorkspaceMetricsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspacesForWorkspaceMetrics(ctx)
+	m.queryLatencies.WithLabelValues("GetWorkspacesForWorkspaceMetrics").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertAIBridgeInterception(ctx context.Context, arg database.InsertAIBridgeInterceptionParams) (database.AIBridgeInterception, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertAIBridgeInterception(ctx, arg)
@@ -2182,25 +2252,25 @@ func (m queryMetricsStore) InsertAIBridgeInterception(ctx context.Context, arg d
 	return r0, r1
 }
 
-func (m queryMetricsStore) InsertAIBridgeTokenUsage(ctx context.Context, arg database.InsertAIBridgeTokenUsageParams) error {
+func (m queryMetricsStore) InsertAIBridgeTokenUsage(ctx context.Context, arg database.InsertAIBridgeTokenUsageParams) (database.AIBridgeTokenUsage, error) {
 	start := time.Now()
-	r0 := m.s.InsertAIBridgeTokenUsage(ctx, arg)
+	r0, r1 := m.s.InsertAIBridgeTokenUsage(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertAIBridgeTokenUsage").Observe(time.Since(start).Seconds())
-	return r0
+	return r0, r1
 }
 
-func (m queryMetricsStore) InsertAIBridgeToolUsage(ctx context.Context, arg database.InsertAIBridgeToolUsageParams) error {
+func (m queryMetricsStore) InsertAIBridgeToolUsage(ctx context.Context, arg database.InsertAIBridgeToolUsageParams) (database.AIBridgeToolUsage, error) {
 	start := time.Now()
-	r0 := m.s.InsertAIBridgeToolUsage(ctx, arg)
+	r0, r1 := m.s.InsertAIBridgeToolUsage(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertAIBridgeToolUsage").Observe(time.Since(start).Seconds())
-	return r0
+	return r0, r1
 }
 
-func (m queryMetricsStore) InsertAIBridgeUserPrompt(ctx context.Context, arg database.InsertAIBridgeUserPromptParams) error {
+func (m queryMetricsStore) InsertAIBridgeUserPrompt(ctx context.Context, arg database.InsertAIBridgeUserPromptParams) (database.AIBridgeUserPrompt, error) {
 	start := time.Now()
-	r0 := m.s.InsertAIBridgeUserPrompt(ctx, arg)
+	r0, r1 := m.s.InsertAIBridgeUserPrompt(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertAIBridgeUserPrompt").Observe(time.Since(start).Seconds())
-	return r0
+	return r0, r1
 }
 
 func (m queryMetricsStore) InsertAPIKey(ctx context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {
@@ -2420,6 +2490,13 @@ func (m queryMetricsStore) InsertReplica(ctx context.Context, arg database.Inser
 	return replica, err
 }
 
+func (m queryMetricsStore) InsertTask(ctx context.Context, arg database.InsertTaskParams) (database.TaskTable, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertTask(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertTask").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertTelemetryItemIfNotExists(ctx context.Context, arg database.InsertTelemetryItemIfNotExistsParams) error {
 	start := time.Now()
 	r0 := m.s.InsertTelemetryItemIfNotExists(ctx, arg)
@@ -2637,6 +2714,34 @@ func (m queryMetricsStore) InsertWorkspaceResourceMetadata(ctx context.Context, 
 	return metadata, err
 }
 
+func (m queryMetricsStore) ListAIBridgeInterceptions(ctx context.Context, arg database.ListAIBridgeInterceptionsParams) ([]database.AIBridgeInterception, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListAIBridgeInterceptions(ctx, arg)
+	m.queryLatencies.WithLabelValues("ListAIBridgeInterceptions").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) ListAIBridgeTokenUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]database.AIBridgeTokenUsage, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListAIBridgeTokenUsagesByInterceptionIDs(ctx, interceptionIds)
+	m.queryLatencies.WithLabelValues("ListAIBridgeTokenUsagesByInterceptionIDs").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) ListAIBridgeToolUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]database.AIBridgeToolUsage, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListAIBridgeToolUsagesByInterceptionIDs(ctx, interceptionIds)
+	m.queryLatencies.WithLabelValues("ListAIBridgeToolUsagesByInterceptionIDs").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]database.AIBridgeUserPrompt, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListAIBridgeUserPromptsByInterceptionIDs(ctx, interceptionIds)
+	m.queryLatencies.WithLabelValues("ListAIBridgeUserPromptsByInterceptionIDs").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.ListProvisionerKeysByOrganization(ctx, organizationID)
@@ -2648,6 +2753,13 @@ func (m queryMetricsStore) ListProvisionerKeysByOrganizationExcludeReserved(ctx 
 	start := time.Now()
 	r0, r1 := m.s.ListProvisionerKeysByOrganizationExcludeReserved(ctx, organizationID)
 	m.queryLatencies.WithLabelValues("ListProvisionerKeysByOrganizationExcludeReserved").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) ListTasks(ctx context.Context, arg database.ListTasksParams) ([]database.Task, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListTasks(ctx, arg)
+	m.queryLatencies.WithLabelValues("ListTasks").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -3470,6 +3582,13 @@ func (m queryMetricsStore) UpsertTailnetTunnel(ctx context.Context, arg database
 	return r0, r1
 }
 
+func (m queryMetricsStore) UpsertTaskWorkspaceApp(ctx context.Context, arg database.UpsertTaskWorkspaceAppParams) (database.TaskWorkspaceApp, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpsertTaskWorkspaceApp(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertTaskWorkspaceApp").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpsertTelemetryItem(ctx context.Context, arg database.UpsertTelemetryItemParams) error {
 	start := time.Now()
 	r0 := m.s.UpsertTelemetryItem(ctx, arg)
@@ -3600,5 +3719,19 @@ func (m queryMetricsStore) CountAuthorizedConnectionLogs(ctx context.Context, ar
 	start := time.Now()
 	r0, r1 := m.s.CountAuthorizedConnectionLogs(ctx, arg, prepared)
 	m.queryLatencies.WithLabelValues("CountAuthorizedConnectionLogs").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) ListAuthorizedAIBridgeInterceptions(ctx context.Context, arg database.ListAIBridgeInterceptionsParams, prepared rbac.PreparedAuthorized) ([]database.AIBridgeInterception, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListAuthorizedAIBridgeInterceptions(ctx, arg, prepared)
+	m.queryLatencies.WithLabelValues("ListAuthorizedAIBridgeInterceptions").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) CountAuthorizedAIBridgeInterceptions(ctx context.Context, arg database.CountAIBridgeInterceptionsParams, prepared rbac.PreparedAuthorized) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.CountAuthorizedAIBridgeInterceptions(ctx, arg, prepared)
+	m.queryLatencies.WithLabelValues("CountAuthorizedAIBridgeInterceptions").Observe(time.Since(start).Seconds())
 	return r0, r1
 }

@@ -1,5 +1,4 @@
 import type { FC, PropsWithChildren } from "react";
-
 export const SignInLayout: FC<PropsWithChildren> = ({ children }) => {
 	return (
 		<div className="grow basis-0 h-screen flex justify-center items-center">

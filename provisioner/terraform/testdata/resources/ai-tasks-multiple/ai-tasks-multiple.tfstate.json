@@ -5,35 +5,6 @@
     "root_module": {
       "resources": [
         {
-          "address": "data.coder_parameter.prompt",
-          "mode": "data",
-          "type": "coder_parameter",
-          "name": "prompt",
-          "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 1,
-          "values": {
-            "default": null,
-            "description": null,
-            "display_name": null,
-            "ephemeral": false,
-            "form_type": "input",
-            "icon": null,
-            "id": "d3c415c0-c6bc-42e3-806e-8c792a7e7b3b",
-            "mutable": false,
-            "name": "AI Prompt",
-            "option": null,
-            "optional": false,
-            "order": null,
-            "styling": "{}",
-            "type": "string",
-            "validation": [],
-            "value": ""
-          },
-          "sensitive_values": {
-            "validation": []
-          }
-        },
-        {
           "address": "data.coder_provisioner.me",
           "mode": "data",
           "type": "coder_provisioner",
@@ -105,7 +76,9 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 1,
           "values": {
+            "app_id": "5ece4674-dd35-4f16-88c8-82e40e72e2fd",
             "id": "89e6ab36-2e98-4d13-9b4c-69b7588b7e1d",
+            "prompt": "default",
             "sidebar_app": [
               {
                 "id": "5ece4674-dd35-4f16-88c8-82e40e72e2fd"
@@ -127,17 +100,13 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 1,
           "values": {
-            "id": "d4643699-519d-44c8-a878-556789256cbd",
-            "sidebar_app": [
-              {
-                "id": "5ece4674-dd35-4f16-88c8-82e40e72e2fd"
-              }
-            ]
+            "app_id": "5ece4674-dd35-4f16-88c8-82e40e72e2fd",
+            "id": "5ece4674-dd35-4f16-88c8-82e40e72e2fd",
+            "prompt": "default",
+            "sidebar_app": []
           },
           "sensitive_values": {
-            "sidebar_app": [
-              {}
-            ]
+            "sidebar_app": []
           }
         }
       ]

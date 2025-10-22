@@ -495,6 +495,7 @@ func TestProvisionerDaemon_PrometheusEnabled(t *testing.T) {
 	// Fetch metrics from Prometheus endpoint
 	var req *http.Request
 	var res *http.Response
+	httpClient := &http.Client{}
 	require.Eventually(t, func() bool {
 		req, err = http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("http://127.0.0.1:%d", prometheusPort), nil)
 		if err != nil {
@@ -503,7 +504,7 @@ func TestProvisionerDaemon_PrometheusEnabled(t *testing.T) {
 		}
 
 		// nolint:bodyclose
-		res, err = http.DefaultClient.Do(req)
+		res, err = httpClient.Do(req)
 		if err != nil {
 			t.Logf("unable to call Prometheus endpoint: %s", err.Error())
 			return false

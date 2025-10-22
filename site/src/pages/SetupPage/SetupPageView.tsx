@@ -1,7 +1,5 @@
-import GitHubIcon from "@mui/icons-material/GitHub";
 import AlertTitle from "@mui/material/AlertTitle";
 import Autocomplete from "@mui/material/Autocomplete";
-import MuiButton from "@mui/material/Button";
 import Checkbox from "@mui/material/Checkbox";
 import Link from "@mui/material/Link";
 import MenuItem from "@mui/material/MenuItem";
@@ -11,6 +9,7 @@ import type * as TypesGen from "api/typesGenerated";
 import { isAxiosError } from "axios";
 import { Alert, AlertDetail } from "components/Alert/Alert";
 import { Button } from "components/Button/Button";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { FormFields, VerticalForm } from "components/Form/Form";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import { PasswordField } from "components/PasswordField/PasswordField";
@@ -99,11 +98,6 @@ const numberOfDevelopersOptions = [
 	"2500+",
 ];
 
-const iconStyles = {
-	width: 16,
-	height: 16,
-};
-
 interface SetupPageViewProps {
 	onSubmit: (firstUser: TypesGen.CreateFirstUserRequest) => void;
 	error?: unknown;
@@ -173,17 +167,12 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 				<FormFields>
 					{authMethods?.github.enabled && (
 						<>
-							<MuiButton
-								fullWidth
-								component="a"
-								href="/api/v2/users/oauth2/github/callback"
-								variant="contained"
-								startIcon={<GitHubIcon css={iconStyles} />}
-								type="submit"
-								size="xlarge"
-							>
-								{Language.githubCreate}
-							</MuiButton>
+							<Button className="w-full" asChild type="submit" size="lg">
+								<a href="/api/v2/users/oauth2/github/callback">
+									<ExternalImage src="/icon/github.svg" />
+									{Language.githubCreate}
+								</a>
+							</Button>
 							<div className="flex items-center gap-4">
 								<div className="h-[1px] w-full bg-border" />
 								<div className="shrink-0 text-xs uppercase text-content-secondary tracking-wider">

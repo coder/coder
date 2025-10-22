@@ -1,6 +1,4 @@
 import { useTheme } from "@emotion/react";
-import TableCell from "@mui/material/TableCell";
-import TableRow from "@mui/material/TableRow";
 import type { Region, WorkspaceProxy } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
@@ -10,6 +8,7 @@ import {
 	NotReachableBadge,
 	NotRegisteredBadge,
 } from "components/Badges/Badges";
+import { TableCell, TableRow } from "components/Table/Table";
 import type { ProxyLatencyReport } from "contexts/useProxyLatency";
 import type { FC, ReactNode } from "react";
 import { getLatencyColor } from "utils/latency";

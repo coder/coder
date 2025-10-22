@@ -719,7 +719,6 @@ func createWorkspace(
 		} else {
 			// Prebuild found!
 			workspaceID = claimedWorkspace.ID
-			initiatorID = prebuildsClaimer.Initiator()
 		}
 
 		// We have to refetch the workspace for the joined in fields.

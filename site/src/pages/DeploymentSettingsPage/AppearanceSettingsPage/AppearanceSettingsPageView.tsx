@@ -7,17 +7,18 @@ import {
 	PremiumBadge,
 } from "components/Badges/Badges";
 import { Button } from "components/Button/Button";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "components/deprecated/Popover/Popover";
 import { PopoverPaywall } from "components/Paywall/PopoverPaywall";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "components/SettingsHeader/SettingsHeader";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { useFormik } from "formik";
 import type { FC } from "react";
 import { getFormHelpers } from "utils/formUtils";
@@ -66,25 +67,31 @@ export const AppearanceSettingsPageView: FC<
 			</SettingsHeader>
 
 			<Badges>
-				<Popover mode="hover">
-					{isEntitled && !isPremium ? (
-						<EnterpriseBadge />
-					) : (
-						<PopoverTrigger>
-							<span>
-								<PremiumBadge />
-							</span>
-						</PopoverTrigger>
-					)}
+				<TooltipProvider>
+					<Tooltip delayDuration={0}>
+						{isEntitled && !isPremium ? (
+							<EnterpriseBadge />
+						) : (
+							<TooltipTrigger asChild>
+								<span>
+									<PremiumBadge />
+								</span>
+							</TooltipTrigger>
+						)}
 
-					<PopoverContent css={{ transform: "translateY(-28px)" }}>
-						<PopoverPaywall
-							message="Appearance"
-							description="With a Premium license, you can customize the appearance and branding of your deployment."
-							documentationLink="https://coder.com/docs/admin/appearance"
-						/>
-					</PopoverContent>
-				</Popover>
+						<TooltipContent
+							sideOffset={-28}
+							collisionPadding={16}
+							className="p-0"
+						>
+							<PopoverPaywall
+								message="Appearance"
+								description="With a Premium license, you can customize the appearance and branding of your deployment."
+								documentationLink="https://coder.com/docs/admin/appearance"
+							/>
+						</TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
 			</Badges>
 
 			<Fieldset

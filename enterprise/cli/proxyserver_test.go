@@ -114,11 +114,12 @@ func TestWorkspaceProxy_Server_PrometheusEnabled(t *testing.T) {
 
 	// Fetch metrics from Prometheus endpoint
 	var res *http.Response
+	client := &http.Client{}
 	require.Eventually(t, func() bool {
 		req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("http://127.0.0.1:%d", prometheusPort), nil)
 		assert.NoError(t, err)
 		// nolint:bodyclose
-		res, err = http.DefaultClient.Do(req)
+		res, err = client.Do(req)
 		return err == nil
 	}, testutil.WaitShort, testutil.IntervalFast)
 	defer res.Body.Close()

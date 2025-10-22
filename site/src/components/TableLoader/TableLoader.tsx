@@ -1,5 +1,8 @@
-import TableCell from "@mui/material/TableCell";
-import TableRow, { type TableRowProps } from "@mui/material/TableRow";
+import {
+	TableCell,
+	TableRow,
+	type TableRowProps,
+} from "components/Table/Table";
 import { cloneElement, type FC, isValidElement, type ReactNode } from "react";
 import { Loader } from "../Loader/Loader";
 

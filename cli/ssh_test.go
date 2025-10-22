@@ -1242,7 +1242,8 @@ func TestSSH(t *testing.T) {
 				// true exits the loop.
 				return true
 			}
-			resp, err := http.DefaultClient.Do(req)
+			client := &http.Client{}
+			resp, err := client.Do(req)
 			if err != nil {
 				t.Logf("HTTP GET http://localhost:8222/ %s", err)
 				return false

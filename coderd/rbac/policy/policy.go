@@ -27,6 +27,8 @@ const (
 
 	ActionCreateAgent Action = "create_agent"
 	ActionDeleteAgent Action = "delete_agent"
+
+	ActionShare Action = "share"
 )
 
 type PermissionDefinition struct {
@@ -61,6 +63,16 @@ var workspaceActions = map[Action]ActionDefinition{
 
 	ActionCreateAgent: "create a new workspace agent",
 	ActionDeleteAgent: "delete an existing workspace agent",
+
+	// Sharing a workspace
+	ActionShare: "share a workspace with other users or groups",
+}
+
+var taskActions = map[Action]ActionDefinition{
+	ActionCreate: "create a new task",
+	ActionRead:   "read task data or output to view on the UI or CLI",
+	ActionUpdate: "edit task settings or send input to an existing task",
+	ActionDelete: "delete task",
 }
 
 // RBACPermissions is indexed by the type
@@ -85,6 +97,9 @@ var RBACPermissions = map[string]PermissionDefinition{
 	},
 	"workspace": {
 		Actions: workspaceActions,
+	},
+	"task": {
+		Actions: taskActions,
 	},
 	// Dormant workspaces have the same perms as workspaces.
 	"workspace_dormant": {

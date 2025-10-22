@@ -17,6 +17,9 @@ func main() {
 		log.Fatalf("new convert: %v", err)
 	}
 
+	// Include golang comments to typescript output.
+	gen.PreserveComments()
+
 	generateDirectories := map[string]string{
 		"github.com/coder/coder/v2/codersdk":                  "",
 		"github.com/coder/coder/v2/coderd/healthcheck/health": "Health",
@@ -56,7 +59,7 @@ func main() {
 		log.Fatalf("to typescript: %v", err)
 	}
 
-	TsMutations(ts)
+	TSMutations(ts)
 
 	output, err := ts.Serialize()
 	if err != nil {
@@ -65,7 +68,7 @@ func main() {
 	_, _ = fmt.Println(output)
 }
 
-func TsMutations(ts *guts.Typescript) {
+func TSMutations(ts *guts.Typescript) {
 	ts.ApplyMutations(
 		// TODO: Remove 'NotNullMaps'. This is hiding potential bugs
 		//   of referencing maps that are actually null.

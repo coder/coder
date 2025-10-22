@@ -63,6 +63,7 @@ func NewAppHealthReporterWithClock(
 		// run a ticker for each app health check.
 		var mu sync.RWMutex
 		failures := make(map[uuid.UUID]int, 0)
+		client := &http.Client{}
 		for _, nextApp := range apps {
 			if !shouldStartTicker(nextApp) {
 				continue
@@ -91,7 +92,7 @@ func NewAppHealthReporterWithClock(
 						if err != nil {
 							return err
 						}
-						res, err := http.DefaultClient.Do(req)
+						res, err := client.Do(req)
 						if err != nil {
 							return err
 						}

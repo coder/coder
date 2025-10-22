@@ -8,7 +8,8 @@
 @tailwind utilities;
 
 @layer base {
-	:root {
+	:root,
+	.light {
 		--content-primary: 240 10% 4%;
 		--content-secondary: 240 5% 34%;
 		--content-link: 221 83% 53%;

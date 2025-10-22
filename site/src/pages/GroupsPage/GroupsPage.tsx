@@ -15,7 +15,6 @@ import { PlusIcon } from "lucide-react";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { RequirePermission } from "modules/permissions/RequirePermission";
 import { type FC, useEffect } from "react";
-import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router";
 import { pageTitle } from "utils/page";
@@ -58,18 +57,14 @@ const GroupsPage: FC = () => {
 		return <Loader />;
 	}
 
-	const helmet = (
-		<Helmet>
-			<title>{pageTitle("Groups")}</title>
-		</Helmet>
-	);
+	const title = <title>{pageTitle("Groups")}</title>;
 
 	const permissions = permissionsQuery.data?.[organization.id];
 
 	if (!permissions?.viewGroups) {
 		return (
 			<>
-				{helmet}
+				{title}
 				<RequirePermission isFeatureVisible={false} />
 			</>
 		);
@@ -77,7 +72,7 @@ const GroupsPage: FC = () => {
 
 	return (
 		<div className="w-full max-w-screen-2xl pb-10">
-			{helmet}
+			{title}
 
 			<Stack
 				alignItems="baseline"

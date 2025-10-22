@@ -1,6 +1,5 @@
 import { css, useTheme } from "@emotion/react";
-import TableCell from "@mui/material/TableCell";
-import TableRow from "@mui/material/TableRow";
+import { TableCell, TableRow } from "components/Table/Table";
 import type { FC } from "react";
 import { createDisplayDate } from "./utils";
 

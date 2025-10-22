@@ -3,7 +3,6 @@ import {
 	MockDisconnectedSSHConnectionLog,
 	MockWebConnectionLog,
 } from "testHelpers/entities";
-import TableContainer from "@mui/material/TableContainer";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Table, TableBody } from "components/Table/Table";
 import { ConnectionLogRow } from "./ConnectionLogRow";
@@ -13,13 +12,11 @@ const meta: Meta<typeof ConnectionLogRow> = {
 	component: ConnectionLogRow,
 	decorators: [
 		(Story) => (
-			<TableContainer>
-				<Table>
-					<TableBody>
-						<Story />
-					</TableBody>
-				</Table>
-			</TableContainer>
+			<Table>
+				<TableBody>
+					<Story />
+				</TableBody>
+			</Table>
 		),
 	],
 };

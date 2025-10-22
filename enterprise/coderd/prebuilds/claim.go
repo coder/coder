@@ -55,8 +55,4 @@ func (c EnterpriseClaimer) Claim(
 	return &result.ID, nil
 }
 
-func (EnterpriseClaimer) Initiator() uuid.UUID {
-	return database.PrebuildsSystemUserID
-}
-
 var _ prebuilds.Claimer = &EnterpriseClaimer{}

@@ -519,6 +519,16 @@ func (e *Error) Error() string {
 	return builder.String()
 }
 
+// NewTestError is a helper function to create a Error, setting the internal fields. It's generally only useful for
+// testing.
+func NewTestError(statusCode int, method string, u string) *Error {
+	return &Error{
+		statusCode: statusCode,
+		method:     method,
+		url:        u,
+	}
+}
+
 type closeFunc func() error
 
 func (c closeFunc) Close() error {

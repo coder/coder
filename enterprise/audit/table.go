@@ -27,6 +27,7 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"Group":           {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"APIKey":          {codersdk.AuditActionLogin, codersdk.AuditActionLogout, codersdk.AuditActionRegister, codersdk.AuditActionCreate, codersdk.AuditActionDelete},
 	"License":         {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
+	"Task":            {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 }
 
 type Action string
@@ -346,6 +347,18 @@ var auditableResourcesTypes = map[any]map[string]Action{
 	&idpsync.RoleSyncSettings{}: {
 		"field":   ActionTrack,
 		"mapping": ActionTrack,
+	},
+	&database.TaskTable{}: {
+		"id":                  ActionTrack,
+		"organization_id":     ActionIgnore, // Never changes.
+		"owner_id":            ActionTrack,
+		"name":                ActionTrack,
+		"workspace_id":        ActionTrack,
+		"template_version_id": ActionTrack,
+		"template_parameters": ActionTrack,
+		"prompt":              ActionTrack,
+		"created_at":          ActionIgnore, // Never changes.
+		"deleted_at":          ActionIgnore, // Changes, but is implicit when a delete event is fired.
 	},
 }
 

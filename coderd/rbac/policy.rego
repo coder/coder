@@ -114,16 +114,16 @@ site_allow(roles) := num if {
 #  Adding a second org_members set might affect the partial evaluation.
 #  This is being left until org scopes are used.
 org_members := {orgID |
-	input.subject.roles[_].org[orgID]
+	input.subject.roles[_].by_org_id[orgID]
 }
 
 # 'org' is the same as 'site' except we need to iterate over each organization
 # that the actor is a member of.
 default org := 0
-org := org_allow(input.subject.roles)
+org := org_allow(input.subject.roles, "org")
 
 default scope_org := 0
-scope_org := org_allow([input.subject.scope])
+scope_org := org_allow([input.subject.scope], "org")
 
 # org_allow_set is a helper function that iterates over all orgs that the actor
 # is a member of. For each organization it sets the numerical allow value
@@ -135,12 +135,12 @@ scope_org := org_allow([input.subject.scope])
 # The reason we calculate this for all orgs, and not just the input.object.org_owner
 # is that sometimes the input.object.org_owner is unknown. In those cases
 # we have a list of org_ids that can we use in a SQL 'WHERE' clause.
-org_allow_set(roles) := allow_set if {
+org_allow_set(roles, key) := allow_set if {
 	allow_set := {id: num |
 		id := org_members[_]
 		set := {is_allowed |
 			# Iterate over all org permissions in all roles
-			perm := roles[_].org[id][_]
+			perm := roles[_].by_org_id[id][key][_]
 			perm.action in [input.action, "*"]
 			perm.resource_type in [input.object.type, "*"]
 
@@ -151,11 +151,11 @@ org_allow_set(roles) := allow_set if {
 	}
 }
 
-org_allow(roles) := num if {
+org_allow(roles, key) := num if {
 	# If the object has "any_org" set to true, then use the other
 	# org_allow block.
 	not input.object.any_org
-	allow := org_allow_set(roles)
+	allow := org_allow_set(roles, key)
 
 	# Return only the org value of the input's org.
 	# The reason why we do not do this up front, is that we need to make sure
@@ -171,9 +171,9 @@ org_allow(roles) := num if {
 # This is useful for UI elements when we want to conclude, "Can the user create
 # a new template in any organization?"
 # It is easier than iterating over every organization the user is apart of.
-org_allow(roles) := num if {
+org_allow(roles, key) := num if {
 	input.object.any_org # if this is false, this code block is not used
-	allow := org_allow_set(roles)
+	allow := org_allow_set(roles, key)
 
 	# allow is a map of {"<org_id>": <number>}. We only care about values
 	# that are 1, and ignore the rest.

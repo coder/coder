@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -35,6 +36,8 @@ func TestOAuth2AuthorizationServerMetadata(t *testing.T) {
 	require.Contains(t, metadata.GrantTypesSupported, "authorization_code")
 	require.Contains(t, metadata.GrantTypesSupported, "refresh_token")
 	require.Contains(t, metadata.CodeChallengeMethodsSupported, "S256")
+	// Supported scopes are published from the curated catalog
+	require.Equal(t, rbac.ExternalScopeNames(), metadata.ScopesSupported)
 }
 
 func TestOAuth2ProtectedResourceMetadata(t *testing.T) {
@@ -60,7 +63,6 @@ func TestOAuth2ProtectedResourceMetadata(t *testing.T) {
 	// RFC 6750 bearer tokens are now supported as fallback methods
 	require.Contains(t, metadata.BearerMethodsSupported, "header")
 	require.Contains(t, metadata.BearerMethodsSupported, "query")
-	// ScopesSupported can be empty until scope system is implemented
-	// Empty slice is marshaled as empty array, but can be nil when unmarshaled
-	require.True(t, len(metadata.ScopesSupported) == 0)
+	// Supported scopes are published from the curated catalog
+	require.Equal(t, rbac.ExternalScopeNames(), metadata.ScopesSupported)
 }

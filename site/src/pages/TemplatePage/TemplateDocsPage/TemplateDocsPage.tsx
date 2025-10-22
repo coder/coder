@@ -2,7 +2,7 @@ import { useTheme } from "@emotion/react";
 import { MemoizedMarkdown } from "components/Markdown/Markdown";
 import frontMatter from "front-matter";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
-import { Helmet } from "react-helmet-async";
+
 import { pageTitle } from "utils/page";
 
 export default function TemplateDocsPage() {
@@ -13,9 +13,7 @@ export default function TemplateDocsPage() {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle(template.name, "Documentation")}</title>
-			</Helmet>
+			<title>{pageTitle(template.name, "Documentation")}</title>
 
 			<div
 				css={{

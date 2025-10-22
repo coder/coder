@@ -1,6 +1,3 @@
-import { useTheme } from "@emotion/react";
-import NotificationsOffOutlined from "@mui/icons-material/NotificationsOffOutlined";
-import ReplayIcon from "@mui/icons-material/Replay";
 import CircularProgress from "@mui/material/CircularProgress";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
@@ -9,9 +6,9 @@ import type { HealthSeverity } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import kebabCase from "lodash/fp/kebabCase";
+import { BellOffIcon, RotateCcwIcon } from "lucide-react";
 import { DashboardFullPage } from "modules/dashboard/DashboardLayout";
 import { type FC, Suspense } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { NavLink, Outlet } from "react-router";
 import { cn } from "utils/cn";
@@ -29,7 +26,6 @@ const linkStyles = {
 };
 
 export const HealthLayout: FC = () => {
-	const theme = useTheme();
 	const queryClient = useQueryClient();
 	const {
 		data: healthStatus,
@@ -70,9 +66,7 @@ export const HealthLayout: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("Health")}</title>
-			</Helmet>
+			<title>{pageTitle("Health")}</title>
 
 			<DashboardFullPage>
 				<div className="flex basis-0 flex-1 overflow-hidden">
@@ -94,7 +88,7 @@ export const HealthLayout: FC = () => {
 											{isRefreshing ? (
 												<CircularProgress size={16} />
 											) : (
-												<ReplayIcon className="size-5" />
+												<RotateCcwIcon className="size-5" />
 											)}
 										</IconButton>
 									</Tooltip>
@@ -158,13 +152,7 @@ export const HealthLayout: FC = () => {
 											/>
 											{label}
 											{healthSection.dismissed && (
-												<NotificationsOffOutlined
-													css={{
-														fontSize: 14,
-														marginLeft: "auto",
-														color: theme.palette.text.disabled,
-													}}
-												/>
+												<BellOffIcon className="size-icon-sm ml-auto text-content-disabled" />
 											)}
 										</NavLink>
 									);

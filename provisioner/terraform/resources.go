@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"slices"
 	"strings"
 
 	"github.com/awalterschulze/gographviz"
@@ -1023,14 +1022,16 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			return nil, xerrors.Errorf("decode coder_ai_task attributes: %w", err)
 		}
 
-		if len(task.SidebarApp) < 1 {
-			return nil, xerrors.Errorf("coder_ai_task has no sidebar_app defined")
+		appID := task.AppID
+		if appID == "" && len(task.SidebarApp) > 0 {
+			appID = task.SidebarApp[0].ID
 		}
 
 		aiTasks = append(aiTasks, &proto.AITask{
-			Id: task.ID,
+			Id:    task.ID,
+			AppId: appID,
 			SidebarApp: &proto.AITaskSidebarApp{
-				Id: task.SidebarApp[0].ID,
+				Id: appID,
 			},
 		})
 	}
@@ -1066,14 +1067,6 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 	}
 
 	hasAITasks := hasAITaskResources(graph)
-	if hasAITasks {
-		hasPromptParam := slices.ContainsFunc(parameters, func(param *proto.RichParameter) bool {
-			return param.Name == provider.TaskPromptParameterName
-		})
-		if !hasPromptParam {
-			return nil, xerrors.Errorf("coder_parameter named '%s' is required when 'coder_ai_task' resource is defined", provider.TaskPromptParameterName)
-		}
-	}
 
 	return &State{
 		Resources:             resources,

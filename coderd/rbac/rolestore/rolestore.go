@@ -124,7 +124,6 @@ func ConvertDBRole(dbRole database.CustomRole) (rbac.Role, error) {
 		Identifier:  dbRole.RoleIdentifier(),
 		DisplayName: dbRole.DisplayName,
 		Site:        convertPermissions(dbRole.SitePermissions),
-		Org:         nil,
 		User:        convertPermissions(dbRole.UserPermissions),
 	}
 
@@ -134,8 +133,10 @@ func ConvertDBRole(dbRole database.CustomRole) (rbac.Role, error) {
 	}
 
 	if dbRole.OrganizationID.UUID != uuid.Nil {
-		role.Org = map[string][]rbac.Permission{
-			dbRole.OrganizationID.UUID.String(): convertPermissions(dbRole.OrgPermissions),
+		role.ByOrgID = map[string]rbac.OrgPermissions{
+			dbRole.OrganizationID.UUID.String(): {
+				Org: convertPermissions(dbRole.OrgPermissions),
+			},
 		}
 	}
 

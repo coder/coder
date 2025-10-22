@@ -103,6 +103,9 @@ sql:
           - column: "user_links.claims"
             go_type:
               type: "UserLinkClaims"
+          # Workaround for sqlc not interpreting the left join correctly.
+          - column: "tasks_with_status.workspace_build_number"
+            go_type: "database/sql.NullInt32"
         rename:
           group_member: GroupMemberTable
           group_members_expanded: GroupMember
@@ -112,6 +115,8 @@ sql:
           workspace_build_with_user: WorkspaceBuild
           workspace: WorkspaceTable
           workspaces_expanded: Workspace
+          task: TaskTable
+          tasks_with_status: Task
           template_version: TemplateVersionTable
           template_version_with_user: TemplateVersion
           api_key: APIKey

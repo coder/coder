@@ -1,5 +1,4 @@
 import type { FC, HTMLProps } from "react";
-
 export const InputGroup: FC<HTMLProps<HTMLDivElement>> = (props) => {
 	return (
 		<div

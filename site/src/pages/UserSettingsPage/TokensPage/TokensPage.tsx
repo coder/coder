@@ -1,6 +1,6 @@
 import { css, type Interpolation, type Theme } from "@emotion/react";
-import Button from "@mui/material/Button";
 import type { APIKeyWithOwner } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import { Stack } from "components/Stack/Stack";
 import { PlusIcon } from "lucide-react";
 import { type FC, useState } from "react";
@@ -65,12 +65,11 @@ const TokensPage: FC = () => {
 
 const TokenActions: FC = () => (
 	<Stack direction="row" justifyContent="end" css={{ marginBottom: 8 }}>
-		<Button
-			startIcon={<PlusIcon className="size-icon-sm" />}
-			component={RouterLink}
-			to="new"
-		>
-			Add token
+		<Button asChild variant="outline">
+			<RouterLink to="new">
+				<PlusIcon />
+				Add token
+			</RouterLink>
 		</Button>
 	</Stack>
 );

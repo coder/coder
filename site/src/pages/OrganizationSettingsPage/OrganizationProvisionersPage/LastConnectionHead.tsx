@@ -6,7 +6,6 @@ import {
 } from "components/Tooltip/Tooltip";
 import { InfoIcon } from "lucide-react";
 import type { FC } from "react";
-
 export const LastConnectionHead: FC = () => {
 	return (
 		<span className="flex items-center gap-1 whitespace-nowrap text-xs font-medium text-content-secondary">

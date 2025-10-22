@@ -15,7 +15,6 @@ import {
 import { Stack } from "components/Stack/Stack";
 import { SearchIcon, XIcon } from "lucide-react";
 import { type FC, type ReactNode, useMemo, useState } from "react";
-import { Helmet } from "react-helmet-async";
 import {
 	defaultParametersForBuiltinIcons,
 	parseImageParameters,
@@ -73,9 +72,7 @@ const IconsPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("Icons")}</title>
-			</Helmet>
+			<title>{pageTitle("Icons")}</title>
 			<Margins>
 				<PageHeader
 					actions={

@@ -181,6 +181,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 			OrganizationID: group.OrganizationID,
 			UserID:         uuid.MustParse(id),
 			IncludeSystem:  false,
+			GithubUserID:   0,
 		}))
 		if errors.Is(err, sql.ErrNoRows) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{

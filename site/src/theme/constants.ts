@@ -34,7 +34,5 @@ export const containerWidthMedium = 1080;
 export const sidePadding = 24;
 
 // MUI does not have aligned heights for buttons and inputs so we have to "hack" it a little bit
-export const BUTTON_XL_HEIGHT = 44;
 export const BUTTON_LG_HEIGHT = 40;
 export const BUTTON_MD_HEIGHT = 36;
-export const BUTTON_SM_HEIGHT = 32;

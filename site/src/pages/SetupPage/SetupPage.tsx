@@ -4,7 +4,6 @@ import { Loader } from "components/Loader/Loader";
 import { useAuthContext } from "contexts/auth/AuthProvider";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { type FC, useEffect, useRef } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery } from "react-query";
 import { Navigate } from "react-router";
 import { pageTitle } from "utils/page";
@@ -57,9 +56,7 @@ export const SetupPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("Set up your account")}</title>
-			</Helmet>
+			<title>{pageTitle("Set up your account")}</title>
 			<SetupPageView
 				authMethods={authMethodsQuery.data}
 				isLoading={isSigningIn || createFirstUserMutation.isPending}

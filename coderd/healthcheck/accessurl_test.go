@@ -55,7 +55,7 @@ func TestAccessURL(t *testing.T) {
 		defer cancel()
 
 		report.Run(ctx, &healthcheck.AccessURLReportOptions{
-			Client:    nil, // defaults to http.DefaultClient
+			Client:    &http.Client{},
 			AccessURL: nil,
 		})
 

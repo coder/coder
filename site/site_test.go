@@ -232,6 +232,7 @@ func TestServingFiles(t *testing.T) {
 		Database:  db,
 	}))
 	defer srv.Close()
+	client := &http.Client{}
 
 	// Create a context
 	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -275,7 +276,7 @@ func TestServingFiles(t *testing.T) {
 
 		req, err := http.NewRequestWithContext(ctx, "GET", path, nil)
 		require.NoError(t, err)
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := client.Do(req)
 		require.NoError(t, err, "get file")
 		data, _ := io.ReadAll(resp.Body)
 		require.Equal(t, string(data), testCase.expected, "Verify file: "+testCase.path)
@@ -521,6 +522,7 @@ func TestServingBin(t *testing.T) {
 			compressor := middleware.NewCompressor(1, "text/*", "application/*")
 			srv := httptest.NewServer(compressor.Handler(site))
 			defer srv.Close()
+			client := &http.Client{}
 
 			// Create a context
 			ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -538,7 +540,7 @@ func TestServingBin(t *testing.T) {
 						req.Header.Set("Accept-Encoding", "gzip")
 					}
 
-					resp, err := http.DefaultClient.Do(req)
+					resp, err := client.Do(req)
 					require.NoError(t, err, "http do failed")
 					defer resp.Body.Close()
 

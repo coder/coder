@@ -3,13 +3,11 @@ package agentapi_test
 import (
 	"context"
 	"database/sql"
-	"net"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -75,6 +73,9 @@ func TestConnectionLog(t *testing.T) {
 			action: agentproto.Connection_CONNECT.Enum(),
 			typ:    agentproto.Connection_JETBRAINS.Enum(),
 			time:   dbtime.Now(),
+			// Sometimes, JetBrains clients report as localhost, see
+			// https://github.com/coder/coder/issues/20194
+			ip: "localhost",
 		},
 		{
 			name:   "Reconnecting PTY Connect",
@@ -129,6 +130,12 @@ func TestConnectionLog(t *testing.T) {
 				},
 			})
 
+			expectedIPRaw := tt.ip
+			if expectedIPRaw == "localhost" {
+				expectedIPRaw = "127.0.0.1"
+			}
+			expectedIP := database.ParseIP(expectedIPRaw)
+
 			require.True(t, connLogger.Contains(t, database.UpsertConnectionLogParams{
 				Time:             dbtime.Time(tt.time).In(time.UTC),
 				OrganizationID:   workspace.OrganizationID,
@@ -146,7 +153,7 @@ func TestConnectionLog(t *testing.T) {
 					Int32: tt.status,
 					Valid: *tt.action == agentproto.Connection_DISCONNECT,
 				},
-				Ip:   pqtype.Inet{Valid: true, IPNet: net.IPNet{IP: net.ParseIP(tt.ip), Mask: net.CIDRMask(32, 32)}},
+				Ip:   expectedIP,
 				Type: agentProtoConnectionTypeToConnectionLog(t, *tt.typ),
 				DisconnectReason: sql.NullString{
 					String: tt.reason,

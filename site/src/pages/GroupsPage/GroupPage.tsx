@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import MuiButton from "@mui/material/Button";
 import { getErrorMessage } from "api/errors";
 import {
 	addMember,
@@ -55,7 +54,6 @@ import {
 	UserPlusIcon,
 } from "lucide-react";
 import { type FC, useState } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link as RouterLink, useNavigate, useParams } from "react-router";
 import { isEveryoneGroup } from "utils/groups";
@@ -81,14 +79,10 @@ const GroupPage: FC = () => {
 	const isLoading = groupQuery.isLoading || !groupData || !permissions;
 	const canUpdateGroup = permissions ? permissions.canUpdateGroup : false;
 
-	const helmet = (
-		<Helmet>
-			<title>
-				{pageTitle(
-					(groupData?.display_name || groupData?.name) ?? "Loading...",
-				)}
-			</title>
-		</Helmet>
+	const title = (
+		<title>
+			{pageTitle((groupData?.display_name || groupData?.name) ?? "Loading...")}
+		</title>
 	);
 
 	if (groupQuery.error) {
@@ -98,7 +92,7 @@ const GroupPage: FC = () => {
 	if (isLoading) {
 		return (
 			<>
-				{helmet}
+				{title}
 				<Loader />
 			</>
 		);
@@ -107,7 +101,7 @@ const GroupPage: FC = () => {
 
 	return (
 		<>
-			{helmet}
+			{title}
 
 			<Stack
 				alignItems="baseline"
@@ -125,23 +119,22 @@ const GroupPage: FC = () => {
 
 				{canUpdateGroup && (
 					<Stack direction="row" spacing={2}>
-						<MuiButton
-							component={RouterLink}
-							startIcon={<SettingsIcon className="size-icon-sm" />}
-							to="settings"
-						>
-							Settings
-						</MuiButton>
-						<MuiButton
+						<Button variant="outline" asChild>
+							<RouterLink to="settings">
+								<SettingsIcon />
+								Settings
+							</RouterLink>
+						</Button>
+						<Button
+							variant="destructive"
 							disabled={groupData?.id === groupData?.organization_id}
 							onClick={() => {
 								setIsDeletingGroup(true);
 							}}
-							startIcon={<TrashIcon className="size-icon-xs" />}
-							css={styles.removeButton}
 						>
+							<TrashIcon />
 							Delete&hellip;
-						</MuiButton>
+						</Button>
 					</Stack>
 				)}
 			</Stack>
@@ -358,12 +351,6 @@ const styles = {
 	autoComplete: {
 		width: 300,
 	},
-	removeButton: (theme) => ({
-		color: theme.palette.error.main,
-		"&:hover": {
-			backgroundColor: "transparent",
-		},
-	}),
 	status: {
 		textTransform: "capitalize",
 	},

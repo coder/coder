@@ -753,6 +753,14 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(ctx, rw, r, &params) {
 		return
 	}
+
+	// If caller wants to update user's username, they need "update_users" permission.
+	// This is restricted to user admins only.
+	if params.Username != user.Username && !api.Authorize(r, policy.ActionUpdate, user) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
 	existentUser, err := api.Database.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
 		Username: params.Username,
 	})
@@ -1236,6 +1244,7 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 		UserID:         user.ID,
 		OrganizationID: uuid.Nil,
 		IncludeSystem:  false,
+		GithubUserID:   0,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1570,10 +1579,21 @@ func userOrganizationIDs(ctx context.Context, api *API, user database.User) ([]u
 }
 
 func convertAPIKey(k database.APIKey) codersdk.APIKey {
-	// Derive a single scope from arrays for response compatibility.
-	scope := database.APIKeyScopeAll
-	if k.Scopes.Has(database.APIKeyScopeApplicationConnect) {
-		scope = database.APIKeyScopeApplicationConnect
+	// Derive a single legacy scope name for response compatibility.
+	// Historically, the API exposed only two scope strings: "all" and
+	// "application_connect". Continue to return those for clients even
+	// though the database stores canonical values (e.g. "coder:all")
+	// and may include low-level scopes.
+	var legacyScope codersdk.APIKeyScope
+	if k.Scopes.Has(database.ApiKeyScopeCoderApplicationConnect) {
+		legacyScope = codersdk.APIKeyScopeApplicationConnect
+	} else if k.Scopes.Has(database.ApiKeyScopeCoderAll) {
+		legacyScope = codersdk.APIKeyScopeAll
+	}
+
+	scopes := make([]codersdk.APIKeyScope, 0, len(k.Scopes))
+	for _, s := range k.Scopes {
+		scopes = append(scopes, codersdk.APIKeyScope(s))
 	}
 
 	return codersdk.APIKey{
@@ -1584,7 +1604,8 @@ func convertAPIKey(k database.APIKey) codersdk.APIKey {
 		CreatedAt:       k.CreatedAt,
 		UpdatedAt:       k.UpdatedAt,
 		LoginType:       codersdk.LoginType(k.LoginType),
-		Scope:           codersdk.APIKeyScope(scope),
+		Scope:           legacyScope,
+		Scopes:          scopes,
 		LifetimeSeconds: k.LifetimeSeconds,
 		TokenName:       k.TokenName,
 	}

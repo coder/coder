@@ -12,6 +12,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/cryptorand"
 )
 
@@ -25,9 +26,18 @@ type CreateParams struct {
 	// Optional.
 	ExpiresAt       time.Time
 	LifetimeSeconds int64
-	Scope           database.APIKeyScope
-	TokenName       string
-	RemoteAddr      string
+
+	// Scope is legacy single-scope input kept for backward compatibility.
+	//
+	// Deprecated: use Scopes instead.
+	Scope database.APIKeyScope
+	// Scopes is the full list of scopes to attach to the key.
+	Scopes     database.APIKeyScopes
+	TokenName  string
+	RemoteAddr string
+	// AllowList is an optional, normalized allow-list
+	// of resource type and uuid entries. If empty, defaults to wildcard.
+	AllowList database.AllowList
 }
 
 // Generate generates an API key, returning the key as a string as well as the
@@ -55,6 +65,10 @@ func Generate(params CreateParams) (database.InsertAPIKeyParams, string, error) 
 		params.LifetimeSeconds = int64(time.Until(params.ExpiresAt).Seconds())
 	}
 
+	if len(params.AllowList) == 0 {
+		params.AllowList = database.AllowList{{Type: policy.WildcardSymbol, ID: policy.WildcardSymbol}}
+	}
+
 	ip := net.ParseIP(params.RemoteAddr)
 	if ip == nil {
 		ip = net.IPv4(0, 0, 0, 0)
@@ -62,14 +76,30 @@ func Generate(params CreateParams) (database.InsertAPIKeyParams, string, error) 
 
 	bitlen := len(ip) * 8
 
-	scope := database.APIKeyScopeAll
-	if params.Scope != "" {
-		scope = params.Scope
-	}
-	switch scope {
-	case database.APIKeyScopeAll, database.APIKeyScopeApplicationConnect:
+	var scopes database.APIKeyScopes
+	switch {
+	case len(params.Scopes) > 0:
+		scopes = params.Scopes
+	case params.Scope != "":
+		var scope database.APIKeyScope
+		switch params.Scope {
+		case "all":
+			scope = database.ApiKeyScopeCoderAll
+		case "application_connect":
+			scope = database.ApiKeyScopeCoderApplicationConnect
+		default:
+			scope = params.Scope
+		}
+		scopes = database.APIKeyScopes{scope}
 	default:
-		return database.InsertAPIKeyParams{}, "", xerrors.Errorf("invalid API key scope: %q", scope)
+		// Default to coder:all scope for backward compatibility.
+		scopes = database.APIKeyScopes{database.ApiKeyScopeCoderAll}
+	}
+
+	for _, s := range scopes {
+		if !s.Valid() {
+			return database.InsertAPIKeyParams{}, "", xerrors.Errorf("invalid API key scope: %q", s)
+		}
 	}
 
 	token := fmt.Sprintf("%s-%s", keyID, keySecret)
@@ -92,8 +122,8 @@ func Generate(params CreateParams) (database.InsertAPIKeyParams, string, error) 
 		UpdatedAt:    dbtime.Now(),
 		HashedSecret: hashed[:],
 		LoginType:    params.LoginType,
-		Scopes:       database.APIKeyScopes{scope},
-		AllowList:    database.AllowList{database.AllowListWildcard()},
+		Scopes:       scopes,
+		AllowList:    params.AllowList,
 		TokenName:    params.TokenName,
 	}, token, nil
 }
