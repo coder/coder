@@ -37,7 +37,7 @@ locals {
   repo_base_dir  = data.coder_parameter.repo_base_dir.value == "~" ? "/home/coder" : replace(data.coder_parameter.repo_base_dir.value, "/^~\\//", "/home/coder/")
   repo_dir       = replace(try(module.git-clone[0].repo_dir, ""), "/^~\\//", "/home/coder/")
   container_name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
-  has_ai_prompt  = data.coder_parameter.ai_prompt.value != ""
+  is_task        = coder_task.task.id != ""
 }
 
 data "coder_workspace_preset" "cpt" {
@@ -216,14 +216,6 @@ data "coder_parameter" "devcontainer_autostart" {
   default     = false
   description = "If enabled, a devcontainer will be automatically started for the [coder/coder](https://github.com/coder/coder) repository."
   mutable     = true
-}
-
-data "coder_parameter" "ai_prompt" {
-  type        = "string"
-  name        = "AI Prompt"
-  default     = ""
-  description = "Prompt for Claude Code"
-  mutable     = true // Workaround for issue with claiming a prebuild from a preset that does not include this parameter.
 }
 
 provider "docker" {
@@ -790,7 +782,7 @@ resource "coder_metadata" "container_info" {
   }
   item {
     key   = "ai_task"
-    value = local.has_ai_prompt ? "yes" : "no"
+    value = local.is_task ? "yes" : "no"
   }
 }
 
@@ -824,7 +816,7 @@ locals {
 }
 
 module "claude-code" {
-  count               = local.has_ai_prompt ? data.coder_workspace.me.start_count : 0
+  count               = local.is_task ? data.coder_workspace.me.start_count : 0
   source              = "dev.registry.coder.com/coder/claude-code/coder"
   version             = "3.4.4"
   agent_id            = coder_agent.dev.id
@@ -835,15 +827,19 @@ module "claude-code" {
   agentapi_version    = "latest"
 
   system_prompt       = local.claude_system_prompt
-  ai_prompt           = data.coder_parameter.ai_prompt.value
+  ai_prompt           = coder_ai_task.task.prompt
   post_install_script = <<-EOT
     claude mcp add playwright npx -- @playwright/mcp@latest --headless --isolated --no-sandbox
     claude mcp add desktop-commander npx -- @wonderwhy-er/desktop-commander@latest
   EOT
 }
 
+resource "coder_ai_task" "task" {
+  app_id = module.claude-code.task_app_id
+}
+
 resource "coder_app" "develop_sh" {
-  count        = local.has_ai_prompt ? data.coder_workspace.me.start_count : 0
+  count        = local.is_task ? data.coder_workspace.me.start_count : 0
   agent_id     = coder_agent.dev.id
   slug         = "develop-sh"
   display_name = "develop.sh"
@@ -856,7 +852,7 @@ resource "coder_app" "develop_sh" {
 }
 
 resource "coder_script" "develop_sh" {
-  count              = local.has_ai_prompt ? data.coder_workspace.me.start_count : 0
+  count              = local.is_task ? data.coder_workspace.me.start_count : 0
   display_name       = "develop.sh"
   agent_id           = coder_agent.dev.id
   run_on_start       = true
@@ -879,7 +875,7 @@ resource "coder_script" "develop_sh" {
 }
 
 resource "coder_app" "preview" {
-  count        = local.has_ai_prompt ? data.coder_workspace.me.start_count : 0
+  count        = local.is_task ? data.coder_workspace.me.start_count : 0
   agent_id     = coder_agent.dev.id
   slug         = "preview"
   display_name = "Preview"
