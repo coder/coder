@@ -15392,6 +15392,9 @@ const docTemplate = `{
                 },
                 "token": {
                     "type": "string"
+                },
+                "token_revoke": {
+                    "type": "string"
                 }
             }
         },
