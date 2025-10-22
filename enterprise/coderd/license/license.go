@@ -612,7 +612,7 @@ var (
 	ErrMissingLicenseExpires = xerrors.New("license has invalid or missing license_expires claim")
 	ErrMissingExp            = xerrors.New("license has invalid or missing exp (expires at) claim")
 	ErrMultipleIssues        = xerrors.New("license has multiple issues; contact support")
-	ErrMissingAccountType    = xerrors.New("license must use valid account type")
+	ErrMissingAccountType    = xerrors.New("license must contain valid account type")
 	ErrMissingAccountID      = xerrors.New("license must contain valid account ID")
 )
 
@@ -699,7 +699,7 @@ func validateClaims(tok *jwt.Token) (*Claims, error) {
 			return nil, ErrMissingNotBefore
 		}
 
-		yearsHardLimit := time.Now().Add(5 /* years */ * 12 * 30 * 24 * time.Hour)
+		yearsHardLimit := time.Now().Add(5 /* years */ * 365 * 24 * time.Hour)
 		if claims.LicenseExpires == nil || claims.LicenseExpires.Time.After(yearsHardLimit) {
 			return nil, ErrMissingLicenseExpires
 		}
