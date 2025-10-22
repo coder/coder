@@ -8,7 +8,7 @@ INSERT INTO
     )
 VALUES (
         'be003e1e-b38f-43bf-847d-928074dd0aa8',
-        '30095c71-380b-457a-8995-97b8ee6e5307',
+        '30095c71-380b-457a-8995-97b8ee6e5307', -- admin@coder.com, from 000022_initial_v0.6.6.up.sql
         'openai',
         'gpt-5',
         '2025-09-15 12:45:13.921148+00'
