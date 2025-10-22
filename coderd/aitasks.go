@@ -250,7 +250,7 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 				TemplateVersionID:  templateVersion.ID,
 				TemplateParameters: []byte("{}"),
 				Prompt:             req.Input,
-				CreatedAt:          dbtime.Now(),
+				CreatedAt:          dbtime.Time(api.Clock.Now()),
 			})
 			if err != nil {
 				return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
