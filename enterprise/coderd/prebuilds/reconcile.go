@@ -659,12 +659,14 @@ func (c *StoreReconciler) executeReconciliationAction(ctx context.Context, logge
 		if err != nil {
 			logger.Error(ctx, "failed to cancel pending prebuild jobs",
 				slog.F("template_version_id", ps.Preset.TemplateVersionID.String()),
+				slog.F("preset_id", ps.Preset.ID),
 				slog.Error(err))
 			return err
 		}
 		if len(canceledJobs) > 0 {
 			logger.Info(ctx, "canceled pending prebuild jobs for inactive version",
 				slog.F("template_version_id", ps.Preset.TemplateVersionID.String()),
+				slog.F("preset_id", ps.Preset.ID),
 				slog.F("count", len(canceledJobs)))
 		}
 		return nil

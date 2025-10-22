@@ -293,7 +293,8 @@ WHERE
 	AND pj.job_status = 'pending'::provisioner_job_status
 	AND pj.worker_id IS NULL
 	AND pj.canceled_at IS NULL
-	AND pj.completed_at IS NULL;
+	AND pj.completed_at IS NULL
+GROUP BY wpb.template_version_preset_id;
 
 -- name: UpdatePrebuildProvisionerJobWithCancel :many
 -- Cancels all pending provisioner jobs for prebuilt workspaces on a specific preset from an
@@ -311,11 +312,11 @@ WHERE id IN (
 		wpb.template_version_preset_id = @preset_id
 		-- Only considers initial builds, i.e. created by the reconciliation loop
 		AND wpb.build_number = 1
-		AND wpb.transition = 'start'::workspace_transition
 		-- Only consider 'start' transitions (provisioning), not 'stop'/'delete' (deprovisioning)
 		-- Deprovisioning jobs should complete naturally as they're already cleaning up resources
-		AND pj.job_status = 'pending'::provisioner_job_status
+		AND wpb.transition = 'start'::workspace_transition
 		-- Pending jobs that have not yet been picked up by a provisioner
+		AND pj.job_status = 'pending'::provisioner_job_status
   		AND pj.worker_id IS NULL
   		AND pj.canceled_at IS NULL
   		AND pj.completed_at IS NULL
