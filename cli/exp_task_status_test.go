@@ -37,7 +37,7 @@ func Test_TaskStatus(t *testing.T) {
 				return func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
 					case "/api/experimental/tasks":
-						if r.URL.Query().Get("owner") == "me" {
+						if r.URL.Query().Get("q") == "owner:\"me\"" {
 							httpapi.Write(ctx, w, http.StatusOK, struct {
 								Tasks []codersdk.Task `json:"tasks"`
 								Count int             `json:"count"`
@@ -61,7 +61,7 @@ func Test_TaskStatus(t *testing.T) {
 				return func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
 					case "/api/experimental/tasks":
-						if r.URL.Query().Get("owner") == "me" {
+						if r.URL.Query().Get("q") == "owner:\"me\"" {
 							httpapi.Write(ctx, w, http.StatusOK, struct {
 								Tasks []codersdk.Task `json:"tasks"`
 								Count int             `json:"count"`
@@ -125,7 +125,7 @@ STATE CHANGED  STATUS   HEALTHY  STATE  MESSAGE
 				return func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
 					case "/api/experimental/tasks":
-						if r.URL.Query().Get("owner") == "me" {
+						if r.URL.Query().Get("q") == "owner:\"me\"" {
 							// Return initial task state for --watch test
 							httpapi.Write(ctx, w, http.StatusOK, struct {
 								Tasks []codersdk.Task `json:"tasks"`
@@ -263,7 +263,7 @@ STATE CHANGED  STATUS   HEALTHY  STATE  MESSAGE
 				return func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
 					case "/api/experimental/tasks":
-						if r.URL.Query().Get("owner") == "me" {
+						if r.URL.Query().Get("q") == "owner:\"me\"" {
 							httpapi.Write(ctx, w, http.StatusOK, struct {
 								Tasks []codersdk.Task `json:"tasks"`
 								Count int             `json:"count"`

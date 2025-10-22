@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/taskname"
 	"github.com/coder/coder/v2/codersdk"
 
@@ -372,8 +373,7 @@ type tasksListResponse struct {
 // @ID list-tasks
 // @Security CoderSessionToken
 // @Tags Experimental
-// @Param owner query string false "Filter by owner (username, UUID, or 'me' for current user)"
-// @Param status query string false "Filter by task status (pending, initializing, active, paused, error, unknown)"
+// @Param q query string false "Search query for filtering tasks. Supports: owner:<username/uuid/me>, organization:<org-name/uuid>, status:<status>"
 // @Success 200 {object} coderd.tasksListResponse
 // @Router /api/experimental/tasks [get]
 //
@@ -384,47 +384,18 @@ func (api *API) tasksList(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 
 	// Parse query parameters for filtering tasks.
-	ownerParam := r.URL.Query().Get("owner")
-	statusParam := r.URL.Query().Get("status")
-
-	// Determine owner ID based on the owner parameter.
-	var ownerID uuid.UUID
-	switch ownerParam {
-	case codersdk.Me:
-		ownerID = apiKey.UserID
-	case "":
-		// If ownerID is not set, list all tasks the user has access to.
-	default:
-		// Try to parse as UUID first.
-		parsedUUID, err := uuid.Parse(ownerParam)
-		if err == nil {
-			ownerID = parsedUUID
-		} else if err != nil {
-			// Otherwise, look up by username.
-			user, err := api.Database.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
-				Username: ownerParam,
-			})
-			if err != nil {
-				if httpapi.Is404Error(err) {
-					httpapi.ResourceNotFound(rw)
-					return
-				}
-				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Internal error fetching user.",
-					Detail:  err.Error(),
-				})
-				return
-			}
-			ownerID = user.ID
-		}
+	queryStr := r.URL.Query().Get("q")
+	filter, errs := searchquery.Tasks(ctx, api.Database, queryStr, apiKey.UserID)
+	if len(errs) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid task search query.",
+			Validations: errs,
+		})
+		return
 	}
 
 	// Fetch all tasks matching the filters from the database.
-	dbTasks, err := api.Database.ListTasks(ctx, database.ListTasksParams{
-		OwnerID:        ownerID,
-		OrganizationID: uuid.Nil, // TODO(mafredri): ?
-		Status:         statusParam,
-	})
+	dbTasks, err := api.Database.ListTasks(ctx, filter)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching tasks.",

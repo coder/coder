@@ -171,8 +171,37 @@ type TaskStateEntry struct {
 type TasksFilter struct {
 	// Owner can be a username, UUID, or "me".
 	Owner string `json:"owner,omitempty"`
+	// Organization can be an organization name or UUID.
+	Organization string `json:"organization,omitempty"`
 	// Status filters the tasks by their task status.
 	Status TaskStatus `json:"status,omitempty"`
+	// FilterQuery allows specifying a raw filter query.
+	FilterQuery string `json:"filter_query,omitempty"`
+}
+
+func (f TasksFilter) asRequestOption() RequestOption {
+	return func(r *http.Request) {
+		var params []string
+		// Make sure all user input is quoted to ensure it's parsed as a single
+		// string.
+		if f.Owner != "" {
+			params = append(params, fmt.Sprintf("owner:%q", f.Owner))
+		}
+		if f.Organization != "" {
+			params = append(params, fmt.Sprintf("organization:%q", f.Organization))
+		}
+		if f.Status != "" {
+			params = append(params, fmt.Sprintf("status:%q", string(f.Status)))
+		}
+		if f.FilterQuery != "" {
+			// If custom stuff is added, just add it on here.
+			params = append(params, f.FilterQuery)
+		}
+
+		q := r.URL.Query()
+		q.Set("q", strings.Join(params, " "))
+		r.URL.RawQuery = q.Encode()
+	}
 }
 
 // Tasks lists all tasks belonging to the user or specified owner.
@@ -183,15 +212,7 @@ func (c *ExperimentalClient) Tasks(ctx context.Context, filter *TasksFilter) ([]
 		filter = &TasksFilter{}
 	}
 
-	var opts []RequestOption
-	if filter.Owner != "" {
-		opts = append(opts, WithQueryParam("owner", filter.Owner))
-	}
-	if filter.Status != "" {
-		opts = append(opts, WithQueryParam("status", string(filter.Status)))
-	}
-
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/tasks", nil, opts...)
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/tasks", nil, filter.asRequestOption())
 	if err != nil {
 		return nil, err
 	}
