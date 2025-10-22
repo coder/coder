@@ -107,7 +107,7 @@ Users can generate a Coder API key using:
 coder tokens create
 ```
 
-Template admins can pre-configure authentication in templates using [`data.coder_workspace_owner.me.session_token`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_owner#session_token-1) to automatically provision the workspace owner's session token.
+Template admins can pre-configure authentication in templates using [`data.coder_workspace_owner.me.session_token`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_owner#session_token-1) to automatically configure the workspace owner's credentials.
 
 #### Compatibility Notes
 
