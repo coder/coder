@@ -7920,7 +7920,7 @@ type CountInProgressPrebuildsRow struct {
 }
 
 // CountInProgressPrebuilds returns the number of in-progress prebuilds, grouped by preset ID and transition.
-// Prebuild considered in-progress if it's in the "starting", "stopping", or "deleting" state.
+// Prebuild considered in-progress if it's in the "pending", "starting", "stopping", or "deleting" state.
 func (q *sqlQuerier) CountInProgressPrebuilds(ctx context.Context) ([]CountInProgressPrebuildsRow, error) {
 	rows, err := q.db.QueryContext(ctx, countInProgressPrebuilds)
 	if err != nil {
@@ -7937,6 +7937,57 @@ func (q *sqlQuerier) CountInProgressPrebuilds(ctx context.Context) ([]CountInPro
 			&i.Count,
 			&i.PresetID,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const countPendingNonActivePrebuilds = `-- name: CountPendingNonActivePrebuilds :many
+SELECT
+	wpb.template_version_preset_id AS preset_id,
+	COUNT(*)::int AS count
+FROM workspace_prebuild_builds wpb
+INNER JOIN provisioner_jobs pj ON pj.id = wpb.job_id
+INNER JOIN workspaces w ON w.id = wpb.workspace_id
+INNER JOIN templates t ON t.id = w.template_id
+WHERE
+	wpb.template_version_id != t.active_version_id
+	-- Only considers initial builds, i.e. created by the reconciliation loop
+	AND wpb.build_number = 1
+	-- Only consider 'start' transitions (provisioning), not 'stop'/'delete' (deprovisioning)
+	-- Deprovisioning jobs should complete naturally as they're already cleaning up resources
+	AND wpb.transition = 'start'::workspace_transition
+	-- Pending jobs that have not yet been picked up by a provisioner
+	AND pj.job_status = 'pending'::provisioner_job_status
+	AND pj.worker_id IS NULL
+	AND pj.canceled_at IS NULL
+	AND pj.completed_at IS NULL
+`
+
+type CountPendingNonActivePrebuildsRow struct {
+	PresetID uuid.NullUUID `db:"preset_id" json:"preset_id"`
+	Count    int32         `db:"count" json:"count"`
+}
+
+// CountPendingNonActivePrebuilds returns the number of pending prebuilds for non-active template versions
+func (q *sqlQuerier) CountPendingNonActivePrebuilds(ctx context.Context) ([]CountPendingNonActivePrebuildsRow, error) {
+	rows, err := q.db.QueryContext(ctx, countPendingNonActivePrebuilds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CountPendingNonActivePrebuildsRow
+	for rows.Next() {
+		var i CountPendingNonActivePrebuildsRow
+		if err := rows.Scan(&i.PresetID, &i.Count); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -8382,6 +8433,62 @@ func (q *sqlQuerier) GetTemplatePresetsWithPrebuilds(ctx context.Context, templa
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updatePrebuildProvisionerJobWithCancel = `-- name: UpdatePrebuildProvisionerJobWithCancel :many
+UPDATE provisioner_jobs
+SET
+	canceled_at = $1::timestamptz,
+	completed_at = $1::timestamptz
+WHERE id IN (
+	SELECT pj.id
+	FROM provisioner_jobs pj
+	INNER JOIN workspace_prebuild_builds wpb ON wpb.job_id = pj.id
+	WHERE
+		wpb.template_version_preset_id = $2
+		-- Only considers initial builds, i.e. created by the reconciliation loop
+		AND wpb.build_number = 1
+		AND wpb.transition = 'start'::workspace_transition
+		-- Only consider 'start' transitions (provisioning), not 'stop'/'delete' (deprovisioning)
+		-- Deprovisioning jobs should complete naturally as they're already cleaning up resources
+		AND pj.job_status = 'pending'::provisioner_job_status
+		-- Pending jobs that have not yet been picked up by a provisioner
+  		AND pj.worker_id IS NULL
+  		AND pj.canceled_at IS NULL
+  		AND pj.completed_at IS NULL
+)
+RETURNING id
+`
+
+type UpdatePrebuildProvisionerJobWithCancelParams struct {
+	Now      time.Time     `db:"now" json:"now"`
+	PresetID uuid.NullUUID `db:"preset_id" json:"preset_id"`
+}
+
+// Cancels all pending provisioner jobs for prebuilt workspaces on a specific preset from an
+// inactive template version.
+// This is an optimization to clean up stale pending jobs.
+func (q *sqlQuerier) UpdatePrebuildProvisionerJobWithCancel(ctx context.Context, arg UpdatePrebuildProvisionerJobWithCancelParams) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, updatePrebuildProvisionerJobWithCancel, arg.Now, arg.PresetID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -10266,62 +10373,6 @@ func (q *sqlQuerier) InsertProvisionerJobTimings(ctx context.Context, arg Insert
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const updatePrebuildProvisionerJobWithCancel = `-- name: UpdatePrebuildProvisionerJobWithCancel :many
-UPDATE provisioner_jobs
-SET
-	canceled_at = $1::timestamptz,
-	completed_at = $1::timestamptz
-WHERE id IN (
-	SELECT pj.id
-	FROM provisioner_jobs pj
-	INNER JOIN workspace_builds wb ON wb.job_id = pj.id
-	INNER JOIN workspaces w ON w.id = wb.workspace_id
-	WHERE
-		w.template_id = $2
-		AND wb.template_version_id = $3
-		-- Prebuilds system user: prebuild-related provisioner jobs
-		AND w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
-		AND wb.transition = 'start'::workspace_transition
-		AND pj.job_status = 'pending'::provisioner_job_status
-		-- Pending jobs that have not yet been picked up by a provisioner
-		AND pj.worker_id IS NULL
-		AND pj.canceled_at IS NULL
-		AND pj.completed_at IS NULL
-)
-RETURNING id
-`
-
-type UpdatePrebuildProvisionerJobWithCancelParams struct {
-	Now               time.Time `db:"now" json:"now"`
-	TemplateID        uuid.UUID `db:"template_id" json:"template_id"`
-	TemplateVersionID uuid.UUID `db:"template_version_id" json:"template_version_id"`
-}
-
-// Cancels all pending provisioner jobs for prebuilt workspaces on a specific template version.
-// This is called when a new template version is promoted to active.
-func (q *sqlQuerier) UpdatePrebuildProvisionerJobWithCancel(ctx context.Context, arg UpdatePrebuildProvisionerJobWithCancelParams) ([]uuid.UUID, error) {
-	rows, err := q.db.QueryContext(ctx, updatePrebuildProvisionerJobWithCancel, arg.Now, arg.TemplateID, arg.TemplateVersionID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []uuid.UUID
-	for rows.Next() {
-		var id uuid.UUID
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		items = append(items, id)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err

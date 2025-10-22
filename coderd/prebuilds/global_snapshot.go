@@ -20,6 +20,7 @@ type GlobalSnapshot struct {
 	PrebuildSchedules     []database.TemplateVersionPresetPrebuildSchedule
 	RunningPrebuilds      []database.GetRunningPrebuiltWorkspacesRow
 	PrebuildsInProgress   []database.CountInProgressPrebuildsRow
+	PendingPrebuilds      []database.CountPendingNonActivePrebuildsRow
 	Backoffs              []database.GetPresetsBackoffRow
 	HardLimitedPresetsMap map[uuid.UUID]database.GetPresetsAtFailureLimitRow
 	clock                 quartz.Clock
@@ -31,6 +32,7 @@ func NewGlobalSnapshot(
 	prebuildSchedules []database.TemplateVersionPresetPrebuildSchedule,
 	runningPrebuilds []database.GetRunningPrebuiltWorkspacesRow,
 	prebuildsInProgress []database.CountInProgressPrebuildsRow,
+	pendingPrebuilds []database.CountPendingNonActivePrebuildsRow,
 	backoffs []database.GetPresetsBackoffRow,
 	hardLimitedPresets []database.GetPresetsAtFailureLimitRow,
 	clock quartz.Clock,
@@ -46,6 +48,7 @@ func NewGlobalSnapshot(
 		PrebuildSchedules:     prebuildSchedules,
 		RunningPrebuilds:      runningPrebuilds,
 		PrebuildsInProgress:   prebuildsInProgress,
+		PendingPrebuilds:      pendingPrebuilds,
 		Backoffs:              backoffs,
 		HardLimitedPresetsMap: hardLimitedPresetsMap,
 		clock:                 clock,
@@ -76,7 +79,14 @@ func (s GlobalSnapshot) FilterByPreset(presetID uuid.UUID) (*PresetSnapshot, err
 	// Separate running workspaces into non-expired and expired based on the preset's TTL
 	nonExpired, expired := filterExpiredWorkspaces(preset, running)
 
+	// Includes in-progress prebuilds only for active template versions.
+	// In-progress prebuilds correspond to workspace statuses: 'pending', 'starting', 'stopping', and 'deleting'
 	inProgress := slice.Filter(s.PrebuildsInProgress, func(prebuild database.CountInProgressPrebuildsRow) bool {
+		return prebuild.PresetID.UUID == preset.ID
+	})
+
+	// Includes pending prebuilds only for non-active template versions
+	pending := slice.Filter(s.PendingPrebuilds, func(prebuild database.CountPendingNonActivePrebuildsRow) bool {
 		return prebuild.PresetID.UUID == preset.ID
 	})
 
@@ -96,6 +106,7 @@ func (s GlobalSnapshot) FilterByPreset(presetID uuid.UUID) (*PresetSnapshot, err
 		nonExpired,
 		expired,
 		inProgress,
+		pending,
 		backoffPtr,
 		isHardLimited,
 		s.clock,

@@ -412,6 +412,11 @@ func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Stor
 			return xerrors.Errorf("failed to get prebuilds in progress: %w", err)
 		}
 
+		allPendingPrebuilds, err := db.CountPendingNonActivePrebuilds(ctx)
+		if err != nil {
+			return xerrors.Errorf("failed to get pending prebuilds: %w", err)
+		}
+
 		presetsBackoff, err := db.GetPresetsBackoff(ctx, c.clock.Now().Add(-c.cfg.ReconciliationBackoffLookback.Value()))
 		if err != nil {
 			return xerrors.Errorf("failed to get backoffs for presets: %w", err)
@@ -427,6 +432,7 @@ func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Stor
 			presetPrebuildSchedules,
 			allRunningPrebuilds,
 			allPrebuildsInProgress,
+			allPendingPrebuilds,
 			presetsBackoff,
 			hardLimitedPresets,
 			c.clock,
@@ -581,6 +587,8 @@ func (c *StoreReconciler) executeReconciliationAction(ctx context.Context, logge
 		levelFn = logger.Info
 	case action.ActionType == prebuilds.ActionTypeDelete && len(action.DeleteIDs) > 0:
 		levelFn = logger.Info
+	case action.ActionType == prebuilds.ActionTypeCancelPending:
+		levelFn = logger.Info
 	}
 
 	switch action.ActionType {
@@ -634,6 +642,32 @@ func (c *StoreReconciler) executeReconciliationAction(ctx context.Context, logge
 		}
 
 		return multiErr.ErrorOrNil()
+
+	case prebuilds.ActionTypeCancelPending:
+		// Cancel pending prebuild jobs from non-active template versions to avoid
+		// provisioning obsolete workspaces that would immediately be deprovisioned
+		// nolint:gocritic // System operation to cancel obsolete pending prebuild jobs
+		canceledJobs, err := c.store.UpdatePrebuildProvisionerJobWithCancel(
+			dbauthz.AsSystemRestricted(ctx),
+			database.UpdatePrebuildProvisionerJobWithCancelParams{
+				Now: c.clock.Now(),
+				PresetID: uuid.NullUUID{
+					UUID:  ps.Preset.ID,
+					Valid: true,
+				},
+			})
+		if err != nil {
+			logger.Error(ctx, "failed to cancel pending prebuild jobs",
+				slog.F("template_version_id", ps.Preset.TemplateVersionID.String()),
+				slog.Error(err))
+			return err
+		}
+		if len(canceledJobs) > 0 {
+			logger.Info(ctx, "canceled pending prebuild jobs for inactive version",
+				slog.F("template_version_id", ps.Preset.TemplateVersionID.String()),
+				slog.F("count", len(canceledJobs)))
+		}
+		return nil
 
 	default:
 		return xerrors.Errorf("unknown action type: %v", action.ActionType)

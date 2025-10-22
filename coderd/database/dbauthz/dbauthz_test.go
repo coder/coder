@@ -643,9 +643,8 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 	}))
 	s.Run("UpdatePrebuildProvisionerJobWithCancel", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := database.UpdatePrebuildProvisionerJobWithCancelParams{
-			Now:               dbtime.Now(),
-			TemplateID:        uuid.New(),
-			TemplateVersionID: uuid.New(),
+			PresetID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			Now:      dbtime.Now(),
 		}
 		jobIDs := []uuid.UUID{uuid.New(), uuid.New()}
 

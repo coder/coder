@@ -215,6 +215,13 @@ func (m queryMetricsStore) CountInProgressPrebuilds(ctx context.Context) ([]data
 	return r0, r1
 }
 
+func (m queryMetricsStore) CountPendingNonActivePrebuilds(ctx context.Context) ([]database.CountPendingNonActivePrebuildsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.CountPendingNonActivePrebuilds(ctx)
+	m.queryLatencies.WithLabelValues("CountPendingNonActivePrebuilds").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) CountUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.CountUnreadInboxNotificationsByUserID(ctx, userID)

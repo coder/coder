@@ -34,6 +34,9 @@ const (
 
 	// ActionTypeBackoff indicates that prebuild creation should be delayed.
 	ActionTypeBackoff
+
+	// ActionTypeCancelPending indicates that pending prebuilds should be canceled.
+	ActionTypeCancelPending
 )
 
 // PresetSnapshot is a filtered view of GlobalSnapshot focused on a single preset.
@@ -49,6 +52,7 @@ type PresetSnapshot struct {
 	Running           []database.GetRunningPrebuiltWorkspacesRow
 	Expired           []database.GetRunningPrebuiltWorkspacesRow
 	InProgress        []database.CountInProgressPrebuildsRow
+	Pending           []database.CountPendingNonActivePrebuildsRow
 	Backoff           *database.GetPresetsBackoffRow
 	IsHardLimited     bool
 	clock             quartz.Clock
@@ -61,6 +65,7 @@ func NewPresetSnapshot(
 	running []database.GetRunningPrebuiltWorkspacesRow,
 	expired []database.GetRunningPrebuiltWorkspacesRow,
 	inProgress []database.CountInProgressPrebuildsRow,
+	pending []database.CountPendingNonActivePrebuildsRow,
 	backoff *database.GetPresetsBackoffRow,
 	isHardLimited bool,
 	clock quartz.Clock,
@@ -72,6 +77,7 @@ func NewPresetSnapshot(
 		Running:           running,
 		Expired:           expired,
 		InProgress:        inProgress,
+		Pending:           pending,
 		Backoff:           backoff,
 		IsHardLimited:     isHardLimited,
 		clock:             clock,
@@ -345,18 +351,28 @@ func (p PresetSnapshot) handleActiveTemplateVersion() (actions []*Reconciliation
 	return actions, nil
 }
 
-// handleInactiveTemplateVersion deletes all running prebuilds except those already being deleted
-// to avoid duplicate deletion attempts.
-func (p PresetSnapshot) handleInactiveTemplateVersion() ([]*ReconciliationActions, error) {
-	prebuildsToDelete := len(p.Running)
-	deleteIDs := p.getOldestPrebuildIDs(prebuildsToDelete)
+// handleInactiveTemplateVersion handles prebuilds from inactive template versions:
+//  1. If the preset has pending prebuild jobs from an inactive template version, create a cancel reconciliation action.
+//     This cancels all pending prebuild jobs for this preset's template version.
+//  2. If the preset has prebuilt workspaces currently running from an inactive template version,
+//     create a delete reconciliation action to remove all running prebuilt workspaces.
+func (p PresetSnapshot) handleInactiveTemplateVersion() (actions []*ReconciliationActions, err error) {
+	// Cancel pending initial prebuild jobs from inactive version
+	if len(p.Pending) > 0 {
+		actions = append(actions,
+			&ReconciliationActions{
+				ActionType: ActionTypeCancelPending,
+			})
+	}
 
-	return []*ReconciliationActions{
-		{
+	// Delete prebuilds running in inactive version
+	deleteIDs := p.getOldestPrebuildIDs(len(p.Running))
+	actions = append(actions,
+		&ReconciliationActions{
 			ActionType: ActionTypeDelete,
 			DeleteIDs:  deleteIDs,
-		},
-	}, nil
+		})
+	return actions, nil
 }
 
 // needsBackoffPeriod checks if we should delay prebuild creation due to recent failures.

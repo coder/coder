@@ -1478,6 +1478,13 @@ func (q *querier) CountInProgressPrebuilds(ctx context.Context) ([]database.Coun
 	return q.db.CountInProgressPrebuilds(ctx)
 }
 
+func (q *querier) CountPendingNonActivePrebuilds(ctx context.Context) ([]database.CountPendingNonActivePrebuildsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace.All()); err != nil {
+		return nil, err
+	}
+	return q.db.CountPendingNonActivePrebuilds(ctx)
+}
+
 func (q *querier) CountUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceInboxNotification.WithOwner(userID.String())); err != nil {
 		return 0, err
