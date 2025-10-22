@@ -39,6 +39,7 @@ export interface AIBridgeInterception {
 
 // From codersdk/aibridge.go
 export interface AIBridgeListInterceptionsResponse {
+	readonly total: number;
 	readonly results: readonly AIBridgeInterception[];
 }
 
@@ -324,6 +325,7 @@ export type APIKeyScope =
 	| "workspace_dormant:delete"
 	| "workspace_dormant:delete_agent"
 	| "workspace_dormant:read"
+	| "workspace_dormant:share"
 	| "workspace_dormant:ssh"
 	| "workspace_dormant:start"
 	| "workspace_dormant:stop"
@@ -334,6 +336,7 @@ export type APIKeyScope =
 	| "workspace_proxy:read"
 	| "workspace_proxy:update"
 	| "workspace:read"
+	| "workspace:share"
 	| "workspace:ssh"
 	| "workspace:start"
 	| "workspace:stop"
@@ -520,6 +523,7 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"workspace_dormant:delete",
 	"workspace_dormant:delete_agent",
 	"workspace_dormant:read",
+	"workspace_dormant:share",
 	"workspace_dormant:ssh",
 	"workspace_dormant:start",
 	"workspace_dormant:stop",
@@ -530,6 +534,7 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"workspace_proxy:read",
 	"workspace_proxy:update",
 	"workspace:read",
+	"workspace:share",
 	"workspace:ssh",
 	"workspace:start",
 	"workspace:stop",
@@ -1750,6 +1755,7 @@ export interface DeploymentValues {
 	readonly session_lifetime?: SessionLifetime;
 	readonly disable_password_auth?: boolean;
 	readonly support?: SupportConfig;
+	readonly enable_authz_recording?: boolean;
 	readonly external_auth?: SerpentStruct<ExternalAuthConfig[]>;
 	readonly config_ssh?: SSHConfig;
 	readonly wgtunnel_host?: string;
@@ -3812,6 +3818,7 @@ export type RBACAction =
 	| "read"
 	| "read_personal"
 	| "ssh"
+	| "share"
 	| "unassign"
 	| "update"
 	| "update_personal"
@@ -3830,6 +3837,7 @@ export const RBACActions: RBACAction[] = [
 	"read",
 	"read_personal",
 	"ssh",
+	"share",
 	"unassign",
 	"update",
 	"update_personal",

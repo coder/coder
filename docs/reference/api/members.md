@@ -175,6 +175,7 @@ Status Code **200**
 | `action`        | `read`                             |
 | `action`        | `read_personal`                    |
 | `action`        | `ssh`                              |
+| `action`        | `share`                            |
 | `action`        | `unassign`                         |
 | `action`        | `update`                           |
 | `action`        | `update_personal`                  |
@@ -349,6 +350,7 @@ Status Code **200**
 | `action`        | `read`                             |
 | `action`        | `read_personal`                    |
 | `action`        | `ssh`                              |
+| `action`        | `share`                            |
 | `action`        | `unassign`                         |
 | `action`        | `update`                           |
 | `action`        | `update_personal`                  |
@@ -523,6 +525,7 @@ Status Code **200**
 | `action`        | `read`                             |
 | `action`        | `read_personal`                    |
 | `action`        | `ssh`                              |
+| `action`        | `share`                            |
 | `action`        | `unassign`                         |
 | `action`        | `update`                           |
 | `action`        | `update_personal`                  |
@@ -666,6 +669,7 @@ Status Code **200**
 | `action`        | `read`                             |
 | `action`        | `read_personal`                    |
 | `action`        | `ssh`                              |
+| `action`        | `share`                            |
 | `action`        | `unassign`                         |
 | `action`        | `update`                           |
 | `action`        | `update_personal`                  |
@@ -1031,6 +1035,7 @@ Status Code **200**
 | `action`        | `read`                             |
 | `action`        | `read_personal`                    |
 | `action`        | `ssh`                              |
+| `action`        | `share`                            |
 | `action`        | `unassign`                         |
 | `action`        | `update`                           |
 | `action`        | `update_personal`                  |

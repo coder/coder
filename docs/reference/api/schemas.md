@@ -566,7 +566,8 @@
         }
       ]
     }
-  ]
+  ],
+  "total": 0
 }
 ```
 
@@ -575,6 +576,7 @@
 | Name      | Type                                                                    | Required | Restrictions | Description |
 |-----------|-------------------------------------------------------------------------|----------|--------------|-------------|
 | `results` | array of [codersdk.AIBridgeInterception](#codersdkaibridgeinterception) | false    |              |             |
+| `total`   | integer                                                                 | false    |              |             |
 
 ## codersdk.AIBridgeOpenAIConfig
 
@@ -953,6 +955,7 @@
 | `workspace:delete`                        |
 | `workspace:delete_agent`                  |
 | `workspace:read`                          |
+| `workspace:share`                         |
 | `workspace:ssh`                           |
 | `workspace:start`                         |
 | `workspace:stop`                          |
@@ -970,6 +973,7 @@
 | `workspace_dormant:delete`                |
 | `workspace_dormant:delete_agent`          |
 | `workspace_dormant:read`                  |
+| `workspace_dormant:share`                 |
 | `workspace_dormant:ssh`                   |
 | `workspace_dormant:start`                 |
 | `workspace_dormant:stop`                  |
@@ -2888,6 +2892,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "scheme": "string",
       "user": {}
     },
+    "enable_authz_recording": true,
     "enable_terraform_debug_mode": true,
     "ephemeral_deployment": true,
     "experiments": [
@@ -3393,6 +3398,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "scheme": "string",
     "user": {}
   },
+  "enable_authz_recording": true,
   "enable_terraform_debug_mode": true,
   "ephemeral_deployment": true,
   "experiments": [
@@ -3727,6 +3733,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `disable_password_auth`              | boolean                                                                                              | false    |              |                                                                    |
 | `disable_path_apps`                  | boolean                                                                                              | false    |              |                                                                    |
 | `docs_url`                           | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
+| `enable_authz_recording`             | boolean                                                                                              | false    |              |                                                                    |
 | `enable_terraform_debug_mode`        | boolean                                                                                              | false    |              |                                                                    |
 | `ephemeral_deployment`               | boolean                                                                                              | false    |              |                                                                    |
 | `experiments`                        | array of string                                                                                      | false    |              |                                                                    |
@@ -7069,6 +7076,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `read`                |
 | `read_personal`       |
 | `ssh`                 |
+| `share`               |
 | `unassign`            |
 | `update`              |
 | `update_personal`     |

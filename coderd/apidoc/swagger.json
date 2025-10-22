@@ -91,8 +91,14 @@
 					},
 					{
 						"type": "string",
-						"description": "Cursor pagination after ID",
+						"description": "Cursor pagination after ID (cannot be used with offset)",
 						"name": "after_id",
+						"in": "query"
+					},
+					{
+						"type": "integer",
+						"description": "Offset pagination (cannot be used with after_id)",
+						"name": "offset",
 						"in": "query"
 					}
 				],
@@ -837,6 +843,126 @@
 							"$ref": "#/definitions/healthsdk.UpdateHealthSettings"
 						}
 					}
+				}
+			}
+		},
+		"/debug/metrics": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"tags": ["Debug"],
+				"summary": "Debug metrics",
+				"operationId": "debug-metrics",
+				"responses": {
+					"200": {
+						"description": "OK"
+					}
+				},
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
+		"/debug/pprof": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"tags": ["Debug"],
+				"summary": "Debug pprof index",
+				"operationId": "debug-pprof-index",
+				"responses": {
+					"200": {
+						"description": "OK"
+					}
+				},
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
+		"/debug/pprof/cmdline": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"tags": ["Debug"],
+				"summary": "Debug pprof cmdline",
+				"operationId": "debug-pprof-cmdline",
+				"responses": {
+					"200": {
+						"description": "OK"
+					}
+				},
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
+		"/debug/pprof/profile": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"tags": ["Debug"],
+				"summary": "Debug pprof profile",
+				"operationId": "debug-pprof-profile",
+				"responses": {
+					"200": {
+						"description": "OK"
+					}
+				},
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
+		"/debug/pprof/symbol": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"tags": ["Debug"],
+				"summary": "Debug pprof symbol",
+				"operationId": "debug-pprof-symbol",
+				"responses": {
+					"200": {
+						"description": "OK"
+					}
+				},
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
+		"/debug/pprof/trace": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"tags": ["Debug"],
+				"summary": "Debug pprof trace",
+				"operationId": "debug-pprof-trace",
+				"responses": {
+					"200": {
+						"description": "OK"
+					}
+				},
+				"x-apidocgen": {
+					"skip": true
 				}
 			}
 		},
@@ -10307,6 +10433,9 @@
 					"items": {
 						"$ref": "#/definitions/codersdk.AIBridgeInterception"
 					}
+				},
+				"total": {
+					"type": "integer"
 				}
 			}
 		},
@@ -10675,6 +10804,7 @@
 				"workspace:delete",
 				"workspace:delete_agent",
 				"workspace:read",
+				"workspace:share",
 				"workspace:ssh",
 				"workspace:start",
 				"workspace:stop",
@@ -10692,6 +10822,7 @@
 				"workspace_dormant:delete",
 				"workspace_dormant:delete_agent",
 				"workspace_dormant:read",
+				"workspace_dormant:share",
 				"workspace_dormant:ssh",
 				"workspace_dormant:start",
 				"workspace_dormant:stop",
@@ -10871,6 +11002,7 @@
 				"APIKeyScopeWorkspaceDelete",
 				"APIKeyScopeWorkspaceDeleteAgent",
 				"APIKeyScopeWorkspaceRead",
+				"APIKeyScopeWorkspaceShare",
 				"APIKeyScopeWorkspaceSsh",
 				"APIKeyScopeWorkspaceStart",
 				"APIKeyScopeWorkspaceStop",
@@ -10888,6 +11020,7 @@
 				"APIKeyScopeWorkspaceDormantDelete",
 				"APIKeyScopeWorkspaceDormantDeleteAgent",
 				"APIKeyScopeWorkspaceDormantRead",
+				"APIKeyScopeWorkspaceDormantShare",
 				"APIKeyScopeWorkspaceDormantSsh",
 				"APIKeyScopeWorkspaceDormantStart",
 				"APIKeyScopeWorkspaceDormantStop",
@@ -12461,6 +12594,9 @@
 				},
 				"docs_url": {
 					"$ref": "#/definitions/serpent.URL"
+				},
+				"enable_authz_recording": {
+					"type": "boolean"
 				},
 				"enable_terraform_debug_mode": {
 					"type": "boolean"
@@ -15448,6 +15584,7 @@
 				"read",
 				"read_personal",
 				"ssh",
+				"share",
 				"unassign",
 				"update",
 				"update_personal",
@@ -15466,6 +15603,7 @@
 				"ActionRead",
 				"ActionReadPersonal",
 				"ActionSSH",
+				"ActionShare",
 				"ActionUnassign",
 				"ActionUpdate",
 				"ActionUpdatePersonal",
