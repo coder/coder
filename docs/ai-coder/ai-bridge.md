@@ -113,9 +113,9 @@ Template admins can pre-configure authentication in templates using [`data.coder
 
 Most AI coding assistants that support custom base URLs can work with AI Bridge. However, client-specific configuration requirements vary:
 
-- Some clients require specific URL formats
-- Some clients may proxy requests through their own servers, limiting compatibility
-- Some clients may not support custom base URLs at all
+- Some clients require specific URL formats (e.g. try removing the `/v1` suffix)
+- Some clients may proxy requests through their own servers, limiting compatibility (e.g. Cursor)
+- Some clients may not support custom base URLs at all (e.g. Copilot CLI, Sourcegraph Amp)
 
 Consult your specific AI client's documentation for details on configuring custom API endpoints.
 
