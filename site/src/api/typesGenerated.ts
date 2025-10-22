@@ -2515,6 +2515,7 @@ export interface LinkConfig {
 	readonly name: string;
 	readonly target: string;
 	readonly icon: string;
+	readonly location?: string;
 }
 
 // From codersdk/inboxnotification.go
