@@ -28,6 +28,7 @@ curl -X GET http://coder-server:8080/api/v2/api/experimental/aibridge/intercepti
 
 ```json
 {
+  "count": 0,
   "results": [
     {
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
@@ -89,8 +90,7 @@ curl -X GET http://coder-server:8080/api/v2/api/experimental/aibridge/intercepti
         }
       ]
     }
-  ],
-  "total": 0
+  ]
 }
 ```
 
