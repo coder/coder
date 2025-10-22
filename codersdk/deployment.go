@@ -984,10 +984,9 @@ func DefaultSupportLinks(docsURL string) []LinkConfig {
 			Icon:   "bug",
 		},
 		{
-			Name:     "Join the Coder Discord",
-			Target:   "https://discord.gg/coder",
-			Icon:     "chat",
-			Location: "navbar",
+			Name:   "Join the Coder Discord",
+			Target: "https://discord.gg/coder",
+			Icon:   "chat",
 		},
 		{
 			Name:   "Star the Repo",
