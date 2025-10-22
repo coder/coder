@@ -354,6 +354,18 @@ var CreateWorkspace = Tool[CreateWorkspaceArgs, codersdk.Workspace]{
 If a user is asking to "test a template", they are typically referring
 to creating a workspace from a template to ensure the infrastructure
 is provisioned correctly and the agent can connect to the control plane.
+
+Before creating a workspace, always confirm the template choice with the user by:
+
+	1. Listing the available templates that match their request.
+	2. Recommending the most relevant option.
+	2. Asking the user to confirm which template to use.
+
+It is important to not create a workspace without confirming the template
+choice with the user.
+
+After creating a workspace, watch the build logs and wait for the workspace to
+be ready before trying to use or connect to the workspace.
 `,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
