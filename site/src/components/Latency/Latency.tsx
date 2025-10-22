@@ -1,7 +1,7 @@
 import { useTheme } from "@emotion/react";
 import CircularProgress from "@mui/material/CircularProgress";
-import Tooltip from "@mui/material/Tooltip";
 import { Abbr } from "components/Abbr/Abbr";
+import MiniTooltip from "components/MiniTooltip/MiniTooltip";
 import { CircleHelpIcon } from "lucide-react";
 import type { FC } from "react";
 import { cn } from "utils/cn";
@@ -26,23 +26,29 @@ export const Latency: FC<LatencyProps> = ({
 
 	if (isLoading) {
 		return (
-			<Tooltip title="Loading latency..." className={className}>
-				<CircularProgress
-					className={cn("!size-icon-xs", iconClassName)}
-					style={{ color }}
-				/>
-			</Tooltip>
+			<MiniTooltip title="Loading latency..." className={className}>
+				{/**
+				 * Spinning progress icon must be placed inside a fixed-size container,
+				 * to ensure tooltip remains stationary when opened
+				 */}
+				<div className="size-4 flex flex-wrap place-content-center">
+					<CircularProgress
+						className={cn("!size-icon-xs", iconClassName)}
+						style={{ color }}
+					/>
+				</div>
+			</MiniTooltip>
 		);
 	}
 
 	if (!latency) {
 		return (
-			<Tooltip title="Latency not available" className={className}>
+			<MiniTooltip title="Latency not available" className={className}>
 				<CircleHelpIcon
 					className={cn("!size-icon-sm", iconClassName)}
 					style={{ color }}
 				/>
-			</Tooltip>
+			</MiniTooltip>
 		);
 	}
 

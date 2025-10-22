@@ -1,7 +1,6 @@
 import { useTheme } from "@emotion/react";
 import LinearProgress from "@mui/material/LinearProgress";
 import Link from "@mui/material/Link";
-import Tooltip from "@mui/material/Tooltip";
 import { entitlements } from "api/queries/entitlements";
 import {
 	insightsTemplate,
@@ -32,6 +31,7 @@ import {
 	HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
 import { Loader } from "components/Loader/Loader";
+import MiniTooltip from "components/MiniTooltip/MiniTooltip";
 import { Stack } from "components/Stack/Stack";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import {
@@ -495,9 +495,9 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 											{usage.display_name}
 										</div>
 									</div>
-									<Tooltip
+									<MiniTooltip
 										title={`${Math.floor(percentage)}%`}
-										placement="top"
+										side="top"
 										arrow
 									>
 										<LinearProgress
@@ -513,7 +513,7 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 												},
 											}}
 										/>
-									</Tooltip>
+									</MiniTooltip>
 									<Stack
 										spacing={0}
 										css={{
@@ -612,12 +612,12 @@ const TemplateParametersUsagePanel: FC<TemplateParametersUsagePanelProps> = ({
 										}}
 									>
 										<div>Value</div>
-										<Tooltip
+										<MiniTooltip
 											title="The number of workspaces using this value"
-											placement="top"
+											side="top"
 										>
 											<div>Count</div>
-										</Tooltip>
+										</MiniTooltip>
 									</ParameterUsageRow>
 									{[...parameter.values]
 										.sort((a, b) => b.count - a.count)

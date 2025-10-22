@@ -1,10 +1,10 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import MuiLink from "@mui/material/Link";
 import Skeleton from "@mui/material/Skeleton";
-import Tooltip from "@mui/material/Tooltip";
 import type { GetLicensesResponse } from "api/api";
 import type { Feature, UserStatusChangeCount } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
+import MiniTooltip from "components/MiniTooltip/MiniTooltip";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -80,7 +80,7 @@ const LicensesSettingsPageView: FC<Props> = ({
 							Add a license
 						</Link>
 					</Button>
-					<Tooltip title="Refresh license entitlements. This is done automatically every 10 minutes.">
+					<MiniTooltip title="Refresh license entitlements. This is done automatically every 10 minutes.">
 						<Button
 							disabled={isRefreshing}
 							onClick={refreshEntitlements}
@@ -91,7 +91,7 @@ const LicensesSettingsPageView: FC<Props> = ({
 							</Spinner>
 							Refresh
 						</Button>
-					</Tooltip>
+					</MiniTooltip>
 				</Stack>
 			</Stack>
 

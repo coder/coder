@@ -14,6 +14,8 @@ export const Tooltip = TooltipPrimitive.Root;
 
 export const TooltipTrigger = TooltipPrimitive.Trigger;
 
+export const TooltipArrow = TooltipPrimitive.Arrow;
+
 export type TooltipContentProps = React.ComponentPropsWithoutRef<
 	typeof TooltipPrimitive.Content
 > & {
