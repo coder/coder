@@ -4700,6 +4700,7 @@ export interface Task {
 	readonly organization_id: string;
 	readonly owner_id: string;
 	readonly owner_name: string;
+	readonly owner_avatar_url: string;
 	readonly name: string;
 	readonly template_id: string;
 	readonly template_version_id: string;
@@ -4822,6 +4823,15 @@ export interface TasksFilter {
 	 * FilterQuery allows specifying a raw filter query.
 	 */
 	readonly filter_query?: string;
+}
+
+// From codersdk/aitasks.go
+/**
+ * Experimental response shape for tasks list (server returns []Task).
+ */
+export interface TasksListResponse {
+	readonly tasks: readonly Task[];
+	readonly count: number;
 }
 
 // From codersdk/deployment.go

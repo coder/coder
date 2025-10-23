@@ -1,0 +1,38 @@
+import type * as TypesGen from "api/typesGenerated";
+import {
+	StatusIndicator,
+	StatusIndicatorDot,
+	type StatusIndicatorProps,
+} from "components/StatusIndicator/StatusIndicator";
+import type { FC } from "react";
+
+export type TaskStatusProps = {
+	status: TypesGen.TaskStatus;
+	stateMessage: string;
+};
+
+const statusToVariant: Record<
+	TypesGen.TaskStatus,
+	StatusIndicatorProps["variant"]
+> = {
+	active: "success",
+	error: "failed",
+	initializing: "pending",
+	pending: "pending",
+	paused: "inactive",
+	unknown: "warning",
+};
+
+export const TaskStatus: FC<TaskStatusProps> = ({ status, stateMessage }) => {
+	return (
+		<StatusIndicator variant={statusToVariant[status]} className="items-start">
+			<StatusIndicatorDot className="mt-1" />
+			<div className="flex flex-col">
+				<span className="[&:first-letter]:uppercase">{status}</span>
+				<span className="text-xs font-normal text-content-secondary">
+					{stateMessage}
+				</span>
+			</div>
+		</StatusIndicator>
+	);
+};

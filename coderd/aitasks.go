@@ -339,6 +339,7 @@ func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) cod
 		OrganizationID:          dbTask.OrganizationID,
 		OwnerID:                 dbTask.OwnerID,
 		OwnerName:               ws.OwnerName,
+		OwnerAvatarURL:          ws.OwnerAvatarURL,
 		Name:                    dbTask.Name,
 		TemplateID:              ws.TemplateID,
 		TemplateVersionID:       dbTask.TemplateVersionID,
@@ -360,21 +361,13 @@ func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) cod
 	}
 }
 
-// tasksListResponse wraps a list of experimental tasks.
-//
-// Experimental: Response shape is experimental and may change.
-type tasksListResponse struct {
-	Tasks []codersdk.Task `json:"tasks"`
-	Count int             `json:"count"`
-}
-
 // @Summary List AI tasks
 // @Description: EXPERIMENTAL: this endpoint is experimental and not guaranteed to be stable.
 // @ID list-tasks
 // @Security CoderSessionToken
 // @Tags Experimental
 // @Param q query string false "Search query for filtering tasks. Supports: owner:<username/uuid/me>, organization:<org-name/uuid>, status:<status>"
-// @Success 200 {object} coderd.tasksListResponse
+// @Success 200 {object} codersdk.TasksListResponse
 // @Router /api/experimental/tasks [get]
 //
 // EXPERIMENTAL: This endpoint is experimental and not guaranteed to be stable.
@@ -413,7 +406,7 @@ func (api *API) tasksList(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, tasksListResponse{
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.TasksListResponse{
 		Tasks: tasks,
 		Count: len(tasks),
 	})

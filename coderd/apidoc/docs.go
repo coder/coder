@@ -160,7 +160,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/coderd.tasksListResponse"
+                            "$ref": "#/definitions/codersdk.TasksListResponse"
                         }
                     }
                 }
@@ -11640,20 +11640,6 @@ const docTemplate = `{
                 }
             }
         },
-        "coderd.tasksListResponse": {
-            "type": "object",
-            "properties": {
-                "count": {
-                    "type": "integer"
-                },
-                "tasks": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.Task"
-                    }
-                }
-            }
-        },
         "codersdk.ACLAvailable": {
             "type": "object",
             "properties": {
@@ -17735,6 +17721,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "owner_avatar_url": {
+                    "type": "string"
+                },
                 "owner_id": {
                     "type": "string",
                     "format": "uuid"
@@ -17931,6 +17920,20 @@ const docTemplate = `{
                 "TaskStatusUnknown",
                 "TaskStatusError"
             ]
+        },
+        "codersdk.TasksListResponse": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "tasks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Task"
+                    }
+                }
+            }
         },
         "codersdk.TelemetryConfig": {
             "type": "object",
