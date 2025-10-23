@@ -40,13 +40,12 @@ type Edge[EdgeType, VertexType comparable] struct {
 	Edge EdgeType
 }
 
-// AddEdge adds an edge to the graph. It initializes the graph if it doesn't exist
-// and adds the edge to the gonum graph.
+// AddEdge adds an edge to the graph. It initializes the graph and metadata on first use,
+// checks for cycles, and adds the edge to the gonum graph.
 func (g *Graph[EdgeType, VertexType]) AddEdge(from, to VertexType, edge EdgeType) error {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
-	// Initialize the graph if it doesn't exist
 	if g.gonumGraph == nil {
 		g.gonumGraph = simple.NewDirectedGraph()
 		g.vertexToID = make(map[VertexType]int64)
@@ -55,7 +54,6 @@ func (g *Graph[EdgeType, VertexType]) AddEdge(from, to VertexType, edge EdgeType
 		g.nextID = 1
 	}
 
-	// Get or create IDs for vertices
 	fromID := g.getOrCreateVertexID(from)
 	toID := g.getOrCreateVertexID(to)
 
@@ -63,10 +61,8 @@ func (g *Graph[EdgeType, VertexType]) AddEdge(from, to VertexType, edge EdgeType
 		return xerrors.Errorf("adding edge (%v -> %v) would create a cycle", from, to)
 	}
 
-	// Add the edge to the gonum graph
 	g.gonumGraph.SetEdge(simple.Edge{F: simple.Node(fromID), T: simple.Node(toID)})
 
-	// Store the edge type
 	edgeKey := fmt.Sprintf("%d->%d", fromID, toID)
 	g.edgeTypes[edgeKey] = edge
 

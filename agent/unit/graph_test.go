@@ -89,8 +89,8 @@ func saveDOTFile(t *testing.T, graph *unit.Graph[Status, *Unit], filename string
 // make gen/golden-files
 var UpdateGoldenFiles = flag.Bool("update", false, "update .golden files")
 
-// assertDOTGraph asserts that the graph's DOT representation matches the golden file
-func assertDOTGraph(t *testing.T, graph *unit.Graph[Status, *Unit], goldenName string) {
+// requireDOTGraph requires that the graph's DOT representation matches the golden file
+func requireDOTGraph(t *testing.T, graph *unit.Graph[Status, *Unit], goldenName string) {
 	t.Helper()
 
 	dot, err := graph.ToDOT(goldenName)
@@ -114,142 +114,138 @@ func assertDOTGraph(t *testing.T, graph *unit.Graph[Status, *Unit], goldenName s
 func TestGraph(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ForwardAndReverseEdges", func(t *testing.T) {
-		t.Parallel()
+	testFuncs := map[string]func(t *testing.T) *unit.Graph[Status, *Unit]{
+		"ForwardAndReverseEdges": func(t *testing.T) *unit.Graph[Status, *Unit] {
+			graph := &unit.Graph[Status, *Unit]{}
+			unit1 := &Unit{Name: "unit1", Status: StatusPending}
+			unit2 := &Unit{Name: "unit2", Status: StatusPending}
+			unit3 := &Unit{Name: "unit3", Status: StatusPending}
+			err := graph.AddEdge(unit1, unit2, StatusCompleted)
+			require.NoError(t, err)
+			err = graph.AddEdge(unit1, unit3, StatusStarted)
+			require.NoError(t, err)
 
-		graph := &unit.Graph[Status, *Unit]{}
-		unit1 := &Unit{Name: "unit1", Status: StatusPending}
-		unit2 := &Unit{Name: "unit2", Status: StatusPending}
-		unit3 := &Unit{Name: "unit3", Status: StatusPending}
-		err := graph.AddEdge(unit1, unit2, StatusCompleted)
-		require.NoError(t, err)
-		err = graph.AddEdge(unit1, unit3, StatusStarted)
-		require.NoError(t, err)
+			// Check for forward edge
+			vertices := graph.GetForwardAdjacentVertices(unit1)
+			require.Len(t, vertices, 2)
+			// Unit 1 depends on the completion of Unit2
+			require.Contains(t, vertices, TestEdge{
+				From: unit1,
+				To:   unit2,
+				Edge: StatusCompleted,
+			})
+			// Unit 1 depends on the start of Unit3
+			require.Contains(t, vertices, TestEdge{
+				From: unit1,
+				To:   unit3,
+				Edge: StatusStarted,
+			})
 
-		// Check for forward edge
-		vertices := graph.GetForwardAdjacentVertices(unit1)
-		require.Len(t, vertices, 2)
-		// Unit 1 depends on the completion of Unit2
-		require.Contains(t, vertices, TestEdge{
-			From: unit1,
-			To:   unit2,
-			Edge: StatusCompleted,
+			// Check for reverse edges
+			unit2ReverseEdges := graph.GetReverseAdjacentVertices(unit2)
+			require.Len(t, unit2ReverseEdges, 1)
+			// Unit 2 must be completed before Unit 1 can start
+			require.Contains(t, unit2ReverseEdges, TestEdge{
+				From: unit1,
+				To:   unit2,
+				Edge: StatusCompleted,
+			})
+
+			unit3ReverseEdges := graph.GetReverseAdjacentVertices(unit3)
+			require.Len(t, unit3ReverseEdges, 1)
+			// Unit 3 must be started before Unit 1 can complete
+			require.Contains(t, unit3ReverseEdges, TestEdge{
+				From: unit1,
+				To:   unit3,
+				Edge: StatusStarted,
+			})
+
+			return graph
+		},
+		"SelfReference": func(t *testing.T) *unit.Graph[Status, *Unit] {
+			graph := &unit.Graph[Status, *Unit]{}
+			unit1 := &Unit{Name: "unit1", Status: StatusPending}
+			err := graph.AddEdge(unit1, unit1, StatusCompleted)
+			require.Error(t, err)
+			require.ErrorContains(t, err, fmt.Sprintf("adding edge (%v -> %v) would create a cycle", unit1, unit1))
+
+			return graph
+		},
+		"Cycle": func(t *testing.T) *unit.Graph[Status, *Unit] {
+			graph := &unit.Graph[Status, *Unit]{}
+			unit1 := &Unit{Name: "unit1", Status: StatusPending}
+			unit2 := &Unit{Name: "unit2", Status: StatusPending}
+			err := graph.AddEdge(unit1, unit2, StatusCompleted)
+			require.NoError(t, err)
+			err = graph.AddEdge(unit2, unit1, StatusStarted)
+			require.Error(t, err)
+			require.ErrorContains(t, err, fmt.Sprintf("adding edge (%v -> %v) would create a cycle", unit2, unit1))
+
+			return graph
+		},
+		"MultipleDependenciesSameStatus": func(t *testing.T) *unit.Graph[Status, *Unit] {
+			graph := &unit.Graph[Status, *Unit]{}
+			unit1 := &Unit{Name: "unit1", Status: StatusPending}
+			unit2 := &Unit{Name: "unit2", Status: StatusPending}
+			unit3 := &Unit{Name: "unit3", Status: StatusPending}
+			unit4 := &Unit{Name: "unit4", Status: StatusPending}
+
+			// Unit1 depends on completion of both unit2 and unit3 (same status type)
+			err := graph.AddEdge(unit1, unit2, StatusCompleted)
+			require.NoError(t, err)
+			err = graph.AddEdge(unit1, unit3, StatusCompleted)
+			require.NoError(t, err)
+
+			// Unit1 also depends on starting of unit4 (different status type)
+			err = graph.AddEdge(unit1, unit4, StatusStarted)
+			require.NoError(t, err)
+
+			// Check that unit1 has 3 forward dependencies
+			forwardEdges := graph.GetForwardAdjacentVertices(unit1)
+			require.Len(t, forwardEdges, 3)
+
+			// Verify all expected dependencies exist
+			expectedDependencies := []TestEdge{
+				{From: unit1, To: unit2, Edge: StatusCompleted},
+				{From: unit1, To: unit3, Edge: StatusCompleted},
+				{From: unit1, To: unit4, Edge: StatusStarted},
+			}
+
+			for _, expected := range expectedDependencies {
+				require.Contains(t, forwardEdges, expected)
+			}
+
+			// Check reverse dependencies
+			unit2ReverseEdges := graph.GetReverseAdjacentVertices(unit2)
+			require.Len(t, unit2ReverseEdges, 1)
+			require.Contains(t, unit2ReverseEdges, TestEdge{
+				From: unit1, To: unit2, Edge: StatusCompleted,
+			})
+
+			unit3ReverseEdges := graph.GetReverseAdjacentVertices(unit3)
+			require.Len(t, unit3ReverseEdges, 1)
+			require.Contains(t, unit3ReverseEdges, TestEdge{
+				From: unit1, To: unit3, Edge: StatusCompleted,
+			})
+
+			unit4ReverseEdges := graph.GetReverseAdjacentVertices(unit4)
+			require.Len(t, unit4ReverseEdges, 1)
+			require.Contains(t, unit4ReverseEdges, TestEdge{
+				From: unit1, To: unit4, Edge: StatusStarted,
+			})
+
+			return graph
+		},
+	}
+
+	for testName, testFunc := range testFuncs {
+		var graph *unit.Graph[Status, *Unit]
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+			graph = testFunc(t)
 		})
-		// Unit 1 depends on the start of Unit3
-		require.Contains(t, vertices, TestEdge{
-			From: unit1,
-			To:   unit3,
-			Edge: StatusStarted,
-		})
-
-		// Check for reverse edges
-		unit2ReverseEdges := graph.GetReverseAdjacentVertices(unit2)
-		require.Len(t, unit2ReverseEdges, 1)
-		// Unit 2 must be completed before Unit 1 can start
-		require.Contains(t, unit2ReverseEdges, TestEdge{
-			From: unit1,
-			To:   unit2,
-			Edge: StatusCompleted,
-		})
-
-		unit3ReverseEdges := graph.GetReverseAdjacentVertices(unit3)
-		require.Len(t, unit3ReverseEdges, 1)
-		// Unit 3 must be started before Unit 1 can complete
-		require.Contains(t, unit3ReverseEdges, TestEdge{
-			From: unit1,
-			To:   unit3,
-			Edge: StatusStarted,
-		})
-
-		// Assert on the DOT representation using golden file
-		assertDOTGraph(t, graph, "ForwardAndReverseEdges")
-	})
-
-	t.Run("SelfReference", func(t *testing.T) {
-		t.Parallel()
-
-		graph := &unit.Graph[Status, *Unit]{}
-		unit1 := &Unit{Name: "unit1", Status: StatusPending}
-		err := graph.AddEdge(unit1, unit1, StatusCompleted)
-		require.Error(t, err)
-		require.ErrorContains(t, err, fmt.Sprintf("adding edge (%v -> %v) would create a cycle", unit1, unit1))
-
-		// Assert on the DOT representation using golden file (should be empty graph)
-		assertDOTGraph(t, graph, "SelfReference")
-	})
-
-	t.Run("Cycle", func(t *testing.T) {
-		t.Parallel()
-
-		graph := &unit.Graph[Status, *Unit]{}
-		unit1 := &Unit{Name: "unit1", Status: StatusPending}
-		unit2 := &Unit{Name: "unit2", Status: StatusPending}
-		err := graph.AddEdge(unit1, unit2, StatusCompleted)
-		require.NoError(t, err)
-		err = graph.AddEdge(unit2, unit1, StatusStarted)
-		require.Error(t, err)
-		require.ErrorContains(t, err, fmt.Sprintf("adding edge (%v -> %v) would create a cycle", unit2, unit1))
-
-		// Assert on the DOT representation using golden file (should contain only the first edge)
-		assertDOTGraph(t, graph, "Cycle")
-	})
-
-	t.Run("MultipleDependenciesSameStatus", func(t *testing.T) {
-		t.Parallel()
-
-		graph := &unit.Graph[Status, *Unit]{}
-		unit1 := &Unit{Name: "unit1", Status: StatusPending}
-		unit2 := &Unit{Name: "unit2", Status: StatusPending}
-		unit3 := &Unit{Name: "unit3", Status: StatusPending}
-		unit4 := &Unit{Name: "unit4", Status: StatusPending}
-
-		// Unit1 depends on completion of both unit2 and unit3 (same status type)
-		err := graph.AddEdge(unit1, unit2, StatusCompleted)
-		require.NoError(t, err)
-		err = graph.AddEdge(unit1, unit3, StatusCompleted)
-		require.NoError(t, err)
-
-		// Unit1 also depends on starting of unit4 (different status type)
-		err = graph.AddEdge(unit1, unit4, StatusStarted)
-		require.NoError(t, err)
-
-		// Check that unit1 has 3 forward dependencies
-		forwardEdges := graph.GetForwardAdjacentVertices(unit1)
-		require.Len(t, forwardEdges, 3)
-
-		// Verify all expected dependencies exist
-		expectedDependencies := []TestEdge{
-			{From: unit1, To: unit2, Edge: StatusCompleted},
-			{From: unit1, To: unit3, Edge: StatusCompleted},
-			{From: unit1, To: unit4, Edge: StatusStarted},
-		}
-
-		for _, expected := range expectedDependencies {
-			require.Contains(t, forwardEdges, expected)
-		}
-
-		// Check reverse dependencies
-		unit2ReverseEdges := graph.GetReverseAdjacentVertices(unit2)
-		require.Len(t, unit2ReverseEdges, 1)
-		require.Contains(t, unit2ReverseEdges, TestEdge{
-			From: unit1, To: unit2, Edge: StatusCompleted,
-		})
-
-		unit3ReverseEdges := graph.GetReverseAdjacentVertices(unit3)
-		require.Len(t, unit3ReverseEdges, 1)
-		require.Contains(t, unit3ReverseEdges, TestEdge{
-			From: unit1, To: unit3, Edge: StatusCompleted,
-		})
-
-		unit4ReverseEdges := graph.GetReverseAdjacentVertices(unit4)
-		require.Len(t, unit4ReverseEdges, 1)
-		require.Contains(t, unit4ReverseEdges, TestEdge{
-			From: unit1, To: unit4, Edge: StatusStarted,
-		})
-
-		// Assert on the DOT representation using golden file
-		assertDOTGraph(t, graph, "MultipleDependenciesSameStatus")
-	})
+		requireDOTGraph(t, graph, testName)
+	}
 }
 
 func TestGraphThreadSafety(t *testing.T) {
