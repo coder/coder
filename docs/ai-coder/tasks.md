@@ -165,7 +165,7 @@ module "claude-code" {
 }
 ```
 
-1. Update the `coder_ai_task` resource and set `app_id` to the `task_app_id` output of the module:
+1. Add the `coder_ai_task` resource and set `app_id` to the `task_app_id` output of the module:
 
 ```diff
 resource "coder_ai_task" "task" {
