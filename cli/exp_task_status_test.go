@@ -240,6 +240,7 @@ STATE CHANGED  STATUS   HEALTHY  STATE  MESSAGE
   "template_display_name": "",
   "template_icon": "",
   "workspace_id": null,
+  "workspace_name": "",
   "workspace_status": "running",
   "workspace_agent_id": null,
   "workspace_agent_lifecycle": "ready",

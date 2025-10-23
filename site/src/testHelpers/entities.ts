@@ -5023,6 +5023,7 @@ export const MockTasks: TypesGen.Task[] = [
 		current_state: {
 			...MockTask.current_state,
 			message: "Avatar size fixed!",
+			state: "complete",
 		},
 	},
 	{
@@ -5032,6 +5033,7 @@ export const MockTasks: TypesGen.Task[] = [
 		current_state: {
 			...MockTask.current_state,
 			message: "Accessibility issues fixed!",
+			state: "complete",
 		},
 	},
 ];

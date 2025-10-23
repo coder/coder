@@ -206,9 +206,6 @@ const TasksSkeleton: FC = () => {
 					<Skeleton className="w-[100px] h-6" />
 				</TableCell>
 				<TableCell>
-					<Skeleton className="w-[100px] h-6" />
-				</TableCell>
-				<TableCell>
 					<AvatarDataSkeleton />
 				</TableCell>
 				<TableCell>

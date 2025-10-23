@@ -344,33 +344,13 @@ export const WorkspaceStarting: Story = {
 			location: {
 				pathParams: {
 					username: MockStoppedWorkspace.owner_name,
-					workspace: MockStoppedWorkspace.name,
+					task: MockTask.id,
 				},
 			},
 			routing: {
-				path: "/tasks/:username/:workspace",
+				path: "/tasks/:username/:task",
 			},
 		}),
-		queries: [
-			{
-				key: [
-					"tasks",
-					MockStoppedWorkspace.owner_name,
-					MockStoppedWorkspace.name,
-				],
-				data: {
-					prompt: "Create competitors page",
-					workspace: MockStoppedWorkspace,
-				},
-			},
-			{
-				key: ["workspace", MockStoppedWorkspace.id, "parameters"],
-				data: {
-					templateVersionRichParameters: [],
-					buildParameters: [],
-				},
-			},
-		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -402,33 +382,13 @@ export const WorkspaceStartFailure: Story = {
 			location: {
 				pathParams: {
 					username: MockStoppedWorkspace.owner_name,
-					workspace: MockStoppedWorkspace.name,
+					task: MockTask.id,
 				},
 			},
 			routing: {
-				path: "/tasks/:username/:workspace",
+				path: "/tasks/:username/:task",
 			},
 		}),
-		queries: [
-			{
-				key: [
-					"tasks",
-					MockStoppedWorkspace.owner_name,
-					MockStoppedWorkspace.name,
-				],
-				data: {
-					prompt: "Create competitors page",
-					workspace: MockStoppedWorkspace,
-				},
-			},
-			{
-				key: ["workspace", MockStoppedWorkspace.id, "parameters"],
-				data: {
-					templateVersionRichParameters: [],
-					buildParameters: [],
-				},
-			},
-		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -464,33 +424,13 @@ export const WorkspaceStartFailureWithDialog: Story = {
 			location: {
 				pathParams: {
 					username: MockStoppedWorkspace.owner_name,
-					workspace: MockStoppedWorkspace.name,
+					task: MockTask.id,
 				},
 			},
 			routing: {
-				path: "/tasks/:username/:workspace",
+				path: "/tasks/:username/:task",
 			},
 		}),
-		queries: [
-			{
-				key: [
-					"tasks",
-					MockStoppedWorkspace.owner_name,
-					MockStoppedWorkspace.name,
-				],
-				data: {
-					prompt: "Create competitors page",
-					workspace: MockStoppedWorkspace,
-				},
-			},
-			{
-				key: ["workspace", MockStoppedWorkspace.id, "parameters"],
-				data: {
-					templateVersionRichParameters: [],
-					buildParameters: [],
-				},
-			},
-		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
