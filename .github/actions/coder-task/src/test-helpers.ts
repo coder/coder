@@ -91,15 +91,15 @@ export function createMockInputs(
 	overrides?: Partial<ActionInputs>,
 ): ActionInputs {
 	return {
-		coderURL: "https://coder.test",
-		coderToken: "test-token",
-		githubToken: "github-token",
-		coderTemplateName: "my-template",
-		githubIssueURL: "https://github.com/test-org/test-repo/issues/12345",
-		coderTaskNamePrefix: "task",
 		coderTaskPrompt: "Test prompt",
-		coderTemplatePreset: "Default",
+		coderToken: "test-token",
+		coderURL: "https://coder.test",
 		coderOrganization: "coder",
+		coderTaskNamePrefix: "task",
+		coderTemplateName: "my-template",
+		githubToken: "github-token",
+		githubIssueURL: "https://github.com/test-org/test-repo/issues/12345",
+		githubUserID: 12345,
 		...overrides,
 	};
 }

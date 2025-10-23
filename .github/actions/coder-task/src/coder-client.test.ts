@@ -1,5 +1,9 @@
 import { describe, expect, test, beforeEach, mock } from "bun:test";
-import { CoderClient, CoderAPIError } from "./coder-client";
+import {
+	CoderClient,
+	CoderAPIError,
+	ExperimentalCoderSDKCreateTaskRequestSchema,
+} from "./coder-client";
 import {
 	mockUser,
 	mockUserList,
@@ -155,8 +159,8 @@ describe("CoderClient", () => {
 			expect(result).not.toBeNull();
 			expect(result).toHaveLength(mockTemplateVersionPresets.length);
 			for (let idx = 0; idx < result.length; idx++) {
-				expect(result[idx].id).toBe(mockTemplateVersionPresets[idx].id);
-				expect(result[idx].name).toBe(mockTemplateVersionPresets[idx].name);
+				expect(result[idx].ID).toBe(mockTemplateVersionPresets[idx].ID);
+				expect(result[idx].Name).toBe(mockTemplateVersionPresets[idx].Name);
 			}
 			expect(mockFetch).toHaveBeenCalledWith(
 				`https://coder.test/api/v2/templateversions/${mockTemplate.active_version_id}/presets`,
@@ -203,30 +207,17 @@ describe("CoderClient", () => {
 
 	describe("createTask", () => {
 		test("creates task successfully given valid input", async () => {
-			mockFetch.mockResolvedValueOnce(createMockResponse(mockTemplate));
 			mockFetch.mockResolvedValueOnce(createMockResponse(mockTask));
 			const mockInputs = createMockInputs();
-			const result = await client.createTask({
+			const result = await client.createTask(mockUser.username, {
 				name: mockTask.name,
-				template_version_id: mockTemplate.name,
-				template_version_preset_id: mockInputs.coderTemplatePreset,
-				organization: mockInputs.coderOrganization,
-				owner: mockUser.username,
+				template_version_id: mockTemplate.active_version_id,
 				input: mockInputs.coderTaskPrompt,
 			});
 			expect(result.id).toBe(mockTask.id);
 			expect(result.name).toBe(mockTask.name);
 			expect(mockFetch).toHaveBeenNthCalledWith(
 				1,
-				`https://coder.test/api/v2/organizations/${mockInputs.coderOrganization}/templates/${mockTemplate.name}`,
-				expect.objectContaining({
-					headers: expect.objectContaining({
-						"Coder-Session-Token": "test-token",
-					}),
-				}),
-			);
-			expect(mockFetch).toHaveBeenNthCalledWith(
-				2,
 				`https://coder.test/api/experimental/tasks/${mockUser.username}`,
 				expect.objectContaining({
 					method: "POST",
@@ -235,13 +226,14 @@ describe("CoderClient", () => {
 					}),
 					body: JSON.stringify({
 						name: mockTask.name,
-						template_id: mockTemplate.id,
-						template_version_preset_id: mockInputs.coderTemplatePreset,
-						prompt: mockInputs.coderTaskPrompt,
+						template_version_id: mockTemplate.active_version_id,
+						input: mockInputs.coderTaskPrompt,
 					}),
 				}),
 			);
 		});
+
+		test("creates task successfully with a given preset", async () => {});
 
 		test("throws error when template not found", async () => {
 			mockFetch.mockResolvedValueOnce(
@@ -252,13 +244,11 @@ describe("CoderClient", () => {
 			);
 			const mockInputs = createMockInputs();
 			expect(
-				client.createTask({
+				client.createTask(mockUser.username, {
 					name: mockTask.name,
-					owner: mockUser.username,
 					template_version_id: "nonexistent",
 					template_version_preset_id: mockInputs.coderTemplatePreset,
 					input: mockInputs.coderTaskPrompt,
-					organization: mockInputs.coderOrganization,
 				}),
 			).rejects.toThrow(CoderAPIError);
 		});
