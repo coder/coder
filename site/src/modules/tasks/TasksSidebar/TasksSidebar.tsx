@@ -43,11 +43,11 @@ export const TasksSidebar: FC = () => {
 		<div
 			className={cn(
 				"h-full bg-surface-secondary w-full max-w-80",
-				"border-solid border-0 border-r transition-all",
+				"border-solid border-0 border-r transition-all flex flex-col",
 				{ "max-w-14": isCollapsed },
 			)}
 		>
-			<div className="p-3 flex flex-col flex-1 gap-6">
+			<div className="p-3 flex flex-col gap-6">
 				<div className="flex items-center place-content-between">
 					{!isCollapsed && (
 						<Button
@@ -140,7 +140,7 @@ const TasksSidebarGroup: FC<TasksSidebarGroupProps> = ({ owner }) => {
 	});
 
 	return (
-		<ScrollArea>
+		<ScrollArea className="flex-1">
 			<div className="flex flex-col gap-2 p-3">
 				<div className="text-content-secondary text-xs">Tasks</div>
 				<div className="flex flex-col flex-1 gap-1">
@@ -198,7 +198,7 @@ const TaskSidebarMenuItem: FC<TaskSidebarMenuItemProps> = ({ task }) => {
 			>
 				<RouterLink
 					to={{
-						pathname: `/tasks/${task.owner_name}/${task.name}`,
+						pathname: `/tasks/${task.owner_name}/${task.id}`,
 						search: window.location.search,
 					}}
 				>

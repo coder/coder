@@ -128,7 +128,7 @@ const TaskRow: FC<TaskRowProps> = ({ task }) => {
 									{task.initial_prompt}
 								</span>
 								<RouterLink
-									to={`/tasks/${task.owner_name}/${task.name}`}
+									to={`/tasks/${task.owner_name}/${task.id}`}
 									className="absolute inset-0"
 								>
 									<span className="sr-only">Access task</span>
@@ -149,7 +149,7 @@ const TaskRow: FC<TaskRowProps> = ({ task }) => {
 				<TableCell>
 					<TaskStatus
 						status={task.status}
-						stateMessage={task.current_state?.message ?? "No message"}
+						stateMessage={task.current_state?.message || "No message available"}
 					/>
 				</TableCell>
 

@@ -347,6 +347,7 @@ func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) cod
 		TemplateDisplayName:     ws.TemplateDisplayName,
 		TemplateIcon:            ws.TemplateIcon,
 		WorkspaceID:             dbTask.WorkspaceID,
+		WorkspaceName:           ws.Name,
 		WorkspaceBuildNumber:    dbTask.WorkspaceBuildNumber.Int32,
 		WorkspaceStatus:         ws.LatestBuild.Status,
 		WorkspaceAgentID:        dbTask.WorkspaceAgentID,

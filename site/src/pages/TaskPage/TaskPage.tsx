@@ -62,12 +62,16 @@ const TaskPage = () => {
 	const { data: task, ...taskQuery } = useQuery({
 		queryKey: ["tasks", username, taskId],
 		queryFn: () => API.experimental.getTask(username, taskId),
-		refetchInterval: 5_000,
+		refetchInterval: ({ state }) => {
+			return state.error ? false : 5_000;
+		},
 	});
 	const { data: workspace, ...workspaceQuery } = useQuery({
-		...workspaceByOwnerAndName(username, task?.workspace_id ?? ""),
+		...workspaceByOwnerAndName(username, task?.workspace_name ?? ""),
 		enabled: task !== undefined,
-		refetchInterval: 5_000,
+		refetchInterval: ({ state }) => {
+			return state.error ? false : 5_000;
+		},
 	});
 	const refetch = taskQuery.error ? taskQuery.refetch : workspaceQuery.refetch;
 	const error = taskQuery.error ?? workspaceQuery.error;

@@ -7697,6 +7697,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
     "uuid": "string",
     "valid": true
   },
+  "workspace_name": "string",
   "workspace_status": "pending"
 }
 ```
@@ -7727,6 +7728,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `workspace_app_id`          | [uuid.NullUUID](#uuidnulluuid)                                       | false    |              |             |
 | `workspace_build_number`    | integer                                                              | false    |              |             |
 | `workspace_id`              | [uuid.NullUUID](#uuidnulluuid)                                       | false    |              |             |
+| `workspace_name`            | string                                                               | false    |              |             |
 | `workspace_status`          | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)                 | false    |              |             |
 
 #### Enumerated Values
@@ -7922,6 +7924,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
         "uuid": "string",
         "valid": true
       },
+      "workspace_name": "string",
       "workspace_status": "pending"
     }
   ]

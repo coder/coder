@@ -32,7 +32,7 @@ export const TaskStatus: FC<TaskStatusProps> = ({ status, stateMessage }) => {
 			<StatusIndicatorDot className="mt-1" />
 			<div className="flex flex-col">
 				<span className="[&:first-letter]:uppercase">{status}</span>
-				<span className="text-xs font-normal text-content-secondary">
+				<span className="text-xs font-normal text-content-secondary truncate max-w-sm">
 					{stateMessage}
 				</span>
 			</div>

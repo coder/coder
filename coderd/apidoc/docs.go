@@ -17800,6 +17800,9 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "workspace_name": {
+                    "type": "string"
+                },
                 "workspace_status": {
                     "enum": [
                         "pending",

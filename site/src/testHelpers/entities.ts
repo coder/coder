@@ -4995,6 +4995,7 @@ export const MockTask = {
 	template_icon: MockTemplate.icon,
 	template_version_id: MockTemplateVersion.id,
 	workspace_id: MockWorkspace.id,
+	workspace_name: MockWorkspace.name,
 	workspace_status: "running",
 	workspace_build_number: MockWorkspaceBuild.build_number,
 	workspace_agent_id: MockWorkspaceAgent.id,

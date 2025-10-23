@@ -4708,6 +4708,7 @@ export interface Task {
 	readonly template_display_name: string;
 	readonly template_icon: string;
 	readonly workspace_id: string | null;
+	readonly workspace_name: string;
 	readonly workspace_status?: WorkspaceStatus;
 	readonly workspace_build_number?: number;
 	readonly workspace_agent_id: string | null;
