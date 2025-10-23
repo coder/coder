@@ -6,16 +6,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/v2/testutil"
-
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/quartz"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/prebuilds"
+	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 type options struct {
@@ -236,6 +234,74 @@ func TestDeleteOutdatedPrebuilds(t *testing.T) {
 			DeleteIDs:  []uuid.UUID{outdated.prebuiltWorkspaceID},
 		},
 	}, actions)
+}
+
+func TestCancelPendingPrebuilds(t *testing.T) {
+	t.Parallel()
+
+	// Setup
+	current := opts[optionSet3]
+	clock := quartz.NewMock(t)
+
+	t.Run("CancelPendingPrebuildsNonActiveVersion", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: a preset from a non-active version
+		defaultPreset := preset(false, 0, current)
+		presets := []database.GetTemplatePresetsWithPrebuildsRow{
+			defaultPreset,
+		}
+
+		// Given: 2 pending prebuilt workspaces for the preset
+		pending := []database.CountPendingNonActivePrebuildsRow{{
+			PresetID: uuid.NullUUID{
+				UUID:  defaultPreset.ID,
+				Valid: true,
+			},
+			Count: 2,
+		}}
+
+		// When: calculating the current preset's state
+		snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, pending, nil, nil, clock, testutil.Logger(t))
+		ps, err := snapshot.FilterByPreset(current.presetID)
+		require.NoError(t, err)
+
+		// Then: it should create a cancel reconciliation action
+		actions, err := ps.CalculateActions(backoffInterval)
+		require.NoError(t, err)
+		expectedAction := []*prebuilds.ReconciliationActions{{ActionType: prebuilds.ActionTypeCancelPending}}
+		require.Equal(t, expectedAction, actions)
+	})
+
+	t.Run("NotCancelPendingPrebuildsActiveVersion", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: a preset from an active version
+		defaultPreset := preset(true, 0, current)
+		presets := []database.GetTemplatePresetsWithPrebuildsRow{
+			defaultPreset,
+		}
+
+		// Given: 2 pending prebuilt workspaces for the preset
+		pending := []database.CountPendingNonActivePrebuildsRow{{
+			PresetID: uuid.NullUUID{
+				UUID:  defaultPreset.ID,
+				Valid: true,
+			},
+			Count: 2,
+		}}
+
+		// When: calculating the current preset's state
+		snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, pending, nil, nil, clock, testutil.Logger(t))
+		ps, err := snapshot.FilterByPreset(current.presetID)
+		require.NoError(t, err)
+
+		// Then: it should not create a cancel reconciliation action
+		actions, err := ps.CalculateActions(backoffInterval)
+		require.NoError(t, err)
+		var expectedAction []*prebuilds.ReconciliationActions
+		require.Equal(t, expectedAction, actions)
+	})
 }
 
 // A new template version is created with a preset with prebuilds configured; while a prebuild is provisioning up or down,
@@ -1093,7 +1159,7 @@ func TestCalculateDesiredInstances(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			nil,
+			0,
 			nil,
 			false,
 			quartz.NewMock(t),

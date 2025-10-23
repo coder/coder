@@ -13,6 +13,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/rbac"
+
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/files"
@@ -1779,6 +1782,388 @@ func TestExpiredPrebuildsMultipleActions(t *testing.T) {
 				}
 			}
 			require.Equal(t, tc.created, createdCount)
+		})
+	}
+}
+
+func TestCancelPendingPrebuilds(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name       string
+		setupBuild func(
+			t *testing.T,
+			db database.Store,
+			client *codersdk.Client,
+			orgID uuid.UUID,
+			templateID uuid.UUID,
+			templateVersionID uuid.UUID,
+			presetID uuid.NullUUID,
+		) dbfake.WorkspaceResponse
+		activeTemplateVersion bool
+		previouslyCanceled    bool
+		previouslyCompleted   bool
+		shouldCancel          bool
+	}{
+		// Should cancel pending prebuild-related jobs from a non-active template version
+		{
+			name: "CancelsPendingPrebuildJobNonActiveVersion",
+			// Given: a pending prebuild job
+			setupBuild: func(t *testing.T,
+				db database.Store,
+				client *codersdk.Client,
+				orgID uuid.UUID,
+				templateID uuid.UUID,
+				templateVersionID uuid.UUID,
+				presetID uuid.NullUUID,
+			) dbfake.WorkspaceResponse {
+				return dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+					OwnerID:        database.PrebuildsSystemUserID,
+					OrganizationID: orgID,
+					TemplateID:     templateID,
+				}).Pending().Seed(database.WorkspaceBuild{
+					InitiatorID:             database.PrebuildsSystemUserID,
+					TemplateVersionID:       templateVersionID,
+					TemplateVersionPresetID: presetID,
+				}).Do()
+			},
+			activeTemplateVersion: false,
+			previouslyCanceled:    false,
+			previouslyCompleted:   false,
+			shouldCancel:          true,
+		},
+		// Should not cancel pending prebuild-related jobs from an active template version
+		{
+			name: "DoesNotCancelsPendingPrebuildJobActiveVersion",
+			// Given: a pending prebuild job
+			setupBuild: func(t *testing.T,
+				db database.Store,
+				client *codersdk.Client,
+				orgID uuid.UUID,
+				templateID uuid.UUID,
+				templateVersionID uuid.UUID,
+				presetID uuid.NullUUID,
+			) dbfake.WorkspaceResponse {
+				return dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+					OwnerID:        database.PrebuildsSystemUserID,
+					OrganizationID: orgID,
+					TemplateID:     templateID,
+				}).Pending().Seed(database.WorkspaceBuild{
+					InitiatorID:             database.PrebuildsSystemUserID,
+					TemplateVersionID:       templateVersionID,
+					TemplateVersionPresetID: presetID,
+				}).Do()
+			},
+			activeTemplateVersion: true,
+			previouslyCanceled:    false,
+			previouslyCompleted:   false,
+			shouldCancel:          false,
+		},
+		// Should not cancel pending prebuild-related jobs associated to a second workspace build
+		{
+			name: "DoesNotCancelsPendingPrebuildJobActiveVersion",
+			// Given: a pending prebuild job associated to a second workspace build
+			setupBuild: func(t *testing.T,
+				db database.Store,
+				client *codersdk.Client,
+				orgID uuid.UUID,
+				templateID uuid.UUID,
+				templateVersionID uuid.UUID,
+				presetID uuid.NullUUID,
+			) dbfake.WorkspaceResponse {
+				return dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+					OwnerID:        database.PrebuildsSystemUserID,
+					OrganizationID: orgID,
+					TemplateID:     templateID,
+				}).Pending().Seed(database.WorkspaceBuild{
+					InitiatorID:             database.PrebuildsSystemUserID,
+					BuildNumber:             int32(2),
+					TemplateVersionID:       templateVersionID,
+					TemplateVersionPresetID: presetID,
+				}).Do()
+			},
+			activeTemplateVersion: false,
+			previouslyCanceled:    false,
+			previouslyCompleted:   false,
+			shouldCancel:          false,
+		},
+		// Should not cancel pending prebuild-related jobs of a different template
+		{
+			name: "DoesNotCancelPrebuildJobDifferentTemplate",
+			// Given: a pending prebuild job belonging to a different template
+			setupBuild: func(
+				t *testing.T,
+				db database.Store,
+				client *codersdk.Client,
+				orgID uuid.UUID,
+				templateID uuid.UUID,
+				templateVersionID uuid.UUID,
+				presetID uuid.NullUUID,
+			) dbfake.WorkspaceResponse {
+				return dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+					OwnerID:        database.PrebuildsSystemUserID,
+					OrganizationID: orgID,
+					TemplateID:     uuid.Nil,
+				}).Pending().Seed(database.WorkspaceBuild{
+					InitiatorID:             database.PrebuildsSystemUserID,
+					TemplateVersionID:       templateVersionID,
+					TemplateVersionPresetID: presetID,
+				}).Do()
+			},
+			activeTemplateVersion: false,
+			previouslyCanceled:    false,
+			previouslyCompleted:   false,
+			shouldCancel:          false,
+		},
+		// Should not cancel pending user workspace build jobs
+		{
+			name: "DoesNotCancelUserWorkspaceJob",
+			// Given: a pending user workspace build job
+			setupBuild: func(
+				t *testing.T,
+				db database.Store,
+				client *codersdk.Client,
+				orgID uuid.UUID,
+				templateID uuid.UUID,
+				templateVersionID uuid.UUID,
+				presetID uuid.NullUUID,
+			) dbfake.WorkspaceResponse {
+				_, member := coderdtest.CreateAnotherUser(t, client, orgID, rbac.RoleMember())
+				return dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+					OwnerID:        member.ID,
+					OrganizationID: orgID,
+					TemplateID:     uuid.Nil,
+				}).Pending().Seed(database.WorkspaceBuild{
+					InitiatorID:             member.ID,
+					TemplateVersionID:       templateVersionID,
+					TemplateVersionPresetID: presetID,
+				}).Do()
+			},
+			activeTemplateVersion: false,
+			previouslyCanceled:    false,
+			previouslyCompleted:   false,
+			shouldCancel:          false,
+		},
+		// Should not cancel pending prebuild-related jobs with a delete transition
+		{
+			name: "DoesNotCancelPrebuildJobDeleteTransition",
+			// Given: a pending prebuild job with a delete transition
+			setupBuild: func(
+				t *testing.T,
+				db database.Store,
+				client *codersdk.Client,
+				orgID uuid.UUID,
+				templateID uuid.UUID,
+				templateVersionID uuid.UUID,
+				presetID uuid.NullUUID,
+			) dbfake.WorkspaceResponse {
+				return dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+					OwnerID:        database.PrebuildsSystemUserID,
+					OrganizationID: orgID,
+					TemplateID:     templateID,
+				}).Pending().Seed(database.WorkspaceBuild{
+					InitiatorID:             database.PrebuildsSystemUserID,
+					Transition:              database.WorkspaceTransitionDelete,
+					TemplateVersionID:       templateVersionID,
+					TemplateVersionPresetID: presetID,
+				}).Do()
+			},
+			activeTemplateVersion: false,
+			previouslyCanceled:    false,
+			previouslyCompleted:   false,
+			shouldCancel:          false,
+		},
+		// Should not cancel prebuild-related jobs already being processed by a provisioner
+		{
+			name: "DoesNotCancelRunningPrebuildJob",
+			// Given: a running prebuild job
+			setupBuild: func(
+				t *testing.T,
+				db database.Store,
+				client *codersdk.Client,
+				orgID uuid.UUID,
+				templateID uuid.UUID,
+				templateVersionID uuid.UUID,
+				presetID uuid.NullUUID,
+			) dbfake.WorkspaceResponse {
+				return dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+					OwnerID:        database.PrebuildsSystemUserID,
+					OrganizationID: orgID,
+					TemplateID:     templateID,
+				}).Starting().Seed(database.WorkspaceBuild{
+					InitiatorID:             database.PrebuildsSystemUserID,
+					TemplateVersionID:       templateVersionID,
+					TemplateVersionPresetID: presetID,
+				}).Do()
+			},
+			activeTemplateVersion: false,
+			previouslyCanceled:    false,
+			previouslyCompleted:   false,
+			shouldCancel:          false,
+		},
+		// Should not cancel already canceled prebuild-related jobs
+		{
+			name: "DoesNotCancelCanceledPrebuildJob",
+			// Given: a canceled prebuild job
+			setupBuild: func(
+				t *testing.T,
+				db database.Store,
+				client *codersdk.Client,
+				orgID uuid.UUID,
+				templateID uuid.UUID,
+				templateVersionID uuid.UUID,
+				presetID uuid.NullUUID,
+			) dbfake.WorkspaceResponse {
+				return dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+					OwnerID:        database.PrebuildsSystemUserID,
+					OrganizationID: orgID,
+					TemplateID:     templateID,
+				}).Canceled().Seed(database.WorkspaceBuild{
+					InitiatorID:             database.PrebuildsSystemUserID,
+					TemplateVersionID:       templateVersionID,
+					TemplateVersionPresetID: presetID,
+				}).Do()
+			},
+			activeTemplateVersion: false,
+			shouldCancel:          false,
+			previouslyCanceled:    true,
+			previouslyCompleted:   true,
+		},
+		// Should not cancel completed prebuild-related jobs
+		{
+			name: "DoesNotCancelCompletedPrebuildJob",
+			// Given: a completed prebuild job
+			setupBuild: func(
+				t *testing.T,
+				db database.Store,
+				client *codersdk.Client,
+				orgID uuid.UUID,
+				templateID uuid.UUID,
+				templateVersionID uuid.UUID,
+				presetID uuid.NullUUID,
+			) dbfake.WorkspaceResponse {
+				return dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+					OwnerID:        database.PrebuildsSystemUserID,
+					OrganizationID: orgID,
+					TemplateID:     templateID,
+				}).Seed(database.WorkspaceBuild{
+					InitiatorID:             database.PrebuildsSystemUserID,
+					TemplateVersionID:       templateVersionID,
+					TemplateVersionPresetID: presetID,
+				}).Do()
+			},
+			activeTemplateVersion: false,
+			shouldCancel:          false,
+			previouslyCanceled:    false,
+			previouslyCompleted:   true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Set the clock to Monday, January 1st, 2024 at 8:00 AM UTC to keep the test deterministic
+			clock := quartz.NewMock(t)
+			clock.Set(time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC))
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			// Setup
+			db, ps := dbtestutil.NewDB(t)
+			client, _, _ := coderdtest.NewWithAPI(t, &coderdtest.Options{
+				// Explicitly not including provisioner daemons, as we don't want the jobs to be processed
+				// Jobs operations will be simulated via the database model
+				IncludeProvisionerDaemon: false,
+				Database:                 db,
+				Pubsub:                   ps,
+				Clock:                    clock,
+			})
+			fakeEnqueuer := newFakeEnqueuer()
+			registry := prometheus.NewRegistry()
+			cache := files.New(registry, &coderdtest.FakeAuthorizer{})
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
+			reconciler := prebuilds.NewStoreReconciler(db, ps, cache, codersdk.PrebuildsConfig{}, logger, clock, registry, fakeEnqueuer, newNoopUsageCheckerPtr())
+			owner := coderdtest.CreateFirstUser(t, client)
+
+			// Given: a template with a version containing a preset with 1 prebuild instance
+			nonActivePresetID := uuid.NullUUID{
+				UUID:  uuid.New(),
+				Valid: true,
+			}
+			nonActiveTemplateVersion := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
+				OrganizationID: owner.OrganizationID,
+				CreatedBy:      owner.UserID,
+			}).Preset(database.TemplateVersionPreset{
+				ID: nonActivePresetID.UUID,
+				DesiredInstances: sql.NullInt32{
+					Int32: 1,
+					Valid: true,
+				},
+			}).Do()
+			templateID := nonActiveTemplateVersion.Template.ID
+
+			// Given: a new active template version
+			activePresetID := uuid.NullUUID{
+				UUID:  uuid.New(),
+				Valid: true,
+			}
+			activeTemplateVersion := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
+				OrganizationID: owner.OrganizationID,
+				CreatedBy:      owner.UserID,
+				TemplateID: uuid.NullUUID{
+					UUID:  templateID,
+					Valid: true,
+				},
+			}).Preset(database.TemplateVersionPreset{
+				ID: activePresetID.UUID,
+				DesiredInstances: sql.NullInt32{
+					Int32: 1,
+					Valid: true,
+				},
+			}).SkipCreateTemplate().Do()
+
+			var workspace dbfake.WorkspaceResponse
+			if tt.activeTemplateVersion {
+				// Given: a prebuilt workspace, workspace build and respective provisioner job from an
+				// active template version
+				workspace = tt.setupBuild(t, db, client,
+					owner.OrganizationID, templateID, activeTemplateVersion.TemplateVersion.ID, activePresetID)
+			} else {
+				// Given: a prebuilt workspace, workspace build and respective provisioner job from a
+				// non-active template version
+				workspace = tt.setupBuild(t, db, client,
+					owner.OrganizationID, templateID, nonActiveTemplateVersion.TemplateVersion.ID, nonActivePresetID)
+			}
+
+			// Given: the new template version is promoted to active
+			err := db.UpdateTemplateActiveVersionByID(ctx, database.UpdateTemplateActiveVersionByIDParams{
+				ID:              templateID,
+				ActiveVersionID: activeTemplateVersion.TemplateVersion.ID,
+			})
+			require.NoError(t, err)
+
+			// When: the reconciliation loop is triggered
+			require.NoError(t, reconciler.ReconcileAll(ctx))
+
+			if tt.shouldCancel {
+				// Then: the prebuild related jobs from non-active version should be canceled
+				cancelledJob, err := db.GetProvisionerJobByID(ctx, workspace.Build.JobID)
+				require.NoError(t, err)
+				require.Equal(t, clock.Now().UTC(), cancelledJob.CanceledAt.Time.UTC())
+				require.Equal(t, clock.Now().UTC(), cancelledJob.CompletedAt.Time.UTC())
+				require.Equal(t, database.ProvisionerJobStatusCanceled, cancelledJob.JobStatus)
+			} else {
+				// Then: the provisioner job should not be canceled
+				job, err := db.GetProvisionerJobByID(ctx, workspace.Build.JobID)
+				require.NoError(t, err)
+				if !tt.previouslyCanceled {
+					require.Zero(t, job.CanceledAt.Time.UTC())
+					require.NotEqual(t, database.ProvisionerJobStatusCanceled, job.JobStatus)
+				}
+				if !tt.previouslyCompleted {
+					require.Zero(t, job.CompletedAt.Time.UTC())
+				}
+			}
 		})
 	}
 }

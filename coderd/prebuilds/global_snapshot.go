@@ -85,10 +85,13 @@ func (s GlobalSnapshot) FilterByPreset(presetID uuid.UUID) (*PresetSnapshot, err
 		return prebuild.PresetID.UUID == preset.ID
 	})
 
-	// Includes pending prebuilds only for non-active template versions
-	pending := slice.Filter(s.PendingPrebuilds, func(prebuild database.CountPendingNonActivePrebuildsRow) bool {
+	// Includes count of pending prebuilds only for non-active template versions
+	pendingCount := 0
+	if found, ok := slice.Find(s.PendingPrebuilds, func(prebuild database.CountPendingNonActivePrebuildsRow) bool {
 		return prebuild.PresetID.UUID == preset.ID
-	})
+	}); ok {
+		pendingCount = int(found.Count)
+	}
 
 	var backoffPtr *database.GetPresetsBackoffRow
 	backoff, found := slice.Find(s.Backoffs, func(row database.GetPresetsBackoffRow) bool {
@@ -106,7 +109,7 @@ func (s GlobalSnapshot) FilterByPreset(presetID uuid.UUID) (*PresetSnapshot, err
 		nonExpired,
 		expired,
 		inProgress,
-		pending,
+		pendingCount,
 		backoffPtr,
 		isHardLimited,
 		s.clock,

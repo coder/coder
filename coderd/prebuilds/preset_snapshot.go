@@ -52,7 +52,7 @@ type PresetSnapshot struct {
 	Running           []database.GetRunningPrebuiltWorkspacesRow
 	Expired           []database.GetRunningPrebuiltWorkspacesRow
 	InProgress        []database.CountInProgressPrebuildsRow
-	Pending           []database.CountPendingNonActivePrebuildsRow
+	PendingCount      int
 	Backoff           *database.GetPresetsBackoffRow
 	IsHardLimited     bool
 	clock             quartz.Clock
@@ -65,7 +65,7 @@ func NewPresetSnapshot(
 	running []database.GetRunningPrebuiltWorkspacesRow,
 	expired []database.GetRunningPrebuiltWorkspacesRow,
 	inProgress []database.CountInProgressPrebuildsRow,
-	pending []database.CountPendingNonActivePrebuildsRow,
+	pendingCount int,
 	backoff *database.GetPresetsBackoffRow,
 	isHardLimited bool,
 	clock quartz.Clock,
@@ -77,7 +77,7 @@ func NewPresetSnapshot(
 		Running:           running,
 		Expired:           expired,
 		InProgress:        inProgress,
-		Pending:           pending,
+		PendingCount:      pendingCount,
 		Backoff:           backoff,
 		IsHardLimited:     isHardLimited,
 		clock:             clock,
@@ -358,7 +358,7 @@ func (p PresetSnapshot) handleActiveTemplateVersion() (actions []*Reconciliation
 //     create a delete reconciliation action to remove all running prebuilt workspaces.
 func (p PresetSnapshot) handleInactiveTemplateVersion() (actions []*ReconciliationActions, err error) {
 	// Cancel pending initial prebuild jobs from inactive version
-	if len(p.Pending) > 0 {
+	if p.PendingCount > 0 {
 		actions = append(actions,
 			&ReconciliationActions{
 				ActionType: ActionTypeCancelPending,
@@ -367,11 +367,13 @@ func (p PresetSnapshot) handleInactiveTemplateVersion() (actions []*Reconciliati
 
 	// Delete prebuilds running in inactive version
 	deleteIDs := p.getOldestPrebuildIDs(len(p.Running))
-	actions = append(actions,
-		&ReconciliationActions{
-			ActionType: ActionTypeDelete,
-			DeleteIDs:  deleteIDs,
-		})
+	if len(deleteIDs) > 0 {
+		actions = append(actions,
+			&ReconciliationActions{
+				ActionType: ActionTypeDelete,
+				DeleteIDs:  deleteIDs,
+			})
+	}
 	return actions, nil
 }
 
