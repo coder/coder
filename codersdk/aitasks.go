@@ -103,6 +103,17 @@ const (
 	TaskStatusError        TaskStatus = "error"
 )
 
+func AllTaskStatuses() []TaskStatus {
+	return []TaskStatus{
+		TaskStatusPending,
+		TaskStatusInitializing,
+		TaskStatusActive,
+		TaskStatusPaused,
+		TaskStatusError,
+		TaskStatusUnknown,
+	}
+}
+
 // TaskState represents the high-level lifecycle of a task.
 //
 // Experimental: This type is experimental and may change in the future.
@@ -160,18 +171,37 @@ type TaskStateEntry struct {
 type TasksFilter struct {
 	// Owner can be a username, UUID, or "me".
 	Owner string `json:"owner,omitempty"`
-	// Status filters the tasks by their status.
-	//
-	// TODO(mafredri): Enable this field.
-	// Status TaskStatus `json:"status,omitempty"`
-	// WorkspaceStatus is a workspace status to filter by.
-	//
-	// Deprecated: Use TaskStatus instead.
-	WorkspaceStatus string `json:"workspace_status,omitempty" typescript:"-"`
-	// Offset is the number of tasks to skip before returning results.
-	Offset int `json:"offset,omitempty" typescript:"-"`
-	// Limit is a limit on the number of tasks returned.
-	Limit int `json:"limit,omitempty" typescript:"-"`
+	// Organization can be an organization name or UUID.
+	Organization string `json:"organization,omitempty"`
+	// Status filters the tasks by their task status.
+	Status TaskStatus `json:"status,omitempty"`
+	// FilterQuery allows specifying a raw filter query.
+	FilterQuery string `json:"filter_query,omitempty"`
+}
+
+func (f TasksFilter) asRequestOption() RequestOption {
+	return func(r *http.Request) {
+		var params []string
+		// Make sure all user input is quoted to ensure it's parsed as a single
+		// string.
+		if f.Owner != "" {
+			params = append(params, fmt.Sprintf("owner:%q", f.Owner))
+		}
+		if f.Organization != "" {
+			params = append(params, fmt.Sprintf("organization:%q", f.Organization))
+		}
+		if f.Status != "" {
+			params = append(params, fmt.Sprintf("status:%q", string(f.Status)))
+		}
+		if f.FilterQuery != "" {
+			// If custom stuff is added, just add it on here.
+			params = append(params, f.FilterQuery)
+		}
+
+		q := r.URL.Query()
+		q.Set("q", strings.Join(params, " "))
+		r.URL.RawQuery = q.Encode()
+	}
 }
 
 // Tasks lists all tasks belonging to the user or specified owner.
@@ -182,15 +212,7 @@ func (c *ExperimentalClient) Tasks(ctx context.Context, filter *TasksFilter) ([]
 		filter = &TasksFilter{}
 	}
 
-	var wsFilter WorkspaceFilter
-	wsFilter.Owner = filter.Owner
-	wsFilter.Status = filter.WorkspaceStatus
-	page := Pagination{
-		Offset: filter.Offset,
-		Limit:  filter.Limit,
-	}
-
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/tasks", nil, wsFilter.asRequestOption(), page.asRequestOption())
+	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/tasks", nil, filter.asRequestOption())
 	if err != nil {
 		return nil, err
 	}
@@ -231,6 +253,72 @@ func (c *ExperimentalClient) TaskByID(ctx context.Context, id uuid.UUID) (Task, 
 	}
 
 	return task, nil
+}
+
+func splitTaskIdentifier(identifier string) (owner string, taskName string, err error) {
+	parts := strings.Split(identifier, "/")
+
+	switch len(parts) {
+	case 1:
+		owner = Me
+		taskName = parts[0]
+	case 2:
+		owner = parts[0]
+		taskName = parts[1]
+	default:
+		return "", "", xerrors.Errorf("invalid task identifier: %q", identifier)
+	}
+	return owner, taskName, nil
+}
+
+// TaskByIdentifier fetches and returns a task by an identifier, which may be
+// either a UUID, a name (for a task owned by the current user), or a
+// "user/task" combination, where user is either a username or UUID.
+//
+// Since there is no TaskByOwnerAndName endpoint yet, this function uses the
+// list endpoint with filtering when a name is provided.
+func (c *ExperimentalClient) TaskByIdentifier(ctx context.Context, identifier string) (Task, error) {
+	identifier = strings.TrimSpace(identifier)
+
+	// Try parsing as UUID first.
+	if taskID, err := uuid.Parse(identifier); err == nil {
+		return c.TaskByID(ctx, taskID)
+	}
+
+	// Not a UUID, treat as identifier.
+	owner, taskName, err := splitTaskIdentifier(identifier)
+	if err != nil {
+		return Task{}, err
+	}
+
+	tasks, err := c.Tasks(ctx, &TasksFilter{
+		Owner: owner,
+	})
+	if err != nil {
+		return Task{}, xerrors.Errorf("list tasks for owner %q: %w", owner, err)
+	}
+
+	if taskID, err := uuid.Parse(taskName); err == nil {
+		// Find task by ID.
+		for _, task := range tasks {
+			if task.ID == taskID {
+				return task, nil
+			}
+		}
+	} else {
+		// Find task by name.
+		for _, task := range tasks {
+			if task.Name == taskName {
+				return task, nil
+			}
+		}
+	}
+
+	// Mimic resource not found from API.
+	var notFoundErr error = &Error{
+		Response: Response{Message: "Resource not found or you do not have access to this resource"},
+	}
+	return Task{}, xerrors.Errorf("task %q not found for owner %q: %w", taskName, owner, notFoundErr)
 }
 
 // DeleteTask deletes a task by its ID.

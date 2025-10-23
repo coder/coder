@@ -391,6 +391,43 @@ func AIBridgeInterceptions(ctx context.Context, db database.Store, query string,
 	return filter, parser.Errors
 }
 
+// Tasks parses a search query for tasks.
+//
+// Supported query parameters:
+//   - owner: string (username, UUID, or 'me' for current user)
+//   - organization: string (organization UUID or name)
+//   - status: string (pending, initializing, active, paused, error, unknown)
+func Tasks(ctx context.Context, db database.Store, query string, actorID uuid.UUID) (database.ListTasksParams, []codersdk.ValidationError) {
+	filter := database.ListTasksParams{
+		OwnerID:        uuid.Nil,
+		OrganizationID: uuid.Nil,
+		Status:         "",
+	}
+
+	if query == "" {
+		return filter, nil
+	}
+
+	// Always lowercase for all searches.
+	query = strings.ToLower(query)
+	values, errors := searchTerms(query, func(term string, values url.Values) error {
+		// Default unqualified terms to owner
+		values.Add("owner", term)
+		return nil
+	})
+	if len(errors) > 0 {
+		return filter, errors
+	}
+
+	parser := httpapi.NewQueryParamParser()
+	filter.OwnerID = parseUser(ctx, db, parser, values, "owner", actorID)
+	filter.OrganizationID = parseOrganization(ctx, db, parser, values, "organization")
+	filter.Status = parser.String(values, "", "status")
+
+	parser.ErrorExcessParams(values)
+	return filter, parser.Errors
+}
+
 func searchTerms(query string, defaultKey func(term string, values url.Values) error) (url.Values, []codersdk.ValidationError) {
 	searchValues := make(url.Values)
 

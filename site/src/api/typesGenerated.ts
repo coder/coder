@@ -4810,6 +4810,18 @@ export interface TasksFilter {
 	 * Owner can be a username, UUID, or "me".
 	 */
 	readonly owner?: string;
+	/**
+	 * Organization can be an organization name or UUID.
+	 */
+	readonly organization?: string;
+	/**
+	 * Status filters the tasks by their task status.
+	 */
+	readonly status?: TaskStatus;
+	/**
+	 * FilterQuery allows specifying a raw filter query.
+	 */
+	readonly filter_query?: string;
 }
 
 // From codersdk/deployment.go
