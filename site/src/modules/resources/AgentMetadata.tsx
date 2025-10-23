@@ -7,7 +7,6 @@ import type {
 	WorkspaceAgentMetadata,
 } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
-import { Stack } from "components/Stack/Stack";
 import dayjs from "dayjs";
 import {
 	type FC,
@@ -132,7 +131,7 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
 
 const AgentMetadataSkeleton: FC = () => {
 	return (
-		<Stack alignItems="baseline" direction="row" spacing={6}>
+		<div className="flex flex-row items-baseline gap-12">
 			<div className="leading-relaxed flex flex-col overflow-visible flex-shrink-0">
 				<Skeleton width={40} height={12} variant="text" />
 				<Skeleton width={65} height={14} variant="text" />
@@ -147,7 +146,7 @@ const AgentMetadataSkeleton: FC = () => {
 				<Skeleton width={40} height={12} variant="text" />
 				<Skeleton width={65} height={14} variant="text" />
 			</div>
-		</Stack>
+		</div>
 	);
 };
 

@@ -7,7 +7,6 @@ import {
 	HelpTooltipTitle,
 	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
-import { Stack } from "components/Stack/Stack";
 import type { FC } from "react";
 import { getLatencyColor } from "utils/latency";
 
@@ -59,15 +58,13 @@ export const AgentLatency: FC<AgentLatencyProps> = ({ agent }) => {
 					This is the latency overhead on non peer to peer connections. The
 					first row is the preferred relay.
 				</HelpTooltipText>
-				<Stack direction="column" spacing={1} css={{ marginTop: 16 }}>
+				<div className="mt-4 flex flex-col gap-2">
 					{Object.entries(agent.latency)
 						.sort(([, a], [, b]) => a.latency_ms - b.latency_ms)
 						.map(([regionName, region]) => (
-							<Stack
-								direction="row"
+							<div
 								key={regionName}
-								spacing={0.5}
-								justifyContent="space-between"
+								className="flex flex-row justify-between gap-1"
 								css={
 									region.preferred && {
 										color: theme.palette.text.primary,
@@ -76,9 +73,9 @@ export const AgentLatency: FC<AgentLatencyProps> = ({ agent }) => {
 							>
 								<strong>{regionName}</strong>
 								{Math.round(region.latency_ms)}ms
-							</Stack>
+							</div>
 						))}
-				</Stack>
+				</div>
 			</HelpTooltipContent>
 		</HelpTooltip>
 	);
