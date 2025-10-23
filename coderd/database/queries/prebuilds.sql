@@ -308,8 +308,11 @@ WHERE id IN (
 	SELECT pj.id
 	FROM provisioner_jobs pj
 	INNER JOIN workspace_prebuild_builds wpb ON wpb.job_id = pj.id
+	INNER JOIN workspaces w ON w.id = wpb.workspace_id
+	INNER JOIN templates t ON t.id = w.template_id
 	WHERE
-		wpb.template_version_preset_id = @preset_id
+		wpb.template_version_id != t.active_version_id
+		AND wpb.template_version_preset_id = @preset_id
 		-- Only considers initial builds, i.e. created by the reconciliation loop
 		AND wpb.build_number = 1
 		-- Only consider 'start' transitions (provisioning), not 'stop'/'delete' (deprovisioning)

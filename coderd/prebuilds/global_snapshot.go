@@ -8,10 +8,9 @@ import (
 
 	"cdr.dev/slog"
 
-	"github.com/coder/quartz"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/quartz"
 )
 
 // GlobalSnapshot represents a full point-in-time snapshot of state relating to prebuilds across all templates.
