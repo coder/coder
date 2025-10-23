@@ -15,7 +15,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -90,14 +89,6 @@ func TestReconcileAll(t *testing.T) {
 							// introduce an unrelated organization to ensure that the membership reconciler doesn't interfere with it.
 							unrelatedOrg := dbgen.Organization(t, db, database.Organization{})
 							targetOrg := dbgen.Organization(t, db, database.Organization{})
-
-							if !dbtestutil.WillUsePostgres() {
-								// dbmem doesn't ensure membership to the default organization
-								dbgen.OrganizationMember(t, db, database.OrganizationMember{
-									OrganizationID: defaultOrg.ID,
-									UserID:         database.PrebuildsSystemUserID,
-								})
-							}
 
 							// Ensure membership to unrelated org.
 							dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: unrelatedOrg.ID, UserID: database.PrebuildsSystemUserID})

@@ -17768,19 +17768,15 @@ const docTemplate = `{
                 "status": {
                     "enum": [
                         "pending",
-                        "starting",
-                        "running",
-                        "stopping",
-                        "stopped",
-                        "failed",
-                        "canceling",
-                        "canceled",
-                        "deleting",
-                        "deleted"
+                        "initializing",
+                        "active",
+                        "paused",
+                        "unknown",
+                        "error"
                     ],
                     "allOf": [
                         {
-                            "$ref": "#/definitions/codersdk.WorkspaceStatus"
+                            "$ref": "#/definitions/codersdk.TaskStatus"
                         }
                     ]
                 },
@@ -17796,6 +17792,10 @@ const docTemplate = `{
                 },
                 "template_name": {
                     "type": "string"
+                },
+                "template_version_id": {
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "updated_at": {
                     "type": "string",
@@ -17831,6 +17831,25 @@ const docTemplate = `{
                     "allOf": [
                         {
                             "$ref": "#/definitions/uuid.NullUUID"
+                        }
+                    ]
+                },
+                "workspace_status": {
+                    "enum": [
+                        "pending",
+                        "starting",
+                        "running",
+                        "stopping",
+                        "stopped",
+                        "failed",
+                        "canceling",
+                        "canceled",
+                        "deleting",
+                        "deleted"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceStatus"
                         }
                     ]
                 }
@@ -17916,6 +17935,25 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.TaskStatus": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "initializing",
+                "active",
+                "paused",
+                "unknown",
+                "error"
+            ],
+            "x-enum-varnames": [
+                "TaskStatusPending",
+                "TaskStatusInitializing",
+                "TaskStatusActive",
+                "TaskStatusPaused",
+                "TaskStatusUnknown",
+                "TaskStatusError"
+            ]
         },
         "codersdk.TelemetryConfig": {
             "type": "object",

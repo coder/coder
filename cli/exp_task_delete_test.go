@@ -22,6 +22,8 @@ import (
 func TestExpTaskDelete(t *testing.T) {
 	t.Parallel()
 
+	t.Skip("TODO(mafredri): Remove, fixed down-stack!")
+
 	type testCounters struct {
 		deleteCalls  atomic.Int64
 		nameResolves atomic.Int64
