@@ -24,26 +24,19 @@ import (
 	"github.com/coder/coder/v2/cryptorand"
 )
 
-// Test types for thread safety testing.
-// values in production might differ from these test values.
-type Status string
+type testGraphEdge string
 
 const (
-	StatusPending   Status = "pending"
-	StatusStarted   Status = "started"
-	StatusCompleted Status = "completed"
+	testEdgeStarted   testGraphEdge = "started"
+	testEdgeCompleted testGraphEdge = "completed"
 )
 
-// Unit is a test type for the graph.
-// Production types might be more complex.
-type Unit struct {
-	Name   string
-	Status Status
+type testGraphVertex struct {
+	Name string
 }
 
-// TestEdge is a convenience type, meant to be more readable than unit.Edge[Status, *Unit]
-// in these tests.
-type TestEdge = unit.Edge[Status, *Unit]
+type testGraph = unit.Graph[testGraphEdge, *testGraphVertex]
+type testEdge = unit.Edge[testGraphEdge, *testGraphVertex]
 
 // randInt generates a random integer in the range [0, limit).
 func randInt(limit int) int {
@@ -57,21 +50,11 @@ func randInt(limit int) int {
 	return int(n)
 }
 
-// createTestOutputDir creates a directory for test outputs.
-// This directory should be listed in the .gitignore file as:
-// test-output/
-func createTestOutputDir(t *testing.T) string {
-	outputDir := filepath.Join("test-output", t.Name())
-	err := os.MkdirAll(outputDir, 0o755)
-	require.NoError(t, err, "failed to create test output directory")
-	return outputDir
-}
-
 // saveDOTFile saves a DOT representation of the graph to a file for human inspection
-// after test execution. This is useful for debugging and visualizing the graph structure.
+// during test debugging. This is useful for inspecting the graph structure.
 // this is not used for golden file verification. For golden files, see assertDOTGraph.
-func saveDOTFile(t *testing.T, graph *unit.Graph[Status, *Unit], filename string) {
-	outputDir := createTestOutputDir(t)
+func saveDOTFile(t *testing.T, graph *unit.Graph[testGraphEdge, *testGraphVertex], filename string) {
+	outputDir := t.TempDir()
 	dot, err := graph.ToDOT(filename)
 	if err != nil {
 		t.Logf("Failed to generate DOT for %s: %v", filename, err)
@@ -90,7 +73,7 @@ func saveDOTFile(t *testing.T, graph *unit.Graph[Status, *Unit], filename string
 var UpdateGoldenFiles = flag.Bool("update", false, "update .golden files")
 
 // requireDOTGraph requires that the graph's DOT representation matches the golden file
-func requireDOTGraph(t *testing.T, graph *unit.Graph[Status, *Unit], goldenName string) {
+func requireDOTGraph(t *testing.T, graph *unit.Graph[testGraphEdge, *testGraphVertex], goldenName string) {
 	t.Helper()
 
 	dot, err := graph.ToDOT(goldenName)
@@ -114,90 +97,90 @@ func requireDOTGraph(t *testing.T, graph *unit.Graph[Status, *Unit], goldenName 
 func TestGraph(t *testing.T) {
 	t.Parallel()
 
-	testFuncs := map[string]func(t *testing.T) *unit.Graph[Status, *Unit]{
-		"ForwardAndReverseEdges": func(t *testing.T) *unit.Graph[Status, *Unit] {
-			graph := &unit.Graph[Status, *Unit]{}
-			unit1 := &Unit{Name: "unit1", Status: StatusPending}
-			unit2 := &Unit{Name: "unit2", Status: StatusPending}
-			unit3 := &Unit{Name: "unit3", Status: StatusPending}
-			err := graph.AddEdge(unit1, unit2, StatusCompleted)
+	testFuncs := map[string]func(t *testing.T) *unit.Graph[testGraphEdge, *testGraphVertex]{
+		"ForwardAndReverseEdges": func(t *testing.T) *unit.Graph[testGraphEdge, *testGraphVertex] {
+			graph := &unit.Graph[testGraphEdge, *testGraphVertex]{}
+			unit1 := &testGraphVertex{Name: "unit1"}
+			unit2 := &testGraphVertex{Name: "unit2"}
+			unit3 := &testGraphVertex{Name: "unit3"}
+			err := graph.AddEdge(unit1, unit2, testEdgeCompleted)
 			require.NoError(t, err)
-			err = graph.AddEdge(unit1, unit3, StatusStarted)
+			err = graph.AddEdge(unit1, unit3, testEdgeStarted)
 			require.NoError(t, err)
 
 			// Check for forward edge
 			vertices := graph.GetForwardAdjacentVertices(unit1)
 			require.Len(t, vertices, 2)
 			// Unit 1 depends on the completion of Unit2
-			require.Contains(t, vertices, TestEdge{
+			require.Contains(t, vertices, testEdge{
 				From: unit1,
 				To:   unit2,
-				Edge: StatusCompleted,
+				Edge: testEdgeCompleted,
 			})
 			// Unit 1 depends on the start of Unit3
-			require.Contains(t, vertices, TestEdge{
+			require.Contains(t, vertices, testEdge{
 				From: unit1,
 				To:   unit3,
-				Edge: StatusStarted,
+				Edge: testEdgeStarted,
 			})
 
 			// Check for reverse edges
 			unit2ReverseEdges := graph.GetReverseAdjacentVertices(unit2)
 			require.Len(t, unit2ReverseEdges, 1)
 			// Unit 2 must be completed before Unit 1 can start
-			require.Contains(t, unit2ReverseEdges, TestEdge{
+			require.Contains(t, unit2ReverseEdges, testEdge{
 				From: unit1,
 				To:   unit2,
-				Edge: StatusCompleted,
+				Edge: testEdgeCompleted,
 			})
 
 			unit3ReverseEdges := graph.GetReverseAdjacentVertices(unit3)
 			require.Len(t, unit3ReverseEdges, 1)
 			// Unit 3 must be started before Unit 1 can complete
-			require.Contains(t, unit3ReverseEdges, TestEdge{
+			require.Contains(t, unit3ReverseEdges, testEdge{
 				From: unit1,
 				To:   unit3,
-				Edge: StatusStarted,
+				Edge: testEdgeStarted,
 			})
 
 			return graph
 		},
-		"SelfReference": func(t *testing.T) *unit.Graph[Status, *Unit] {
-			graph := &unit.Graph[Status, *Unit]{}
-			unit1 := &Unit{Name: "unit1", Status: StatusPending}
-			err := graph.AddEdge(unit1, unit1, StatusCompleted)
+		"SelfReference": func(t *testing.T) *testGraph {
+			graph := &testGraph{}
+			unit1 := &testGraphVertex{Name: "unit1"}
+			err := graph.AddEdge(unit1, unit1, testEdgeCompleted)
 			require.Error(t, err)
 			require.ErrorContains(t, err, fmt.Sprintf("adding edge (%v -> %v) would create a cycle", unit1, unit1))
 
 			return graph
 		},
-		"Cycle": func(t *testing.T) *unit.Graph[Status, *Unit] {
-			graph := &unit.Graph[Status, *Unit]{}
-			unit1 := &Unit{Name: "unit1", Status: StatusPending}
-			unit2 := &Unit{Name: "unit2", Status: StatusPending}
-			err := graph.AddEdge(unit1, unit2, StatusCompleted)
+		"Cycle": func(t *testing.T) *testGraph {
+			graph := &testGraph{}
+			unit1 := &testGraphVertex{Name: "unit1"}
+			unit2 := &testGraphVertex{Name: "unit2"}
+			err := graph.AddEdge(unit1, unit2, testEdgeCompleted)
 			require.NoError(t, err)
-			err = graph.AddEdge(unit2, unit1, StatusStarted)
+			err = graph.AddEdge(unit2, unit1, testEdgeStarted)
 			require.Error(t, err)
 			require.ErrorContains(t, err, fmt.Sprintf("adding edge (%v -> %v) would create a cycle", unit2, unit1))
 
 			return graph
 		},
-		"MultipleDependenciesSameStatus": func(t *testing.T) *unit.Graph[Status, *Unit] {
-			graph := &unit.Graph[Status, *Unit]{}
-			unit1 := &Unit{Name: "unit1", Status: StatusPending}
-			unit2 := &Unit{Name: "unit2", Status: StatusPending}
-			unit3 := &Unit{Name: "unit3", Status: StatusPending}
-			unit4 := &Unit{Name: "unit4", Status: StatusPending}
+		"MultipleDependenciesSameStatus": func(t *testing.T) *testGraph {
+			graph := &testGraph{}
+			unit1 := &testGraphVertex{Name: "unit1"}
+			unit2 := &testGraphVertex{Name: "unit2"}
+			unit3 := &testGraphVertex{Name: "unit3"}
+			unit4 := &testGraphVertex{Name: "unit4"}
 
 			// Unit1 depends on completion of both unit2 and unit3 (same status type)
-			err := graph.AddEdge(unit1, unit2, StatusCompleted)
+			err := graph.AddEdge(unit1, unit2, testEdgeCompleted)
 			require.NoError(t, err)
-			err = graph.AddEdge(unit1, unit3, StatusCompleted)
+			err = graph.AddEdge(unit1, unit3, testEdgeCompleted)
 			require.NoError(t, err)
 
 			// Unit1 also depends on starting of unit4 (different status type)
-			err = graph.AddEdge(unit1, unit4, StatusStarted)
+			err = graph.AddEdge(unit1, unit4, testEdgeStarted)
 			require.NoError(t, err)
 
 			// Check that unit1 has 3 forward dependencies
@@ -205,10 +188,10 @@ func TestGraph(t *testing.T) {
 			require.Len(t, forwardEdges, 3)
 
 			// Verify all expected dependencies exist
-			expectedDependencies := []TestEdge{
-				{From: unit1, To: unit2, Edge: StatusCompleted},
-				{From: unit1, To: unit3, Edge: StatusCompleted},
-				{From: unit1, To: unit4, Edge: StatusStarted},
+			expectedDependencies := []testEdge{
+				{From: unit1, To: unit2, Edge: testEdgeCompleted},
+				{From: unit1, To: unit3, Edge: testEdgeCompleted},
+				{From: unit1, To: unit4, Edge: testEdgeStarted},
 			}
 
 			for _, expected := range expectedDependencies {
@@ -218,20 +201,20 @@ func TestGraph(t *testing.T) {
 			// Check reverse dependencies
 			unit2ReverseEdges := graph.GetReverseAdjacentVertices(unit2)
 			require.Len(t, unit2ReverseEdges, 1)
-			require.Contains(t, unit2ReverseEdges, TestEdge{
-				From: unit1, To: unit2, Edge: StatusCompleted,
+			require.Contains(t, unit2ReverseEdges, testEdge{
+				From: unit1, To: unit2, Edge: testEdgeCompleted,
 			})
 
 			unit3ReverseEdges := graph.GetReverseAdjacentVertices(unit3)
 			require.Len(t, unit3ReverseEdges, 1)
-			require.Contains(t, unit3ReverseEdges, TestEdge{
-				From: unit1, To: unit3, Edge: StatusCompleted,
+			require.Contains(t, unit3ReverseEdges, testEdge{
+				From: unit1, To: unit3, Edge: testEdgeCompleted,
 			})
 
 			unit4ReverseEdges := graph.GetReverseAdjacentVertices(unit4)
 			require.Len(t, unit4ReverseEdges, 1)
-			require.Contains(t, unit4ReverseEdges, TestEdge{
-				From: unit1, To: unit4, Edge: StatusStarted,
+			require.Contains(t, unit4ReverseEdges, testEdge{
+				From: unit1, To: unit4, Edge: testEdgeStarted,
 			})
 
 			return graph
@@ -239,7 +222,7 @@ func TestGraph(t *testing.T) {
 	}
 
 	for testName, testFunc := range testFuncs {
-		var graph *unit.Graph[Status, *Unit]
+		var graph *testGraph
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 			graph = testFunc(t)
@@ -254,7 +237,7 @@ func TestGraphThreadSafety(t *testing.T) {
 	t.Run("ConcurrentAddEdge", func(t *testing.T) {
 		t.Parallel()
 
-		graph := &unit.Graph[Status, *Unit]{}
+		graph := &testGraph{}
 		var wg sync.WaitGroup
 		const numGoroutines = 100
 		const edgesPerGoroutine = 10
@@ -269,9 +252,9 @@ func TestGraphThreadSafety(t *testing.T) {
 			go func(goroutineID int) {
 				defer wg.Done()
 				for j := 0; j < edgesPerGoroutine; j++ {
-					from := &Unit{Name: fmt.Sprintf("unit-%d-%d", goroutineID, j), Status: StatusPending}
-					to := &Unit{Name: fmt.Sprintf("unit-%d-%d", goroutineID, j+1), Status: StatusPending}
-					err := graph.AddEdge(from, to, StatusCompleted)
+					from := &testGraphVertex{Name: fmt.Sprintf("unit-%d-%d", goroutineID, j)}
+					to := &testGraphVertex{Name: fmt.Sprintf("unit-%d-%d", goroutineID, j+1)}
+					err := graph.AddEdge(from, to, testEdgeCompleted)
 
 					mu.Lock()
 					errors[errorIndex] = err
@@ -302,17 +285,17 @@ func TestGraphThreadSafety(t *testing.T) {
 	t.Run("ConcurrentReads", func(t *testing.T) {
 		t.Parallel()
 
-		graph := &unit.Graph[Status, *Unit]{}
+		graph := &testGraph{}
 
 		// Pre-populate graph with 50 vertices and edges
-		units := make([]*Unit, 50)
+		units := make([]*testGraphVertex, 50)
 		for i := 0; i < 50; i++ {
-			units[i] = &Unit{Name: fmt.Sprintf("unit-%d", i), Status: StatusPending}
+			units[i] = &testGraphVertex{Name: fmt.Sprintf("unit-%d", i)}
 		}
 
 		// Add edges to create a chain
 		for i := 0; i < 49; i++ {
-			err := graph.AddEdge(units[i], units[i+1], StatusCompleted)
+			err := graph.AddEdge(units[i], units[i+1], testEdgeCompleted)
 			require.NoError(t, err)
 		}
 
@@ -363,7 +346,7 @@ func TestGraphThreadSafety(t *testing.T) {
 	t.Run("ConcurrentReadWrite", func(t *testing.T) {
 		t.Parallel()
 
-		graph := &unit.Graph[Status, *Unit]{}
+		graph := &testGraph{}
 		var wg sync.WaitGroup
 		const numWriters = 50
 		const numReaders = 100
@@ -376,9 +359,9 @@ func TestGraphThreadSafety(t *testing.T) {
 			go func(writerID int) {
 				defer wg.Done()
 				for j := 0; j < operationsPerWriter; j++ {
-					from := &Unit{Name: fmt.Sprintf("writer-%d-%d", writerID, j), Status: StatusPending}
-					to := &Unit{Name: fmt.Sprintf("writer-%d-%d", writerID, j+1), Status: StatusPending}
-					graph.AddEdge(from, to, StatusCompleted)
+					from := &testGraphVertex{Name: fmt.Sprintf("writer-%d-%d", writerID, j)}
+					to := &testGraphVertex{Name: fmt.Sprintf("writer-%d-%d", writerID, j+1)}
+					graph.AddEdge(from, to, testEdgeCompleted)
 				}
 			}(i)
 		}
@@ -402,7 +385,7 @@ func TestGraphThreadSafety(t *testing.T) {
 				readCount := 0
 				for j := 0; j < operationsPerReader; j++ {
 					// Create a test vertex and read
-					testUnit := &Unit{Name: fmt.Sprintf("test-reader-%d-%d", readerID, j), Status: StatusPending}
+					testUnit := &testGraphVertex{Name: fmt.Sprintf("test-reader-%d-%d", readerID, j)}
 					forwardEdges := graph.GetForwardAdjacentVertices(testUnit)
 					reverseEdges := graph.GetReverseAdjacentVertices(testUnit)
 
@@ -427,7 +410,7 @@ func TestGraphThreadSafety(t *testing.T) {
 	t.Run("ConcurrentVertexCreation", func(t *testing.T) {
 		t.Parallel()
 
-		graph := &unit.Graph[Status, *Unit]{}
+		graph := &testGraph{}
 		var wg sync.WaitGroup
 		const numGoroutines = 100
 		vertexNames := make(map[string]bool)
@@ -444,10 +427,10 @@ func TestGraphThreadSafety(t *testing.T) {
 				defer wg.Done()
 				for j := 0; j < 5; j++ {
 					vertexName := fmt.Sprintf("vertex-%d-%d", goroutineID, j)
-					from := &Unit{Name: vertexName, Status: StatusPending}
-					to := &Unit{Name: fmt.Sprintf("target-%d-%d", goroutineID, j), Status: StatusPending}
+					from := &testGraphVertex{Name: vertexName}
+					to := &testGraphVertex{Name: fmt.Sprintf("target-%d-%d", goroutineID, j)}
 
-					err := graph.AddEdge(from, to, StatusCompleted)
+					err := graph.AddEdge(from, to, testEdgeCompleted)
 
 					errorMu.Lock()
 					errors[errorIndex] = err
@@ -481,19 +464,19 @@ func TestGraphThreadSafety(t *testing.T) {
 	t.Run("ConcurrentCycleDetection", func(t *testing.T) {
 		t.Parallel()
 
-		graph := &unit.Graph[Status, *Unit]{}
+		graph := &testGraph{}
 
 		// Pre-create chain: A→B→C→D
-		unitA := &Unit{Name: "A", Status: StatusPending}
-		unitB := &Unit{Name: "B", Status: StatusPending}
-		unitC := &Unit{Name: "C", Status: StatusPending}
-		unitD := &Unit{Name: "D", Status: StatusPending}
+		unitA := &testGraphVertex{Name: "A"}
+		unitB := &testGraphVertex{Name: "B"}
+		unitC := &testGraphVertex{Name: "C"}
+		unitD := &testGraphVertex{Name: "D"}
 
-		err := graph.AddEdge(unitA, unitB, StatusCompleted)
+		err := graph.AddEdge(unitA, unitB, testEdgeCompleted)
 		require.NoError(t, err)
-		err = graph.AddEdge(unitB, unitC, StatusCompleted)
+		err = graph.AddEdge(unitB, unitC, testEdgeCompleted)
 		require.NoError(t, err)
-		err = graph.AddEdge(unitC, unitD, StatusCompleted)
+		err = graph.AddEdge(unitC, unitD, testEdgeCompleted)
 		require.NoError(t, err)
 
 		var wg sync.WaitGroup
@@ -505,7 +488,7 @@ func TestGraphThreadSafety(t *testing.T) {
 			wg.Add(1)
 			go func(goroutineID int) {
 				defer wg.Done()
-				err := graph.AddEdge(unitD, unitA, StatusCompleted)
+				err := graph.AddEdge(unitD, unitA, testEdgeCompleted)
 				cycleErrors[goroutineID] = err
 			}(i)
 		}
@@ -527,13 +510,13 @@ func TestGraphThreadSafety(t *testing.T) {
 	t.Run("ConcurrentToDOT", func(t *testing.T) {
 		t.Parallel()
 
-		graph := &unit.Graph[Status, *Unit]{}
+		graph := &testGraph{}
 
 		// Pre-populate graph
 		for i := 0; i < 20; i++ {
-			from := &Unit{Name: fmt.Sprintf("dot-unit-%d", i), Status: StatusPending}
-			to := &Unit{Name: fmt.Sprintf("dot-unit-%d", i+1), Status: StatusPending}
-			err := graph.AddEdge(from, to, StatusCompleted)
+			from := &testGraphVertex{Name: fmt.Sprintf("dot-unit-%d", i)}
+			to := &testGraphVertex{Name: fmt.Sprintf("dot-unit-%d", i+1)}
+			err := graph.AddEdge(from, to, testEdgeCompleted)
 			require.NoError(t, err)
 		}
 
@@ -561,9 +544,9 @@ func TestGraphThreadSafety(t *testing.T) {
 			wg.Add(1)
 			go func(writerID int) {
 				defer wg.Done()
-				from := &Unit{Name: fmt.Sprintf("writer-dot-%d", writerID), Status: StatusPending}
-				to := &Unit{Name: fmt.Sprintf("writer-dot-target-%d", writerID), Status: StatusPending}
-				graph.AddEdge(from, to, StatusCompleted)
+				from := &testGraphVertex{Name: fmt.Sprintf("writer-dot-%d", writerID)}
+				to := &testGraphVertex{Name: fmt.Sprintf("writer-dot-target-%d", writerID)}
+				graph.AddEdge(from, to, testEdgeCompleted)
 			}(i)
 		}
 
@@ -583,7 +566,7 @@ func TestGraphThreadSafety(t *testing.T) {
 	t.Run("StressTest", func(t *testing.T) {
 		t.Parallel()
 
-		graph := &unit.Graph[Status, *Unit]{}
+		graph := &testGraph{}
 		var wg sync.WaitGroup
 		const numGoroutines = 200
 		operations := make([]string, 0, 1000)
@@ -602,7 +585,7 @@ func TestGraphThreadSafety(t *testing.T) {
 
 					if operation < 0.6 { // 60% reads
 						// Read operation
-						testUnit := &Unit{Name: fmt.Sprintf("stress-read-%d", goroutineID), Status: StatusPending}
+						testUnit := &testGraphVertex{Name: fmt.Sprintf("stress-read-%d", goroutineID)}
 						forwardEdges := graph.GetForwardAdjacentVertices(testUnit)
 						reverseEdges := graph.GetReverseAdjacentVertices(testUnit)
 
@@ -615,9 +598,9 @@ func TestGraphThreadSafety(t *testing.T) {
 						mu.Unlock()
 					} else { // 40% writes
 						// Write operation
-						from := &Unit{Name: fmt.Sprintf("stress-write-%d-%d", goroutineID, operationCount), Status: StatusPending}
-						to := &Unit{Name: fmt.Sprintf("stress-write-target-%d-%d", goroutineID, operationCount), Status: StatusPending}
-						graph.AddEdge(from, to, StatusCompleted)
+						from := &testGraphVertex{Name: fmt.Sprintf("stress-write-%d-%d", goroutineID, operationCount)}
+						to := &testGraphVertex{Name: fmt.Sprintf("stress-write-target-%d-%d", goroutineID, operationCount)}
+						graph.AddEdge(from, to, testEdgeCompleted)
 
 						mu.Lock()
 						operations = append(operations, "write")
