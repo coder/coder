@@ -36,82 +36,82 @@ type ResourcesMonitoringAPI struct {
 	Config   resourcesmonitor.Config
 
 	// Cache resource monitors on first call to avoid millions of DB queries per day.
-	memOnce sync.Once
-	volOnce sync.Once
-	memoryMonitor *database.WorkspaceAgentMemoryResourceMonitor
+	memOnce        sync.Once
+	volOnce        sync.Once
+	memoryMonitor  *database.WorkspaceAgentMemoryResourceMonitor
 	volumeMonitors []database.WorkspaceAgentVolumeResourceMonitor
-	monitorsLock sync.RWMutex
+	monitorsLock   sync.RWMutex
 }
 
 // fetchMemoryMonitor fetches the memory monitor from the database and caches it.
 // Returns an error if the fetch fails (except for sql.ErrNoRows which is expected).
 func (a *ResourcesMonitoringAPI) fetchMemoryMonitor(ctx context.Context) error {
-    memMon, err := a.Database.FetchMemoryResourceMonitorsByAgentID(ctx, a.AgentID)
-    if err != nil && !errors.Is(err, sql.ErrNoRows) {
-        return xerrors.Errorf("fetch memory resource monitor: %w", err)
-    }
-    if err == nil {
-        a.memoryMonitor = &memMon
-    }
-    return nil
+	memMon, err := a.Database.FetchMemoryResourceMonitorsByAgentID(ctx, a.AgentID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return xerrors.Errorf("fetch memory resource monitor: %w", err)
+	}
+	if err == nil {
+		a.memoryMonitor = &memMon
+	}
+	return nil
 }
 
 // fetchVolumeMonitors fetches the volume monitors from the database and caches them.
 func (a *ResourcesMonitoringAPI) fetchVolumeMonitors(ctx context.Context) error {
-    volMons, err := a.Database.FetchVolumesResourceMonitorsByAgentID(ctx, a.AgentID)
-    if err != nil {
-        return xerrors.Errorf("fetch volume resource monitors: %w", err)
-    }
-    a.volumeMonitors = volMons
-    return nil
+	volMons, err := a.Database.FetchVolumesResourceMonitorsByAgentID(ctx, a.AgentID)
+	if err != nil {
+		return xerrors.Errorf("fetch volume resource monitors: %w", err)
+	}
+	a.volumeMonitors = volMons
+	return nil
 }
 
 func (a *ResourcesMonitoringAPI) GetResourcesMonitoringConfiguration(ctx context.Context, _ *proto.GetResourcesMonitoringConfigurationRequest) (*proto.GetResourcesMonitoringConfigurationResponse, error) {
-    // Load memory monitor once
-    var memoryErr error
-    a.memOnce.Do(func() {
-        memoryErr = a.fetchMemoryMonitor(ctx)
-    })
-    if memoryErr != nil {
-        return nil, memoryErr
-    }
+	// Load memory monitor once
+	var memoryErr error
+	a.memOnce.Do(func() {
+		memoryErr = a.fetchMemoryMonitor(ctx)
+	})
+	if memoryErr != nil {
+		return nil, memoryErr
+	}
 
-    // Load volume monitors once
-    var volumeErr error
-    a.volOnce.Do(func() {
-        volumeErr = a.fetchVolumeMonitors(ctx)
-    })
-    if volumeErr != nil {
-        return nil, volumeErr
-    }
+	// Load volume monitors once
+	var volumeErr error
+	a.volOnce.Do(func() {
+		volumeErr = a.fetchVolumeMonitors(ctx)
+	})
+	if volumeErr != nil {
+		return nil, volumeErr
+	}
 
-    a.monitorsLock.RLock()
-    defer a.monitorsLock.RUnlock()
+	a.monitorsLock.RLock()
+	defer a.monitorsLock.RUnlock()
 
-    return &proto.GetResourcesMonitoringConfigurationResponse{
-        Config: &proto.GetResourcesMonitoringConfigurationResponse_Config{
-            CollectionIntervalSeconds: int32(a.Config.CollectionInterval.Seconds()),
-            NumDatapoints:             a.Config.NumDatapoints,
-        },
-        Memory: func() *proto.GetResourcesMonitoringConfigurationResponse_Memory {
-            if a.memoryMonitor == nil {
-                return nil
-            }
-            return &proto.GetResourcesMonitoringConfigurationResponse_Memory{
-                Enabled: a.memoryMonitor.Enabled,
-            }
-        }(),
-        Volumes: func() []*proto.GetResourcesMonitoringConfigurationResponse_Volume {
-            volumes := make([]*proto.GetResourcesMonitoringConfigurationResponse_Volume, 0, len(a.volumeMonitors))
-            for _, monitor := range a.volumeMonitors {
-                volumes = append(volumes, &proto.GetResourcesMonitoringConfigurationResponse_Volume{
-                    Enabled: monitor.Enabled,
-                    Path:    monitor.Path,
-                })
-            }
-            return volumes
-        }(),
-    }, nil
+	return &proto.GetResourcesMonitoringConfigurationResponse{
+		Config: &proto.GetResourcesMonitoringConfigurationResponse_Config{
+			CollectionIntervalSeconds: int32(a.Config.CollectionInterval.Seconds()),
+			NumDatapoints:             a.Config.NumDatapoints,
+		},
+		Memory: func() *proto.GetResourcesMonitoringConfigurationResponse_Memory {
+			if a.memoryMonitor == nil {
+				return nil
+			}
+			return &proto.GetResourcesMonitoringConfigurationResponse_Memory{
+				Enabled: a.memoryMonitor.Enabled,
+			}
+		}(),
+		Volumes: func() []*proto.GetResourcesMonitoringConfigurationResponse_Volume {
+			volumes := make([]*proto.GetResourcesMonitoringConfigurationResponse_Volume, 0, len(a.volumeMonitors))
+			for _, monitor := range a.volumeMonitors {
+				volumes = append(volumes, &proto.GetResourcesMonitoringConfigurationResponse_Volume{
+					Enabled: monitor.Enabled,
+					Path:    monitor.Path,
+				})
+			}
+			return volumes
+		}(),
+	}, nil
 }
 
 func (a *ResourcesMonitoringAPI) PushResourcesMonitoringUsage(ctx context.Context, req *proto.PushResourcesMonitoringUsageRequest) (*proto.PushResourcesMonitoringUsageResponse, error) {
@@ -132,10 +132,10 @@ func (a *ResourcesMonitoringAPI) monitorMemory(ctx context.Context, datapoints [
 	// Load monitor once
 	var fetchErr error
 	a.memOnce.Do(func() {
-			fetchErr = a.fetchMemoryMonitor(ctx)
+		fetchErr = a.fetchMemoryMonitor(ctx)
 	})
 	if fetchErr != nil {
-			return fetchErr
+		return fetchErr
 	}
 
 	a.monitorsLock.RLock()
@@ -144,7 +144,7 @@ func (a *ResourcesMonitoringAPI) monitorMemory(ctx context.Context, datapoints [
 
 	// No memory monitor configured
 	if monitor == nil {
-			return nil
+		return nil
 	}
 
 	if !monitor.Enabled {
@@ -226,10 +226,10 @@ func (a *ResourcesMonitoringAPI) monitorVolumes(ctx context.Context, datapoints 
 	// Load monitors once
 	var fetchErr error
 	a.volOnce.Do(func() {
-			fetchErr = a.fetchVolumeMonitors(ctx)
+		fetchErr = a.fetchVolumeMonitors(ctx)
 	})
 	if fetchErr != nil {
-			return fetchErr
+		return fetchErr
 	}
 
 	a.monitorsLock.RLock()
