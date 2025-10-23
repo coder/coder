@@ -12,10 +12,13 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/xerrors"
 
-	"github.com/coder/quartz"
+	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -30,12 +33,7 @@ import (
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/codersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
-
-	"cdr.dev/slog"
-
-	"github.com/google/uuid"
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/xerrors"
+	"github.com/coder/quartz"
 )
 
 type StoreReconciler struct {
