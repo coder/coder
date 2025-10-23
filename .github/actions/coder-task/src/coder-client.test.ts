@@ -3,6 +3,7 @@ import {
 	CoderClient,
 	CoderAPIError,
 	ExperimentalCoderSDKCreateTaskRequestSchema,
+	ExperimentalCoderSDKCreateTaskRequest,
 } from "./coder-client";
 import {
 	mockUser,
@@ -16,6 +17,7 @@ import {
 	mockTaskListEmpty,
 	createMockInputs,
 	createMockResponse,
+	mockTemplateVersionPreset,
 } from "./test-helpers";
 
 describe("CoderClient", () => {
@@ -233,24 +235,36 @@ describe("CoderClient", () => {
 			);
 		});
 
-		test("creates task successfully with a given preset", async () => {});
-
-		test("throws error when template not found", async () => {
-			mockFetch.mockResolvedValueOnce(
-				createMockResponse(
-					{ error: "Not Found" },
-					{ ok: false, status: 404, statusText: "Not Found" },
-				),
-			);
-			const mockInputs = createMockInputs();
-			expect(
-				client.createTask(mockUser.username, {
-					name: mockTask.name,
-					template_version_id: "nonexistent",
-					template_version_preset_id: mockInputs.coderTemplatePreset,
-					input: mockInputs.coderTaskPrompt,
+		test("creates task successfully with a given preset", async () => {
+			mockFetch.mockResolvedValueOnce(createMockResponse(mockTask));
+			const mockInputs = {
+				...createMockInputs(),
+				template_version_preset_id: mockTemplateVersionPreset.ID,
+			};
+			const result = await client.createTask(mockUser.username, {
+				name: mockTask.name,
+				template_version_id: mockTemplate.active_version_id,
+				template_version_preset_id: mockTemplateVersionPreset.ID,
+				input: mockInputs.coderTaskPrompt,
+			});
+			expect(result.id).toBe(mockTask.id);
+			expect(result.name).toBe(mockTask.name);
+			expect(mockFetch).toHaveBeenNthCalledWith(
+				1,
+				`https://coder.test/api/experimental/tasks/${mockUser.username}`,
+				expect.objectContaining({
+					method: "POST",
+					headers: expect.objectContaining({
+						"Coder-Session-Token": "test-token",
+					}),
+					body: JSON.stringify({
+						name: mockTask.name,
+						template_version_id: mockTemplate.active_version_id,
+						template_version_preset_id: mockTemplateVersionPreset.ID,
+						input: mockInputs.coderTaskPrompt,
+					}),
 				}),
-			).rejects.toThrow(CoderAPIError);
+			);
 		});
 	});
 
