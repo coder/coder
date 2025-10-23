@@ -6,6 +6,7 @@ import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import type { FC } from "react";
 import { useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
+import { useProviderFilterMenu } from "./filter/filter";
 import { RequestLogsPageView } from "./RequestLogsPageView";
 
 const RequestLogsPage: FC = () => {
@@ -35,6 +36,15 @@ const RequestLogsPage: FC = () => {
 			}),
 	});
 
+	const providerMenu = useProviderFilterMenu({
+		value: filter.values.provider,
+		onChange: (option) =>
+			filter.update({
+				...filter.values,
+				provider: option?.value,
+			}),
+	});
+
 	return (
 		<>
 			<title>{pageTitle("AI Governance", "Request Logs")}</title>
@@ -49,6 +59,7 @@ const RequestLogsPage: FC = () => {
 					error: interceptionsQuery.error,
 					menus: {
 						user: userMenu,
+						provider: providerMenu,
 					},
 				}}
 			/>
