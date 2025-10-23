@@ -3,7 +3,6 @@ package prebuilds_test
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"sort"
 	"sync"
 	"sync/atomic"
