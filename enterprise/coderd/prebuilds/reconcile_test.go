@@ -1834,7 +1834,7 @@ func TestCancelPendingPrebuilds(t *testing.T) {
 		},
 		// Should not cancel pending prebuild-related jobs from an active template version
 		{
-			name: "DoesNotCancelsPendingPrebuildJobActiveVersion",
+			name: "DoesNotCancelPendingPrebuildJobActiveVersion",
 			// Given: a pending prebuild job
 			setupBuild: func(t *testing.T,
 				db database.Store,
@@ -1861,7 +1861,7 @@ func TestCancelPendingPrebuilds(t *testing.T) {
 		},
 		// Should not cancel pending prebuild-related jobs associated to a second workspace build
 		{
-			name: "DoesNotCancelsPendingPrebuildJobActiveVersion",
+			name: "DoesNotCancelPendingPrebuildJobSecondBuild",
 			// Given: a pending prebuild job associated to a second workspace build
 			setupBuild: func(t *testing.T,
 				db database.Store,
