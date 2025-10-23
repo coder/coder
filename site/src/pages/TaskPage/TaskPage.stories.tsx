@@ -331,6 +331,10 @@ export const ActivePreview: Story = {
 export const WorkspaceStarting: Story = {
 	decorators: [withGlobalSnackbar],
 	beforeEach: () => {
+		spyOn(API.experimental, "getTask").mockResolvedValue(MockTask);
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockStoppedWorkspace,
+		);
 		spyOn(API, "startWorkspace").mockResolvedValue(
 			MockStartingWorkspace.latest_build,
 		);
@@ -385,6 +389,10 @@ export const WorkspaceStarting: Story = {
 export const WorkspaceStartFailure: Story = {
 	decorators: [withGlobalSnackbar],
 	beforeEach: () => {
+		spyOn(API.experimental, "getTask").mockResolvedValue(MockTask);
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockStoppedWorkspace,
+		);
 		spyOn(API, "startWorkspace").mockRejectedValue(
 			new Error("Some unexpected error"),
 		);
@@ -439,6 +447,10 @@ export const WorkspaceStartFailure: Story = {
 
 export const WorkspaceStartFailureWithDialog: Story = {
 	beforeEach: () => {
+		spyOn(API.experimental, "getTask").mockResolvedValue(MockTask);
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockStoppedWorkspace,
+		);
 		spyOn(API, "startWorkspace").mockRejectedValue({
 			...mockApiError({
 				message: "Bad Request",
