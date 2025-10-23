@@ -2,7 +2,7 @@ package coderd_test
 
 import (
 	"database/sql"
-	"fmt"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	agentapisdk "github.com/coder/agentapi-sdk-go"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -210,8 +211,8 @@ func TestTasks(t *testing.T) {
 											Apps: []*proto.App{
 												{
 													Id:          taskAppID.String(),
-													Slug:        "task-sidebar",
-													DisplayName: "Task Sidebar",
+													Slug:        "task-app",
+													DisplayName: "Task App",
 													Url:         opt.appURL,
 												},
 											},
@@ -221,9 +222,7 @@ func TestTasks(t *testing.T) {
 							},
 							AiTasks: []*proto.AITask{
 								{
-									SidebarApp: &proto.AITaskSidebarApp{
-										Id: taskAppID.String(),
-									},
+									AppId: taskAppID.String(),
 								},
 							},
 						},
@@ -246,27 +245,32 @@ func TestTasks(t *testing.T) {
 
 		template := createAITemplate(t, client, user)
 
-		// Create a workspace (task) with a specific prompt.
+		// Create a task with a specific prompt using the new data model.
 		wantPrompt := "build me a web app"
-		workspace := coderdtest.CreateWorkspace(t, client, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
-			req.RichParameterValues = []codersdk.WorkspaceBuildParameter{
-				{Name: codersdk.AITaskPromptParameterName, Value: wantPrompt},
-			}
+		exp := codersdk.NewExperimentalClient(client)
+		task, err := exp.CreateTask(ctx, codersdk.Me, codersdk.CreateTaskRequest{
+			TemplateVersionID: template.ActiveVersionID,
+			Input:             wantPrompt,
 		})
+		require.NoError(t, err)
+		require.True(t, task.WorkspaceID.Valid, "task should have a workspace ID")
+
+		// Wait for the workspace to be built.
+		workspace, err := client.Workspace(ctx, task.WorkspaceID.UUID)
+		require.NoError(t, err)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		// List tasks via experimental API and verify the prompt and status mapping.
-		exp := codersdk.NewExperimentalClient(client)
 		tasks, err := exp.Tasks(ctx, &codersdk.TasksFilter{Owner: codersdk.Me})
 		require.NoError(t, err)
 
-		got, ok := slice.Find(tasks, func(task codersdk.Task) bool { return task.ID == workspace.ID })
+		got, ok := slice.Find(tasks, func(t codersdk.Task) bool { return t.ID == task.ID })
 		require.True(t, ok, "task should be found in the list")
 		assert.Equal(t, wantPrompt, got.InitialPrompt, "task prompt should match the AI Prompt parameter")
-		assert.Equal(t, workspace.Name, got.Name, "task name should map from workspace name")
-		assert.Equal(t, workspace.ID, got.WorkspaceID.UUID, "workspace id should match")
-		// Status should be populated via app status or workspace status mapping.
+		assert.Equal(t, task.WorkspaceID.UUID, got.WorkspaceID.UUID, "workspace id should match")
+		// Status should be populated via the tasks_with_status view.
 		assert.NotEmpty(t, got.Status, "task status should not be empty")
+		assert.NotEmpty(t, got.WorkspaceStatus, "workspace status should not be empty")
 	})
 
 	t.Run("Get", func(t *testing.T) {
@@ -277,17 +281,22 @@ func TestTasks(t *testing.T) {
 			ctx        = testutil.Context(t, testutil.WaitLong)
 			user       = coderdtest.CreateFirstUser(t, client)
 			template   = createAITemplate(t, client, user)
-			// Create a workspace (task) with a specific prompt.
 			wantPrompt = "review my code"
-			workspace  = coderdtest.CreateWorkspace(t, client, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
-				req.RichParameterValues = []codersdk.WorkspaceBuildParameter{
-					{Name: codersdk.AITaskPromptParameterName, Value: wantPrompt},
-				}
-			})
+			exp        = codersdk.NewExperimentalClient(client)
 		)
 
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-		ws := coderdtest.MustWorkspace(t, client, workspace.ID)
+		task, err := exp.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
+			TemplateVersionID: template.ActiveVersionID,
+			Input:             wantPrompt,
+		})
+		require.NoError(t, err)
+		require.True(t, task.WorkspaceID.Valid)
+
+		// Get the workspace and wait for it to be ready.
+		ws, err := client.Workspace(ctx, task.WorkspaceID.UUID)
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+		ws = coderdtest.MustWorkspace(t, client, task.WorkspaceID.UUID)
 		// Assert invariant: the workspace has exactly one resource with one agent with one app.
 		require.Len(t, ws.LatestBuild.Resources, 1)
 		require.Len(t, ws.LatestBuild.Resources[0].Agents, 1)
@@ -295,9 +304,9 @@ func TestTasks(t *testing.T) {
 		taskAppID := ws.LatestBuild.Resources[0].Agents[0].Apps[0].ID
 
 		// Insert an app status for the workspace
-		_, err := db.InsertWorkspaceAppStatus(dbauthz.AsSystemRestricted(ctx), database.InsertWorkspaceAppStatusParams{
+		_, err = db.InsertWorkspaceAppStatus(dbauthz.AsSystemRestricted(ctx), database.InsertWorkspaceAppStatusParams{
 			ID:          uuid.New(),
-			WorkspaceID: workspace.ID,
+			WorkspaceID: task.WorkspaceID.UUID,
 			CreatedAt:   dbtime.Now(),
 			AgentID:     agentID,
 			AppID:       taskAppID,
@@ -307,31 +316,33 @@ func TestTasks(t *testing.T) {
 		require.NoError(t, err)
 
 		// Fetch the task by ID via experimental API and verify fields.
-		exp := codersdk.NewExperimentalClient(client)
-		task, err := exp.TaskByID(ctx, workspace.ID)
+		updated, err := exp.TaskByID(ctx, task.ID)
 		require.NoError(t, err)
 
-		assert.Equal(t, workspace.ID, task.ID, "task ID should match workspace ID")
-		assert.Equal(t, workspace.Name, task.Name, "task name should map from workspace name")
-		assert.Equal(t, wantPrompt, task.InitialPrompt, "task prompt should match the AI Prompt parameter")
-		assert.Equal(t, workspace.ID, task.WorkspaceID.UUID, "workspace id should match")
-		assert.NotEmpty(t, task.Status, "task status should not be empty")
+		assert.Equal(t, task.ID, updated.ID, "task ID should match")
+		assert.Equal(t, task.Name, updated.Name, "task name should match")
+		assert.Equal(t, wantPrompt, updated.InitialPrompt, "task prompt should match the AI Prompt parameter")
+		assert.Equal(t, task.WorkspaceID.UUID, updated.WorkspaceID.UUID, "workspace id should match")
+		assert.Equal(t, ws.LatestBuild.BuildNumber, updated.WorkspaceBuildNumber, "workspace build number should match")
+		assert.Equal(t, agentID, updated.WorkspaceAgentID.UUID, "workspace agent id should match")
+		assert.Equal(t, taskAppID, updated.WorkspaceAppID.UUID, "workspace app id should match")
+		assert.NotEmpty(t, updated.WorkspaceStatus, "task status should not be empty")
 
 		// Stop the workspace
-		coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
+		coderdtest.MustTransitionWorkspace(t, client, task.WorkspaceID.UUID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
 		// Verify that the previous status still remains
-		updated, err := exp.TaskByID(ctx, workspace.ID)
+		updated, err = exp.TaskByID(ctx, task.ID)
 		require.NoError(t, err)
 		assert.NotNil(t, updated.CurrentState, "current state should not be nil")
 		assert.Equal(t, "all done", updated.CurrentState.Message)
 		assert.Equal(t, codersdk.TaskStateComplete, updated.CurrentState.State)
 
 		// Start the workspace again
-		coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStop, codersdk.WorkspaceTransitionStart)
+		coderdtest.MustTransitionWorkspace(t, client, task.WorkspaceID.UUID, codersdk.WorkspaceTransitionStop, codersdk.WorkspaceTransitionStart)
 
 		// Verify that the status from the previous build is no longer present
-		updated, err = exp.TaskByID(ctx, workspace.ID)
+		updated, err = exp.TaskByID(ctx, task.ID)
 		require.NoError(t, err)
 		assert.Nil(t, updated.CurrentState, "current state should be nil")
 	})
@@ -354,7 +365,8 @@ func TestTasks(t *testing.T) {
 				Input:             "delete me",
 			})
 			require.NoError(t, err)
-			ws, err := client.Workspace(ctx, task.ID)
+			require.True(t, task.WorkspaceID.Valid, "task should have a workspace ID")
+			ws, err := client.Workspace(ctx, task.WorkspaceID.UUID)
 			require.NoError(t, err)
 			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 
@@ -363,7 +375,7 @@ func TestTasks(t *testing.T) {
 
 			// Poll until the workspace is deleted.
 			for {
-				dws, derr := client.DeletedWorkspace(ctx, task.ID)
+				dws, derr := client.DeletedWorkspace(ctx, task.WorkspaceID.UUID)
 				if derr == nil && dws.LatestBuild.Status == codersdk.WorkspaceStatusDeleted {
 					break
 				}
@@ -434,7 +446,8 @@ func TestTasks(t *testing.T) {
 				Input:             "delete me not",
 			})
 			require.NoError(t, err)
-			ws, err := client.Workspace(ctx, task.ID)
+			require.True(t, task.WorkspaceID.Valid, "task should have a workspace ID")
+			ws, err := client.Workspace(ctx, task.WorkspaceID.UUID)
 			require.NoError(t, err)
 			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 
@@ -461,36 +474,37 @@ func TestTasks(t *testing.T) {
 		t.Run("IntegrationOK", func(t *testing.T) {
 			t.Parallel()
 
-			client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-			owner := coderdtest.CreateFirstUser(t, client)
-			userClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-
-			createStatusResponse := func(status string) string {
-				return `
-					{
-						"$schema": "http://localhost:3284/schemas/StatusResponseBody.json",
-						"status": "` + status + `"
-					}
-				`
-			}
-			statusResponse := createStatusResponse("stable")
+			statusResponse := agentapisdk.StatusStable
 
 			// Start a fake AgentAPI that accepts GET /status and POST /message.
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.Method == http.MethodGet && r.URL.Path == "/status" {
 					w.Header().Set("Content-Type", "application/json")
+					resp := agentapisdk.GetStatusResponse{
+						Status: statusResponse,
+					}
+					respBytes, err := json.Marshal(resp)
+					assert.NoError(t, err)
 					w.WriteHeader(http.StatusOK)
-					_, _ = fmt.Fprint(w, statusResponse)
+					w.Write(respBytes)
 					return
 				}
 				if r.Method == http.MethodPost && r.URL.Path == "/message" {
 					w.Header().Set("Content-Type", "application/json")
 
 					b, _ := io.ReadAll(r.Body)
-					assert.Equal(t, `{"content":"Hello, Agent!","type":"user"}`, string(b), "expected message content")
+					expectedReq := agentapisdk.PostMessageParams{
+						Content: "Hello, Agent!",
+						Type:    agentapisdk.MessageTypeUser,
+					}
+					expectedBytes, _ := json.Marshal(expectedReq)
+					assert.Equal(t, string(expectedBytes), string(b), "expected message content")
 
+					resp := agentapisdk.PostMessageResponse{Ok: true}
+					respBytes, err := json.Marshal(resp)
+					assert.NoError(t, err)
 					w.WriteHeader(http.StatusOK)
-					io.WriteString(w, `{"ok": true}`)
+					w.Write(respBytes)
 					return
 				}
 				w.WriteHeader(http.StatusInternalServerError)
@@ -498,103 +512,105 @@ func TestTasks(t *testing.T) {
 			defer srv.Close()
 
 			// Create an AI-capable template whose sidebar app points to our fake AgentAPI.
-			authToken := uuid.NewString()
-			template := createAITemplate(t, client, owner, withSidebarURL(srv.URL), withAgentToken(authToken))
+			var (
+				client, db     = coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+				ctx            = testutil.Context(t, testutil.WaitLong)
+				owner          = coderdtest.CreateFirstUser(t, client)
+				userClient, _  = coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+				agentAuthToken = uuid.NewString()
+				template       = createAITemplate(t, client, owner, withAgentToken(agentAuthToken), withSidebarURL(srv.URL))
+				exp            = codersdk.NewExperimentalClient(userClient)
+			)
 
-			// Create a workspace (task) from the AI-capable template.
-			ws := coderdtest.CreateWorkspace(t, userClient, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
-				req.RichParameterValues = []codersdk.WorkspaceBuildParameter{
-					{Name: codersdk.AITaskPromptParameterName, Value: "send a message"},
-				}
+			task, err := exp.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
+				TemplateVersionID: template.ActiveVersionID,
+				Input:             "send me food",
 			})
-			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+			require.NoError(t, err)
+			require.True(t, task.WorkspaceID.Valid)
+
+			// Get the workspace and wait for it to be ready.
+			ws, err := userClient.Workspace(ctx, task.WorkspaceID.UUID)
+			require.NoError(t, err)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, ws.LatestBuild.ID)
+
+			// Fetch the task by ID via experimental API and verify fields.
+			task, err = exp.TaskByID(ctx, task.ID)
+			require.NoError(t, err)
+			require.NotZero(t, task.WorkspaceBuildNumber)
+			require.True(t, task.WorkspaceAgentID.Valid)
+			require.True(t, task.WorkspaceAppID.Valid)
+
+			// Insert an app status for the workspace
+			_, err = db.InsertWorkspaceAppStatus(dbauthz.AsSystemRestricted(ctx), database.InsertWorkspaceAppStatusParams{
+				ID:          uuid.New(),
+				WorkspaceID: task.WorkspaceID.UUID,
+				CreatedAt:   dbtime.Now(),
+				AgentID:     task.WorkspaceAgentID.UUID,
+				AppID:       task.WorkspaceAppID.UUID,
+				State:       database.WorkspaceAppStatusStateComplete,
+				Message:     "all done",
+			})
+			require.NoError(t, err)
 
 			// Start a fake agent so the workspace agent is connected before sending the message.
-			agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken))
-			_ = agenttest.New(t, client.URL, authToken, func(o *agent.Options) {
+			agentClient := agentsdk.New(userClient.URL, agentsdk.WithFixedToken(agentAuthToken))
+			_ = agenttest.New(t, userClient.URL, agentAuthToken, func(o *agent.Options) {
 				o.Client = agentClient
 			})
+			coderdtest.NewWorkspaceAgentWaiter(t, userClient, ws.ID).WaitFor(coderdtest.AgentsReady)
 
-			ctx := testutil.Context(t, testutil.WaitMedium)
-			coderdtest.NewWorkspaceAgentWaiter(t, client, ws.ID).WithContext(ctx).WaitFor(coderdtest.AgentsReady)
-
-			// Lookup the sidebar app ID.
-			w, err := client.Workspace(ctx, ws.ID)
+			// Fetch the task by ID via experimental API and verify fields.
+			task, err = exp.TaskByID(ctx, task.ID)
 			require.NoError(t, err)
-			var sidebarAppID uuid.UUID
-			for _, res := range w.LatestBuild.Resources {
-				for _, ag := range res.Agents {
-					for _, app := range ag.Apps {
-						if app.Slug == "task-sidebar" {
-							sidebarAppID = app.ID
-						}
-					}
-				}
-			}
-			require.NotEqual(t, uuid.Nil, sidebarAppID)
 
 			// Make the sidebar app unhealthy initially.
-			err = api.Database.UpdateWorkspaceAppHealthByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAppHealthByIDParams{
-				ID:     sidebarAppID,
+			err = db.UpdateWorkspaceAppHealthByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAppHealthByIDParams{
+				ID:     task.WorkspaceAppID.UUID,
 				Health: database.WorkspaceAppHealthUnhealthy,
 			})
 			require.NoError(t, err)
 
-			exp := codersdk.NewExperimentalClient(userClient)
-			err = exp.TaskSend(ctx, "me", ws.ID, codersdk.TaskSendRequest{
+			err = exp.TaskSend(ctx, "me", task.ID, codersdk.TaskSendRequest{
 				Input: "Hello, Agent!",
 			})
 			require.Error(t, err, "wanted error due to unhealthy sidebar app")
 
 			// Make the sidebar app healthy.
-			err = api.Database.UpdateWorkspaceAppHealthByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAppHealthByIDParams{
-				ID:     sidebarAppID,
+			err = db.UpdateWorkspaceAppHealthByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAppHealthByIDParams{
+				ID:     task.WorkspaceAppID.UUID,
 				Health: database.WorkspaceAppHealthHealthy,
 			})
 			require.NoError(t, err)
 
-			statusResponse = createStatusResponse("bad")
+			statusResponse = agentapisdk.AgentStatus("bad")
 
-			err = exp.TaskSend(ctx, "me", ws.ID, codersdk.TaskSendRequest{
+			err = exp.TaskSend(ctx, "me", task.ID, codersdk.TaskSendRequest{
 				Input: "Hello, Agent!",
 			})
 			require.Error(t, err, "wanted error due to bad status")
 
-			statusResponse = createStatusResponse("stable")
+			statusResponse = agentapisdk.StatusStable
 
-			// Send task input to the tasks sidebar app and expect 204.e
-			err = exp.TaskSend(ctx, "me", ws.ID, codersdk.TaskSendRequest{
-				Input: "Hello, Agent!",
-			})
-			require.NoError(t, err, "wanted no error due to healthy sidebar app and stable status")
-		})
-
-		t.Run("MissingContent", func(t *testing.T) {
-			t.Parallel()
-
-			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-			user := coderdtest.CreateFirstUser(t, client)
-			ctx := testutil.Context(t, testutil.WaitLong)
-
-			template := createAITemplate(t, client, user)
-
-			// Create a workspace (task).
-			ws := coderdtest.CreateWorkspace(t, client, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
-				req.RichParameterValues = []codersdk.WorkspaceBuildParameter{
-					{Name: codersdk.AITaskPromptParameterName, Value: "do work"},
-				}
-			})
-			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
-
-			exp := codersdk.NewExperimentalClient(client)
-			err := exp.TaskSend(ctx, "me", ws.ID, codersdk.TaskSendRequest{
-				Input: "",
+			//nolint:tparallel // Not intended to run in parallel.
+			t.Run("SendOK", func(t *testing.T) {
+				err = exp.TaskSend(ctx, "me", task.ID, codersdk.TaskSendRequest{
+					Input: "Hello, Agent!",
+				})
+				require.NoError(t, err, "wanted no error due to healthy sidebar app and stable status")
 			})
 
-			var sdkErr *codersdk.Error
-			require.Error(t, err)
-			require.ErrorAs(t, err, &sdkErr)
-			require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+			//nolint:tparallel // Not intended to run in parallel.
+			t.Run("MissingContent", func(t *testing.T) {
+				err = exp.TaskSend(ctx, "me", task.ID, codersdk.TaskSendRequest{
+					Input: "",
+				})
+				require.Error(t, err, "wanted error due to missing content")
+
+				var sdkErr *codersdk.Error
+				require.ErrorAs(t, err, &sdkErr)
+				require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+			})
 		})
 
 		t.Run("TaskNotFound", func(t *testing.T) {
@@ -614,106 +630,112 @@ func TestTasks(t *testing.T) {
 			require.ErrorAs(t, err, &sdkErr)
 			require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 		})
-
-		t.Run("NotATask", func(t *testing.T) {
-			t.Parallel()
-
-			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-			user := coderdtest.CreateFirstUser(t, client)
-			ctx := testutil.Context(t, testutil.WaitShort)
-
-			// Create a template without AI tasks.
-			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-
-			ws := coderdtest.CreateWorkspace(t, client, template.ID)
-			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
-
-			exp := codersdk.NewExperimentalClient(client)
-			err := exp.TaskSend(ctx, "me", ws.ID, codersdk.TaskSendRequest{
-				Input: "hello",
-			})
-
-			var sdkErr *codersdk.Error
-			require.Error(t, err)
-			require.ErrorAs(t, err, &sdkErr)
-			require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-		})
 	})
 
 	t.Run("Logs", func(t *testing.T) {
 		t.Parallel()
 
-		t.Run("OK", func(t *testing.T) {
-			t.Parallel()
-
-			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-			owner := coderdtest.CreateFirstUser(t, client)
-			ctx := testutil.Context(t, testutil.WaitLong)
-
-			messageResponse := `
+		messageResponseData := agentapisdk.GetMessagesResponse{
+			Messages: []agentapisdk.Message{
 				{
-					"$schema": "http://localhost:3284/schemas/MessagesResponseBody.json",
-					"messages": [
-						{
-							"id": 0,
-							"content": "Welcome, user!",
-							"role": "agent",
-							"time": "2025-09-25T10:42:48.751774125Z"
-						},
-						{
-							"id": 1,
-							"content": "Hello, agent!",
-							"role": "user",
-							"time": "2025-09-25T10:46:42.880996296Z"
-						},
-						{
-							"id": 2,
-							"content": "What would you like to work on today?",
-							"role": "agent",
-							"time": "2025-09-25T10:46:50.747761102Z"
-						}
-					]
-				}
-			`
+					Id:      0,
+					Content: "Welcome, user!",
+					Role:    agentapisdk.RoleAgent,
+					Time:    time.Date(2025, 9, 25, 10, 42, 48, 0, time.UTC),
+				},
+				{
+					Id:      1,
+					Content: "Hello, agent!",
+					Role:    agentapisdk.RoleUser,
+					Time:    time.Date(2025, 9, 25, 10, 46, 42, 0, time.UTC),
+				},
+				{
+					Id:      2,
+					Content: "What would you like to work on today?",
+					Role:    agentapisdk.RoleAgent,
+					Time:    time.Date(2025, 9, 25, 10, 46, 50, 0, time.UTC),
+				},
+			},
+		}
+		messageResponseBytes, err := json.Marshal(messageResponseData)
+		require.NoError(t, err)
+		messageResponse := string(messageResponseBytes)
 
-			// Fake AgentAPI that returns a couple of messages.
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if r.Method == http.MethodGet && r.URL.Path == "/messages" {
-					w.Header().Set("Content-Type", "application/json")
-					w.WriteHeader(http.StatusOK)
-					io.WriteString(w, messageResponse)
-					return
-				}
-				w.WriteHeader(http.StatusNotFound)
-			}))
-			t.Cleanup(srv.Close)
+		var shouldReturnError bool
 
-			// Template pointing sidebar app to our fake AgentAPI.
-			authToken := uuid.NewString()
-			template := createAITemplate(t, client, owner, withSidebarURL(srv.URL), withAgentToken(authToken))
+		// Fake AgentAPI that returns a couple of messages or an error.
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if shouldReturnError {
+				w.WriteHeader(http.StatusInternalServerError)
+				_, _ = io.WriteString(w, "boom")
+				return
+			}
+			if r.Method == http.MethodGet && r.URL.Path == "/messages" {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				io.WriteString(w, messageResponse)
+				return
+			}
+			w.WriteHeader(http.StatusNotFound)
+		}))
+		defer srv.Close()
 
-			// Create task workspace.
-			ws := coderdtest.CreateWorkspace(t, client, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
-				req.RichParameterValues = []codersdk.WorkspaceBuildParameter{
-					{Name: codersdk.AITaskPromptParameterName, Value: "show logs"},
-				}
-			})
-			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+		// Create an AI-capable template whose sidebar app points to our fake AgentAPI.
+		var (
+			client, db     = coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			ctx            = testutil.Context(t, testutil.WaitLong)
+			owner          = coderdtest.CreateFirstUser(t, client)
+			agentAuthToken = uuid.NewString()
+			template       = createAITemplate(t, client, owner, withAgentToken(agentAuthToken), withSidebarURL(srv.URL))
+			exp            = codersdk.NewExperimentalClient(client)
+		)
 
-			// Start a fake agent.
-			agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken))
-			_ = agenttest.New(t, client.URL, authToken, func(o *agent.Options) {
-				o.Client = agentClient
-			})
-			coderdtest.NewWorkspaceAgentWaiter(t, client, ws.ID).WithContext(ctx).WaitFor(coderdtest.AgentsReady)
+		task, err := exp.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
+			TemplateVersionID: template.ActiveVersionID,
+			Input:             "show logs",
+		})
+		require.NoError(t, err)
+		require.True(t, task.WorkspaceID.Valid)
 
-			// Omit sidebar app health as undefined is OK.
+		// Get the workspace and wait for it to be ready.
+		ws, err := client.Workspace(ctx, task.WorkspaceID.UUID)
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 
+		// Fetch the task by ID via experimental API and verify fields.
+		task, err = exp.TaskByID(ctx, task.ID)
+		require.NoError(t, err)
+		require.NotZero(t, task.WorkspaceBuildNumber)
+		require.True(t, task.WorkspaceAgentID.Valid)
+		require.True(t, task.WorkspaceAppID.Valid)
+
+		// Insert an app status for the workspace
+		_, err = db.InsertWorkspaceAppStatus(dbauthz.AsSystemRestricted(ctx), database.InsertWorkspaceAppStatusParams{
+			ID:          uuid.New(),
+			WorkspaceID: task.WorkspaceID.UUID,
+			CreatedAt:   dbtime.Now(),
+			AgentID:     task.WorkspaceAgentID.UUID,
+			AppID:       task.WorkspaceAppID.UUID,
+			State:       database.WorkspaceAppStatusStateComplete,
+			Message:     "all done",
+		})
+		require.NoError(t, err)
+
+		// Start a fake agent so the workspace agent is connected before fetching logs.
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(agentAuthToken))
+		_ = agenttest.New(t, client.URL, agentAuthToken, func(o *agent.Options) {
+			o.Client = agentClient
+		})
+		coderdtest.NewWorkspaceAgentWaiter(t, client, ws.ID).WaitFor(coderdtest.AgentsReady)
+
+		// Fetch the task by ID via experimental API and verify fields.
+		task, err = exp.TaskByID(ctx, task.ID)
+		require.NoError(t, err)
+
+		//nolint:tparallel // Not intended to run in parallel.
+		t.Run("OK", func(t *testing.T) {
 			// Fetch logs.
-			exp := codersdk.NewExperimentalClient(client)
-			resp, err := exp.TaskLogs(ctx, "me", ws.ID)
+			resp, err := exp.TaskLogs(ctx, "me", task.ID)
 			require.NoError(t, err)
 			require.Len(t, resp.Logs, 3)
 			assert.Equal(t, 0, resp.Logs[0].ID)
@@ -729,38 +751,11 @@ func TestTasks(t *testing.T) {
 			assert.Equal(t, "What would you like to work on today?", resp.Logs[2].Content)
 		})
 
+		//nolint:tparallel // Not intended to run in parallel.
 		t.Run("UpstreamError", func(t *testing.T) {
-			t.Parallel()
-
-			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-			owner := coderdtest.CreateFirstUser(t, client)
-			ctx := testutil.Context(t, testutil.WaitShort)
-
-			// Fake AgentAPI that returns 500 for messages.
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(http.StatusInternalServerError)
-				_, _ = io.WriteString(w, "boom")
-			}))
-			t.Cleanup(srv.Close)
-
-			authToken := uuid.NewString()
-			template := createAITemplate(t, client, owner, withSidebarURL(srv.URL), withAgentToken(authToken))
-			ws := coderdtest.CreateWorkspace(t, client, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
-				req.RichParameterValues = []codersdk.WorkspaceBuildParameter{
-					{Name: codersdk.AITaskPromptParameterName, Value: "show logs"},
-				}
-			})
-			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
-
-			// Start fake agent.
-			agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken))
-			_ = agenttest.New(t, client.URL, authToken, func(o *agent.Options) {
-				o.Client = agentClient
-			})
-			coderdtest.NewWorkspaceAgentWaiter(t, client, ws.ID).WithContext(ctx).WaitFor(coderdtest.AgentsReady)
-
-			exp := codersdk.NewExperimentalClient(client)
-			_, err := exp.TaskLogs(ctx, "me", ws.ID)
+			shouldReturnError = true
+			t.Cleanup(func() { shouldReturnError = false })
+			_, err := exp.TaskLogs(ctx, "me", task.ID)
 
 			var sdkErr *codersdk.Error
 			require.Error(t, err)
@@ -791,7 +786,7 @@ func TestTasksCreate(t *testing.T) {
 			ProvisionApply: echo.ApplyComplete,
 			ProvisionPlan: []*proto.Response{
 				{Type: &proto.Response_Plan{Plan: &proto.PlanComplete{
-					Parameters: []*proto.RichParameter{{Name: "AI Prompt", Type: "string"}},
+					Parameters: []*proto.RichParameter{{Name: codersdk.AITaskPromptParameterName, Type: "string"}},
 					HasAiTasks: true,
 				}}},
 			},
@@ -864,7 +859,7 @@ func TestTasksCreate(t *testing.T) {
 						ProvisionApply: echo.ApplyComplete,
 						ProvisionPlan: []*proto.Response{
 							{Type: &proto.Response_Plan{Plan: &proto.PlanComplete{
-								Parameters: []*proto.RichParameter{{Name: "AI Prompt", Type: "string"}},
+								Parameters: []*proto.RichParameter{{Name: codersdk.AITaskPromptParameterName, Type: "string"}},
 								HasAiTasks: true,
 							}}},
 						},
@@ -960,7 +955,212 @@ func TestTasksCreate(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.Error(t, err)
 		require.ErrorAsf(t, err, &sdkErr, "error should be of type *codersdk.Error")
-		assert.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+		assert.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+
+	t.Run("TaskTableCreatedAndLinked", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx        = testutil.Context(t, testutil.WaitShort)
+			taskPrompt = "Create a REST API"
+		)
+
+		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		// Create a template with AI task support to test the new task data model.
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ApplyComplete,
+			ProvisionPlan: []*proto.Response{
+				{Type: &proto.Response_Plan{Plan: &proto.PlanComplete{
+					Parameters: []*proto.RichParameter{{Name: codersdk.AITaskPromptParameterName, Type: "string"}},
+					HasAiTasks: true,
+				}}},
+			},
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		expClient := codersdk.NewExperimentalClient(client)
+
+		task, err := expClient.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
+			TemplateVersionID: template.ActiveVersionID,
+			Input:             taskPrompt,
+		})
+		require.NoError(t, err)
+		require.True(t, task.WorkspaceID.Valid)
+
+		ws, err := client.Workspace(ctx, task.WorkspaceID.UUID)
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+		// Verify that the task was created in the tasks table with the correct
+		// fields. This ensures the data model properly separates task records
+		// from workspace records.
+		dbCtx := dbauthz.AsSystemRestricted(ctx)
+		dbTask, err := db.GetTaskByID(dbCtx, task.ID)
+		require.NoError(t, err)
+		assert.Equal(t, user.OrganizationID, dbTask.OrganizationID)
+		assert.Equal(t, user.UserID, dbTask.OwnerID)
+		assert.Equal(t, task.Name, dbTask.Name)
+		assert.True(t, dbTask.WorkspaceID.Valid)
+		assert.Equal(t, ws.ID, dbTask.WorkspaceID.UUID)
+		assert.Equal(t, version.ID, dbTask.TemplateVersionID)
+		assert.Equal(t, taskPrompt, dbTask.Prompt)
+		assert.False(t, dbTask.DeletedAt.Valid)
+
+		// Verify the bidirectional relationship works by looking up the task
+		// via workspace ID.
+		dbTaskByWs, err := db.GetTaskByWorkspaceID(dbCtx, ws.ID)
+		require.NoError(t, err)
+		assert.Equal(t, dbTask.ID, dbTaskByWs.ID)
+	})
+
+	t.Run("TaskWithCustomName", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx        = testutil.Context(t, testutil.WaitShort)
+			taskPrompt = "Build a dashboard"
+			taskName   = "my-custom-task"
+		)
+
+		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ApplyComplete,
+			ProvisionPlan: []*proto.Response{
+				{Type: &proto.Response_Plan{Plan: &proto.PlanComplete{
+					Parameters: []*proto.RichParameter{{Name: codersdk.AITaskPromptParameterName, Type: "string"}},
+					HasAiTasks: true,
+				}}},
+			},
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		expClient := codersdk.NewExperimentalClient(client)
+
+		task, err := expClient.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
+			TemplateVersionID: template.ActiveVersionID,
+			Input:             taskPrompt,
+			Name:              taskName,
+		})
+		require.NoError(t, err)
+		require.Equal(t, taskName, task.Name)
+
+		// Verify the custom name is preserved in the database record.
+		dbCtx := dbauthz.AsSystemRestricted(ctx)
+		dbTask, err := db.GetTaskByID(dbCtx, task.ID)
+		require.NoError(t, err)
+		assert.Equal(t, taskName, dbTask.Name)
+	})
+
+	t.Run("MultipleTasksForSameUser", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ApplyComplete,
+			ProvisionPlan: []*proto.Response{
+				{Type: &proto.Response_Plan{Plan: &proto.PlanComplete{
+					Parameters: []*proto.RichParameter{{Name: codersdk.AITaskPromptParameterName, Type: "string"}},
+					HasAiTasks: true,
+				}}},
+			},
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		expClient := codersdk.NewExperimentalClient(client)
+
+		task1, err := expClient.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
+			TemplateVersionID: template.ActiveVersionID,
+			Input:             "First task",
+			Name:              "task-1",
+		})
+		require.NoError(t, err)
+
+		task2, err := expClient.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
+			TemplateVersionID: template.ActiveVersionID,
+			Input:             "Second task",
+			Name:              "task-2",
+		})
+		require.NoError(t, err)
+
+		// Verify both tasks are stored independently and can be listed together.
+		dbCtx := dbauthz.AsSystemRestricted(ctx)
+		tasks, err := db.ListTasks(dbCtx, database.ListTasksParams{
+			OwnerID:        user.UserID,
+			OrganizationID: uuid.Nil,
+		})
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, len(tasks), 2)
+
+		taskIDs := make(map[uuid.UUID]bool)
+		for _, task := range tasks {
+			taskIDs[task.ID] = true
+		}
+		assert.True(t, taskIDs[task1.ID], "task1 should be in the list")
+		assert.True(t, taskIDs[task2.ID], "task2 should be in the list")
+	})
+
+	t.Run("TaskLinkedToCorrectTemplateVersion", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ApplyComplete,
+			ProvisionPlan: []*proto.Response{
+				{Type: &proto.Response_Plan{Plan: &proto.PlanComplete{
+					Parameters: []*proto.RichParameter{{Name: codersdk.AITaskPromptParameterName, Type: "string"}},
+					HasAiTasks: true,
+				}}},
+			},
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version1.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID)
+
+		version2 := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ApplyComplete,
+			ProvisionPlan: []*proto.Response{
+				{Type: &proto.Response_Plan{Plan: &proto.PlanComplete{
+					Parameters: []*proto.RichParameter{{Name: codersdk.AITaskPromptParameterName, Type: "string"}},
+					HasAiTasks: true,
+				}}},
+			},
+		}, template.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version2.ID)
+
+		expClient := codersdk.NewExperimentalClient(client)
+
+		// Create a task using version 2 to verify the template_version_id is
+		// stored correctly.
+		task, err := expClient.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
+			TemplateVersionID: version2.ID,
+			Input:             "Use version 2",
+		})
+		require.NoError(t, err)
+
+		// Verify the task references the correct template version, not just the
+		// active one.
+		dbCtx := dbauthz.AsSystemRestricted(ctx)
+		dbTask, err := db.GetTaskByID(dbCtx, task.ID)
+		require.NoError(t, err)
+		assert.Equal(t, version2.ID, dbTask.TemplateVersionID, "task should be linked to version 2")
 	})
 }
 

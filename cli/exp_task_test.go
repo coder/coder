@@ -17,7 +17,6 @@ import (
 	"golang.org/x/xerrors"
 
 	agentapisdk "github.com/coder/agentapi-sdk-go"
-
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/cli/clitest"
@@ -239,7 +238,7 @@ func fakeAgentAPIEcho(ctx context.Context, t testing.TB, initMsg agentapisdk.Mes
 // setupCLITaskTest creates a test workspace with an AI task template and agent,
 // with a fake agent API configured with the provided set of handlers.
 // Returns the user client and workspace.
-func setupCLITaskTest(ctx context.Context, t *testing.T, agentAPIHandlers map[string]http.HandlerFunc) (*codersdk.Client, codersdk.Workspace) {
+func setupCLITaskTest(ctx context.Context, t *testing.T, agentAPIHandlers map[string]http.HandlerFunc) (*codersdk.Client, codersdk.Task) {
 	t.Helper()
 
 	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
@@ -252,11 +251,18 @@ func setupCLITaskTest(ctx context.Context, t *testing.T, agentAPIHandlers map[st
 	template := createAITaskTemplate(t, client, owner.OrganizationID, withSidebarURL(fakeAPI.URL()), withAgentToken(authToken))
 
 	wantPrompt := "test prompt"
-	workspace := coderdtest.CreateWorkspace(t, userClient, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
-		req.RichParameterValues = []codersdk.WorkspaceBuildParameter{
-			{Name: codersdk.AITaskPromptParameterName, Value: wantPrompt},
-		}
+	exp := codersdk.NewExperimentalClient(userClient)
+	task, err := exp.CreateTask(ctx, codersdk.Me, codersdk.CreateTaskRequest{
+		TemplateVersionID: template.ActiveVersionID,
+		Input:             wantPrompt,
+		Name:              "test-task",
 	})
+	require.NoError(t, err)
+
+	// Wait for the task's underlying workspace to be built
+	require.True(t, task.WorkspaceID.Valid, "task should have a workspace ID")
+	workspace, err := userClient.Workspace(ctx, task.WorkspaceID.UUID)
+	require.NoError(t, err)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken))
@@ -267,7 +273,7 @@ func setupCLITaskTest(ctx context.Context, t *testing.T, agentAPIHandlers map[st
 	coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).
 		WaitFor(coderdtest.AgentsReady)
 
-	return userClient, workspace
+	return userClient, task
 }
 
 // createAITaskTemplate creates a template configured for AI tasks with a sidebar app.

@@ -1798,6 +1798,19 @@ func (q *querier) DeleteTailnetTunnel(ctx context.Context, arg database.DeleteTa
 	return q.db.DeleteTailnetTunnel(ctx, arg)
 }
 
+func (q *querier) DeleteTask(ctx context.Context, arg database.DeleteTaskParams) (database.TaskTable, error) {
+	task, err := q.db.GetTaskByID(ctx, arg.ID)
+	if err != nil {
+		return database.TaskTable{}, err
+	}
+
+	if err := q.authorizeContext(ctx, policy.ActionDelete, task.RBACObject()); err != nil {
+		return database.TaskTable{}, err
+	}
+
+	return q.db.DeleteTask(ctx, arg)
+}
+
 func (q *querier) DeleteUserSecret(ctx context.Context, id uuid.UUID) error {
 	// First get the secret to check ownership
 	secret, err := q.GetUserSecret(ctx, id)
@@ -5007,6 +5020,30 @@ func (q *querier) UpdateTailnetPeerStatusByCoordinator(ctx context.Context, arg 
 		return err
 	}
 	return q.db.UpdateTailnetPeerStatusByCoordinator(ctx, arg)
+}
+
+func (q *querier) UpdateTaskWorkspaceID(ctx context.Context, arg database.UpdateTaskWorkspaceIDParams) (database.TaskTable, error) {
+	// An actor is allowed to update the workspace ID of a task if they are the
+	// owner of the task and workspace or have the appropriate permissions.
+	task, err := q.db.GetTaskByID(ctx, arg.ID)
+	if err != nil {
+		return database.TaskTable{}, err
+	}
+
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, task.RBACObject()); err != nil {
+		return database.TaskTable{}, err
+	}
+
+	ws, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID.UUID)
+	if err != nil {
+		return database.TaskTable{}, err
+	}
+
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, ws.RBACObject()); err != nil {
+		return database.TaskTable{}, err
+	}
+
+	return q.db.UpdateTaskWorkspaceID(ctx, arg)
 }
 
 func (q *querier) UpdateTemplateACLByID(ctx context.Context, arg database.UpdateTemplateACLByIDParams) error {

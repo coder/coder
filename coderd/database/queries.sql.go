@@ -12581,6 +12581,39 @@ func (q *sqlQuerier) UpsertTailnetTunnel(ctx context.Context, arg UpsertTailnetT
 	return i, err
 }
 
+const deleteTask = `-- name: DeleteTask :one
+UPDATE tasks
+SET
+	deleted_at = $1::timestamptz
+WHERE
+	id = $2::uuid
+	AND deleted_at IS NULL
+RETURNING id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at
+`
+
+type DeleteTaskParams struct {
+	DeletedAt time.Time `db:"deleted_at" json:"deleted_at"`
+	ID        uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) DeleteTask(ctx context.Context, arg DeleteTaskParams) (TaskTable, error) {
+	row := q.db.QueryRowContext(ctx, deleteTask, arg.DeletedAt, arg.ID)
+	var i TaskTable
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.Name,
+		&i.WorkspaceID,
+		&i.TemplateVersionID,
+		&i.TemplateParameters,
+		&i.Prompt,
+		&i.CreatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
 const getTaskByID = `-- name: GetTaskByID :one
 SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, status, workspace_build_number, workspace_agent_id, workspace_app_id FROM tasks_with_status WHERE id = $1::uuid
 `
@@ -12684,16 +12717,18 @@ SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, t
 WHERE tws.deleted_at IS NULL
 AND CASE WHEN $1::UUID != '00000000-0000-0000-0000-000000000000' THEN tws.owner_id = $1::UUID ELSE TRUE END
 AND CASE WHEN $2::UUID != '00000000-0000-0000-0000-000000000000' THEN tws.organization_id = $2::UUID ELSE TRUE END
+AND CASE WHEN $3::text != '' THEN tws.status = $3::task_status ELSE TRUE END
 ORDER BY tws.created_at DESC
 `
 
 type ListTasksParams struct {
 	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Status         string    `db:"status" json:"status"`
 }
 
 func (q *sqlQuerier) ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, error) {
-	rows, err := q.db.QueryContext(ctx, listTasks, arg.OwnerID, arg.OrganizationID)
+	rows, err := q.db.QueryContext(ctx, listTasks, arg.OwnerID, arg.OrganizationID, arg.Status)
 	if err != nil {
 		return nil, err
 	}
@@ -12728,6 +12763,49 @@ func (q *sqlQuerier) ListTasks(ctx context.Context, arg ListTasksParams) ([]Task
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateTaskWorkspaceID = `-- name: UpdateTaskWorkspaceID :one
+UPDATE
+	tasks
+SET
+	workspace_id = $2
+FROM
+	workspaces w
+JOIN
+	template_versions tv
+ON
+	tv.template_id = w.template_id
+WHERE
+	tasks.id = $1
+	AND tasks.workspace_id IS NULL
+	AND w.id = $2
+	AND tv.id = tasks.template_version_id
+RETURNING
+	tasks.id, tasks.organization_id, tasks.owner_id, tasks.name, tasks.workspace_id, tasks.template_version_id, tasks.template_parameters, tasks.prompt, tasks.created_at, tasks.deleted_at
+`
+
+type UpdateTaskWorkspaceIDParams struct {
+	ID          uuid.UUID     `db:"id" json:"id"`
+	WorkspaceID uuid.NullUUID `db:"workspace_id" json:"workspace_id"`
+}
+
+func (q *sqlQuerier) UpdateTaskWorkspaceID(ctx context.Context, arg UpdateTaskWorkspaceIDParams) (TaskTable, error) {
+	row := q.db.QueryRowContext(ctx, updateTaskWorkspaceID, arg.ID, arg.WorkspaceID)
+	var i TaskTable
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.Name,
+		&i.WorkspaceID,
+		&i.TemplateVersionID,
+		&i.TemplateParameters,
+		&i.Prompt,
+		&i.CreatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
 }
 
 const upsertTaskWorkspaceApp = `-- name: UpsertTaskWorkspaceApp :one
