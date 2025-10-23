@@ -14,11 +14,11 @@ import (
 	"github.com/google/uuid"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/userpassword"
 )
 
 var (
@@ -120,10 +120,7 @@ func revokeRefreshTokenInTx(ctx context.Context, db database.Store, token string
 		return xerrors.Errorf("get oauth2 provider app token by prefix: %w", err)
 	}
 
-	equal, err := userpassword.Compare(string(dbToken.RefreshHash), parsedToken.Secret)
-	if err != nil {
-		return xerrors.Errorf("invalid refresh token: %w", err)
-	}
+	equal := apikey.ValidateHash(dbToken.RefreshHash, parsedToken.Secret)
 	if !equal {
 		return xerrors.Errorf("invalid refresh token")
 	}

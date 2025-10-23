@@ -6206,7 +6206,7 @@ const getOAuth2ProviderAppByRegistrationToken = `-- name: GetOAuth2ProviderAppBy
 SELECT id, created_at, updated_at, name, icon, callback_url, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri FROM oauth2_provider_apps WHERE registration_access_token = $1
 `
 
-func (q *sqlQuerier) GetOAuth2ProviderAppByRegistrationToken(ctx context.Context, registrationAccessToken sql.NullString) (OAuth2ProviderApp, error) {
+func (q *sqlQuerier) GetOAuth2ProviderAppByRegistrationToken(ctx context.Context, registrationAccessToken []byte) (OAuth2ProviderApp, error) {
 	row := q.db.QueryRowContext(ctx, getOAuth2ProviderAppByRegistrationToken, registrationAccessToken)
 	var i OAuth2ProviderApp
 	err := row.Scan(
@@ -6607,7 +6607,7 @@ type InsertOAuth2ProviderAppParams struct {
 	Jwks                    pqtype.NullRawMessage `db:"jwks" json:"jwks"`
 	SoftwareID              sql.NullString        `db:"software_id" json:"software_id"`
 	SoftwareVersion         sql.NullString        `db:"software_version" json:"software_version"`
-	RegistrationAccessToken sql.NullString        `db:"registration_access_token" json:"registration_access_token"`
+	RegistrationAccessToken []byte                `db:"registration_access_token" json:"registration_access_token"`
 	RegistrationClientUri   sql.NullString        `db:"registration_client_uri" json:"registration_client_uri"`
 }
 

@@ -11,7 +11,6 @@ package dbmock
 
 import (
 	context "context"
-	sql "database/sql"
 	reflect "reflect"
 	time "time"
 
@@ -2325,7 +2324,7 @@ func (mr *MockStoreMockRecorder) GetOAuth2ProviderAppByID(ctx, id any) *gomock.C
 }
 
 // GetOAuth2ProviderAppByRegistrationToken mocks base method.
-func (m *MockStore) GetOAuth2ProviderAppByRegistrationToken(ctx context.Context, registrationAccessToken sql.NullString) (database.OAuth2ProviderApp, error) {
+func (m *MockStore) GetOAuth2ProviderAppByRegistrationToken(ctx context.Context, registrationAccessToken []byte) (database.OAuth2ProviderApp, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetOAuth2ProviderAppByRegistrationToken", ctx, registrationAccessToken)
 	ret0, _ := ret[0].(database.OAuth2ProviderApp)
