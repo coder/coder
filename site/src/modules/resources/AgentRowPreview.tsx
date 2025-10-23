@@ -2,8 +2,8 @@ import type { Interpolation, Theme } from "@emotion/react";
 import type { WorkspaceAgent } from "api/typesGenerated";
 import { TerminalIcon } from "components/Icons/TerminalIcon";
 import { VSCodeIcon } from "components/Icons/VSCodeIcon";
-import { Stack } from "components/Stack/Stack";
 import type { FC } from "react";
+import { cn } from "utils/cn";
 import { DisplayAppNameMap } from "./AppLink/AppLink";
 import { AppPreview } from "./AppLink/AppPreview";
 import { BaseIcon } from "./AppLink/BaseIcon";
@@ -22,74 +22,52 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
 	alignValues,
 }) => {
 	return (
-		<Stack
+		<div
 			key={agent.id}
-			direction="row"
-			alignItems="center"
-			justifyContent="space-between"
+			className="flex flex-row items-center justify-between"
 			css={styles.agentRow}
 		>
-			<Stack direction="row" alignItems="baseline">
+			<div className="flex flex-row items-baseline">
 				<div css={styles.agentStatusWrapper}>
 					<div css={styles.agentStatusPreview} />
 				</div>
-				<Stack
-					alignItems="baseline"
-					direction="row"
-					spacing={4}
+				<div
+					className="flex flex-row items-baseline gap-8 md:flex-wrap md:gap-4"
 					css={styles.agentData}
 				>
-					<Stack
-						direction="row"
-						alignItems="baseline"
-						spacing={1}
-						css={[
-							styles.noShrink,
-							styles.agentDataItem,
-							(theme) => ({
-								[theme.breakpoints.up("sm")]: {
-									minWidth: alignValues ? 240 : undefined,
-								},
-							}),
-						]}
+					<div
+						className={cn(
+							"flex flex-row items-baseline gap-2 flex-shrink-0 md:flex-col md:items-start md:gap-2 md:w-fit",
+						)}
+						css={(theme) => ({
+							[theme.breakpoints.up("sm")]: {
+								minWidth: alignValues ? 240 : undefined,
+							},
+						})}
 					>
 						<span>Agent:</span>
 						<span css={styles.agentDataValue}>{agent.name}</span>
-					</Stack>
+					</div>
 
-					<Stack
-						direction="row"
-						alignItems="baseline"
-						spacing={1}
-						css={[
-							styles.noShrink,
-							styles.agentDataItem,
-							(theme) => ({
-								[theme.breakpoints.up("sm")]: {
-									minWidth: alignValues ? 100 : undefined,
-								},
-							}),
-						]}
+					<div
+						className={cn(
+							"flex flex-row items-baseline gap-2 flex-shrink-0 md:flex-col md:items-start md:gap-2 md:w-fit",
+						)}
+						css={(theme) => ({
+							[theme.breakpoints.up("sm")]: {
+								minWidth: alignValues ? 100 : undefined,
+							},
+						})}
 					>
 						<span>OS:</span>
 						<span css={[styles.agentDataValue, styles.agentOS]}>
 							{agent.operating_system}
 						</span>
-					</Stack>
+					</div>
 
-					<Stack
-						direction="row"
-						alignItems="center"
-						spacing={1}
-						css={styles.agentDataItem}
-					>
+					<div className="flex flex-row items-center gap-2 md:flex-col md:items-start md:gap-2 md:w-fit">
 						<span>Apps:</span>
-						<Stack
-							direction="row"
-							alignItems="center"
-							spacing={0.5}
-							wrap="wrap"
-						>
+						<div className="flex flex-row items-center gap-1 flex-wrap">
 							{/* We display all modules returned in agent.apps */}
 							{agent.apps.map((app) => (
 								<AppPreview key={app.slug}>
@@ -130,11 +108,11 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
 							{agent.apps.length === 0 && agent.display_apps.length === 0 && (
 								<span css={styles.agentDataValue}>None</span>
 							)}
-						</Stack>
-					</Stack>
-				</Stack>
-			</Stack>
-		</Stack>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
 	);
 };
 
@@ -198,18 +176,5 @@ const styles = {
 
 	agentDataValue: (theme) => ({
 		color: theme.palette.text.primary,
-	}),
-
-	noShrink: {
-		flexShrink: 0,
-	},
-
-	agentDataItem: (theme) => ({
-		[theme.breakpoints.down("md")]: {
-			flexDirection: "column",
-			alignItems: "flex-start",
-			gap: 8,
-			width: "fit-content",
-		},
 	}),
 } satisfies Record<string, Interpolation<Theme>>;

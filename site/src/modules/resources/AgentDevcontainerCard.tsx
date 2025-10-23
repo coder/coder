@@ -10,7 +10,6 @@ import type {
 import { Button } from "components/Button/Button";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Spinner } from "components/Spinner/Spinner";
-import { Stack } from "components/Stack/Stack";
 import {
 	Tooltip,
 	TooltipContent,
@@ -182,12 +181,10 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 	const appsClasses = "flex flex-wrap gap-4 empty:hidden md:justify-start";
 
 	return (
-		<Stack
+		<div
 			key={devcontainer.id}
-			direction="column"
-			spacing={0}
 			className={cn(
-				"relative py-4 border border-dashed border-border rounded",
+				"relative flex flex-col gap-0 py-4 border border-dashed border-border rounded",
 				devcontainer.error && "border-content-destructive border-solid",
 			)}
 		>
@@ -382,6 +379,6 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 					)}
 				</div>
 			)}
-		</Stack>
+		</div>
 	);
 };
