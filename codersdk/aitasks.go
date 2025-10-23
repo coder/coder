@@ -95,12 +95,25 @@ func (c *ExperimentalClient) CreateTask(ctx context.Context, user string, reques
 type TaskStatus string
 
 const (
-	TaskStatusPending      TaskStatus = "pending"
+	// TaskStatusPending indicates the task has been created but no workspace
+	// has been provisioned yet, or the workspace build job status is unknown.
+	TaskStatusPending TaskStatus = "pending"
+	// TaskStatusInitializing indicates the workspace build is pending/running,
+	// the agent is connecting, or apps are initializing.
 	TaskStatusInitializing TaskStatus = "initializing"
-	TaskStatusActive       TaskStatus = "active"
-	TaskStatusPaused       TaskStatus = "paused"
-	TaskStatusUnknown      TaskStatus = "unknown"
-	TaskStatusError        TaskStatus = "error"
+	// TaskStatusActive indicates the task's workspace is running with a
+	// successful start transition, the agent is connected, and all workspace
+	// apps are either healthy or disabled.
+	TaskStatusActive TaskStatus = "active"
+	// TaskStatusPaused indicates the task's workspace has been stopped or
+	// deleted (stop/delete transition with successful job status).
+	TaskStatusPaused TaskStatus = "paused"
+	// TaskStatusUnknown indicates the task's status cannot be determined
+	// based on the workspace build, agent lifecycle, or app health states.
+	TaskStatusUnknown TaskStatus = "unknown"
+	// TaskStatusError indicates the task's workspace build job has failed,
+	// or the workspace apps are reporting unhealthy status.
+	TaskStatusError TaskStatus = "error"
 )
 
 func AllTaskStatuses() []TaskStatus {
@@ -121,10 +134,18 @@ type TaskState string
 
 // TaskState enums.
 const (
-	TaskStateWorking  TaskState = "working"
-	TaskStateIdle     TaskState = "idle"
+	// TaskStateWorking indicates the AI agent is actively processing work.
+	// Reported when the agent is performing actions or the screen is changing.
+	TaskStateWorking TaskState = "working"
+	// TaskStateIdle indicates the AI agent's screen is stable and no work
+	// is being performed. Reported automatically by the screen watcher.
+	TaskStateIdle TaskState = "idle"
+	// TaskStateComplete indicates the AI agent has successfully completed
+	// the task. Reported via the workspace app status.
 	TaskStateComplete TaskState = "complete"
-	TaskStateFailed   TaskState = "failed"
+	// TaskStateFailed indicates the AI agent reported a failure state.
+	// Reported via the workspace app status.
+	TaskStateFailed TaskState = "failed"
 )
 
 // Task represents a task.
