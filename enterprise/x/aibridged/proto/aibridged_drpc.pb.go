@@ -7,6 +7,7 @@ package proto
 import (
 	context "context"
 	errors "errors"
+
 	protojson "google.golang.org/protobuf/encoding/protojson"
 	proto "google.golang.org/protobuf/proto"
 	drpc "storj.io/drpc"
@@ -39,6 +40,7 @@ type DRPCRecorderClient interface {
 	DRPCConn() drpc.Conn
 
 	RecordInterception(ctx context.Context, in *RecordInterceptionRequest) (*RecordInterceptionResponse, error)
+	RecordInterceptionEnded(ctx context.Context, in *RecordInterceptionEndedRequest) (*RecordInterceptionEndedResponse, error)
 	RecordTokenUsage(ctx context.Context, in *RecordTokenUsageRequest) (*RecordTokenUsageResponse, error)
 	RecordPromptUsage(ctx context.Context, in *RecordPromptUsageRequest) (*RecordPromptUsageResponse, error)
 	RecordToolUsage(ctx context.Context, in *RecordToolUsageRequest) (*RecordToolUsageResponse, error)
@@ -57,6 +59,15 @@ func (c *drpcRecorderClient) DRPCConn() drpc.Conn { return c.cc }
 func (c *drpcRecorderClient) RecordInterception(ctx context.Context, in *RecordInterceptionRequest) (*RecordInterceptionResponse, error) {
 	out := new(RecordInterceptionResponse)
 	err := c.cc.Invoke(ctx, "/proto.Recorder/RecordInterception", drpcEncoding_File_enterprise_x_aibridged_proto_aibridged_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *drpcRecorderClient) RecordInterceptionEnded(ctx context.Context, in *RecordInterceptionEndedRequest) (*RecordInterceptionEndedResponse, error) {
+	out := new(RecordInterceptionEndedResponse)
+	err := c.cc.Invoke(ctx, "/proto.Recorder/RecordInterceptionEnded", drpcEncoding_File_enterprise_x_aibridged_proto_aibridged_proto{}, in, out)
 	if err != nil {
 		return nil, err
 	}
@@ -92,6 +103,7 @@ func (c *drpcRecorderClient) RecordToolUsage(ctx context.Context, in *RecordTool
 
 type DRPCRecorderServer interface {
 	RecordInterception(context.Context, *RecordInterceptionRequest) (*RecordInterceptionResponse, error)
+	RecordInterceptionEnded(context.Context, *RecordInterceptionEndedRequest) (*RecordInterceptionEndedResponse, error)
 	RecordTokenUsage(context.Context, *RecordTokenUsageRequest) (*RecordTokenUsageResponse, error)
 	RecordPromptUsage(context.Context, *RecordPromptUsageRequest) (*RecordPromptUsageResponse, error)
 	RecordToolUsage(context.Context, *RecordToolUsageRequest) (*RecordToolUsageResponse, error)
@@ -100,6 +112,10 @@ type DRPCRecorderServer interface {
 type DRPCRecorderUnimplementedServer struct{}
 
 func (s *DRPCRecorderUnimplementedServer) RecordInterception(context.Context, *RecordInterceptionRequest) (*RecordInterceptionResponse, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
+func (s *DRPCRecorderUnimplementedServer) RecordInterceptionEnded(context.Context, *RecordInterceptionEndedRequest) (*RecordInterceptionEndedResponse, error) {
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
@@ -117,7 +133,7 @@ func (s *DRPCRecorderUnimplementedServer) RecordToolUsage(context.Context, *Reco
 
 type DRPCRecorderDescription struct{}
 
-func (DRPCRecorderDescription) NumMethods() int { return 4 }
+func (DRPCRecorderDescription) NumMethods() int { return 5 }
 
 func (DRPCRecorderDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
@@ -131,6 +147,15 @@ func (DRPCRecorderDescription) Method(n int) (string, drpc.Encoding, drpc.Receiv
 					)
 			}, DRPCRecorderServer.RecordInterception, true
 	case 1:
+		return "/proto.Recorder/RecordInterceptionEnded", drpcEncoding_File_enterprise_x_aibridged_proto_aibridged_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCRecorderServer).
+					RecordInterceptionEnded(
+						ctx,
+						in1.(*RecordInterceptionEndedRequest),
+					)
+			}, DRPCRecorderServer.RecordInterceptionEnded, true
+	case 2:
 		return "/proto.Recorder/RecordTokenUsage", drpcEncoding_File_enterprise_x_aibridged_proto_aibridged_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return srv.(DRPCRecorderServer).
@@ -139,7 +164,7 @@ func (DRPCRecorderDescription) Method(n int) (string, drpc.Encoding, drpc.Receiv
 						in1.(*RecordTokenUsageRequest),
 					)
 			}, DRPCRecorderServer.RecordTokenUsage, true
-	case 2:
+	case 3:
 		return "/proto.Recorder/RecordPromptUsage", drpcEncoding_File_enterprise_x_aibridged_proto_aibridged_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return srv.(DRPCRecorderServer).
@@ -148,7 +173,7 @@ func (DRPCRecorderDescription) Method(n int) (string, drpc.Encoding, drpc.Receiv
 						in1.(*RecordPromptUsageRequest),
 					)
 			}, DRPCRecorderServer.RecordPromptUsage, true
-	case 3:
+	case 4:
 		return "/proto.Recorder/RecordToolUsage", drpcEncoding_File_enterprise_x_aibridged_proto_aibridged_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return srv.(DRPCRecorderServer).
@@ -176,6 +201,22 @@ type drpcRecorder_RecordInterceptionStream struct {
 }
 
 func (x *drpcRecorder_RecordInterceptionStream) SendAndClose(m *RecordInterceptionResponse) error {
+	if err := x.MsgSend(m, drpcEncoding_File_enterprise_x_aibridged_proto_aibridged_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
+}
+
+type DRPCRecorder_RecordInterceptionEndedStream interface {
+	drpc.Stream
+	SendAndClose(*RecordInterceptionEndedResponse) error
+}
+
+type drpcRecorder_RecordInterceptionEndedStream struct {
+	drpc.Stream
+}
+
+func (x *drpcRecorder_RecordInterceptionEndedStream) SendAndClose(m *RecordInterceptionEndedResponse) error {
 	if err := x.MsgSend(m, drpcEncoding_File_enterprise_x_aibridged_proto_aibridged_proto{}); err != nil {
 		return err
 	}

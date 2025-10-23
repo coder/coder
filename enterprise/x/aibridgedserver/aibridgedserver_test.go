@@ -423,6 +423,60 @@ func TestRecordInterception(t *testing.T) {
 	)
 }
 
+func TestRecordInterceptionEnded(t *testing.T) {
+	t.Parallel()
+
+	testRecordMethod(t,
+		func(srv *aibridgedserver.Server, ctx context.Context, req *proto.RecordInterceptionEndedRequest) (*proto.RecordInterceptionEndedResponse, error) {
+			return srv.RecordInterceptionEnded(ctx, req)
+		},
+		[]testRecordMethodCase[*proto.RecordInterceptionEndedRequest]{
+			{
+				name: "ok",
+				request: &proto.RecordInterceptionEndedRequest{
+					Id:      uuid.UUID{1}.String(),
+					EndedAt: timestamppb.Now(),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionEndedRequest) {
+					interceptionID, err := uuid.Parse(req.GetId())
+					assert.NoError(t, err, "parse interception UUID")
+
+					db.EXPECT().UpdateAIBridgeInterceptionEnded(gomock.Any(), database.UpdateAIBridgeInterceptionEndedParams{
+						ID:      interceptionID,
+						EndedAt: req.EndedAt.AsTime(),
+					}).Return(database.AIBridgeInterception{
+						ID:          interceptionID,
+						InitiatorID: uuid.UUID{2},
+						Provider:    "prov",
+						Model:       "mod",
+						StartedAt:   time.Now(),
+						EndedAt:     sql.NullTime{Time: req.EndedAt.AsTime(), Valid: true},
+					}, nil)
+				},
+			},
+			{
+				name: "bad_uuid_error",
+				request: &proto.RecordInterceptionEndedRequest{
+					Id: "this-is-not-uuid",
+				},
+				setupMocks:  func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionEndedRequest) {},
+				expectedErr: "invalid interception ID",
+			},
+			{
+				name: "database_error",
+				request: &proto.RecordInterceptionEndedRequest{
+					Id:      uuid.UUID{1}.String(),
+					EndedAt: timestamppb.Now(),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionEndedRequest) {
+					db.EXPECT().UpdateAIBridgeInterceptionEnded(gomock.Any(), gomock.Any()).Return(database.AIBridgeInterception{}, sql.ErrConnDone)
+				},
+				expectedErr: "end interception: " + sql.ErrConnDone.Error(),
+			},
+		},
+	)
+}
+
 func TestRecordTokenUsage(t *testing.T) {
 	t.Parallel()
 
