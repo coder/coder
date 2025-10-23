@@ -133,7 +133,10 @@ func databaseImport(m dsl.Matcher) {
 	m.Import("github.com/coder/coder/v2/coderd/database")
 	m.Match("database.$_").
 		Report("Do not import any database types into codersdk").
-		Where(m.File().PkgPath.Matches("github.com/coder/coder/v2/codersdk"))
+		Where(
+			m.File().PkgPath.Matches("github.com/coder/coder/v2/codersdk") &&
+				!m.File().Name.Matches(`_test\.go$`),
+		)
 }
 
 // publishInTransaction detects calls to Publish inside database transactions

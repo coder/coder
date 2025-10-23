@@ -25,12 +25,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// Constants for OAuth2 secret generation (RFC 7591)
-const (
-	secretLength        = 40 // Length of the actual secret part
-	displaySecretLength = 6  // Length of visible part in UI (last 6 characters)
-)
-
 // CreateDynamicClientRegistration returns an http.HandlerFunc that handles POST /oauth2/register
 func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, auditor *audit.Auditor, logger slog.Logger) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
@@ -120,7 +114,7 @@ func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, audi
 		}
 
 		// Create client secret - parse the formatted secret to get components
-		parsedSecret, err := parseFormattedSecret(clientSecret)
+		parsedSecret, err := ParseFormattedSecret(clientSecret)
 		if err != nil {
 			writeOAuth2RegistrationError(ctx, rw, http.StatusInternalServerError,
 				"server_error", "Failed to parse generated secret")
@@ -131,7 +125,7 @@ func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, audi
 		_, err = db.InsertOAuth2ProviderAppSecret(dbauthz.AsSystemRestricted(ctx), database.InsertOAuth2ProviderAppSecretParams{
 			ID:            uuid.New(),
 			CreatedAt:     now,
-			SecretPrefix:  []byte(parsedSecret.prefix),
+			SecretPrefix:  []byte(parsedSecret.Prefix),
 			HashedSecret:  hashedSecret,
 			DisplaySecret: createDisplaySecret(clientSecret),
 			AppID:         clientID,
@@ -532,27 +526,6 @@ func writeOAuth2RegistrationError(_ context.Context, rw http.ResponseWriter, sta
 	rw.Header().Set("Content-Type", "application/json")
 	rw.WriteHeader(status)
 	_ = json.NewEncoder(rw).Encode(errorResponse)
-}
-
-// parsedSecret represents the components of a formatted OAuth2 secret
-type parsedSecret struct {
-	prefix string
-	secret string
-}
-
-// parseFormattedSecret parses a formatted secret like "coder_prefix_secret"
-func parseFormattedSecret(secret string) (parsedSecret, error) {
-	parts := strings.Split(secret, "_")
-	if len(parts) != 3 {
-		return parsedSecret{}, xerrors.Errorf("incorrect number of parts: %d", len(parts))
-	}
-	if parts[0] != "coder" {
-		return parsedSecret{}, xerrors.Errorf("incorrect scheme: %s", parts[0])
-	}
-	return parsedSecret{
-		prefix: parts[1],
-		secret: parts[2],
-	}, nil
 }
 
 // createDisplaySecret creates a display version of the secret showing only the last few characters

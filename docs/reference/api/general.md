@@ -473,6 +473,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "value": [
           {
             "icon": "bug",
+            "location": "navbar",
             "name": "string",
             "target": "string"
           }

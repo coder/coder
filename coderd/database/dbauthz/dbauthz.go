@@ -446,6 +446,34 @@ var (
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
 
+	subjectSystemOAuth2 = rbac.Subject{
+		Type:         rbac.SubjectTypeSystemOAuth,
+		FriendlyName: "System OAuth2",
+		ID:           uuid.Nil.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Identifier:  rbac.RoleIdentifier{Name: "system-oauth2"},
+				DisplayName: "System OAuth2",
+				Site: rbac.Permissions(map[string][]policy.Action{
+					// OAuth2 resources - full CRUD permissions
+					rbac.ResourceOauth2App.Type:          rbac.ResourceOauth2App.AvailableActions(),
+					rbac.ResourceOauth2AppSecret.Type:    rbac.ResourceOauth2AppSecret.AvailableActions(),
+					rbac.ResourceOauth2AppCodeToken.Type: rbac.ResourceOauth2AppCodeToken.AvailableActions(),
+
+					// API key permissions needed for OAuth2 token revocation
+					rbac.ResourceApiKey.Type: {policy.ActionRead, policy.ActionDelete},
+
+					// Minimal read permissions that might be needed for OAuth2 operations
+					rbac.ResourceUser.Type:         {policy.ActionRead},
+					rbac.ResourceOrganization.Type: {policy.ActionRead},
+				}),
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
+
 	subjectSystemReadProvisionerDaemons = rbac.Subject{
 		Type:         rbac.SubjectTypeSystemReadProvisionerDaemons,
 		FriendlyName: "Provisioner Daemons Reader",
@@ -641,6 +669,12 @@ func AsSubAgentAPI(ctx context.Context, orgID uuid.UUID, userID uuid.UUID) conte
 // required for various system operations (login, logout, metrics cache).
 func AsSystemRestricted(ctx context.Context) context.Context {
 	return As(ctx, subjectSystemRestricted)
+}
+
+// AsSystemOAuth2 returns a context with an actor that has permissions
+// required for OAuth2 provider operations (token revocation, device codes, registration).
+func AsSystemOAuth2(ctx context.Context) context.Context {
+	return As(ctx, subjectSystemOAuth2)
 }
 
 // AsSystemReadProvisionerDaemons returns a context with an actor that has permissions
@@ -4461,7 +4495,7 @@ func (q *querier) InsertWorkspaceResourceMetadata(ctx context.Context, arg datab
 	return q.db.InsertWorkspaceResourceMetadata(ctx, arg)
 }
 
-func (q *querier) ListAIBridgeInterceptions(ctx context.Context, arg database.ListAIBridgeInterceptionsParams) ([]database.AIBridgeInterception, error) {
+func (q *querier) ListAIBridgeInterceptions(ctx context.Context, arg database.ListAIBridgeInterceptionsParams) ([]database.ListAIBridgeInterceptionsRow, error) {
 	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceAibridgeInterception.Type)
 	if err != nil {
 		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
@@ -5870,7 +5904,7 @@ func (q *querier) CountAuthorizedConnectionLogs(ctx context.Context, arg databas
 	return q.CountConnectionLogs(ctx, arg)
 }
 
-func (q *querier) ListAuthorizedAIBridgeInterceptions(ctx context.Context, arg database.ListAIBridgeInterceptionsParams, _ rbac.PreparedAuthorized) ([]database.AIBridgeInterception, error) {
+func (q *querier) ListAuthorizedAIBridgeInterceptions(ctx context.Context, arg database.ListAIBridgeInterceptionsParams, _ rbac.PreparedAuthorized) ([]database.ListAIBridgeInterceptionsRow, error) {
 	// TODO: Delete this function, all ListAIBridgeInterceptions should be authorized. For now just call ListAIBridgeInterceptions on the authz querier.
 	// This cannot be deleted for now because it's included in the
 	// database.Store interface, so dbauthz needs to implement it.

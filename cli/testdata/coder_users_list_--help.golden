@@ -8,7 +8,7 @@ USAGE:
   Aliases: ls
 
 OPTIONS:
-  -c, --column [id|username|email|created at|updated at|status] (default: username,email,created at,status)
+  -c, --column [id|username|name|email|created at|updated at|status] (default: username,email,created at,status)
           Columns to display in table output.
 
       --github-user-id int

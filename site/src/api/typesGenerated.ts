@@ -26,7 +26,7 @@ export interface AIBridgeConfig {
 // From codersdk/aibridge.go
 export interface AIBridgeInterception {
 	readonly id: string;
-	readonly initiator_id: string;
+	readonly initiator: MinimalUser;
 	readonly provider: string;
 	readonly model: string;
 	// empty interface{} type, falling back to unknown
@@ -39,7 +39,7 @@ export interface AIBridgeInterception {
 
 // From codersdk/aibridge.go
 export interface AIBridgeListInterceptionsResponse {
-	readonly total: number;
+	readonly count: number;
 	readonly results: readonly AIBridgeInterception[];
 }
 
@@ -2515,6 +2515,7 @@ export interface LinkConfig {
 	readonly name: string;
 	readonly target: string;
 	readonly icon: string;
+	readonly location?: string;
 }
 
 // From codersdk/inboxnotification.go
@@ -2638,6 +2639,7 @@ export interface MinimalOrganization {
 export interface MinimalUser {
 	readonly id: string;
 	readonly username: string;
+	readonly name?: string;
 	readonly avatar_url?: string;
 }
 
@@ -2887,6 +2889,7 @@ export interface NullHCLString {
 export interface OAuth2AppEndpoints {
 	readonly authorization: string;
 	readonly token: string;
+	readonly token_revoke: string;
 	/**
 	 * DeviceAuth is optional.
 	 */
@@ -3951,7 +3954,6 @@ export interface RateLimitConfig {
  * required by the frontend.
  */
 export interface ReducedUser extends MinimalUser {
-	readonly name?: string;
 	readonly email: string;
 	readonly created_at: string;
 	readonly updated_at: string;

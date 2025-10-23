@@ -28,10 +28,16 @@ curl -X GET http://coder-server:8080/api/v2/api/experimental/aibridge/intercepti
 
 ```json
 {
+  "count": 0,
   "results": [
     {
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
+      "initiator": {
+        "avatar_url": "http://example.com",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string",
+        "username": "string"
+      },
       "metadata": {
         "property1": null,
         "property2": null
@@ -84,8 +90,7 @@ curl -X GET http://coder-server:8080/api/v2/api/experimental/aibridge/intercepti
         }
       ]
     }
-  ],
-  "total": 0
+  ]
 }
 ```
 

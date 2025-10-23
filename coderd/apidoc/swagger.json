@@ -2720,6 +2720,41 @@
 				}
 			}
 		},
+		"/oauth2/revoke": {
+			"post": {
+				"consumes": ["application/x-www-form-urlencoded"],
+				"tags": ["Enterprise"],
+				"summary": "Revoke OAuth2 tokens (RFC 7009).",
+				"operationId": "oauth2-token-revocation",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "Client ID for authentication",
+						"name": "client_id",
+						"in": "formData",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "The token to revoke",
+						"name": "token",
+						"in": "formData",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "Hint about token type (access_token or refresh_token)",
+						"name": "token_type_hint",
+						"in": "formData"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Token successfully revoked"
+					}
+				}
+			}
+		},
 		"/oauth2/tokens": {
 			"post": {
 				"produces": ["application/json"],
@@ -10387,9 +10422,8 @@
 					"type": "string",
 					"format": "uuid"
 				},
-				"initiator_id": {
-					"type": "string",
-					"format": "uuid"
+				"initiator": {
+					"$ref": "#/definitions/codersdk.MinimalUser"
 				},
 				"metadata": {
 					"type": "object",
@@ -10428,14 +10462,14 @@
 		"codersdk.AIBridgeListInterceptionsResponse": {
 			"type": "object",
 			"properties": {
+				"count": {
+					"type": "integer"
+				},
 				"results": {
 					"type": "array",
 					"items": {
 						"$ref": "#/definitions/codersdk.AIBridgeInterception"
 					}
-				},
-				"total": {
-					"type": "integer"
 				}
 			}
 		},
@@ -13490,7 +13524,11 @@
 			"properties": {
 				"icon": {
 					"type": "string",
-					"enum": ["bug", "chat", "docs"]
+					"enum": ["bug", "chat", "docs", "star"]
+				},
+				"location": {
+					"type": "string",
+					"enum": ["navbar", "dropdown"]
 				},
 				"name": {
 					"type": "string"
@@ -13632,6 +13670,9 @@
 				"id": {
 					"type": "string",
 					"format": "uuid"
+				},
+				"name": {
+					"type": "string"
 				},
 				"username": {
 					"type": "string"
@@ -13904,6 +13945,9 @@
 					"type": "string"
 				},
 				"token": {
+					"type": "string"
+				},
+				"token_revoke": {
 					"type": "string"
 				}
 			}
@@ -19213,6 +19257,9 @@
 				"id": {
 					"type": "string",
 					"format": "uuid"
+				},
+				"name": {
+					"type": "string"
 				},
 				"role": {
 					"enum": ["admin", "use"],

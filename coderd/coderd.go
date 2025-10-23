@@ -985,6 +985,16 @@ func New(options *Options) *API {
 			r.Post("/", api.postOAuth2ProviderAppToken())
 		})
 
+		// RFC 7009 Token Revocation Endpoint
+		r.Route("/revoke", func(r chi.Router) {
+			r.Use(
+				// RFC 7009 endpoint uses OAuth2 client authentication, not API key
+				httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderAppWithOAuth2Errors(options.Database)),
+			)
+			// POST /revoke is the standard OAuth2 token revocation endpoint per RFC 7009
+			r.Post("/", api.revokeOAuth2Token())
+		})
+
 		// RFC 7591 Dynamic Client Registration - Public endpoint
 		r.Post("/register", api.postOAuth2ClientRegistration())
 

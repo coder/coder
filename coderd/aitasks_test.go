@@ -22,7 +22,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
@@ -53,10 +52,6 @@ func TestAITasksPrompts(t *testing.T) {
 
 	t.Run("MultipleBuilds", func(t *testing.T) {
 		t.Parallel()
-
-		if !dbtestutil.WillUsePostgres() {
-			t.Skip("This test checks RBAC, which is not supported in the in-memory database")
-		}
 
 		adminClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		first := coderdtest.CreateFirstUser(t, adminClient)

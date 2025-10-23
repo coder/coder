@@ -3613,6 +3613,7 @@ type AIBridgeInterception struct {
 	Model       string                `db:"model" json:"model"`
 	StartedAt   time.Time             `db:"started_at" json:"started_at"`
 	Metadata    pqtype.NullRawMessage `db:"metadata" json:"metadata"`
+	EndedAt     sql.NullTime          `db:"ended_at" json:"ended_at"`
 }
 
 // Audit log of tokens used by intercepted requests in AI Bridge

@@ -75,7 +75,7 @@ func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Reques
 
 	var (
 		count int64
-		rows  []database.AIBridgeInterception
+		rows  []database.ListAIBridgeInterceptionsRow
 	)
 	err := api.Database.InTx(func(db database.Store) error {
 		// Ensure the after_id interception exists and is visible to the user.
@@ -127,15 +127,15 @@ func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Reques
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AIBridgeListInterceptionsResponse{
-		Total:   count,
+		Count:   count,
 		Results: items,
 	})
 }
 
-func populatedAndConvertAIBridgeInterceptions(ctx context.Context, db database.Store, dbInterceptions []database.AIBridgeInterception) ([]codersdk.AIBridgeInterception, error) {
+func populatedAndConvertAIBridgeInterceptions(ctx context.Context, db database.Store, dbInterceptions []database.ListAIBridgeInterceptionsRow) ([]codersdk.AIBridgeInterception, error) {
 	ids := make([]uuid.UUID, len(dbInterceptions))
 	for i, row := range dbInterceptions {
-		ids[i] = row.ID
+		ids[i] = row.AIBridgeInterception.ID
 	}
 
 	//nolint:gocritic // This is a system function until we implement a join for aibridge interceptions. AIBridge interception subresources use the same authorization call as their parent.
@@ -170,7 +170,13 @@ func populatedAndConvertAIBridgeInterceptions(ctx context.Context, db database.S
 
 	items := make([]codersdk.AIBridgeInterception, len(dbInterceptions))
 	for i, row := range dbInterceptions {
-		items[i] = db2sdk.AIBridgeInterception(row, tokenUsagesMap[row.ID], userPromptsMap[row.ID], toolUsagesMap[row.ID])
+		items[i] = db2sdk.AIBridgeInterception(
+			row.AIBridgeInterception,
+			row.VisibleUser,
+			tokenUsagesMap[row.AIBridgeInterception.ID],
+			userPromptsMap[row.AIBridgeInterception.ID],
+			toolUsagesMap[row.AIBridgeInterception.ID],
+		)
 	}
 
 	return items, nil

@@ -33,6 +33,7 @@ const meta: Meta<typeof NavbarView> = {
 		canViewDeployment: true,
 		canViewHealth: true,
 		canViewOrganizations: true,
+		supportLinks: [],
 	},
 	decorators: [withDashboardProvider],
 };
@@ -126,6 +127,67 @@ export const IdleTasks: Story = {
 					},
 				],
 			},
+		],
+	},
+};
+
+export const SupportLinks: Story = {
+	args: {
+		user: MockUserMember,
+		canViewAuditLog: false,
+		canViewDeployment: false,
+		canViewHealth: false,
+		canViewOrganizations: false,
+		supportLinks: [
+			{
+				name: "This is a bug",
+				icon: "bug",
+				target: "#",
+			},
+			{
+				name: "This is a star",
+				icon: "star",
+				target: "#",
+				location: "navbar",
+			},
+			{
+				name: "This is a chat",
+				icon: "chat",
+				target: "#",
+				location: "navbar",
+			},
+			{
+				name: "No icon here",
+				icon: "",
+				target: "#",
+				location: "navbar",
+			},
+			{
+				name: "No icon here too",
+				icon: "",
+				target: "#",
+			},
+		],
+	},
+};
+
+export const DefaultSupportLinks: Story = {
+	args: {
+		user: MockUserMember,
+		canViewAuditLog: false,
+		canViewDeployment: false,
+		canViewHealth: false,
+		canViewOrganizations: false,
+		supportLinks: [
+			{ icon: "docs", name: "Documentation", target: "" },
+			{ icon: "bug", name: "Report a bug", target: "" },
+			{
+				icon: "chat",
+				name: "Join the Coder Discord",
+				target: "",
+				location: "navbar",
+			},
+			{ icon: "star", name: "Star the Repo", target: "" },
 		],
 	},
 };

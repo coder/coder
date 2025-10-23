@@ -52,10 +52,6 @@ func (w *wrapUpsertDB) UpsertTemplateUsageStats(ctx context.Context) error {
 func TestRollup_TwoInstancesUseLocking(t *testing.T) {
 	t.Parallel()
 
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("Skipping test; only works with PostgreSQL.")
-	}
-
 	db, ps := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
 	logger := testutil.Logger(t)
 

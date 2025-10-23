@@ -1055,7 +1055,8 @@ CREATE TABLE aibridge_interceptions (
     provider text NOT NULL,
     model text NOT NULL,
     started_at timestamp with time zone NOT NULL,
-    metadata jsonb
+    metadata jsonb,
+    ended_at timestamp with time zone
 );
 
 COMMENT ON TABLE aibridge_interceptions IS 'Audit log of requests intercepted by AI Bridge';
@@ -3510,6 +3511,9 @@ CREATE TRIGGER workspace_agent_name_unique_trigger BEFORE INSERT OR UPDATE OF na
 COMMENT ON TRIGGER workspace_agent_name_unique_trigger ON workspace_agents IS 'Use a trigger instead of a unique constraint because existing data may violate
 the uniqueness requirement. A trigger allows us to enforce uniqueness going
 forward without requiring a migration to clean up historical data.';
+
+ALTER TABLE ONLY aibridge_interceptions
+    ADD CONSTRAINT aibridge_interceptions_initiator_id_fkey FOREIGN KEY (initiator_id) REFERENCES users(id);
 
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
