@@ -19,9 +19,9 @@ const meta: Meta<typeof TasksSidebar> = {
 		},
 		reactRouter: reactRouterParameters({
 			location: {
-				path: `/tasks/${MockTasks[0].workspace.name}`,
+				path: `/tasks/${MockTasks[0].name}`,
 				pathParams: {
-					workspace: MockTasks[0].workspace.name,
+					workspace: MockTasks[0].name,
 				},
 			},
 			routing: [

@@ -135,7 +135,7 @@ type Task struct {
 	OrganizationID          uuid.UUID                `json:"organization_id" format:"uuid" table:"organization id"`
 	OwnerID                 uuid.UUID                `json:"owner_id" format:"uuid" table:"owner id"`
 	OwnerName               string                   `json:"owner_name" table:"owner name"`
-	OwnerAvatarURL          string                   `json:"owner_avatar_url" table:"owner avatar url"`
+	OwnerAvatarURL          string                   `json:"owner_avatar_url,omitempty" table:"owner avatar url"`
 	Name                    string                   `json:"name" table:"name,default_sort"`
 	TemplateID              uuid.UUID                `json:"template_id" format:"uuid" table:"template id"`
 	TemplateVersionID       uuid.UUID                `json:"template_version_id" format:"uuid" table:"template version id"`

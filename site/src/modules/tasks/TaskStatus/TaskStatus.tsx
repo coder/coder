@@ -11,7 +11,7 @@ export type TaskStatusProps = {
 	stateMessage: string;
 };
 
-const statusToVariant: Record<
+export const taskStatusToStatusIndicatorVariant: Record<
 	TypesGen.TaskStatus,
 	StatusIndicatorProps["variant"]
 > = {
@@ -25,7 +25,10 @@ const statusToVariant: Record<
 
 export const TaskStatus: FC<TaskStatusProps> = ({ status, stateMessage }) => {
 	return (
-		<StatusIndicator variant={statusToVariant[status]} className="items-start">
+		<StatusIndicator
+			variant={taskStatusToStatusIndicatorVariant[status]}
+			className="items-start"
+		>
 			<StatusIndicatorDot className="mt-1" />
 			<div className="flex flex-col">
 				<span className="[&:first-letter]:uppercase">{status}</span>

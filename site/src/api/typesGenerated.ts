@@ -4700,7 +4700,7 @@ export interface Task {
 	readonly organization_id: string;
 	readonly owner_id: string;
 	readonly owner_name: string;
-	readonly owner_avatar_url: string;
+	readonly owner_avatar_url?: string;
 	readonly name: string;
 	readonly template_id: string;
 	readonly template_version_id: string;
