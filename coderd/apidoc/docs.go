@@ -11766,14 +11766,14 @@ const docTemplate = `{
         "codersdk.AIBridgeListInterceptionsResponse": {
             "type": "object",
             "properties": {
+                "count": {
+                    "type": "integer"
+                },
                 "results": {
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.AIBridgeInterception"
                     }
-                },
-                "total": {
-                    "type": "integer"
                 }
             }
         },

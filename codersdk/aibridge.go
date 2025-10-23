@@ -56,7 +56,7 @@ type AIBridgeToolUsage struct {
 }
 
 type AIBridgeListInterceptionsResponse struct {
-	Total   int64                  `json:"total"`
+	Count   int64                  `json:"count"`
 	Results []AIBridgeInterception `json:"results"`
 }
 

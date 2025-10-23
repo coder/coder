@@ -515,6 +515,7 @@
 
 ```json
 {
+  "count": 0,
   "results": [
     {
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
@@ -576,8 +577,7 @@
         }
       ]
     }
-  ],
-  "total": 0
+  ]
 }
 ```
 
@@ -585,8 +585,8 @@
 
 | Name      | Type                                                                    | Required | Restrictions | Description |
 |-----------|-------------------------------------------------------------------------|----------|--------------|-------------|
+| `count`   | integer                                                                 | false    |              |             |
 | `results` | array of [codersdk.AIBridgeInterception](#codersdkaibridgeinterception) | false    |              |             |
-| `total`   | integer                                                                 | false    |              |             |
 
 ## codersdk.AIBridgeOpenAIConfig
 
