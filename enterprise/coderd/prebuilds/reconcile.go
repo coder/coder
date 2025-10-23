@@ -647,9 +647,8 @@ func (c *StoreReconciler) executeReconciliationAction(ctx context.Context, logge
 		// This uses a criteria-based update to ensure only jobs that are still pending
 		// at execution time are canceled, avoiding race conditions where jobs may have
 		// transitioned to running status between query and update.
-		// nolint:gocritic // System operation to cancel obsolete pending prebuild jobs
 		canceledJobs, err := c.store.UpdatePrebuildProvisionerJobWithCancel(
-			dbauthz.AsSystemRestricted(ctx),
+			ctx,
 			database.UpdatePrebuildProvisionerJobWithCancelParams{
 				Now: c.clock.Now(),
 				PresetID: uuid.NullUUID{
