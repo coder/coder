@@ -201,7 +201,7 @@
 				}
 			}
 		},
-		"/api/experimental/tasks/{user}/{id}": {
+		"/api/experimental/tasks/{user}/{task}": {
 			"get": {
 				"security": [
 					{
@@ -223,7 +223,7 @@
 						"type": "string",
 						"format": "uuid",
 						"description": "Task ID",
-						"name": "id",
+						"name": "task",
 						"in": "path",
 						"required": true
 					}
@@ -258,7 +258,7 @@
 						"type": "string",
 						"format": "uuid",
 						"description": "Task ID",
-						"name": "id",
+						"name": "task",
 						"in": "path",
 						"required": true
 					}
@@ -270,7 +270,7 @@
 				}
 			}
 		},
-		"/api/experimental/tasks/{user}/{id}/logs": {
+		"/api/experimental/tasks/{user}/{task}/logs": {
 			"get": {
 				"security": [
 					{
@@ -292,7 +292,7 @@
 						"type": "string",
 						"format": "uuid",
 						"description": "Task ID",
-						"name": "id",
+						"name": "task",
 						"in": "path",
 						"required": true
 					}
@@ -307,7 +307,7 @@
 				}
 			}
 		},
-		"/api/experimental/tasks/{user}/{id}/send": {
+		"/api/experimental/tasks/{user}/{task}/send": {
 			"post": {
 				"security": [
 					{
@@ -329,7 +329,7 @@
 						"type": "string",
 						"format": "uuid",
 						"description": "Task ID",
-						"name": "id",
+						"name": "task",
 						"in": "path",
 						"required": true
 					},

@@ -47,3 +47,12 @@ WHERE tws.deleted_at IS NULL
 AND CASE WHEN @owner_id::UUID != '00000000-0000-0000-0000-000000000000' THEN tws.owner_id = @owner_id::UUID ELSE TRUE END
 AND CASE WHEN @organization_id::UUID != '00000000-0000-0000-0000-000000000000' THEN tws.organization_id = @organization_id::UUID ELSE TRUE END
 ORDER BY tws.created_at DESC;
+
+-- name: DeleteTask :one
+UPDATE tasks
+SET
+	deleted_at = @deleted_at::timestamptz
+WHERE
+	id = @id::uuid
+	AND deleted_at IS NULL
+RETURNING *;

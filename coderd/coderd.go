@@ -1032,11 +1032,15 @@ func New(options *Options) *API {
 
 			r.Route("/{user}", func(r chi.Router) {
 				r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
-				r.Get("/{id}", api.taskGet)
-				r.Delete("/{id}", api.taskDelete)
-				r.Post("/{id}/send", api.taskSend)
-				r.Get("/{id}/logs", api.taskLogs)
 				r.Post("/", api.tasksCreate)
+
+				r.Route("/{task}", func(r chi.Router) {
+					r.Use(httpmw.ExtractTaskParam(options.Database))
+					r.Get("/", api.taskGet)
+					r.Delete("/", api.taskDelete)
+					r.Post("/send", api.taskSend)
+					r.Get("/logs", api.taskLogs)
+				})
 			})
 		})
 		r.Route("/mcp", func(r chi.Router) {

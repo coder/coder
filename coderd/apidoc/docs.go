@@ -229,7 +229,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/experimental/tasks/{user}/{id}": {
+        "/api/experimental/tasks/{user}/{task}": {
             "get": {
                 "security": [
                     {
@@ -253,7 +253,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Task ID",
-                        "name": "id",
+                        "name": "task",
                         "in": "path",
                         "required": true
                     }
@@ -290,7 +290,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Task ID",
-                        "name": "id",
+                        "name": "task",
                         "in": "path",
                         "required": true
                     }
@@ -302,7 +302,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/experimental/tasks/{user}/{id}/logs": {
+        "/api/experimental/tasks/{user}/{task}/logs": {
             "get": {
                 "security": [
                     {
@@ -326,7 +326,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Task ID",
-                        "name": "id",
+                        "name": "task",
                         "in": "path",
                         "required": true
                     }
@@ -341,7 +341,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/experimental/tasks/{user}/{id}/send": {
+        "/api/experimental/tasks/{user}/{task}/send": {
             "post": {
                 "security": [
                     {
@@ -365,7 +365,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Task ID",
-                        "name": "id",
+                        "name": "task",
                         "in": "path",
                         "required": true
                     },
