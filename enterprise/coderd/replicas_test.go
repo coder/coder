@@ -20,9 +20,7 @@ import (
 
 func TestReplicas(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("only test with real postgres")
-	}
+
 	t.Run("ErrorWithoutLicense", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)

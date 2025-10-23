@@ -269,7 +269,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 						if len(res.Results) == 0 {
 							break
 						}
-						require.EqualValues(t, len(allInterceptionIDs), res.Total)
+						require.EqualValues(t, len(allInterceptionIDs), res.Count)
 						require.Len(t, res.Results, 1)
 						interceptionIDs = append(interceptionIDs, res.Results[0].ID)
 					}
@@ -322,7 +322,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		// Admin can see all interceptions.
 		res, err := adminExperimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{})
 		require.NoError(t, err)
-		require.EqualValues(t, 2, res.Total)
+		require.EqualValues(t, 2, res.Count)
 		require.Len(t, res.Results, 2)
 		require.Equal(t, i1.ID, res.Results[0].ID)
 		require.Equal(t, i2.ID, res.Results[1].ID)
@@ -330,7 +330,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		// Second user can only see their own interceptions.
 		res, err = secondUserExperimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{})
 		require.NoError(t, err)
-		require.EqualValues(t, 1, res.Total)
+		require.EqualValues(t, 1, res.Count)
 		require.Len(t, res.Results, 1)
 		require.Equal(t, i2.ID, res.Results[0].ID)
 	})
@@ -501,7 +501,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 				ctx := testutil.Context(t, testutil.WaitLong)
 				res, err := experimentalClient.AIBridgeListInterceptions(ctx, tc.filter)
 				require.NoError(t, err)
-				require.EqualValues(t, len(tc.want), res.Total)
+				require.EqualValues(t, len(tc.want), res.Count)
 				// We just compare UUID strings for the sake of this test.
 				wantIDs := make([]string, len(tc.want))
 				for i, r := range tc.want {

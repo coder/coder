@@ -127,7 +127,7 @@ func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Reques
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AIBridgeListInterceptionsResponse{
-		Total:   count,
+		Count:   count,
 		Results: items,
 	})
 }

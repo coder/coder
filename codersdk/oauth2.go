@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/google/uuid"
 )
@@ -26,6 +27,7 @@ type OAuth2ProviderApp struct {
 type OAuth2AppEndpoints struct {
 	Authorization string `json:"authorization"`
 	Token         string `json:"token"`
+	TokenRevoke   string `json:"token_revoke"`
 	// DeviceAuth is optional.
 	DeviceAuth string `json:"device_authorization"`
 }
@@ -210,6 +212,26 @@ func (e OAuth2ProviderResponseType) Valid() bool {
 		return true
 	}
 	return false
+}
+
+// RevokeOAuth2Token revokes a specific OAuth2 token using RFC 7009 token revocation.
+func (c *Client) RevokeOAuth2Token(ctx context.Context, clientID uuid.UUID, token string) error {
+	form := url.Values{}
+	form.Set("token", token)
+	// Client authentication is handled via the client_id in the app middleware
+	form.Set("client_id", clientID.String())
+
+	res, err := c.Request(ctx, http.MethodPost, "/oauth2/revoke", strings.NewReader(form.Encode()), func(r *http.Request) {
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	})
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }
 
 // RevokeOAuth2ProviderApp completely revokes an app's access for the

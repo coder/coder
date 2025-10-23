@@ -168,7 +168,7 @@ func (q *sqlQuerier) CountAIBridgeInterceptions(ctx context.Context, arg CountAI
 
 const getAIBridgeInterceptionByID = `-- name: GetAIBridgeInterceptionByID :one
 SELECT
-	id, initiator_id, provider, model, started_at, metadata
+	id, initiator_id, provider, model, started_at, metadata, ended_at
 FROM
 	aibridge_interceptions
 WHERE
@@ -185,13 +185,14 @@ func (q *sqlQuerier) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UU
 		&i.Model,
 		&i.StartedAt,
 		&i.Metadata,
+		&i.EndedAt,
 	)
 	return i, err
 }
 
 const getAIBridgeInterceptions = `-- name: GetAIBridgeInterceptions :many
 SELECT
-	id, initiator_id, provider, model, started_at, metadata
+	id, initiator_id, provider, model, started_at, metadata, ended_at
 FROM
 	aibridge_interceptions
 `
@@ -212,6 +213,7 @@ func (q *sqlQuerier) GetAIBridgeInterceptions(ctx context.Context) ([]AIBridgeIn
 			&i.Model,
 			&i.StartedAt,
 			&i.Metadata,
+			&i.EndedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -361,7 +363,7 @@ INSERT INTO aibridge_interceptions (
 ) VALUES (
 	$1, $2, $3, $4, COALESCE($5::jsonb, '{}'::jsonb), $6
 )
-RETURNING id, initiator_id, provider, model, started_at, metadata
+RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at
 `
 
 type InsertAIBridgeInterceptionParams struct {
@@ -390,6 +392,7 @@ func (q *sqlQuerier) InsertAIBridgeInterception(ctx context.Context, arg InsertA
 		&i.Model,
 		&i.StartedAt,
 		&i.Metadata,
+		&i.EndedAt,
 	)
 	return i, err
 }
@@ -528,7 +531,7 @@ func (q *sqlQuerier) InsertAIBridgeUserPrompt(ctx context.Context, arg InsertAIB
 
 const listAIBridgeInterceptions = `-- name: ListAIBridgeInterceptions :many
 SELECT
-	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata,
+	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at,
 	visible_users.id, visible_users.username, visible_users.name, visible_users.avatar_url
 FROM
 	aibridge_interceptions
@@ -625,6 +628,7 @@ func (q *sqlQuerier) ListAIBridgeInterceptions(ctx context.Context, arg ListAIBr
 			&i.AIBridgeInterception.Model,
 			&i.AIBridgeInterception.StartedAt,
 			&i.AIBridgeInterception.Metadata,
+			&i.AIBridgeInterception.EndedAt,
 			&i.VisibleUser.ID,
 			&i.VisibleUser.Username,
 			&i.VisibleUser.Name,
