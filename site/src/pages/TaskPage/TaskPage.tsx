@@ -1,7 +1,10 @@
 import { API } from "api/api";
 import { getErrorDetail, getErrorMessage, isApiError } from "api/errors";
 import { template as templateQueryOptions } from "api/queries/templates";
-import { startWorkspace } from "api/queries/workspaces";
+import {
+	startWorkspace,
+	workspaceByOwnerAndName,
+} from "api/queries/workspaces";
 import type {
 	Workspace,
 	WorkspaceAgent,
@@ -16,14 +19,10 @@ import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { Spinner } from "components/Spinner/Spinner";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import { ArrowLeftIcon, RotateCcwIcon } from "lucide-react";
+import { getAllAppsWithAgent } from "modules/apps/apps";
 import { AgentLogs } from "modules/resources/AgentLogs/AgentLogs";
 import { useAgentLogs } from "modules/resources/useAgentLogs";
 import { TasksSidebar } from "modules/tasks/TasksSidebar/TasksSidebar";
-import {
-	AI_PROMPT_PARAMETER_NAME,
-	getTaskApps,
-	type Task,
-} from "modules/tasks/tasks";
 import { WorkspaceErrorDialog } from "modules/workspaces/ErrorDialog/WorkspaceErrorDialog";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import {
@@ -56,20 +55,22 @@ const TaskPageLayout: FC<PropsWithChildren> = ({ children }) => {
 };
 
 const TaskPage = () => {
-	const { workspace: workspaceName, username } = useParams() as {
-		workspace: string;
+	const { task: taskId, username } = useParams() as {
+		task: string;
 		username: string;
 	};
-	const {
-		data: task,
-		error,
-		refetch,
-	} = useQuery({
-		queryKey: ["tasks", username, workspaceName],
-		queryFn: () => data.fetchTask(username, workspaceName),
+	const { data: task, ...taskQuery } = useQuery({
+		queryKey: ["tasks", username, taskId],
+		queryFn: () => API.experimental.getTask(username, taskId),
 		refetchInterval: 5_000,
 	});
-
+	const { data: workspace, ...workspaceQuery } = useQuery({
+		...workspaceByOwnerAndName(username, task?.workspace_id ?? ""),
+		enabled: task !== undefined,
+		refetchInterval: 5_000,
+	});
+	const refetch = taskQuery.error ? taskQuery.refetch : workspaceQuery.refetch;
+	const error = taskQuery.error ?? workspaceQuery.error;
 	const waitingStatuses: WorkspaceStatus[] = ["starting", "pending"];
 
 	if (error) {
@@ -103,7 +104,7 @@ const TaskPage = () => {
 		);
 	}
 
-	if (!task) {
+	if (!task || !workspace) {
 		return (
 			<TaskPageLayout>
 				<title>{pageTitle("Loading task")}</title>
@@ -113,11 +114,11 @@ const TaskPage = () => {
 	}
 
 	let content: ReactNode = null;
-	const agent = selectAgent(task);
+	const agent = selectAgent(workspace);
 
-	if (waitingStatuses.includes(task.workspace.latest_build.status)) {
-		content = <TaskBuildingWorkspace task={task} />;
-	} else if (task.workspace.latest_build.status === "failed") {
+	if (waitingStatuses.includes(workspace.latest_build.status)) {
+		content = <BuildingWorkspace workspace={workspace} />;
+	} else if (workspace.latest_build.status === "failed") {
 		content = (
 			<div className="w-full min-h-80 flex items-center justify-center">
 				<div className="flex flex-col items-center">
@@ -129,7 +130,7 @@ const TaskPage = () => {
 					</span>
 					<Button size="sm" variant="outline" asChild className="mt-4">
 						<RouterLink
-							to={`/@${task.workspace.owner_name}/${task.workspace.name}/builds/${task.workspace.latest_build.build_number}`}
+							to={`/@${workspace.owner_name}/${workspace.name}/builds/${workspace.latest_build.build_number}`}
 						>
 							View logs
 						</RouterLink>
@@ -137,19 +138,19 @@ const TaskPage = () => {
 				</div>
 			</div>
 		);
-	} else if (task.workspace.latest_build.status !== "running") {
-		content = <WorkspaceNotRunning task={task} />;
+	} else if (workspace.latest_build.status !== "running") {
+		content = <WorkspaceNotRunning workspace={workspace} />;
 	} else if (agent && ["created", "starting"].includes(agent.lifecycle_state)) {
 		content = <TaskStartingAgent agent={agent} />;
 	} else {
-		const chatApp = getTaskApps(task).find(
-			(app) => app.id === task.workspace.latest_build.ai_task_sidebar_app_id,
+		const chatApp = getAllAppsWithAgent(workspace).find(
+			(app) => app.id === workspace.latest_build.ai_task_sidebar_app_id,
 		);
 		content = (
 			<PanelGroup autoSaveId="task" direction="horizontal">
 				<Panel defaultSize={25} minSize={20}>
 					{chatApp ? (
-						<TaskAppIFrame active task={task} app={chatApp} />
+						<TaskAppIFrame active workspace={workspace} app={chatApp} />
 					) : (
 						<div className="h-full flex items-center justify-center p-6 text-center">
 							<div className="flex flex-col items-center">
@@ -168,7 +169,7 @@ const TaskPage = () => {
 					<div className="w-1 bg-border h-full hover:bg-border-hover transition-all relative" />
 				</PanelResizeHandle>
 				<Panel className="[&>*]:h-full">
-					<TaskApps task={task} />
+					<TaskApps workspace={workspace} />
 				</Panel>
 			</PanelGroup>
 		);
@@ -176,9 +177,9 @@ const TaskPage = () => {
 
 	return (
 		<TaskPageLayout>
-			<title>{pageTitle(task.workspace.name)}</title>
+			<title>{pageTitle(task.name)}</title>
 
-			<TaskTopbar task={task} />
+			<TaskTopbar task={task} workspace={workspace} />
 			{content}
 		</TaskPageLayout>
 	);
@@ -187,19 +188,19 @@ const TaskPage = () => {
 export default TaskPage;
 
 type WorkspaceNotRunningProps = {
-	task: Task;
+	workspace: Workspace;
 };
 
-const WorkspaceNotRunning: FC<WorkspaceNotRunningProps> = ({ task }) => {
+const WorkspaceNotRunning: FC<WorkspaceNotRunningProps> = ({ workspace }) => {
 	const queryClient = useQueryClient();
 
 	const { data: parameters } = useQuery({
-		queryKey: ["workspace", task.workspace.id, "parameters"],
-		queryFn: () => API.getWorkspaceParameters(task.workspace),
+		queryKey: ["workspace", workspace.id, "parameters"],
+		queryFn: () => API.getWorkspaceParameters(workspace),
 	});
 
 	const mutateStartWorkspace = useMutation({
-		...startWorkspace(task?.workspace, queryClient),
+		...startWorkspace(workspace, queryClient),
 		onError: (error: unknown) => {
 			if (!isApiError(error)) {
 				displayError(getErrorMessage(error, "Failed to build workspace."));
@@ -248,27 +249,27 @@ const WorkspaceNotRunning: FC<WorkspaceNotRunningProps> = ({ task }) => {
 				error={apiError}
 				onClose={mutateStartWorkspace.reset}
 				showDetail={true}
-				workspaceOwner={task.workspace.owner_name}
-				workspaceName={task.workspace.name}
-				templateVersionId={task.workspace.latest_build.template_version_id}
+				workspaceOwner={workspace.owner_name}
+				workspaceName={workspace.name}
+				templateVersionId={workspace.latest_build.template_version_id}
 				isDeleting={false}
 			/>
 		</Margins>
 	);
 };
 
-type TaskBuildingWorkspaceProps = { task: Task };
+type BuildingWorkspaceProps = { workspace: Workspace };
 
-const TaskBuildingWorkspace: FC<TaskBuildingWorkspaceProps> = ({ task }) => {
+const BuildingWorkspace: FC<BuildingWorkspaceProps> = ({ workspace }) => {
 	const { data: template } = useQuery(
-		templateQueryOptions(task.workspace.template_id),
+		templateQueryOptions(workspace.template_id),
 	);
 
-	const buildLogs = useWorkspaceBuildLogs(task?.workspace.latest_build.id);
+	const buildLogs = useWorkspaceBuildLogs(workspace.latest_build.id);
 
 	// If no template yet, use an indeterminate progress bar.
 	const transitionStats = (template &&
-		getActiveTransitionStats(template, task.workspace)) || {
+		getActiveTransitionStats(template, workspace)) || {
 		P50: 0,
 		P95: null,
 	};
@@ -303,7 +304,7 @@ const TaskBuildingWorkspace: FC<TaskBuildingWorkspaceProps> = ({ task }) => {
 
 					<div className="w-full max-w-screen-lg flex flex-col gap-4 overflow-hidden">
 						<WorkspaceBuildProgress
-							workspace={task.workspace}
+							workspace={workspace}
 							transitionStats={transitionStats}
 							variant="task"
 						/>
@@ -376,44 +377,8 @@ const TaskStartingAgent: FC<TaskStartingAgentProps> = ({ agent }) => {
 	);
 };
 
-export class WorkspaceDoesNotHaveAITaskError extends Error {
-	constructor(workspace: Workspace) {
-		super(
-			`Workspace ${workspace.owner_name}/${workspace.name} is not running an AI task`,
-		);
-		this.name = "WorkspaceDoesNotHaveAITaskError";
-	}
-}
-
-export const data = {
-	fetchTask: async (workspaceOwnerUsername: string, workspaceName: string) => {
-		const workspace = await API.getWorkspaceByOwnerAndName(
-			workspaceOwnerUsername,
-			workspaceName,
-		);
-		if (
-			workspace.latest_build.job.completed_at &&
-			!workspace.latest_build.has_ai_task
-		) {
-			throw new WorkspaceDoesNotHaveAITaskError(workspace);
-		}
-
-		const parameters = await API.getWorkspaceBuildParameters(
-			workspace.latest_build.id,
-		);
-		const prompt =
-			parameters.find((p) => p.name === AI_PROMPT_PARAMETER_NAME)?.value ??
-			"Unknown prompt";
-
-		return {
-			workspace,
-			prompt,
-		} satisfies Task;
-	},
-};
-
-function selectAgent(task: Task) {
-	const agents = task.workspace.latest_build.resources
+function selectAgent(workspace: Workspace) {
+	const agents = workspace.latest_build.resources
 		.flatMap((r) => r.agents)
 		.filter((a) => !!a);
 

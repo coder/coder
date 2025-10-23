@@ -2730,8 +2730,16 @@ class ExperimentalApiMethods {
 		return res.data.tasks;
 	};
 
-	deleteTask = async (user: string, name: string): Promise<void> => {
-		await this.axios.delete(`/api/experimental/tasks/${user}/${name}`);
+	getTask = async (user: string, id: string): Promise<TypesGen.Task> => {
+		const response = await this.axios.get<TypesGen.Task>(
+			`/api/experimental/tasks/${user}/${id}`,
+		);
+
+		return response.data;
+	};
+
+	deleteTask = async (user: string, id: string): Promise<void> => {
+		await this.axios.delete(`/api/experimental/tasks/${user}/${id}`);
 	};
 
 	createTaskFeedback = async (
