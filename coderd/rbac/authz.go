@@ -73,6 +73,7 @@ const (
 	SubjectTypePrebuildsOrchestrator        SubjectType = "prebuilds_orchestrator"
 	SubjectTypeSystemReadProvisionerDaemons SubjectType = "system_read_provisioner_daemons"
 	SubjectTypeSystemRestricted             SubjectType = "system_restricted"
+	SubjectTypeSystemOAuth                  SubjectType = "system_oauth"
 	SubjectTypeNotifier                     SubjectType = "notifier"
 	SubjectTypeSubAgentAPI                  SubjectType = "sub_agent_api"
 	SubjectTypeFileReader                   SubjectType = "file_reader"

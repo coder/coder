@@ -185,19 +185,19 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 
 func authorizationCodeGrant(ctx context.Context, db database.Store, app database.OAuth2ProviderApp, lifetimes codersdk.SessionLifetime, params tokenParams) (oauth2.Token, error) {
 	// Validate the client secret.
-	secret, err := parseFormattedSecret(params.clientSecret)
+	secret, err := ParseFormattedSecret(params.clientSecret)
 	if err != nil {
 		return oauth2.Token{}, errBadSecret
 	}
 	//nolint:gocritic // Users cannot read secrets so we must use the system.
-	dbSecret, err := db.GetOAuth2ProviderAppSecretByPrefix(dbauthz.AsSystemRestricted(ctx), []byte(secret.prefix))
+	dbSecret, err := db.GetOAuth2ProviderAppSecretByPrefix(dbauthz.AsSystemRestricted(ctx), []byte(secret.Prefix))
 	if errors.Is(err, sql.ErrNoRows) {
 		return oauth2.Token{}, errBadSecret
 	}
 	if err != nil {
 		return oauth2.Token{}, err
 	}
-	equal, err := userpassword.Compare(string(dbSecret.HashedSecret), secret.secret)
+	equal, err := userpassword.Compare(string(dbSecret.HashedSecret), secret.Secret)
 	if err != nil {
 		return oauth2.Token{}, xerrors.Errorf("unable to compare secret: %w", err)
 	}
@@ -206,19 +206,19 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 	}
 
 	// Validate the authorization code.
-	code, err := parseFormattedSecret(params.code)
+	code, err := ParseFormattedSecret(params.code)
 	if err != nil {
 		return oauth2.Token{}, errBadCode
 	}
 	//nolint:gocritic // There is no user yet so we must use the system.
-	dbCode, err := db.GetOAuth2ProviderAppCodeByPrefix(dbauthz.AsSystemRestricted(ctx), []byte(code.prefix))
+	dbCode, err := db.GetOAuth2ProviderAppCodeByPrefix(dbauthz.AsSystemRestricted(ctx), []byte(code.Prefix))
 	if errors.Is(err, sql.ErrNoRows) {
 		return oauth2.Token{}, errBadCode
 	}
 	if err != nil {
 		return oauth2.Token{}, err
 	}
-	equal, err = userpassword.Compare(string(dbCode.HashedSecret), code.secret)
+	equal, err = userpassword.Compare(string(dbCode.HashedSecret), code.Secret)
 	if err != nil {
 		return oauth2.Token{}, xerrors.Errorf("unable to compare code: %w", err)
 	}
@@ -344,19 +344,19 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 
 func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAuth2ProviderApp, lifetimes codersdk.SessionLifetime, params tokenParams) (oauth2.Token, error) {
 	// Validate the token.
-	token, err := parseFormattedSecret(params.refreshToken)
+	token, err := ParseFormattedSecret(params.refreshToken)
 	if err != nil {
 		return oauth2.Token{}, errBadToken
 	}
 	//nolint:gocritic // There is no user yet so we must use the system.
-	dbToken, err := db.GetOAuth2ProviderAppTokenByPrefix(dbauthz.AsSystemRestricted(ctx), []byte(token.prefix))
+	dbToken, err := db.GetOAuth2ProviderAppTokenByPrefix(dbauthz.AsSystemRestricted(ctx), []byte(token.Prefix))
 	if errors.Is(err, sql.ErrNoRows) {
 		return oauth2.Token{}, errBadToken
 	}
 	if err != nil {
 		return oauth2.Token{}, err
 	}
-	equal, err := userpassword.Compare(string(dbToken.RefreshHash), token.secret)
+	equal, err := userpassword.Compare(string(dbToken.RefreshHash), token.Secret)
 	if err != nil {
 		return oauth2.Token{}, xerrors.Errorf("unable to compare token: %w", err)
 	}

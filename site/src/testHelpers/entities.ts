@@ -4528,6 +4528,7 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
 			authorization: "http://localhost:3001/oauth2/authorize",
 			token: "http://localhost:3001/oauth2/token",
 			device_authorization: "",
+			token_revoke: "http://localhost:3001/oauth2/revoke",
 		},
 	},
 ];

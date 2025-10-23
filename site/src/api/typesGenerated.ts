@@ -39,7 +39,7 @@ export interface AIBridgeInterception {
 
 // From codersdk/aibridge.go
 export interface AIBridgeListInterceptionsResponse {
-	readonly total: number;
+	readonly count: number;
 	readonly results: readonly AIBridgeInterception[];
 }
 
@@ -2889,6 +2889,7 @@ export interface NullHCLString {
 export interface OAuth2AppEndpoints {
 	readonly authorization: string;
 	readonly token: string;
+	readonly token_revoke: string;
 	/**
 	 * DeviceAuth is optional.
 	 */
