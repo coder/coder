@@ -21,7 +21,7 @@ describe("CoderTaskAction", () => {
 	describe("resolveGitHubUserId", () => {
 		describe("Success Cases", () => {
 			test("returns githubUserId when provided in inputs", async () => {
-				const inputs = createMockInputs({ githubUserId: 12345 });
+				const inputs = createMockInputs({ githubUserID: 12345 });
 				const action = new CoderTaskAction(
 					coderClient,
 					octokit as unknown as Octokit,
@@ -59,7 +59,7 @@ describe("CoderTaskAction", () => {
 		describe("Error Cases", () => {
 			test("throws error when neither userId nor username provided", async () => {
 				const inputs = createMockInputs({
-					githubUserId: undefined,
+					githubUserID: undefined,
 					githubUsername: undefined,
 				});
 				const action = new CoderTaskAction(
@@ -96,17 +96,13 @@ describe("CoderTaskAction", () => {
 
 	describe("generateTaskName", () => {
 		test("uses provided task-name when specified", () => {
-			const inputs = createMockInputs({ taskName: "custom-name" });
+			const inputs = createMockInputs({ coderTaskName: "custom-name" });
 			const action = new CoderTaskAction(
 				coderClient,
 				octokit as unknown as Octokit,
 				inputs,
 			);
-
-			const result = (action as unknown as CoderTaskAction).generateTaskName(
-				123,
-			);
-
+			const result = (action as unknown as CoderTaskAction).generateTaskName();
 			expect(result).toBe("custom-name");
 		});
 
@@ -117,11 +113,7 @@ describe("CoderTaskAction", () => {
 				octokit as unknown as Octokit,
 				inputs,
 			);
-
-			const result = (action as unknown as CoderTaskAction).generateTaskName(
-				123,
-			);
-
+			const result = (action as unknown as CoderTaskAction).generateTaskName();
 			expect(result).toMatch(/^task-gh-123$/);
 		});
 
@@ -141,7 +133,7 @@ describe("CoderTaskAction", () => {
 		});
 
 		test("respects task-name-prefix", () => {
-			const inputs = createMockInputs({ taskNamePrefix: "custom-prefix" });
+			const inputs = createMockInputs({ coderTaskNamePrefix: "custom-prefix" });
 			const action = new CoderTaskAction(
 				coderClient,
 				octokit as unknown as Octokit,
@@ -157,7 +149,7 @@ describe("CoderTaskAction", () => {
 
 		describe("Edge Cases", () => {
 			test("uses default prefix when empty", () => {
-				const inputs = createMockInputs({ taskNamePrefix: "" });
+				const inputs = createMockInputs({ coderTaskNamePrefix: "" });
 				const action = new CoderTaskAction(
 					coderClient,
 					octokit as unknown as Octokit,
@@ -174,7 +166,7 @@ describe("CoderTaskAction", () => {
 
 			test("handles very long prefix", () => {
 				const longPrefix = "x".repeat(100);
-				const inputs = createMockInputs({ taskNamePrefix: longPrefix });
+				const inputs = createMockInputs({ coderTaskNamePrefix: longPrefix });
 				const action = new CoderTaskAction(
 					coderClient,
 					octokit as unknown as Octokit,
@@ -194,7 +186,7 @@ describe("CoderTaskAction", () => {
 		describe("Success Cases", () => {
 			test("extracts number from valid GitHub issue URL", async () => {
 				const inputs = createMockInputs({
-					issueUrl: "https://github.com/owner/repo/issues/123",
+					githubIssueURL: "https://github.com/owner/repo/issues/123",
 				});
 				const action = new CoderTaskAction(
 					coderClient,
@@ -210,7 +202,7 @@ describe("CoderTaskAction", () => {
 			});
 
 			test("returns undefined when no issue URL", async () => {
-				const inputs = createMockInputs({ issueUrl: undefined });
+				const inputs = createMockInputs({ githubIssueURL: undefined });
 				const action = new CoderTaskAction(
 					coderClient,
 					octokit as unknown as Octokit,
@@ -226,7 +218,7 @@ describe("CoderTaskAction", () => {
 
 			test("handles URL with hash fragment", async () => {
 				const inputs = createMockInputs({
-					issueUrl: "https://github.com/owner/repo/issues/123#comment",
+					githubIssueURL: "https://github.com/owner/repo/issues/123#comment",
 				});
 				const action = new CoderTaskAction(
 					coderClient,
@@ -243,7 +235,8 @@ describe("CoderTaskAction", () => {
 
 			test("handles URL with query parameters", async () => {
 				const inputs = createMockInputs({
-					issueUrl: "https://github.com/owner/repo/issues/123?param=value",
+					githubIssueURL:
+						"https://github.com/owner/repo/issues/123?param=value",
 				});
 				const action = new CoderTaskAction(
 					coderClient,
@@ -261,7 +254,7 @@ describe("CoderTaskAction", () => {
 
 		describe("Error Cases", () => {
 			test("returns undefined for invalid URL format", async () => {
-				const inputs = createMockInputs({ issueUrl: "not-a-url" });
+				const inputs = createMockInputs({ githubIssueURL: "not-a-url" });
 				const action = new CoderTaskAction(
 					coderClient,
 					octokit as unknown as Octokit,
@@ -277,7 +270,7 @@ describe("CoderTaskAction", () => {
 
 			test("returns undefined for non-numeric issue identifier", async () => {
 				const inputs = createMockInputs({
-					issueUrl: "https://github.com/owner/repo/issues/abc",
+					githubIssueURL: "https://github.com/owner/repo/issues/abc",
 				});
 				const action = new CoderTaskAction(
 					coderClient,
@@ -298,7 +291,7 @@ describe("CoderTaskAction", () => {
 		describe("Success Cases", () => {
 			test("parses valid GitHub issue URL", () => {
 				const inputs = createMockInputs({
-					issueUrl: "https://github.com/owner/repo/issues/123",
+					githubIssueURL: "https://github.com/owner/repo/issues/123",
 				});
 				const action = new CoderTaskAction(
 					coderClient,
@@ -306,24 +299,28 @@ describe("CoderTaskAction", () => {
 					inputs,
 				);
 
-				const result = (action as unknown as CoderTaskAction).parseIssueUrl();
+				const result = (
+					action as unknown as CoderTaskAction
+				).parseGithubIssueURL();
 
 				expect(result).toEqual({
-					owner: "owner",
-					repo: "repo",
-					issueNumber: 123,
+					githubOrg: "owner",
+					githubRepo: "repo",
+					githubIssueNumber: 123,
 				});
 			});
 
 			test("returns null when no issue URL", () => {
-				const inputs = createMockInputs({ issueUrl: undefined });
+				const inputs = createMockInputs({ githubIssueURL: undefined });
 				const action = new CoderTaskAction(
 					coderClient,
 					octokit as unknown as Octokit,
 					inputs,
 				);
 
-				const result = (action as unknown as CoderTaskAction).parseIssueUrl();
+				const result = (
+					action as unknown as CoderTaskAction
+				).parseGithubIssueURL();
 
 				expect(result).toBeNull();
 			});
@@ -331,21 +328,23 @@ describe("CoderTaskAction", () => {
 
 		describe("Error Cases", () => {
 			test("returns null for invalid URL format", () => {
-				const inputs = createMockInputs({ issueUrl: "not-a-url" });
+				const inputs = createMockInputs({ githubIssueURL: "not-a-url" });
 				const action = new CoderTaskAction(
 					coderClient,
 					octokit as unknown as Octokit,
 					inputs,
 				);
 
-				const result = (action as unknown as CoderTaskAction).parseIssueUrl();
+				const result = (
+					action as unknown as CoderTaskAction
+				).parseGithubIssueURL();
 
 				expect(result).toBeNull();
 			});
 
 			test("returns null for non-GitHub URL", () => {
 				const inputs = createMockInputs({
-					issueUrl: "https://example.com/issues/123",
+					githubIssueURL: "https://example.com/issues/123",
 				});
 				const action = new CoderTaskAction(
 					coderClient,
@@ -353,7 +352,9 @@ describe("CoderTaskAction", () => {
 					inputs,
 				);
 
-				const result = (action as unknown as CoderTaskAction).parseIssueUrl();
+				const result = (
+					action as unknown as CoderTaskAction
+				).parseGithubIssueURL();
 
 				expect(result).toBeNull();
 			});
@@ -362,7 +363,7 @@ describe("CoderTaskAction", () => {
 		describe("Edge Cases", () => {
 			test("handles URL with trailing slash", () => {
 				const inputs = createMockInputs({
-					issueUrl: "https://github.com/owner/repo/issues/123/",
+					githubIssueURL: "https://github.com/owner/repo/issues/123/",
 				});
 				const action = new CoderTaskAction(
 					coderClient,
@@ -370,15 +371,18 @@ describe("CoderTaskAction", () => {
 					inputs,
 				);
 
-				const result = (action as unknown as CoderTaskAction).parseIssueUrl();
+				const result = (
+					action as unknown as CoderTaskAction
+				).parseGithubIssueURL();
 
 				// Should still parse correctly
-				expect(result?.issueNumber).toBe(123);
+				expect(result?.githubIssueNumber).toBe(123);
 			});
 
 			test("handles URL with query parameters", () => {
 				const inputs = createMockInputs({
-					issueUrl: "https://github.com/owner/repo/issues/123?param=value",
+					githubIssueURL:
+						"https://github.com/owner/repo/issues/123?param=value",
 				});
 				const action = new CoderTaskAction(
 					coderClient,
@@ -386,14 +390,16 @@ describe("CoderTaskAction", () => {
 					inputs,
 				);
 
-				const result = (action as unknown as CoderTaskAction).parseIssueUrl();
+				const result = (
+					action as unknown as CoderTaskAction
+				).parseGithubIssueURL();
 
-				expect(result?.issueNumber).toBe(123);
+				expect(result?.githubIssueNumber).toBe(123);
 			});
 
 			test("handles URL with hash fragment", () => {
 				const inputs = createMockInputs({
-					issueUrl: "https://github.com/owner/repo/issues/123#comment",
+					githubIssueURL: "https://github.com/owner/repo/issues/123#comment",
 				});
 				const action = new CoderTaskAction(
 					coderClient,
@@ -401,9 +407,11 @@ describe("CoderTaskAction", () => {
 					inputs,
 				);
 
-				const result = (action as unknown as CoderTaskAction).parseIssueUrl();
+				const result = (
+					action as unknown as CoderTaskAction
+				).parseGithubIssueURL();
 
-				expect(result?.issueNumber).toBe(123);
+				expect(result?.githubIssueNumber).toBe(123);
 			});
 		});
 	});
@@ -411,7 +419,7 @@ describe("CoderTaskAction", () => {
 	describe("generateTaskUrl", () => {
 		test("uses coderWebUrl when provided", () => {
 			const inputs = createMockInputs({
-				coderUrl: "https://coder.test",
+				coderURL: "https://coder.test",
 				coderWebUrl: "https://coder-web.test",
 			});
 			const action = new CoderTaskAction(
@@ -430,7 +438,7 @@ describe("CoderTaskAction", () => {
 
 		test("falls back to coderUrl when coderWebUrl not provided", () => {
 			const inputs = createMockInputs({
-				coderUrl: "https://coder.test",
+				coderURL: "https://coder.test",
 				coderWebUrl: undefined,
 			});
 			const action = new CoderTaskAction(
@@ -450,7 +458,7 @@ describe("CoderTaskAction", () => {
 		describe("Edge Cases", () => {
 			test("handles URL with trailing slash", () => {
 				const inputs = createMockInputs({
-					coderUrl: "https://coder.test/",
+					coderURL: "https://coder.test/",
 				});
 				const action = new CoderTaskAction(
 					coderClient,
@@ -665,8 +673,8 @@ describe("CoderTaskAction", () => {
 			coderClient.mockCreateTask.mockResolvedValue(mockTask);
 
 			const inputs = createMockInputs({
-				githubUserId: 12345,
-				issueUrl: undefined,
+				githubUserID: 12345,
+				githubIssueURL: undefined,
 			});
 			const action = new CoderTaskAction(
 				coderClient,
@@ -684,7 +692,7 @@ describe("CoderTaskAction", () => {
 			expect(coderClient.mockGetTaskStatus).toHaveBeenCalled();
 			expect(coderClient.mockCreateTask).toHaveBeenCalled();
 			expect(result.coderUsername).toBe("testuser");
-			expect(result.taskExists).toBe(false);
+			expect(result.taskCreated).toBe(false);
 			expect(result.taskUrl).toContain("/tasks/testuser/");
 		});
 
@@ -695,8 +703,8 @@ describe("CoderTaskAction", () => {
 			coderClient.mockSendTaskInput.mockResolvedValue(undefined);
 
 			const inputs = createMockInputs({
-				githubUserId: 12345,
-				issueUrl: undefined,
+				githubUserID: 12345,
+				githubIssueURL: undefined,
 			});
 			const action = new CoderTaskAction(
 				coderClient,
@@ -711,7 +719,7 @@ describe("CoderTaskAction", () => {
 			expect(coderClient.mockGetTaskStatus).toHaveBeenCalled();
 			expect(coderClient.mockSendTaskInput).toHaveBeenCalled();
 			expect(coderClient.mockCreateTask).not.toHaveBeenCalled();
-			expect(result.taskExists).toBe(true);
+			expect(result.taskCreated).toBe(true);
 		});
 
 		test("creates task without issue URL", async () => {
@@ -721,8 +729,8 @@ describe("CoderTaskAction", () => {
 			coderClient.mockCreateTask.mockResolvedValue(mockTask);
 
 			const inputs = createMockInputs({
-				githubUserId: 12345,
-				issueUrl: undefined,
+				githubUserID: 12345,
+				githubIssueURL: undefined,
 			});
 			const action = new CoderTaskAction(
 				coderClient,
@@ -745,8 +753,8 @@ describe("CoderTaskAction", () => {
 			coderClient.mockCreateTask.mockResolvedValue(mockTask);
 
 			const inputs = createMockInputs({
-				githubUserId: 12345,
-				issueUrl: "https://github.com/owner/repo/issues/123",
+				githubUserID: 12345,
+				githubIssueURL: "https://github.com/owner/repo/issues/123",
 				commentOnIssue: false,
 			});
 			const action = new CoderTaskAction(
@@ -776,8 +784,8 @@ describe("CoderTaskAction", () => {
 			);
 
 			const inputs = createMockInputs({
-				githubUserId: 12345,
-				issueUrl: "https://github.com/owner/repo/issues/123",
+				githubUserID: 12345,
+				githubIssueURL: "https://github.com/owner/repo/issues/123",
 				commentOnIssue: true,
 			});
 			const action = new CoderTaskAction(
@@ -806,7 +814,7 @@ describe("CoderTaskAction", () => {
 				new Error("No Coder user found with GitHub user ID 12345"),
 			);
 
-			const inputs = createMockInputs({ githubUserId: 12345 });
+			const inputs = createMockInputs({ githubUserID: 12345 });
 			const action = new CoderTaskAction(
 				coderClient,
 				octokit as unknown as Octokit,
@@ -826,8 +834,8 @@ describe("CoderTaskAction", () => {
 			);
 
 			const inputs = createMockInputs({
-				githubUserId: 12345,
-				templateName: "nonexistent",
+				githubUserID: 12345,
+				coderTemplateName: "nonexistent",
 			});
 			const action = new CoderTaskAction(
 				coderClient,
@@ -845,7 +853,7 @@ describe("CoderTaskAction", () => {
 				new Error("Failed to create task"),
 			);
 
-			const inputs = createMockInputs({ githubUserId: 12345 });
+			const inputs = createMockInputs({ githubUserID: 12345 });
 			const action = new CoderTaskAction(
 				coderClient,
 				octokit as unknown as Octokit,
@@ -862,7 +870,7 @@ describe("CoderTaskAction", () => {
 				new Error("Permission denied"),
 			);
 
-			const inputs = createMockInputs({ githubUserId: 12345 });
+			const inputs = createMockInputs({ githubUserID: 12345 });
 			const action = new CoderTaskAction(
 				coderClient,
 				octokit as unknown as Octokit,
@@ -887,8 +895,8 @@ describe("CoderTaskAction", () => {
 			);
 
 			const inputs = createMockInputs({
-				githubUserId: 12345,
-				issueUrl:
+				githubUserID: 12345,
+				githubIssueURL:
 					"https://github.com/different-owner/different-repo/issues/456",
 				commentOnIssue: true,
 			});
@@ -919,8 +927,8 @@ describe("CoderTaskAction", () => {
 			coderClient.mockCreateTask.mockResolvedValue(mockTask);
 
 			const inputs = createMockInputs({
-				githubUserId: 12345,
-				taskPrompt: longPrompt,
+				githubUserID: 12345,
+				coderTaskPrompt: longPrompt,
 			});
 			const action = new CoderTaskAction(
 				coderClient,
@@ -946,8 +954,8 @@ describe("CoderTaskAction", () => {
 			coderClient.mockCreateTask.mockResolvedValue(mockTask);
 
 			const inputs = createMockInputs({
-				githubUserId: 12345,
-				taskName: "task-with-special-chars-123",
+				githubUserID: 12345,
+				coderTaskName: "task-with-special-chars-123",
 			});
 			const action = new CoderTaskAction(
 				coderClient,

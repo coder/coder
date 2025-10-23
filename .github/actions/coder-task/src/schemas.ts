@@ -21,7 +21,7 @@ export const ActionOutputsSchema = z.object({
 	coderUsername: z.string(),
 	taskName: z.string(),
 	taskUrl: z.string().url(),
-	taskExists: z.boolean(),
+	taskCreated: z.boolean(),
 });
 
 export type ActionOutputs = z.infer<typeof ActionOutputsSchema>;

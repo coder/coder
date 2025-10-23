@@ -1,5 +1,5 @@
 import * as core from "@actions/core";
-import type { CoderClient } from "./coder-client";
+import { ExperimentalCoderSDKCreateTaskRequest, type CoderClient } from "./coder-client";
 import type { ActionInputs, ActionOutputs } from "./schemas";
 import type { getOctokit } from "@actions/github";
 
@@ -13,75 +13,15 @@ export class CoderTaskAction {
 	) {}
 
 	/**
-	 * resolveGithubUserId returns either the provided GitHub user ID or resolves it from the GitHub username.
+	 * generateTaskName generates a task name in the format `<prefix>-<issue number>`
 	 */
-	async resolveGitHubUserId(): Promise<number> {
-		if (this.inputs.githubUserId) {
-			return this.inputs.githubUserId;
-		}
-
-		if (this.inputs.githubUsername) {
-			const { data: user } = await this.octokit.rest.users.getByUsername({
-				username: this.inputs.githubUsername,
-			});
-			return user.id;
-		}
-
-		throw new Error("Either githubUserId or githubUsername must be provided");
-	}
-
-	/**
-	 * generateTaskName generates a task name based on inputs:
-	 * - If taskName is provided, it is returned as is.
-	 * - If taskName is not provided, a default name is generated based on inputs taskNamePrefix and issueURL.
-	 */
-	generateTaskName(): string {
-		if (this.inputs.taskName) {
-			return this.inputs.taskName;
-		}
-		if (!this.inputs.taskNamePrefix || !this.inputs.issueUrl) {
+	generateTaskName(issueNumber: number): string {
+		if (!this.inputs.coderTaskNamePrefix || !this.inputs.githubIssueURL) {
 			throw new Error(
 				"either taskName or both taskNamePrefix and issueURL must be provided",
 			);
 		}
-
-		// Extract the issue number from the issue URL.
-		try {
-			// Parse issue URL: https://github.com/owner/repo/issues/123
-			const urlParts = this.inputs.issueUrl.split("/");
-			const maybeNumber = urlParts[urlParts.length - 1];
-			const n = Number.parseInt(maybeNumber, 10);
-			if (!Number.isNaN(n)) {
-				return `${this.inputs.taskNamePrefix}-gh-${n}`;
-			}
-			throw new Error(
-				`Failed to parse issue number from URL: ${maybeNumber} is not a number`,
-			);
-		} catch (error) {
-			throw new Error(`Failed to parse issue number from URL: ${error}`);
-		}
-	}
-
-	/**
-	 * Extract issue number from issue URL
-	 */
-	async getIssueNumber(): Promise<number | undefined> {
-		if (!this.inputs.issueUrl) {
-			return undefined;
-		}
-
-		try {
-			// Parse issue URL: https://github.com/owner/repo/issues/123
-			const urlParts = this.inputs.issueUrl.split("/");
-			const issueNumber = Number.parseInt(urlParts[urlParts.length - 1], 10);
-			if (!Number.isNaN(issueNumber)) {
-				return issueNumber;
-			}
-		} catch (error) {
-			console.warn("Failed to parse issue number from URL:", error);
-		}
-
-		return undefined;
+		return `${this.inputs.coderTaskNamePrefix}-${issueNumber}`;
 	}
 
 	/**
@@ -136,117 +76,113 @@ export class CoderTaskAction {
 	/**
 	 * Parse owner and repo from issue URL
 	 */
-	parseIssueUrl(): {
-		owner: string;
-		repo: string;
-		issueNumber: number;
-	} | null {
-		if (!this.inputs.issueUrl) {
-			return null;
+	parseGithubIssueURL(): {
+		githubOrg: string;
+		githubRepo: string;
+		githubIssueNumber: number;
+	} {
+		if (!this.inputs.githubIssueURL) {
+			throw new Error(`Missing issue URL`);
 		}
 
-		try {
-			// Parse: https://github.com/owner/repo/issues/123
-			const url = new URL(this.inputs.issueUrl);
-			const pathParts = url.pathname.split("/").filter(Boolean);
-
-			if (
-				url.hostname === "github.com" &&
-				pathParts.length >= 4 &&
-				pathParts[2] === "issues"
-			) {
-				return {
-					owner: pathParts[0],
-					repo: pathParts[1],
-					issueNumber: Number.parseInt(pathParts[3], 10),
-				};
+		// Parse: https://github.com/owner/repo/issues/123
+			const match = this.inputs.githubIssueURL.match(/([^/]+)\/([^/]+)\/issues\/(\d+)/);
+			if (!match) {
+				throw new Error(`Invalid issue URL: ${this.inputs.githubIssueURL}`);
 			}
-		} catch (error) {
-			console.warn("Failed to parse issue URL:", error);
-		}
-
-		return null;
+			return {
+				githubOrg: match[1],
+				githubRepo: match[2],
+				githubIssueNumber: parseInt(match[3], 10),
+			};
 	}
 
 	/**
 	 * Generate task URL
 	 */
 	generateTaskUrl(coderUsername: string, taskName: string): string {
-		const webUrl = this.inputs.coderWebUrl || this.inputs.coderUrl;
-		return `${webUrl}/tasks/${coderUsername}/${taskName}`;
+		return `${this.inputs.coderURL}/tasks/${coderUsername}/${taskName}`;
 	}
 
 	/**
 	 * Main action execution
 	 */
 	async run(): Promise<ActionOutputs> {
-		// 1. Resolve GitHub user ID
-		const githubUserId = await this.resolveGitHubUserId();
-		core.debug(`GitHub user ID: ${githubUserId}`);
-
-		// 2. Get Coder username from GitHub ID
-		const coderUser = await this.coder.getCoderUserByGitHubId(githubUserId);
+		core.debug(`GitHub user ID: ${this.inputs.githubUserID}`);
+		const coderUser = await this.coder.getCoderUserByGitHubId(this.inputs.githubUserID);
+		const {githubOrg, githubRepo, githubIssueNumber} = this.parseGithubIssueURL();
+		core.debug(`GitHub owner: ${githubOrg}`);
+		core.debug(`GitHub repo: ${githubRepo}`);
+		core.debug(`GitHub issue number: ${githubIssueNumber}`);
 		core.debug(`Coder username: ${coderUser.username}`);
+		const taskName = this.generateTaskName(githubIssueNumber);
+		core.debug(`Coder Task name: ${taskName}`);
+		const template = await this.coder.getTemplateByOrganizationAndName(this.inputs.coderOrganization, this.inputs.coderTemplateName);
+		core.debug(`Coder Template ID: ${template.id} (Active version ID: ${template.active_version_id})`);
+		const templateVersionPresets = await this.coder.getTemplateVersionPresets(template.active_version_id);
+		let presetID = undefined;
+		// If no preset specified, use default preset
+		if (!this.inputs.coderTemplatePreset) {
+			for (const preset of templateVersionPresets) {
+				if (preset.Name === this.inputs.coderTemplatePreset) {
+					presetID = preset.ID;
+					core.debug(`Coder Template Preset ID: ${presetID}`);
+					break;
+				}
+			}
+			// User requested a preset that does not exist
+			if (this.inputs.coderTemplatePreset && !presetID) {
+				throw new Error(`Preset ${this.inputs.coderTemplatePreset} not found`);
+			}
+		}
 
-		// 3. Generate task name
-		const issueNumber = await this.getIssueNumber();
-		const taskName = this.generateTaskName(issueNumber);
-		core.debug(`Task name: ${taskName}`);
-
-		// 4. Check if task already exists
 		const existingTask = await this.coder.getTask(coderUser.username, taskName);
-
 		if (existingTask) {
 			core.debug(`Task already exists: ${existingTask.id}`);
 			core.debug("Sending prompt to existing task...");
-
 			// Send prompt to existing task
 			await this.coder.sendTaskInput(
 				coderUser.username,
 				taskName,
-				this.inputs.taskPrompt,
+				this.inputs.coderTaskPrompt,
 			);
 			core.debug("Prompt sent successfully");
-		} else {
-			core.debug("Creating new task...");
-
-			// Create new task
-			await this.coder.createTask({
-				name: taskName,
-				owner: coderUser.username,
-				templateName: this.inputs.templateName,
-				templatePreset: this.inputs.templatePreset,
-				prompt: this.inputs.taskPrompt,
-				organization: this.inputs.organization,
-			});
-			core.debug("Task created successfully");
+			return {
+				coderUsername: coderUser.username,
+				taskName: existingTask.name,
+				taskUrl: this.generateTaskUrl(coderUser.username, taskName),
+				taskCreated: false
+			};
 		}
+		core.debug("Creating Coder task...");
+
+		const req : ExperimentalCoderSDKCreateTaskRequest = {
+			name: taskName,
+			template_version_id: this.inputs.coderTemplateName,
+			template_version_preset_id: presetID,
+			input: this.inputs.coderTaskPrompt,
+		}
+		// Create new task
+		const createdTask  = await this.coder.createTask(coderUser.username, req);
+		core.debug("Task created successfully");
 
 		// 5. Generate task URL
-		const taskUrl = this.generateTaskUrl(coderUser.username, taskName);
+		const taskUrl = this.generateTaskUrl(coderUser.username, createdTask.name);
 		core.debug(`Task URL: ${taskUrl}`);
 
 		// 6. Comment on issue if requested
-		if (this.inputs.issueUrl && this.inputs.commentOnIssue) {
-			const issueInfo = this.parseIssueUrl();
-			if (issueInfo) {
-				core.debug("Commenting on issue...");
-				await this.commentOnIssue(
-					taskUrl,
-					issueInfo.owner,
-					issueInfo.repo,
-					issueInfo.issueNumber,
-				);
-				core.debug("Comment posted successfully");
-			}
-		}
-
-		// Return outputs
+		core.debug(`Commenting on issue ${githubOrg}/${githubRepo}#${githubIssueNumber}`);
+		await this.commentOnIssue(
+			taskUrl,
+			githubOrg,
+			githubRepo,
+			githubIssueNumber,
+		);
+		core.debug(`Comment posted successfully`);
 		return {
 			coderUsername: coderUser.username,
-			taskName: `${coderUser.username}/${taskName}`,
+			taskName: taskName,
 			taskUrl,
-			taskExists: !!existingTask,
+			taskCreated: true
 		};
-	}
 }

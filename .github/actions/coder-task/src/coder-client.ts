@@ -81,6 +81,18 @@ export class CoderClient {
 	}
 
 	/**
+	 * getTemplateVersionPresets retrieves the presets for a given template version (UUID).
+	 */
+	async getTemplateVersionPresets(
+		templateVersionId: string,
+	): Promise<CoderSDKTemplateVersionPresetsResponse> {
+		const endpoint = `/api/v2/templateversions/${encodeURIComponent(templateVersionId)}/presets`;
+		const response =
+			await this.request<CoderSDKTemplateVersionPresetsResponse>(endpoint);
+		return CoderSDKTemplateVersionPresetsResponseSchema.parse(response);
+	}
+
+	/**
 	 * getTask retrieves an existing task via Coder's experimental Tasks API.
 	 * Returns null if the task does not exist.
 	 */
@@ -112,22 +124,13 @@ export class CoderClient {
 	 * createTask creates a new task with the given parameters using Coder's experimental Tasks API.
 	 */
 	async createTask(
+		owner: string,
 		params: ExperimentalCoderSDKCreateTaskRequest,
 	): Promise<ExperimentalCoderSDKTask> {
-		const template = await this.getTemplateByOrganizationAndName(
-			params.organization,
-			params.templateName,
-		);
-		const endpoint = `/api/experimental/tasks/${encodeURIComponent(params.owner)}`;
-		const body = {
-			name: params.name,
-			template_id: template.id,
-			template_version_preset_id: params.templatePreset,
-			prompt: params.prompt,
-		};
+		const endpoint = `/api/experimental/tasks/${encodeURIComponent(owner)}`;
 		const response = await this.request<unknown>(endpoint, {
 			method: "POST",
-			body: JSON.stringify(body),
+			body: JSON.stringify(params),
 		});
 		return ExperimentalCoderSDKTaskSchema.parse(response);
 	}
@@ -176,14 +179,30 @@ export const CoderSDKTemplateSchema = z.object({
 });
 export type CoderSDKTemplate = z.infer<typeof CoderSDKTemplateSchema>;
 
+// CoderSDKTemplateVersionPresetSchema is the schema for codersdk.Preset.
+export const CoderSDKTemplateVersionPresetSchema = z.object({
+	ID: z.string().uuid(),
+	Name: z.string(),
+	Default: z.boolean(),
+});
+export type CoderSDKTemplateVersionPreset = z.infer<
+	typeof CoderSDKTemplateVersionPresetSchema
+>;
+
+// CoderSDKTemplateVersionPresetsResponseSchema is the schema for []codersdk.Preset which is returned by the API.
+export const CoderSDKTemplateVersionPresetsResponseSchema = z.array(
+	CoderSDKTemplateVersionPresetSchema,
+);
+export type CoderSDKTemplateVersionPresetsResponse = z.infer<
+	typeof CoderSDKTemplateVersionPresetsResponseSchema
+>;
+
 // ExperimentalCoderSDKCreateTaskRequestSchema is the schema for experimental codersdk.CreateTaskRequest.
 export const ExperimentalCoderSDKCreateTaskRequestSchema = z.object({
 	name: z.string().min(1),
-	owner: z.string().min(1),
-	templateName: z.string().min(1),
-	templatePreset: z.string().min(1),
-	prompt: z.string().min(1),
-	organization: z.string().min(1),
+	template_version_id: z.string().min(1),
+	template_version_preset_id: z.string().min(1).optional(),
+	input: z.string().min(1),
 });
 export type ExperimentalCoderSDKCreateTaskRequest = z.infer<
 	typeof ExperimentalCoderSDKCreateTaskRequestSchema

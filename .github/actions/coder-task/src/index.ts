@@ -27,12 +27,12 @@ async function main() {
 		});
 
 		core.debug("Inputs validated successfully");
-		core.debug(`Coder URL: ${inputs.coderUrl}`);
-		core.debug(`Template: ${inputs.templateName}`);
-		core.debug(`Organization: ${inputs.organization}`);
+		core.debug(`Coder URL: ${inputs.coderURL}`);
+		core.debug(`Template: ${inputs.coderTemplateName}`);
+		core.debug(`Organization: ${inputs.coderOrganization}`);
 
 		// Initialize clients
-		const coder = new CoderClient(inputs.coderUrl, inputs.coderToken);
+		const coder = new CoderClient(inputs.coderURL, inputs.coderToken);
 		const octokit = github.getOctokit(inputs.githubToken);
 
 		core.debug("Clients initialized");
@@ -45,7 +45,7 @@ async function main() {
 		core.setOutput("coder-username", outputs.coderUsername);
 		core.setOutput("task-name", outputs.taskName);
 		core.setOutput("task-url", outputs.taskUrl);
-		core.setOutput("task-exists", outputs.taskExists.toString());
+		core.setOutput("task-exists", outputs.taskCreated.toString());
 
 		core.debug("Action completed successfully");
 		core.debug(`Outputs: ${JSON.stringify(outputs, null, 2)}`);

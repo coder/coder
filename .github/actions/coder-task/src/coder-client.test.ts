@@ -6,6 +6,7 @@ import {
 	mockUserListEmpty,
 	mockUserListDuplicate,
 	mockTemplate,
+	mockTemplateVersionPresets,
 	mockTask,
 	mockTaskList,
 	mockTaskListEmpty,
@@ -19,7 +20,7 @@ describe("CoderClient", () => {
 
 	beforeEach(() => {
 		const mockInputs = createMockInputs();
-		client = new CoderClient(mockInputs.coderUrl, mockInputs.coderToken);
+		client = new CoderClient(mockInputs.coderURL, mockInputs.coderToken);
 		mockFetch = mock(() => Promise.resolve(createMockResponse([])));
 		global.fetch = mockFetch as unknown as typeof fetch;
 	});
@@ -110,11 +111,11 @@ describe("CoderClient", () => {
 			mockFetch.mockResolvedValue(createMockResponse(mockTemplate));
 			const mockInputs = createMockInputs();
 			const result = await client.getTemplateByOrganizationAndName(
-				mockInputs.organization,
+				mockInputs.coderOrganization,
 				mockTemplate.name,
 			);
 			expect(mockFetch).toHaveBeenCalledWith(
-				`https://coder.test/api/v2/organizations/${mockInputs.organization}/templates/${mockTemplate.name}`,
+				`https://coder.test/api/v2/organizations/${mockInputs.coderOrganization}/templates/${mockTemplate.name}`,
 				expect.objectContaining({
 					headers: expect.objectContaining({
 						"Coder-Session-Token": "test-token",
@@ -136,10 +137,35 @@ describe("CoderClient", () => {
 			const mockInputs = createMockInputs();
 			expect(
 				client.getTemplateByOrganizationAndName(
-					mockInputs.organization,
+					mockInputs.coderOrganization,
 					"nonexistent",
 				),
 			).rejects.toThrow(CoderAPIError);
+		});
+	});
+
+	describe("getTemplateVersionPresets", () => {
+		test("returns template version presets", async () => {
+			mockFetch.mockResolvedValue(
+				createMockResponse(mockTemplateVersionPresets),
+			);
+			const result = await client.getTemplateVersionPresets(
+				mockTemplate.active_version_id,
+			);
+			expect(result).not.toBeNull();
+			expect(result).toHaveLength(mockTemplateVersionPresets.length);
+			for (let idx = 0; idx < result.length; idx++) {
+				expect(result[idx].id).toBe(mockTemplateVersionPresets[idx].id);
+				expect(result[idx].name).toBe(mockTemplateVersionPresets[idx].name);
+			}
+			expect(mockFetch).toHaveBeenCalledWith(
+				`https://coder.test/api/v2/templateversions/${mockTemplate.active_version_id}/presets`,
+				expect.objectContaining({
+					headers: expect.objectContaining({
+						"Coder-Session-Token": "test-token",
+					}),
+				}),
+			);
 		});
 	});
 
@@ -182,17 +208,17 @@ describe("CoderClient", () => {
 			const mockInputs = createMockInputs();
 			const result = await client.createTask({
 				name: mockTask.name,
-				templateName: mockTemplate.name,
-				templatePreset: mockInputs.templatePreset,
-				organization: mockInputs.organization,
+				template_version_id: mockTemplate.name,
+				template_version_preset_id: mockInputs.coderTemplatePreset,
+				organization: mockInputs.coderOrganization,
 				owner: mockUser.username,
-				prompt: mockInputs.taskPrompt,
+				input: mockInputs.coderTaskPrompt,
 			});
 			expect(result.id).toBe(mockTask.id);
 			expect(result.name).toBe(mockTask.name);
 			expect(mockFetch).toHaveBeenNthCalledWith(
 				1,
-				`https://coder.test/api/v2/organizations/${mockInputs.organization}/templates/${mockTemplate.name}`,
+				`https://coder.test/api/v2/organizations/${mockInputs.coderOrganization}/templates/${mockTemplate.name}`,
 				expect.objectContaining({
 					headers: expect.objectContaining({
 						"Coder-Session-Token": "test-token",
@@ -210,8 +236,8 @@ describe("CoderClient", () => {
 					body: JSON.stringify({
 						name: mockTask.name,
 						template_id: mockTemplate.id,
-						template_version_preset_id: mockInputs.templatePreset,
-						prompt: mockInputs.taskPrompt,
+						template_version_preset_id: mockInputs.coderTemplatePreset,
+						prompt: mockInputs.coderTaskPrompt,
 					}),
 				}),
 			);
@@ -229,10 +255,10 @@ describe("CoderClient", () => {
 				client.createTask({
 					name: mockTask.name,
 					owner: mockUser.username,
-					templateName: "nonexistent",
-					templatePreset: mockInputs.templatePreset,
-					prompt: mockInputs.taskPrompt,
-					organization: mockInputs.organization,
+					template_version_id: "nonexistent",
+					template_version_preset_id: mockInputs.coderTemplatePreset,
+					input: mockInputs.coderTaskPrompt,
+					organization: mockInputs.coderOrganization,
 				}),
 			).rejects.toThrow(CoderAPIError);
 		});

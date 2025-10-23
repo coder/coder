@@ -1,20 +1,20 @@
 import { mock } from "bun:test";
-import type { IOctokit } from "./action";
 import { CoderClient } from "./coder-client";
 import type {
-	ActionInputs,
-	User,
-	UserList,
-	Template,
-	Task,
-	TaskList,
-	CreateTaskParams,
-} from "./schemas";
+	CoderSDKUser,
+	CoderSDKGetUsersResponse,
+	CoderSDKTemplate,
+	CoderSDKTemplateVersionPreset,
+	ExperimentalCoderSDKTask,
+	ExperimentalCoderSDKTaskListResponse,
+	ExperimentalCoderSDKCreateTaskRequest,
+} from "./coder-client";
+import type { ActionInputs } from "./schemas";
 
 /**
  * Mock data for tests
  */
-export const mockUser: User = {
+export const mockUser: CoderSDKUser = {
 	id: "550e8400-e29b-41d4-a716-446655440000",
 	username: "testuser",
 	email: "test@example.com",
@@ -22,15 +22,15 @@ export const mockUser: User = {
 	github_com_user_id: 12345,
 };
 
-export const mockUserList: UserList = {
+export const mockUserList: CoderSDKGetUsersResponse = {
 	users: [mockUser],
 };
 
-export const mockUserListEmpty: UserList = {
+export const mockUserListEmpty: CoderSDKGetUsersResponse = {
 	users: [],
 };
 
-export const mockUserListDuplicate: UserList = {
+export const mockUserListDuplicate: CoderSDKGetUsersResponse = {
 	users: [
 		mockUser,
 		{
@@ -41,7 +41,7 @@ export const mockUserListDuplicate: UserList = {
 	],
 };
 
-export const mockTemplate: Template = {
+export const mockTemplate: CoderSDKTemplate = {
 	id: "770e8400-e29b-41d4-a716-446655440000",
 	name: "my-template",
 	description: "AI triage template",
@@ -49,7 +49,24 @@ export const mockTemplate: Template = {
 	active_version_id: "880e8400-e29b-41d4-a716-446655440000",
 };
 
-export const mockTask: Task = {
+export const mockTemplateVersionPreset: CoderSDKTemplateVersionPreset = {
+	ID: "880e8400-e29b-41d4-a716-446655440000",
+	Name: "default-preset",
+	Default: true,
+};
+
+export const mockTemplateVersionPreset2: CoderSDKTemplateVersionPreset = {
+	ID: "990e8400-e29b-41d4-a716-446655440000",
+	Name: "another-preset",
+	Default: false,
+};
+
+export const mockTemplateVersionPresets = [
+	mockTemplateVersionPreset,
+	mockTemplateVersionPreset2,
+];
+
+export const mockTask: ExperimentalCoderSDKTask = {
 	id: "990e8400-e29b-41d4-a716-446655440000",
 	name: "task-123",
 	owner_id: "550e8400-e29b-41d4-a716-446655440000",
@@ -59,11 +76,11 @@ export const mockTask: Task = {
 	status: "running",
 };
 
-export const mockTaskList: TaskList = {
+export const mockTaskList: ExperimentalCoderSDKTaskListResponse = {
 	tasks: [mockTask],
 };
 
-export const mockTaskListEmpty: TaskList = {
+export const mockTaskListEmpty: ExperimentalCoderSDKTaskListResponse = {
 	tasks: [],
 };
 
@@ -74,15 +91,15 @@ export function createMockInputs(
 	overrides?: Partial<ActionInputs>,
 ): ActionInputs {
 	return {
-		coderUrl: "https://coder.test",
+		coderURL: "https://coder.test",
 		coderToken: "test-token",
-		templateName: "my-template",
-		taskPrompt: "Test prompt",
 		githubToken: "github-token",
-		templatePreset: "Default",
-		taskNamePrefix: "task",
-		organization: "coder",
-		commentOnIssue: true,
+		coderTemplateName: "my-template",
+		githubIssueURL: "https://github.com/test-org/test-repo/issues/12345",
+		coderTaskNamePrefix: "task",
+		coderTaskPrompt: "Test prompt",
+		coderTemplatePreset: "Default",
+		coderOrganization: "coder",
 		...overrides,
 	};
 }
@@ -91,7 +108,7 @@ export function createMockInputs(
  * Mock CoderClient for testing
  */
 export class MockCoderClient extends CoderClient {
-	public mockGetCoderUserByGitHubId = mock();
+	public mockGetCoderSDKUserByGitHubId = mock();
 	public mockGetUserByUsername = mock();
 	public mockGetTemplateByName = mock();
 	public mockGetTaskStatus = mock();
@@ -102,26 +119,31 @@ export class MockCoderClient extends CoderClient {
 		super("https://coder.test", "test-token");
 	}
 
-	async getCoderUserByGitHubId(githubUserId: number): Promise<User> {
-		return this.mockGetCoderUserByGitHubId(githubUserId);
+	async getCoderSDKUserByGitHubId(githubUserId: number): Promise<CoderSDKUser> {
+		return this.mockGetCoderSDKUserByGitHubId(githubUserId);
 	}
 
-	async getUserByUsername(username: string): Promise<User> {
+	async getUserByUsername(username: string): Promise<CoderSDKUser> {
 		return this.mockGetUserByUsername(username);
 	}
 
 	async getTemplateByName(
 		organization: string,
 		templateName: string,
-	): Promise<Template> {
+	): Promise<CoderSDKTemplate> {
 		return this.mockGetTemplateByName(organization, templateName);
 	}
 
-	async getTask(username: string, taskName: string): Promise<Task | null> {
+	async getTask(
+		username: string,
+		taskName: string,
+	): Promise<ExperimentalCoderSDKTask | null> {
 		return this.mockGetTaskStatus(username, taskName);
 	}
 
-	async createTask(params: CreateTaskParams): Promise<Task> {
+	async createTask(
+		params: ExperimentalCoderSDKCreateTaskRequest,
+	): Promise<ExperimentalCoderSDKTask> {
 		return this.mockCreateTask(params);
 	}
 
@@ -137,7 +159,7 @@ export class MockCoderClient extends CoderClient {
 /**
  * Mock Octokit for testing
  */
-export function createMockOctokit(): IOctokit {
+export function createMockOctokit() {
 	return {
 		rest: {
 			users: {
