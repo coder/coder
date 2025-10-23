@@ -603,9 +603,6 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 
 func TestUpdateAIBridgeInterceptionEnded(t *testing.T) {
 	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-
 	db, pubsub := dbtestutil.NewDB(t)
 	client := coderdtest.New(t, &coderdtest.Options{
 		Database: db,
@@ -619,6 +616,7 @@ func TestUpdateAIBridgeInterceptionEnded(t *testing.T) {
 
 	t.Run("NonExistingInterception", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 		got, err := db.UpdateAIBridgeInterceptionEnded(ctx, uuid.New())
 		require.NoError(t, err)
 		require.EqualValues(t, 0, got)
@@ -626,6 +624,7 @@ func TestUpdateAIBridgeInterceptionEnded(t *testing.T) {
 
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 		for _, incID := range []uuid.UUID{id1, id2, id3} {
 			insertParams := database.InsertAIBridgeInterceptionParams{
 				ID:          incID,
