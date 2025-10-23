@@ -6,7 +6,7 @@ import {
 } from "components/StatusIndicator/StatusIndicator";
 import type { FC } from "react";
 
-export type TaskStatusProps = {
+type TaskStatusProps = {
 	status: TypesGen.TaskStatus;
 	stateMessage: string;
 };

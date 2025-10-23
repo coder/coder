@@ -5013,18 +5013,6 @@ export const MockTask = {
 	updated_at: "2022-05-17T17:39:01.382927298Z",
 } satisfies TypesGen.Task;
 
-export const MockNewTaskData = {
-	prompt: "Create a new task",
-	workspace: {
-		...MockWorkspace,
-		id: "workspace-4",
-		latest_app_status: {
-			...MockWorkspaceAppStatus,
-			message: "Task created successfully!",
-		},
-	},
-};
-
 export const MockTasks: TypesGen.Task[] = [
 	MockTask,
 	{

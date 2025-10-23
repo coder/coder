@@ -7,6 +7,7 @@ import {
 import { withAuthProvider, withProxyProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
+import type { TaskStateEntry } from "api/typesGenerated";
 import { MockUsers } from "pages/UsersPage/storybookData/users";
 import { expect, spyOn, userEvent, within } from "storybook/test";
 import TasksPage from "./TasksPage";
@@ -105,26 +106,6 @@ export const LoadedTasks: Story = {
 	},
 };
 
-export const LoadedTasksWaitingForInput: Story = {
-	beforeEach: () => {
-		const [firstTask, ...otherTasks] = MockTasks;
-		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
-		spyOn(API.experimental, "getTasks").mockResolvedValue([
-			{
-				...firstTask,
-				workspace: {
-					...firstTask.workspace,
-					latest_app_status: {
-						...firstTask.workspace.latest_app_status,
-						state: "idle",
-					},
-				},
-			},
-			...otherTasks,
-		]);
-	},
-};
-
 export const LoadedTasksWaitingForInputTab: Story = {
 	beforeEach: () => {
 		const [firstTask, ...otherTasks] = MockTasks;
@@ -132,12 +113,9 @@ export const LoadedTasksWaitingForInputTab: Story = {
 		spyOn(API.experimental, "getTasks").mockResolvedValue([
 			{
 				...firstTask,
-				workspace: {
-					...firstTask.workspace,
-					latest_app_status: {
-						...firstTask.workspace.latest_app_status,
-						state: "idle" as const,
-					},
+				current_state: {
+					...(firstTask.current_state as TaskStateEntry),
+					state: "idle",
 				},
 			},
 			...otherTasks,

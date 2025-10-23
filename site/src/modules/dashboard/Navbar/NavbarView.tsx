@@ -200,8 +200,8 @@ const TasksNavItem: FC<TasksNavItemProps> = ({ user }) => {
 			process.env.NODE_ENV === "development" ||
 			process.env.STORYBOOK,
 	);
-	const filter = {
-		username: user.username,
+	const filter: TypesGen.TasksFilter = {
+		owner: user.username,
 	};
 	const { data: idleCount } = useQuery({
 		queryKey: ["tasks", filter],
@@ -211,8 +211,7 @@ const TasksNavItem: FC<TasksNavItemProps> = ({ user }) => {
 		refetchOnWindowFocus: true,
 		initialData: [],
 		select: (data) =>
-			data.filter((task) => task.workspace.latest_app_status?.state === "idle")
-				.length,
+			data.filter((task) => task.current_state?.state === "idle").length,
 	});
 
 	if (!canSeeTasks) {
