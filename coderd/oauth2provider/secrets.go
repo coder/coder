@@ -25,7 +25,7 @@ type HashedAppSecret struct {
 	AppSecret
 	// Hashed is the server stored hash(secret,salt,...). Used for verifying a
 	// secret.
-	Hashed string
+	Hashed []byte
 }
 
 type AppSecret struct {
