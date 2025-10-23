@@ -482,8 +482,7 @@ func RequireRegistrationAccessToken(db database.Store) func(http.Handler) http.H
 			}
 
 			// Compare the provided token with the stored hash
-			valid := apikey.ValidateHash(app.RegistrationAccessToken, token)
-			if !valid {
+			if !apikey.ValidateHash(app.RegistrationAccessToken, token) {
 				writeOAuth2RegistrationError(ctx, rw, http.StatusUnauthorized,
 					"invalid_token", "Invalid registration access token")
 				return
