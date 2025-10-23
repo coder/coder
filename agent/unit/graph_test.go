@@ -10,10 +10,8 @@
 package unit_test
 
 import (
-	"crypto/rand"
 	"flag"
 	"fmt"
-	"math/big"
 	"os"
 	"path/filepath"
 	"sync"
@@ -23,6 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/agent/unit"
+	"github.com/coder/coder/v2/cryptorand"
 )
 
 // Test types for thread safety testing.
@@ -47,17 +46,15 @@ type Unit struct {
 type TestEdge = unit.Edge[Status, *Unit]
 
 // randInt generates a random integer in the range [0, limit).
-// Used because the linter won't allow more convenient math/rand functions
-// and this is cleaner than having additional nolint comments in the tests.
 func randInt(limit int) int {
 	if limit <= 0 {
 		return 0
 	}
-	n, err := rand.Int(rand.Reader, big.NewInt(int64(limit)))
+	n, err := cryptorand.Int63n(int64(limit))
 	if err != nil {
 		return 0
 	}
-	return int(n.Int64())
+	return int(n)
 }
 
 // createTestOutputDir creates a directory for test outputs.
