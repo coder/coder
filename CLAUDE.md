@@ -36,7 +36,7 @@ When asked to do something, just do it - including obvious follow-up actions nee
 @.claude/docs/WORKFLOWS.md
 @package.json
 
-## 🚀 Essential Commands
+## Essential Commands
 
 | Task              | Command                  | Notes                            |
 |-------------------|--------------------------|----------------------------------|
@@ -58,7 +58,7 @@ When asked to do something, just do it - including obvious follow-up actions nee
 - `pnpm run lint-docs` - Lint and fix markdown files
 - `pnpm run storybook` - Run Storybook (from site directory)
 
-## 🔧 Critical Patterns
+## Critical Patterns
 
 ### Database Changes (ALWAYS FOLLOW)
 
