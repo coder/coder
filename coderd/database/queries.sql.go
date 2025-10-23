@@ -779,22 +779,27 @@ func (q *sqlQuerier) ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Contex
 }
 
 const updateAIBridgeInterceptionEnded = `-- name: UpdateAIBridgeInterceptionEnded :one
-WITH rows AS (
-    UPDATE aibridge_interceptions
+UPDATE aibridge_interceptions
 	SET ended_at = NOW()
-	WHERE
-	    id = $1::uuid
-		AND ended_at IS NULL
-    RETURNING 1
-)
-SELECT COUNT(*) FROM rows
+WHERE
+	id = $1::uuid
+	AND ended_at IS NULL
+RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at
 `
 
-func (q *sqlQuerier) UpdateAIBridgeInterceptionEnded(ctx context.Context, id uuid.UUID) (int64, error) {
+func (q *sqlQuerier) UpdateAIBridgeInterceptionEnded(ctx context.Context, id uuid.UUID) (AIBridgeInterception, error) {
 	row := q.db.QueryRowContext(ctx, updateAIBridgeInterceptionEnded, id)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
+	var i AIBridgeInterception
+	err := row.Scan(
+		&i.ID,
+		&i.InitiatorID,
+		&i.Provider,
+		&i.Model,
+		&i.StartedAt,
+		&i.Metadata,
+		&i.EndedAt,
+	)
+	return i, err
 }
 
 const deleteAPIKeyByID = `-- name: DeleteAPIKeyByID :exec

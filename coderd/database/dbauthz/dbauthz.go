@@ -4691,9 +4691,9 @@ func (q *querier) UnfavoriteWorkspace(ctx context.Context, id uuid.UUID) error {
 	return update(q.log, q.auth, fetch, q.db.UnfavoriteWorkspace)(ctx, id)
 }
 
-func (q *querier) UpdateAIBridgeInterceptionEnded(ctx context.Context, interceptionID uuid.UUID) (int64, error) {
+func (q *querier) UpdateAIBridgeInterceptionEnded(ctx context.Context, interceptionID uuid.UUID) (database.AIBridgeInterception, error) {
 	if err := q.authorizeAIBridgeInterceptionAction(ctx, policy.ActionUpdate, interceptionID); err != nil {
-		return 0, err
+		return database.AIBridgeInterception{}, err
 	}
 	return q.db.UpdateAIBridgeInterceptionEnded(ctx, interceptionID)
 }

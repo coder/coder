@@ -4585,7 +4585,7 @@ func (s *MethodTestSuite) TestAIBridge() {
 		intID := uuid.UUID{1}
 		intc := testutil.Fake(s.T(), faker, database.AIBridgeInterception{ID: intID})
 		db.EXPECT().GetAIBridgeInterceptionByID(gomock.Any(), intID).Return(intc, nil).AnyTimes() // Validation.
-		db.EXPECT().UpdateAIBridgeInterceptionEnded(gomock.Any(), intID).Return(int64(0), nil).AnyTimes()
-		check.Args(intID).Asserts(intc, policy.ActionUpdate).Returns(int64(0))
+		db.EXPECT().UpdateAIBridgeInterceptionEnded(gomock.Any(), intID).Return(intc, nil).AnyTimes()
+		check.Args(intID).Asserts(intc, policy.ActionUpdate).Returns(intc)
 	}))
 }

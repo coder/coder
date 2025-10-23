@@ -603,64 +603,56 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 
 func TestUpdateAIBridgeInterceptionEnded(t *testing.T) {
 	t.Parallel()
-	db, pubsub := dbtestutil.NewDB(t)
-	client := coderdtest.New(t, &coderdtest.Options{
-		Database: db,
-		Pubsub:   pubsub,
-	})
-	user := coderdtest.CreateFirstUser(t, client)
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
 
-	id1 := uuid.New()
-	id2 := uuid.New()
-	id3 := uuid.New()
+	interceptions := []database.AIBridgeInterception{}
 
 	t.Run("NonExistingInterception", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		got, err := db.UpdateAIBridgeInterceptionEnded(ctx, uuid.New())
-		require.NoError(t, err)
-		require.EqualValues(t, 0, got)
+		require.ErrorContains(t, err, "no rows in result set")
+		require.EqualValues(t, database.AIBridgeInterception{}, got)
 	})
 
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
-		for _, incID := range []uuid.UUID{id1, id2, id3} {
+		for _, uid := range []uuid.UUID{{1}, {2}, {3}} {
 			insertParams := database.InsertAIBridgeInterceptionParams{
-				ID:          incID,
-				InitiatorID: user.UserID,
+				ID:          uid,
+				InitiatorID: user.ID,
 				Metadata:    json.RawMessage("{}"),
 			}
-			inc, err := db.InsertAIBridgeInterception(ctx, insertParams)
+
+			intc, err := db.InsertAIBridgeInterception(ctx, insertParams)
 			require.NoError(t, err)
-			require.False(t, inc.EndedAt.Valid)
+			require.Equal(t, uid, intc.ID)
+			require.False(t, intc.EndedAt.Valid)
+			interceptions = append(interceptions, intc)
 		}
 
-		// Mark as first interception as done
-		count, err := db.UpdateAIBridgeInterceptionEnded(ctx, id1)
+		intc0 := interceptions[0]
+		// Mark first interception as done
+		updated, err := db.UpdateAIBridgeInterceptionEnded(ctx, intc0.ID)
 		require.NoError(t, err)
-		require.EqualValues(t, 1, count)
-		inc, err := db.GetAIBridgeInterceptionByID(ctx, id1)
-		require.NoError(t, err)
-		require.True(t, inc.EndedAt.Valid)
-		end1 := inc.EndedAt
+		require.EqualValues(t, updated.ID, intc0.ID)
+		require.True(t, updated.EndedAt.Valid)
+		end1 := updated.EndedAt
 		now := time.Now()
 		require.True(t, end1.Time.Before(now.Add(10*time.Second)))
 		require.True(t, end1.Time.After(now.Add(-10*time.Second)))
 
 		// Updating first interception again should not update the value
-		count, err = db.UpdateAIBridgeInterceptionEnded(ctx, id1)
-		require.NoError(t, err)
-		require.EqualValues(t, 0, count)
-		inc, err = db.GetAIBridgeInterceptionByID(ctx, id1)
-		require.NoError(t, err)
-		require.Equal(t, end1, inc.EndedAt)
+		updated, err = db.UpdateAIBridgeInterceptionEnded(ctx, intc0.ID)
+		require.ErrorContains(t, err, "no rows in result set")
 
 		// Other interceptions should not have ended_at set
-		for _, incID := range []uuid.UUID{id2, id3} {
-			inc, err = db.GetAIBridgeInterceptionByID(ctx, incID)
+		for _, intc := range interceptions[1:] {
+			got, err := db.GetAIBridgeInterceptionByID(ctx, intc.ID)
 			require.NoError(t, err)
-			require.False(t, inc.EndedAt.Valid)
+			require.False(t, got.EndedAt.Valid)
 		}
 	})
 }

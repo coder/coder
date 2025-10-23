@@ -7,15 +7,12 @@ INSERT INTO aibridge_interceptions (
 RETURNING *;
 
 -- name: UpdateAIBridgeInterceptionEnded :one
-WITH rows AS (
-    UPDATE aibridge_interceptions
+UPDATE aibridge_interceptions
 	SET ended_at = NOW()
-	WHERE
-	    id = @id::uuid
-		AND ended_at IS NULL
-    RETURNING 1
-)
-SELECT COUNT(*) FROM rows;
+WHERE
+	id = @id::uuid
+	AND ended_at IS NULL
+RETURNING *;
 
 -- name: InsertAIBridgeTokenUsage :one
 INSERT INTO aibridge_token_usages (

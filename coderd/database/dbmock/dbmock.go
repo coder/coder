@@ -6188,10 +6188,10 @@ func (mr *MockStoreMockRecorder) UnfavoriteWorkspace(ctx, id any) *gomock.Call {
 }
 
 // UpdateAIBridgeInterceptionEnded mocks base method.
-func (m *MockStore) UpdateAIBridgeInterceptionEnded(ctx context.Context, id uuid.UUID) (int64, error) {
+func (m *MockStore) UpdateAIBridgeInterceptionEnded(ctx context.Context, id uuid.UUID) (database.AIBridgeInterception, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateAIBridgeInterceptionEnded", ctx, id)
-	ret0, _ := ret[0].(int64)
+	ret0, _ := ret[0].(database.AIBridgeInterception)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
