@@ -1,6 +1,5 @@
 import type { AIBridgeInterception } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
-import { Button } from "components/Button/Button";
 import { TableCell, TableRow } from "components/Table/Table";
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 import { type FC, useState } from "react";
@@ -24,16 +23,16 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 
 	return (
 		<>
-			<TableRow className={cn("select-none hover:bg-surface-secondary")}>
+			<TableRow
+				className={cn("select-none cursor-pointer hover:bg-surface-secondary")}
+				onClick={() => setIsOpen(!isOpen)}
+			>
 				<TableCell>
-					<Button
-						variant="subtle"
-						size="sm"
+					<div
 						className={cn([
+							"flex items-center gap-2",
 							isOpen && "text-content-primary",
-							"p-0 h-auto min-w-0 align-middle",
 						])}
-						onClick={() => setIsOpen(!isOpen)}
 					>
 						{isOpen ? (
 							<ChevronDownIcon size={16} />
@@ -42,7 +41,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 						)}
 						<span className="sr-only">({isOpen ? "Hide" : "Show more"})</span>
 						{new Date(interception.started_at).toLocaleString()}
-					</Button>
+					</div>
 				</TableCell>
 				<TableCell>
 					<div css={{ display: "flex", alignItems: "center", gap: 12 }}>
