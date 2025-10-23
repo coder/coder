@@ -18,6 +18,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/agent/unit"
@@ -72,8 +74,8 @@ func saveDOTFile(t *testing.T, graph *unit.Graph[testGraphEdge, *testGraphVertex
 // make gen/golden-files
 var UpdateGoldenFiles = flag.Bool("update", false, "update .golden files")
 
-// requireDOTGraph requires that the graph's DOT representation matches the golden file
-func requireDOTGraph(t *testing.T, graph *unit.Graph[testGraphEdge, *testGraphVertex], goldenName string) {
+// assertDOTGraph requires that the graph's DOT representation matches the golden file
+func assertDOTGraph(t *testing.T, graph *testGraph, goldenName string) {
 	t.Helper()
 
 	dot, err := graph.ToDOT(goldenName)
@@ -91,7 +93,7 @@ func requireDOTGraph(t *testing.T, graph *unit.Graph[testGraphEdge, *testGraphVe
 	expected, err := os.ReadFile(goldenFile)
 	require.NoError(t, err, "read golden file, run \"make gen/golden-files\" and commit the changes")
 
-	require.Equal(t, string(expected), dot, "golden file mismatch (-want +got): %s, run \"make gen/golden-files\", verify and commit the changes", goldenFile)
+	assert.Empty(t, cmp.Diff(string(expected), dot), "golden file mismatch (-want +got): %s, run \"make gen/golden-files\", verify and commit the changes", goldenFile)
 }
 
 func TestGraph(t *testing.T) {
@@ -227,7 +229,7 @@ func TestGraph(t *testing.T) {
 			t.Parallel()
 			graph = testFunc(t)
 		})
-		requireDOTGraph(t, graph, testName)
+		assertDOTGraph(t, graph, testName)
 	}
 }
 
