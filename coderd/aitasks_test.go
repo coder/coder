@@ -274,24 +274,27 @@ func TestTasks(t *testing.T) {
 	t.Run("Get", func(t *testing.T) {
 		t.Parallel()
 
-		t.Skip("TODO(mafredri): Remove, fixed down-stack!")
-
 		var (
 			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			ctx        = testutil.Context(t, testutil.WaitLong)
 			user       = coderdtest.CreateFirstUser(t, client)
 			template   = createAITemplate(t, client, user)
-			// Create a workspace (task) with a specific prompt.
 			wantPrompt = "review my code"
-			workspace  = coderdtest.CreateWorkspace(t, client, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
-				req.RichParameterValues = []codersdk.WorkspaceBuildParameter{
-					{Name: codersdk.AITaskPromptParameterName, Value: wantPrompt},
-				}
-			})
+			exp        = codersdk.NewExperimentalClient(client)
 		)
 
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-		ws := coderdtest.MustWorkspace(t, client, workspace.ID)
+		task, err := exp.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
+			TemplateVersionID: template.ActiveVersionID,
+			Input:             wantPrompt,
+		})
+		require.NoError(t, err)
+		require.True(t, task.WorkspaceID.Valid)
+
+		// Get the workspace and wait for it to be ready.
+		ws, err := client.Workspace(ctx, task.WorkspaceID.UUID)
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+		ws = coderdtest.MustWorkspace(t, client, task.WorkspaceID.UUID)
 		// Assert invariant: the workspace has exactly one resource with one agent with one app.
 		require.Len(t, ws.LatestBuild.Resources, 1)
 		require.Len(t, ws.LatestBuild.Resources[0].Agents, 1)
@@ -299,9 +302,9 @@ func TestTasks(t *testing.T) {
 		taskAppID := ws.LatestBuild.Resources[0].Agents[0].Apps[0].ID
 
 		// Insert an app status for the workspace
-		_, err := db.InsertWorkspaceAppStatus(dbauthz.AsSystemRestricted(ctx), database.InsertWorkspaceAppStatusParams{
+		_, err = db.InsertWorkspaceAppStatus(dbauthz.AsSystemRestricted(ctx), database.InsertWorkspaceAppStatusParams{
 			ID:          uuid.New(),
-			WorkspaceID: workspace.ID,
+			WorkspaceID: task.WorkspaceID.UUID,
 			CreatedAt:   dbtime.Now(),
 			AgentID:     agentID,
 			AppID:       taskAppID,
@@ -311,31 +314,33 @@ func TestTasks(t *testing.T) {
 		require.NoError(t, err)
 
 		// Fetch the task by ID via experimental API and verify fields.
-		exp := codersdk.NewExperimentalClient(client)
-		task, err := exp.TaskByID(ctx, workspace.ID)
+		updated, err := exp.TaskByID(ctx, task.ID)
 		require.NoError(t, err)
 
-		assert.Equal(t, workspace.ID, task.ID, "task ID should match workspace ID")
-		assert.Equal(t, workspace.Name, task.Name, "task name should map from workspace name")
-		assert.Equal(t, wantPrompt, task.InitialPrompt, "task prompt should match the AI Prompt parameter")
-		assert.Equal(t, workspace.ID, task.WorkspaceID.UUID, "workspace id should match")
-		assert.NotEmpty(t, task.WorkspaceStatus, "task status should not be empty")
+		assert.Equal(t, task.ID, updated.ID, "task ID should match")
+		assert.Equal(t, task.Name, updated.Name, "task name should match")
+		assert.Equal(t, wantPrompt, updated.InitialPrompt, "task prompt should match the AI Prompt parameter")
+		assert.Equal(t, task.WorkspaceID.UUID, updated.WorkspaceID.UUID, "workspace id should match")
+		assert.Equal(t, ws.LatestBuild.BuildNumber, updated.WorkspaceBuildNumber, "workspace build number should match")
+		assert.Equal(t, agentID, updated.WorkspaceAgentID.UUID, "workspace agent id should match")
+		assert.Equal(t, taskAppID, updated.WorkspaceAppID.UUID, "workspace app id should match")
+		assert.NotEmpty(t, updated.WorkspaceStatus, "task status should not be empty")
 
 		// Stop the workspace
-		coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
+		coderdtest.MustTransitionWorkspace(t, client, task.WorkspaceID.UUID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
 		// Verify that the previous status still remains
-		updated, err := exp.TaskByID(ctx, workspace.ID)
+		updated, err = exp.TaskByID(ctx, task.ID)
 		require.NoError(t, err)
 		assert.NotNil(t, updated.CurrentState, "current state should not be nil")
 		assert.Equal(t, "all done", updated.CurrentState.Message)
 		assert.Equal(t, codersdk.TaskStateComplete, updated.CurrentState.State)
 
 		// Start the workspace again
-		coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStop, codersdk.WorkspaceTransitionStart)
+		coderdtest.MustTransitionWorkspace(t, client, task.WorkspaceID.UUID, codersdk.WorkspaceTransitionStop, codersdk.WorkspaceTransitionStart)
 
 		// Verify that the status from the previous build is no longer present
-		updated, err = exp.TaskByID(ctx, workspace.ID)
+		updated, err = exp.TaskByID(ctx, task.ID)
 		require.NoError(t, err)
 		assert.Nil(t, updated.CurrentState, "current state should be nil")
 	})
