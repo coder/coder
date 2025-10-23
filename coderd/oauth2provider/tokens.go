@@ -197,7 +197,7 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 		return oauth2.Token{}, err
 	}
 
-	equalSecret := apikey.ValidateHash(dbSecret.HashedSecret, secret.secret)
+	equalSecret := apikey.ValidateHash(dbSecret.HashedSecret, secret.Secret)
 	if !equalSecret {
 		return oauth2.Token{}, errBadSecret
 	}
@@ -215,7 +215,7 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 	if err != nil {
 		return oauth2.Token{}, err
 	}
-	equalCode := apikey.ValidateHash(dbCode.HashedSecret, code.secret)
+	equalCode := apikey.ValidateHash(dbCode.HashedSecret, code.Secret)
 	if !equalCode {
 		return oauth2.Token{}, errBadCode
 	}
@@ -350,7 +350,7 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 	if err != nil {
 		return oauth2.Token{}, err
 	}
-	equal := apikey.ValidateHash(dbToken.RefreshHash, token.secret)
+	equal := apikey.ValidateHash(dbToken.RefreshHash, token.Secret)
 	if !equal {
 		return oauth2.Token{}, errBadToken
 	}
