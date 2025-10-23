@@ -2283,8 +2283,6 @@ func TestCancelPendingPrebuilds(t *testing.T) {
 		reconciler := prebuilds.NewStoreReconciler(db, ps, cache, codersdk.PrebuildsConfig{}, logger, clock, registry, fakeEnqueuer, newNoopUsageCheckerPtr())
 		owner := coderdtest.CreateFirstUser(t, client)
 
-		fmt.Println(reconciler)
-
 		// Given: template A with 2 versions
 		// Given: template A version v1: with a preset with 5 instances (2 running, 3 pending)
 		templateAID, templateAVersion1ID, templateAVersion1PresetID := createTemplateVersionWithPreset(t, db, owner.OrganizationID, owner.UserID, uuid.Nil, 5)
