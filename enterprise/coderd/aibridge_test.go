@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"encoding/json"
 	"net/http"
 	"testing"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -595,6 +597,71 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 				require.Equal(t, tc.want, sdkErr.Validations)
 				require.Empty(t, res.Results)
 			})
+		}
+	})
+}
+
+func TestUpdateAIBridgeInterceptionEnded(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   pubsub,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	id1 := uuid.New()
+	id2 := uuid.New()
+	id3 := uuid.New()
+
+	t.Run("NonExistingInterception", func(t *testing.T) {
+		t.Parallel()
+		got, err := db.UpdateAIBridgeInterceptionEnded(ctx, uuid.New())
+		require.NoError(t, err)
+		require.EqualValues(t, 0, got)
+	})
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+		for _, incID := range []uuid.UUID{id1, id2, id3} {
+			insertParams := database.InsertAIBridgeInterceptionParams{
+				ID:          incID,
+				InitiatorID: user.UserID,
+				Metadata:    json.RawMessage("{}"),
+			}
+			inc, err := db.InsertAIBridgeInterception(ctx, insertParams)
+			require.NoError(t, err)
+			require.False(t, inc.EndedAt.Valid)
+		}
+
+		// Mark as first interception as done
+		count, err := db.UpdateAIBridgeInterceptionEnded(ctx, id1)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, count)
+		inc, err := db.GetAIBridgeInterceptionByID(ctx, id1)
+		require.NoError(t, err)
+		require.True(t, inc.EndedAt.Valid)
+		end1 := inc.EndedAt
+		now := time.Now()
+		require.True(t, end1.Time.Before(now.Add(10*time.Second)))
+		require.True(t, end1.Time.After(now.Add(-10*time.Second)))
+
+		// Updating first interception again should not update the value
+		count, err = db.UpdateAIBridgeInterceptionEnded(ctx, id1)
+		require.NoError(t, err)
+		require.EqualValues(t, 0, count)
+		inc, err = db.GetAIBridgeInterceptionByID(ctx, id1)
+		require.NoError(t, err)
+		require.Equal(t, end1, inc.EndedAt)
+
+		// Other interceptions should not have ended_at set
+		for _, incID := range []uuid.UUID{id2, id3} {
+			inc, err = db.GetAIBridgeInterceptionByID(ctx, incID)
+			require.NoError(t, err)
+			require.False(t, inc.EndedAt.Valid)
 		}
 	})
 }
