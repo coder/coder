@@ -152,7 +152,7 @@ func (r *RootCmd) taskStatus() *serpent.Command {
 }
 
 func taskWatchIsEnded(task codersdk.Task) bool {
-	if task.Status == codersdk.WorkspaceStatusStopped {
+	if task.WorkspaceStatus == codersdk.WorkspaceStatusStopped {
 		return true
 	}
 	if task.WorkspaceAgentHealth == nil || !task.WorkspaceAgentHealth.Healthy {
@@ -189,7 +189,7 @@ func toStatusRow(task codersdk.Task) taskStatusRow {
 		Task:       task,
 		ChangedAgo: time.Since(task.UpdatedAt).Truncate(time.Second).String() + " ago",
 		Timestamp:  task.UpdatedAt,
-		TaskStatus: string(task.Status),
+		TaskStatus: string(task.WorkspaceStatus),
 	}
 	tsr.Healthy = task.WorkspaceAgentHealth != nil &&
 		task.WorkspaceAgentHealth.Healthy &&

@@ -12730,6 +12730,49 @@ func (q *sqlQuerier) ListTasks(ctx context.Context, arg ListTasksParams) ([]Task
 	return items, nil
 }
 
+const updateTaskWorkspaceID = `-- name: UpdateTaskWorkspaceID :one
+UPDATE
+	tasks
+SET
+	workspace_id = $2
+FROM
+	workspaces w
+JOIN
+	template_versions tv
+ON
+	tv.template_id = w.template_id
+WHERE
+	tasks.id = $1
+	AND tasks.workspace_id IS NULL
+	AND w.id = $2
+	AND tv.id = tasks.template_version_id
+RETURNING
+	tasks.id, tasks.organization_id, tasks.owner_id, tasks.name, tasks.workspace_id, tasks.template_version_id, tasks.template_parameters, tasks.prompt, tasks.created_at, tasks.deleted_at
+`
+
+type UpdateTaskWorkspaceIDParams struct {
+	ID          uuid.UUID     `db:"id" json:"id"`
+	WorkspaceID uuid.NullUUID `db:"workspace_id" json:"workspace_id"`
+}
+
+func (q *sqlQuerier) UpdateTaskWorkspaceID(ctx context.Context, arg UpdateTaskWorkspaceIDParams) (TaskTable, error) {
+	row := q.db.QueryRowContext(ctx, updateTaskWorkspaceID, arg.ID, arg.WorkspaceID)
+	var i TaskTable
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.Name,
+		&i.WorkspaceID,
+		&i.TemplateVersionID,
+		&i.TemplateParameters,
+		&i.Prompt,
+		&i.CreatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
 const upsertTaskWorkspaceApp = `-- name: UpsertTaskWorkspaceApp :one
 INSERT INTO task_workspace_apps
 	(task_id, workspace_build_number, workspace_agent_id, workspace_app_id)
