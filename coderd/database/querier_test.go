@@ -3742,9 +3742,6 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 
 func TestGetProvisionerJobsByIDsWithQueuePosition_MixedStatuses(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.SkipNow()
-	}
 
 	db, _ := dbtestutil.NewDB(t)
 	now := dbtime.Now()
@@ -4083,10 +4080,6 @@ func TestGroupRemovalTrigger(t *testing.T) {
 func TestGetUserStatusCounts(t *testing.T) {
 	t.Parallel()
 	t.Skip("https://github.com/coder/internal/issues/464")
-
-	if !dbtestutil.WillUsePostgres() {
-		t.SkipNow()
-	}
 
 	timezones := []string{
 		"Canada/Newfoundland",
@@ -4625,10 +4618,6 @@ func TestGetUserStatusCounts(t *testing.T) {
 func TestOrganizationDeleteTrigger(t *testing.T) {
 	t.Parallel()
 
-	if !dbtestutil.WillUsePostgres() {
-		t.SkipNow()
-	}
-
 	t.Run("WorkspaceExists", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
@@ -4942,9 +4931,6 @@ func createPrebuiltWorkspace(
 
 func TestWorkspacePrebuildsView(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.SkipNow()
-	}
 
 	now := dbtime.Now()
 	orgID := uuid.New()
@@ -5046,9 +5032,6 @@ func TestWorkspacePrebuildsView(t *testing.T) {
 
 func TestGetPresetsBackoff(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.SkipNow()
-	}
 
 	now := dbtime.Now()
 	orgID := uuid.New()
@@ -5565,9 +5548,6 @@ func TestGetPresetsBackoff(t *testing.T) {
 
 func TestGetPresetsAtFailureLimit(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.SkipNow()
-	}
 
 	now := dbtime.Now()
 	hourBefore := now.Add(-time.Hour)
@@ -5871,10 +5851,6 @@ func TestGetPresetsAtFailureLimit(t *testing.T) {
 func TestWorkspaceAgentNameUniqueTrigger(t *testing.T) {
 	t.Parallel()
 
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test makes use of a database trigger not implemented in dbmem")
-	}
-
 	createWorkspaceWithAgent := func(t *testing.T, db database.Store, org database.Organization, agentName string) (database.WorkspaceBuild, database.WorkspaceResource, database.WorkspaceAgent) {
 		t.Helper()
 
@@ -6140,10 +6116,6 @@ func requireUsersMatch(t testing.TB, expected []database.User, found []database.
 // GetRunningPrebuiltWorkspaces query.
 func TestGetRunningPrebuiltWorkspaces(t *testing.T) {
 	t.Parallel()
-
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("Test requires PostgreSQL for complex queries")
-	}
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	db, _ := dbtestutil.NewDB(t)
