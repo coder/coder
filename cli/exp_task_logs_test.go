@@ -23,7 +23,7 @@ import (
 func Test_TaskLogs(t *testing.T) {
 	t.Parallel()
 
-	t.Skip("TODO(mafredri): Remove, fixed down-stack!")
+	t.Skip("TODO(mafredri): Remove, fixed up-stack!")
 
 	testMessages := []agentapisdk.Message{
 		{
