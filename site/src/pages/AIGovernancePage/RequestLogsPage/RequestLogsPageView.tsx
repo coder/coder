@@ -13,8 +13,9 @@ import {
 } from "components/Table/Table";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import { TableLoader } from "components/TableLoader/TableLoader";
-import type { FC } from "react";
+import type { ComponentProps, FC } from "react";
 import { docs } from "utils/docs";
+import { RequestLogsFilter } from "./RequestLogsFilter";
 import { RequestLogsRow } from "./RequestLogsRow/RequestLogsRow";
 
 interface RequestLogsPageViewProps {
@@ -22,6 +23,7 @@ interface RequestLogsPageViewProps {
 	isRequestLogsVisible: boolean;
 	interceptions?: readonly AIBridgeInterception[];
 	interceptionsQuery: PaginationResult;
+	filterProps: ComponentProps<typeof RequestLogsFilter>;
 }
 
 export const RequestLogsPageView: FC<RequestLogsPageViewProps> = ({
@@ -29,6 +31,7 @@ export const RequestLogsPageView: FC<RequestLogsPageViewProps> = ({
 	isRequestLogsVisible,
 	interceptions,
 	interceptionsQuery,
+	filterProps,
 }) => {
 	if (!isRequestLogsVisible) {
 		return (
@@ -41,30 +44,37 @@ export const RequestLogsPageView: FC<RequestLogsPageViewProps> = ({
 	}
 
 	return (
-		<PaginationContainer
-			query={interceptionsQuery}
-			paginationUnitLabel="interceptions"
-		>
-			<Table>
-				<TableHeader>
-					<TableRow>
-						<TableHead>Timestamp</TableHead>
-						<TableHead>User</TableHead>
-						<TableHead>Prompt</TableHead>
-						<TableHead>Tokens</TableHead>
-						<TableHead>Tool Calls</TableHead>
-					</TableRow>
-				</TableHeader>
-				<TableBody>
-					{isLoading && <TableLoader />}
-					{interceptions?.length === 0 && (
-						<TableEmpty message={"No request logs available"} />
-					)}
-					{interceptions?.map((interception) => (
-						<RequestLogsRow interception={interception} key={interception.id} />
-					))}
-				</TableBody>
-			</Table>
-		</PaginationContainer>
+		<>
+			<RequestLogsFilter {...filterProps} />
+
+			<PaginationContainer
+				query={interceptionsQuery}
+				paginationUnitLabel="interceptions"
+			>
+				<Table>
+					<TableHeader>
+						<TableRow>
+							<TableHead>Timestamp</TableHead>
+							<TableHead>User</TableHead>
+							<TableHead>Prompt</TableHead>
+							<TableHead>Tokens</TableHead>
+							<TableHead>Tool Calls</TableHead>
+						</TableRow>
+					</TableHeader>
+					<TableBody>
+						{isLoading && <TableLoader />}
+						{interceptions?.length === 0 && (
+							<TableEmpty message={"No request logs available"} />
+						)}
+						{interceptions?.map((interception) => (
+							<RequestLogsRow
+								interception={interception}
+								key={interception.id}
+							/>
+						))}
+					</TableBody>
+				</Table>
+			</PaginationContainer>
+		</>
 	);
 };
