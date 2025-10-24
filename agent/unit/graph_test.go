@@ -230,11 +230,13 @@ func TestGraphThreadSafety(t *testing.T) {
 		const operationsPerWriter = 1000
 		const operationsPerReader = 2000
 
+		barrier := make(chan struct{})
 		// Launch writers
 		for i := 0; i < numWriters; i++ {
 			wg.Add(1)
 			go func(writerID int) {
 				defer wg.Done()
+				<-barrier
 				for j := 0; j < operationsPerWriter; j++ {
 					from := &testGraphVertex{Name: fmt.Sprintf("writer-%d-%d", writerID, j)}
 					to := &testGraphVertex{Name: fmt.Sprintf("writer-%d-%d", writerID, j+1)}
@@ -253,6 +255,7 @@ func TestGraphThreadSafety(t *testing.T) {
 			wg.Add(1)
 			go func(readerID int) {
 				defer wg.Done()
+				<-barrier
 				defer func() {
 					if r := recover(); r != nil {
 						readerResults[readerID].panicked = true
@@ -275,6 +278,7 @@ func TestGraphThreadSafety(t *testing.T) {
 			}(i)
 		}
 
+		close(barrier)
 		wg.Wait()
 
 		// Verify no panics occurred in readers
@@ -302,6 +306,7 @@ func TestGraphThreadSafety(t *testing.T) {
 		err = graph.AddEdge(unitC, unitD, testEdgeCompleted)
 		require.NoError(t, err)
 
+		barrier := make(chan struct{})
 		var wg sync.WaitGroup
 		const numGoroutines = 50
 		cycleErrors := make([]error, numGoroutines)
@@ -311,11 +316,13 @@ func TestGraphThreadSafety(t *testing.T) {
 			wg.Add(1)
 			go func(goroutineID int) {
 				defer wg.Done()
+				<-barrier
 				err := graph.AddEdge(unitD, unitA, testEdgeCompleted)
 				cycleErrors[goroutineID] = err
 			}(i)
 		}
 
+		close(barrier)
 		wg.Wait()
 
 		// Verify all attempts correctly returned cycle error
@@ -343,6 +350,7 @@ func TestGraphThreadSafety(t *testing.T) {
 			require.NoError(t, err)
 		}
 
+		barrier := make(chan struct{})
 		var wg sync.WaitGroup
 		const numReaders = 100
 		const numWriters = 20
@@ -354,6 +362,7 @@ func TestGraphThreadSafety(t *testing.T) {
 			wg.Add(1)
 			go func(readerID int) {
 				defer wg.Done()
+				<-barrier
 				dot, err := graph.ToDOT(fmt.Sprintf("test-%d", readerID))
 				dotErrors[readerID] = err
 				if err == nil {
@@ -367,12 +376,14 @@ func TestGraphThreadSafety(t *testing.T) {
 			wg.Add(1)
 			go func(writerID int) {
 				defer wg.Done()
+				<-barrier
 				from := &testGraphVertex{Name: fmt.Sprintf("writer-dot-%d", writerID)}
 				to := &testGraphVertex{Name: fmt.Sprintf("writer-dot-target-%d", writerID)}
 				graph.AddEdge(from, to, testEdgeCompleted)
 			}(i)
 		}
 
+		close(barrier)
 		wg.Wait()
 
 		// Verify no errors occurred during DOT generation
