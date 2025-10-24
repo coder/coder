@@ -16,7 +16,7 @@ func (r *RootCmd) taskStatus() *serpent.Command {
 	var (
 		formatter = cliui.NewOutputFormatter(
 			cliui.TableFormat(
-				[]taskStatusRow{},
+				[]taskListRow{},
 				[]string{
 					"state changed",
 					"status",
@@ -28,14 +28,14 @@ func (r *RootCmd) taskStatus() *serpent.Command {
 			cliui.ChangeFormatterData(
 				cliui.JSONFormat(),
 				func(data any) (any, error) {
-					rows, ok := data.([]taskStatusRow)
+					rows, ok := data.([]taskListRow)
 					if !ok {
-						return nil, xerrors.Errorf("expected []taskStatusRow, got %T", data)
+						return nil, xerrors.Errorf("expected []taskListRow, got %T", data)
 					}
 					if len(rows) != 1 {
 						return nil, xerrors.Errorf("expected exactly 1 row, got %d", len(rows))
 					}
-					return rows[0], nil
+					return rows[0].Task, nil
 				},
 			),
 		)
@@ -85,14 +85,15 @@ func (r *RootCmd) taskStatus() *serpent.Command {
 			ctx := i.Context()
 			exp := codersdk.NewExperimentalClient(client)
 			identifier := i.Args[0]
+			now := time.Now()
 
 			task, err := exp.TaskByIdentifier(ctx, identifier)
 			if err != nil {
 				return err
 			}
 
-			tsr := toStatusRow(task)
-			out, err := formatter.Format(ctx, []taskStatusRow{tsr})
+			tsr := taskListRowFromTask(now, task)
+			out, err := formatter.Format(ctx, []taskListRow{tsr})
 			if err != nil {
 				return xerrors.Errorf("format task status: %w", err)
 			}
@@ -105,7 +106,7 @@ func (r *RootCmd) taskStatus() *serpent.Command {
 			t := time.NewTicker(watchIntervalArg)
 			defer t.Stop()
 			// TODO: implement streaming updates instead of polling
-			lastStatusRow := tsr
+			lastRow := tsr
 			for range t.C {
 				task, err := exp.TaskByID(ctx, task.ID)
 				if err != nil {
@@ -113,9 +114,9 @@ func (r *RootCmd) taskStatus() *serpent.Command {
 				}
 
 				// Only print if something changed
-				newStatusRow := toStatusRow(task)
-				if !taskStatusRowEqual(lastStatusRow, newStatusRow) {
-					out, err := formatter.Format(ctx, []taskStatusRow{newStatusRow})
+				newRow := taskListRowFromTask(now, task)
+				if !taskListRowEqual(lastRow, newRow) {
+					out, err := formatter.Format(ctx, []taskListRow{newRow})
 					if err != nil {
 						return xerrors.Errorf("format task status: %w", err)
 					}
@@ -130,7 +131,7 @@ func (r *RootCmd) taskStatus() *serpent.Command {
 					return nil
 				}
 
-				lastStatusRow = newStatusRow
+				lastRow = newRow
 			}
 			return nil
 		},
@@ -155,37 +156,13 @@ func taskWatchIsEnded(task codersdk.Task) bool {
 	return true
 }
 
-type taskStatusRow struct {
-	codersdk.Task `table:"r,recursive_inline"`
-	ChangedAgo    string `json:"-" table:"state changed"`
-	Healthy       bool   `json:"-" table:"healthy"`
-}
-
-func taskStatusRowEqual(r1, r2 taskStatusRow) bool {
-	return r1.Status == r2.Status &&
+func taskListRowEqual(r1, r2 taskListRow) bool {
+	return r1.Task.Status == r2.Task.Status &&
 		r1.Healthy == r2.Healthy &&
-		taskStateEqual(r1.CurrentState, r2.CurrentState)
+		(taskStateEqual(r1.Task.CurrentState, r2.Task.CurrentState) || workspaceAppStatusEqual(r1.Task.AppStatus, r2.Task.AppStatus))
 }
 
-func toStatusRow(task codersdk.Task) taskStatusRow {
-	tsr := taskStatusRow{
-		Task:       task,
-		ChangedAgo: time.Since(task.UpdatedAt).Truncate(time.Second).String() + " ago",
-	}
-	tsr.Healthy = task.WorkspaceAgentHealth != nil &&
-		task.WorkspaceAgentHealth.Healthy &&
-		task.WorkspaceAgentLifecycle != nil &&
-		!task.WorkspaceAgentLifecycle.Starting() &&
-		!task.WorkspaceAgentLifecycle.ShuttingDown()
-
-	if task.AppStatus != nil {
-		tsr.ChangedAgo = relative(time.Since(task.AppStatus.CreatedAt).Truncate(time.Second))
-	} else if task.CurrentState != nil {
-		tsr.ChangedAgo = relative(time.Since(task.CurrentState.Timestamp).Truncate(time.Second))
-	}
-	return tsr
-}
-
+// TODO(cian): remove when codersdk.TaskStatus goes away
 func taskStateEqual(se1, se2 *codersdk.TaskStateEntry) bool {
 	var s1, m1, s2, m2 string
 	if se1 != nil {
@@ -195,6 +172,19 @@ func taskStateEqual(se1, se2 *codersdk.TaskStateEntry) bool {
 	if se2 != nil {
 		s2 = string(se2.State)
 		m2 = se2.Message
+	}
+	return s1 == s2 && m1 == m2
+}
+
+func workspaceAppStatusEqual(wa1, wa2 *codersdk.WorkspaceAppStatus) bool {
+	var s1, m1, s2, m2 string
+	if wa1 != nil {
+		s1 = string(wa1.State)
+		m1 = wa1.Message
+	}
+	if wa2 != nil {
+		s2 = string(wa2.State)
+		m2 = wa2.Message
 	}
 	return s1 == s2 && m1 == m2
 }

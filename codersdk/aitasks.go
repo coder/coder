@@ -157,7 +157,7 @@ type Task struct {
 	OwnerID                 uuid.UUID                `json:"owner_id" format:"uuid" table:"owner id"`
 	OwnerName               string                   `json:"owner_name" table:"owner name"`
 	OwnerAvatarURL          string                   `json:"owner_avatar_url,omitempty" table:"owner avatar url"`
-	Name                    string                   `json:"name" table:"name,default_sort"`
+	Name                    string                   `json:"name" table:"-"`
 	TemplateID              uuid.UUID                `json:"template_id" format:"uuid" table:"template id"`
 	TemplateVersionID       uuid.UUID                `json:"template_version_id" format:"uuid" table:"template version id"`
 	TemplateName            string                   `json:"template_name" table:"template name"`
@@ -172,12 +172,12 @@ type Task struct {
 	WorkspaceAgentHealth    *WorkspaceAgentHealth    `json:"workspace_agent_health" table:"workspace agent health"`
 	WorkspaceAppID          uuid.NullUUID            `json:"workspace_app_id" format:"uuid" table:"workspace app id"`
 	InitialPrompt           string                   `json:"initial_prompt" table:"initial prompt"`
-	Status                  TaskStatus               `json:"status" enums:"pending,initializing,active,paused,unknown,error" table:"task status"`
-	AppStatus               *WorkspaceAppStatus      `json:"latest_workspace_app_status" table:"app status,recursive_inline"`
+	Status                  TaskStatus               `json:"status" enums:"pending,initializing,active,paused,unknown,error" table:"status"`
+	AppStatus               *WorkspaceAppStatus      `json:"latest_workspace_app_status" table:"-"`
 	CreatedAt               time.Time                `json:"created_at" format:"date-time" table:"created at"`
 	UpdatedAt               time.Time                `json:"updated_at" format:"date-time" table:"updated at"`
 	// Deprecated: use LatestWorkspaceAppStatus instead.
-	CurrentState *TaskStateEntry `json:"current_state" table:"cs,recursive_inline"`
+	CurrentState *TaskStateEntry `json:"current_state" table:"-"`
 }
 
 // TaskStateEntry represents a single entry in the task's state history.
@@ -185,8 +185,8 @@ type Task struct {
 // Deprecated: use WorkspaceAppStatus instead.
 type TaskStateEntry struct {
 	Timestamp time.Time `json:"timestamp" format:"date-time" table:"-"`
-	State     TaskState `json:"state" enum:"working,idle,completed,failed" table:"state"`
-	Message   string    `json:"message" table:"message"`
+	State     TaskState `json:"state" enum:"working,idle,completed,failed" table:"-"`
+	Message   string    `json:"message" table:"-"`
 	URI       string    `json:"uri" table:"-"`
 }
 

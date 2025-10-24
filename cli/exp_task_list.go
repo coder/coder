@@ -16,22 +16,40 @@ import (
 type taskListRow struct {
 	Task codersdk.Task `table:"t,recursive_inline"`
 
-	StateChangedAgo string `table:"state changed"`
+	OwnerAndName    string    `table:"task,default_sort"`
+	StateChangedAgo string    `table:"state changed"`
+	Healthy         bool      `json:"-" table:"healthy"`
+	Message         string    `json:"message" table:"message"`
+	State           string    `json:"-" table:"state"`
+	Timestamp       time.Time `json:"timestamp" format:"date-time" table:"-"`
+	URI             string    `json:"uri" table:"-"`
 }
 
 func taskListRowFromTask(now time.Time, t codersdk.Task) taskListRow {
-	var stateAgo string
+	tsr := taskListRow{
+		Task:         t,
+		OwnerAndName: fmt.Sprintf("%s/%s", t.OwnerName, t.Name),
+		Healthy: t.WorkspaceAgentHealth != nil &&
+			t.WorkspaceAgentHealth.Healthy &&
+			t.WorkspaceAgentLifecycle != nil &&
+			!t.WorkspaceAgentLifecycle.Starting() &&
+			!t.WorkspaceAgentLifecycle.ShuttingDown(),
+	}
 	if t.AppStatus != nil {
-		stateAgo = relative(now.UTC().Sub(t.AppStatus.CreatedAt).Truncate(time.Second))
+		tsr.StateChangedAgo = relative(-now.UTC().Sub(t.AppStatus.CreatedAt).Truncate(time.Second))
+		tsr.Message = t.AppStatus.Message
+		tsr.State = string(t.AppStatus.State)
+		tsr.Timestamp = t.AppStatus.CreatedAt
+		tsr.URI = t.AppStatus.URI
 	} else if t.CurrentState != nil {
-		stateAgo = relative(now.UTC().Sub(t.CurrentState.Timestamp).Truncate(time.Second))
+		tsr.StateChangedAgo = relative(-now.UTC().Sub(t.CurrentState.Timestamp).Truncate(time.Second))
+		tsr.Message = t.CurrentState.Message
+		tsr.State = string(t.CurrentState.State)
+		tsr.Timestamp = t.CurrentState.Timestamp
+		tsr.URI = t.CurrentState.URI
 	}
 
-	return taskListRow{
-		Task: t,
-
-		StateChangedAgo: stateAgo,
-	}
+	return tsr
 }
 
 func (r *RootCmd) taskList() *serpent.Command {
@@ -45,7 +63,7 @@ func (r *RootCmd) taskList() *serpent.Command {
 			cliui.TableFormat(
 				[]taskListRow{},
 				[]string{
-					"name",
+					"task",
 					"status",
 					"state",
 					"state changed",
