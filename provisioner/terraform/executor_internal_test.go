@@ -3,7 +3,6 @@ package terraform
 import (
 	"encoding/json"
 	"os"
-	"path/filepath"
 	"testing"
 
 	tfjson "github.com/hashicorp/terraform-json"
@@ -175,30 +174,27 @@ func TestOnlyDataResources(t *testing.T) {
 	}
 }
 
-func TestChecksumFile(t *testing.T) {
+func TestChecksumFileCRC32(t *testing.T) {
 	t.Parallel()
 
 	t.Run("file exists", func(t *testing.T) {
 		t.Parallel()
 
-		// Create a temporary file
 		tmpfile, err := os.CreateTemp("", "lockfile-*.hcl")
 		require.NoError(t, err)
 		defer os.Remove(tmpfile.Name())
 
-		content := []byte("provider \"aws\" {\n  version = \"5.0.0\"\n}\n")
+		content := []byte("provider \"aws\" { version = \"5.0.0\" }")
 		_, err = tmpfile.Write(content)
 		require.NoError(t, err)
 		tmpfile.Close()
 
 		// Calculate checksum
-		checksum1, exists := checksumFile(tmpfile.Name())
-		require.True(t, exists)
-		require.NotEmpty(t, checksum1)
+		checksum1 := checksumFileCRC32(tmpfile.Name())
+		require.NotZero(t, checksum1)
 
-		// Same file should have same checksum
-		checksum2, exists := checksumFile(tmpfile.Name())
-		require.True(t, exists)
+		// Same content should have same checksum
+		checksum2 := checksumFileCRC32(tmpfile.Name())
 		require.Equal(t, checksum1, checksum2)
 
 		// Modify file
@@ -206,39 +202,25 @@ func TestChecksumFile(t *testing.T) {
 		require.NoError(t, err)
 
 		// Checksum should be different
-		checksum3, exists := checksumFile(tmpfile.Name())
-		require.True(t, exists)
+		checksum3 := checksumFileCRC32(tmpfile.Name())
 		require.NotEqual(t, checksum1, checksum3)
 	})
 
 	t.Run("file does not exist", func(t *testing.T) {
 		t.Parallel()
 
-		checksum, exists := checksumFile("/nonexistent/file.hcl")
-		require.False(t, exists)
-		require.Empty(t, checksum)
+		checksum := checksumFileCRC32("/nonexistent/file.hcl")
+		require.Zero(t, checksum)
 	})
-}
-
-func TestGetTerraformLockFilePath(t *testing.T) {
-	t.Parallel()
-
-	workdir := "/tmp/test"
-	expected := filepath.Join(workdir, ".terraform.lock.hcl")
-	got := getTerraformLockFilePath(workdir)
-	require.Equal(t, expected, got)
 }
 
 func TestWarnLockFileModified(t *testing.T) {
 	t.Parallel()
 
+	logger := testutil.Logger(t)
 	logr := &mockLogger{}
-	e := &executor{
-		logger:  testutil.Logger(t),
-		workdir: "/tmp/test",
-	}
 
-	e.warnLockFileModified(testutil.Context(t, testutil.WaitShort), logr)
+	warnLockFileModified(testutil.Context(t, testutil.WaitShort), logger, logr)
 
 	// Check if warning was logged
 	var hasWarning bool
@@ -246,14 +228,15 @@ func TestWarnLockFileModified(t *testing.T) {
 	for _, log := range logr.logs {
 		if log.Level == proto.LogLevel_WARN {
 			hasWarning = true
-			allWarningContent += log.Output + "\n"
+			allWarningContent += log.Output
 		}
 	}
 
 	require.True(t, hasWarning, "expected warning log")
-	require.Contains(t, allWarningContent, "WARNING: .terraform.lock.hcl was modified during 'terraform init'")
+	require.Contains(t, allWarningContent, "WARN: .terraform.lock.hcl was modified during init")
+	require.Contains(t, allWarningContent, "missing for the current platform")
 	require.Contains(t, allWarningContent, "terraform providers lock")
-	require.Contains(t, allWarningContent, "linux_amd64")
+	require.Contains(t, allWarningContent, "-platform=linux_amd64")
 }
 
 func TestBufferedWriteCloser(t *testing.T) {
