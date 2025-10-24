@@ -436,12 +436,4 @@ func TestScheduleStart_TemplateAutostartRequirement(t *testing.T) {
 		stderrOutput := stderrBuf.String()
 		require.NotContains(t, stderrOutput, "Warning")
 	})
-
-	t.Run("NoWarningWhenNoRequirement", func(t *testing.T) {
-		// This test is not applicable in AGPL mode because AutostartRequirement
-		// always returns all days (enterprise feature).
-		// In enterprise, a template without AutostartRequirement would have an empty
-		// DaysOfWeek list, but in AGPL it will always have all days.
-		t.Skip("Skipping: AutostartRequirement is enterprise-only, AGPL always has all days")
-	})
 }
