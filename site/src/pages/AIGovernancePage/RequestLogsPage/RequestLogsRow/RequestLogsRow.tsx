@@ -12,7 +12,7 @@ type RequestLogsRowProps = {
 export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 	const [isOpen, setIsOpen] = useState(false);
 
-	const hasPrompt = interception.user_prompts.length > 0;
+	const [firstPrompt] = interception.user_prompts;
 
 	const tokens = interception.token_usages.reduce(
 		(acc, tokenUsage) =>
@@ -24,7 +24,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 	return (
 		<>
 			<TableRow
-				className={cn("select-none cursor-pointer hover:bg-surface-secondary")}
+				className={"select-none cursor-pointer hover:bg-surface-secondary"}
 				onClick={() => setIsOpen(!isOpen)}
 			>
 				<TableCell>
@@ -44,19 +44,15 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 					</div>
 				</TableCell>
 				<TableCell>
-					<div css={{ display: "flex", alignItems: "center", gap: 12 }}>
+					<div className="flex items-center gap-3">
 						<Avatar
 							fallback={interception.initiator.username}
 							src={interception.initiator.avatar_url}
 						/>
-						<div css={{ fontWeight: 500 }}>
-							{interception.initiator.username}
-						</div>
+						<div className="font-medium">{interception.initiator.username}</div>
 					</div>
 				</TableCell>
-				<TableCell>
-					{hasPrompt && interception.user_prompts[0].prompt}
-				</TableCell>
+				<TableCell>{firstPrompt?.prompt}</TableCell>
 				<TableCell>{tokens}</TableCell>
 				<TableCell>{toolCalls}</TableCell>
 			</TableRow>
