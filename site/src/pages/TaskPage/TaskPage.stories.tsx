@@ -72,10 +72,10 @@ const meta: Meta<typeof TaskPage> = {
 		reactRouter: reactRouterParameters({
 			location: {
 				pathParams: {
-					task: MockTasks[0].id,
+					taskId: MockTasks[0].id,
 				},
 			},
-			routing: { path: "/tasks/:task" },
+			routing: { path: "/tasks/:taskId" },
 		}),
 	},
 };
