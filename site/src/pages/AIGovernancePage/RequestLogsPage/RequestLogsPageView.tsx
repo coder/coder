@@ -62,16 +62,18 @@ export const RequestLogsPageView: FC<RequestLogsPageViewProps> = ({
 						</TableRow>
 					</TableHeader>
 					<TableBody>
-						{isLoading && <TableLoader />}
-						{interceptions?.length === 0 && (
+						{isLoading ? (
+							<TableLoader />
+						) : interceptions?.length === 0 ? (
 							<TableEmpty message={"No request logs available"} />
+						) : (
+							interceptions?.map((interception) => (
+								<RequestLogsRow
+									interception={interception}
+									key={interception.id}
+								/>
+							))
 						)}
-						{interceptions?.map((interception) => (
-							<RequestLogsRow
-								interception={interception}
-								key={interception.id}
-							/>
-						))}
 					</TableBody>
 				</Table>
 			</PaginationContainer>
