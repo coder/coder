@@ -460,6 +460,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "created_by": {
     "avatar_url": "http://example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
     "username": "string"
   },
   "has_external_agent": true,
@@ -475,6 +476,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     "error_code": "REQUIRED_TEMPLATE_VARIABLES",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "input": {
       "error": "string",
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
@@ -560,6 +562,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "created_by": {
     "avatar_url": "http://example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
     "username": "string"
   },
   "has_external_agent": true,
@@ -575,6 +578,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
     "error_code": "REQUIRED_TEMPLATE_VARIABLES",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "input": {
       "error": "string",
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
@@ -684,6 +688,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "created_by": {
     "avatar_url": "http://example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
     "username": "string"
   },
   "has_external_agent": true,
@@ -699,6 +704,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
     "error_code": "REQUIRED_TEMPLATE_VARIABLES",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "input": {
       "error": "string",
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
@@ -1291,6 +1297,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions \
     "created_by": {
       "avatar_url": "http://example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
       "username": "string"
     },
     "has_external_agent": true,
@@ -1306,6 +1313,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions \
       "error_code": "REQUIRED_TEMPLATE_VARIABLES",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
       "input": {
         "error": "string",
         "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
@@ -1370,6 +1378,7 @@ Status Code **200**
 | `» created_by`              | [codersdk.MinimalUser](schemas.md#codersdkminimaluser)                       | false    |              |                                                                                                                                                                     |
 | `»» avatar_url`             | string(uri)                                                                  | false    |              |                                                                                                                                                                     |
 | `»» id`                     | string(uuid)                                                                 | true     |              |                                                                                                                                                                     |
+| `»» name`                   | string                                                                       | false    |              |                                                                                                                                                                     |
 | `»» username`               | string                                                                       | true     |              |                                                                                                                                                                     |
 | `» has_external_agent`      | boolean                                                                      | false    |              |                                                                                                                                                                     |
 | `» id`                      | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
@@ -1382,6 +1391,7 @@ Status Code **200**
 | `»» error_code`             | [codersdk.JobErrorCode](schemas.md#codersdkjoberrorcode)                     | false    |              |                                                                                                                                                                     |
 | `»» file_id`                | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
 | `»» id`                     | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
+| `»» initiator_id`           | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
 | `»» input`                  | [codersdk.ProvisionerJobInput](schemas.md#codersdkprovisionerjobinput)       | false    |              |                                                                                                                                                                     |
 | `»»» error`                 | string                                                                       | false    |              |                                                                                                                                                                     |
 | `»»» template_version_id`   | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
@@ -1574,6 +1584,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions/{templ
     "created_by": {
       "avatar_url": "http://example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
       "username": "string"
     },
     "has_external_agent": true,
@@ -1589,6 +1600,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions/{templ
       "error_code": "REQUIRED_TEMPLATE_VARIABLES",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
       "input": {
         "error": "string",
         "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
@@ -1653,6 +1665,7 @@ Status Code **200**
 | `» created_by`              | [codersdk.MinimalUser](schemas.md#codersdkminimaluser)                       | false    |              |                                                                                                                                                                     |
 | `»» avatar_url`             | string(uri)                                                                  | false    |              |                                                                                                                                                                     |
 | `»» id`                     | string(uuid)                                                                 | true     |              |                                                                                                                                                                     |
+| `»» name`                   | string                                                                       | false    |              |                                                                                                                                                                     |
 | `»» username`               | string                                                                       | true     |              |                                                                                                                                                                     |
 | `» has_external_agent`      | boolean                                                                      | false    |              |                                                                                                                                                                     |
 | `» id`                      | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
@@ -1665,6 +1678,7 @@ Status Code **200**
 | `»» error_code`             | [codersdk.JobErrorCode](schemas.md#codersdkjoberrorcode)                     | false    |              |                                                                                                                                                                     |
 | `»» file_id`                | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
 | `»» id`                     | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
+| `»» initiator_id`           | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
 | `»» input`                  | [codersdk.ProvisionerJobInput](schemas.md#codersdkprovisionerjobinput)       | false    |              |                                                                                                                                                                     |
 | `»»» error`                 | string                                                                       | false    |              |                                                                                                                                                                     |
 | `»»» template_version_id`   | string(uuid)                                                                 | false    |              |                                                                                                                                                                     |
@@ -1747,6 +1761,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion} \
   "created_by": {
     "avatar_url": "http://example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
     "username": "string"
   },
   "has_external_agent": true,
@@ -1762,6 +1777,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion} \
     "error_code": "REQUIRED_TEMPLATE_VARIABLES",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "input": {
       "error": "string",
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
@@ -1856,6 +1872,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
   "created_by": {
     "avatar_url": "http://example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
     "username": "string"
   },
   "has_external_agent": true,
@@ -1871,6 +1888,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
     "error_code": "REQUIRED_TEMPLATE_VARIABLES",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "input": {
       "error": "string",
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
@@ -2069,6 +2087,7 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
   "error_code": "REQUIRED_TEMPLATE_VARIABLES",
   "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
   "input": {
     "error": "string",
     "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
@@ -2143,6 +2162,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
   "error_code": "REQUIRED_TEMPLATE_VARIABLES",
   "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
   "input": {
     "error": "string",
     "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",

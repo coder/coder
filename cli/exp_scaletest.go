@@ -58,10 +58,13 @@ func (r *RootCmd) scaletestCmd() *serpent.Command {
 		Children: []*serpent.Command{
 			r.scaletestCleanup(),
 			r.scaletestDashboard(),
+			r.scaletestDynamicParameters(),
 			r.scaletestCreateWorkspaces(),
 			r.scaletestWorkspaceUpdates(),
 			r.scaletestWorkspaceTraffic(),
 			r.scaletestAutostart(),
+			r.scaletestNotifications(),
+			r.scaletestSMTP(),
 		},
 	}
 
@@ -1926,8 +1929,9 @@ type runnableTraceWrapper struct {
 }
 
 var (
-	_ harness.Runnable  = &runnableTraceWrapper{}
-	_ harness.Cleanable = &runnableTraceWrapper{}
+	_ harness.Runnable    = &runnableTraceWrapper{}
+	_ harness.Cleanable   = &runnableTraceWrapper{}
+	_ harness.Collectable = &runnableTraceWrapper{}
 )
 
 func (r *runnableTraceWrapper) Run(ctx context.Context, id string, logs io.Writer) error {
@@ -1967,6 +1971,14 @@ func (r *runnableTraceWrapper) Cleanup(ctx context.Context, id string, logs io.W
 	defer span.End()
 
 	return c.Cleanup(ctx, id, logs)
+}
+
+func (r *runnableTraceWrapper) GetMetrics() map[string]any {
+	c, ok := r.runner.(harness.Collectable)
+	if !ok {
+		return nil
+	}
+	return c.GetMetrics()
 }
 
 func getScaletestWorkspaces(ctx context.Context, client *codersdk.Client, owner, template string) ([]codersdk.Workspace, int, error) {

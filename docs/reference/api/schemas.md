@@ -277,6 +277,64 @@
 |--------------|--------|----------|--------------|-------------|
 | `csp-report` | object | false    |              |             |
 
+## coderd.tasksListResponse
+
+```json
+{
+  "count": 0,
+  "tasks": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "current_state": {
+        "message": "string",
+        "state": "working",
+        "timestamp": "2019-08-24T14:15:22Z",
+        "uri": "string"
+      },
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "initial_prompt": "string",
+      "name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "owner_name": "string",
+      "status": "pending",
+      "template_display_name": "string",
+      "template_icon": "string",
+      "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+      "template_name": "string",
+      "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "workspace_agent_health": {
+        "healthy": false,
+        "reason": "agent has lost connection"
+      },
+      "workspace_agent_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "workspace_agent_lifecycle": "created",
+      "workspace_app_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "workspace_build_number": 0,
+      "workspace_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "workspace_status": "pending"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name    | Type                                    | Required | Restrictions | Description |
+|---------|-----------------------------------------|----------|--------------|-------------|
+| `count` | integer                                 | false    |              |             |
+| `tasks` | array of [codersdk.Task](#codersdktask) | false    |              |             |
+
 ## codersdk.ACLAvailable
 
 ```json
@@ -380,7 +438,12 @@
 ```json
 {
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
+  "initiator": {
+    "avatar_url": "http://example.com",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "username": "string"
+  },
   "metadata": {
     "property1": null,
     "property2": null
@@ -440,7 +503,7 @@
 | Name               | Type                                                                | Required | Restrictions | Description |
 |--------------------|---------------------------------------------------------------------|----------|--------------|-------------|
 | `id`               | string                                                              | false    |              |             |
-| `initiator_id`     | string                                                              | false    |              |             |
+| `initiator`        | [codersdk.MinimalUser](#codersdkminimaluser)                        | false    |              |             |
 | `metadata`         | object                                                              | false    |              |             |
 | » `[any property]` | any                                                                 | false    |              |             |
 | `model`            | string                                                              | false    |              |             |
@@ -454,10 +517,16 @@
 
 ```json
 {
+  "count": 0,
   "results": [
     {
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
+      "initiator": {
+        "avatar_url": "http://example.com",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string",
+        "username": "string"
+      },
       "metadata": {
         "property1": null,
         "property2": null
@@ -518,6 +587,7 @@
 
 | Name      | Type                                                                    | Required | Restrictions | Description |
 |-----------|-------------------------------------------------------------------------|----------|--------------|-------------|
+| `count`   | integer                                                                 | false    |              |             |
 | `results` | array of [codersdk.AIBridgeInterception](#codersdkaibridgeinterception) | false    |              |             |
 
 ## codersdk.AIBridgeOpenAIConfig
@@ -654,6 +724,22 @@
 |----------|----------------------------------------------------|----------|--------------|-------------|
 | `bridge` | [codersdk.AIBridgeConfig](#codersdkaibridgeconfig) | false    |              |             |
 
+## codersdk.APIAllowListTarget
+
+```json
+{
+  "id": "string",
+  "type": "*"
+}
+```
+
+### Properties
+
+| Name   | Type                                           | Required | Restrictions | Description |
+|--------|------------------------------------------------|----------|--------------|-------------|
+| `id`   | string                                         | false    |              |             |
+| `type` | [codersdk.RBACResource](#codersdkrbacresource) | false    |              |             |
+
 ## codersdk.APIKey
 
 ```json
@@ -711,49 +797,204 @@
 
 #### Enumerated Values
 
-| Value                           |
-|---------------------------------|
-| `all`                           |
-| `application_connect`           |
-| `api_key:*`                     |
-| `api_key:create`                |
-| `api_key:delete`                |
-| `api_key:read`                  |
-| `api_key:update`                |
-| `coder:all`                     |
-| `coder:apikeys.manage_self`     |
-| `coder:application_connect`     |
-| `coder:templates.author`        |
-| `coder:templates.build`         |
-| `coder:workspaces.access`       |
-| `coder:workspaces.create`       |
-| `coder:workspaces.delete`       |
-| `coder:workspaces.operate`      |
-| `file:*`                        |
-| `file:create`                   |
-| `file:read`                     |
-| `template:*`                    |
-| `template:create`               |
-| `template:delete`               |
-| `template:read`                 |
-| `template:update`               |
-| `template:use`                  |
-| `user:read_personal`            |
-| `user:update_personal`          |
-| `user_secret:*`                 |
-| `user_secret:create`            |
-| `user_secret:delete`            |
-| `user_secret:read`              |
-| `user_secret:update`            |
-| `workspace:*`                   |
-| `workspace:application_connect` |
-| `workspace:create`              |
-| `workspace:delete`              |
-| `workspace:read`                |
-| `workspace:ssh`                 |
-| `workspace:start`               |
-| `workspace:stop`                |
-| `workspace:update`              |
+| Value                                     |
+|-------------------------------------------|
+| `all`                                     |
+| `application_connect`                     |
+| `aibridge_interception:*`                 |
+| `aibridge_interception:create`            |
+| `aibridge_interception:read`              |
+| `aibridge_interception:update`            |
+| `api_key:*`                               |
+| `api_key:create`                          |
+| `api_key:delete`                          |
+| `api_key:read`                            |
+| `api_key:update`                          |
+| `assign_org_role:*`                       |
+| `assign_org_role:assign`                  |
+| `assign_org_role:create`                  |
+| `assign_org_role:delete`                  |
+| `assign_org_role:read`                    |
+| `assign_org_role:unassign`                |
+| `assign_org_role:update`                  |
+| `assign_role:*`                           |
+| `assign_role:assign`                      |
+| `assign_role:read`                        |
+| `assign_role:unassign`                    |
+| `audit_log:*`                             |
+| `audit_log:create`                        |
+| `audit_log:read`                          |
+| `coder:all`                               |
+| `coder:apikeys.manage_self`               |
+| `coder:application_connect`               |
+| `coder:templates.author`                  |
+| `coder:templates.build`                   |
+| `coder:workspaces.access`                 |
+| `coder:workspaces.create`                 |
+| `coder:workspaces.delete`                 |
+| `coder:workspaces.operate`                |
+| `connection_log:*`                        |
+| `connection_log:read`                     |
+| `connection_log:update`                   |
+| `crypto_key:*`                            |
+| `crypto_key:create`                       |
+| `crypto_key:delete`                       |
+| `crypto_key:read`                         |
+| `crypto_key:update`                       |
+| `debug_info:*`                            |
+| `debug_info:read`                         |
+| `deployment_config:*`                     |
+| `deployment_config:read`                  |
+| `deployment_config:update`                |
+| `deployment_stats:*`                      |
+| `deployment_stats:read`                   |
+| `file:*`                                  |
+| `file:create`                             |
+| `file:read`                               |
+| `group:*`                                 |
+| `group:create`                            |
+| `group:delete`                            |
+| `group:read`                              |
+| `group:update`                            |
+| `group_member:*`                          |
+| `group_member:read`                       |
+| `idpsync_settings:*`                      |
+| `idpsync_settings:read`                   |
+| `idpsync_settings:update`                 |
+| `inbox_notification:*`                    |
+| `inbox_notification:create`               |
+| `inbox_notification:read`                 |
+| `inbox_notification:update`               |
+| `license:*`                               |
+| `license:create`                          |
+| `license:delete`                          |
+| `license:read`                            |
+| `notification_message:*`                  |
+| `notification_message:create`             |
+| `notification_message:delete`             |
+| `notification_message:read`               |
+| `notification_message:update`             |
+| `notification_preference:*`               |
+| `notification_preference:read`            |
+| `notification_preference:update`          |
+| `notification_template:*`                 |
+| `notification_template:read`              |
+| `notification_template:update`            |
+| `oauth2_app:*`                            |
+| `oauth2_app:create`                       |
+| `oauth2_app:delete`                       |
+| `oauth2_app:read`                         |
+| `oauth2_app:update`                       |
+| `oauth2_app_code_token:*`                 |
+| `oauth2_app_code_token:create`            |
+| `oauth2_app_code_token:delete`            |
+| `oauth2_app_code_token:read`              |
+| `oauth2_app_secret:*`                     |
+| `oauth2_app_secret:create`                |
+| `oauth2_app_secret:delete`                |
+| `oauth2_app_secret:read`                  |
+| `oauth2_app_secret:update`                |
+| `organization:*`                          |
+| `organization:create`                     |
+| `organization:delete`                     |
+| `organization:read`                       |
+| `organization:update`                     |
+| `organization_member:*`                   |
+| `organization_member:create`              |
+| `organization_member:delete`              |
+| `organization_member:read`                |
+| `organization_member:update`              |
+| `prebuilt_workspace:*`                    |
+| `prebuilt_workspace:delete`               |
+| `prebuilt_workspace:update`               |
+| `provisioner_daemon:*`                    |
+| `provisioner_daemon:create`               |
+| `provisioner_daemon:delete`               |
+| `provisioner_daemon:read`                 |
+| `provisioner_daemon:update`               |
+| `provisioner_jobs:*`                      |
+| `provisioner_jobs:create`                 |
+| `provisioner_jobs:read`                   |
+| `provisioner_jobs:update`                 |
+| `replicas:*`                              |
+| `replicas:read`                           |
+| `system:*`                                |
+| `system:create`                           |
+| `system:delete`                           |
+| `system:read`                             |
+| `system:update`                           |
+| `tailnet_coordinator:*`                   |
+| `tailnet_coordinator:create`              |
+| `tailnet_coordinator:delete`              |
+| `tailnet_coordinator:read`                |
+| `tailnet_coordinator:update`              |
+| `task:*`                                  |
+| `task:create`                             |
+| `task:delete`                             |
+| `task:read`                               |
+| `task:update`                             |
+| `template:*`                              |
+| `template:create`                         |
+| `template:delete`                         |
+| `template:read`                           |
+| `template:update`                         |
+| `template:use`                            |
+| `template:view_insights`                  |
+| `usage_event:*`                           |
+| `usage_event:create`                      |
+| `usage_event:read`                        |
+| `usage_event:update`                      |
+| `user:*`                                  |
+| `user:create`                             |
+| `user:delete`                             |
+| `user:read`                               |
+| `user:read_personal`                      |
+| `user:update`                             |
+| `user:update_personal`                    |
+| `user_secret:*`                           |
+| `user_secret:create`                      |
+| `user_secret:delete`                      |
+| `user_secret:read`                        |
+| `user_secret:update`                      |
+| `webpush_subscription:*`                  |
+| `webpush_subscription:create`             |
+| `webpush_subscription:delete`             |
+| `webpush_subscription:read`               |
+| `workspace:*`                             |
+| `workspace:application_connect`           |
+| `workspace:create`                        |
+| `workspace:create_agent`                  |
+| `workspace:delete`                        |
+| `workspace:delete_agent`                  |
+| `workspace:read`                          |
+| `workspace:share`                         |
+| `workspace:ssh`                           |
+| `workspace:start`                         |
+| `workspace:stop`                          |
+| `workspace:update`                        |
+| `workspace_agent_devcontainers:*`         |
+| `workspace_agent_devcontainers:create`    |
+| `workspace_agent_resource_monitor:*`      |
+| `workspace_agent_resource_monitor:create` |
+| `workspace_agent_resource_monitor:read`   |
+| `workspace_agent_resource_monitor:update` |
+| `workspace_dormant:*`                     |
+| `workspace_dormant:application_connect`   |
+| `workspace_dormant:create`                |
+| `workspace_dormant:create_agent`          |
+| `workspace_dormant:delete`                |
+| `workspace_dormant:delete_agent`          |
+| `workspace_dormant:read`                  |
+| `workspace_dormant:share`                 |
+| `workspace_dormant:ssh`                   |
+| `workspace_dormant:start`                 |
+| `workspace_dormant:stop`                  |
+| `workspace_dormant:update`                |
+| `workspace_proxy:*`                       |
+| `workspace_proxy:create`                  |
+| `workspace_proxy:delete`                  |
+| `workspace_proxy:read`                    |
+| `workspace_proxy:update`                  |
 
 ## codersdk.AddLicenseRequest
 
@@ -871,6 +1112,7 @@
   "support_links": [
     {
       "icon": "bug",
+      "location": "navbar",
       "name": "string",
       "target": "string"
     }
@@ -1833,6 +2075,26 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-------|--------|----------|--------------|-------------|
 | `key` | string | false    |              |             |
 
+## codersdk.CreateTaskRequest
+
+```json
+{
+  "input": "string",
+  "name": "string",
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+  "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1"
+}
+```
+
+### Properties
+
+| Name                         | Type   | Required | Restrictions | Description |
+|------------------------------|--------|----------|--------------|-------------|
+| `input`                      | string | false    |              |             |
+| `name`                       | string | false    |              |             |
+| `template_version_id`        | string | false    |              |             |
+| `template_version_preset_id` | string | false    |              |             |
+
 ## codersdk.CreateTemplateRequest
 
 ```json
@@ -2024,6 +2286,12 @@ This is required on creation to enable a user-flow of validating a template work
 
 ```json
 {
+  "allow_list": [
+    {
+      "id": "string",
+      "type": "*"
+    }
+  ],
   "lifetime": 0,
   "scope": "all",
   "scopes": [
@@ -2035,12 +2303,13 @@ This is required on creation to enable a user-flow of validating a template work
 
 ### Properties
 
-| Name         | Type                                                  | Required | Restrictions | Description                     |
-|--------------|-------------------------------------------------------|----------|--------------|---------------------------------|
-| `lifetime`   | integer                                               | false    |              |                                 |
-| `scope`      | [codersdk.APIKeyScope](#codersdkapikeyscope)          | false    |              | Deprecated: use Scopes instead. |
-| `scopes`     | array of [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              |                                 |
-| `token_name` | string                                                | false    |              |                                 |
+| Name         | Type                                                                | Required | Restrictions | Description                     |
+|--------------|---------------------------------------------------------------------|----------|--------------|---------------------------------|
+| `allow_list` | array of [codersdk.APIAllowListTarget](#codersdkapiallowlisttarget) | false    |              |                                 |
+| `lifetime`   | integer                                                             | false    |              |                                 |
+| `scope`      | [codersdk.APIKeyScope](#codersdkapikeyscope)                        | false    |              | Deprecated: use Scopes instead. |
+| `scopes`     | array of [codersdk.APIKeyScope](#codersdkapikeyscope)               | false    |              |                                 |
+| `token_name` | string                                                              | false    |              |                                 |
 
 ## codersdk.CreateUserRequestWithOrgs
 
@@ -2636,6 +2905,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "scheme": "string",
       "user": {}
     },
+    "enable_authz_recording": true,
     "enable_terraform_debug_mode": true,
     "ephemeral_deployment": true,
     "experiments": [
@@ -2871,6 +3141,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "value": [
           {
             "icon": "bug",
+            "location": "navbar",
             "name": "string",
             "target": "string"
           }
@@ -3141,6 +3412,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "scheme": "string",
     "user": {}
   },
+  "enable_authz_recording": true,
   "enable_terraform_debug_mode": true,
   "ephemeral_deployment": true,
   "experiments": [
@@ -3376,6 +3648,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "value": [
         {
           "icon": "bug",
+          "location": "navbar",
           "name": "string",
           "target": "string"
         }
@@ -3475,6 +3748,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `disable_password_auth`              | boolean                                                                                              | false    |              |                                                                    |
 | `disable_path_apps`                  | boolean                                                                                              | false    |              |                                                                    |
 | `docs_url`                           | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
+| `enable_authz_recording`             | boolean                                                                                              | false    |              |                                                                    |
 | `enable_terraform_debug_mode`        | boolean                                                                                              | false    |              |                                                                    |
 | `ephemeral_deployment`               | boolean                                                                                              | false    |              |                                                                    |
 | `experiments`                        | array of string                                                                                      | false    |              |                                                                    |
@@ -4483,6 +4757,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 ```json
 {
   "icon": "bug",
+  "location": "navbar",
   "name": "string",
   "target": "string"
 }
@@ -4490,19 +4765,23 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ### Properties
 
-| Name     | Type   | Required | Restrictions | Description |
-|----------|--------|----------|--------------|-------------|
-| `icon`   | string | false    |              |             |
-| `name`   | string | false    |              |             |
-| `target` | string | false    |              |             |
+| Name       | Type   | Required | Restrictions | Description |
+|------------|--------|----------|--------------|-------------|
+| `icon`     | string | false    |              |             |
+| `location` | string | false    |              |             |
+| `name`     | string | false    |              |             |
+| `target`   | string | false    |              |             |
 
 #### Enumerated Values
 
-| Property | Value  |
-|----------|--------|
-| `icon`   | `bug`  |
-| `icon`   | `chat` |
-| `icon`   | `docs` |
+| Property   | Value      |
+|------------|------------|
+| `icon`     | `bug`      |
+| `icon`     | `chat`     |
+| `icon`     | `docs`     |
+| `icon`     | `star`     |
+| `location` | `navbar`   |
+| `location` | `dropdown` |
 
 ## codersdk.ListInboxNotificationsResponse
 
@@ -4688,6 +4967,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 {
   "avatar_url": "http://example.com",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
   "username": "string"
 }
 ```
@@ -4698,6 +4978,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 |--------------|--------|----------|--------------|-------------|
 | `avatar_url` | string | false    |              |             |
 | `id`         | string | true     |              |             |
+| `name`       | string | false    |              |             |
 | `username`   | string | true     |              |             |
 
 ## codersdk.NotificationMethodsResponse
@@ -4993,7 +5274,8 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 {
   "authorization": "string",
   "device_authorization": "string",
-  "token": "string"
+  "token": "string",
+  "token_revoke": "string"
 }
 ```
 
@@ -5004,6 +5286,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `authorization`        | string | false    |              |                                   |
 | `device_authorization` | string | false    |              | Device authorization is optional. |
 | `token`                | string | false    |              |                                   |
+| `token_revoke`         | string | false    |              |                                   |
 
 ## codersdk.OAuth2AuthorizationServerMetadata
 
@@ -5067,7 +5350,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "redirect_uris": [
     "string"
   ],
-  "registration_access_token": "string",
+  "registration_access_token": [
+    0
+  ],
   "registration_client_uri": "string",
   "response_types": [
     "string"
@@ -5082,28 +5367,28 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ### Properties
 
-| Name                         | Type            | Required | Restrictions | Description |
-|------------------------------|-----------------|----------|--------------|-------------|
-| `client_id`                  | string          | false    |              |             |
-| `client_id_issued_at`        | integer         | false    |              |             |
-| `client_name`                | string          | false    |              |             |
-| `client_secret_expires_at`   | integer         | false    |              |             |
-| `client_uri`                 | string          | false    |              |             |
-| `contacts`                   | array of string | false    |              |             |
-| `grant_types`                | array of string | false    |              |             |
-| `jwks`                       | object          | false    |              |             |
-| `jwks_uri`                   | string          | false    |              |             |
-| `logo_uri`                   | string          | false    |              |             |
-| `policy_uri`                 | string          | false    |              |             |
-| `redirect_uris`              | array of string | false    |              |             |
-| `registration_access_token`  | string          | false    |              |             |
-| `registration_client_uri`    | string          | false    |              |             |
-| `response_types`             | array of string | false    |              |             |
-| `scope`                      | string          | false    |              |             |
-| `software_id`                | string          | false    |              |             |
-| `software_version`           | string          | false    |              |             |
-| `token_endpoint_auth_method` | string          | false    |              |             |
-| `tos_uri`                    | string          | false    |              |             |
+| Name                         | Type             | Required | Restrictions | Description |
+|------------------------------|------------------|----------|--------------|-------------|
+| `client_id`                  | string           | false    |              |             |
+| `client_id_issued_at`        | integer          | false    |              |             |
+| `client_name`                | string           | false    |              |             |
+| `client_secret_expires_at`   | integer          | false    |              |             |
+| `client_uri`                 | string           | false    |              |             |
+| `contacts`                   | array of string  | false    |              |             |
+| `grant_types`                | array of string  | false    |              |             |
+| `jwks`                       | object           | false    |              |             |
+| `jwks_uri`                   | string           | false    |              |             |
+| `logo_uri`                   | string           | false    |              |             |
+| `policy_uri`                 | string           | false    |              |             |
+| `redirect_uris`              | array of string  | false    |              |             |
+| `registration_access_token`  | array of integer | false    |              |             |
+| `registration_client_uri`    | string           | false    |              |             |
+| `response_types`             | array of string  | false    |              |             |
+| `scope`                      | string           | false    |              |             |
+| `software_id`                | string           | false    |              |             |
+| `software_version`           | string           | false    |              |             |
+| `token_endpoint_auth_method` | string           | false    |              |             |
+| `tos_uri`                    | string           | false    |              |             |
 
 ## codersdk.OAuth2ClientRegistrationRequest
 
@@ -5315,7 +5600,8 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "endpoints": {
     "authorization": "string",
     "device_authorization": "string",
-    "token": "string"
+    "token": "string",
+    "token_revoke": "string"
   },
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
@@ -6390,6 +6676,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "error_code": "REQUIRED_TEMPLATE_VARIABLES",
   "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
   "input": {
     "error": "string",
     "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
@@ -6432,6 +6719,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `error_code`        | [codersdk.JobErrorCode](#codersdkjoberrorcode)                     | false    |              |             |
 | `file_id`           | string                                                             | false    |              |             |
 | `id`                | string                                                             | false    |              |             |
+| `initiator_id`      | string                                                             | false    |              |             |
 | `input`             | [codersdk.ProvisionerJobInput](#codersdkprovisionerjobinput)       | false    |              |             |
 | `logs_overflowed`   | boolean                                                            | false    |              |             |
 | `metadata`          | [codersdk.ProvisionerJobMetadata](#codersdkprovisionerjobmetadata) | false    |              |             |
@@ -6815,6 +7103,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `read`                |
 | `read_personal`       |
 | `ssh`                 |
+| `share`               |
 | `unassign`            |
 | `update`              |
 | `update_personal`     |
@@ -6866,6 +7155,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `replicas`                         |
 | `system`                           |
 | `tailnet_coordinator`              |
+| `task`                             |
 | `template`                         |
 | `usage_event`                      |
 | `user`                             |
@@ -7117,6 +7407,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `idp_sync_settings_role`         |
 | `workspace_agent`                |
 | `workspace_app`                  |
+| `task`                           |
 
 ## codersdk.Response
 
@@ -7349,6 +7640,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
     "value": [
       {
         "icon": "bug",
+        "location": "navbar",
         "name": "string",
         "target": "string"
       }
@@ -7421,6 +7713,226 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `min_version`            | string                               | false    |              |             |
 | `redirect_http`          | boolean                              | false    |              |             |
 | `supported_ciphers`      | array of string                      | false    |              |             |
+
+## codersdk.Task
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "current_state": {
+    "message": "string",
+    "state": "working",
+    "timestamp": "2019-08-24T14:15:22Z",
+    "uri": "string"
+  },
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "initial_prompt": "string",
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "owner_name": "string",
+  "status": "pending",
+  "template_display_name": "string",
+  "template_icon": "string",
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+  "template_name": "string",
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "workspace_agent_health": {
+    "healthy": false,
+    "reason": "agent has lost connection"
+  },
+  "workspace_agent_id": {
+    "uuid": "string",
+    "valid": true
+  },
+  "workspace_agent_lifecycle": "created",
+  "workspace_app_id": {
+    "uuid": "string",
+    "valid": true
+  },
+  "workspace_build_number": 0,
+  "workspace_id": {
+    "uuid": "string",
+    "valid": true
+  },
+  "workspace_status": "pending"
+}
+```
+
+### Properties
+
+| Name                        | Type                                                                 | Required | Restrictions | Description |
+|-----------------------------|----------------------------------------------------------------------|----------|--------------|-------------|
+| `created_at`                | string                                                               | false    |              |             |
+| `current_state`             | [codersdk.TaskStateEntry](#codersdktaskstateentry)                   | false    |              |             |
+| `id`                        | string                                                               | false    |              |             |
+| `initial_prompt`            | string                                                               | false    |              |             |
+| `name`                      | string                                                               | false    |              |             |
+| `organization_id`           | string                                                               | false    |              |             |
+| `owner_id`                  | string                                                               | false    |              |             |
+| `owner_name`                | string                                                               | false    |              |             |
+| `status`                    | [codersdk.TaskStatus](#codersdktaskstatus)                           | false    |              |             |
+| `template_display_name`     | string                                                               | false    |              |             |
+| `template_icon`             | string                                                               | false    |              |             |
+| `template_id`               | string                                                               | false    |              |             |
+| `template_name`             | string                                                               | false    |              |             |
+| `template_version_id`       | string                                                               | false    |              |             |
+| `updated_at`                | string                                                               | false    |              |             |
+| `workspace_agent_health`    | [codersdk.WorkspaceAgentHealth](#codersdkworkspaceagenthealth)       | false    |              |             |
+| `workspace_agent_id`        | [uuid.NullUUID](#uuidnulluuid)                                       | false    |              |             |
+| `workspace_agent_lifecycle` | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle) | false    |              |             |
+| `workspace_app_id`          | [uuid.NullUUID](#uuidnulluuid)                                       | false    |              |             |
+| `workspace_build_number`    | integer                                                              | false    |              |             |
+| `workspace_id`              | [uuid.NullUUID](#uuidnulluuid)                                       | false    |              |             |
+| `workspace_status`          | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)                 | false    |              |             |
+
+#### Enumerated Values
+
+| Property           | Value          |
+|--------------------|----------------|
+| `status`           | `pending`      |
+| `status`           | `initializing` |
+| `status`           | `active`       |
+| `status`           | `paused`       |
+| `status`           | `unknown`      |
+| `status`           | `error`        |
+| `workspace_status` | `pending`      |
+| `workspace_status` | `starting`     |
+| `workspace_status` | `running`      |
+| `workspace_status` | `stopping`     |
+| `workspace_status` | `stopped`      |
+| `workspace_status` | `failed`       |
+| `workspace_status` | `canceling`    |
+| `workspace_status` | `canceled`     |
+| `workspace_status` | `deleting`     |
+| `workspace_status` | `deleted`      |
+
+## codersdk.TaskLogEntry
+
+```json
+{
+  "content": "string",
+  "id": 0,
+  "time": "2019-08-24T14:15:22Z",
+  "type": "input"
+}
+```
+
+### Properties
+
+| Name      | Type                                         | Required | Restrictions | Description |
+|-----------|----------------------------------------------|----------|--------------|-------------|
+| `content` | string                                       | false    |              |             |
+| `id`      | integer                                      | false    |              |             |
+| `time`    | string                                       | false    |              |             |
+| `type`    | [codersdk.TaskLogType](#codersdktasklogtype) | false    |              |             |
+
+## codersdk.TaskLogType
+
+```json
+"input"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value    |
+|----------|
+| `input`  |
+| `output` |
+
+## codersdk.TaskLogsResponse
+
+```json
+{
+  "logs": [
+    {
+      "content": "string",
+      "id": 0,
+      "time": "2019-08-24T14:15:22Z",
+      "type": "input"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name   | Type                                                    | Required | Restrictions | Description |
+|--------|---------------------------------------------------------|----------|--------------|-------------|
+| `logs` | array of [codersdk.TaskLogEntry](#codersdktasklogentry) | false    |              |             |
+
+## codersdk.TaskSendRequest
+
+```json
+{
+  "input": "string"
+}
+```
+
+### Properties
+
+| Name    | Type   | Required | Restrictions | Description |
+|---------|--------|----------|--------------|-------------|
+| `input` | string | false    |              |             |
+
+## codersdk.TaskState
+
+```json
+"working"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value      |
+|------------|
+| `working`  |
+| `idle`     |
+| `complete` |
+| `failed`   |
+
+## codersdk.TaskStateEntry
+
+```json
+{
+  "message": "string",
+  "state": "working",
+  "timestamp": "2019-08-24T14:15:22Z",
+  "uri": "string"
+}
+```
+
+### Properties
+
+| Name        | Type                                     | Required | Restrictions | Description |
+|-------------|------------------------------------------|----------|--------------|-------------|
+| `message`   | string                                   | false    |              |             |
+| `state`     | [codersdk.TaskState](#codersdktaskstate) | false    |              |             |
+| `timestamp` | string                                   | false    |              |             |
+| `uri`       | string                                   | false    |              |             |
+
+## codersdk.TaskStatus
+
+```json
+"pending"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value          |
+|----------------|
+| `pending`      |
+| `initializing` |
+| `active`       |
+| `paused`       |
+| `unknown`      |
+| `error`        |
 
 ## codersdk.TelemetryConfig
 
@@ -8103,6 +8615,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "created_by": {
     "avatar_url": "http://example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
     "username": "string"
   },
   "has_external_agent": true,
@@ -8118,6 +8631,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     "error_code": "REQUIRED_TEMPLATE_VARIABLES",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "input": {
       "error": "string",
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
@@ -9386,6 +9900,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "error_code": "REQUIRED_TEMPLATE_VARIABLES",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
       "input": {
         "error": "string",
         "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
@@ -9672,6 +10187,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     {
       "avatar_url": "http://example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
       "role": "admin",
       "username": "string"
     }
@@ -10553,6 +11069,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "error_code": "REQUIRED_TEMPLATE_VARIABLES",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "input": {
       "error": "string",
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
@@ -11311,6 +11828,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 {
   "avatar_url": "http://example.com",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
   "role": "admin",
   "username": "string"
 }
@@ -11322,6 +11840,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |--------------|--------------------------------------------------|----------|--------------|-------------|
 | `avatar_url` | string                                           | false    |              |             |
 | `id`         | string                                           | true     |              |             |
+| `name`       | string                                           | false    |              |             |
 | `role`       | [codersdk.WorkspaceRole](#codersdkworkspacerole) | false    |              |             |
 | `username`   | string                                           | true     |              |             |
 
@@ -11389,6 +11908,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "error_code": "REQUIRED_TEMPLATE_VARIABLES",
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
           "input": {
             "error": "string",
             "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
@@ -13210,6 +13730,7 @@ None
   "value": [
     {
       "icon": "bug",
+      "location": "navbar",
       "name": "string",
       "target": "string"
     }

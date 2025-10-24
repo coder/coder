@@ -102,6 +102,7 @@ func TestClient_WorkspaceUpdates(t *testing.T) {
 							MinimalUser: codersdk.MinimalUser{
 								ID:       userID,
 								Username: "rootbeer",
+								Name:     "Root Beer",
 							},
 						},
 					})

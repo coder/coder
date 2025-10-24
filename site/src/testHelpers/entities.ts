@@ -679,6 +679,7 @@ export const MockProvisionerJob: TypesGen.ProvisionerJob = {
 	status: "succeeded",
 	file_id: MockOrganization.id,
 	completed_at: "2022-05-17T17:39:01.382927298Z",
+	initiator_id: MockUserMember.id,
 	tags: {
 		scope: "organization",
 		owner: "",
@@ -4527,6 +4528,7 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
 			authorization: "http://localhost:3001/oauth2/authorize",
 			token: "http://localhost:3001/oauth2/token",
 			device_authorization: "",
+			token_revoke: "http://localhost:3001/oauth2/revoke",
 		},
 	},
 ];
@@ -5026,12 +5028,16 @@ export const MockTask: TypesGen.Task = {
 	template_name: MockTemplate.name,
 	template_display_name: MockTemplate.display_name,
 	template_icon: MockTemplate.icon,
+	template_version_id: MockTemplateVersion.id,
 	workspace_id: MockWorkspace.id,
+	workspace_status: "running",
+	workspace_build_number: MockWorkspaceBuild.build_number,
 	workspace_agent_id: MockWorkspaceAgent.id,
 	workspace_agent_lifecycle: MockWorkspaceAgent.lifecycle_state,
 	workspace_agent_health: MockWorkspaceAgent.health,
+	workspace_app_id: MockWorkspaceApp.id,
 	initial_prompt: "Perform some task",
-	status: "running",
+	status: "active",
 	current_state: {
 		timestamp: "2022-05-17T17:39:01.382927298Z",
 		state: "idle",

@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/pretty"
@@ -19,6 +18,20 @@ func (r *RootCmd) taskDelete() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "delete <task> [<task> ...]",
 		Short: "Delete experimental tasks",
+		Long: FormatExamples(
+			Example{
+				Description: "Delete a single task.",
+				Command:     "$ coder exp task delete task1",
+			},
+			Example{
+				Description: "Delete multiple tasks.",
+				Command:     "$ coder exp task delete task1 task2 task3",
+			},
+			Example{
+				Description: "Delete a task without confirmation.",
+				Command:     "$ coder exp task delete task4 --yes",
+			},
+		),
 		Middleware: serpent.Chain(
 			serpent.RequireRangeArgs(1, -1),
 		),
@@ -33,43 +46,19 @@ func (r *RootCmd) taskDelete() *serpent.Command {
 			}
 			exp := codersdk.NewExperimentalClient(client)
 
-			type toDelete struct {
-				ID      uuid.UUID
-				Owner   string
-				Display string
-			}
-
-			var items []toDelete
+			var tasks []codersdk.Task
 			for _, identifier := range inv.Args {
-				identifier = strings.TrimSpace(identifier)
-				if identifier == "" {
-					return xerrors.New("task identifier cannot be empty or whitespace")
-				}
-
-				// Check task identifier, try UUID first.
-				if id, err := uuid.Parse(identifier); err == nil {
-					task, err := exp.TaskByID(ctx, id)
-					if err != nil {
-						return xerrors.Errorf("resolve task %q: %w", identifier, err)
-					}
-					display := fmt.Sprintf("%s/%s", task.OwnerName, task.Name)
-					items = append(items, toDelete{ID: id, Display: display, Owner: task.OwnerName})
-					continue
-				}
-
-				// Non-UUID, treat as a workspace identifier (name or owner/name).
-				ws, err := namedWorkspace(ctx, client, identifier)
+				task, err := exp.TaskByIdentifier(ctx, identifier)
 				if err != nil {
 					return xerrors.Errorf("resolve task %q: %w", identifier, err)
 				}
-				display := ws.FullName()
-				items = append(items, toDelete{ID: ws.ID, Display: display, Owner: ws.OwnerName})
+				tasks = append(tasks, task)
 			}
 
 			// Confirm deletion of the tasks.
 			var displayList []string
-			for _, it := range items {
-				displayList = append(displayList, it.Display)
+			for _, task := range tasks {
+				displayList = append(displayList, fmt.Sprintf("%s/%s", task.OwnerName, task.Name))
 			}
 			_, err = cliui.Prompt(inv, cliui.PromptOptions{
 				Text:      fmt.Sprintf("Delete these tasks: %s?", pretty.Sprint(cliui.DefaultStyles.Code, strings.Join(displayList, ", "))),
@@ -80,12 +69,13 @@ func (r *RootCmd) taskDelete() *serpent.Command {
 				return err
 			}
 
-			for _, item := range items {
-				if err := exp.DeleteTask(ctx, item.Owner, item.ID); err != nil {
-					return xerrors.Errorf("delete task %q: %w", item.Display, err)
+			for i, task := range tasks {
+				display := displayList[i]
+				if err := exp.DeleteTask(ctx, task.OwnerName, task.ID); err != nil {
+					return xerrors.Errorf("delete task %q: %w", display, err)
 				}
 				_, _ = fmt.Fprintln(
-					inv.Stdout, "Deleted task "+pretty.Sprint(cliui.DefaultStyles.Keyword, item.Display)+" at "+cliui.Timestamp(time.Now()),
+					inv.Stdout, "Deleted task "+pretty.Sprint(cliui.DefaultStyles.Keyword, display)+" at "+cliui.Timestamp(time.Now()),
 				)
 			}
 

@@ -55,6 +55,8 @@ const (
 	ToolNameDeleteTask                  = "coder_delete_task"
 	ToolNameListTasks                   = "coder_list_tasks"
 	ToolNameGetTaskStatus               = "coder_get_task_status"
+	ToolNameSendTaskInput               = "coder_send_task_input"
+	ToolNameGetTaskLogs                 = "coder_get_task_logs"
 )
 
 func NewDeps(client *codersdk.Client, opts ...func(*Deps)) (Deps, error) {
@@ -233,6 +235,8 @@ var All = []GenericTool{
 	DeleteTask.Generic(),
 	ListTasks.Generic(),
 	GetTaskStatus.Generic(),
+	SendTaskInput.Generic(),
+	GetTaskLogs.Generic(),
 }
 
 type ReportTaskArgs struct {
@@ -1905,24 +1909,12 @@ var DeleteTask = Tool[DeleteTaskArgs, codersdk.Response]{
 
 		expClient := codersdk.NewExperimentalClient(deps.coderClient)
 
-		var owner string
-		id, err := uuid.Parse(args.TaskID)
-		if err == nil {
-			task, err := expClient.TaskByID(ctx, id)
-			if err != nil {
-				return codersdk.Response{}, xerrors.Errorf("get task %q: %w", args.TaskID, err)
-			}
-			owner = task.OwnerName
-		} else {
-			ws, err := normalizedNamedWorkspace(ctx, deps.coderClient, args.TaskID)
-			if err != nil {
-				return codersdk.Response{}, xerrors.Errorf("get task workspace %q: %w", args.TaskID, err)
-			}
-			owner = ws.OwnerName
-			id = ws.ID
+		task, err := expClient.TaskByIdentifier(ctx, args.TaskID)
+		if err != nil {
+			return codersdk.Response{}, xerrors.Errorf("resolve task: %w", err)
 		}
 
-		err = expClient.DeleteTask(ctx, owner, id)
+		err = expClient.DeleteTask(ctx, task.OwnerName, task.ID)
 		if err != nil {
 			return codersdk.Response{}, xerrors.Errorf("delete task: %w", err)
 		}
@@ -1934,8 +1926,8 @@ var DeleteTask = Tool[DeleteTaskArgs, codersdk.Response]{
 }
 
 type ListTasksArgs struct {
-	Status string `json:"status"`
-	User   string `json:"user"`
+	Status codersdk.TaskStatus `json:"status"`
+	User   string              `json:"user"`
 }
 
 type ListTasksResponse struct {
@@ -1986,7 +1978,7 @@ type GetTaskStatusArgs struct {
 }
 
 type GetTaskStatusResponse struct {
-	Status codersdk.WorkspaceStatus `json:"status"`
+	Status codersdk.TaskStatus      `json:"status"`
 	State  *codersdk.TaskStateEntry `json:"state"`
 }
 
@@ -2012,18 +2004,9 @@ var GetTaskStatus = Tool[GetTaskStatusArgs, GetTaskStatusResponse]{
 
 		expClient := codersdk.NewExperimentalClient(deps.coderClient)
 
-		id, err := uuid.Parse(args.TaskID)
+		task, err := expClient.TaskByIdentifier(ctx, args.TaskID)
 		if err != nil {
-			ws, err := normalizedNamedWorkspace(ctx, deps.coderClient, args.TaskID)
-			if err != nil {
-				return GetTaskStatusResponse{}, xerrors.Errorf("get task workspace %q: %w", args.TaskID, err)
-			}
-			id = ws.ID
-		}
-
-		task, err := expClient.TaskByID(ctx, id)
-		if err != nil {
-			return GetTaskStatusResponse{}, xerrors.Errorf("get task %q: %w", args.TaskID, err)
+			return GetTaskStatusResponse{}, xerrors.Errorf("resolve task %q: %w", args.TaskID, err)
 		}
 
 		return GetTaskStatusResponse{
@@ -2033,11 +2016,97 @@ var GetTaskStatus = Tool[GetTaskStatusArgs, GetTaskStatusResponse]{
 	},
 }
 
-// normalizedNamedWorkspace normalizes the workspace name before getting the
-// workspace by name.
-func normalizedNamedWorkspace(ctx context.Context, client *codersdk.Client, name string) (codersdk.Workspace, error) {
-	// Maybe namedWorkspace should itself call NormalizeWorkspaceInput?
-	return namedWorkspace(ctx, client, NormalizeWorkspaceInput(name))
+type SendTaskInputArgs struct {
+	TaskID string `json:"task_id"`
+	Input  string `json:"input"`
+}
+
+var SendTaskInput = Tool[SendTaskInputArgs, codersdk.Response]{
+	Tool: aisdk.Tool{
+		Name:        ToolNameSendTaskInput,
+		Description: `Send input to a running task.`,
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"task_id": map[string]any{
+					"type":        "string",
+					"description": taskIDDescription("prompt"),
+				},
+				"input": map[string]any{
+					"type":        "string",
+					"description": "The input to send to the task.",
+				},
+			},
+			Required: []string{"task_id", "input"},
+		},
+	},
+	UserClientOptional: true,
+	Handler: func(ctx context.Context, deps Deps, args SendTaskInputArgs) (codersdk.Response, error) {
+		if args.TaskID == "" {
+			return codersdk.Response{}, xerrors.New("task_id is required")
+		}
+
+		if args.Input == "" {
+			return codersdk.Response{}, xerrors.New("input is required")
+		}
+
+		expClient := codersdk.NewExperimentalClient(deps.coderClient)
+
+		task, err := expClient.TaskByIdentifier(ctx, args.TaskID)
+		if err != nil {
+			return codersdk.Response{}, xerrors.Errorf("resolve task %q: %w", args.TaskID, err)
+		}
+
+		err = expClient.TaskSend(ctx, task.OwnerName, task.ID, codersdk.TaskSendRequest{
+			Input: args.Input,
+		})
+		if err != nil {
+			return codersdk.Response{}, xerrors.Errorf("send task input %q: %w", args.TaskID, err)
+		}
+
+		return codersdk.Response{
+			Message: "Input sent to task successfully.",
+		}, nil
+	},
+}
+
+type GetTaskLogsArgs struct {
+	TaskID string `json:"task_id"`
+}
+
+var GetTaskLogs = Tool[GetTaskLogsArgs, codersdk.TaskLogsResponse]{
+	Tool: aisdk.Tool{
+		Name:        ToolNameGetTaskLogs,
+		Description: `Get the logs of a task.`,
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"task_id": map[string]any{
+					"type":        "string",
+					"description": taskIDDescription("query"),
+				},
+			},
+			Required: []string{"task_id"},
+		},
+	},
+	UserClientOptional: true,
+	Handler: func(ctx context.Context, deps Deps, args GetTaskLogsArgs) (codersdk.TaskLogsResponse, error) {
+		if args.TaskID == "" {
+			return codersdk.TaskLogsResponse{}, xerrors.New("task_id is required")
+		}
+
+		expClient := codersdk.NewExperimentalClient(deps.coderClient)
+
+		task, err := expClient.TaskByIdentifier(ctx, args.TaskID)
+		if err != nil {
+			return codersdk.TaskLogsResponse{}, err
+		}
+
+		logs, err := expClient.TaskLogs(ctx, task.OwnerName, task.ID)
+		if err != nil {
+			return codersdk.TaskLogsResponse{}, xerrors.Errorf("get task logs %q: %w", args.TaskID, err)
+		}
+
+		return logs, nil
+	},
 }
 
 // NormalizeWorkspaceInput converts workspace name input to standard format.

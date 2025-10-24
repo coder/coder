@@ -2,7 +2,6 @@ package httpmw_test
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -22,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 )
@@ -30,10 +30,7 @@ func TestWorkspaceParam(t *testing.T) {
 	t.Parallel()
 
 	setup := func(db database.Store) (*http.Request, database.User) {
-		var (
-			id, secret = randomAPIKeyParts()
-			hashed     = sha256.Sum256([]byte(secret))
-		)
+		id, secret, hashed := randomAPIKeyParts()
 		r := httptest.NewRequest("GET", "/", nil)
 		r.Header.Set(codersdk.SessionTokenHeader, fmt.Sprintf("%s-%s", id, secret))
 
@@ -43,7 +40,7 @@ func TestWorkspaceParam(t *testing.T) {
 		user, err := db.InsertUser(r.Context(), database.InsertUserParams{
 			ID:             userID,
 			Email:          "testaccount@coder.com",
-			HashedPassword: hashed[:],
+			HashedPassword: hashed,
 			Username:       username,
 			CreatedAt:      dbtime.Now(),
 			UpdatedAt:      dbtime.Now(),
@@ -62,12 +59,14 @@ func TestWorkspaceParam(t *testing.T) {
 		_, err = db.InsertAPIKey(r.Context(), database.InsertAPIKeyParams{
 			ID:           id,
 			UserID:       user.ID,
-			HashedSecret: hashed[:],
+			HashedSecret: hashed,
 			LastUsed:     dbtime.Now(),
 			ExpiresAt:    dbtime.Now().Add(time.Minute),
 			LoginType:    database.LoginTypePassword,
 			Scopes:       database.APIKeyScopes{database.ApiKeyScopeCoderAll},
-			AllowList:    database.AllowList{database.AllowListWildcard()},
+			AllowList: database.AllowList{
+				{Type: policy.WildcardSymbol, ID: policy.WildcardSymbol},
+			},
 			IPAddress: pqtype.Inet{
 				IPNet: net.IPNet{
 					IP:   net.IPv4(127, 0, 0, 1),

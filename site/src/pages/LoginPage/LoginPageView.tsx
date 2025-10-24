@@ -68,10 +68,7 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
 					</div>
 					<div>{buildInfo?.version}</div>
 					{tosAccepted && (
-						<TermsOfServiceLink
-							url={authMethods?.terms_of_service_url}
-							css={{ fontSize: 12 }}
-						/>
+						<TermsOfServiceLink url={authMethods?.terms_of_service_url} />
 					)}
 				</footer>
 			</div>

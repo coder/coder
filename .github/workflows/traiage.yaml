@@ -13,12 +13,12 @@ on:
       template_name:
         description: "Coder template to use for workspace"
         required: true
-        default: "traiage"
+        default: "coder"
         type: string
       template_preset:
         description: "Template preset to use"
         required: true
-        default: "Default"
+        default: "none"
         type: string
       prefix:
         description: "Prefix for workspace name"
@@ -66,8 +66,8 @@ jobs:
           GITHUB_EVENT_USER_ID: ${{ github.event.sender.id }}
           GITHUB_EVENT_USER_LOGIN: ${{ github.event.sender.login }}
           INPUTS_ISSUE_URL: ${{ inputs.issue_url }}
-          INPUTS_TEMPLATE_NAME: ${{ inputs.template_name || 'traiage' }}
-          INPUTS_TEMPLATE_PRESET: ${{ inputs.template_preset || 'Default'}}
+          INPUTS_TEMPLATE_NAME: ${{ inputs.template_name || 'coder' }}
+          INPUTS_TEMPLATE_PRESET: ${{ inputs.template_preset || 'none'}}
           INPUTS_PREFIX: ${{ inputs.prefix || 'traiage' }}
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -110,20 +110,19 @@ jobs:
             exit 1
           fi
 
-      - name: Verify organization membership
+      - name: Verify push access
         env:
-          GITHUB_ORG: ${{ github.repository_owner }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
           GITHUB_USERNAME: ${{ steps.determine-inputs.outputs.github_username }}
           GITHUB_USER_ID: ${{ steps.determine-inputs.outputs.github_user_id }}
         run: |
-          # Check if the actor is a member of the organization
-          if ! gh api "orgs/${GITHUB_ORG}/members/${GITHUB_USERNAME}" --silent 2>/dev/null; then
-            echo "::error title=Access Denied::User ${GITHUB_USERNAME} is not a member of the ${GITHUB_ORG} organization"
-            echo "::error::You must be a member of the ${GITHUB_ORG} GitHub organization to run this workflow."
+          # Query the actor’s permission on this repo
+          can_push="$(gh api "/repos/${GITHUB_REPOSITORY}/collaborators/${GITHUB_USERNAME}/permission" --jq '.user.permissions.push')"
+          if [[ "${can_push}" != "true" ]]; then
+            echo "::error title=Access Denied::${GITHUB_USERNAME} does not have push access to ${GITHUB_REPOSITORY}"
             exit 1
           fi
-          echo "::notice::User ${GITHUB_USERNAME} verified as member of ${GITHUB_ORG} organization"
 
       - name: Extract context key from issue
         id: extract-context
@@ -190,7 +189,10 @@ jobs:
           TEMPLATE_PRESET: ${{ steps.determine-inputs.outputs.template_preset }}
         run: |
           # Fetch issue description using `gh` CLI
-          issue_description=$(gh issue view "${ISSUE_URL}")
+          #shellcheck disable=SC2016 # The template string should not be subject to shell expansion
+          issue_description=$(gh issue view "${ISSUE_URL}" \
+            --json 'title,body,comments' \
+            --template '{{printf "%s\n\n%s\n\nComments:\n" .title .body}}{{range $k, $v := .comments}}  - {{index $v.author "login"}}: {{printf "%s\n" $v.body}}{{end}}')
 
           # Write a prompt to PROMPT_FILE
           PROMPT=$(cat <<EOF

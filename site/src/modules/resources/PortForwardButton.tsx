@@ -1,8 +1,4 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import BusinessIcon from "@mui/icons-material/Business";
-import LockIcon from "@mui/icons-material/Lock";
-import LockOpenIcon from "@mui/icons-material/LockOpen";
-import SensorsIcon from "@mui/icons-material/Sensors";
 import FormControl from "@mui/material/FormControl";
 import Link from "@mui/material/Link";
 import MenuItem from "@mui/material/MenuItem";
@@ -45,8 +41,12 @@ import {
 } from "components/Tooltip/Tooltip";
 import { useFormik } from "formik";
 import {
+	BuildingIcon,
 	ChevronDownIcon,
 	ExternalLinkIcon,
+	LockIcon,
+	LockOpenIcon,
+	RadioIcon,
 	ShareIcon,
 	X as XIcon,
 } from "lucide-react";
@@ -385,7 +385,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 										target="_blank"
 										rel="noreferrer"
 									>
-										<SensorsIcon css={{ width: 14, height: 14 }} />
+										<RadioIcon className="size-icon-sm" />
 										{port.port}
 									</Link>
 									<Link
@@ -475,11 +475,11 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 										rel="noreferrer"
 									>
 										{share.share_level === "public" ? (
-											<LockOpenIcon css={{ width: 14, height: 14 }} />
+											<LockOpenIcon className="size-icon-sm" />
 										) : share.share_level === "organization" ? (
-											<BusinessIcon css={{ width: 14, height: 14 }} />
+											<BuildingIcon className="size-icon-sm" />
 										) : (
-											<LockIcon css={{ width: 14, height: 14 }} />
+											<LockIcon className="size-icon-sm" />
 										)}
 										{label}
 									</Link>

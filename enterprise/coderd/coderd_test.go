@@ -79,10 +79,6 @@ func TestEntitlements(t *testing.T) {
 		require.Equal(t, fmt.Sprintf("%p", api.Entitlements), fmt.Sprintf("%p", api.AGPL.Entitlements))
 	})
 	t.Run("FullLicense", func(t *testing.T) {
-		// PGCoordinator requires a real postgres
-		if !dbtestutil.WillUsePostgres() {
-			t.Skip("test only with postgres")
-		}
 		t.Parallel()
 		adminClient, _ := coderdenttest.New(t, &coderdenttest.Options{
 			AuditLogging:   true,
@@ -739,8 +735,8 @@ func testDBAuthzRole(ctx context.Context) context.Context {
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceWildcard.Type: {policy.WildcardSymbol},
 				}),
-				Org:  map[string][]rbac.Permission{},
-				User: []rbac.Permission{},
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
 			},
 		}),
 		Scope: rbac.ScopeAll,
@@ -881,10 +877,6 @@ func (s *restartableTestServer) startWithFirstUser(t *testing.T) (client *coders
 // This test uses a real server and real clients.
 func TestConn_CoordinatorRollingRestart(t *testing.T) {
 	t.Parallel()
-
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("test only with postgres")
-	}
 
 	// Although DERP will have connection issues until the connection is
 	// reestablished, any open connections should be maintained.

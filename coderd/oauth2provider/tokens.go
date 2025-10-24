@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -21,7 +22,6 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/userpassword"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -47,6 +47,7 @@ type tokenParams struct {
 	refreshToken string
 	codeVerifier string // PKCE verifier
 	resource     string // RFC 8707 resource for token binding
+	scopes       []string
 }
 
 func extractTokenParams(r *http.Request, callbackURL *url.URL) (tokenParams, []codersdk.ValidationError, error) {
@@ -75,6 +76,7 @@ func extractTokenParams(r *http.Request, callbackURL *url.URL) (tokenParams, []c
 		refreshToken: p.String(vals, "", "refresh_token"),
 		codeVerifier: p.String(vals, "", "code_verifier"),
 		resource:     p.String(vals, "", "resource"),
+		scopes:       strings.Fields(strings.TrimSpace(p.String(vals, "", "scope"))),
 	}
 	// Validate resource parameter syntax (RFC 8707): must be absolute URI without fragment
 	if err := validateResourceParameter(params.resource); err != nil {
@@ -182,44 +184,39 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 
 func authorizationCodeGrant(ctx context.Context, db database.Store, app database.OAuth2ProviderApp, lifetimes codersdk.SessionLifetime, params tokenParams) (oauth2.Token, error) {
 	// Validate the client secret.
-	secret, err := parseFormattedSecret(params.clientSecret)
+	secret, err := ParseFormattedSecret(params.clientSecret)
 	if err != nil {
 		return oauth2.Token{}, errBadSecret
 	}
 	//nolint:gocritic // Users cannot read secrets so we must use the system.
-	dbSecret, err := db.GetOAuth2ProviderAppSecretByPrefix(dbauthz.AsSystemRestricted(ctx), []byte(secret.prefix))
+	dbSecret, err := db.GetOAuth2ProviderAppSecretByPrefix(dbauthz.AsSystemRestricted(ctx), []byte(secret.Prefix))
 	if errors.Is(err, sql.ErrNoRows) {
 		return oauth2.Token{}, errBadSecret
 	}
 	if err != nil {
 		return oauth2.Token{}, err
 	}
-	equal, err := userpassword.Compare(string(dbSecret.HashedSecret), secret.secret)
-	if err != nil {
-		return oauth2.Token{}, xerrors.Errorf("unable to compare secret: %w", err)
-	}
-	if !equal {
+
+	equalSecret := apikey.ValidateHash(dbSecret.HashedSecret, secret.Secret)
+	if !equalSecret {
 		return oauth2.Token{}, errBadSecret
 	}
 
 	// Validate the authorization code.
-	code, err := parseFormattedSecret(params.code)
+	code, err := ParseFormattedSecret(params.code)
 	if err != nil {
 		return oauth2.Token{}, errBadCode
 	}
 	//nolint:gocritic // There is no user yet so we must use the system.
-	dbCode, err := db.GetOAuth2ProviderAppCodeByPrefix(dbauthz.AsSystemRestricted(ctx), []byte(code.prefix))
+	dbCode, err := db.GetOAuth2ProviderAppCodeByPrefix(dbauthz.AsSystemRestricted(ctx), []byte(code.Prefix))
 	if errors.Is(err, sql.ErrNoRows) {
 		return oauth2.Token{}, errBadCode
 	}
 	if err != nil {
 		return oauth2.Token{}, err
 	}
-	equal, err = userpassword.Compare(string(dbCode.HashedSecret), code.secret)
-	if err != nil {
-		return oauth2.Token{}, xerrors.Errorf("unable to compare code: %w", err)
-	}
-	if !equal {
+	equalCode := apikey.ValidateHash(dbCode.HashedSecret, code.Secret)
+	if !equalCode {
 		return oauth2.Token{}, errBadCode
 	}
 
@@ -315,7 +312,7 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 			CreatedAt:   dbtime.Now(),
 			ExpiresAt:   refreshExpiresAt,
 			HashPrefix:  []byte(refreshToken.Prefix),
-			RefreshHash: []byte(refreshToken.Hashed),
+			RefreshHash: refreshToken.Hashed,
 			AppSecretID: dbSecret.ID,
 			APIKeyID:    newKey.ID,
 			UserID:      dbCode.UserID,
@@ -341,22 +338,19 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 
 func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAuth2ProviderApp, lifetimes codersdk.SessionLifetime, params tokenParams) (oauth2.Token, error) {
 	// Validate the token.
-	token, err := parseFormattedSecret(params.refreshToken)
+	token, err := ParseFormattedSecret(params.refreshToken)
 	if err != nil {
 		return oauth2.Token{}, errBadToken
 	}
 	//nolint:gocritic // There is no user yet so we must use the system.
-	dbToken, err := db.GetOAuth2ProviderAppTokenByPrefix(dbauthz.AsSystemRestricted(ctx), []byte(token.prefix))
+	dbToken, err := db.GetOAuth2ProviderAppTokenByPrefix(dbauthz.AsSystemRestricted(ctx), []byte(token.Prefix))
 	if errors.Is(err, sql.ErrNoRows) {
 		return oauth2.Token{}, errBadToken
 	}
 	if err != nil {
 		return oauth2.Token{}, err
 	}
-	equal, err := userpassword.Compare(string(dbToken.RefreshHash), token.secret)
-	if err != nil {
-		return oauth2.Token{}, xerrors.Errorf("unable to compare token: %w", err)
-	}
+	equal := apikey.ValidateHash(dbToken.RefreshHash, token.Secret)
 	if !equal {
 		return oauth2.Token{}, errBadToken
 	}
@@ -431,7 +425,7 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 			CreatedAt:   dbtime.Now(),
 			ExpiresAt:   refreshExpiresAt,
 			HashPrefix:  []byte(refreshToken.Prefix),
-			RefreshHash: []byte(refreshToken.Hashed),
+			RefreshHash: refreshToken.Hashed,
 			AppSecretID: dbToken.AppSecretID,
 			APIKeyID:    newKey.ID,
 			UserID:      dbToken.UserID,

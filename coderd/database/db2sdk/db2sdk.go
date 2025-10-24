@@ -189,6 +189,16 @@ func MinimalUser(user database.User) codersdk.MinimalUser {
 	return codersdk.MinimalUser{
 		ID:        user.ID,
 		Username:  user.Username,
+		Name:      user.Name,
+		AvatarURL: user.AvatarURL,
+	}
+}
+
+func MinimalUserFromVisibleUser(user database.VisibleUser) codersdk.MinimalUser {
+	return codersdk.MinimalUser{
+		ID:        user.ID,
+		Username:  user.Username,
+		Name:      user.Name,
 		AvatarURL: user.AvatarURL,
 	}
 }
@@ -197,7 +207,6 @@ func ReducedUser(user database.User) codersdk.ReducedUser {
 	return codersdk.ReducedUser{
 		MinimalUser: MinimalUser(user),
 		Email:       user.Email,
-		Name:        user.Name,
 		CreatedAt:   user.CreatedAt,
 		UpdatedAt:   user.UpdatedAt,
 		LastSeenAt:  user.LastSeenAt,
@@ -374,6 +383,9 @@ func OAuth2ProviderApp(accessURL *url.URL, dbApp database.OAuth2ProviderApp) cod
 			}).String(),
 			// We do not currently support DeviceAuth.
 			DeviceAuth: "",
+			TokenRevoke: accessURL.ResolveReference(&url.URL{
+				Path: "/oauth2/revoke",
+			}).String(),
 		},
 	}
 }
@@ -693,13 +705,13 @@ func SlimRoleFromName(name string) codersdk.SlimRole {
 func RBACRole(role rbac.Role) codersdk.Role {
 	slim := SlimRole(role)
 
-	orgPerms := role.Org[slim.OrganizationID]
+	orgPerms := role.ByOrgID[slim.OrganizationID]
 	return codersdk.Role{
 		Name:                    slim.Name,
 		OrganizationID:          slim.OrganizationID,
 		DisplayName:             slim.DisplayName,
 		SitePermissions:         List(role.Site, RBACPermission),
-		OrganizationPermissions: List(orgPerms, RBACPermission),
+		OrganizationPermissions: List(orgPerms.Org, RBACPermission),
 		UserPermissions:         List(role.User, RBACPermission),
 	}
 }
@@ -927,7 +939,7 @@ func PreviewParameterValidation(v *previewtypes.ParameterValidation) codersdk.Pr
 	}
 }
 
-func AIBridgeInterception(interception database.AIBridgeInterception, tokenUsages []database.AIBridgeTokenUsage, userPrompts []database.AIBridgeUserPrompt, toolUsages []database.AIBridgeToolUsage) codersdk.AIBridgeInterception {
+func AIBridgeInterception(interception database.AIBridgeInterception, initiator database.VisibleUser, tokenUsages []database.AIBridgeTokenUsage, userPrompts []database.AIBridgeUserPrompt, toolUsages []database.AIBridgeToolUsage) codersdk.AIBridgeInterception {
 	sdkTokenUsages := List(tokenUsages, AIBridgeTokenUsage)
 	sort.Slice(sdkTokenUsages, func(i, j int) bool {
 		// created_at ASC
@@ -945,7 +957,7 @@ func AIBridgeInterception(interception database.AIBridgeInterception, tokenUsage
 	})
 	return codersdk.AIBridgeInterception{
 		ID:          interception.ID,
-		InitiatorID: interception.InitiatorID,
+		Initiator:   MinimalUserFromVisibleUser(initiator),
 		Provider:    interception.Provider,
 		Model:       interception.Model,
 		Metadata:    jsonOrEmptyMap(interception.Metadata),

@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
@@ -44,7 +43,17 @@ func (r *RootCmd) taskStatus() *serpent.Command {
 		watchIntervalArg time.Duration
 	)
 	cmd := &serpent.Command{
-		Short:   "Show the status of a task.",
+		Short: "Show the status of a task.",
+		Long: FormatExamples(
+			Example{
+				Description: "Show the status of a given task.",
+				Command:     "coder exp task status task1",
+			},
+			Example{
+				Description: "Watch the status of a given task until it completes (idle or stopped).",
+				Command:     "coder exp task status task1 --watch",
+			},
+		),
 		Use:     "status",
 		Aliases: []string{"stat"},
 		Options: serpent.OptionSet{
@@ -74,21 +83,10 @@ func (r *RootCmd) taskStatus() *serpent.Command {
 			}
 
 			ctx := i.Context()
-			ec := codersdk.NewExperimentalClient(client)
+			exp := codersdk.NewExperimentalClient(client)
 			identifier := i.Args[0]
 
-			taskID, err := uuid.Parse(identifier)
-			if err != nil {
-				// Try to resolve the task as a named workspace
-				// TODO: right now tasks are still "workspaces" under the hood.
-				// We should update this once we have a proper task model.
-				ws, err := namedWorkspace(ctx, client, identifier)
-				if err != nil {
-					return err
-				}
-				taskID = ws.ID
-			}
-			task, err := ec.TaskByID(ctx, taskID)
+			task, err := exp.TaskByIdentifier(ctx, identifier)
 			if err != nil {
 				return err
 			}
@@ -109,7 +107,7 @@ func (r *RootCmd) taskStatus() *serpent.Command {
 			// TODO: implement streaming updates instead of polling
 			lastStatusRow := tsr
 			for range t.C {
-				task, err := ec.TaskByID(ctx, taskID)
+				task, err := exp.TaskByID(ctx, task.ID)
 				if err != nil {
 					return err
 				}
@@ -142,7 +140,7 @@ func (r *RootCmd) taskStatus() *serpent.Command {
 }
 
 func taskWatchIsEnded(task codersdk.Task) bool {
-	if task.Status == codersdk.WorkspaceStatusStopped {
+	if task.WorkspaceStatus == codersdk.WorkspaceStatusStopped {
 		return true
 	}
 	if task.WorkspaceAgentHealth == nil || !task.WorkspaceAgentHealth.Healthy {
@@ -179,7 +177,7 @@ func toStatusRow(task codersdk.Task) taskStatusRow {
 		Task:       task,
 		ChangedAgo: time.Since(task.UpdatedAt).Truncate(time.Second).String() + " ago",
 		Timestamp:  task.UpdatedAt,
-		TaskStatus: string(task.Status),
+		TaskStatus: string(task.WorkspaceStatus),
 	}
 	tsr.Healthy = task.WorkspaceAgentHealth != nil &&
 		task.WorkspaceAgentHealth.Healthy &&

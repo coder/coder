@@ -39,6 +39,9 @@ workspace if you're still using it. It will wait for the user to become inactive
 before checking connections again (1 hour by default). Template admins can
 modify this duration with the **activity bump** template setting.
 
+> [!NOTE]
+> Autostop must be enabled on the template prior to workspace creation, it is not applied to existing running workspaces.
+
 ![Autostop UI](../images/workspaces/autostop.png)
 
 ## Activity detection

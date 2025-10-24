@@ -2,8 +2,6 @@ package httpmw
 
 import (
 	"context"
-	"crypto/sha256"
-	"crypto/subtle"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -20,6 +18,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -188,8 +187,7 @@ func APIKeyFromRequest(ctx context.Context, db database.Store, sessionTokenFunc 
 	}
 
 	// Checking to see if the secret is valid.
-	hashedSecret := sha256.Sum256([]byte(keySecret))
-	if subtle.ConstantTimeCompare(key.HashedSecret, hashedSecret[:]) != 1 {
+	if !apikey.ValidateHash(key.HashedSecret, keySecret) {
 		return nil, codersdk.Response{
 			Message: SignedOutErrorMessage,
 			Detail:  "API key secret is invalid.",
@@ -434,7 +432,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 	// If the key is valid, we also fetch the user roles and status.
 	// The roles are used for RBAC authorize checks, and the status
 	// is to block 'suspended' users from accessing the platform.
-	actor, userStatus, err := UserRBACSubject(ctx, cfg.DB, key.UserID, key.Scopes)
+	actor, userStatus, err := UserRBACSubject(ctx, cfg.DB, key.UserID, key.ScopeSet())
 	if err != nil {
 		return write(http.StatusUnauthorized, codersdk.Response{
 			Message: internalErrorMessage,

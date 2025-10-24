@@ -1049,29 +1049,6 @@ func TestProvision(t *testing.T) {
 			},
 		},
 		{
-			Name: "ai-task-required-prompt-param",
-			Files: map[string]string{
-				"main.tf": `terraform {
-					required_providers {
-					  coder = {
-						source  = "coder/coder"
-						version = ">= 2.7.0"
-					  }
-					}
-				}
-				resource "coder_ai_task" "a" {
-				  sidebar_app {
-					id = "7128be08-8722-44cb-bbe1-b5a391c4d94b" # fake ID, irrelevant here anyway but needed for validation
-				  }
-				}
-				`,
-			},
-			Request: &proto.PlanRequest{},
-			Response: &proto.PlanComplete{
-				Error: fmt.Sprintf("plan resources: coder_parameter named '%s' is required when 'coder_ai_task' resource is defined", provider.TaskPromptParameterName),
-			},
-		},
-		{
 			Name: "ai-task-multiple-allowed-in-plan",
 			Files: map[string]string{
 				"main.tf": fmt.Sprintf(`terraform {
@@ -1157,6 +1134,39 @@ func TestProvision(t *testing.T) {
 					Type: "coder_external_agent",
 				}},
 				HasExternalAgents: true,
+			},
+			SkipCacheProviders: true,
+		},
+		{
+			Name: "ai-task-app-id",
+			Files: map[string]string{
+				"main.tf": `terraform {
+					required_providers {
+						coder = {
+							source  = "coder/coder"
+							version = ">= 2.12.0"
+						}
+					}
+				}
+				resource "coder_ai_task" "my-task" {
+				  app_id = "7128be08-8722-44cb-bbe1-b5a391c4d94b" # fake ID, irrelevant here anyway but needed for validation
+				}
+				`,
+			},
+			Response: &proto.PlanComplete{
+				Resources: []*proto.Resource{
+					{
+						Name: "my-task",
+						Type: "coder_ai_task",
+					},
+				},
+				AiTasks: []*proto.AITask{
+					{
+						Id:    "my-task",
+						AppId: "7128be08-8722-44cb-bbe1-b5a391c4d94b",
+					},
+				},
+				HasAiTasks: true,
 			},
 			SkipCacheProviders: true,
 		},

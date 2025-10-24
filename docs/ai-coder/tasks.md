@@ -63,7 +63,7 @@ data "coder_parameter" "setup_script" {
 
 # The Claude Code module does the automatic task reporting
 # Other agent modules: https://registry.coder.com/modules?search=agent
-# Or use a custom agent:  
+# Or use a custom agent:
 module "claude-code" {
   source   = "registry.coder.com/coder/claude-code/coder"
   version  = "3.0.1"
@@ -127,6 +127,10 @@ Coder can automatically generate a name your tasks if you set the `ANTHROPIC_API
 ## Opting out of Tasks
 
 If you tried Tasks and decided you don't want to use it, you can hide the Tasks tab by starting `coder server` with the `CODER_HIDE_AI_TASKS=true` environment variable or the `--hide-ai-tasks` flag.
+
+## Command Line Interface
+
+See [Tasks CLI](./cli.md).
 
 ## Next Steps
 

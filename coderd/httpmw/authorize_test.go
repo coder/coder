@@ -2,7 +2,6 @@ package httpmw_test
 
 import (
 	"context"
-	"crypto/sha256"
 	"fmt"
 	"net"
 	"net/http"
@@ -20,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -141,10 +141,7 @@ func TestExtractUserRoles(t *testing.T) {
 }
 
 func addUser(t *testing.T, db database.Store, roles ...string) (database.User, string) {
-	var (
-		id, secret = randomAPIKeyParts()
-		hashed     = sha256.Sum256([]byte(secret))
-	)
+	id, secret, hashed := randomAPIKeyParts()
 	if roles == nil {
 		roles = []string{}
 	}
@@ -168,12 +165,14 @@ func addUser(t *testing.T, db database.Store, roles ...string) (database.User, s
 	_, err = db.InsertAPIKey(context.Background(), database.InsertAPIKeyParams{
 		ID:           id,
 		UserID:       user.ID,
-		HashedSecret: hashed[:],
+		HashedSecret: hashed,
 		LastUsed:     dbtime.Now(),
 		ExpiresAt:    dbtime.Now().Add(time.Minute),
 		LoginType:    database.LoginTypePassword,
 		Scopes:       database.APIKeyScopes{database.ApiKeyScopeCoderAll},
-		AllowList:    database.AllowList{database.AllowListWildcard()},
+		AllowList: database.AllowList{
+			{Type: policy.WildcardSymbol, ID: policy.WildcardSymbol},
+		},
 		IPAddress: pqtype.Inet{
 			IPNet: net.IPNet{
 				IP:   net.ParseIP("0.0.0.0"),
