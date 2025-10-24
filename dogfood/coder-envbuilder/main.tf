@@ -144,10 +144,19 @@ module "jetbrains" {
   folder     = local.repo_dir
 }
 
-module "filebrowser" {
-  source   = "dev.registry.coder.com/coder/filebrowser/coder"
-  version  = "1.1.2"
-  agent_id = coder_agent.dev.id
+module "copyparty" {
+  count      = data.coder_workspace.me.start_count
+  source     = "dev.registry.coder.com/djarbz/copyparty/coder"
+  version    = "1.0.0"
+  agent_id   = coder_agent.dev.id
+  subdomain  = true
+  arguments  = [
+    "-v", "/tmp:/tmp:r",
+    "-v", "/home/coder/:/home:rw",
+    "-v", "${local.repo_dir}:/coder:A:c",
+    "-e2dsa",
+    "--re-maxage", "900",
+  ]
 }
 
 module "coder-login" {
