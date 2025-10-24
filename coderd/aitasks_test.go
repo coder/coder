@@ -339,7 +339,7 @@ func TestTasks(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotNil(t, updated.AppStatus, "latest app status should not be nil")
 		assert.Equal(t, "all done", updated.AppStatus.Message)
-		assert.Equal(t, codersdk.TaskStateComplete, updated.AppStatus.State)
+		assert.Equal(t, codersdk.WorkspaceAppStatusStateComplete, updated.AppStatus.State)
 
 		// Start the workspace again
 		coderdtest.MustTransitionWorkspace(t, client, task.WorkspaceID.UUID, codersdk.WorkspaceTransitionStop, codersdk.WorkspaceTransitionStart)

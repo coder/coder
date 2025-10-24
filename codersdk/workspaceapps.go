@@ -108,12 +108,12 @@ type Healthcheck struct {
 
 type WorkspaceAppStatus struct {
 	ID          uuid.UUID               `json:"id" format:"uuid"`
-	CreatedAt   time.Time               `json:"created_at" format:"date-time"`
+	CreatedAt   time.Time               `json:"created_at" format:"date-time" table:"timestamp"`
 	WorkspaceID uuid.UUID               `json:"workspace_id" format:"uuid"`
 	AgentID     uuid.UUID               `json:"agent_id" format:"uuid"`
 	AppID       uuid.UUID               `json:"app_id" format:"uuid"`
-	State       WorkspaceAppStatusState `json:"state"`
-	Message     string                  `json:"message"`
+	State       WorkspaceAppStatusState `json:"state" table:"state"`
+	Message     string                  `json:"message" table:"message"`
 	// URI is the URI of the resource that the status is for.
 	// e.g. https://github.com/org/repo/pull/123
 	// e.g. file:///path/to/file

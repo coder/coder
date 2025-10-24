@@ -136,15 +136,19 @@ type TaskState string
 const (
 	// TaskStateWorking indicates the AI agent is actively processing work.
 	// Reported when the agent is performing actions or the screen is changing.
+	// Deprecated: use WorkspaceAppStatusStateWorking instead.
 	TaskStateWorking TaskState = "working"
 	// TaskStateIdle indicates the AI agent's screen is stable and no work
 	// is being performed. Reported automatically by the screen watcher.
+	// Deprecated: use WorkspaceAppStatusStateIdle instead.
 	TaskStateIdle TaskState = "idle"
 	// TaskStateComplete indicates the AI agent has successfully completed
 	// the task. Reported via the workspace app status.
+	// Deprecated: use WorkspaceAppStatusStateComplete instead.
 	TaskStateComplete TaskState = "complete"
 	// TaskStateFailed indicates the AI agent reported a failure state.
 	// Reported via the workspace app status.
+	// Deprecated: use WorkspaceAppStatusStateFailure instead.
 	TaskStateFailed TaskState = "failed"
 )
 
@@ -173,20 +177,20 @@ type Task struct {
 	WorkspaceAppID          uuid.NullUUID            `json:"workspace_app_id" format:"uuid" table:"workspace app id"`
 	InitialPrompt           string                   `json:"initial_prompt" table:"initial prompt"`
 	Status                  TaskStatus               `json:"status" enums:"pending,initializing,active,paused,unknown,error" table:"status"`
-	AppStatus               *WorkspaceAppStatus      `json:"latest_workspace_app_status" table:"-"`
+	AppStatus               *WorkspaceAppStatus      `json:"latest_workspace_app_status" table:"as,recursive_inline,empty_nil"`
 	CreatedAt               time.Time                `json:"created_at" format:"date-time" table:"created at"`
 	UpdatedAt               time.Time                `json:"updated_at" format:"date-time" table:"updated at"`
 	// Deprecated: use LatestWorkspaceAppStatus instead.
-	CurrentState *TaskStateEntry `json:"current_state" table:"-"`
+	CurrentState *TaskStateEntry `json:"current_state" table:"cs,recursive_inline,empty_nil"`
 }
 
 // TaskStateEntry represents a single entry in the task's state history.
 //
 // Deprecated: use WorkspaceAppStatus instead.
 type TaskStateEntry struct {
-	Timestamp time.Time `json:"timestamp" format:"date-time" table:"-"`
-	State     TaskState `json:"state" enum:"working,idle,completed,failed" table:"-"`
-	Message   string    `json:"message" table:"-"`
+	Timestamp time.Time `json:"timestamp" format:"date-time" table:"timestamp"`
+	State     TaskState `json:"state" enum:"working,idle,completed,failed" table:"state"`
+	Message   string    `json:"message" table:"message"`
 	URI       string    `json:"uri" table:"-"`
 }
 

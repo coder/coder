@@ -16,13 +16,9 @@ import (
 type taskListRow struct {
 	Task codersdk.Task `table:"t,recursive_inline"`
 
-	OwnerAndName    string    `table:"task,default_sort"`
-	StateChangedAgo string    `table:"state changed"`
-	Healthy         bool      `json:"-" table:"healthy"`
-	Message         string    `json:"message" table:"message"`
-	State           string    `json:"-" table:"state"`
-	Timestamp       time.Time `json:"timestamp" format:"date-time" table:"-"`
-	URI             string    `json:"uri" table:"-"`
+	OwnerAndName    string `table:"name,default_sort"`
+	StateChangedAgo string `table:"state changed"`
+	Healthy         bool   `json:"-" table:"healthy"`
 }
 
 func taskListRowFromTask(now time.Time, t codersdk.Task) taskListRow {
@@ -37,16 +33,8 @@ func taskListRowFromTask(now time.Time, t codersdk.Task) taskListRow {
 	}
 	if t.AppStatus != nil {
 		tsr.StateChangedAgo = relative(-now.UTC().Sub(t.AppStatus.CreatedAt).Truncate(time.Second))
-		tsr.Message = t.AppStatus.Message
-		tsr.State = string(t.AppStatus.State)
-		tsr.Timestamp = t.AppStatus.CreatedAt
-		tsr.URI = t.AppStatus.URI
 	} else if t.CurrentState != nil {
 		tsr.StateChangedAgo = relative(-now.UTC().Sub(t.CurrentState.Timestamp).Truncate(time.Second))
-		tsr.Message = t.CurrentState.Message
-		tsr.State = string(t.CurrentState.State)
-		tsr.Timestamp = t.CurrentState.Timestamp
-		tsr.URI = t.CurrentState.URI
 	}
 
 	return tsr
@@ -63,7 +51,7 @@ func (r *RootCmd) taskList() *serpent.Command {
 			cliui.TableFormat(
 				[]taskListRow{},
 				[]string{
-					"task",
+					"name",
 					"status",
 					"state",
 					"state changed",
