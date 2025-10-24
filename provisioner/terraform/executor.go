@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"hash/crc32"
 	"io"
 	"os"
 	"os/exec"
@@ -220,6 +221,10 @@ func (e *executor) init(ctx, killCtx context.Context, logr logSink) error {
 	e.mut.Lock()
 	defer e.mut.Unlock()
 
+	// Record lock file checksum before init
+	lockFilePath := filepath.Join(e.workdir, ".terraform.lock.hcl")
+	preInitChecksum := checksumFileCRC32(ctx, e.logger, lockFilePath)
+
 	outWriter, doneOut := logWriter(logr, proto.LogLevel_DEBUG)
 	errWriter, doneErr := logWriter(logr, proto.LogLevel_ERROR)
 	defer func() {
@@ -246,7 +251,30 @@ func (e *executor) init(ctx, killCtx context.Context, logr logSink) error {
 			return &textFileBusyError{exitErr: exitErr, stderr: errBuf.b.String()}
 		}
 	}
-	return err
+	if err != nil {
+		return err
+	}
+
+	// Check if lock file was modified
+	postInitChecksum := checksumFileCRC32(ctx, e.logger, lockFilePath)
+	if preInitChecksum != 0 && postInitChecksum != 0 && preInitChecksum != postInitChecksum {
+		e.logger.Warn(ctx, fmt.Sprintf(".terraform.lock.hcl was modified during init. This means provider hashes "+
+			"are missing for the current platform (%s_%s). Update the lock file with:\n\n"+
+			"  terraform providers lock -platform=linux_amd64 -platform=linux_arm64 "+
+			"-platform=darwin_amd64 -platform=darwin_arm64 -platform=windows_amd64\n",
+			runtime.GOOS, runtime.GOARCH),
+		)
+	}
+	return nil
+}
+
+func checksumFileCRC32(ctx context.Context, logger slog.Logger, path string) uint32 {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		logger.Debug(ctx, "file %s does not exist or can't be read, skip checksum calculation")
+		return 0
+	}
+	return crc32.ChecksumIEEE(content)
 }
 
 func getPlanFilePath(workdir string) string {

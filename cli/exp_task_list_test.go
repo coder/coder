@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty/ptytest"
@@ -29,7 +30,7 @@ import (
 )
 
 // makeAITask creates an AI-task workspace.
-func makeAITask(t *testing.T, db database.Store, orgID, adminID, ownerID uuid.UUID, transition database.WorkspaceTransition, prompt string) (workspace database.WorkspaceTable) {
+func makeAITask(t *testing.T, db database.Store, orgID, adminID, ownerID uuid.UUID, transition database.WorkspaceTransition, prompt string) database.Task {
 	t.Helper()
 
 	tv := dbfake.TemplateVersion(t, db).
@@ -91,7 +92,27 @@ func makeAITask(t *testing.T, db database.Store, orgID, adminID, ownerID uuid.UU
 	)
 	require.NoError(t, err)
 
-	return build.Workspace
+	// Create a task record in the tasks table for the new data model.
+	task := dbgen.Task(t, db, database.TaskTable{
+		OrganizationID:     orgID,
+		OwnerID:            ownerID,
+		Name:               build.Workspace.Name,
+		WorkspaceID:        uuid.NullUUID{UUID: build.Workspace.ID, Valid: true},
+		TemplateVersionID:  tv.TemplateVersion.ID,
+		TemplateParameters: []byte("{}"),
+		Prompt:             prompt,
+		CreatedAt:          dbtime.Now(),
+	})
+
+	// Link the task to the workspace app.
+	dbgen.TaskWorkspaceApp(t, db, database.TaskWorkspaceApp{
+		TaskID:               task.ID,
+		WorkspaceBuildNumber: build.Build.BuildNumber,
+		WorkspaceAgentID:     uuid.NullUUID{UUID: agentID, Valid: true},
+		WorkspaceAppID:       uuid.NullUUID{UUID: app.ID, Valid: true},
+	})
+
+	return task
 }
 
 func TestExpTaskList(t *testing.T) {
@@ -128,7 +149,7 @@ func TestExpTaskList(t *testing.T) {
 		memberClient, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 		wantPrompt := "build me a web app"
-		ws := makeAITask(t, db, owner.OrganizationID, owner.UserID, memberUser.ID, database.WorkspaceTransitionStart, wantPrompt)
+		task := makeAITask(t, db, owner.OrganizationID, owner.UserID, memberUser.ID, database.WorkspaceTransitionStart, wantPrompt)
 
 		inv, root := clitest.New(t, "exp", "task", "list", "--column", "id,name,status,initial prompt")
 		clitest.SetupConfig(t, memberClient, root)
@@ -140,8 +161,8 @@ func TestExpTaskList(t *testing.T) {
 		require.NoError(t, err)
 
 		// Validate the table includes the task and status.
-		pty.ExpectMatch(ws.Name)
-		pty.ExpectMatch("running")
+		pty.ExpectMatch(task.Name)
+		pty.ExpectMatch("initializing")
 		pty.ExpectMatch(wantPrompt)
 	})
 
@@ -154,12 +175,12 @@ func TestExpTaskList(t *testing.T) {
 		owner := coderdtest.CreateFirstUser(t, client)
 		memberClient, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
-		// Create two AI tasks: one running, one stopped.
-		running := makeAITask(t, db, owner.OrganizationID, owner.UserID, memberUser.ID, database.WorkspaceTransitionStart, "keep me running")
-		stopped := makeAITask(t, db, owner.OrganizationID, owner.UserID, memberUser.ID, database.WorkspaceTransitionStop, "stop me please")
+		// Create two AI tasks: one initializing, one paused.
+		initializingTask := makeAITask(t, db, owner.OrganizationID, owner.UserID, memberUser.ID, database.WorkspaceTransitionStart, "keep me initializing")
+		pausedTask := makeAITask(t, db, owner.OrganizationID, owner.UserID, memberUser.ID, database.WorkspaceTransitionStop, "stop me please")
 
 		// Use JSON output to reliably validate filtering.
-		inv, root := clitest.New(t, "exp", "task", "list", "--status=stopped", "--output=json")
+		inv, root := clitest.New(t, "exp", "task", "list", "--status=paused", "--output=json")
 		clitest.SetupConfig(t, memberClient, root)
 
 		ctx := testutil.Context(t, testutil.WaitShort)
@@ -173,10 +194,10 @@ func TestExpTaskList(t *testing.T) {
 		var tasks []codersdk.Task
 		require.NoError(t, json.Unmarshal(stdout.Bytes(), &tasks))
 
-		// Only the stopped task is returned.
+		// Only the paused task is returned.
 		require.Len(t, tasks, 1, "expected one task after filtering")
-		require.Equal(t, stopped.ID, tasks[0].ID)
-		require.NotEqual(t, running.ID, tasks[0].ID)
+		require.Equal(t, pausedTask.ID, tasks[0].ID)
+		require.NotEqual(t, initializingTask.ID, tasks[0].ID)
 	})
 
 	t.Run("UserFlag_Me_Table", func(t *testing.T) {
@@ -188,7 +209,7 @@ func TestExpTaskList(t *testing.T) {
 		_, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 		_ = makeAITask(t, db, owner.OrganizationID, owner.UserID, memberUser.ID, database.WorkspaceTransitionStart, "other-task")
-		ws := makeAITask(t, db, owner.OrganizationID, owner.UserID, owner.UserID, database.WorkspaceTransitionStart, "me-task")
+		task := makeAITask(t, db, owner.OrganizationID, owner.UserID, owner.UserID, database.WorkspaceTransitionStart, "me-task")
 
 		inv, root := clitest.New(t, "exp", "task", "list", "--user", "me")
 		//nolint:gocritic // Owner client is intended here smoke test the member task not showing up.
@@ -200,7 +221,7 @@ func TestExpTaskList(t *testing.T) {
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 
-		pty.ExpectMatch(ws.Name)
+		pty.ExpectMatch(task.Name)
 	})
 
 	t.Run("Quiet", func(t *testing.T) {
@@ -213,7 +234,7 @@ func TestExpTaskList(t *testing.T) {
 		memberClient, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 		// Given: We have two tasks
-		task1 := makeAITask(t, db, owner.OrganizationID, owner.UserID, memberUser.ID, database.WorkspaceTransitionStart, "keep me running")
+		task1 := makeAITask(t, db, owner.OrganizationID, owner.UserID, memberUser.ID, database.WorkspaceTransitionStart, "keep me active")
 		task2 := makeAITask(t, db, owner.OrganizationID, owner.UserID, memberUser.ID, database.WorkspaceTransitionStop, "stop me please")
 
 		// Given: We add the `--quiet` flag

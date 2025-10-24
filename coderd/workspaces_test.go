@@ -1240,9 +1240,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 
 	t.Run("NoProvisionersAvailable", func(t *testing.T) {
 		t.Parallel()
-		if !dbtestutil.WillUsePostgres() {
-			t.Skip("this test requires postgres")
-		}
+
 		// Given: a coderd instance with a provisioner daemon
 		store, ps, db := dbtestutil.NewDBWithSQLDB(t)
 		client, closeDaemon := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{
@@ -1283,9 +1281,6 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 
 	t.Run("AllProvisionersStale", func(t *testing.T) {
 		t.Parallel()
-		if !dbtestutil.WillUsePostgres() {
-			t.Skip("this test requires postgres")
-		}
 
 		// Given: a coderd instance with a provisioner daemon
 		store, ps, db := dbtestutil.NewDBWithSQLDB(t)

@@ -24,10 +24,6 @@ import (
 //
 // nolint: paralleltest // use of t.Setenv
 func TestServerDBCrypt(t *testing.T) {
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("this test requires a postgres instance")
-	}
-
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 

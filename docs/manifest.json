@@ -210,6 +210,11 @@
 							"path": "./user-guides/workspace-access/vscode.md"
 						},
 						{
+							"title": "Web Terminal",
+							"description": "Use the browser-based terminal to access your workspace",
+							"path": "./user-guides/workspace-access/web-terminal.md"
+						},
+						{
 							"title": "JetBrains IDEs",
 							"description": "Use JetBrains IDEs with Coder",
 							"path": "./user-guides/workspace-access/jetbrains/index.md",

@@ -3742,9 +3742,6 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 
 func TestGetProvisionerJobsByIDsWithQueuePosition_MixedStatuses(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.SkipNow()
-	}
 
 	db, _ := dbtestutil.NewDB(t)
 	now := dbtime.Now()
@@ -4083,10 +4080,6 @@ func TestGroupRemovalTrigger(t *testing.T) {
 func TestGetUserStatusCounts(t *testing.T) {
 	t.Parallel()
 	t.Skip("https://github.com/coder/internal/issues/464")
-
-	if !dbtestutil.WillUsePostgres() {
-		t.SkipNow()
-	}
 
 	timezones := []string{
 		"Canada/Newfoundland",
@@ -4625,10 +4618,6 @@ func TestGetUserStatusCounts(t *testing.T) {
 func TestOrganizationDeleteTrigger(t *testing.T) {
 	t.Parallel()
 
-	if !dbtestutil.WillUsePostgres() {
-		t.SkipNow()
-	}
-
 	t.Run("WorkspaceExists", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
@@ -4942,9 +4931,6 @@ func createPrebuiltWorkspace(
 
 func TestWorkspacePrebuildsView(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.SkipNow()
-	}
 
 	now := dbtime.Now()
 	orgID := uuid.New()
@@ -5046,9 +5032,6 @@ func TestWorkspacePrebuildsView(t *testing.T) {
 
 func TestGetPresetsBackoff(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.SkipNow()
-	}
 
 	now := dbtime.Now()
 	orgID := uuid.New()
@@ -5565,9 +5548,6 @@ func TestGetPresetsBackoff(t *testing.T) {
 
 func TestGetPresetsAtFailureLimit(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.SkipNow()
-	}
 
 	now := dbtime.Now()
 	hourBefore := now.Add(-time.Hour)
@@ -5871,10 +5851,6 @@ func TestGetPresetsAtFailureLimit(t *testing.T) {
 func TestWorkspaceAgentNameUniqueTrigger(t *testing.T) {
 	t.Parallel()
 
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test makes use of a database trigger not implemented in dbmem")
-	}
-
 	createWorkspaceWithAgent := func(t *testing.T, db database.Store, org database.Organization, agentName string) (database.WorkspaceBuild, database.WorkspaceResource, database.WorkspaceAgent) {
 		t.Helper()
 
@@ -6140,10 +6116,6 @@ func requireUsersMatch(t testing.TB, expected []database.User, found []database.
 // GetRunningPrebuiltWorkspaces query.
 func TestGetRunningPrebuiltWorkspaces(t *testing.T) {
 	t.Parallel()
-
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("Test requires PostgreSQL for complex queries")
-	}
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	db, _ := dbtestutil.NewDB(t)
@@ -7565,6 +7537,190 @@ func TestListTasks(t *testing.T) {
 				require.True(t, task.WorkspaceAppID.Valid)
 				require.NotEqual(t, uuid.Nil, task.WorkspaceAppID.UUID)
 			}
+		})
+	}
+}
+
+func TestUpdateTaskWorkspaceID(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+
+	// Create organization, users, template, and template version.
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: org.ID,
+		TemplateID:     uuid.NullUUID{Valid: true, UUID: template.ID},
+		CreatedBy:      user.ID,
+	})
+
+	// Create another template for mismatch test.
+	template2 := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+
+	tests := []struct {
+		name      string
+		setupTask func(t *testing.T) database.Task
+		setupWS   func(t *testing.T) database.WorkspaceTable
+		wantErr   bool
+		wantNoRow bool
+	}{
+		{
+			name: "successful update with matching template",
+			setupTask: func(t *testing.T) database.Task {
+				return dbgen.Task(t, db, database.TaskTable{
+					OrganizationID:    org.ID,
+					OwnerID:           user.ID,
+					Name:              testutil.GetRandomName(t),
+					WorkspaceID:       uuid.NullUUID{},
+					TemplateVersionID: templateVersion.ID,
+					Prompt:            "Test prompt",
+				})
+			},
+			setupWS: func(t *testing.T) database.WorkspaceTable {
+				return dbgen.Workspace(t, db, database.WorkspaceTable{
+					OrganizationID: org.ID,
+					OwnerID:        user.ID,
+					TemplateID:     template.ID,
+				})
+			},
+			wantErr:   false,
+			wantNoRow: false,
+		},
+		{
+			name: "task already has workspace_id",
+			setupTask: func(t *testing.T) database.Task {
+				existingWS := dbgen.Workspace(t, db, database.WorkspaceTable{
+					OrganizationID: org.ID,
+					OwnerID:        user.ID,
+					TemplateID:     template.ID,
+				})
+				return dbgen.Task(t, db, database.TaskTable{
+					OrganizationID:    org.ID,
+					OwnerID:           user.ID,
+					Name:              testutil.GetRandomName(t),
+					WorkspaceID:       uuid.NullUUID{Valid: true, UUID: existingWS.ID},
+					TemplateVersionID: templateVersion.ID,
+					Prompt:            "Test prompt",
+				})
+			},
+			setupWS: func(t *testing.T) database.WorkspaceTable {
+				return dbgen.Workspace(t, db, database.WorkspaceTable{
+					OrganizationID: org.ID,
+					OwnerID:        user.ID,
+					TemplateID:     template.ID,
+				})
+			},
+			wantErr:   false,
+			wantNoRow: true, // No row should be returned because WHERE condition fails.
+		},
+		{
+			name: "template mismatch between task and workspace",
+			setupTask: func(t *testing.T) database.Task {
+				return dbgen.Task(t, db, database.TaskTable{
+					OrganizationID:    org.ID,
+					OwnerID:           user.ID,
+					Name:              testutil.GetRandomName(t),
+					WorkspaceID:       uuid.NullUUID{}, // NULL workspace_id
+					TemplateVersionID: templateVersion.ID,
+					Prompt:            "Test prompt",
+				})
+			},
+			setupWS: func(t *testing.T) database.WorkspaceTable {
+				return dbgen.Workspace(t, db, database.WorkspaceTable{
+					OrganizationID: org.ID,
+					OwnerID:        user.ID,
+					TemplateID:     template2.ID, // Different template, JOIN will fail.
+				})
+			},
+			wantErr:   false,
+			wantNoRow: true, // No row should be returned because JOIN condition fails.
+		},
+		{
+			name: "task does not exist",
+			setupTask: func(t *testing.T) database.Task {
+				return database.Task{
+					ID: uuid.New(), // Non-existent task ID.
+				}
+			},
+			setupWS: func(t *testing.T) database.WorkspaceTable {
+				return dbgen.Workspace(t, db, database.WorkspaceTable{
+					OrganizationID: org.ID,
+					OwnerID:        user.ID,
+					TemplateID:     template.ID,
+				})
+			},
+			wantErr:   false,
+			wantNoRow: true,
+		},
+		{
+			name: "workspace does not exist",
+			setupTask: func(t *testing.T) database.Task {
+				return dbgen.Task(t, db, database.TaskTable{
+					OrganizationID:    org.ID,
+					OwnerID:           user.ID,
+					Name:              testutil.GetRandomName(t),
+					WorkspaceID:       uuid.NullUUID{},
+					TemplateVersionID: templateVersion.ID,
+					Prompt:            "Test prompt",
+				})
+			},
+			setupWS: func(t *testing.T) database.WorkspaceTable {
+				return database.WorkspaceTable{
+					ID: uuid.New(), // Non-existent workspace ID.
+				}
+			},
+			wantErr:   false,
+			wantNoRow: true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			task := tt.setupTask(t)
+			workspace := tt.setupWS(t)
+
+			updatedTask, err := db.UpdateTaskWorkspaceID(ctx, database.UpdateTaskWorkspaceIDParams{
+				ID:          task.ID,
+				WorkspaceID: uuid.NullUUID{Valid: true, UUID: workspace.ID},
+			})
+
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+
+			if tt.wantNoRow {
+				require.ErrorIs(t, err, sql.ErrNoRows)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, task.ID, updatedTask.ID)
+			require.True(t, updatedTask.WorkspaceID.Valid)
+			require.Equal(t, workspace.ID, updatedTask.WorkspaceID.UUID)
+			require.Equal(t, task.OrganizationID, updatedTask.OrganizationID)
+			require.Equal(t, task.OwnerID, updatedTask.OwnerID)
+			require.Equal(t, task.Name, updatedTask.Name)
+			require.Equal(t, task.TemplateVersionID, updatedTask.TemplateVersionID)
+
+			// Verify the update persisted by fetching the task again.
+			fetchedTask, err := db.GetTaskByID(ctx, task.ID)
+			require.NoError(t, err)
+			require.True(t, fetchedTask.WorkspaceID.Valid)
+			require.Equal(t, workspace.ID, fetchedTask.WorkspaceID.UUID)
 		})
 	}
 }

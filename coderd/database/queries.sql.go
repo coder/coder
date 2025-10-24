@@ -6235,7 +6235,7 @@ const getOAuth2ProviderAppByRegistrationToken = `-- name: GetOAuth2ProviderAppBy
 SELECT id, created_at, updated_at, name, icon, callback_url, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri FROM oauth2_provider_apps WHERE registration_access_token = $1
 `
 
-func (q *sqlQuerier) GetOAuth2ProviderAppByRegistrationToken(ctx context.Context, registrationAccessToken sql.NullString) (OAuth2ProviderApp, error) {
+func (q *sqlQuerier) GetOAuth2ProviderAppByRegistrationToken(ctx context.Context, registrationAccessToken []byte) (OAuth2ProviderApp, error) {
 	row := q.db.QueryRowContext(ctx, getOAuth2ProviderAppByRegistrationToken, registrationAccessToken)
 	var i OAuth2ProviderApp
 	err := row.Scan(
@@ -6636,7 +6636,7 @@ type InsertOAuth2ProviderAppParams struct {
 	Jwks                    pqtype.NullRawMessage `db:"jwks" json:"jwks"`
 	SoftwareID              sql.NullString        `db:"software_id" json:"software_id"`
 	SoftwareVersion         sql.NullString        `db:"software_version" json:"software_version"`
-	RegistrationAccessToken sql.NullString        `db:"registration_access_token" json:"registration_access_token"`
+	RegistrationAccessToken []byte                `db:"registration_access_token" json:"registration_access_token"`
 	RegistrationClientUri   sql.NullString        `db:"registration_client_uri" json:"registration_client_uri"`
 }
 
@@ -7953,7 +7953,7 @@ type CountInProgressPrebuildsRow struct {
 }
 
 // CountInProgressPrebuilds returns the number of in-progress prebuilds, grouped by preset ID and transition.
-// Prebuild considered in-progress if it's in the "starting", "stopping", or "deleting" state.
+// Prebuild considered in-progress if it's in the "pending", "starting", "stopping", or "deleting" state.
 func (q *sqlQuerier) CountInProgressPrebuilds(ctx context.Context) ([]CountInProgressPrebuildsRow, error) {
 	rows, err := q.db.QueryContext(ctx, countInProgressPrebuilds)
 	if err != nil {
@@ -7970,6 +7970,58 @@ func (q *sqlQuerier) CountInProgressPrebuilds(ctx context.Context) ([]CountInPro
 			&i.Count,
 			&i.PresetID,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const countPendingNonActivePrebuilds = `-- name: CountPendingNonActivePrebuilds :many
+SELECT
+	wpb.template_version_preset_id AS preset_id,
+	COUNT(*)::int AS count
+FROM workspace_prebuild_builds wpb
+INNER JOIN provisioner_jobs pj ON pj.id = wpb.job_id
+INNER JOIN workspaces w ON w.id = wpb.workspace_id
+INNER JOIN templates t ON t.id = w.template_id
+WHERE
+	wpb.template_version_id != t.active_version_id
+	-- Only considers initial builds, i.e. created by the reconciliation loop
+	AND wpb.build_number = 1
+	-- Only consider 'start' transitions (provisioning), not 'stop'/'delete' (deprovisioning)
+	-- Deprovisioning jobs should complete naturally as they're already cleaning up resources
+	AND wpb.transition = 'start'::workspace_transition
+	-- Pending jobs that have not yet been picked up by a provisioner
+	AND pj.job_status = 'pending'::provisioner_job_status
+	AND pj.worker_id IS NULL
+	AND pj.canceled_at IS NULL
+	AND pj.completed_at IS NULL
+GROUP BY wpb.template_version_preset_id
+`
+
+type CountPendingNonActivePrebuildsRow struct {
+	PresetID uuid.NullUUID `db:"preset_id" json:"preset_id"`
+	Count    int32         `db:"count" json:"count"`
+}
+
+// CountPendingNonActivePrebuilds returns the number of pending prebuilds for non-active template versions
+func (q *sqlQuerier) CountPendingNonActivePrebuilds(ctx context.Context) ([]CountPendingNonActivePrebuildsRow, error) {
+	rows, err := q.db.QueryContext(ctx, countPendingNonActivePrebuilds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CountPendingNonActivePrebuildsRow
+	for rows.Next() {
+		var i CountPendingNonActivePrebuildsRow
+		if err := rows.Scan(&i.PresetID, &i.Count); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -8415,6 +8467,65 @@ func (q *sqlQuerier) GetTemplatePresetsWithPrebuilds(ctx context.Context, templa
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updatePrebuildProvisionerJobWithCancel = `-- name: UpdatePrebuildProvisionerJobWithCancel :many
+UPDATE provisioner_jobs
+SET
+	canceled_at = $1::timestamptz,
+	completed_at = $1::timestamptz
+WHERE id IN (
+	SELECT pj.id
+	FROM provisioner_jobs pj
+	INNER JOIN workspace_prebuild_builds wpb ON wpb.job_id = pj.id
+	INNER JOIN workspaces w ON w.id = wpb.workspace_id
+	INNER JOIN templates t ON t.id = w.template_id
+	WHERE
+		wpb.template_version_id != t.active_version_id
+		AND wpb.template_version_preset_id = $2
+		-- Only considers initial builds, i.e. created by the reconciliation loop
+		AND wpb.build_number = 1
+		-- Only consider 'start' transitions (provisioning), not 'stop'/'delete' (deprovisioning)
+		-- Deprovisioning jobs should complete naturally as they're already cleaning up resources
+		AND wpb.transition = 'start'::workspace_transition
+		-- Pending jobs that have not yet been picked up by a provisioner
+		AND pj.job_status = 'pending'::provisioner_job_status
+		AND pj.worker_id IS NULL
+		AND pj.canceled_at IS NULL
+		AND pj.completed_at IS NULL
+)
+RETURNING id
+`
+
+type UpdatePrebuildProvisionerJobWithCancelParams struct {
+	Now      time.Time     `db:"now" json:"now"`
+	PresetID uuid.NullUUID `db:"preset_id" json:"preset_id"`
+}
+
+// Cancels all pending provisioner jobs for prebuilt workspaces on a specific preset from an
+// inactive template version.
+// This is an optimization to clean up stale pending jobs.
+func (q *sqlQuerier) UpdatePrebuildProvisionerJobWithCancel(ctx context.Context, arg UpdatePrebuildProvisionerJobWithCancelParams) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, updatePrebuildProvisionerJobWithCancel, arg.Now, arg.PresetID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -12610,6 +12721,39 @@ func (q *sqlQuerier) UpsertTailnetTunnel(ctx context.Context, arg UpsertTailnetT
 	return i, err
 }
 
+const deleteTask = `-- name: DeleteTask :one
+UPDATE tasks
+SET
+	deleted_at = $1::timestamptz
+WHERE
+	id = $2::uuid
+	AND deleted_at IS NULL
+RETURNING id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at
+`
+
+type DeleteTaskParams struct {
+	DeletedAt time.Time `db:"deleted_at" json:"deleted_at"`
+	ID        uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) DeleteTask(ctx context.Context, arg DeleteTaskParams) (TaskTable, error) {
+	row := q.db.QueryRowContext(ctx, deleteTask, arg.DeletedAt, arg.ID)
+	var i TaskTable
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.Name,
+		&i.WorkspaceID,
+		&i.TemplateVersionID,
+		&i.TemplateParameters,
+		&i.Prompt,
+		&i.CreatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
 const getTaskByID = `-- name: GetTaskByID :one
 SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, status, workspace_build_number, workspace_agent_id, workspace_app_id FROM tasks_with_status WHERE id = $1::uuid
 `
@@ -12713,16 +12857,18 @@ SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, t
 WHERE tws.deleted_at IS NULL
 AND CASE WHEN $1::UUID != '00000000-0000-0000-0000-000000000000' THEN tws.owner_id = $1::UUID ELSE TRUE END
 AND CASE WHEN $2::UUID != '00000000-0000-0000-0000-000000000000' THEN tws.organization_id = $2::UUID ELSE TRUE END
+AND CASE WHEN $3::text != '' THEN tws.status = $3::task_status ELSE TRUE END
 ORDER BY tws.created_at DESC
 `
 
 type ListTasksParams struct {
 	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Status         string    `db:"status" json:"status"`
 }
 
 func (q *sqlQuerier) ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, error) {
-	rows, err := q.db.QueryContext(ctx, listTasks, arg.OwnerID, arg.OrganizationID)
+	rows, err := q.db.QueryContext(ctx, listTasks, arg.OwnerID, arg.OrganizationID, arg.Status)
 	if err != nil {
 		return nil, err
 	}
@@ -12757,6 +12903,49 @@ func (q *sqlQuerier) ListTasks(ctx context.Context, arg ListTasksParams) ([]Task
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateTaskWorkspaceID = `-- name: UpdateTaskWorkspaceID :one
+UPDATE
+	tasks
+SET
+	workspace_id = $2
+FROM
+	workspaces w
+JOIN
+	template_versions tv
+ON
+	tv.template_id = w.template_id
+WHERE
+	tasks.id = $1
+	AND tasks.workspace_id IS NULL
+	AND w.id = $2
+	AND tv.id = tasks.template_version_id
+RETURNING
+	tasks.id, tasks.organization_id, tasks.owner_id, tasks.name, tasks.workspace_id, tasks.template_version_id, tasks.template_parameters, tasks.prompt, tasks.created_at, tasks.deleted_at
+`
+
+type UpdateTaskWorkspaceIDParams struct {
+	ID          uuid.UUID     `db:"id" json:"id"`
+	WorkspaceID uuid.NullUUID `db:"workspace_id" json:"workspace_id"`
+}
+
+func (q *sqlQuerier) UpdateTaskWorkspaceID(ctx context.Context, arg UpdateTaskWorkspaceIDParams) (TaskTable, error) {
+	row := q.db.QueryRowContext(ctx, updateTaskWorkspaceID, arg.ID, arg.WorkspaceID)
+	var i TaskTable
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.Name,
+		&i.WorkspaceID,
+		&i.TemplateVersionID,
+		&i.TemplateParameters,
+		&i.Prompt,
+		&i.CreatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
 }
 
 const upsertTaskWorkspaceApp = `-- name: UpsertTaskWorkspaceApp :one

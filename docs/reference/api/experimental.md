@@ -15,12 +15,9 @@ curl -X GET http://coder-server:8080/api/v2/api/experimental/tasks \
 
 ### Parameters
 
-| Name       | In    | Type    | Required | Description                               |
-|------------|-------|---------|----------|-------------------------------------------|
-| `q`        | query | string  | false    | Search query for filtering tasks          |
-| `after_id` | query | string  | false    | Return tasks after this ID for pagination |
-| `limit`    | query | integer | false    | Maximum number of tasks to return         |
-| `offset`   | query | integer | false    | Offset for pagination                     |
+| Name | In    | Type   | Required | Description                                                                                                         |
+|------|-------|--------|----------|---------------------------------------------------------------------------------------------------------------------|
+| `q`  | query | string | false    | Search query for filtering tasks. Supports: owner:<username/uuid/me>, organization:<org-name/uuid>, status:<status> |
 
 ### Example responses
 
@@ -28,9 +25,9 @@ curl -X GET http://coder-server:8080/api/v2/api/experimental/tasks \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                         |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [coderd.tasksListResponse](schemas.md#coderdtaskslistresponse) |
+| Status | Meaning                                                 | Description | Schema                                                             |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.TasksListResponse](schemas.md#codersdktaskslistresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -84,19 +81,19 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/api/experimental/tasks/{user}/{id} \
+curl -X GET http://coder-server:8080/api/v2/api/experimental/tasks/{user}/{task} \
   -H 'Accept: */*' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /api/experimental/tasks/{user}/{id}`
+`GET /api/experimental/tasks/{user}/{task}`
 
 ### Parameters
 
 | Name   | In   | Type         | Required | Description                                           |
 |--------|------|--------------|----------|-------------------------------------------------------|
 | `user` | path | string       | true     | Username, user ID, or 'me' for the authenticated user |
-| `id`   | path | string(uuid) | true     | Task ID                                               |
+| `task` | path | string(uuid) | true     | Task ID                                               |
 
 ### Example responses
 
@@ -116,18 +113,18 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X DELETE http://coder-server:8080/api/v2/api/experimental/tasks/{user}/{id} \
+curl -X DELETE http://coder-server:8080/api/v2/api/experimental/tasks/{user}/{task} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`DELETE /api/experimental/tasks/{user}/{id}`
+`DELETE /api/experimental/tasks/{user}/{task}`
 
 ### Parameters
 
 | Name   | In   | Type         | Required | Description                                           |
 |--------|------|--------------|----------|-------------------------------------------------------|
 | `user` | path | string       | true     | Username, user ID, or 'me' for the authenticated user |
-| `id`   | path | string(uuid) | true     | Task ID                                               |
+| `task` | path | string(uuid) | true     | Task ID                                               |
 
 ### Responses
 
@@ -143,19 +140,19 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/api/experimental/tasks/{user}/{id}/logs \
+curl -X GET http://coder-server:8080/api/v2/api/experimental/tasks/{user}/{task}/logs \
   -H 'Accept: */*' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /api/experimental/tasks/{user}/{id}/logs`
+`GET /api/experimental/tasks/{user}/{task}/logs`
 
 ### Parameters
 
 | Name   | In   | Type         | Required | Description                                           |
 |--------|------|--------------|----------|-------------------------------------------------------|
 | `user` | path | string       | true     | Username, user ID, or 'me' for the authenticated user |
-| `id`   | path | string(uuid) | true     | Task ID                                               |
+| `task` | path | string(uuid) | true     | Task ID                                               |
 
 ### Example responses
 
@@ -175,12 +172,12 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/api/v2/api/experimental/tasks/{user}/{id}/send \
+curl -X POST http://coder-server:8080/api/v2/api/experimental/tasks/{user}/{task}/send \
   -H 'Content-Type: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /api/experimental/tasks/{user}/{id}/send`
+`POST /api/experimental/tasks/{user}/{task}/send`
 
 > Body parameter
 
@@ -195,7 +192,7 @@ curl -X POST http://coder-server:8080/api/v2/api/experimental/tasks/{user}/{id}/
 | Name   | In   | Type                                                           | Required | Description                                           |
 |--------|------|----------------------------------------------------------------|----------|-------------------------------------------------------|
 | `user` | path | string                                                         | true     | Username, user ID, or 'me' for the authenticated user |
-| `id`   | path | string(uuid)                                                   | true     | Task ID                                               |
+| `task` | path | string(uuid)                                                   | true     | Task ID                                               |
 | `body` | body | [codersdk.TaskSendRequest](schemas.md#codersdktasksendrequest) | true     | Task input request                                    |
 
 ### Responses

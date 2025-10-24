@@ -1512,6 +1512,13 @@ func (q *querier) CountInProgressPrebuilds(ctx context.Context) ([]database.Coun
 	return q.db.CountInProgressPrebuilds(ctx)
 }
 
+func (q *querier) CountPendingNonActivePrebuilds(ctx context.Context) ([]database.CountPendingNonActivePrebuildsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace.All()); err != nil {
+		return nil, err
+	}
+	return q.db.CountPendingNonActivePrebuilds(ctx)
+}
+
 func (q *querier) CountUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceInboxNotification.WithOwner(userID.String())); err != nil {
 		return 0, err
@@ -1796,6 +1803,19 @@ func (q *querier) DeleteTailnetTunnel(ctx context.Context, arg database.DeleteTa
 		return database.DeleteTailnetTunnelRow{}, err
 	}
 	return q.db.DeleteTailnetTunnel(ctx, arg)
+}
+
+func (q *querier) DeleteTask(ctx context.Context, arg database.DeleteTaskParams) (database.TaskTable, error) {
+	task, err := q.db.GetTaskByID(ctx, arg.ID)
+	if err != nil {
+		return database.TaskTable{}, err
+	}
+
+	if err := q.authorizeContext(ctx, policy.ActionDelete, task.RBACObject()); err != nil {
+		return database.TaskTable{}, err
+	}
+
+	return q.db.DeleteTask(ctx, arg)
 }
 
 func (q *querier) DeleteUserSecret(ctx context.Context, id uuid.UUID) error {
@@ -2462,7 +2482,7 @@ func (q *querier) GetOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) (d
 	return q.db.GetOAuth2ProviderAppByID(ctx, id)
 }
 
-func (q *querier) GetOAuth2ProviderAppByRegistrationToken(ctx context.Context, registrationAccessToken sql.NullString) (database.OAuth2ProviderApp, error) {
+func (q *querier) GetOAuth2ProviderAppByRegistrationToken(ctx context.Context, registrationAccessToken []byte) (database.OAuth2ProviderApp, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceOauth2App); err != nil {
 		return database.OAuth2ProviderApp{}, err
 	}
@@ -4869,6 +4889,14 @@ func (q *querier) UpdateOrganizationDeletedByID(ctx context.Context, arg databas
 	return deleteQ(q.log, q.auth, q.db.GetOrganizationByID, deleteF)(ctx, arg.ID)
 }
 
+func (q *querier) UpdatePrebuildProvisionerJobWithCancel(ctx context.Context, arg database.UpdatePrebuildProvisionerJobWithCancelParams) ([]uuid.UUID, error) {
+	// Prebuild operation for canceling pending prebuild jobs from non-active template versions
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourcePrebuiltWorkspace); err != nil {
+		return []uuid.UUID{}, err
+	}
+	return q.db.UpdatePrebuildProvisionerJobWithCancel(ctx, arg)
+}
+
 func (q *querier) UpdatePresetPrebuildStatus(ctx context.Context, arg database.UpdatePresetPrebuildStatusParams) error {
 	preset, err := q.db.GetPresetByID(ctx, arg.PresetID)
 	if err != nil {
@@ -5014,6 +5042,30 @@ func (q *querier) UpdateTailnetPeerStatusByCoordinator(ctx context.Context, arg 
 		return err
 	}
 	return q.db.UpdateTailnetPeerStatusByCoordinator(ctx, arg)
+}
+
+func (q *querier) UpdateTaskWorkspaceID(ctx context.Context, arg database.UpdateTaskWorkspaceIDParams) (database.TaskTable, error) {
+	// An actor is allowed to update the workspace ID of a task if they are the
+	// owner of the task and workspace or have the appropriate permissions.
+	task, err := q.db.GetTaskByID(ctx, arg.ID)
+	if err != nil {
+		return database.TaskTable{}, err
+	}
+
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, task.RBACObject()); err != nil {
+		return database.TaskTable{}, err
+	}
+
+	ws, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID.UUID)
+	if err != nil {
+		return database.TaskTable{}, err
+	}
+
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, ws.RBACObject()); err != nil {
+		return database.TaskTable{}, err
+	}
+
+	return q.db.UpdateTaskWorkspaceID(ctx, arg)
 }
 
 func (q *querier) UpdateTemplateACLByID(ctx context.Context, arg database.UpdateTemplateACLByIDParams) error {
