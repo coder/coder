@@ -3771,6 +3771,14 @@ func (s *MethodTestSuite) TestPrebuilds() {
 		dbm.EXPECT().GetRunningPrebuiltWorkspaces(gomock.Any()).Return([]database.GetRunningPrebuiltWorkspacesRow{}, nil).AnyTimes()
 		check.Args().Asserts(rbac.ResourceWorkspace.All(), policy.ActionRead)
 	}))
+	s.Run("GetCanceledPrebuiltWorkspaces", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetCanceledPrebuiltWorkspaces(gomock.Any()).Return([]database.GetCanceledPrebuiltWorkspacesRow{}, nil).AnyTimes()
+		check.Asserts(rbac.ResourceWorkspace.All(), policy.ActionRead)
+	}))
+	s.Run("GetStoppedPrebuiltWorkspaces", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetStoppedPrebuiltWorkspaces(gomock.Any()).Return([]database.GetStoppedPrebuiltWorkspacesRow{}, nil).AnyTimes()
+		check.Asserts(rbac.ResourceWorkspace.All(), policy.ActionRead)
+	}))
 	s.Run("GetTemplatePresetsWithPrebuilds", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := uuid.NullUUID{UUID: uuid.New(), Valid: true}
 		dbm.EXPECT().GetTemplatePresetsWithPrebuilds(gomock.Any(), arg).Return([]database.GetTemplatePresetsWithPrebuildsRow{}, nil).AnyTimes()

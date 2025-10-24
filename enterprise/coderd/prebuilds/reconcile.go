@@ -412,6 +412,16 @@ func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Stor
 			return xerrors.Errorf("failed to get prebuilds in progress: %w", err)
 		}
 
+		stoppedPrebuilds, err := db.GetStoppedPrebuiltWorkspaces(ctx)
+		if err != nil {
+			return xerrors.Errorf("failed to get stopped prebuilds: %w", err)
+		}
+
+		canceledPrebuilds, err := db.GetCanceledPrebuiltWorkspaces(ctx)
+		if err != nil {
+			return xerrors.Errorf("failed to get canceled prebuilds: %w", err)
+		}
+
 		presetsBackoff, err := db.GetPresetsBackoff(ctx, c.clock.Now().Add(-c.cfg.ReconciliationBackoffLookback.Value()))
 		if err != nil {
 			return xerrors.Errorf("failed to get backoffs for presets: %w", err)
@@ -427,6 +437,8 @@ func (c *StoreReconciler) SnapshotState(ctx context.Context, store database.Stor
 			presetPrebuildSchedules,
 			allRunningPrebuilds,
 			allPrebuildsInProgress,
+			stoppedPrebuilds,
+			canceledPrebuilds,
 			presetsBackoff,
 			hardLimitedPresets,
 			c.clock,

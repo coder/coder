@@ -49,6 +49,8 @@ type PresetSnapshot struct {
 	Running           []database.GetRunningPrebuiltWorkspacesRow
 	Expired           []database.GetRunningPrebuiltWorkspacesRow
 	InProgress        []database.CountInProgressPrebuildsRow
+	Stopped           []database.GetStoppedPrebuiltWorkspacesRow
+	Canceled          []database.GetCanceledPrebuiltWorkspacesRow
 	Backoff           *database.GetPresetsBackoffRow
 	IsHardLimited     bool
 	clock             quartz.Clock
@@ -61,6 +63,8 @@ func NewPresetSnapshot(
 	running []database.GetRunningPrebuiltWorkspacesRow,
 	expired []database.GetRunningPrebuiltWorkspacesRow,
 	inProgress []database.CountInProgressPrebuildsRow,
+	stopped []database.GetStoppedPrebuiltWorkspacesRow,
+	canceled []database.GetCanceledPrebuiltWorkspacesRow,
 	backoff *database.GetPresetsBackoffRow,
 	isHardLimited bool,
 	clock quartz.Clock,
@@ -72,6 +76,8 @@ func NewPresetSnapshot(
 		Running:           running,
 		Expired:           expired,
 		InProgress:        inProgress,
+		Stopped:           stopped,
+		Canceled:          canceled,
 		Backoff:           backoff,
 		IsHardLimited:     isHardLimited,
 		clock:             clock,
@@ -267,23 +273,34 @@ func (p PresetSnapshot) CalculateState() *ReconciliationState {
 // - ActionTypeBackoff: Only BackoffUntil is set, indicating when to retry
 // - ActionTypeCreate: Only Create is set, indicating how many prebuilds to create
 // - ActionTypeDelete: Only DeleteIDs is set, containing IDs of prebuilds to delete
-func (p PresetSnapshot) CalculateActions(backoffInterval time.Duration) ([]*ReconciliationActions, error) {
+func (p PresetSnapshot) CalculateActions(backoffInterval time.Duration) (actions []*ReconciliationActions, err error) {
 	// TODO: align workspace states with how we represent them on the FE and the CLI
 	//	     right now there's some slight differences which can lead to additional prebuilds being created
 
 	// TODO: add mechanism to prevent prebuilds being reconciled from being claimable by users; i.e. if a prebuild is
 	// 		 about to be deleted, it should not be deleted if it has been claimed - beware of TOCTOU races!
-
 	actions, needsBackoff := p.needsBackoffPeriod(p.clock, backoffInterval)
 	if needsBackoff {
 		return actions, nil
 	}
 
 	if !p.isActive() {
-		return p.handleInactiveTemplateVersion()
+		actions, err = p.handleInactiveTemplateVersion()
+	} else {
+		actions, err = p.handleActiveTemplateVersion()
+	}
+	if err != nil {
+		return nil, err
 	}
 
-	return p.handleActiveTemplateVersion()
+	// Handle cleanup for stopped/canceled prebuilds regardless of template status
+	cleanupActions, err := p.handleCleanup()
+	if err != nil {
+		return nil, err
+	}
+	actions = append(actions, cleanupActions...)
+
+	return actions, nil
 }
 
 // isActive returns true if the preset's template version is the active version, and it is neither deleted nor deprecated.
@@ -377,6 +394,35 @@ func (p PresetSnapshot) needsBackoffPeriod(clock quartz.Clock, backoffInterval t
 			BackoffUntil: backoffUntil,
 		},
 	}, true
+}
+
+// handleCleanup checks for stopped and canceled prebuilds and deletes them
+func (p PresetSnapshot) handleCleanup() ([]*ReconciliationActions, error) {
+	var actions []*ReconciliationActions
+	if len(p.Stopped) > 0 {
+		prebuildsToDelete := make([]uuid.UUID, 0, len(p.Stopped))
+		for _, stopped := range p.Stopped {
+			prebuildsToDelete = append(prebuildsToDelete, stopped.ID)
+		}
+		actions = append(actions,
+			&ReconciliationActions{
+				ActionType: ActionTypeDelete,
+				DeleteIDs:  prebuildsToDelete,
+			})
+	}
+	if len(p.Canceled) > 0 {
+		prebuildsToDelete := make([]uuid.UUID, 0, len(p.Canceled))
+		for _, canceled := range p.Canceled {
+			prebuildsToDelete = append(prebuildsToDelete, canceled.ID)
+		}
+		actions = append(actions,
+			&ReconciliationActions{
+				ActionType: ActionTypeDelete,
+				DeleteIDs:  prebuildsToDelete,
+			})
+	}
+
+	return actions, nil
 }
 
 // countEligible returns the number of prebuilds that are ready to be claimed.

@@ -272,3 +272,36 @@ FROM preset_matches pm
 WHERE pm.total_preset_params = pm.matching_params  -- All preset parameters must match
 ORDER BY pm.total_preset_params DESC               -- Return the preset with the most parameters
 LIMIT 1;
+
+-- name: GetCanceledPrebuiltWorkspaces :many
+-- GetCancelledPrebuiltWorkspaces returns all prebuilt workspaces whose latest build job was cancelled.
+SELECT
+	workspaces.id,
+	workspaces.name,
+	workspaces.template_id,
+	workspace_latest_builds.template_version_id,
+	workspace_latest_builds.template_version_preset_id AS preset_id
+FROM workspace_latest_builds
+JOIN workspace_prebuild_builds ON workspace_prebuild_builds.id = workspace_latest_builds.id
+JOIN workspaces ON workspaces.id = workspace_latest_builds.workspace_id
+WHERE
+	workspace_latest_builds.job_status = 'canceled'::provisioner_job_status
+	AND NOT workspaces.deleted
+ORDER BY workspaces.id;
+
+-- name: GetStoppedPrebuiltWorkspaces :many
+-- GetStoppedPrebuiltWorkspaces returns all prebuilt workspaces that have been successfully stopped.
+SELECT
+	workspaces.id,
+	workspaces.name,
+	workspaces.template_id,
+	workspace_latest_builds.template_version_id,
+	workspace_latest_builds.template_version_preset_id AS preset_id
+FROM workspace_latest_builds
+JOIN workspace_prebuild_builds ON workspace_prebuild_builds.id = workspace_latest_builds.id
+JOIN workspaces ON workspaces.id = workspace_latest_builds.workspace_id
+WHERE
+	workspace_latest_builds.transition = 'stop'::workspace_transition
+	AND workspace_latest_builds.job_status = 'succeeded'::provisioner_job_status
+	AND NOT workspaces.deleted
+ORDER BY workspaces.id;
