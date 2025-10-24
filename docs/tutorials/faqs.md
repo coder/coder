@@ -566,9 +566,9 @@ You may want to change the default domain that's used to access coder, i.e. `you
 
 To change the access URL associated with your server, you can edit any of the following variables:
 
- - CLI using the `--access-url` flag
- - YAML using the `accessURL` option
- - or ENV using the `CODER_ACCESS_URL` environmental variable.
+- CLI using the `--access-url` flag
+- YAML using the `accessURL` option
+- or ENV using the `CODER_ACCESS_URL` environmental variable.
 
 For example, if you're using an environment file to configure your server, you'll want to edit the file located at `/etc/coder.d/coder.env` and edit the following:
 
