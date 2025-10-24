@@ -176,6 +176,22 @@ func (r *RootCmd) scheduleStart() *serpent.Command {
 				}
 
 				schedStr = ptr.Ref(sched.String())
+
+				// Check if the template has autostart requirements that may conflict
+				// with the user's schedule.
+				template, err := client.Template(inv.Context(), workspace.TemplateID)
+				if err != nil {
+					return xerrors.Errorf("get template: %w", err)
+				}
+
+				if len(template.AutostartRequirement.DaysOfWeek) > 0 {
+					_, _ = fmt.Fprintf(
+						inv.Stderr,
+						"Warning: your workspace template restricts autostart to the following days: %s.\n"+
+							"Your workspace may only autostart on these days.\n",
+						strings.Join(template.AutostartRequirement.DaysOfWeek, ", "),
+					)
+				}
 			}
 
 			err = client.UpdateWorkspaceAutostart(inv.Context(), workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
