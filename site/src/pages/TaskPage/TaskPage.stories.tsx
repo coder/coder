@@ -72,10 +72,11 @@ const meta: Meta<typeof TaskPage> = {
 		reactRouter: reactRouterParameters({
 			location: {
 				pathParams: {
-					taskId: MockTasks[0].id,
+					username: MockTask.owner_name,
+					taskId: MockTask.id,
 				},
 			},
-			routing: { path: "/tasks/:taskId" },
+			routing: { path: "/tasks/:username/:taskId" },
 		}),
 	},
 };
@@ -88,6 +89,14 @@ export const LoadingTask: Story = {
 		spyOn(API.experimental, "getTask").mockImplementation(
 			() => new Promise(() => {}),
 		);
+	},
+	play: async () => {
+		await waitFor(() => {
+			expect(API.experimental.getTask).toHaveBeenCalledWith(
+				MockTask.owner_name,
+				MockTask.id,
+			);
+		});
 	},
 };
 
