@@ -2875,7 +2875,7 @@ func (m queryMetricsStore) UnfavoriteWorkspace(ctx context.Context, arg uuid.UUI
 	return r0
 }
 
-func (m queryMetricsStore) UpdateAIBridgeInterceptionEnded(ctx context.Context, id uuid.UUID) (database.AIBridgeInterception, error) {
+func (m queryMetricsStore) UpdateAIBridgeInterceptionEnded(ctx context.Context, id database.UpdateAIBridgeInterceptionEndedParams) (database.AIBridgeInterception, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateAIBridgeInterceptionEnded(ctx, id)
 	m.queryLatencies.WithLabelValues("UpdateAIBridgeInterceptionEnded").Observe(time.Since(start).Seconds())

@@ -8,7 +8,7 @@ RETURNING *;
 
 -- name: UpdateAIBridgeInterceptionEnded :one
 UPDATE aibridge_interceptions
-	SET ended_at = NOW()
+	SET ended_at = @ended_at::timestamptz
 WHERE
 	id = @id::uuid
 	AND ended_at IS NULL

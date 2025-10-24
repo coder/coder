@@ -780,15 +780,20 @@ func (q *sqlQuerier) ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Contex
 
 const updateAIBridgeInterceptionEnded = `-- name: UpdateAIBridgeInterceptionEnded :one
 UPDATE aibridge_interceptions
-	SET ended_at = NOW()
+	SET ended_at = $1::timestamptz
 WHERE
-	id = $1::uuid
+	id = $2::uuid
 	AND ended_at IS NULL
 RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at
 `
 
-func (q *sqlQuerier) UpdateAIBridgeInterceptionEnded(ctx context.Context, id uuid.UUID) (AIBridgeInterception, error) {
-	row := q.db.QueryRowContext(ctx, updateAIBridgeInterceptionEnded, id)
+type UpdateAIBridgeInterceptionEndedParams struct {
+	EndedAt time.Time `db:"ended_at" json:"ended_at"`
+	ID      uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateAIBridgeInterceptionEnded(ctx context.Context, arg UpdateAIBridgeInterceptionEndedParams) (AIBridgeInterception, error) {
+	row := q.db.QueryRowContext(ctx, updateAIBridgeInterceptionEnded, arg.EndedAt, arg.ID)
 	var i AIBridgeInterception
 	err := row.Scan(
 		&i.ID,

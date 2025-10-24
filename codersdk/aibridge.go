@@ -18,6 +18,7 @@ type AIBridgeInterception struct {
 	Model       string               `json:"model"`
 	Metadata    map[string]any       `json:"metadata"`
 	StartedAt   time.Time            `json:"started_at" format:"date-time"`
+	EndedAt     *time.Time           `json:"ended_at,omitempty" format:"date-time"`
 	TokenUsages []AIBridgeTokenUsage `json:"token_usages"`
 	UserPrompts []AIBridgeUserPrompt `json:"user_prompts"`
 	ToolUsages  []AIBridgeToolUsage  `json:"tool_usages"`

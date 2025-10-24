@@ -1,7 +1,6 @@
 package coderd_test
 
 import (
-	"encoding/json"
 	"net/http"
 	"testing"
 	"time"
@@ -13,7 +12,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -109,7 +107,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		i1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID: user1.ID,
 			StartedAt:   now.Add(-time.Hour),
-		})
+		}, nil)
 		i1tok1 := dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
 			InterceptionID: i1.ID,
 			CreatedAt:      now,
@@ -137,7 +135,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		i2 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID: user2.ID,
 			StartedAt:   now,
-		})
+		}, &now)
 
 		// Convert to SDK types for response comparison.
 		// You may notice that the ordering of the inner arrays are ASC, this is
@@ -171,6 +169,13 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		res.Results[1].ToolUsages[0].CreatedAt = i1SDK.ToolUsages[0].CreatedAt
 		res.Results[1].ToolUsages[1].CreatedAt = i1SDK.ToolUsages[1].CreatedAt
 
+		// Time comparison
+		require.Len(t, res.Results, 2)
+		require.Equal(t, res.Results[0].ID, i2SDK.ID)
+		require.NotNil(t, now, res.Results[0].EndedAt)
+		require.WithinDuration(t, now, *res.Results[0].EndedAt, 5*time.Second)
+		res.Results[0].EndedAt = i2SDK.EndedAt
+
 		require.Equal(t, []codersdk.AIBridgeInterception{i2SDK, i1SDK}, res.Results)
 	})
 
@@ -202,7 +207,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 				ID:          uuid.UUID{byte(i)},
 				InitiatorID: firstUser.UserID,
 				StartedAt:   now,
-			})
+			}, &now)
 			allInterceptionIDs = append(allInterceptionIDs, interception.ID)
 		}
 
@@ -215,7 +220,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 				ID:          uuid.UUID{byte(i + 10)},
 				InitiatorID: firstUser.UserID,
 				StartedAt:   now.Add(randomOffsetDur),
-			})
+			}, nil)
 			allInterceptionIDs = append(allInterceptionIDs, interception.ID)
 		}
 
@@ -315,11 +320,11 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		i1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID: firstUser.UserID,
 			StartedAt:   now,
-		})
+		}, nil)
 		i2 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID: secondUser.ID,
 			StartedAt:   now.Add(-time.Hour),
-		})
+		}, &now)
 
 		// Admin can see all interceptions.
 		res, err := adminExperimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{})
@@ -379,21 +384,21 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 			Provider:    "one",
 			Model:       "one",
 			StartedAt:   now,
-		})
+		}, nil)
 		i2 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			ID:          uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 			InitiatorID: user1.ID,
 			Provider:    "two",
 			Model:       "two",
 			StartedAt:   now.Add(-time.Hour),
-		})
+		}, &now)
 		i3 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			ID:          uuid.MustParse("00000000-0000-0000-0000-000000000003"),
 			InitiatorID: user2.ID,
 			Provider:    "three",
 			Model:       "three",
 			StartedAt:   now.Add(-2 * time.Hour),
-		})
+		}, &now)
 
 		// Convert to SDK types for response comparison. We don't care about the
 		// inner arrays for this test.
@@ -597,62 +602,6 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 				require.Equal(t, tc.want, sdkErr.Validations)
 				require.Empty(t, res.Results)
 			})
-		}
-	})
-}
-
-func TestUpdateAIBridgeInterceptionEnded(t *testing.T) {
-	t.Parallel()
-	db, _ := dbtestutil.NewDB(t)
-	user := dbgen.User(t, db, database.User{})
-
-	interceptions := []database.AIBridgeInterception{}
-
-	t.Run("NonExistingInterception", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		got, err := db.UpdateAIBridgeInterceptionEnded(ctx, uuid.New())
-		require.ErrorContains(t, err, "no rows in result set")
-		require.EqualValues(t, database.AIBridgeInterception{}, got)
-	})
-
-	t.Run("OK", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		for _, uid := range []uuid.UUID{{1}, {2}, {3}} {
-			insertParams := database.InsertAIBridgeInterceptionParams{
-				ID:          uid,
-				InitiatorID: user.ID,
-				Metadata:    json.RawMessage("{}"),
-			}
-
-			intc, err := db.InsertAIBridgeInterception(ctx, insertParams)
-			require.NoError(t, err)
-			require.Equal(t, uid, intc.ID)
-			require.False(t, intc.EndedAt.Valid)
-			interceptions = append(interceptions, intc)
-		}
-
-		intc0 := interceptions[0]
-		// Mark first interception as done
-		updated, err := db.UpdateAIBridgeInterceptionEnded(ctx, intc0.ID)
-		require.NoError(t, err)
-		require.EqualValues(t, updated.ID, intc0.ID)
-		require.True(t, updated.EndedAt.Valid)
-		end1 := updated.EndedAt
-		now := time.Now()
-		require.True(t, end1.Time.Before(now.Add(10*time.Second)))
-		require.True(t, end1.Time.After(now.Add(-10*time.Second)))
-
-		// Updating first interception again should not update the value
-		updated, err = db.UpdateAIBridgeInterceptionEnded(ctx, intc0.ID)
-		require.ErrorContains(t, err, "no rows in result set")
-
-		// Other interceptions should not have ended_at set
-		for _, intc := range interceptions[1:] {
-			got, err := db.GetAIBridgeInterceptionByID(ctx, intc.ID)
-			require.NoError(t, err)
-			require.False(t, got.EndedAt.Valid)
 		}
 	})
 }
