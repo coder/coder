@@ -12,6 +12,9 @@ node_modules/
 vendor/
 yarn-error.log
 
+# Test output files
+test-output/
+
 # VSCode settings.
 **/.vscode/*
 # Allow VSCode recommendations and default settings in project root.
