@@ -599,7 +599,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 
 		task, err := s.Database.GetTaskByWorkspaceID(ctx, workspaceBuild.WorkspaceID)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return nil, xerrors.Errorf("failed to get task by workspace id: %w", err)
+			return nil, xerrors.Errorf("get task by workspace id: %w", err)
 		}
 
 		dbExternalAuthProviders := []database.ExternalAuthProvider{}
