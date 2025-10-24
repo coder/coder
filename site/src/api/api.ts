@@ -2665,7 +2665,7 @@ class ApiMethods {
 }
 
 // TODO: Generate this
-export interface AIBridgeInterceptionsRequest extends TypesGen.Pagination {
+interface AIBridgeInterceptionsRequest extends TypesGen.Pagination {
 	q?: string;
 }
 
