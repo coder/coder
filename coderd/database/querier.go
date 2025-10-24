@@ -61,6 +61,9 @@ type sqlcQuerier interface {
 	BatchUpdateWorkspaceNextStartAt(ctx context.Context, arg BatchUpdateWorkspaceNextStartAtParams) error
 	BulkMarkNotificationMessagesFailed(ctx context.Context, arg BulkMarkNotificationMessagesFailedParams) (int64, error)
 	BulkMarkNotificationMessagesSent(ctx context.Context, arg BulkMarkNotificationMessagesSentParams) (int64, error)
+	// Calculates the telemetry snapshot for a given provider, model, and client
+	// combination.
+	CalculateAIBridgeInterceptionsTelemetrySnapshot(ctx context.Context, arg CalculateAIBridgeInterceptionsTelemetrySnapshotParams) (CalculateAIBridgeInterceptionsTelemetrySnapshotRow, error)
 	ClaimPrebuiltWorkspace(ctx context.Context, arg ClaimPrebuiltWorkspaceParams) (ClaimPrebuiltWorkspaceRow, error)
 	CleanTailnetCoordinators(ctx context.Context) error
 	CleanTailnetLostPeers(ctx context.Context) error
@@ -556,6 +559,12 @@ type sqlcQuerier interface {
 	InsertProvisionerKey(ctx context.Context, arg InsertProvisionerKeyParams) (ProvisionerKey, error)
 	InsertReplica(ctx context.Context, arg InsertReplicaParams) (Replica, error)
 	InsertTask(ctx context.Context, arg InsertTaskParams) (TaskTable, error)
+	// Inserts a new heartbeat event into the telemetry_heartbeats table. Replicas
+	// should call this function prior to attempting to generate or publish the
+	// event to the telemetry service.
+	// If the query returns a duplicate primary key error, the replica should not
+	// attempt to generate or publish the event to the telemetry service.
+	InsertTelemetryHeartbeat(ctx context.Context, arg InsertTelemetryHeartbeatParams) error
 	InsertTelemetryItemIfNotExists(ctx context.Context, arg InsertTelemetryItemIfNotExistsParams) error
 	InsertTemplate(ctx context.Context, arg InsertTemplateParams) error
 	InsertTemplateVersion(ctx context.Context, arg InsertTemplateVersionParams) error
@@ -593,6 +602,9 @@ type sqlcQuerier interface {
 	InsertWorkspaceResource(ctx context.Context, arg InsertWorkspaceResourceParams) (WorkspaceResource, error)
 	InsertWorkspaceResourceMetadata(ctx context.Context, arg InsertWorkspaceResourceMetadataParams) ([]WorkspaceResourceMetadatum, error)
 	ListAIBridgeInterceptions(ctx context.Context, arg ListAIBridgeInterceptionsParams) ([]ListAIBridgeInterceptionsRow, error)
+	// Finds all unique AIBridge interception telemetry snapshots combinations
+	// (provider, model, client) in the given timeframe.
+	ListAIBridgeInterceptionsTelemetrySnapshots(ctx context.Context, arg ListAIBridgeInterceptionsTelemetrySnapshotsParams) ([]ListAIBridgeInterceptionsTelemetrySnapshotsRow, error)
 	ListAIBridgeTokenUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeTokenUsage, error)
 	ListAIBridgeToolUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeToolUsage, error)
 	ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeUserPrompt, error)

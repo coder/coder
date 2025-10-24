@@ -4242,6 +4242,14 @@ type TaskWorkspaceApp struct {
 	WorkspaceBuildNumber int32         `db:"workspace_build_number" json:"workspace_build_number"`
 }
 
+// Telemetry heartbeat tracking table for deduplication of event types across replicas.
+type TelemetryHeartbeat struct {
+	// The type of event that was sent.
+	EventType string `db:"event_type" json:"event_type"`
+	// The timestamp of the heartbeat event. Usually the end of the period for which the event contains data.
+	HeartbeatTimestamp time.Time `db:"heartbeat_timestamp" json:"heartbeat_timestamp"`
+}
+
 type TelemetryItem struct {
 	Key       string    `db:"key" json:"key"`
 	Value     string    `db:"value" json:"value"`

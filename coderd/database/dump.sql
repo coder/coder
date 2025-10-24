@@ -703,6 +703,16 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION delete_old_telemetry_heartbeats() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    DELETE FROM telemetry_heartbeats
+    WHERE heartbeat_timestamp < NOW() - INTERVAL '24 hours';
+    RETURN NEW;
+END;
+$$;
+
 CREATE FUNCTION inhibit_enqueue_if_disabled() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -2003,6 +2013,18 @@ CREATE VIEW tasks_with_status AS
           WHERE (workspace_app.id = task_app.workspace_app_id)) app_status)
   WHERE (tasks.deleted_at IS NULL);
 
+CREATE TABLE telemetry_heartbeats (
+    event_type text NOT NULL,
+    heartbeat_timestamp timestamp with time zone NOT NULL,
+    CONSTRAINT telemetry_heartbeat_event_type_check CHECK ((event_type = 'aibridge_interceptions_snapshot'::text))
+);
+
+COMMENT ON TABLE telemetry_heartbeats IS 'Telemetry heartbeat tracking table for deduplication of event types across replicas.';
+
+COMMENT ON COLUMN telemetry_heartbeats.event_type IS 'The type of event that was sent.';
+
+COMMENT ON COLUMN telemetry_heartbeats.heartbeat_timestamp IS 'The timestamp of the heartbeat event. Usually the end of the period for which the event contains data.';
+
 CREATE TABLE telemetry_items (
     key text NOT NULL,
     value text NOT NULL,
@@ -3085,6 +3107,9 @@ ALTER TABLE ONLY task_workspace_apps
 ALTER TABLE ONLY tasks
     ADD CONSTRAINT tasks_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY telemetry_heartbeats
+    ADD CONSTRAINT telemetry_heartbeats_pkey PRIMARY KEY (event_type, heartbeat_timestamp);
+
 ALTER TABLE ONLY telemetry_items
     ADD CONSTRAINT telemetry_items_pkey PRIMARY KEY (key);
 
@@ -3313,6 +3338,8 @@ CREATE INDEX idx_tailnet_tunnels_dst_id ON tailnet_tunnels USING hash (dst_id);
 
 CREATE INDEX idx_tailnet_tunnels_src_id ON tailnet_tunnels USING hash (src_id);
 
+CREATE INDEX idx_telemetry_heartbeats_heartbeat_timestamp ON telemetry_heartbeats USING btree (heartbeat_timestamp);
+
 CREATE UNIQUE INDEX idx_template_version_presets_default ON template_version_presets USING btree (template_version_id) WHERE (is_default = true);
 
 CREATE INDEX idx_template_versions_has_ai_task ON template_versions USING btree (has_ai_task);
@@ -3492,6 +3519,8 @@ CREATE TRIGGER trigger_aggregate_usage_event AFTER INSERT ON usage_events FOR EA
 CREATE TRIGGER trigger_delete_group_members_on_org_member_delete BEFORE DELETE ON organization_members FOR EACH ROW EXECUTE FUNCTION delete_group_members_on_org_member_delete();
 
 CREATE TRIGGER trigger_delete_oauth2_provider_app_token AFTER DELETE ON oauth2_provider_app_tokens FOR EACH ROW EXECUTE FUNCTION delete_deleted_oauth2_provider_app_token_api_key();
+
+CREATE TRIGGER trigger_delete_old_telemetry_heartbeats AFTER INSERT ON telemetry_heartbeats FOR EACH ROW EXECUTE FUNCTION delete_old_telemetry_heartbeats();
 
 CREATE TRIGGER trigger_insert_apikeys BEFORE INSERT ON api_keys FOR EACH ROW EXECUTE FUNCTION insert_apikey_fail_if_user_deleted();
 

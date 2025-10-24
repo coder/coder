@@ -28,7 +28,6 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/v2/buildinfo"
 	clitelemetry "github.com/coder/coder/v2/cli/telemetry"
 	"github.com/coder/coder/v2/coderd/database"
@@ -36,6 +35,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
+	"github.com/coder/quartz"
 )
 
 const (
@@ -48,6 +48,7 @@ type Options struct {
 	Disabled bool
 	Database database.Store
 	Logger   slog.Logger
+	Clock    quartz.Clock
 	// URL is an endpoint to direct telemetry towards!
 	URL         *url.URL
 	Experiments codersdk.Experiments
@@ -65,6 +66,9 @@ type Options struct {
 // Duplicate data will be sent, it's on the server-side to index by UUID.
 // Data is anonymized prior to being sent!
 func New(options Options) (Reporter, error) {
+	if options.Clock == nil {
+		options.Clock = quartz.NewReal()
+	}
 	if options.SnapshotFrequency == 0 {
 		// Report once every 30mins by default!
 		options.SnapshotFrequency = 30 * time.Minute
@@ -86,7 +90,7 @@ func New(options Options) (Reporter, error) {
 		options:       options,
 		deploymentURL: deploymentURL,
 		snapshotURL:   snapshotURL,
-		startedAt:     dbtime.Now(),
+		startedAt:     options.Clock.Now(),
 		client:        &http.Client{},
 	}
 	go reporter.runSnapshotter()
@@ -166,7 +170,7 @@ func (r *remoteReporter) Close() {
 		return
 	}
 	close(r.closed)
-	now := dbtime.Now()
+	now := r.options.Clock.Now()
 	r.shutdownAt = &now
 	if r.Enabled() {
 		// Report a final collection of telemetry prior to close!
@@ -412,7 +416,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		ctx = r.ctx
 		// For resources that grow in size very quickly (like workspace builds),
 		// we only report events that occurred within the past hour.
-		createdAfter = dbtime.Now().Add(-1 * time.Hour)
+		createdAfter = r.options.Clock.Now().Add(-1 * time.Hour)
 		eg           errgroup.Group
 		snapshot     = &Snapshot{
 			DeploymentID: r.options.DeploymentID,
@@ -743,12 +747,89 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		}
 		return nil
 	})
+	eg.Go(func() error {
+		snapshots, err := r.generateAIBridgeInterceptionsSnapshots(ctx)
+		if err != nil {
+			return xerrors.Errorf("generate AIBridge interceptions telemetry snapshots: %w", err)
+		}
+		snapshot.AIBridgeInterceptionsSnapshots = snapshots
+		return nil
+	})
 
 	err := eg.Wait()
 	if err != nil {
 		return nil, err
 	}
 	return snapshot, nil
+}
+
+func (r *remoteReporter) generateAIBridgeInterceptionsSnapshots(ctx context.Context) ([]AIBridgeInterceptionsSnapshot, error) {
+	// Get the current timeframe, which is the previous hour.
+	now := r.options.Clock.Now().In(time.UTC)
+	endedAtBefore := now.Truncate(time.Hour)
+	startedAtAfter := endedAtBefore.Add(-1 * time.Hour)
+
+	// Note: we don't use a transaction for this function since we do tolerate
+	// some errors, like duplicate heartbeat rows, and we also calculate
+	// snapshots in parallel.
+
+	// Claim the heartbeat row for this hour.
+	err := r.options.Database.InsertTelemetryHeartbeat(ctx, database.InsertTelemetryHeartbeatParams{
+		EventType:          "aibridge_interceptions_snapshot",
+		HeartbeatTimestamp: endedAtBefore,
+	})
+	if database.IsUniqueViolation(err, database.UniqueTelemetryHeartbeatsPkey) {
+		// Another replica has already claimed the heartbeat row for this hour.
+		return nil, nil
+	}
+	if err != nil {
+		return nil, xerrors.Errorf("insert AIBridge interceptions telemetry heartbeat (endedAtBefore=%q): %w", endedAtBefore, err)
+	}
+
+	// List the snapshot categories that need to be calculated.
+	snapshotCategories, err := r.options.Database.ListAIBridgeInterceptionsTelemetrySnapshots(ctx, database.ListAIBridgeInterceptionsTelemetrySnapshotsParams{
+		StartedAtAfter: startedAtAfter, // inclusive
+		EndedAtBefore:  endedAtBefore,  // exclusive
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("list AIBridge interceptions telemetry snapshots (startedAtAfter=%q, endedAtBefore=%q): %w", startedAtAfter, endedAtBefore, err)
+	}
+
+	// Calculate and convert the snapshots for all categories.
+	var (
+		eg, egCtx = errgroup.WithContext(ctx)
+		mu        sync.Mutex
+		snapshots = make([]AIBridgeInterceptionsSnapshot, 0, len(snapshotCategories))
+	)
+	for _, category := range snapshotCategories {
+		eg.Go(func() error {
+			snapshot, err := r.options.Database.CalculateAIBridgeInterceptionsTelemetrySnapshot(egCtx, database.CalculateAIBridgeInterceptionsTelemetrySnapshotParams{
+				Provider:       category.Provider,
+				Model:          category.Model,
+				Client:         category.Client,
+				StartedAtAfter: startedAtAfter,
+				EndedAtBefore:  endedAtBefore,
+			})
+			if err != nil {
+				return xerrors.Errorf("calculate AIBridge interceptions telemetry snapshot (provider=%q, model=%q, client=%q, startedAtAfter=%q, endedAtBefore=%q): %w", category.Provider, category.Model, category.Client, startedAtAfter, endedAtBefore, err)
+			}
+
+			// Double check that at least one interception was found in the
+			// timeframe.
+			if snapshot.InterceptionCount == 0 {
+				return nil
+			}
+
+			converted := ConvertAIBridgeInterceptionsSnapshot(endedAtBefore, category.Provider, category.Model, category.Client, snapshot)
+
+			mu.Lock()
+			defer mu.Unlock()
+			snapshots = append(snapshots, converted)
+			return nil
+		})
+	}
+
+	return snapshots, eg.Wait()
 }
 
 // ConvertAPIKey anonymizes an API key.
@@ -1222,6 +1303,7 @@ type Snapshot struct {
 	TelemetryItems                       []TelemetryItem                       `json:"telemetry_items"`
 	UserTailnetConnections               []UserTailnetConnection               `json:"user_tailnet_connections"`
 	PrebuiltWorkspaces                   []PrebuiltWorkspace                   `json:"prebuilt_workspaces"`
+	AIBridgeInterceptionsSnapshots       []AIBridgeInterceptionsSnapshot       `json:"aibridge_interceptions_snapshots"`
 }
 
 // Deployment contains information about the host running Coder.
@@ -1856,6 +1938,86 @@ type PrebuiltWorkspace struct {
 	CreatedAt time.Time                  `json:"created_at"`
 	EventType PrebuiltWorkspaceEventType `json:"event_type"`
 	Count     int                        `json:"count"`
+}
+
+type AIBridgeInterceptionsSnapshotDurationMillis struct {
+	P50 int64 `json:"p50"`
+	P90 int64 `json:"p90"`
+	P95 int64 `json:"p95"`
+	P99 int64 `json:"p99"`
+}
+
+type AIBridgeInterceptionsSnapshotTokenCount struct {
+	Input         int64 `json:"input"`
+	Output        int64 `json:"output"`
+	CachedRead    int64 `json:"cached_read"`
+	CachedWritten int64 `json:"cached_written"`
+}
+
+type AIBridgeInterceptionsSnapshotToolCallsCount struct {
+	Injected    int64 `json:"injected"`
+	NonInjected int64 `json:"non_injected"`
+}
+
+// AIBridgeInterceptionsSnapshot is a snapshot of aggregated AI Bridge
+// interception data over a period of 1 hour. We send a snapshot each hour for
+// each unique provider + model + client combination.
+type AIBridgeInterceptionsSnapshot struct {
+	// The end of the hour for which the snapshot is taken. This will always be
+	// a UTC timestamp truncated to the hour.
+	Timestamp time.Time `json:"timestamp"`
+	Provider  string    `json:"provider"`
+	Model     string    `json:"model"`
+	Client    string    `json:"client"`
+
+	InterceptionCount          int64                                       `json:"interception_count"`
+	InterceptionDurationMillis AIBridgeInterceptionsSnapshotDurationMillis `json:"interception_duration_millis"`
+
+	// Map of route to number of interceptions.
+	// e.g. "/v1/chat/completions:blocking", "/v1/chat/completions:streaming"
+	InterceptionsByRoute map[string]int64 `json:"interceptions_by_route"`
+
+	UniqueInitiatorCount int64 `json:"unique_initiator_count"`
+
+	UserPromptsCount int64 `json:"user_prompts_count"`
+
+	TokenUsagesCount int64                                   `json:"token_usages_count"`
+	TokenCount       AIBridgeInterceptionsSnapshotTokenCount `json:"token_count"`
+
+	ToolCallsCount             AIBridgeInterceptionsSnapshotToolCallsCount `json:"tool_calls_count"`
+	InjectedToolCallErrorCount int64                                       `json:"injected_tool_call_error_count"`
+}
+
+func ConvertAIBridgeInterceptionsSnapshot(endTime time.Time, provider, model, client string, snapshot database.CalculateAIBridgeInterceptionsTelemetrySnapshotRow) AIBridgeInterceptionsSnapshot {
+	return AIBridgeInterceptionsSnapshot{
+		Timestamp:         endTime,
+		Provider:          provider,
+		Model:             model,
+		Client:            client,
+		InterceptionCount: snapshot.InterceptionCount,
+		InterceptionDurationMillis: AIBridgeInterceptionsSnapshotDurationMillis{
+			P50: snapshot.InterceptionDurationP50Millis,
+			P90: snapshot.InterceptionDurationP90Millis,
+			P95: snapshot.InterceptionDurationP95Millis,
+			P99: snapshot.InterceptionDurationP99Millis,
+		},
+		// TODO: currently we don't track by route
+		InterceptionsByRoute: make(map[string]int64),
+		UniqueInitiatorCount: snapshot.UniqueInitiatorCount,
+		UserPromptsCount:     snapshot.UserPromptsCount,
+		TokenUsagesCount:     snapshot.TokenUsagesCount,
+		TokenCount: AIBridgeInterceptionsSnapshotTokenCount{
+			Input:         snapshot.TokenCountInput,
+			Output:        snapshot.TokenCountOutput,
+			CachedRead:    snapshot.TokenCountCachedRead,
+			CachedWritten: snapshot.TokenCountCachedWritten,
+		},
+		ToolCallsCount: AIBridgeInterceptionsSnapshotToolCallsCount{
+			Injected:    snapshot.ToolCallsCountInjected,
+			NonInjected: snapshot.ToolCallsCountNonInjected,
+		},
+		InjectedToolCallErrorCount: snapshot.InjectedToolCallErrorCount,
+	}
 }
 
 type noopReporter struct{}

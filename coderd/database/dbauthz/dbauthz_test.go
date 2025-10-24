@@ -4581,3 +4581,20 @@ func (s *MethodTestSuite) TestAIBridge() {
 		check.Args(ids).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns([]database.AIBridgeToolUsage{})
 	}))
 }
+
+func (s *MethodTestSuite) TestTelemetry() {
+	s.Run("InsertTelemetryHeartbeat", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		db.EXPECT().InsertTelemetryHeartbeat(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		check.Args(database.InsertTelemetryHeartbeatParams{}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
+
+	s.Run("ListAIBridgeInterceptionsTelemetrySnapshots", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		db.EXPECT().ListAIBridgeInterceptionsTelemetrySnapshots(gomock.Any(), gomock.Any()).Return([]database.ListAIBridgeInterceptionsTelemetrySnapshotsRow{}, nil).AnyTimes()
+		check.Args(database.ListAIBridgeInterceptionsTelemetrySnapshotsParams{}).Asserts(rbac.ResourceAibridgeInterception, policy.ActionRead)
+	}))
+
+	s.Run("CalculateAIBridgeInterceptionsTelemetrySnapshot", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		db.EXPECT().CalculateAIBridgeInterceptionsTelemetrySnapshot(gomock.Any(), gomock.Any()).Return(database.CalculateAIBridgeInterceptionsTelemetrySnapshotRow{}, nil).AnyTimes()
+		check.Args(database.CalculateAIBridgeInterceptionsTelemetrySnapshotParams{}).Asserts(rbac.ResourceAibridgeInterception, policy.ActionRead)
+	}))
+}

@@ -191,6 +191,21 @@ func (mr *MockStoreMockRecorder) BulkMarkNotificationMessagesSent(ctx, arg any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BulkMarkNotificationMessagesSent", reflect.TypeOf((*MockStore)(nil).BulkMarkNotificationMessagesSent), ctx, arg)
 }
 
+// CalculateAIBridgeInterceptionsTelemetrySnapshot mocks base method.
+func (m *MockStore) CalculateAIBridgeInterceptionsTelemetrySnapshot(ctx context.Context, arg database.CalculateAIBridgeInterceptionsTelemetrySnapshotParams) (database.CalculateAIBridgeInterceptionsTelemetrySnapshotRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CalculateAIBridgeInterceptionsTelemetrySnapshot", ctx, arg)
+	ret0, _ := ret[0].(database.CalculateAIBridgeInterceptionsTelemetrySnapshotRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CalculateAIBridgeInterceptionsTelemetrySnapshot indicates an expected call of CalculateAIBridgeInterceptionsTelemetrySnapshot.
+func (mr *MockStoreMockRecorder) CalculateAIBridgeInterceptionsTelemetrySnapshot(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CalculateAIBridgeInterceptionsTelemetrySnapshot", reflect.TypeOf((*MockStore)(nil).CalculateAIBridgeInterceptionsTelemetrySnapshot), ctx, arg)
+}
+
 // ClaimPrebuiltWorkspace mocks base method.
 func (m *MockStore) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	m.ctrl.T.Helper()
@@ -5349,6 +5364,20 @@ func (mr *MockStoreMockRecorder) InsertTask(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertTask", reflect.TypeOf((*MockStore)(nil).InsertTask), ctx, arg)
 }
 
+// InsertTelemetryHeartbeat mocks base method.
+func (m *MockStore) InsertTelemetryHeartbeat(ctx context.Context, arg database.InsertTelemetryHeartbeatParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertTelemetryHeartbeat", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertTelemetryHeartbeat indicates an expected call of InsertTelemetryHeartbeat.
+func (mr *MockStoreMockRecorder) InsertTelemetryHeartbeat(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertTelemetryHeartbeat", reflect.TypeOf((*MockStore)(nil).InsertTelemetryHeartbeat), ctx, arg)
+}
+
 // InsertTelemetryItemIfNotExists mocks base method.
 func (m *MockStore) InsertTelemetryItemIfNotExists(ctx context.Context, arg database.InsertTelemetryItemIfNotExistsParams) error {
 	m.ctrl.T.Helper()
@@ -5816,6 +5845,21 @@ func (m *MockStore) ListAIBridgeInterceptions(ctx context.Context, arg database.
 func (mr *MockStoreMockRecorder) ListAIBridgeInterceptions(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAIBridgeInterceptions", reflect.TypeOf((*MockStore)(nil).ListAIBridgeInterceptions), ctx, arg)
+}
+
+// ListAIBridgeInterceptionsTelemetrySnapshots mocks base method.
+func (m *MockStore) ListAIBridgeInterceptionsTelemetrySnapshots(ctx context.Context, arg database.ListAIBridgeInterceptionsTelemetrySnapshotsParams) ([]database.ListAIBridgeInterceptionsTelemetrySnapshotsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListAIBridgeInterceptionsTelemetrySnapshots", ctx, arg)
+	ret0, _ := ret[0].([]database.ListAIBridgeInterceptionsTelemetrySnapshotsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListAIBridgeInterceptionsTelemetrySnapshots indicates an expected call of ListAIBridgeInterceptionsTelemetrySnapshots.
+func (mr *MockStoreMockRecorder) ListAIBridgeInterceptionsTelemetrySnapshots(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAIBridgeInterceptionsTelemetrySnapshots", reflect.TypeOf((*MockStore)(nil).ListAIBridgeInterceptionsTelemetrySnapshots), ctx, arg)
 }
 
 // ListAIBridgeTokenUsagesByInterceptionIDs mocks base method.

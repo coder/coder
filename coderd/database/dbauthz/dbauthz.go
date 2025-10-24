@@ -1424,6 +1424,13 @@ func (q *querier) BulkMarkNotificationMessagesSent(ctx context.Context, arg data
 	return q.db.BulkMarkNotificationMessagesSent(ctx, arg)
 }
 
+func (q *querier) CalculateAIBridgeInterceptionsTelemetrySnapshot(ctx context.Context, arg database.CalculateAIBridgeInterceptionsTelemetrySnapshotParams) (database.CalculateAIBridgeInterceptionsTelemetrySnapshotRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAibridgeInterception); err != nil {
+		return database.CalculateAIBridgeInterceptionsTelemetrySnapshotRow{}, err
+	}
+	return q.db.CalculateAIBridgeInterceptionsTelemetrySnapshot(ctx, arg)
+}
+
 func (q *querier) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	empty := database.ClaimPrebuiltWorkspaceRow{}
 
@@ -4185,6 +4192,13 @@ func (q *querier) InsertTask(ctx context.Context, arg database.InsertTaskParams)
 	return insert(q.log, q.auth, obj, q.db.InsertTask)(ctx, arg)
 }
 
+func (q *querier) InsertTelemetryHeartbeat(ctx context.Context, arg database.InsertTelemetryHeartbeatParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.InsertTelemetryHeartbeat(ctx, arg)
+}
+
 func (q *querier) InsertTelemetryItemIfNotExists(ctx context.Context, arg database.InsertTelemetryItemIfNotExistsParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
 		return err
@@ -4501,6 +4515,13 @@ func (q *querier) ListAIBridgeInterceptions(ctx context.Context, arg database.Li
 		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
 	}
 	return q.db.ListAuthorizedAIBridgeInterceptions(ctx, arg, prep)
+}
+
+func (q *querier) ListAIBridgeInterceptionsTelemetrySnapshots(ctx context.Context, arg database.ListAIBridgeInterceptionsTelemetrySnapshotsParams) ([]database.ListAIBridgeInterceptionsTelemetrySnapshotsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAibridgeInterception); err != nil {
+		return nil, err
+	}
+	return q.db.ListAIBridgeInterceptionsTelemetrySnapshots(ctx, arg)
 }
 
 func (q *querier) ListAIBridgeTokenUsagesByInterceptionIDs(ctx context.Context, interceptionIDs []uuid.UUID) ([]database.AIBridgeTokenUsage, error) {

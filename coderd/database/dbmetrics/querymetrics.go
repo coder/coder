@@ -159,6 +159,13 @@ func (m queryMetricsStore) BulkMarkNotificationMessagesSent(ctx context.Context,
 	return r0, r1
 }
 
+func (m queryMetricsStore) CalculateAIBridgeInterceptionsTelemetrySnapshot(ctx context.Context, arg database.CalculateAIBridgeInterceptionsTelemetrySnapshotParams) (database.CalculateAIBridgeInterceptionsTelemetrySnapshotRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.CalculateAIBridgeInterceptionsTelemetrySnapshot(ctx, arg)
+	m.queryLatencies.WithLabelValues("CalculateAIBridgeInterceptionsTelemetrySnapshot").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.ClaimPrebuiltWorkspace(ctx, arg)
@@ -2497,6 +2504,13 @@ func (m queryMetricsStore) InsertTask(ctx context.Context, arg database.InsertTa
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertTelemetryHeartbeat(ctx context.Context, arg database.InsertTelemetryHeartbeatParams) error {
+	start := time.Now()
+	r0 := m.s.InsertTelemetryHeartbeat(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertTelemetryHeartbeat").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) InsertTelemetryItemIfNotExists(ctx context.Context, arg database.InsertTelemetryItemIfNotExistsParams) error {
 	start := time.Now()
 	r0 := m.s.InsertTelemetryItemIfNotExists(ctx, arg)
@@ -2718,6 +2732,13 @@ func (m queryMetricsStore) ListAIBridgeInterceptions(ctx context.Context, arg da
 	start := time.Now()
 	r0, r1 := m.s.ListAIBridgeInterceptions(ctx, arg)
 	m.queryLatencies.WithLabelValues("ListAIBridgeInterceptions").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) ListAIBridgeInterceptionsTelemetrySnapshots(ctx context.Context, arg database.ListAIBridgeInterceptionsTelemetrySnapshotsParams) ([]database.ListAIBridgeInterceptionsTelemetrySnapshotsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListAIBridgeInterceptionsTelemetrySnapshots(ctx, arg)
+	m.queryLatencies.WithLabelValues("ListAIBridgeInterceptionsTelemetrySnapshots").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
