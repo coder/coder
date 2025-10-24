@@ -757,12 +757,6 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/tokens \
 ```json
 [
   {
-    "allow_list": [
-      {
-        "id": "string",
-        "type": "*"
-      }
-    ],
     "created_at": "2019-08-24T14:15:22Z",
     "expires_at": "2019-08-24T14:15:22Z",
     "id": "string",
@@ -790,76 +784,31 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/tokens \
 
 Status Code **200**
 
-| Name                 | Type                                                     | Required | Restrictions | Description                     |
-|----------------------|----------------------------------------------------------|----------|--------------|---------------------------------|
-| `[array item]`       | array                                                    | false    |              |                                 |
-| `» allow_list`       | array                                                    | false    |              |                                 |
-| `»» id`              | string                                                   | false    |              |                                 |
-| `»» type`            | [codersdk.RBACResource](schemas.md#codersdkrbacresource) | false    |              |                                 |
-| `» created_at`       | string(date-time)                                        | true     |              |                                 |
-| `» expires_at`       | string(date-time)                                        | true     |              |                                 |
-| `» id`               | string                                                   | true     |              |                                 |
-| `» last_used`        | string(date-time)                                        | true     |              |                                 |
-| `» lifetime_seconds` | integer                                                  | true     |              |                                 |
-| `» login_type`       | [codersdk.LoginType](schemas.md#codersdklogintype)       | true     |              |                                 |
-| `» scope`            | [codersdk.APIKeyScope](schemas.md#codersdkapikeyscope)   | false    |              | Deprecated: use Scopes instead. |
-| `» scopes`           | array                                                    | false    |              |                                 |
-| `» token_name`       | string                                                   | true     |              |                                 |
-| `» updated_at`       | string(date-time)                                        | true     |              |                                 |
-| `» user_id`          | string(uuid)                                             | true     |              |                                 |
+| Name                 | Type                                                   | Required | Restrictions | Description                     |
+|----------------------|--------------------------------------------------------|----------|--------------|---------------------------------|
+| `[array item]`       | array                                                  | false    |              |                                 |
+| `» created_at`       | string(date-time)                                      | true     |              |                                 |
+| `» expires_at`       | string(date-time)                                      | true     |              |                                 |
+| `» id`               | string                                                 | true     |              |                                 |
+| `» last_used`        | string(date-time)                                      | true     |              |                                 |
+| `» lifetime_seconds` | integer                                                | true     |              |                                 |
+| `» login_type`       | [codersdk.LoginType](schemas.md#codersdklogintype)     | true     |              |                                 |
+| `» scope`            | [codersdk.APIKeyScope](schemas.md#codersdkapikeyscope) | false    |              | Deprecated: use Scopes instead. |
+| `» scopes`           | array                                                  | false    |              |                                 |
+| `» token_name`       | string                                                 | true     |              |                                 |
+| `» updated_at`       | string(date-time)                                      | true     |              |                                 |
+| `» user_id`          | string(uuid)                                           | true     |              |                                 |
 
 #### Enumerated Values
 
-| Property     | Value                              |
-|--------------|------------------------------------|
-| `type`       | `*`                                |
-| `type`       | `aibridge_interception`            |
-| `type`       | `api_key`                          |
-| `type`       | `assign_org_role`                  |
-| `type`       | `assign_role`                      |
-| `type`       | `audit_log`                        |
-| `type`       | `connection_log`                   |
-| `type`       | `crypto_key`                       |
-| `type`       | `debug_info`                       |
-| `type`       | `deployment_config`                |
-| `type`       | `deployment_stats`                 |
-| `type`       | `file`                             |
-| `type`       | `group`                            |
-| `type`       | `group_member`                     |
-| `type`       | `idpsync_settings`                 |
-| `type`       | `inbox_notification`               |
-| `type`       | `license`                          |
-| `type`       | `notification_message`             |
-| `type`       | `notification_preference`          |
-| `type`       | `notification_template`            |
-| `type`       | `oauth2_app`                       |
-| `type`       | `oauth2_app_code_token`            |
-| `type`       | `oauth2_app_secret`                |
-| `type`       | `organization`                     |
-| `type`       | `organization_member`              |
-| `type`       | `prebuilt_workspace`               |
-| `type`       | `provisioner_daemon`               |
-| `type`       | `provisioner_jobs`                 |
-| `type`       | `replicas`                         |
-| `type`       | `system`                           |
-| `type`       | `tailnet_coordinator`              |
-| `type`       | `task`                             |
-| `type`       | `template`                         |
-| `type`       | `usage_event`                      |
-| `type`       | `user`                             |
-| `type`       | `user_secret`                      |
-| `type`       | `webpush_subscription`             |
-| `type`       | `workspace`                        |
-| `type`       | `workspace_agent_devcontainers`    |
-| `type`       | `workspace_agent_resource_monitor` |
-| `type`       | `workspace_dormant`                |
-| `type`       | `workspace_proxy`                  |
-| `login_type` | `password`                         |
-| `login_type` | `github`                           |
-| `login_type` | `oidc`                             |
-| `login_type` | `token`                            |
-| `scope`      | `all`                              |
-| `scope`      | `application_connect`              |
+| Property     | Value                 |
+|--------------|-----------------------|
+| `login_type` | `password`            |
+| `login_type` | `github`              |
+| `login_type` | `oidc`                |
+| `login_type` | `token`               |
+| `scope`      | `all`                 |
+| `scope`      | `application_connect` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -947,12 +896,6 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/tokens/{keyname} \
 
 ```json
 {
-  "allow_list": [
-    {
-      "id": "string",
-      "type": "*"
-    }
-  ],
   "created_at": "2019-08-24T14:15:22Z",
   "expires_at": "2019-08-24T14:15:22Z",
   "id": "string",
@@ -1003,12 +946,6 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/{keyid} \
 
 ```json
 {
-  "allow_list": [
-    {
-      "id": "string",
-      "type": "*"
-    }
-  ],
   "created_at": "2019-08-24T14:15:22Z",
   "expires_at": "2019-08-24T14:15:22Z",
   "id": "string",

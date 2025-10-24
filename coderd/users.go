@@ -1608,6 +1608,5 @@ func convertAPIKey(k database.APIKey) codersdk.APIKey {
 		Scopes:          scopes,
 		LifetimeSeconds: k.LifetimeSeconds,
 		TokenName:       k.TokenName,
-		AllowList:       db2sdk.List(k.AllowList, db2sdk.APIAllowListTarget),
 	}
 }

@@ -141,7 +141,6 @@ export interface APIKey {
 	readonly scopes: readonly APIKeyScope[];
 	readonly token_name: string;
 	readonly lifetime_seconds: number;
-	readonly allow_list: readonly APIAllowListTarget[];
 }
 
 // From codersdk/apikey.go

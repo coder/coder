@@ -51,8 +51,6 @@ func TestTokenCRUD(t *testing.T) {
 	require.Greater(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*24*6))
 	require.Less(t, keys[0].ExpiresAt, time.Now().Add(time.Hour*24*8))
 	require.Equal(t, codersdk.APIKeyScopeAll, keys[0].Scope)
-	require.Len(t, keys[0].AllowList, 1)
-	require.Equal(t, "*:*", keys[0].AllowList[0].String())
 
 	// no update
 
@@ -88,8 +86,6 @@ func TestTokenScoped(t *testing.T) {
 	require.EqualValues(t, len(keys), 1)
 	require.Contains(t, res.Key, keys[0].ID)
 	require.Equal(t, keys[0].Scope, codersdk.APIKeyScopeApplicationConnect)
-	require.Len(t, keys[0].AllowList, 1)
-	require.Equal(t, "*:*", keys[0].AllowList[0].String())
 }
 
 // Ensure backward-compat: when a token is created using the legacy singular
@@ -136,8 +132,6 @@ func TestTokenLegacySingularScopeCompat(t *testing.T) {
 			require.Len(t, keys, 1)
 			require.Equal(t, tc.scope, keys[0].Scope)
 			require.ElementsMatch(t, keys[0].Scopes, tc.scopes)
-			require.Len(t, keys[0].AllowList, 1)
-			require.Equal(t, "*:*", keys[0].AllowList[0].String())
 		})
 	}
 }
