@@ -7995,6 +7995,60 @@ func (q *sqlQuerier) FindMatchingPresetID(ctx context.Context, arg FindMatchingP
 	return template_version_preset_id, err
 }
 
+const getCanceledPrebuiltWorkspaces = `-- name: GetCanceledPrebuiltWorkspaces :many
+SELECT
+	workspaces.id,
+	workspaces.name,
+	workspaces.template_id,
+	workspace_latest_builds.template_version_id,
+	workspace_latest_builds.template_version_preset_id AS preset_id
+FROM workspace_latest_builds
+JOIN workspace_prebuild_builds ON workspace_prebuild_builds.id = workspace_latest_builds.id
+JOIN workspaces ON workspaces.id = workspace_latest_builds.workspace_id
+WHERE
+	workspace_latest_builds.job_status = 'canceled'::provisioner_job_status
+	AND NOT workspaces.deleted
+ORDER BY workspaces.id
+`
+
+type GetCanceledPrebuiltWorkspacesRow struct {
+	ID                uuid.UUID     `db:"id" json:"id"`
+	Name              string        `db:"name" json:"name"`
+	TemplateID        uuid.UUID     `db:"template_id" json:"template_id"`
+	TemplateVersionID uuid.UUID     `db:"template_version_id" json:"template_version_id"`
+	PresetID          uuid.NullUUID `db:"preset_id" json:"preset_id"`
+}
+
+// GetCancelledPrebuiltWorkspaces returns all prebuilt workspaces whose latest build job was cancelled.
+func (q *sqlQuerier) GetCanceledPrebuiltWorkspaces(ctx context.Context) ([]GetCanceledPrebuiltWorkspacesRow, error) {
+	rows, err := q.db.QueryContext(ctx, getCanceledPrebuiltWorkspaces)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetCanceledPrebuiltWorkspacesRow
+	for rows.Next() {
+		var i GetCanceledPrebuiltWorkspacesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.TemplateID,
+			&i.TemplateVersionID,
+			&i.PresetID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getPrebuildMetrics = `-- name: GetPrebuildMetrics :many
 SELECT
 	t.name as template_name,
@@ -8296,6 +8350,61 @@ func (q *sqlQuerier) GetRunningPrebuiltWorkspaces(ctx context.Context) ([]GetRun
 			&i.CurrentPresetID,
 			&i.Ready,
 			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getStoppedPrebuiltWorkspaces = `-- name: GetStoppedPrebuiltWorkspaces :many
+SELECT
+	workspaces.id,
+	workspaces.name,
+	workspaces.template_id,
+	workspace_latest_builds.template_version_id,
+	workspace_latest_builds.template_version_preset_id AS preset_id
+FROM workspace_latest_builds
+JOIN workspace_prebuild_builds ON workspace_prebuild_builds.id = workspace_latest_builds.id
+JOIN workspaces ON workspaces.id = workspace_latest_builds.workspace_id
+WHERE
+	workspace_latest_builds.transition = 'stop'::workspace_transition
+	AND workspace_latest_builds.job_status = 'succeeded'::provisioner_job_status
+	AND NOT workspaces.deleted
+ORDER BY workspaces.id
+`
+
+type GetStoppedPrebuiltWorkspacesRow struct {
+	ID                uuid.UUID     `db:"id" json:"id"`
+	Name              string        `db:"name" json:"name"`
+	TemplateID        uuid.UUID     `db:"template_id" json:"template_id"`
+	TemplateVersionID uuid.UUID     `db:"template_version_id" json:"template_version_id"`
+	PresetID          uuid.NullUUID `db:"preset_id" json:"preset_id"`
+}
+
+// GetStoppedPrebuiltWorkspaces returns all prebuilt workspaces that have been successfully stopped.
+func (q *sqlQuerier) GetStoppedPrebuiltWorkspaces(ctx context.Context) ([]GetStoppedPrebuiltWorkspacesRow, error) {
+	rows, err := q.db.QueryContext(ctx, getStoppedPrebuiltWorkspaces)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetStoppedPrebuiltWorkspacesRow
+	for rows.Next() {
+		var i GetStoppedPrebuiltWorkspacesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.TemplateID,
+			&i.TemplateVersionID,
+			&i.PresetID,
 		); err != nil {
 			return nil, err
 		}

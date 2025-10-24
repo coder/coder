@@ -1574,6 +1574,21 @@ func (mr *MockStoreMockRecorder) GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx, 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizedWorkspacesAndAgentsByOwnerID", reflect.TypeOf((*MockStore)(nil).GetAuthorizedWorkspacesAndAgentsByOwnerID), ctx, ownerID, prepared)
 }
 
+// GetCanceledPrebuiltWorkspaces mocks base method.
+func (m *MockStore) GetCanceledPrebuiltWorkspaces(ctx context.Context) ([]database.GetCanceledPrebuiltWorkspacesRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetCanceledPrebuiltWorkspaces", ctx)
+	ret0, _ := ret[0].([]database.GetCanceledPrebuiltWorkspacesRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetCanceledPrebuiltWorkspaces indicates an expected call of GetCanceledPrebuiltWorkspaces.
+func (mr *MockStoreMockRecorder) GetCanceledPrebuiltWorkspaces(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCanceledPrebuiltWorkspaces", reflect.TypeOf((*MockStore)(nil).GetCanceledPrebuiltWorkspaces), ctx)
+}
+
 // GetConnectionLogsOffset mocks base method.
 func (m *MockStore) GetConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams) ([]database.GetConnectionLogsOffsetRow, error) {
 	m.ctrl.T.Helper()
@@ -3087,6 +3102,21 @@ func (m *MockStore) GetRuntimeConfig(ctx context.Context, key string) (string, e
 func (mr *MockStoreMockRecorder) GetRuntimeConfig(ctx, key any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRuntimeConfig", reflect.TypeOf((*MockStore)(nil).GetRuntimeConfig), ctx, key)
+}
+
+// GetStoppedPrebuiltWorkspaces mocks base method.
+func (m *MockStore) GetStoppedPrebuiltWorkspaces(ctx context.Context) ([]database.GetStoppedPrebuiltWorkspacesRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetStoppedPrebuiltWorkspaces", ctx)
+	ret0, _ := ret[0].([]database.GetStoppedPrebuiltWorkspacesRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetStoppedPrebuiltWorkspaces indicates an expected call of GetStoppedPrebuiltWorkspaces.
+func (mr *MockStoreMockRecorder) GetStoppedPrebuiltWorkspaces(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStoppedPrebuiltWorkspaces", reflect.TypeOf((*MockStore)(nil).GetStoppedPrebuiltWorkspaces), ctx)
 }
 
 // GetTailnetAgents mocks base method.

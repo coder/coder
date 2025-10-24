@@ -2128,6 +2128,13 @@ func (q *querier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUI
 	return q.db.GetAuthorizationUserRoles(ctx, userID)
 }
 
+func (q *querier) GetCanceledPrebuiltWorkspaces(ctx context.Context) ([]database.GetCanceledPrebuiltWorkspacesRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace.All()); err != nil {
+		return nil, err
+	}
+	return q.db.GetCanceledPrebuiltWorkspaces(ctx)
+}
+
 func (q *querier) GetConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams) ([]database.GetConnectionLogsOffsetRow, error) {
 	// Just like with the audit logs query, shortcut if the user is an owner.
 	err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceConnectionLog)
@@ -2903,6 +2910,13 @@ func (q *querier) GetRuntimeConfig(ctx context.Context, key string) (string, err
 		return "", err
 	}
 	return q.db.GetRuntimeConfig(ctx, key)
+}
+
+func (q *querier) GetStoppedPrebuiltWorkspaces(ctx context.Context) ([]database.GetStoppedPrebuiltWorkspacesRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace.All()); err != nil {
+		return nil, err
+	}
+	return q.db.GetStoppedPrebuiltWorkspaces(ctx)
 }
 
 func (q *querier) GetTailnetAgents(ctx context.Context, id uuid.UUID) ([]database.TailnetAgent, error) {

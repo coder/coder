@@ -20,6 +20,8 @@ type GlobalSnapshot struct {
 	PrebuildSchedules     []database.TemplateVersionPresetPrebuildSchedule
 	RunningPrebuilds      []database.GetRunningPrebuiltWorkspacesRow
 	PrebuildsInProgress   []database.CountInProgressPrebuildsRow
+	StoppedPrebuilds      []database.GetStoppedPrebuiltWorkspacesRow
+	CanceledPrebuilds     []database.GetCanceledPrebuiltWorkspacesRow
 	Backoffs              []database.GetPresetsBackoffRow
 	HardLimitedPresetsMap map[uuid.UUID]database.GetPresetsAtFailureLimitRow
 	clock                 quartz.Clock
@@ -31,6 +33,8 @@ func NewGlobalSnapshot(
 	prebuildSchedules []database.TemplateVersionPresetPrebuildSchedule,
 	runningPrebuilds []database.GetRunningPrebuiltWorkspacesRow,
 	prebuildsInProgress []database.CountInProgressPrebuildsRow,
+	stoppedPrebuilds []database.GetStoppedPrebuiltWorkspacesRow,
+	canceledPrebuilds []database.GetCanceledPrebuiltWorkspacesRow,
 	backoffs []database.GetPresetsBackoffRow,
 	hardLimitedPresets []database.GetPresetsAtFailureLimitRow,
 	clock quartz.Clock,
@@ -46,6 +50,8 @@ func NewGlobalSnapshot(
 		PrebuildSchedules:     prebuildSchedules,
 		RunningPrebuilds:      runningPrebuilds,
 		PrebuildsInProgress:   prebuildsInProgress,
+		StoppedPrebuilds:      stoppedPrebuilds,
+		CanceledPrebuilds:     canceledPrebuilds,
 		Backoffs:              backoffs,
 		HardLimitedPresetsMap: hardLimitedPresetsMap,
 		clock:                 clock,
@@ -80,6 +86,14 @@ func (s GlobalSnapshot) FilterByPreset(presetID uuid.UUID) (*PresetSnapshot, err
 		return prebuild.PresetID.UUID == preset.ID
 	})
 
+	stopped := slice.Filter(s.StoppedPrebuilds, func(prebuild database.GetStoppedPrebuiltWorkspacesRow) bool {
+		return prebuild.PresetID.UUID == preset.ID
+	})
+
+	canceled := slice.Filter(s.CanceledPrebuilds, func(prebuild database.GetCanceledPrebuiltWorkspacesRow) bool {
+		return prebuild.PresetID.UUID == preset.ID
+	})
+
 	var backoffPtr *database.GetPresetsBackoffRow
 	backoff, found := slice.Find(s.Backoffs, func(row database.GetPresetsBackoffRow) bool {
 		return row.PresetID == preset.ID
@@ -96,6 +110,8 @@ func (s GlobalSnapshot) FilterByPreset(presetID uuid.UUID) (*PresetSnapshot, err
 		nonExpired,
 		expired,
 		inProgress,
+		stopped,
+		canceled,
 		backoffPtr,
 		isHardLimited,
 		s.clock,

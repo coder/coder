@@ -754,6 +754,13 @@ func (m queryMetricsStore) GetAuthorizationUserRoles(ctx context.Context, userID
 	return row, err
 }
 
+func (m queryMetricsStore) GetCanceledPrebuiltWorkspaces(ctx context.Context) ([]database.GetCanceledPrebuiltWorkspacesRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetCanceledPrebuiltWorkspaces(ctx)
+	m.queryLatencies.WithLabelValues("GetCanceledPrebuiltWorkspaces").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetConnectionLogsOffset(ctx context.Context, arg database.GetConnectionLogsOffsetParams) ([]database.GetConnectionLogsOffsetRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetConnectionLogsOffset(ctx, arg)
@@ -1458,6 +1465,13 @@ func (m queryMetricsStore) GetRuntimeConfig(ctx context.Context, key string) (st
 	start := time.Now()
 	r0, r1 := m.s.GetRuntimeConfig(ctx, key)
 	m.queryLatencies.WithLabelValues("GetRuntimeConfig").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetStoppedPrebuiltWorkspaces(ctx context.Context) ([]database.GetStoppedPrebuiltWorkspacesRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetStoppedPrebuiltWorkspaces(ctx)
+	m.queryLatencies.WithLabelValues("GetStoppedPrebuiltWorkspaces").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
