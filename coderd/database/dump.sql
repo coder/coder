@@ -1126,7 +1126,8 @@ CREATE TABLE api_keys (
     ip_address inet DEFAULT '0.0.0.0'::inet NOT NULL,
     token_name text DEFAULT ''::text NOT NULL,
     scopes api_key_scope[] NOT NULL,
-    allow_list text[] NOT NULL
+    allow_list text[] NOT NULL,
+    CONSTRAINT api_keys_allow_list_not_empty CHECK ((array_length(allow_list, 1) > 0))
 );
 
 COMMENT ON COLUMN api_keys.hashed_secret IS 'hashed_secret contains a SHA256 hash of the key secret. This is considered a secret and MUST NOT be returned from the API as it is used for API key encryption in app proxying code.';
