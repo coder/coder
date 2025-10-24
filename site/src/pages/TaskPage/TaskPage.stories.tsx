@@ -341,7 +341,7 @@ export const WorkspaceStarting: Story = {
 			location: {
 				pathParams: {
 					username: MockStoppedWorkspace.owner_name,
-					task: MockTask.id,
+					taskId: MockTask.id,
 				},
 			},
 			routing: {
@@ -379,7 +379,7 @@ export const WorkspaceStartFailure: Story = {
 			location: {
 				pathParams: {
 					username: MockStoppedWorkspace.owner_name,
-					task: MockTask.id,
+					taskId: MockTask.id,
 				},
 			},
 			routing: {
@@ -421,7 +421,7 @@ export const WorkspaceStartFailureWithDialog: Story = {
 			location: {
 				pathParams: {
 					username: MockStoppedWorkspace.owner_name,
-					task: MockTask.id,
+					taskId: MockTask.id,
 				},
 			},
 			routing: {

@@ -22,7 +22,7 @@ const meta: Meta<typeof TasksSidebar> = {
 				path: `/tasks/${MockTasks[0].owner_name}/${MockTasks[0].id}`,
 				pathParams: {
 					owner_name: MockTasks[0].owner_name,
-					task: MockTasks[0].id,
+					taskId: MockTasks[0].id,
 				},
 			},
 			routing: [
