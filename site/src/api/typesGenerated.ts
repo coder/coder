@@ -32,7 +32,7 @@ export interface AIBridgeInterception {
 	// empty interface{} type, falling back to unknown
 	readonly metadata: Record<string, unknown>;
 	readonly started_at: string;
-	readonly ended_at?: string;
+	readonly ended_at: string | null;
 	readonly token_usages: readonly AIBridgeTokenUsage[];
 	readonly user_prompts: readonly AIBridgeUserPrompt[];
 	readonly tool_usages: readonly AIBridgeToolUsage[];

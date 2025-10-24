@@ -7623,7 +7623,7 @@ func TestUpdateAIBridgeInterceptionEnded(t *testing.T) {
 			ID:      intc0.ID,
 			EndedAt: endedAt.Add(time.Hour),
 		})
-		require.ErrorContains(t, err, "no rows in result set")
+		require.ErrorIs(t, err, sql.ErrNoRows)
 
 		// Other interceptions should not have ended_at set
 		for _, intc := range interceptions[1:] {
