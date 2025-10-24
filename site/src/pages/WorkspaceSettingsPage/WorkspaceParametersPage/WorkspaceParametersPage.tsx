@@ -96,7 +96,7 @@ const WorkspaceParametersPage: FC = () => {
 					}
 					// When updating the parameters, the API does not accept immutable
 					// values so we need to filter them
-					const onlyMultableValues = templateVersionParameters
+					const onlyMutableValues = templateVersionParameters
 						.filter((p) => p.mutable)
 						.map((p) => {
 							const value = values.rich_parameter_values.find(
@@ -107,7 +107,7 @@ const WorkspaceParametersPage: FC = () => {
 							}
 							return value;
 						});
-					updateParameters.mutate(onlyMultableValues);
+					updateParameters.mutate(onlyMutableValues);
 				}}
 				onCancel={() => {
 					navigate("../..");
