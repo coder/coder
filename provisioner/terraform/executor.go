@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -220,6 +221,10 @@ func (e *executor) init(ctx, killCtx context.Context, logr logSink) error {
 	e.mut.Lock()
 	defer e.mut.Unlock()
 
+	// Read .terraform.lock.hcl checksum before running terraform init
+	lockFilePath := getTerraformLockFilePath(e.workdir)
+	preInitChecksum, preInitExists := checksumFile(lockFilePath)
+
 	outWriter, doneOut := logWriter(logr, proto.LogLevel_DEBUG)
 	errWriter, doneErr := logWriter(logr, proto.LogLevel_ERROR)
 	defer func() {
@@ -240,6 +245,13 @@ func (e *executor) init(ctx, killCtx context.Context, logr logSink) error {
 	}
 
 	err := e.execWriteOutput(ctx, killCtx, args, e.basicEnv(), outWriter, errBuf)
+
+	// Check if .terraform.lock.hcl was modified after terraform init
+	postInitChecksum, postInitExists := checksumFile(lockFilePath)
+	if preInitExists && postInitExists && preInitChecksum != postInitChecksum {
+		e.warnLockFileModified(ctx, logr)
+	}
+
 	var exitErr *exec.ExitError
 	if xerrors.As(err, &exitErr) {
 		if bytes.Contains(errBuf.b.Bytes(), []byte("text file busy")) {
@@ -247,6 +259,78 @@ func (e *executor) init(ctx, killCtx context.Context, logr logSink) error {
 		}
 	}
 	return err
+}
+
+// checksumFile calculates the SHA256 checksum of a file.
+// Returns the checksum as a hex string and a boolean indicating if the file exists.
+func checksumFile(path string) (string, bool) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return "", false
+	}
+	hash := sha256.Sum256(content)
+	return fmt.Sprintf("%x", hash), true
+}
+
+// getTerraformLockFilePath returns the path to the .terraform.lock.hcl file
+// in the given working directory.
+func getTerraformLockFilePath(workdir string) string {
+	return filepath.Join(workdir, ".terraform.lock.hcl")
+}
+
+// warnLockFileModified warns the user that the .terraform.lock.hcl file was modified
+// during terraform init, which indicates missing provider hashes for the current platform.
+// This causes Terraform to download providers from the internet on every build instead of
+// using the shared cache, significantly slowing down workspace provisioning.
+func (e *executor) warnLockFileModified(ctx context.Context, logr logSink) {
+	// Log the warning for observability
+	e.logger.Warn(ctx, "terraform modified .terraform.lock.hcl during init",
+		slog.F("workdir", e.workdir),
+	)
+
+	// Determine the current platform for the helpful message
+	platform := fmt.Sprintf("%s_%s", runtime.GOOS, runtime.GOARCH)
+
+	// Write a prominent warning to the user with actionable advice
+	warningWriter, done := logWriter(logr, proto.LogLevel_WARN)
+	defer func() {
+		_ = warningWriter.Close()
+		<-done
+	}()
+
+	warning := fmt.Sprintf(`
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️  WARNING: .terraform.lock.hcl was modified during 'terraform init'
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+This means your lock file is missing provider hashes for this platform (%s).
+
+This happens when you run 'terraform init' locally on a different OS/architecture
+than your Coder deployment (e.g., running on macOS/Windows but Coder runs on Linux).
+
+IMPACT: Terraform is downloading providers from the internet on every workspace
+build instead of using cached versions, significantly slowing down provisioning.
+
+SOLUTION: Add hashes for common platforms to your lock file by running:
+
+    terraform providers lock \
+      -platform=linux_amd64 \
+      -platform=linux_arm64 \
+      -platform=darwin_amd64 \
+      -platform=darwin_arm64 \
+      -platform=windows_amd64
+
+Or target just the Coder platform (%s):
+
+    terraform providers lock -platform=%s
+
+Then commit the updated .terraform.lock.hcl file to version control.
+
+Learn more: https://developer.hashicorp.com/terraform/language/files/dependency-lock
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+`, platform, platform, platform)
+
+	_, _ = warningWriter.Write([]byte(warning))
 }
 
 func getPlanFilePath(workdir string) string {
