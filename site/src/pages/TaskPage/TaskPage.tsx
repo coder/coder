@@ -55,8 +55,8 @@ const TaskPageLayout: FC<PropsWithChildren> = ({ children }) => {
 };
 
 const TaskPage = () => {
-	const { task: taskId, username } = useParams() as {
-		task: string;
+	const { taskId, username } = useParams() as {
+		taskId: string;
 		username: string;
 	};
 	const { data: task, ...taskQuery } = useQuery({
