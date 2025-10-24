@@ -2,6 +2,7 @@ import { paginatedInterceptions } from "api/queries/aiBridge";
 import { useFilter } from "components/Filter/Filter";
 import { useUserFilterMenu } from "components/Filter/UserFilter";
 import { usePaginatedQuery } from "hooks/usePaginatedQuery";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import type { FC } from "react";
 import { useSearchParams } from "react-router";
@@ -11,11 +12,13 @@ import { RequestLogsPageView } from "./RequestLogsPageView";
 
 const RequestLogsPage: FC = () => {
 	const feats = useFeatureVisibility();
+	const { experiments } = useDashboard();
 	// The "else false" is required if aibridge is undefined.
 	// It may happen if owner removes the license.
 	//
 	// see: https://github.com/coder/coder/issues/14798
-	const isRequestLogsVisible = feats.aibridge || false;
+	const isRequestLogsVisible =
+		(feats.aibridge && experiments.includes("aibridge")) || false;
 
 	const [searchParams, setSearchParams] = useSearchParams();
 	const interceptionsQuery = usePaginatedQuery(
