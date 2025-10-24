@@ -2470,12 +2470,11 @@ func TestSSH_Completion(t *testing.T) {
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 
-		// For single-agent workspaces, the workspace name should be suggested
-		// as an alias
+		// For single-agent workspaces, the only completion should be the
+		// bare workspace name.
 		output := stdout.String()
 		t.Logf("Completion output: %q", output)
 		require.Contains(t, output, workspace.Name)
-		require.Contains(t, output, "dev."+workspace.Name)
 	})
 
 	t.Run("MultiAgent", func(t *testing.T) {
@@ -2487,7 +2486,6 @@ func TestSSH_Completion(t *testing.T) {
 			r.Username = "multiuser"
 		})
 
-		// Create a workspace with multiple agents
 		r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
 			Name:           "multiworkspace",
 			OrganizationID: first.OrganizationID,
@@ -2517,14 +2515,14 @@ func TestSSH_Completion(t *testing.T) {
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 
-		// For multi-agent workspaces, completions should include agent.workspace format
-		// but NOT the bare workspace name
+		// For multi-agent workspaces, completions should include the
+		// workspace.agent format but NOT the bare workspace name.
 		output := stdout.String()
 		t.Logf("Completion output: %q", output)
 		lines := strings.Split(strings.TrimSpace(output), "\n")
 		require.NotContains(t, lines, r.Workspace.Name)
-		require.Contains(t, output, "agent1."+r.Workspace.Name)
-		require.Contains(t, output, "agent2."+r.Workspace.Name)
+		require.Contains(t, output, r.Workspace.Name+".agent1")
+		require.Contains(t, output, r.Workspace.Name+".agent2")
 	})
 
 	t.Run("NetworkError", func(t *testing.T) {
