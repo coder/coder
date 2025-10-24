@@ -6363,7 +6363,11 @@ export interface WorkspaceBuild {
 	readonly matched_provisioners?: MatchedProvisioners;
 	readonly template_version_preset_id: string | null;
 	readonly has_ai_task?: boolean;
+	/**
+	 * Deprecated: This field has been replaced with `TaskAppID`
+	 */
 	readonly ai_task_sidebar_app_id?: string;
+	readonly task_app_id?: string;
 	readonly has_external_agent?: boolean;
 }
 
