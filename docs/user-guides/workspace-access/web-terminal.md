@@ -233,3 +233,12 @@ If the terminal fails to connect:
 3. **Network issues**: Check if WebSockets are blocked by your firewall/proxy
 4. **Browser console**: Open DevTools to see WebSocket error messages
 
+### Display Issues
+
+If characters or colors appear incorrect:
+
+1. **Unicode support**: Ensure your shell locale is set correctly (`locale -a`)
+2. **Terminal type**: The terminal sets `TERM=xterm-256color` automatically
+3. **Color schemes**: Some applications may not render correctly in dark mode
+4. **Font rendering**: Try switching terminal fonts in your appearance settings
+
