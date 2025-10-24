@@ -2385,19 +2385,6 @@ class ApiMethods {
 		return response.data;
 	};
 
-	getWorkspaceParameters = async (workspace: TypesGen.Workspace) => {
-		const latestBuild = workspace.latest_build;
-		const [templateVersionRichParameters, buildParameters] = await Promise.all([
-			this.getTemplateVersionRichParameters(latestBuild.template_version_id),
-			this.getWorkspaceBuildParameters(latestBuild.id),
-		]);
-
-		return {
-			templateVersionRichParameters,
-			buildParameters,
-		};
-	};
-
 	getInsightsUserLatency = async (
 		filters: InsightsParams,
 	): Promise<TypesGen.UserLatencyInsightsResponse> => {

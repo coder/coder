@@ -1,6 +1,7 @@
 import { API } from "api/api";
 import { getErrorDetail, getErrorMessage, isApiError } from "api/errors";
 import { template as templateQueryOptions } from "api/queries/templates";
+import { workspaceBuildParameters } from "api/queries/workspaceBuilds";
 import {
 	startWorkspace,
 	workspaceByOwnerAndName,
@@ -198,10 +199,9 @@ type WorkspaceNotRunningProps = {
 const WorkspaceNotRunning: FC<WorkspaceNotRunningProps> = ({ workspace }) => {
 	const queryClient = useQueryClient();
 
-	const { data: parameters } = useQuery({
-		queryKey: ["workspace", workspace.id, "parameters"],
-		queryFn: () => API.getWorkspaceParameters(workspace),
-	});
+	const { data: buildParameters } = useQuery(
+		workspaceBuildParameters(workspace.latest_build.id),
+	);
 
 	const mutateStartWorkspace = useMutation({
 		...startWorkspace(workspace, queryClient),
@@ -237,7 +237,7 @@ const WorkspaceNotRunning: FC<WorkspaceNotRunningProps> = ({ workspace }) => {
 							disabled={isWaitingForStart}
 							onClick={() => {
 								mutateStartWorkspace.mutate({
-									buildParameters: parameters?.buildParameters,
+									buildParameters,
 								});
 							}}
 						>
