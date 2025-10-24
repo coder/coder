@@ -4221,6 +4221,9 @@ type Task struct {
 	WorkspaceBuildNumber sql.NullInt32   `db:"workspace_build_number" json:"workspace_build_number"`
 	WorkspaceAgentID     uuid.NullUUID   `db:"workspace_agent_id" json:"workspace_agent_id"`
 	WorkspaceAppID       uuid.NullUUID   `db:"workspace_app_id" json:"workspace_app_id"`
+	OwnerUsername        string          `db:"owner_username" json:"owner_username"`
+	OwnerName            string          `db:"owner_name" json:"owner_name"`
+	OwnerAvatarUrl       string          `db:"owner_avatar_url" json:"owner_avatar_url"`
 }
 
 type TaskTable struct {
