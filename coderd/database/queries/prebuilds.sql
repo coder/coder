@@ -320,8 +320,8 @@ WHERE id IN (
 		AND wpb.transition = 'start'::workspace_transition
 		-- Pending jobs that have not yet been picked up by a provisioner
 		AND pj.job_status = 'pending'::provisioner_job_status
-  		AND pj.worker_id IS NULL
-  		AND pj.canceled_at IS NULL
-  		AND pj.completed_at IS NULL
+		AND pj.worker_id IS NULL
+		AND pj.canceled_at IS NULL
+		AND pj.completed_at IS NULL
 )
 RETURNING id;
