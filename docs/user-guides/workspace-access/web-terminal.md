@@ -59,21 +59,13 @@ https://coder.example.com/@username/workspace-name.agent-name/terminal
 The Web Terminal creates a persistent connection between your browser and the
 workspace:
 
-```mermaid
-graph LR
-    A[Browser] -->|WebSocket| B[Coder Server]
-    B -->|Secure Tunnel| C[Workspace Agent]
-    C -->|PTY| D[Shell Process]
-    
-    style A fill:#0066cc,color:#fff
-    style D fill:#00cc66,color:#000
-```
-
 1. **Browser**: Renders the terminal using xterm.js
 2. **WebSocket**: Maintains a persistent, low-latency connection
 3. **Coder Server**: Routes traffic between browser and workspace
 4. **Workspace Agent**: Manages the pseudo-terminal (PTY) session
 5. **Shell Process**: Your actual bash/zsh/fish shell
+
+The connection flow is: Browser ↔ WebSocket ↔ Coder Server ↔ Workspace Agent ↔ Shell Process
 
 ### Reconnection & Persistence
 
