@@ -26,7 +26,7 @@ const meta: Meta<typeof TasksSidebar> = {
 				},
 			},
 			routing: [
-				{ path: "/tasks/:username/:task", useStoryElement: true },
+				{ path: "/tasks/:username/:taskId", useStoryElement: true },
 				{ path: "/tasks", element: <div>Tasks Index Page</div> },
 			],
 		}),

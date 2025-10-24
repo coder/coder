@@ -86,7 +86,7 @@ type Story = StoryObj<typeof TaskPage>;
 export const LoadingTask: Story = {
 	beforeEach: () => {
 		spyOn(API.experimental, "getTask").mockImplementation(
-			() => new Promise((_res) => 1000 * 60 * 60),
+			() => new Promise(() => {}),
 		);
 	},
 };
@@ -95,7 +95,7 @@ export const LoadingWorkspace: Story = {
 	beforeEach: () => {
 		spyOn(API.experimental, "getTask").mockResolvedValue(MockTask);
 		spyOn(API, "getWorkspaceByOwnerAndName").mockImplementation(
-			() => new Promise((_res) => 1000 * 60 * 60),
+			() => new Promise(() => {}),
 		);
 	},
 };
@@ -288,9 +288,6 @@ const mainAppHealthStory = (health: WorkspaceApp["health"]) => ({
 export const MainAppHealthy: Story = mainAppHealthStory("healthy");
 export const MainAppInitializing: Story = mainAppHealthStory("initializing");
 export const MainAppUnhealthy: Story = mainAppHealthStory("unhealthy");
-export const MainAppHealthUnknown: Story = mainAppHealthStory(
-	"unknown" as unknown as WorkspaceApp["health"],
-);
 
 export const Active: Story = {
 	decorators: [withProxyProvider()],
@@ -348,7 +345,7 @@ export const WorkspaceStarting: Story = {
 				},
 			},
 			routing: {
-				path: "/tasks/:username/:task",
+				path: "/tasks/:username/:taskId",
 			},
 		}),
 	},
@@ -386,7 +383,7 @@ export const WorkspaceStartFailure: Story = {
 				},
 			},
 			routing: {
-				path: "/tasks/:username/:task",
+				path: "/tasks/:username/:taskId",
 			},
 		}),
 	},
@@ -428,7 +425,7 @@ export const WorkspaceStartFailureWithDialog: Story = {
 				},
 			},
 			routing: {
-				path: "/tasks/:username/:task",
+				path: "/tasks/:username/:taskId",
 			},
 		}),
 	},

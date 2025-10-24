@@ -181,6 +181,8 @@ type TasksFilter struct {
 	FilterQuery string `json:"filter_query,omitempty"`
 }
 
+// TaskListResponse is the response shape for tasks list.
+//
 // Experimental response shape for tasks list (server returns []Task).
 type TasksListResponse struct {
 	Tasks []Task `json:"tasks"`

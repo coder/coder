@@ -25,10 +25,6 @@ const ALLOWED_EXTERNAL_APP_PROTOCOLS = [
 	"kiro:",
 ];
 
-export type WorkspaceAppWithAgent = WorkspaceApp & {
-	agent: WorkspaceAgent;
-};
-
 type GetVSCodeHrefParams = {
 	owner: string;
 	workspace: string;
@@ -148,16 +144,3 @@ export const needsSessionToken = (app: ExternalWorkspaceApp) => {
 	const requiresSessionToken = app.url.includes(SESSION_TOKEN_PLACEHOLDER);
 	return requiresSessionToken && !isHttp;
 };
-
-export function getAllAppsWithAgent(
-	workspace: Workspace,
-): WorkspaceAppWithAgent[] {
-	return workspace.latest_build.resources
-		.flatMap((r) => r.agents ?? [])
-		.flatMap((agent) =>
-			agent.apps.map((app) => ({
-				...app,
-				agent,
-			})),
-		);
-}

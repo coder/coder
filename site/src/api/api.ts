@@ -2710,7 +2710,7 @@ class ExperimentalApiMethods {
 	getTasks = async (
 		filter: TypesGen.TasksFilter,
 	): Promise<readonly TypesGen.Task[]> => {
-		const query = [];
+		const query: string[] = [];
 		if (filter.owner) {
 			query.push(`owner:${filter.owner}`);
 		}

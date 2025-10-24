@@ -176,7 +176,7 @@ type TaskSidebarMenuItemProps = {
 };
 
 const TaskSidebarMenuItem: FC<TaskSidebarMenuItemProps> = ({ task }) => {
-	const { task: taskId } = useParams<{ task: string }>();
+	const { taskId } = useParams<{ taskId: string }>();
 	const isActive = task.id === taskId;
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 	const navigate = useNavigate();

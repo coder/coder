@@ -5014,7 +5014,7 @@ export const MockTask = {
 	updated_at: "2022-05-17T17:39:01.382927298Z",
 } satisfies TypesGen.Task;
 
-export const MockTasks: TypesGen.Task[] = [
+export const MockTasks = [
 	MockTask,
 	{
 		...MockTask,
@@ -5036,4 +5036,4 @@ export const MockTasks: TypesGen.Task[] = [
 			state: "complete",
 		},
 	},
-];
+] satisfies TypesGen.Task[];
