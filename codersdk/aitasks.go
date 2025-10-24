@@ -146,6 +146,8 @@ const (
 	// TaskStateFailed indicates the AI agent reported a failure state.
 	// Reported via the workspace app status.
 	TaskStateFailed TaskState = "failed"
+	// TaskStateUnknown is the zero value for TaskState.
+	TaskStateUnknown TaskState = ""
 )
 
 func TaskStateFromWorkspaceAppStatus(was WorkspaceAppStatusState) TaskState {
@@ -159,7 +161,7 @@ func TaskStateFromWorkspaceAppStatus(was WorkspaceAppStatusState) TaskState {
 	case WorkspaceAppStatusStateFailure:
 		return TaskStateFailed
 	default:
-		return TaskState("unknown")
+		return TaskStateUnknown
 	}
 }
 
