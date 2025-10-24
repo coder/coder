@@ -924,13 +924,6 @@ GROUP BY workspaces.id, workspaces.name, latest_build.job_status, latest_build.j
 -- name: GetWorkspacesByTemplateID :many
 SELECT * FROM workspaces WHERE template_id = $1 AND deleted = false;
 
--- name: GetPrebuiltWorkspacesByTemplateID :many
-SELECT * FROM workspaces_expanded 
-WHERE template_id = $1 
-  AND owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
-  AND deleted = false;
-
-
 -- name: GetWorkspaceACLByID :one
 SELECT
 	group_acl as groups,
