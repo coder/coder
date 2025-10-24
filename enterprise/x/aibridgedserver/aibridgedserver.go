@@ -2,8 +2,6 @@ package aibridgedserver
 
 import (
 	"context"
-	"crypto/sha256"
-	"crypto/subtle"
 	"database/sql"
 	"encoding/json"
 	"net/url"
@@ -17,6 +15,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/coderd/apikey"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -358,8 +357,7 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 	}
 
 	// Key secret matches.
-	hashedSecret := sha256.Sum256([]byte(keySecret))
-	if subtle.ConstantTimeCompare(key.HashedSecret, hashedSecret[:]) != 1 {
+	if !apikey.ValidateHash(key.HashedSecret, keySecret) {
 		return nil, ErrInvalidKey
 	}
 

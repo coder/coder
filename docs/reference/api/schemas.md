@@ -302,6 +302,7 @@
       "template_icon": "string",
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
       "template_name": "string",
+      "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
       "updated_at": "2019-08-24T14:15:22Z",
       "workspace_agent_health": {
         "healthy": false,
@@ -320,7 +321,8 @@
       "workspace_id": {
         "uuid": "string",
         "valid": true
-      }
+      },
+      "workspace_status": "pending"
     }
   ]
 }
@@ -5348,7 +5350,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "redirect_uris": [
     "string"
   ],
-  "registration_access_token": "string",
+  "registration_access_token": [
+    0
+  ],
   "registration_client_uri": "string",
   "response_types": [
     "string"
@@ -5363,28 +5367,28 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ### Properties
 
-| Name                         | Type            | Required | Restrictions | Description |
-|------------------------------|-----------------|----------|--------------|-------------|
-| `client_id`                  | string          | false    |              |             |
-| `client_id_issued_at`        | integer         | false    |              |             |
-| `client_name`                | string          | false    |              |             |
-| `client_secret_expires_at`   | integer         | false    |              |             |
-| `client_uri`                 | string          | false    |              |             |
-| `contacts`                   | array of string | false    |              |             |
-| `grant_types`                | array of string | false    |              |             |
-| `jwks`                       | object          | false    |              |             |
-| `jwks_uri`                   | string          | false    |              |             |
-| `logo_uri`                   | string          | false    |              |             |
-| `policy_uri`                 | string          | false    |              |             |
-| `redirect_uris`              | array of string | false    |              |             |
-| `registration_access_token`  | string          | false    |              |             |
-| `registration_client_uri`    | string          | false    |              |             |
-| `response_types`             | array of string | false    |              |             |
-| `scope`                      | string          | false    |              |             |
-| `software_id`                | string          | false    |              |             |
-| `software_version`           | string          | false    |              |             |
-| `token_endpoint_auth_method` | string          | false    |              |             |
-| `tos_uri`                    | string          | false    |              |             |
+| Name                         | Type             | Required | Restrictions | Description |
+|------------------------------|------------------|----------|--------------|-------------|
+| `client_id`                  | string           | false    |              |             |
+| `client_id_issued_at`        | integer          | false    |              |             |
+| `client_name`                | string           | false    |              |             |
+| `client_secret_expires_at`   | integer          | false    |              |             |
+| `client_uri`                 | string           | false    |              |             |
+| `contacts`                   | array of string  | false    |              |             |
+| `grant_types`                | array of string  | false    |              |             |
+| `jwks`                       | object           | false    |              |             |
+| `jwks_uri`                   | string           | false    |              |             |
+| `logo_uri`                   | string           | false    |              |             |
+| `policy_uri`                 | string           | false    |              |             |
+| `redirect_uris`              | array of string  | false    |              |             |
+| `registration_access_token`  | array of integer | false    |              |             |
+| `registration_client_uri`    | string           | false    |              |             |
+| `response_types`             | array of string  | false    |              |             |
+| `scope`                      | string           | false    |              |             |
+| `software_id`                | string           | false    |              |             |
+| `software_version`           | string           | false    |              |             |
+| `token_endpoint_auth_method` | string           | false    |              |             |
+| `tos_uri`                    | string           | false    |              |             |
 
 ## codersdk.OAuth2ClientRegistrationRequest
 
@@ -7732,6 +7736,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "template_icon": "string",
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "template_name": "string",
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "updated_at": "2019-08-24T14:15:22Z",
   "workspace_agent_health": {
     "healthy": false,
@@ -7750,7 +7755,8 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "workspace_id": {
     "uuid": "string",
     "valid": true
-  }
+  },
+  "workspace_status": "pending"
 }
 ```
 
@@ -7766,11 +7772,12 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `organization_id`           | string                                                               | false    |              |             |
 | `owner_id`                  | string                                                               | false    |              |             |
 | `owner_name`                | string                                                               | false    |              |             |
-| `status`                    | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)                 | false    |              |             |
+| `status`                    | [codersdk.TaskStatus](#codersdktaskstatus)                           | false    |              |             |
 | `template_display_name`     | string                                                               | false    |              |             |
 | `template_icon`             | string                                                               | false    |              |             |
 | `template_id`               | string                                                               | false    |              |             |
 | `template_name`             | string                                                               | false    |              |             |
+| `template_version_id`       | string                                                               | false    |              |             |
 | `updated_at`                | string                                                               | false    |              |             |
 | `workspace_agent_health`    | [codersdk.WorkspaceAgentHealth](#codersdkworkspaceagenthealth)       | false    |              |             |
 | `workspace_agent_id`        | [uuid.NullUUID](#uuidnulluuid)                                       | false    |              |             |
@@ -7778,21 +7785,28 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `workspace_app_id`          | [uuid.NullUUID](#uuidnulluuid)                                       | false    |              |             |
 | `workspace_build_number`    | integer                                                              | false    |              |             |
 | `workspace_id`              | [uuid.NullUUID](#uuidnulluuid)                                       | false    |              |             |
+| `workspace_status`          | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)                 | false    |              |             |
 
 #### Enumerated Values
 
-| Property | Value       |
-|----------|-------------|
-| `status` | `pending`   |
-| `status` | `starting`  |
-| `status` | `running`   |
-| `status` | `stopping`  |
-| `status` | `stopped`   |
-| `status` | `failed`    |
-| `status` | `canceling` |
-| `status` | `canceled`  |
-| `status` | `deleting`  |
-| `status` | `deleted`   |
+| Property           | Value          |
+|--------------------|----------------|
+| `status`           | `pending`      |
+| `status`           | `initializing` |
+| `status`           | `active`       |
+| `status`           | `paused`       |
+| `status`           | `unknown`      |
+| `status`           | `error`        |
+| `workspace_status` | `pending`      |
+| `workspace_status` | `starting`     |
+| `workspace_status` | `running`      |
+| `workspace_status` | `stopping`     |
+| `workspace_status` | `stopped`      |
+| `workspace_status` | `failed`       |
+| `workspace_status` | `canceling`    |
+| `workspace_status` | `canceled`     |
+| `workspace_status` | `deleting`     |
+| `workspace_status` | `deleted`      |
 
 ## codersdk.TaskLogEntry
 
@@ -7900,6 +7914,25 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `state`     | [codersdk.TaskState](#codersdktaskstate) | false    |              |             |
 | `timestamp` | string                                   | false    |              |             |
 | `uri`       | string                                   | false    |              |             |
+
+## codersdk.TaskStatus
+
+```json
+"pending"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value          |
+|----------------|
+| `pending`      |
+| `initializing` |
+| `active`       |
+| `paused`       |
+| `unknown`      |
+| `error`        |
 
 ## codersdk.TelemetryConfig
 

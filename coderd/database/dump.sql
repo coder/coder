@@ -1065,7 +1065,8 @@ CREATE TABLE aibridge_interceptions (
     provider text NOT NULL,
     model text NOT NULL,
     started_at timestamp with time zone NOT NULL,
-    metadata jsonb
+    metadata jsonb,
+    ended_at timestamp with time zone
 );
 
 COMMENT ON TABLE aibridge_interceptions IS 'Audit log of requests intercepted by AI Bridge';
@@ -1546,7 +1547,7 @@ CREATE TABLE oauth2_provider_apps (
     jwks jsonb,
     software_id text,
     software_version text,
-    registration_access_token text,
+    registration_access_token bytea,
     registration_client_uri text
 );
 

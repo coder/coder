@@ -486,6 +486,6 @@ type OAuth2ClientConfiguration struct {
 	TokenEndpointAuthMethod string          `json:"token_endpoint_auth_method"`
 	Scope                   string          `json:"scope,omitempty"`
 	Contacts                []string        `json:"contacts,omitempty"`
-	RegistrationAccessToken string          `json:"registration_access_token"`
+	RegistrationAccessToken []byte          `json:"registration_access_token"`
 	RegistrationClientURI   string          `json:"registration_client_uri"`
 }

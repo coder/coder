@@ -776,10 +776,6 @@ func TestExecutorWorkspaceAutostopNoWaitChangedMyMind(t *testing.T) {
 }
 
 func TestExecutorAutostartMultipleOK(t *testing.T) {
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip(`This test only really works when using a "real" database, similar to a HA setup`)
-	}
-
 	t.Parallel()
 
 	var (
@@ -1258,10 +1254,6 @@ func TestNotifications(t *testing.T) {
 // For enterprise-related functionality, see enterprise/coderd/workspaces_test.go.
 func TestExecutorPrebuilds(t *testing.T) {
 	t.Parallel()
-
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("this test requires postgres")
-	}
 
 	// Prebuild workspaces should not be autostopped when the deadline is reached.
 	// After being claimed, the workspace should stop at the deadline.

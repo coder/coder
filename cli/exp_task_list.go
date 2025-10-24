@@ -8,6 +8,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
@@ -98,10 +99,10 @@ func (r *RootCmd) taskList() *serpent.Command {
 		Options: serpent.OptionSet{
 			{
 				Name:        "status",
-				Description: "Filter by task status (e.g. running, failed, etc).",
+				Description: "Filter by task status.",
 				Flag:        "status",
 				Default:     "",
-				Value:       serpent.StringOf(&statusFilter),
+				Value:       serpent.EnumOf(&statusFilter, slice.ToStrings(codersdk.AllTaskStatuses())...),
 			},
 			{
 				Name:          "all",
@@ -143,7 +144,7 @@ func (r *RootCmd) taskList() *serpent.Command {
 
 			tasks, err := exp.Tasks(ctx, &codersdk.TasksFilter{
 				Owner:  targetUser,
-				Status: statusFilter,
+				Status: codersdk.TaskStatus(statusFilter),
 			})
 			if err != nil {
 				return xerrors.Errorf("list tasks: %w", err)
