@@ -1,187 +1,179 @@
 {{/*
-  This template is used by application handlers to render friendly error pages
-  when there is a proxy error (for example, when the target app isn't running).
+	This template is used by application handlers to render friendly error pages
+	when there is a proxy error (for example, when the target app isn't running).
 
-  Since it is served from subdomains, both on proxies and the primary, it MUST
-  NOT access any external resources. It must be entirely self-contained. This
-  includes anything in `/static` or `/icon`, as these are not served from
-  subdomains.
+	Since it is served from subdomains, both on proxies and the primary, it MUST
+	NOT access any external resources. It must be entirely self-contained. This
+	includes anything in `/static` or `/icon`, as these are not served from
+	subdomains.
 */}}
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>
-      {{- if not .Error.HideStatus }}{{ .Error.Status }} - {{end}}{{
-      .Error.Title }}
-    </title>
-    <style>
-      * {
-        padding: 0;
-        margin: 0;
-        box-sizing: border-box;
-      }
+	<head>
+		<meta charset="UTF-8" />
+		<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>
+			{{- if not .Error.HideStatus }}{{ .Error.Status }} - {{end}}{{
+			.Error.Title }}
+		</title>
+		<style>
+			* {
+				padding: 0;
+				margin: 0;
+				box-sizing: border-box;
+			}
 
-      html,
-      body {
-        background-color: #05060b;
-        color: #f7f9fd;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-family: sans-serif;
-        font-size: 16px;
-        height: 100%;
-      }
+			html,
+			body {
+				background-color: #05060b;
+				color: #a1a1aa;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				font-family: sans-serif;
+				font-size: 16px;
+				height: 100%;
+			}
 
-      .container {
-        --side-padding: 24px;
-        width: 100%;
-        max-width: calc(500px + var(--side-padding) * 2);
-        padding: 0 var(--side-padding);
-        text-align: center;
-      }
+			header {
+				text-align: center;
+			}
 
-      .coder-svg {
-        width: 80px;
-        margin-bottom: 24px;
-      }
+			.container {
+				--side-padding: 24px;
+				width: 100%;
+				max-width: calc(500px + var(--side-padding) * 2);
+				padding: 0 var(--side-padding);
+			}
 
-      h1 {
-        font-weight: 700;
-        font-size: 36px;
-        margin-bottom: 8px;
-      }
+			.coder-svg {
+				width: 80px;
+				margin-bottom: 24px;
+			}
 
-      p,
-      li {
-        color: #b2bfd7;
-        line-height: 140%;
-      }
+			h1 {
+				font-size: 24px;
+				margin-bottom: 8px;
+				font-weight: 400;
+				color: white;
+			}
 
-      .warning li {
-        text-align: left;
-        padding-top: 10px;
-        margin-left: 30px;
-      }
+			p,
+			li {
+				line-height: 140%;
+				font-size: 14px;
+			}
 
-      .button-group {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 12px;
-        margin-top: 24px;
-      }
 
-      .button-group a,
-      .button-group button {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        padding: 6px 16px;
-        border-radius: 4px;
-        border: 1px solid #2c3854;
-        text-decoration: none;
-        background: none;
-        font-size: inherit;
-        color: inherit;
-        width: 200px;
-        height: 42px;
-        cursor: pointer;
-      }
+			.button-group {
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				gap: 12px;
+				margin-top: 24px;
+			}
 
-      .button-group a:hover,
-      .button-group button:hover {
-        border-color: hsl(222, 31%, 40%);
-      }
+			.button-group a,
+			.button-group button {
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
+				padding: 6px 16px;
+				border-radius: 4px;
+				border: 1px solid #2c3854;
+				text-decoration: none;
+				background: none;
+				font-size: inherit;
+				color: inherit;
+				width: 200px;
+				height: 42px;
+				cursor: pointer;
+			}
 
-      .warning {
-        margin-top: 24px;
-        border: 1px solid rgb(243, 140, 89);
-        background: rgb(13, 19, 33);
-        width: calc(520px + var(--side-padding) * 2);
-        /* Recenter */
-        margin-left: calc(-1 * (100px + var(--side-padding)));
-        padding: 10px;
-      }
+			.button-group a:hover,
+			.button-group button:hover {
+				border-color: hsl(222, 31%, 40%);
+			}
 
-      .warning-title {
-        display: inline-flex;
-        align-self: center;
-        align-items: center;
-      }
+			.warning {
+				margin-top: 24px;
+				border: 1px solid rgb(243, 140, 89);
+				background: rgb(13, 19, 33);
+				width: 100%;
+				padding: 24px;
+			}
 
-      .svg-icon svg {
-        height: 1em;
-        width: 1em;
-      }
+			.warning-title {
+				display: inline-flex;
+				align-self: center;
+				align-items: center;
+			}
 
-      .warning-title h3 {
-        margin-left: 10px;
-      }
-    </style>
-  </head>
-  <body>
-    <div class="container">
-      {{/*
-        DO NOT LOAD AN EXTERNAL IMAGE HERE. See the comment at the top of
-        this file for more details.
-      */}}
-      <svg
-        class="coder-svg"
-        viewBox="0 0 66 48"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        <path d="M18.996 7C29.9934 7.00003 36.1588 12.5745 36.3671 20.7799L26.8691 21.0919C26.6191 16.5433 22.8492 13.5554 18.996 13.6445C13.7055 13.756 9.78938 17.5243 9.78934 23.5C9.78934 29.4757 13.7054 33.1773 18.996 33.1773C22.8492 33.177 26.5357 30.323 26.9524 25.7743L36.4503 25.9974C36.2004 34.3365 29.6602 40 18.996 40C8.33164 40 0 33.5338 0 23.5C3.90577e-05 13.4216 7.9984 7 18.996 7ZM66 7.97504V39.1914H41.0058V7.97504H66Z" fill="white" />
-      </svg>
+			.warning-title h3 {
+				margin-left: 12px;
+				font-size: 16px;
+				font-weight: 500;
+				color: white;
+			}
 
-      <h1>
-        {{- if not .Error.HideStatus }}{{ .Error.Status }} - {{end}}{{
-        .Error.Title }}
-      </h1>
-      {{- if .Error.RenderDescriptionMarkdown }} {{ .ErrorDescriptionHTML }} {{
-      else }}
-      <p>{{ .Error.Description }}</p>
-      {{ end }} {{- if .Error.AdditionalInfo }}
-      <br />
-      <p>{{ .Error.AdditionalInfo }}</p>
-      {{ end }} {{- if .Error.Warnings }}
-      <div class="warning">
-        <div class="warning-title">
-          <svg
-            height="1em"
-            width="auto"
-            focusable="false"
-            aria-hidden="true"
-            viewBox="0 0 24 24"
-          >
-            <path
-              fill="#e66828"
-              d="M12 5.99L19.53 19H4.47L12 5.99M12 2L1 21h22L12 2zm1 14h-2v2h2v-2zm0-6h-2v4h2v-4z"
-            ></path>
-          </svg>
-          <h3>Warnings</h3>
-        </div>
-        <ul>
-          {{ range $i, $v := .Error.Warnings }}
-          <li>{{ $v }}</li>
-          {{ end }}
-        </ul>
-      </div>
-      {{ end }}
-      <div class="button-group">
-        {{- if and .Error.AdditionalButtonText .Error.AdditionalButtonLink }}
-        <a href="{{ .Error.AdditionalButtonLink }}"
-          >{{ .Error.AdditionalButtonText }}</a
-        >
-        {{ end }} {{- if .Error.RetryEnabled }}
-        <button onclick="window.location.reload()">Retry</button>
-        {{ end }}
-        <a href="{{ .Error.DashboardURL }}">Back to site</a>
-      </div>
-    </div>
-  </body>
+			.warning li {
+				padding-top: 10px;
+				margin-left: 30px;
+			}
+		</style>
+	</head>
+
+	<body>
+		<div class="container">
+			<header>
+				{{/*
+					DO NOT LOAD AN EXTERNAL IMAGE HERE. See the comment at the top of
+					this file for more details.
+				*/}}
+				<svg class="coder-svg" viewBox="0 0 66 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+					<path
+						d="M18.996 7C29.9934 7.00003 36.1588 12.5745 36.3671 20.7799L26.8691 21.0919C26.6191 16.5433 22.8492 13.5554 18.996 13.6445C13.7055 13.756 9.78938 17.5243 9.78934 23.5C9.78934 29.4757 13.7054 33.1773 18.996 33.1773C22.8492 33.177 26.5357 30.323 26.9524 25.7743L36.4503 25.9974C36.2004 34.3365 29.6602 40 18.996 40C8.33164 40 0 33.5338 0 23.5C3.90577e-05 13.4216 7.9984 7 18.996 7ZM66 7.97504V39.1914H41.0058V7.97504H66Z"
+						fill="white" />
+				</svg>
+
+				<h1>
+					{{- if not .Error.HideStatus }}{{ .Error.Status }} - {{end}}{{
+					.Error.Title }}
+				</h1>
+				{{- if .Error.RenderDescriptionMarkdown }} {{ .ErrorDescriptionHTML }} {{
+				else }}
+				<p>{{ .Error.Description }}</p>
+				{{ end }} {{- if .Error.AdditionalInfo }}
+				<br />
+				<p>{{ .Error.AdditionalInfo }}</p>
+				{{ end }}
+			</header>
+
+			{{- if .Error.Warnings }}
+			<div class="warning">
+				<div class="warning-title">
+					<svg height="1em" width="auto" focusable="false" aria-hidden="true" viewBox="0 0 24 24">
+						<path fill="#e66828" d="M12 5.99L19.53 19H4.47L12 5.99M12 2L1 21h22L12 2zm1 14h-2v2h2v-2zm0-6h-2v4h2v-4z">
+						</path>
+					</svg>
+					<h3>Warnings</h3>
+				</div>
+				<ul>
+					{{ range $i, $v := .Error.Warnings }}
+					<li>{{ $v }}</li>
+					{{ end }}
+				</ul>
+			</div>
+			{{ end }}
+			<div class="button-group">
+				{{- if and .Error.AdditionalButtonText .Error.AdditionalButtonLink }}
+				<a href="{{ .Error.AdditionalButtonLink }}">{{ .Error.AdditionalButtonText }}</a>
+				{{ end }} {{- if .Error.RetryEnabled }}
+				<button onclick="window.location.reload()">Retry</button>
+				{{ end }}
+				<a href="{{ .Error.DashboardURL }}">Back to site</a>
+			</div>
+		</div>
+	</body>
 </html>

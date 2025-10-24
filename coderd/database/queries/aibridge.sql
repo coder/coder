@@ -75,11 +75,48 @@ ORDER BY
 	created_at ASC,
 	id ASC;
 
--- name: ListAIBridgeInterceptions :many
+-- name: CountAIBridgeInterceptions :one
 SELECT
-	*
+	COUNT(*)
 FROM
 	aibridge_interceptions
+WHERE
+	-- Filter by time frame
+	CASE
+		WHEN @started_after::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN aibridge_interceptions.started_at >= @started_after::timestamptz
+		ELSE true
+	END
+	AND CASE
+		WHEN @started_before::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN aibridge_interceptions.started_at <= @started_before::timestamptz
+		ELSE true
+	END
+	-- Filter initiator_id
+	AND CASE
+		WHEN @initiator_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN aibridge_interceptions.initiator_id = @initiator_id::uuid
+		ELSE true
+	END
+	-- Filter provider
+	AND CASE
+		WHEN @provider::text != '' THEN aibridge_interceptions.provider = @provider::text
+		ELSE true
+	END
+	-- Filter model
+	AND CASE
+		WHEN @model::text != '' THEN aibridge_interceptions.model = @model::text
+		ELSE true
+	END
+	-- Authorize Filter clause will be injected below in ListAuthorizedAIBridgeInterceptions
+	-- @authorize_filter
+;
+
+-- name: ListAIBridgeInterceptions :many
+SELECT
+	sqlc.embed(aibridge_interceptions),
+	sqlc.embed(visible_users)
+FROM
+	aibridge_interceptions
+JOIN
+	visible_users ON visible_users.id = aibridge_interceptions.initiator_id
 WHERE
 	-- Filter by time frame
 	CASE
@@ -127,6 +164,7 @@ ORDER BY
 	aibridge_interceptions.started_at DESC,
 	aibridge_interceptions.id DESC
 LIMIT COALESCE(NULLIF(@limit_::integer, 0), 100)
+OFFSET @offset_
 ;
 
 -- name: ListAIBridgeTokenUsagesByInterceptionIDs :many

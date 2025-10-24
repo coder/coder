@@ -493,7 +493,7 @@ func New(options *Options) *API {
 	// We add this middleware early, to make sure that authorization checks made
 	// by other middleware get recorded.
 	if buildinfo.IsDev() {
-		r.Use(httpmw.RecordAuthzChecks)
+		r.Use(httpmw.RecordAuthzChecks(options.DeploymentValues.EnableAuthzRecording.Value()))
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -985,6 +985,16 @@ func New(options *Options) *API {
 			r.Post("/", api.postOAuth2ProviderAppToken())
 		})
 
+		// RFC 7009 Token Revocation Endpoint
+		r.Route("/revoke", func(r chi.Router) {
+			r.Use(
+				// RFC 7009 endpoint uses OAuth2 client authentication, not API key
+				httpmw.AsAuthzSystem(httpmw.ExtractOAuth2ProviderAppWithOAuth2Errors(options.Database)),
+			)
+			// POST /revoke is the standard OAuth2 token revocation endpoint per RFC 7009
+			r.Post("/", api.revokeOAuth2Token())
+		})
+
 		// RFC 7591 Dynamic Client Registration - Public endpoint
 		r.Post("/register", api.postOAuth2ClientRegistration())
 
@@ -1022,11 +1032,15 @@ func New(options *Options) *API {
 
 			r.Route("/{user}", func(r chi.Router) {
 				r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
-				r.Get("/{id}", api.taskGet)
-				r.Delete("/{id}", api.taskDelete)
-				r.Post("/{id}/send", api.taskSend)
-				r.Get("/{id}/logs", api.taskLogs)
 				r.Post("/", api.tasksCreate)
+
+				r.Route("/{task}", func(r chi.Router) {
+					r.Use(httpmw.ExtractTaskParam(options.Database))
+					r.Get("/", api.taskGet)
+					r.Delete("/", api.taskDelete)
+					r.Post("/send", api.taskSend)
+					r.Get("/logs", api.taskLogs)
+				})
 			})
 		})
 		r.Route("/mcp", func(r chi.Router) {

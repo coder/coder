@@ -81,6 +81,44 @@ Bridge is compatible with _[Google Vertex AI](https://cloud.google.com/vertex-ai
 > [!NOTE]
 > See [Supported APIs](#supported-apis) section below for a comprehensive list.
 
+## Client Configuration
+
+Once AI Bridge is enabled on the server, your users need to configure their AI coding tools to use it. This section explains how users should configure their clients to connect to AI Bridge.
+
+### Setting Base URLs
+
+The exact configuration method varies by client — some use environment variables, others use configuration files or UI settings:
+
+- **OpenAI-compatible clients**: Set the base URL (commonly via the `OPENAI_BASE_URL` environment variable) to `https://coder.example.com/api/experimental/aibridge/openai/v1`
+- **Anthropic-compatible clients**: Set the base URL (commonly via the `ANTHROPIC_BASE_URL` environment variable) to `https://coder.example.com/api/experimental/aibridge/anthropic`
+
+Replace `coder.example.com` with your actual Coder deployment URL.
+
+### Authentication
+
+Instead of distributing provider-specific API keys (OpenAI/Anthropic keys) to users, they authenticate to AI Bridge using their **Coder session token** or **API key**:
+
+- **OpenAI clients**: Users set `OPENAI_API_KEY` to their Coder session token or API key
+- **Anthropic clients**: Users set `ANTHROPIC_API_KEY` to their Coder session token or API key
+
+Users can generate a Coder API key using:
+
+```sh
+coder tokens create
+```
+
+Template admins can pre-configure authentication in templates using [`data.coder_workspace_owner.me.session_token`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_owner#session_token-1) to automatically configure the workspace owner's credentials.
+
+#### Compatibility Notes
+
+Most AI coding assistants that support custom base URLs can work with AI Bridge. However, client-specific configuration requirements vary:
+
+- Some clients require specific URL formats (e.g. try removing the `/v1` suffix)
+- Some clients may proxy requests through their own servers, limiting compatibility (e.g. Cursor)
+- Some clients may not support custom base URLs at all (e.g. Copilot CLI, Sourcegraph Amp)
+
+Consult your specific AI client's documentation for details on configuring custom API endpoints.
+
 ## Collected Data
 
 Bridge collects:

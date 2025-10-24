@@ -201,6 +201,17 @@ func TestCustomSupportLinks(t *testing.T) {
 			Target: "http://second-link-2",
 			Icon:   "bug",
 		},
+		{
+			Name:     "First button",
+			Target:   "http://first-button-1",
+			Icon:     "bug",
+			Location: "navbar",
+		},
+		{
+			Name:   "Third link",
+			Target: "http://third-link-3",
+			Icon:   "star",
+		},
 	}
 	cfg := coderdtest.DeploymentValues(t)
 	cfg.Support.Links = serpent.Struct[[]codersdk.LinkConfig]{

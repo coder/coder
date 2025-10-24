@@ -9,23 +9,25 @@ import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
 import { Link } from "components/Link/Link";
 import { ScrollArea, ScrollBar } from "components/ScrollArea/ScrollArea";
-import { ChevronDownIcon, LayoutGridIcon } from "lucide-react";
+import { ChevronDownIcon, LayoutGridIcon, TerminalIcon } from "lucide-react";
+import { getTerminalHref } from "modules/apps/apps";
 import { useAppLink } from "modules/apps/useAppLink";
 import {
 	getTaskApps,
 	type Task,
 	type WorkspaceAppWithAgent,
 } from "modules/tasks/tasks";
-import type React from "react";
 import { type FC, useState } from "react";
-import { Link as RouterLink } from "react-router";
+import { type LinkProps, Link as RouterLink } from "react-router";
 import { cn } from "utils/cn";
 import { docs } from "utils/docs";
-import { TaskAppIFrame } from "./TaskAppIframe";
+import { TaskAppIFrame, TaskIframe } from "./TaskAppIframe";
 
 type TaskAppsProps = {
 	task: Task;
 };
+
+const TERMINAL_TAB_ID = "terminal";
 
 export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 	const apps = getTaskApps(task).filter(
@@ -39,6 +41,13 @@ export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 	const [activeAppId, setActiveAppId] = useState(embeddedApps.at(0)?.id);
 	const hasAvailableAppsToDisplay =
 		embeddedApps.length > 0 || externalApps.length > 0;
+	const taskAgent = apps.at(0)?.agent;
+	const terminalHref = getTerminalHref({
+		username: task.workspace.owner_name,
+		workspace: task.workspace.name,
+		agent: taskAgent?.name,
+	});
+	const isTerminalActive = activeAppId === TERMINAL_TAB_ID;
 
 	return (
 		<main className="flex flex-col h-full">
@@ -58,6 +67,17 @@ export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 									}}
 								/>
 							))}
+							<TaskTab
+								to={terminalHref}
+								active={isTerminalActive}
+								onClick={(e) => {
+									e.preventDefault();
+									setActiveAppId(TERMINAL_TAB_ID);
+								}}
+							>
+								<TerminalIcon />
+								Terminal
+							</TaskTab>
 						</div>
 						<ScrollBar orientation="horizontal" className="h-2" />
 					</ScrollArea>
@@ -78,6 +98,14 @@ export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 							task={task}
 						/>
 					))}
+
+					<TaskIframe
+						src={terminalHref}
+						title="Terminal"
+						className={cn({
+							hidden: !isTerminalActive,
+						})}
+					/>
 				</div>
 			) : (
 				<div className="mx-auto my-auto flex flex-col items-center">
@@ -162,10 +190,29 @@ const TaskAppTab: FC<TaskAppTabProps> = ({ task, app, active, onClick }) => {
 	});
 
 	return (
+		<TaskTab active={active} to={link.href} onClick={onClick}>
+			{app.icon ? <ExternalImage src={app.icon} /> : <LayoutGridIcon />}
+			{link.label}
+			{app.health === "unhealthy" && (
+				<InfoTooltip
+					title="This app is unhealthy."
+					message="The health check failed."
+					type="warning"
+				/>
+			)}
+		</TaskTab>
+	);
+};
+
+type TaskTabProps = LinkProps & {
+	active: boolean;
+};
+
+const TaskTab: FC<TaskTabProps> = ({ active, ...routerLinkProps }) => {
+	return (
 		<Button
 			size="sm"
 			variant="subtle"
-			key={app.id}
 			asChild
 			className={cn([
 				"px-3",
@@ -176,17 +223,7 @@ const TaskAppTab: FC<TaskAppTabProps> = ({ task, app, active, onClick }) => {
 				{ "opacity-75 hover:opacity-100": !active },
 			])}
 		>
-			<RouterLink to={link.href} onClick={onClick}>
-				{app.icon ? <ExternalImage src={app.icon} /> : <LayoutGridIcon />}
-				{link.label}
-				{app.health === "unhealthy" && (
-					<InfoTooltip
-						title="This app is unhealthy."
-						message="The health check failed."
-						type="warning"
-					/>
-				)}
-			</RouterLink>
+			<RouterLink {...routerLinkProps} />
 		</Button>
 	);
 };

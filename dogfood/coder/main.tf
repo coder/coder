@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = "= 2.12.0-pre0"
+      version = ">= 2.12.0"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -479,8 +479,8 @@ resource "coder_agent" "dev" {
   dir  = local.repo_dir
   env = {
     OIDC_TOKEN : data.coder_workspace_owner.me.oidc_access_token,
-    # To Enable AI Bridge integration
     ANTHROPIC_BASE_URL : "https://dev.coder.com/api/experimental/aibridge/anthropic",
+    ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token
   }
   startup_script_behavior = "blocking"
 

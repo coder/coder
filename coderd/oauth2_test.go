@@ -620,7 +620,7 @@ func TestOAuth2ProviderTokenRefresh(t *testing.T) {
 				CreatedAt:   dbtime.Now(),
 				ExpiresAt:   expires,
 				HashPrefix:  []byte(token.Prefix),
-				RefreshHash: []byte(token.Hashed),
+				RefreshHash: token.Hashed,
 				AppSecretID: secret.ID,
 				APIKeyID:    newKey.ID,
 				UserID:      user.ID,
@@ -720,7 +720,7 @@ func TestOAuth2ProviderRevoke(t *testing.T) {
 			},
 		},
 		{
-			name: "DeleteToken",
+			name: "DeleteApp",
 			fn: func(ctx context.Context, client *codersdk.Client, s exchangeSetup) {
 				err := client.RevokeOAuth2ProviderApp(ctx, s.app.ID)
 				require.NoError(t, err)
@@ -1601,6 +1601,81 @@ func TestOAuth2RegistrationAccessToken(t *testing.T) {
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "invalid_token")
 	})
+}
+
+// TestOAuth2CoderClient verfies a codersdk client can be used with an oauth client.
+func TestOAuth2CoderClient(t *testing.T) {
+	t.Parallel()
+
+	owner := coderdtest.New(t, nil)
+	first := coderdtest.CreateFirstUser(t, owner)
+
+	// Setup an oauth app
+	ctx := testutil.Context(t, testutil.WaitLong)
+	app, err := owner.PostOAuth2ProviderApp(ctx, codersdk.PostOAuth2ProviderAppRequest{
+		Name:        "new-app",
+		CallbackURL: "http://localhost",
+	})
+	require.NoError(t, err)
+
+	appsecret, err := owner.PostOAuth2ProviderAppSecret(ctx, app.ID)
+	require.NoError(t, err)
+
+	cfg := &oauth2.Config{
+		ClientID:     app.ID.String(),
+		ClientSecret: appsecret.ClientSecretFull,
+		Endpoint: oauth2.Endpoint{
+			AuthURL:       app.Endpoints.Authorization,
+			DeviceAuthURL: app.Endpoints.DeviceAuth,
+			TokenURL:      app.Endpoints.Token,
+			AuthStyle:     oauth2.AuthStyleInParams,
+		},
+		RedirectURL: app.CallbackURL,
+		Scopes:      []string{},
+	}
+
+	// Make a new user
+	client, user := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
+
+	// Do an OAuth2 token exchange and get a new client with an oauth token
+	state := uuid.NewString()
+
+	// Get an OAuth2 code for a token exchange
+	code, err := oidctest.OAuth2GetCode(
+		cfg.AuthCodeURL(state),
+		func(req *http.Request) (*http.Response, error) {
+			// Change to POST to simulate the form submission
+			req.Method = http.MethodPost
+
+			// Prevent automatic redirect following
+			client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+				return http.ErrUseLastResponse
+			}
+			return client.Request(ctx, req.Method, req.URL.String(), nil)
+		},
+	)
+	require.NoError(t, err)
+
+	token, err := cfg.Exchange(ctx, code)
+	require.NoError(t, err)
+
+	// Use the oauth client's authentication
+	// TODO: The SDK could probably support this with a better syntax/api.
+	oauthClient := oauth2.NewClient(ctx, oauth2.StaticTokenSource(token))
+	usingOauth := codersdk.New(owner.URL)
+	usingOauth.HTTPClient = oauthClient
+
+	me, err := usingOauth.User(ctx, codersdk.Me)
+	require.NoError(t, err)
+	require.Equal(t, user.ID, me.ID)
+
+	// Revoking the refresh token should prevent further access
+	// Revoking the refresh also invalidates the associated access token.
+	err = usingOauth.RevokeOAuth2Token(ctx, app.ID, token.RefreshToken)
+	require.NoError(t, err)
+
+	_, err = usingOauth.User(ctx, codersdk.Me)
+	require.Error(t, err)
 }
 
 // NOTE: OAuth2 client registration validation tests have been migrated to

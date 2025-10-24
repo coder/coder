@@ -2,26 +2,243 @@ package cli_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
+	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
+	agentapisdk "github.com/coder/agentapi-sdk-go"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
+	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/testutil"
 )
+
+// This test performs an integration-style test for tasks functionality.
+//
+//nolint:tparallel // The sub-tests of this test must be run sequentially.
+func Test_Tasks(t *testing.T) {
+	t.Parallel()
+
+	// Given: a template configured for tasks
+	var (
+		ctx           = testutil.Context(t, testutil.WaitLong)
+		client        = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner         = coderdtest.CreateFirstUser(t, client)
+		userClient, _ = coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		initMsg       = agentapisdk.Message{
+			Content: "test task input for " + t.Name(),
+			Id:      0,
+			Role:    "user",
+			Time:    time.Now().UTC(),
+		}
+		authToken    = uuid.NewString()
+		echoAgentAPI = startFakeAgentAPI(t, fakeAgentAPIEcho(ctx, t, initMsg, "hello"))
+		taskTpl      = createAITaskTemplate(t, client, owner.OrganizationID, withAgentToken(authToken), withSidebarURL(echoAgentAPI.URL()))
+		taskName     = strings.ReplaceAll(testutil.GetRandomName(t), "_", "-")
+	)
+
+	//nolint:paralleltest // The sub-tests of this test must be run sequentially.
+	for _, tc := range []struct {
+		name     string
+		cmdArgs  []string
+		assertFn func(stdout string, userClient *codersdk.Client)
+	}{
+		{
+			name:    "create task",
+			cmdArgs: []string{"exp", "task", "create", "test task input for " + t.Name(), "--name", taskName, "--template", taskTpl.Name},
+			assertFn: func(stdout string, userClient *codersdk.Client) {
+				require.Contains(t, stdout, taskName, "task name should be in output")
+			},
+		},
+		{
+			name:    "list tasks after create",
+			cmdArgs: []string{"exp", "task", "list", "--output", "json"},
+			assertFn: func(stdout string, userClient *codersdk.Client) {
+				var tasks []codersdk.Task
+				err := json.NewDecoder(strings.NewReader(stdout)).Decode(&tasks)
+				require.NoError(t, err, "list output should unmarshal properly")
+				require.Len(t, tasks, 1, "expected one task")
+				require.Equal(t, taskName, tasks[0].Name, "task name should match")
+				require.Equal(t, initMsg.Content, tasks[0].InitialPrompt, "initial prompt should match")
+				require.True(t, tasks[0].WorkspaceID.Valid, "workspace should be created")
+				// For the next test, we need to wait for the workspace to be healthy
+				ws := coderdtest.MustWorkspace(t, userClient, tasks[0].WorkspaceID.UUID)
+				coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+				agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken))
+				_ = agenttest.New(t, client.URL, authToken, func(o *agent.Options) {
+					o.Client = agentClient
+				})
+				coderdtest.NewWorkspaceAgentWaiter(t, userClient, tasks[0].WorkspaceID.UUID).WithContext(ctx).WaitFor(coderdtest.AgentsReady)
+			},
+		},
+		{
+			name:    "get task status after create",
+			cmdArgs: []string{"exp", "task", "status", taskName, "--output", "json"},
+			assertFn: func(stdout string, userClient *codersdk.Client) {
+				var task codersdk.Task
+				require.NoError(t, json.NewDecoder(strings.NewReader(stdout)).Decode(&task), "should unmarshal task status")
+				require.Equal(t, task.Name, taskName, "task name should match")
+				// NOTE: task status changes type, this is so this test works with both old and new model
+				require.Contains(t, []string{"active", "running"}, string(task.Status), "task should be active")
+			},
+		},
+		{
+			name:    "send task message",
+			cmdArgs: []string{"exp", "task", "send", taskName, "hello"},
+			// Assertions for this happen in the fake agent API handler.
+		},
+		{
+			name:    "read task logs",
+			cmdArgs: []string{"exp", "task", "logs", taskName, "--output", "json"},
+			assertFn: func(stdout string, userClient *codersdk.Client) {
+				var logs []codersdk.TaskLogEntry
+				require.NoError(t, json.NewDecoder(strings.NewReader(stdout)).Decode(&logs), "should unmarshal task logs")
+				require.Len(t, logs, 3, "should have 3 logs")
+				require.Equal(t, logs[0].Content, initMsg.Content, "first message should be the init message")
+				require.Equal(t, logs[0].Type, codersdk.TaskLogTypeInput, "first message should be an input")
+				require.Equal(t, logs[1].Content, "hello", "second message should be the sent message")
+				require.Equal(t, logs[1].Type, codersdk.TaskLogTypeInput, "second message should be an input")
+				require.Equal(t, logs[2].Content, "hello", "third message should be the echoed message")
+				require.Equal(t, logs[2].Type, codersdk.TaskLogTypeOutput, "third message should be an output")
+			},
+		},
+		{
+			name:    "delete task",
+			cmdArgs: []string{"exp", "task", "delete", taskName, "--yes"},
+			assertFn: func(stdout string, userClient *codersdk.Client) {
+				// The task should eventually no longer show up in the list of tasks
+				testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+					expClient := codersdk.NewExperimentalClient(userClient)
+					tasks, err := expClient.Tasks(ctx, &codersdk.TasksFilter{})
+					if !assert.NoError(t, err) {
+						return false
+					}
+					return slices.IndexFunc(tasks, func(task codersdk.Task) bool {
+						return task.Name == taskName
+					}) == -1
+				}, testutil.IntervalMedium)
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var stdout strings.Builder
+			inv, root := clitest.New(t, tc.cmdArgs...)
+			inv.Stdout = &stdout
+			clitest.SetupConfig(t, userClient, root)
+			require.NoError(t, inv.WithContext(ctx).Run())
+			if tc.assertFn != nil {
+				tc.assertFn(stdout.String(), userClient)
+			}
+		})
+	}
+}
+
+func fakeAgentAPIEcho(ctx context.Context, t testing.TB, initMsg agentapisdk.Message, want ...string) map[string]http.HandlerFunc {
+	t.Helper()
+	var mmu sync.RWMutex
+	msgs := []agentapisdk.Message{initMsg}
+	wantCpy := make([]string, len(want))
+	copy(wantCpy, want)
+	t.Cleanup(func() {
+		mmu.Lock()
+		defer mmu.Unlock()
+		if !t.Failed() {
+			assert.Empty(t, wantCpy, "not all expected messages received: missing %v", wantCpy)
+		}
+	})
+	writeAgentAPIError := func(w http.ResponseWriter, err error, status int) {
+		w.WriteHeader(status)
+		_ = json.NewEncoder(w).Encode(agentapisdk.ErrorModel{
+			Errors: ptr.Ref([]agentapisdk.ErrorDetail{
+				{
+					Message: ptr.Ref(err.Error()),
+				},
+			}),
+		})
+	}
+	return map[string]http.HandlerFunc{
+		"/status": func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(agentapisdk.GetStatusResponse{
+				Status: "stable",
+			})
+		},
+		"/messages": func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			mmu.RLock()
+			defer mmu.RUnlock()
+			bs, err := json.Marshal(agentapisdk.GetMessagesResponse{
+				Messages: msgs,
+			})
+			if err != nil {
+				writeAgentAPIError(w, err, http.StatusBadRequest)
+				return
+			}
+			_, _ = w.Write(bs)
+		},
+		"/message": func(w http.ResponseWriter, r *http.Request) {
+			mmu.Lock()
+			defer mmu.Unlock()
+			var params agentapisdk.PostMessageParams
+			w.Header().Set("Content-Type", "application/json")
+			err := json.NewDecoder(r.Body).Decode(&params)
+			if !assert.NoError(t, err, "decode message") {
+				writeAgentAPIError(w, err, http.StatusBadRequest)
+				return
+			}
+
+			if len(wantCpy) == 0 {
+				assert.Fail(t, "unexpected message", "received message %v, but no more expected messages", params)
+				writeAgentAPIError(w, xerrors.New("no more expected messages"), http.StatusBadRequest)
+				return
+			}
+			exp := wantCpy[0]
+			wantCpy = wantCpy[1:]
+
+			if !assert.Equal(t, exp, params.Content, "message content mismatch") {
+				writeAgentAPIError(w, xerrors.New("unexpected message content: expected "+exp+", got "+params.Content), http.StatusBadRequest)
+				return
+			}
+
+			msgs = append(msgs, agentapisdk.Message{
+				Id:      int64(len(msgs) + 1),
+				Content: params.Content,
+				Role:    agentapisdk.RoleUser,
+				Time:    time.Now().UTC(),
+			})
+			msgs = append(msgs, agentapisdk.Message{
+				Id:      int64(len(msgs) + 1),
+				Content: params.Content,
+				Role:    agentapisdk.RoleAgent,
+				Time:    time.Now().UTC(),
+			})
+			assert.NoError(t, json.NewEncoder(w).Encode(agentapisdk.PostMessageResponse{
+				Ok: true,
+			}))
+		},
+	}
+}
 
 // setupCLITaskTest creates a test workspace with an AI task template and agent,
 // with a fake agent API configured with the provided set of handlers.
 // Returns the user client and workspace.
-func setupCLITaskTest(ctx context.Context, t *testing.T, agentAPIHandlers map[string]http.HandlerFunc) (*codersdk.Client, codersdk.Workspace) {
+func setupCLITaskTest(ctx context.Context, t *testing.T, agentAPIHandlers map[string]http.HandlerFunc) (*codersdk.Client, codersdk.Task) {
 	t.Helper()
 
 	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
@@ -34,11 +251,18 @@ func setupCLITaskTest(ctx context.Context, t *testing.T, agentAPIHandlers map[st
 	template := createAITaskTemplate(t, client, owner.OrganizationID, withSidebarURL(fakeAPI.URL()), withAgentToken(authToken))
 
 	wantPrompt := "test prompt"
-	workspace := coderdtest.CreateWorkspace(t, userClient, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
-		req.RichParameterValues = []codersdk.WorkspaceBuildParameter{
-			{Name: codersdk.AITaskPromptParameterName, Value: wantPrompt},
-		}
+	exp := codersdk.NewExperimentalClient(userClient)
+	task, err := exp.CreateTask(ctx, codersdk.Me, codersdk.CreateTaskRequest{
+		TemplateVersionID: template.ActiveVersionID,
+		Input:             wantPrompt,
+		Name:              "test-task",
 	})
+	require.NoError(t, err)
+
+	// Wait for the task's underlying workspace to be built
+	require.True(t, task.WorkspaceID.Valid, "task should have a workspace ID")
+	workspace, err := userClient.Workspace(ctx, task.WorkspaceID.UUID)
+	require.NoError(t, err)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken))
@@ -49,7 +273,7 @@ func setupCLITaskTest(ctx context.Context, t *testing.T, agentAPIHandlers map[st
 	coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).
 		WaitFor(coderdtest.AgentsReady)
 
-	return userClient, workspace
+	return userClient, task
 }
 
 // createAITaskTemplate creates a template configured for AI tasks with a sidebar app.

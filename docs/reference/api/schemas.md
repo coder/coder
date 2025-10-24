@@ -302,6 +302,7 @@
       "template_icon": "string",
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
       "template_name": "string",
+      "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
       "updated_at": "2019-08-24T14:15:22Z",
       "workspace_agent_health": {
         "healthy": false,
@@ -320,7 +321,8 @@
       "workspace_id": {
         "uuid": "string",
         "valid": true
-      }
+      },
+      "workspace_status": "pending"
     }
   ]
 }
@@ -436,7 +438,12 @@
 ```json
 {
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
+  "initiator": {
+    "avatar_url": "http://example.com",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "username": "string"
+  },
   "metadata": {
     "property1": null,
     "property2": null
@@ -496,7 +503,7 @@
 | Name               | Type                                                                | Required | Restrictions | Description |
 |--------------------|---------------------------------------------------------------------|----------|--------------|-------------|
 | `id`               | string                                                              | false    |              |             |
-| `initiator_id`     | string                                                              | false    |              |             |
+| `initiator`        | [codersdk.MinimalUser](#codersdkminimaluser)                        | false    |              |             |
 | `metadata`         | object                                                              | false    |              |             |
 | » `[any property]` | any                                                                 | false    |              |             |
 | `model`            | string                                                              | false    |              |             |
@@ -510,10 +517,16 @@
 
 ```json
 {
+  "count": 0,
   "results": [
     {
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
+      "initiator": {
+        "avatar_url": "http://example.com",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string",
+        "username": "string"
+      },
       "metadata": {
         "property1": null,
         "property2": null
@@ -574,6 +587,7 @@
 
 | Name      | Type                                                                    | Required | Restrictions | Description |
 |-----------|-------------------------------------------------------------------------|----------|--------------|-------------|
+| `count`   | integer                                                                 | false    |              |             |
 | `results` | array of [codersdk.AIBridgeInterception](#codersdkaibridgeinterception) | false    |              |             |
 
 ## codersdk.AIBridgeOpenAIConfig
@@ -1098,6 +1112,7 @@
   "support_links": [
     {
       "icon": "bug",
+      "location": "navbar",
       "name": "string",
       "target": "string"
     }
@@ -2890,6 +2905,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "scheme": "string",
       "user": {}
     },
+    "enable_authz_recording": true,
     "enable_terraform_debug_mode": true,
     "ephemeral_deployment": true,
     "experiments": [
@@ -3125,6 +3141,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "value": [
           {
             "icon": "bug",
+            "location": "navbar",
             "name": "string",
             "target": "string"
           }
@@ -3395,6 +3412,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "scheme": "string",
     "user": {}
   },
+  "enable_authz_recording": true,
   "enable_terraform_debug_mode": true,
   "ephemeral_deployment": true,
   "experiments": [
@@ -3630,6 +3648,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "value": [
         {
           "icon": "bug",
+          "location": "navbar",
           "name": "string",
           "target": "string"
         }
@@ -3729,6 +3748,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `disable_password_auth`              | boolean                                                                                              | false    |              |                                                                    |
 | `disable_path_apps`                  | boolean                                                                                              | false    |              |                                                                    |
 | `docs_url`                           | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
+| `enable_authz_recording`             | boolean                                                                                              | false    |              |                                                                    |
 | `enable_terraform_debug_mode`        | boolean                                                                                              | false    |              |                                                                    |
 | `ephemeral_deployment`               | boolean                                                                                              | false    |              |                                                                    |
 | `experiments`                        | array of string                                                                                      | false    |              |                                                                    |
@@ -4737,6 +4757,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 ```json
 {
   "icon": "bug",
+  "location": "navbar",
   "name": "string",
   "target": "string"
 }
@@ -4744,19 +4765,23 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ### Properties
 
-| Name     | Type   | Required | Restrictions | Description |
-|----------|--------|----------|--------------|-------------|
-| `icon`   | string | false    |              |             |
-| `name`   | string | false    |              |             |
-| `target` | string | false    |              |             |
+| Name       | Type   | Required | Restrictions | Description |
+|------------|--------|----------|--------------|-------------|
+| `icon`     | string | false    |              |             |
+| `location` | string | false    |              |             |
+| `name`     | string | false    |              |             |
+| `target`   | string | false    |              |             |
 
 #### Enumerated Values
 
-| Property | Value  |
-|----------|--------|
-| `icon`   | `bug`  |
-| `icon`   | `chat` |
-| `icon`   | `docs` |
+| Property   | Value      |
+|------------|------------|
+| `icon`     | `bug`      |
+| `icon`     | `chat`     |
+| `icon`     | `docs`     |
+| `icon`     | `star`     |
+| `location` | `navbar`   |
+| `location` | `dropdown` |
 
 ## codersdk.ListInboxNotificationsResponse
 
@@ -4942,6 +4967,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 {
   "avatar_url": "http://example.com",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
   "username": "string"
 }
 ```
@@ -4952,6 +4978,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 |--------------|--------|----------|--------------|-------------|
 | `avatar_url` | string | false    |              |             |
 | `id`         | string | true     |              |             |
+| `name`       | string | false    |              |             |
 | `username`   | string | true     |              |             |
 
 ## codersdk.NotificationMethodsResponse
@@ -5247,7 +5274,8 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 {
   "authorization": "string",
   "device_authorization": "string",
-  "token": "string"
+  "token": "string",
+  "token_revoke": "string"
 }
 ```
 
@@ -5258,6 +5286,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `authorization`        | string | false    |              |                                   |
 | `device_authorization` | string | false    |              | Device authorization is optional. |
 | `token`                | string | false    |              |                                   |
+| `token_revoke`         | string | false    |              |                                   |
 
 ## codersdk.OAuth2AuthorizationServerMetadata
 
@@ -5321,7 +5350,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "redirect_uris": [
     "string"
   ],
-  "registration_access_token": "string",
+  "registration_access_token": [
+    0
+  ],
   "registration_client_uri": "string",
   "response_types": [
     "string"
@@ -5336,28 +5367,28 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ### Properties
 
-| Name                         | Type            | Required | Restrictions | Description |
-|------------------------------|-----------------|----------|--------------|-------------|
-| `client_id`                  | string          | false    |              |             |
-| `client_id_issued_at`        | integer         | false    |              |             |
-| `client_name`                | string          | false    |              |             |
-| `client_secret_expires_at`   | integer         | false    |              |             |
-| `client_uri`                 | string          | false    |              |             |
-| `contacts`                   | array of string | false    |              |             |
-| `grant_types`                | array of string | false    |              |             |
-| `jwks`                       | object          | false    |              |             |
-| `jwks_uri`                   | string          | false    |              |             |
-| `logo_uri`                   | string          | false    |              |             |
-| `policy_uri`                 | string          | false    |              |             |
-| `redirect_uris`              | array of string | false    |              |             |
-| `registration_access_token`  | string          | false    |              |             |
-| `registration_client_uri`    | string          | false    |              |             |
-| `response_types`             | array of string | false    |              |             |
-| `scope`                      | string          | false    |              |             |
-| `software_id`                | string          | false    |              |             |
-| `software_version`           | string          | false    |              |             |
-| `token_endpoint_auth_method` | string          | false    |              |             |
-| `tos_uri`                    | string          | false    |              |             |
+| Name                         | Type             | Required | Restrictions | Description |
+|------------------------------|------------------|----------|--------------|-------------|
+| `client_id`                  | string           | false    |              |             |
+| `client_id_issued_at`        | integer          | false    |              |             |
+| `client_name`                | string           | false    |              |             |
+| `client_secret_expires_at`   | integer          | false    |              |             |
+| `client_uri`                 | string           | false    |              |             |
+| `contacts`                   | array of string  | false    |              |             |
+| `grant_types`                | array of string  | false    |              |             |
+| `jwks`                       | object           | false    |              |             |
+| `jwks_uri`                   | string           | false    |              |             |
+| `logo_uri`                   | string           | false    |              |             |
+| `policy_uri`                 | string           | false    |              |             |
+| `redirect_uris`              | array of string  | false    |              |             |
+| `registration_access_token`  | array of integer | false    |              |             |
+| `registration_client_uri`    | string           | false    |              |             |
+| `response_types`             | array of string  | false    |              |             |
+| `scope`                      | string           | false    |              |             |
+| `software_id`                | string           | false    |              |             |
+| `software_version`           | string           | false    |              |             |
+| `token_endpoint_auth_method` | string           | false    |              |             |
+| `tos_uri`                    | string           | false    |              |             |
 
 ## codersdk.OAuth2ClientRegistrationRequest
 
@@ -5569,7 +5600,8 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "endpoints": {
     "authorization": "string",
     "device_authorization": "string",
-    "token": "string"
+    "token": "string",
+    "token_revoke": "string"
   },
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
@@ -7608,6 +7640,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
     "value": [
       {
         "icon": "bug",
+        "location": "navbar",
         "name": "string",
         "target": "string"
       }
@@ -7703,6 +7736,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "template_icon": "string",
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "template_name": "string",
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "updated_at": "2019-08-24T14:15:22Z",
   "workspace_agent_health": {
     "healthy": false,
@@ -7721,7 +7755,8 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "workspace_id": {
     "uuid": "string",
     "valid": true
-  }
+  },
+  "workspace_status": "pending"
 }
 ```
 
@@ -7737,11 +7772,12 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `organization_id`           | string                                                               | false    |              |             |
 | `owner_id`                  | string                                                               | false    |              |             |
 | `owner_name`                | string                                                               | false    |              |             |
-| `status`                    | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)                 | false    |              |             |
+| `status`                    | [codersdk.TaskStatus](#codersdktaskstatus)                           | false    |              |             |
 | `template_display_name`     | string                                                               | false    |              |             |
 | `template_icon`             | string                                                               | false    |              |             |
 | `template_id`               | string                                                               | false    |              |             |
 | `template_name`             | string                                                               | false    |              |             |
+| `template_version_id`       | string                                                               | false    |              |             |
 | `updated_at`                | string                                                               | false    |              |             |
 | `workspace_agent_health`    | [codersdk.WorkspaceAgentHealth](#codersdkworkspaceagenthealth)       | false    |              |             |
 | `workspace_agent_id`        | [uuid.NullUUID](#uuidnulluuid)                                       | false    |              |             |
@@ -7749,21 +7785,28 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `workspace_app_id`          | [uuid.NullUUID](#uuidnulluuid)                                       | false    |              |             |
 | `workspace_build_number`    | integer                                                              | false    |              |             |
 | `workspace_id`              | [uuid.NullUUID](#uuidnulluuid)                                       | false    |              |             |
+| `workspace_status`          | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)                 | false    |              |             |
 
 #### Enumerated Values
 
-| Property | Value       |
-|----------|-------------|
-| `status` | `pending`   |
-| `status` | `starting`  |
-| `status` | `running`   |
-| `status` | `stopping`  |
-| `status` | `stopped`   |
-| `status` | `failed`    |
-| `status` | `canceling` |
-| `status` | `canceled`  |
-| `status` | `deleting`  |
-| `status` | `deleted`   |
+| Property           | Value          |
+|--------------------|----------------|
+| `status`           | `pending`      |
+| `status`           | `initializing` |
+| `status`           | `active`       |
+| `status`           | `paused`       |
+| `status`           | `unknown`      |
+| `status`           | `error`        |
+| `workspace_status` | `pending`      |
+| `workspace_status` | `starting`     |
+| `workspace_status` | `running`      |
+| `workspace_status` | `stopping`     |
+| `workspace_status` | `stopped`      |
+| `workspace_status` | `failed`       |
+| `workspace_status` | `canceling`    |
+| `workspace_status` | `canceled`     |
+| `workspace_status` | `deleting`     |
+| `workspace_status` | `deleted`      |
 
 ## codersdk.TaskLogEntry
 
@@ -7871,6 +7914,25 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `state`     | [codersdk.TaskState](#codersdktaskstate) | false    |              |             |
 | `timestamp` | string                                   | false    |              |             |
 | `uri`       | string                                   | false    |              |             |
+
+## codersdk.TaskStatus
+
+```json
+"pending"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value          |
+|----------------|
+| `pending`      |
+| `initializing` |
+| `active`       |
+| `paused`       |
+| `unknown`      |
+| `error`        |
 
 ## codersdk.TelemetryConfig
 
@@ -8553,6 +8615,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "created_by": {
     "avatar_url": "http://example.com",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
     "username": "string"
   },
   "has_external_agent": true,
@@ -10125,6 +10188,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     {
       "avatar_url": "http://example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
       "role": "admin",
       "username": "string"
     }
@@ -11767,6 +11831,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 {
   "avatar_url": "http://example.com",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
   "role": "admin",
   "username": "string"
 }
@@ -11778,6 +11843,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |--------------|--------------------------------------------------|----------|--------------|-------------|
 | `avatar_url` | string                                           | false    |              |             |
 | `id`         | string                                           | true     |              |             |
+| `name`       | string                                           | false    |              |             |
 | `role`       | [codersdk.WorkspaceRole](#codersdkworkspacerole) | false    |              |             |
 | `username`   | string                                           | true     |              |             |
 
@@ -13668,6 +13734,7 @@ None
   "value": [
     {
       "icon": "bug",
+      "location": "navbar",
       "name": "string",
       "target": "string"
     }

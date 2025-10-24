@@ -163,9 +163,7 @@ func TestHeartbeats_LostCoordinator_MarkLost(t *testing.T) {
 // that is, clean up peers and associated tunnels that have been lost for over 24 hours.
 func TestLostPeerCleanupQueries(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("test only with postgres")
-	}
+
 	store, _, sqlDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
@@ -326,9 +324,7 @@ func TestDebugTemplate(t *testing.T) {
 
 func TestGetDebug(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("test only with postgres")
-	}
+
 	store, _ := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()

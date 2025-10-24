@@ -26,7 +26,7 @@ export interface AIBridgeConfig {
 // From codersdk/aibridge.go
 export interface AIBridgeInterception {
 	readonly id: string;
-	readonly initiator_id: string;
+	readonly initiator: MinimalUser;
 	readonly provider: string;
 	readonly model: string;
 	// empty interface{} type, falling back to unknown
@@ -39,6 +39,7 @@ export interface AIBridgeInterception {
 
 // From codersdk/aibridge.go
 export interface AIBridgeListInterceptionsResponse {
+	readonly count: number;
 	readonly results: readonly AIBridgeInterception[];
 }
 
@@ -1754,6 +1755,7 @@ export interface DeploymentValues {
 	readonly session_lifetime?: SessionLifetime;
 	readonly disable_password_auth?: boolean;
 	readonly support?: SupportConfig;
+	readonly enable_authz_recording?: boolean;
 	readonly external_auth?: SerpentStruct<ExternalAuthConfig[]>;
 	readonly config_ssh?: SSHConfig;
 	readonly wgtunnel_host?: string;
@@ -2513,6 +2515,7 @@ export interface LinkConfig {
 	readonly name: string;
 	readonly target: string;
 	readonly icon: string;
+	readonly location?: string;
 }
 
 // From codersdk/inboxnotification.go
@@ -2636,6 +2639,7 @@ export interface MinimalOrganization {
 export interface MinimalUser {
 	readonly id: string;
 	readonly username: string;
+	readonly name?: string;
 	readonly avatar_url?: string;
 }
 
@@ -2885,6 +2889,7 @@ export interface NullHCLString {
 export interface OAuth2AppEndpoints {
 	readonly authorization: string;
 	readonly token: string;
+	readonly token_revoke: string;
 	/**
 	 * DeviceAuth is optional.
 	 */
@@ -3949,7 +3954,6 @@ export interface RateLimitConfig {
  * required by the frontend.
  */
 export interface ReducedUser extends MinimalUser {
-	readonly name?: string;
 	readonly email: string;
 	readonly created_at: string;
 	readonly updated_at: string;
@@ -4698,17 +4702,19 @@ export interface Task {
 	readonly owner_name: string;
 	readonly name: string;
 	readonly template_id: string;
+	readonly template_version_id: string;
 	readonly template_name: string;
 	readonly template_display_name: string;
 	readonly template_icon: string;
 	readonly workspace_id: string | null;
+	readonly workspace_status?: WorkspaceStatus;
 	readonly workspace_build_number?: number;
 	readonly workspace_agent_id: string | null;
 	readonly workspace_agent_lifecycle: WorkspaceAgentLifecycle | null;
 	readonly workspace_agent_health: WorkspaceAgentHealth | null;
 	readonly workspace_app_id: string | null;
 	readonly initial_prompt: string;
-	readonly status: WorkspaceStatus;
+	readonly status: TaskStatus;
 	readonly current_state: TaskStateEntry | null;
 	readonly created_at: string;
 	readonly updated_at: string;
@@ -4776,6 +4782,24 @@ export const TaskStates: TaskState[] = [
 ];
 
 // From codersdk/aitasks.go
+export type TaskStatus =
+	| "active"
+	| "error"
+	| "initializing"
+	| "paused"
+	| "pending"
+	| "unknown";
+
+export const TaskStatuses: TaskStatus[] = [
+	"active",
+	"error",
+	"initializing",
+	"paused",
+	"pending",
+	"unknown",
+];
+
+// From codersdk/aitasks.go
 /**
  * TasksFilter filters the list of tasks.
  *
@@ -4786,6 +4810,18 @@ export interface TasksFilter {
 	 * Owner can be a username, UUID, or "me".
 	 */
 	readonly owner?: string;
+	/**
+	 * Organization can be an organization name or UUID.
+	 */
+	readonly organization?: string;
+	/**
+	 * Status filters the tasks by their task status.
+	 */
+	readonly status?: TaskStatus;
+	/**
+	 * FilterQuery allows specifying a raw filter query.
+	 */
+	readonly filter_query?: string;
 }
 
 // From codersdk/deployment.go

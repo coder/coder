@@ -111,9 +111,64 @@ func (q *sqlQuerier) ActivityBumpWorkspace(ctx context.Context, arg ActivityBump
 	return err
 }
 
+const countAIBridgeInterceptions = `-- name: CountAIBridgeInterceptions :one
+SELECT
+	COUNT(*)
+FROM
+	aibridge_interceptions
+WHERE
+	-- Filter by time frame
+	CASE
+		WHEN $1::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN aibridge_interceptions.started_at >= $1::timestamptz
+		ELSE true
+	END
+	AND CASE
+		WHEN $2::timestamptz != '0001-01-01 00:00:00+00'::timestamptz THEN aibridge_interceptions.started_at <= $2::timestamptz
+		ELSE true
+	END
+	-- Filter initiator_id
+	AND CASE
+		WHEN $3::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN aibridge_interceptions.initiator_id = $3::uuid
+		ELSE true
+	END
+	-- Filter provider
+	AND CASE
+		WHEN $4::text != '' THEN aibridge_interceptions.provider = $4::text
+		ELSE true
+	END
+	-- Filter model
+	AND CASE
+		WHEN $5::text != '' THEN aibridge_interceptions.model = $5::text
+		ELSE true
+	END
+	-- Authorize Filter clause will be injected below in ListAuthorizedAIBridgeInterceptions
+	-- @authorize_filter
+`
+
+type CountAIBridgeInterceptionsParams struct {
+	StartedAfter  time.Time `db:"started_after" json:"started_after"`
+	StartedBefore time.Time `db:"started_before" json:"started_before"`
+	InitiatorID   uuid.UUID `db:"initiator_id" json:"initiator_id"`
+	Provider      string    `db:"provider" json:"provider"`
+	Model         string    `db:"model" json:"model"`
+}
+
+func (q *sqlQuerier) CountAIBridgeInterceptions(ctx context.Context, arg CountAIBridgeInterceptionsParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countAIBridgeInterceptions,
+		arg.StartedAfter,
+		arg.StartedBefore,
+		arg.InitiatorID,
+		arg.Provider,
+		arg.Model,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const getAIBridgeInterceptionByID = `-- name: GetAIBridgeInterceptionByID :one
 SELECT
-	id, initiator_id, provider, model, started_at, metadata
+	id, initiator_id, provider, model, started_at, metadata, ended_at
 FROM
 	aibridge_interceptions
 WHERE
@@ -130,13 +185,14 @@ func (q *sqlQuerier) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UU
 		&i.Model,
 		&i.StartedAt,
 		&i.Metadata,
+		&i.EndedAt,
 	)
 	return i, err
 }
 
 const getAIBridgeInterceptions = `-- name: GetAIBridgeInterceptions :many
 SELECT
-	id, initiator_id, provider, model, started_at, metadata
+	id, initiator_id, provider, model, started_at, metadata, ended_at
 FROM
 	aibridge_interceptions
 `
@@ -157,6 +213,7 @@ func (q *sqlQuerier) GetAIBridgeInterceptions(ctx context.Context) ([]AIBridgeIn
 			&i.Model,
 			&i.StartedAt,
 			&i.Metadata,
+			&i.EndedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -306,7 +363,7 @@ INSERT INTO aibridge_interceptions (
 ) VALUES (
 	$1, $2, $3, $4, COALESCE($5::jsonb, '{}'::jsonb), $6
 )
-RETURNING id, initiator_id, provider, model, started_at, metadata
+RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at
 `
 
 type InsertAIBridgeInterceptionParams struct {
@@ -335,6 +392,7 @@ func (q *sqlQuerier) InsertAIBridgeInterception(ctx context.Context, arg InsertA
 		&i.Model,
 		&i.StartedAt,
 		&i.Metadata,
+		&i.EndedAt,
 	)
 	return i, err
 }
@@ -473,9 +531,12 @@ func (q *sqlQuerier) InsertAIBridgeUserPrompt(ctx context.Context, arg InsertAIB
 
 const listAIBridgeInterceptions = `-- name: ListAIBridgeInterceptions :many
 SELECT
-	id, initiator_id, provider, model, started_at, metadata
+	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at,
+	visible_users.id, visible_users.username, visible_users.name, visible_users.avatar_url
 FROM
 	aibridge_interceptions
+JOIN
+	visible_users ON visible_users.id = aibridge_interceptions.initiator_id
 WHERE
 	-- Filter by time frame
 	CASE
@@ -522,7 +583,8 @@ WHERE
 ORDER BY
 	aibridge_interceptions.started_at DESC,
 	aibridge_interceptions.id DESC
-LIMIT COALESCE(NULLIF($7::integer, 0), 100)
+LIMIT COALESCE(NULLIF($8::integer, 0), 100)
+OFFSET $7
 `
 
 type ListAIBridgeInterceptionsParams struct {
@@ -532,10 +594,16 @@ type ListAIBridgeInterceptionsParams struct {
 	Provider      string    `db:"provider" json:"provider"`
 	Model         string    `db:"model" json:"model"`
 	AfterID       uuid.UUID `db:"after_id" json:"after_id"`
+	Offset        int32     `db:"offset_" json:"offset_"`
 	Limit         int32     `db:"limit_" json:"limit_"`
 }
 
-func (q *sqlQuerier) ListAIBridgeInterceptions(ctx context.Context, arg ListAIBridgeInterceptionsParams) ([]AIBridgeInterception, error) {
+type ListAIBridgeInterceptionsRow struct {
+	AIBridgeInterception AIBridgeInterception `db:"aibridge_interception" json:"aibridge_interception"`
+	VisibleUser          VisibleUser          `db:"visible_user" json:"visible_user"`
+}
+
+func (q *sqlQuerier) ListAIBridgeInterceptions(ctx context.Context, arg ListAIBridgeInterceptionsParams) ([]ListAIBridgeInterceptionsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listAIBridgeInterceptions,
 		arg.StartedAfter,
 		arg.StartedBefore,
@@ -543,22 +611,28 @@ func (q *sqlQuerier) ListAIBridgeInterceptions(ctx context.Context, arg ListAIBr
 		arg.Provider,
 		arg.Model,
 		arg.AfterID,
+		arg.Offset,
 		arg.Limit,
 	)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []AIBridgeInterception
+	var items []ListAIBridgeInterceptionsRow
 	for rows.Next() {
-		var i AIBridgeInterception
+		var i ListAIBridgeInterceptionsRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.InitiatorID,
-			&i.Provider,
-			&i.Model,
-			&i.StartedAt,
-			&i.Metadata,
+			&i.AIBridgeInterception.ID,
+			&i.AIBridgeInterception.InitiatorID,
+			&i.AIBridgeInterception.Provider,
+			&i.AIBridgeInterception.Model,
+			&i.AIBridgeInterception.StartedAt,
+			&i.AIBridgeInterception.Metadata,
+			&i.AIBridgeInterception.EndedAt,
+			&i.VisibleUser.ID,
+			&i.VisibleUser.Username,
+			&i.VisibleUser.Name,
+			&i.VisibleUser.AvatarURL,
 		); err != nil {
 			return nil, err
 		}
@@ -6132,7 +6206,7 @@ const getOAuth2ProviderAppByRegistrationToken = `-- name: GetOAuth2ProviderAppBy
 SELECT id, created_at, updated_at, name, icon, callback_url, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri FROM oauth2_provider_apps WHERE registration_access_token = $1
 `
 
-func (q *sqlQuerier) GetOAuth2ProviderAppByRegistrationToken(ctx context.Context, registrationAccessToken sql.NullString) (OAuth2ProviderApp, error) {
+func (q *sqlQuerier) GetOAuth2ProviderAppByRegistrationToken(ctx context.Context, registrationAccessToken []byte) (OAuth2ProviderApp, error) {
 	row := q.db.QueryRowContext(ctx, getOAuth2ProviderAppByRegistrationToken, registrationAccessToken)
 	var i OAuth2ProviderApp
 	err := row.Scan(
@@ -6533,7 +6607,7 @@ type InsertOAuth2ProviderAppParams struct {
 	Jwks                    pqtype.NullRawMessage `db:"jwks" json:"jwks"`
 	SoftwareID              sql.NullString        `db:"software_id" json:"software_id"`
 	SoftwareVersion         sql.NullString        `db:"software_version" json:"software_version"`
-	RegistrationAccessToken sql.NullString        `db:"registration_access_token" json:"registration_access_token"`
+	RegistrationAccessToken []byte                `db:"registration_access_token" json:"registration_access_token"`
 	RegistrationClientUri   sql.NullString        `db:"registration_client_uri" json:"registration_client_uri"`
 }
 
@@ -12507,6 +12581,39 @@ func (q *sqlQuerier) UpsertTailnetTunnel(ctx context.Context, arg UpsertTailnetT
 	return i, err
 }
 
+const deleteTask = `-- name: DeleteTask :one
+UPDATE tasks
+SET
+	deleted_at = $1::timestamptz
+WHERE
+	id = $2::uuid
+	AND deleted_at IS NULL
+RETURNING id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at
+`
+
+type DeleteTaskParams struct {
+	DeletedAt time.Time `db:"deleted_at" json:"deleted_at"`
+	ID        uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) DeleteTask(ctx context.Context, arg DeleteTaskParams) (TaskTable, error) {
+	row := q.db.QueryRowContext(ctx, deleteTask, arg.DeletedAt, arg.ID)
+	var i TaskTable
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.Name,
+		&i.WorkspaceID,
+		&i.TemplateVersionID,
+		&i.TemplateParameters,
+		&i.Prompt,
+		&i.CreatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
 const getTaskByID = `-- name: GetTaskByID :one
 SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, status, workspace_build_number, workspace_agent_id, workspace_app_id FROM tasks_with_status WHERE id = $1::uuid
 `
@@ -12610,16 +12717,18 @@ SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, t
 WHERE tws.deleted_at IS NULL
 AND CASE WHEN $1::UUID != '00000000-0000-0000-0000-000000000000' THEN tws.owner_id = $1::UUID ELSE TRUE END
 AND CASE WHEN $2::UUID != '00000000-0000-0000-0000-000000000000' THEN tws.organization_id = $2::UUID ELSE TRUE END
+AND CASE WHEN $3::text != '' THEN tws.status = $3::task_status ELSE TRUE END
 ORDER BY tws.created_at DESC
 `
 
 type ListTasksParams struct {
 	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Status         string    `db:"status" json:"status"`
 }
 
 func (q *sqlQuerier) ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, error) {
-	rows, err := q.db.QueryContext(ctx, listTasks, arg.OwnerID, arg.OrganizationID)
+	rows, err := q.db.QueryContext(ctx, listTasks, arg.OwnerID, arg.OrganizationID, arg.Status)
 	if err != nil {
 		return nil, err
 	}
@@ -12654,6 +12763,49 @@ func (q *sqlQuerier) ListTasks(ctx context.Context, arg ListTasksParams) ([]Task
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateTaskWorkspaceID = `-- name: UpdateTaskWorkspaceID :one
+UPDATE
+	tasks
+SET
+	workspace_id = $2
+FROM
+	workspaces w
+JOIN
+	template_versions tv
+ON
+	tv.template_id = w.template_id
+WHERE
+	tasks.id = $1
+	AND tasks.workspace_id IS NULL
+	AND w.id = $2
+	AND tv.id = tasks.template_version_id
+RETURNING
+	tasks.id, tasks.organization_id, tasks.owner_id, tasks.name, tasks.workspace_id, tasks.template_version_id, tasks.template_parameters, tasks.prompt, tasks.created_at, tasks.deleted_at
+`
+
+type UpdateTaskWorkspaceIDParams struct {
+	ID          uuid.UUID     `db:"id" json:"id"`
+	WorkspaceID uuid.NullUUID `db:"workspace_id" json:"workspace_id"`
+}
+
+func (q *sqlQuerier) UpdateTaskWorkspaceID(ctx context.Context, arg UpdateTaskWorkspaceIDParams) (TaskTable, error) {
+	row := q.db.QueryRowContext(ctx, updateTaskWorkspaceID, arg.ID, arg.WorkspaceID)
+	var i TaskTable
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.Name,
+		&i.WorkspaceID,
+		&i.TemplateVersionID,
+		&i.TemplateParameters,
+		&i.Prompt,
+		&i.CreatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
 }
 
 const upsertTaskWorkspaceApp = `-- name: UpsertTaskWorkspaceApp :one

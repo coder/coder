@@ -10,7 +10,7 @@ import { useProxy } from "contexts/ProxyContext";
 import { EllipsisVertical, ExternalLinkIcon, HouseIcon } from "lucide-react";
 import { useAppLink } from "modules/apps/useAppLink";
 import type { Task, WorkspaceAppWithAgent } from "modules/tasks/tasks";
-import { type FC, useRef } from "react";
+import { type FC, type HTMLProps, useRef } from "react";
 import { Link as RouterLink } from "react-router";
 import { cn } from "utils/cn";
 import { TaskWildcardWarning } from "./TaskWildcardWarning";
@@ -85,14 +85,7 @@ export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
 			)}
 
 			{app.health === "healthy" || app.health === "disabled" ? (
-				<iframe
-					ref={frameRef}
-					src={link.href}
-					title={link.label}
-					loading="eager"
-					className={"w-full h-full border-0"}
-					allow="clipboard-read; clipboard-write"
-				/>
+				<TaskIframe ref={frameRef} src={link.href} title={link.label} />
 			) : app.health === "unhealthy" ? (
 				<div className="w-full h-full flex flex-col items-center justify-center p-4">
 					<h3 className="m-0 font-medium text-content-primary text-base text-center">
@@ -143,5 +136,18 @@ export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
 				</div>
 			)}
 		</div>
+	);
+};
+
+type TaskIframeProps = HTMLProps<HTMLIFrameElement>;
+
+export const TaskIframe: FC<TaskIframeProps> = ({ className, ...props }) => {
+	return (
+		<iframe
+			loading="eager"
+			className={cn("w-full h-full border-0", className)}
+			allow="clipboard-read; clipboard-write"
+			{...props}
+		/>
 	);
 };

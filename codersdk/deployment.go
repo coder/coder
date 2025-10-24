@@ -487,6 +487,7 @@ type DeploymentValues struct {
 	Sessions                        SessionLifetime                      `json:"session_lifetime,omitempty" typescript:",notnull"`
 	DisablePasswordAuth             serpent.Bool                         `json:"disable_password_auth,omitempty" typescript:",notnull"`
 	Support                         SupportConfig                        `json:"support,omitempty" typescript:",notnull"`
+	EnableAuthzRecording            serpent.Bool                         `json:"enable_authz_recording,omitempty" typescript:",notnull"`
 	ExternalAuthConfigs             serpent.Struct[[]ExternalAuthConfig] `json:"external_auth,omitempty" typescript:",notnull"`
 	SSHConfig                       SSHConfig                            `json:"config_ssh,omitempty" typescript:",notnull"`
 	WgtunnelHost                    serpent.String                       `json:"wgtunnel_host,omitempty" typescript:",notnull"`
@@ -984,7 +985,7 @@ func DefaultSupportLinks(docsURL string) []LinkConfig {
 		},
 		{
 			Name:   "Join the Coder Discord",
-			Target: "https://coder.com/chat?utm_source=coder&utm_medium=coder&utm_campaign=server-footer",
+			Target: "https://discord.gg/coder",
 			Icon:   "chat",
 		},
 		{
@@ -3293,6 +3294,19 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "key",
 			Hidden:      true,
 		},
+		{
+			Name: "Enable Authorization Recordings",
+			Description: "All api requests will have a header including all authorization calls made during the request. " +
+				"This is used for debugging purposes and only available for dev builds.",
+			Required: false,
+			Flag:     "enable-authz-recordings",
+			Env:      "CODER_ENABLE_AUTHZ_RECORDINGS",
+			Default:  "false",
+			Value:    &c.EnableAuthzRecording,
+			// Do not show this option ever. It is a developer tool only, and not to be
+			// used externally.
+			Hidden: true,
+		},
 	}
 
 	return opts
@@ -3325,7 +3339,9 @@ type SupportConfig struct {
 type LinkConfig struct {
 	Name   string `json:"name" yaml:"name"`
 	Target string `json:"target" yaml:"target"`
-	Icon   string `json:"icon" yaml:"icon" enums:"bug,chat,docs"`
+	Icon   string `json:"icon" yaml:"icon" enums:"bug,chat,docs,star"`
+
+	Location string `json:"location,omitempty" yaml:"location,omitempty" enums:"navbar,dropdown"`
 }
 
 // Validate checks cross-field constraints for deployment values.
