@@ -10,6 +10,7 @@
 package unit_test
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"os"
@@ -77,7 +78,19 @@ func assertDOTGraph(t *testing.T, graph *testGraph, goldenName string) {
 	expected, err := os.ReadFile(goldenFile)
 	require.NoError(t, err, "read golden file, run \"make gen/golden-files\" and commit the changes")
 
-	assert.Empty(t, cmp.Diff(string(expected), dot), "golden file mismatch (-want +got): %s, run \"make gen/golden-files\", verify and commit the changes", goldenFile)
+	// Normalize line endings for cross-platform compatibility
+	expected = normalizeLineEndings(expected)
+	normalizedDot := normalizeLineEndings([]byte(dot))
+
+	assert.Empty(t, cmp.Diff(string(expected), string(normalizedDot)), "golden file mismatch (-want +got): %s, run \"make gen/golden-files\", verify and commit the changes", goldenFile)
+}
+
+// normalizeLineEndings ensures that all line endings are normalized to \n.
+// Required for Windows compatibility.
+func normalizeLineEndings(content []byte) []byte {
+	content = bytes.ReplaceAll(content, []byte("\r\n"), []byte("\n"))
+	content = bytes.ReplaceAll(content, []byte("\r"), []byte("\n"))
+	return content
 }
 
 func TestGraph(t *testing.T) {
