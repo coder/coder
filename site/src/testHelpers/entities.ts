@@ -4984,54 +4984,20 @@ export const MockAIPromptPresets: TypesGen.Preset[] = [
 	},
 ];
 
-// Mock Tasks for AI Tasks page
-export const MockTasks = [
-	{
-		workspace: {
-			...MockWorkspace,
-			name: "create-competitors-page",
-			latest_app_status: MockWorkspaceAppStatus,
-		},
-		prompt: "Create competitors page",
-	},
-	{
-		workspace: {
-			...MockWorkspace,
-			id: "workspace-2",
-			name: "fix-avatar-size",
-			latest_app_status: {
-				...MockWorkspaceAppStatus,
-				message: "Avatar size fixed!",
-			},
-		},
-		prompt: "Fix user avatar size",
-	},
-	{
-		workspace: {
-			...MockWorkspace,
-			id: "workspace-3",
-			name: "fix-accessibility-issues",
-			latest_app_status: {
-				...MockWorkspaceAppStatus,
-				message: "Accessibility issues fixed!",
-			},
-		},
-		prompt: "Fix accessibility issues",
-	},
-];
-
-export const MockTask: TypesGen.Task = {
+export const MockTask = {
 	id: "test-task",
 	name: "task-wild-test-123",
 	organization_id: MockOrganization.id,
 	owner_id: MockUserOwner.id,
 	owner_name: MockUserOwner.username,
+	owner_avatar_url: MockUserOwner.avatar_url,
 	template_id: MockTemplate.id,
 	template_name: MockTemplate.name,
 	template_display_name: MockTemplate.display_name,
 	template_icon: MockTemplate.icon,
 	template_version_id: MockTemplateVersion.id,
 	workspace_id: MockWorkspace.id,
+	workspace_name: MockWorkspace.name,
 	workspace_status: "running",
 	workspace_build_number: MockWorkspaceBuild.build_number,
 	workspace_agent_id: MockWorkspaceAgent.id,
@@ -5048,16 +5014,28 @@ export const MockTask: TypesGen.Task = {
 	},
 	created_at: "2022-05-17T17:39:01.382927298Z",
 	updated_at: "2022-05-17T17:39:01.382927298Z",
-};
+} satisfies TypesGen.Task;
 
-export const MockNewTaskData = {
-	prompt: "Create a new task",
-	workspace: {
-		...MockWorkspace,
-		id: "workspace-4",
-		latest_app_status: {
-			...MockWorkspaceAppStatus,
-			message: "Task created successfully!",
+export const MockTasks = [
+	MockTask,
+	{
+		...MockTask,
+		id: "task-2",
+		name: "fix-avatar-size",
+		current_state: {
+			...MockTask.current_state,
+			message: "Avatar size fixed!",
+			state: "complete",
 		},
 	},
-};
+	{
+		...MockTask,
+		id: "task-3",
+		name: "fix-accessibility-issues",
+		current_state: {
+			...MockTask.current_state,
+			message: "Accessibility issues fixed!",
+			state: "complete",
+		},
+	},
+] satisfies TypesGen.Task[];

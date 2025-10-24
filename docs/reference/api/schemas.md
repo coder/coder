@@ -277,64 +277,6 @@
 |--------------|--------|----------|--------------|-------------|
 | `csp-report` | object | false    |              |             |
 
-## coderd.tasksListResponse
-
-```json
-{
-  "count": 0,
-  "tasks": [
-    {
-      "created_at": "2019-08-24T14:15:22Z",
-      "current_state": {
-        "message": "string",
-        "state": "working",
-        "timestamp": "2019-08-24T14:15:22Z",
-        "uri": "string"
-      },
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "initial_prompt": "string",
-      "name": "string",
-      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
-      "owner_name": "string",
-      "status": "pending",
-      "template_display_name": "string",
-      "template_icon": "string",
-      "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
-      "template_name": "string",
-      "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
-      "updated_at": "2019-08-24T14:15:22Z",
-      "workspace_agent_health": {
-        "healthy": false,
-        "reason": "agent has lost connection"
-      },
-      "workspace_agent_id": {
-        "uuid": "string",
-        "valid": true
-      },
-      "workspace_agent_lifecycle": "created",
-      "workspace_app_id": {
-        "uuid": "string",
-        "valid": true
-      },
-      "workspace_build_number": 0,
-      "workspace_id": {
-        "uuid": "string",
-        "valid": true
-      },
-      "workspace_status": "pending"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name    | Type                                    | Required | Restrictions | Description |
-|---------|-----------------------------------------|----------|--------------|-------------|
-| `count` | integer                                 | false    |              |             |
-| `tasks` | array of [codersdk.Task](#codersdktask) | false    |              |             |
-
 ## codersdk.ACLAvailable
 
 ```json
@@ -7736,6 +7678,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "initial_prompt": "string",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "owner_avatar_url": "string",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
   "status": "pending",
@@ -7763,6 +7706,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
     "uuid": "string",
     "valid": true
   },
+  "workspace_name": "string",
   "workspace_status": "pending"
 }
 ```
@@ -7777,6 +7721,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `initial_prompt`            | string                                                               | false    |              |             |
 | `name`                      | string                                                               | false    |              |             |
 | `organization_id`           | string                                                               | false    |              |             |
+| `owner_avatar_url`          | string                                                               | false    |              |             |
 | `owner_id`                  | string                                                               | false    |              |             |
 | `owner_name`                | string                                                               | false    |              |             |
 | `status`                    | [codersdk.TaskStatus](#codersdktaskstatus)                           | false    |              |             |
@@ -7792,6 +7737,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `workspace_app_id`          | [uuid.NullUUID](#uuidnulluuid)                                       | false    |              |             |
 | `workspace_build_number`    | integer                                                              | false    |              |             |
 | `workspace_id`              | [uuid.NullUUID](#uuidnulluuid)                                       | false    |              |             |
+| `workspace_name`            | string                                                               | false    |              |             |
 | `workspace_status`          | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)                 | false    |              |             |
 
 #### Enumerated Values
@@ -7940,6 +7886,66 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `paused`       |
 | `unknown`      |
 | `error`        |
+
+## codersdk.TasksListResponse
+
+```json
+{
+  "count": 0,
+  "tasks": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "current_state": {
+        "message": "string",
+        "state": "working",
+        "timestamp": "2019-08-24T14:15:22Z",
+        "uri": "string"
+      },
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "initial_prompt": "string",
+      "name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "owner_avatar_url": "string",
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "owner_name": "string",
+      "status": "pending",
+      "template_display_name": "string",
+      "template_icon": "string",
+      "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+      "template_name": "string",
+      "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "workspace_agent_health": {
+        "healthy": false,
+        "reason": "agent has lost connection"
+      },
+      "workspace_agent_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "workspace_agent_lifecycle": "created",
+      "workspace_app_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "workspace_build_number": 0,
+      "workspace_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "workspace_name": "string",
+      "workspace_status": "pending"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name    | Type                                    | Required | Restrictions | Description |
+|---------|-----------------------------------------|----------|--------------|-------------|
+| `count` | integer                                 | false    |              |             |
+| `tasks` | array of [codersdk.Task](#codersdktask) | false    |              |             |
 
 ## codersdk.TelemetryConfig
 

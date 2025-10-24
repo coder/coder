@@ -156,6 +156,7 @@ type Task struct {
 	OrganizationID          uuid.UUID                `json:"organization_id" format:"uuid" table:"organization id"`
 	OwnerID                 uuid.UUID                `json:"owner_id" format:"uuid" table:"owner id"`
 	OwnerName               string                   `json:"owner_name" table:"owner name"`
+	OwnerAvatarURL          string                   `json:"owner_avatar_url,omitempty" table:"owner avatar url"`
 	Name                    string                   `json:"name" table:"name,default_sort"`
 	TemplateID              uuid.UUID                `json:"template_id" format:"uuid" table:"template id"`
 	TemplateVersionID       uuid.UUID                `json:"template_version_id" format:"uuid" table:"template version id"`
@@ -163,6 +164,7 @@ type Task struct {
 	TemplateDisplayName     string                   `json:"template_display_name" table:"template display name"`
 	TemplateIcon            string                   `json:"template_icon" table:"template icon"`
 	WorkspaceID             uuid.NullUUID            `json:"workspace_id" format:"uuid" table:"workspace id"`
+	WorkspaceName           string                   `json:"workspace_name" table:"workspace name"`
 	WorkspaceStatus         WorkspaceStatus          `json:"workspace_status,omitempty" enums:"pending,starting,running,stopping,stopped,failed,canceling,canceled,deleting,deleted" table:"workspace status"`
 	WorkspaceBuildNumber    int32                    `json:"workspace_build_number,omitempty" table:"workspace build number"`
 	WorkspaceAgentID        uuid.NullUUID            `json:"workspace_agent_id" format:"uuid" table:"workspace agent id"`
@@ -198,6 +200,14 @@ type TasksFilter struct {
 	Status TaskStatus `json:"status,omitempty"`
 	// FilterQuery allows specifying a raw filter query.
 	FilterQuery string `json:"filter_query,omitempty"`
+}
+
+// TaskListResponse is the response shape for tasks list.
+//
+// Experimental response shape for tasks list (server returns []Task).
+type TasksListResponse struct {
+	Tasks []Task `json:"tasks"`
+	Count int    `json:"count"`
 }
 
 func (f TasksFilter) asRequestOption() RequestOption {
@@ -242,12 +252,7 @@ func (c *ExperimentalClient) Tasks(ctx context.Context, filter *TasksFilter) ([]
 		return nil, ReadBodyAsError(res)
 	}
 
-	// Experimental response shape for tasks list (server returns []Task).
-	type tasksListResponse struct {
-		Tasks []Task `json:"tasks"`
-		Count int    `json:"count"`
-	}
-	var tres tasksListResponse
+	var tres TasksListResponse
 	if err := json.NewDecoder(res.Body).Decode(&tres); err != nil {
 		return nil, err
 	}

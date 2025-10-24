@@ -268,6 +268,7 @@ func TestTasks(t *testing.T) {
 		require.True(t, ok, "task should be found in the list")
 		assert.Equal(t, wantPrompt, got.InitialPrompt, "task prompt should match the AI Prompt parameter")
 		assert.Equal(t, task.WorkspaceID.UUID, got.WorkspaceID.UUID, "workspace id should match")
+		assert.Equal(t, task.WorkspaceName, got.WorkspaceName, "workspace name should match")
 		// Status should be populated via the tasks_with_status view.
 		assert.NotEmpty(t, got.Status, "task status should not be empty")
 		assert.NotEmpty(t, got.WorkspaceStatus, "workspace status should not be empty")
@@ -323,6 +324,7 @@ func TestTasks(t *testing.T) {
 		assert.Equal(t, task.Name, updated.Name, "task name should match")
 		assert.Equal(t, wantPrompt, updated.InitialPrompt, "task prompt should match the AI Prompt parameter")
 		assert.Equal(t, task.WorkspaceID.UUID, updated.WorkspaceID.UUID, "workspace id should match")
+		assert.Equal(t, task.WorkspaceName, updated.WorkspaceName, "workspace name should match")
 		assert.Equal(t, ws.LatestBuild.BuildNumber, updated.WorkspaceBuildNumber, "workspace build number should match")
 		assert.Equal(t, agentID, updated.WorkspaceAgentID.UUID, "workspace agent id should match")
 		assert.Equal(t, taskAppID, updated.WorkspaceAppID.UUID, "workspace app id should match")
