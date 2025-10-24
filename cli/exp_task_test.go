@@ -94,8 +94,7 @@ func Test_Tasks(t *testing.T) {
 				var task codersdk.Task
 				require.NoError(t, json.NewDecoder(strings.NewReader(stdout)).Decode(&task), "should unmarshal task status")
 				require.Equal(t, task.Name, taskName, "task name should match")
-				// NOTE: task status changes type, this is so this test works with both old and new model
-				require.Contains(t, []string{"active", "running"}, string(task.Status), "task should be active")
+				require.Equal(t, codersdk.TaskStatusActive, task.Status, "task should be active")
 			},
 		},
 		{
