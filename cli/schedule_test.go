@@ -417,7 +417,7 @@ func TestScheduleStart_TemplateAutostartRequirement(t *testing.T) {
 		// Then: warning should be shown
 		// In AGPL, this will show all days (enterprise feature defaults to all days allowed)
 		pty.ExpectMatch("Warning")
-		pty.ExpectMatch("may not autostart")
+		pty.ExpectMatch("may only autostart")
 	})
 
 	t.Run("NoWarningWhenManual", func(t *testing.T) {

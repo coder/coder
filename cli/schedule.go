@@ -188,7 +188,7 @@ func (r *RootCmd) scheduleStart() *serpent.Command {
 					_, _ = fmt.Fprintf(
 						inv.Stderr,
 						"Warning: your workspace template restricts autostart to the following days: %s.\n"+
-							"Your workspace may not autostart on days not in this list.\n",
+							"Your workspace may only autostart on these days.\n",
 						strings.Join(template.AutostartRequirement.DaysOfWeek, ", "),
 					)
 				}
