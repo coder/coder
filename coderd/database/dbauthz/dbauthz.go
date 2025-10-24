@@ -1512,6 +1512,13 @@ func (q *querier) CountInProgressPrebuilds(ctx context.Context) ([]database.Coun
 	return q.db.CountInProgressPrebuilds(ctx)
 }
 
+func (q *querier) CountPendingNonActivePrebuilds(ctx context.Context) ([]database.CountPendingNonActivePrebuildsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspace.All()); err != nil {
+		return nil, err
+	}
+	return q.db.CountPendingNonActivePrebuilds(ctx)
+}
+
 func (q *querier) CountUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceInboxNotification.WithOwner(userID.String())); err != nil {
 		return 0, err
@@ -4873,6 +4880,14 @@ func (q *querier) UpdateOrganizationDeletedByID(ctx context.Context, arg databas
 		})
 	}
 	return deleteQ(q.log, q.auth, q.db.GetOrganizationByID, deleteF)(ctx, arg.ID)
+}
+
+func (q *querier) UpdatePrebuildProvisionerJobWithCancel(ctx context.Context, arg database.UpdatePrebuildProvisionerJobWithCancelParams) ([]uuid.UUID, error) {
+	// Prebuild operation for canceling pending prebuild jobs from non-active template versions
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourcePrebuiltWorkspace); err != nil {
+		return []uuid.UUID{}, err
+	}
+	return q.db.UpdatePrebuildProvisionerJobWithCancel(ctx, arg)
 }
 
 func (q *querier) UpdatePresetPrebuildStatus(ctx context.Context, arg database.UpdatePresetPrebuildStatusParams) error {

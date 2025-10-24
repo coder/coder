@@ -68,8 +68,10 @@ type sqlcQuerier interface {
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
 	CountConnectionLogs(ctx context.Context, arg CountConnectionLogsParams) (int64, error)
 	// CountInProgressPrebuilds returns the number of in-progress prebuilds, grouped by preset ID and transition.
-	// Prebuild considered in-progress if it's in the "starting", "stopping", or "deleting" state.
+	// Prebuild considered in-progress if it's in the "pending", "starting", "stopping", or "deleting" state.
 	CountInProgressPrebuilds(ctx context.Context) ([]CountInProgressPrebuildsRow, error)
+	// CountPendingNonActivePrebuilds returns the number of pending prebuilds for non-active template versions
+	CountPendingNonActivePrebuilds(ctx context.Context) ([]CountPendingNonActivePrebuildsRow, error)
 	CountUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) (int64, error)
 	CreateUserSecret(ctx context.Context, arg CreateUserSecretParams) (UserSecret, error)
 	CustomRoles(ctx context.Context, arg CustomRolesParams) ([]CustomRole, error)
@@ -647,6 +649,10 @@ type sqlcQuerier interface {
 	UpdateOAuth2ProviderAppSecretByID(ctx context.Context, arg UpdateOAuth2ProviderAppSecretByIDParams) (OAuth2ProviderAppSecret, error)
 	UpdateOrganization(ctx context.Context, arg UpdateOrganizationParams) (Organization, error)
 	UpdateOrganizationDeletedByID(ctx context.Context, arg UpdateOrganizationDeletedByIDParams) error
+	// Cancels all pending provisioner jobs for prebuilt workspaces on a specific preset from an
+	// inactive template version.
+	// This is an optimization to clean up stale pending jobs.
+	UpdatePrebuildProvisionerJobWithCancel(ctx context.Context, arg UpdatePrebuildProvisionerJobWithCancelParams) ([]uuid.UUID, error)
 	UpdatePresetPrebuildStatus(ctx context.Context, arg UpdatePresetPrebuildStatusParams) error
 	UpdateProvisionerDaemonLastSeenAt(ctx context.Context, arg UpdateProvisionerDaemonLastSeenAtParams) error
 	UpdateProvisionerJobByID(ctx context.Context, arg UpdateProvisionerJobByIDParams) error

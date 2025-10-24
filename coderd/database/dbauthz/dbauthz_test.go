@@ -641,6 +641,16 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 		dbm.EXPECT().UpdateProvisionerJobWithCancelByID(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(v.RBACObject(tpl), []policy.Action{policy.ActionRead, policy.ActionUpdate}).Returns()
 	}))
+	s.Run("UpdatePrebuildProvisionerJobWithCancel", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := database.UpdatePrebuildProvisionerJobWithCancelParams{
+			PresetID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			Now:      dbtime.Now(),
+		}
+		jobIDs := []uuid.UUID{uuid.New(), uuid.New()}
+
+		dbm.EXPECT().UpdatePrebuildProvisionerJobWithCancel(gomock.Any(), arg).Return(jobIDs, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourcePrebuiltWorkspace, policy.ActionUpdate).Returns(jobIDs)
+	}))
 	s.Run("GetProvisionerJobsByIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		org := testutil.Fake(s.T(), faker, database.Organization{})
 		org2 := testutil.Fake(s.T(), faker, database.Organization{})
@@ -3756,6 +3766,10 @@ func (s *MethodTestSuite) TestPrebuilds() {
 	}))
 	s.Run("CountInProgressPrebuilds", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().CountInProgressPrebuilds(gomock.Any()).Return([]database.CountInProgressPrebuildsRow{}, nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceWorkspace.All(), policy.ActionRead)
+	}))
+	s.Run("CountPendingNonActivePrebuilds", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().CountPendingNonActivePrebuilds(gomock.Any()).Return([]database.CountPendingNonActivePrebuildsRow{}, nil).AnyTimes()
 		check.Args().Asserts(rbac.ResourceWorkspace.All(), policy.ActionRead)
 	}))
 	s.Run("GetPresetsAtFailureLimit", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
