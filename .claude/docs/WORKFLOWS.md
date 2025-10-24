@@ -46,7 +46,7 @@
 - Follow Go and TypeScript naming conventions
 - When changing code, never document the old behavior or the behavior change
 - NEVER use implementation details in names (e.g., "ZodValidator", "MCPWrapper", "JSONParser")
-- NEVER use temporal/historical context in names (e.g., "NewAPI", "LegacyHandler", "UnifiedTool", "ImprovedInterface", "EnhancedParser")
+- NEVER use temporal/historical context in names (e.g., "LegacyHandler", "UnifiedTool", "ImprovedInterface", "EnhancedParser")
 - NEVER use pattern names unless they add clarity (e.g., prefer "Tool" over "ToolFactory")
 - Abbreviate only when obvious
 
