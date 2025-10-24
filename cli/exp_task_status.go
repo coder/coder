@@ -149,7 +149,7 @@ func taskWatchIsEnded(task codersdk.Task) bool {
 	if task.WorkspaceAgentLifecycle == nil || task.WorkspaceAgentLifecycle.Starting() || task.WorkspaceAgentLifecycle.ShuttingDown() {
 		return false
 	}
-	if task.CurrentState == nil || task.CurrentState.State == codersdk.TaskStateWorking {
+	if (task.AppStatus == nil || task.AppStatus.State == codersdk.WorkspaceAppStatusStateWorking) || (task.CurrentState != nil || task.CurrentState.State == codersdk.TaskStateWorking) {
 		return false
 	}
 	return true
@@ -178,8 +178,10 @@ func toStatusRow(task codersdk.Task) taskStatusRow {
 		!task.WorkspaceAgentLifecycle.Starting() &&
 		!task.WorkspaceAgentLifecycle.ShuttingDown()
 
-	if task.CurrentState != nil {
-		tsr.ChangedAgo = time.Since(task.CurrentState.Timestamp).Truncate(time.Second).String() + " ago"
+	if task.AppStatus != nil {
+		tsr.ChangedAgo = relative(time.Since(task.AppStatus.CreatedAt).Truncate(time.Second))
+	} else if task.CurrentState != nil {
+		tsr.ChangedAgo = relative(time.Since(task.CurrentState.Timestamp).Truncate(time.Second))
 	}
 	return tsr
 }

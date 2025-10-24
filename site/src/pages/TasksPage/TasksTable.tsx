@@ -149,7 +149,10 @@ const TaskRow: FC<TaskRowProps> = ({ task }) => {
 				<TableCell>
 					<TaskStatus
 						status={task.status}
-						stateMessage={task.current_state?.message || "No message available"}
+						stateMessage={
+							task.latest_workspace_app_status?.message ||
+							"No message available"
+						}
 					/>
 				</TableCell>
 

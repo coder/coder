@@ -39,9 +39,9 @@ export const TaskTopbar: FC<TaskTopbarProps> = ({ task, workspace }) => {
 
 			<h1 className="m-0 pl-2 text-base font-medium truncate">{task.name}</h1>
 
-			{task.current_state?.uri && (
+			{task.latest_workspace_app_status?.uri && (
 				<div className="flex items-center gap-2 flex-wrap ml-4">
-					<TaskStatusLink uri={task.current_state.uri} />
+					<TaskStatusLink uri={task.latest_workspace_app_status.uri} />
 				</div>
 			)}
 

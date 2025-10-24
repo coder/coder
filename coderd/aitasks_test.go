@@ -337,9 +337,9 @@ func TestTasks(t *testing.T) {
 		// Verify that the previous status still remains
 		updated, err = exp.TaskByID(ctx, task.ID)
 		require.NoError(t, err)
-		assert.NotNil(t, updated.CurrentState, "current state should not be nil")
-		assert.Equal(t, "all done", updated.CurrentState.Message)
-		assert.Equal(t, codersdk.TaskStateComplete, updated.CurrentState.State)
+		assert.NotNil(t, updated.AppStatus, "latest app status should not be nil")
+		assert.Equal(t, "all done", updated.AppStatus.Message)
+		assert.Equal(t, codersdk.TaskStateComplete, updated.AppStatus.State)
 
 		// Start the workspace again
 		coderdtest.MustTransitionWorkspace(t, client, task.WorkspaceID.UUID, codersdk.WorkspaceTransitionStop, codersdk.WorkspaceTransitionStart)
@@ -347,7 +347,7 @@ func TestTasks(t *testing.T) {
 		// Verify that the status from the previous build is no longer present
 		updated, err = exp.TaskByID(ctx, task.ID)
 		require.NoError(t, err)
-		assert.Nil(t, updated.CurrentState, "current state should be nil")
+		assert.Nil(t, updated.AppStatus, "latest app status should be nil")
 	})
 
 	t.Run("Delete", func(t *testing.T) {
