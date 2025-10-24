@@ -37,8 +37,10 @@ type testGraphVertex struct {
 	Name string
 }
 
-type testGraph = unit.Graph[testGraphEdge, *testGraphVertex]
-type testEdge = unit.Edge[testGraphEdge, *testGraphVertex]
+type (
+	testGraph = unit.Graph[testGraphEdge, *testGraphVertex]
+	testEdge  = unit.Edge[testGraphEdge, *testGraphVertex]
+)
 
 // randInt generates a random integer in the range [0, limit).
 func randInt(limit int) int {
