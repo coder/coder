@@ -162,8 +162,8 @@ This will execute `htop` immediately when the terminal opens.
 
 ### Container Selection
 
-For workspaces with multiple containers (e.g., Kubernetes pods), specify which
-container to connect to:
+For workspaces with multiple Docker containers, specify which container to
+connect to:
 
 ```text
 https://coder.example.com/@user/workspace/terminal?container=sidecar
@@ -174,6 +174,8 @@ You can also specify the container user:
 ```text
 https://coder.example.com/@user/workspace/terminal?container=app&container_user=node
 ```
+
+> **Note:** This feature only works with Docker containers.
 
 ### Debug Mode
 
@@ -191,15 +193,6 @@ bottom-right corner.
 The Web Terminal uses xterm.js under the hood, which is configured
 programmatically rather than through a configuration file. However, you can
 customize various aspects:
-
-### Server-Side Configuration
-
-Administrators can configure the terminal through Coder's deployment settings:
-
-```yaml
-# coder.yaml
-webTerminalRenderer: "canvas"
-```
 
 ### User-Side Customization
 
