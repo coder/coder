@@ -676,6 +676,7 @@ gen/db: $(DB_GEN_FILES)
 .PHONY: gen/db
 
 gen/golden-files: \
+	agent/unit/testdata/.gen-golden \
 	cli/testdata/.gen-golden \
 	coderd/.gen-golden \
 	coderd/notifications/.gen-golden \
@@ -951,6 +952,10 @@ clean/golden-files:
 		tailnet/testdata \
 		-type f -name '*.golden' -delete
 .PHONY: clean/golden-files
+
+agent/unit/testdata/.gen-golden: $(wildcard agent/unit/testdata/*.golden) $(GO_SRC_FILES) $(wildcard agent/unit/*_test.go)
+	TZ=UTC go test ./agent/unit -run="TestGraph" -update
+	touch "$@"
 
 cli/testdata/.gen-golden: $(wildcard cli/testdata/*.golden) $(wildcard cli/*.tpl) $(GO_SRC_FILES) $(wildcard cli/*_test.go)
 	TZ=UTC go test ./cli -run="Test(CommandHelp|ServerYAML|ErrorExamples|.*Golden)" -update

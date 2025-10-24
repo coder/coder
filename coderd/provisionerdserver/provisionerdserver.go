@@ -597,13 +597,10 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			return nil, failJob(fmt.Sprintf("get workspace build parameters: %s", err))
 		}
 
-		// TODO(DanielleMaywood):
-		// Plumb a task prompt into this when we have the new data-model ready
-		var taskPrompt string
-
-		// TODO(DanielleMaywood):
-		// Plumb a task ID into this when we have the new data-model ready
-		var taskID string
+		task, err := s.Database.GetTaskByWorkspaceID(ctx, workspaceBuild.WorkspaceID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return nil, xerrors.Errorf("get task by workspace id: %w", err)
+		}
 
 		dbExternalAuthProviders := []database.ExternalAuthProvider{}
 		err = json.Unmarshal(templateVersion.ExternalAuthProviders, &dbExternalAuthProviders)
@@ -729,8 +726,8 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					WorkspaceOwnerRbacRoles:       ownerRbacRoles,
 					RunningAgentAuthTokens:        runningAgentAuthTokens,
 					PrebuiltWorkspaceBuildStage:   input.PrebuiltWorkspaceBuildStage,
-					TaskId:                        taskID,
-					TaskPrompt:                    taskPrompt,
+					TaskId:                        task.ID.String(),
+					TaskPrompt:                    task.Prompt,
 				},
 				LogLevel: input.LogLevel,
 			},

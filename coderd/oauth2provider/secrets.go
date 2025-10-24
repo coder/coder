@@ -6,7 +6,7 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/userpassword"
+	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/cryptorand"
 )
 
@@ -25,7 +25,7 @@ type HashedAppSecret struct {
 	AppSecret
 	// Hashed is the server stored hash(secret,salt,...). Used for verifying a
 	// secret.
-	Hashed string
+	Hashed []byte
 }
 
 type AppSecret struct {
@@ -61,7 +61,7 @@ func ParseFormattedSecret(formatted string) (AppSecret, error) {
 // token, or authorization code.
 func GenerateSecret() (HashedAppSecret, error) {
 	// 40 characters matches the length of GitHub's client secrets.
-	secret, err := cryptorand.String(secretLength)
+	secret, hashedSecret, err := apikey.GenerateSecret(40)
 	if err != nil {
 		return HashedAppSecret{}, err
 	}
@@ -74,17 +74,12 @@ func GenerateSecret() (HashedAppSecret, error) {
 		return HashedAppSecret{}, err
 	}
 
-	hashed, err := userpassword.Hash(secret)
-	if err != nil {
-		return HashedAppSecret{}, err
-	}
-
 	return HashedAppSecret{
 		AppSecret: AppSecret{
 			Formatted: fmt.Sprintf("%s_%s_%s", SecretIdentifier, prefix, secret),
 			Secret:    secret,
 			Prefix:    prefix,
 		},
-		Hashed: hashed,
+		Hashed: hashedSecret,
 	}, nil
 }

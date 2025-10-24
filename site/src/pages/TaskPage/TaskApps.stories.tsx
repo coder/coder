@@ -1,6 +1,5 @@
 import {
 	MockPrimaryWorkspaceProxy,
-	MockTasks,
 	MockUserOwner,
 	MockWorkspace,
 	MockWorkspaceAgent,
@@ -9,10 +8,9 @@ import {
 } from "testHelpers/entities";
 import { withAuthProvider, withProxyProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { WorkspaceApp } from "api/typesGenerated";
+import type { Workspace, WorkspaceApp } from "api/typesGenerated";
 import { getPreferredProxy } from "contexts/ProxyContext";
 import kebabCase from "lodash/kebabCase";
-import type { Task } from "modules/tasks/tasks";
 import { TaskApps } from "./TaskApps";
 
 const mockExternalApp: WorkspaceApp = {
@@ -35,25 +33,25 @@ type Story = StoryObj<typeof TaskApps>;
 
 export const NoEmbeddedApps: Story = {
 	args: {
-		task: mockTask([]),
+		workspace: mockWorkspaceWithApps([]),
 	},
 };
 
 export const WithExternalAppsOnly: Story = {
 	args: {
-		task: mockTask([mockExternalApp]),
+		workspace: mockWorkspaceWithApps([mockExternalApp]),
 	},
 };
 
 export const WithEmbeddedApps: Story = {
 	args: {
-		task: mockTask([mockEmbeddedApp()]),
+		workspace: mockWorkspaceWithApps([mockEmbeddedApp()]),
 	},
 };
 
 export const WithMixedApps: Story = {
 	args: {
-		task: mockTask([mockEmbeddedApp(), mockExternalApp]),
+		workspace: mockWorkspaceWithApps([mockEmbeddedApp(), mockExternalApp]),
 	},
 };
 
@@ -71,7 +69,7 @@ export const WithWildcardWarning: Story = {
 		user: MockUserOwner,
 	},
 	args: {
-		task: mockTask([
+		workspace: mockWorkspaceWithApps([
 			{
 				...mockEmbeddedApp(),
 				subdomain: true,
@@ -82,7 +80,7 @@ export const WithWildcardWarning: Story = {
 
 export const WithManyEmbeddedApps: Story = {
 	args: {
-		task: mockTask([
+		workspace: mockWorkspaceWithApps([
 			mockEmbeddedApp("Code Server"),
 			mockEmbeddedApp("Jupyter Notebook"),
 			mockEmbeddedApp("Web Terminal"),
@@ -108,25 +106,22 @@ function mockEmbeddedApp(name = MockWorkspaceApp.display_name): WorkspaceApp {
 	};
 }
 
-function mockTask(apps: WorkspaceApp[]): Task {
+function mockWorkspaceWithApps(apps: WorkspaceApp[]): Workspace {
 	return {
-		...MockTasks[0],
-		workspace: {
-			...MockWorkspace,
-			latest_build: {
-				...MockWorkspace.latest_build,
-				resources: [
-					{
-						...MockWorkspace.latest_build.resources[0],
-						agents: [
-							{
-								...MockWorkspaceAgent,
-								apps,
-							},
-						],
-					},
-				],
-			},
+		...MockWorkspace,
+		latest_build: {
+			...MockWorkspace.latest_build,
+			resources: [
+				{
+					...MockWorkspace.latest_build.resources[0],
+					agents: [
+						{
+							...MockWorkspaceAgent,
+							apps,
+						},
+					],
+				},
+			],
 		},
 	};
 }

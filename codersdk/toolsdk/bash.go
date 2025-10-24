@@ -266,19 +266,24 @@ func getWorkspaceAgent(workspace codersdk.Workspace, agentName string) (codersdk
 	return codersdk.WorkspaceAgent{}, xerrors.Errorf("multiple agents found, please specify the agent name, available agents: %v", availableNames)
 }
 
-// namedWorkspace gets a workspace by owner/name or just name
-func namedWorkspace(ctx context.Context, client *codersdk.Client, identifier string) (codersdk.Workspace, error) {
-	// Parse owner and workspace name
+func splitNameAndOwner(identifier string) (name string, owner string) {
+	// Parse owner and name (workspace, task).
 	parts := strings.SplitN(identifier, "/", 2)
-	var owner, workspaceName string
 
 	if len(parts) == 2 {
 		owner = parts[0]
-		workspaceName = parts[1]
+		name = parts[1]
 	} else {
 		owner = "me"
-		workspaceName = identifier
+		name = identifier
 	}
+
+	return name, owner
+}
+
+// namedWorkspace gets a workspace by owner/name or just name
+func namedWorkspace(ctx context.Context, client *codersdk.Client, identifier string) (codersdk.Workspace, error) {
+	workspaceName, owner := splitNameAndOwner(identifier)
 
 	// Handle -- separator format (convert to / format)
 	if strings.Contains(identifier, "--") && !strings.Contains(identifier, "/") {

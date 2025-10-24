@@ -15,15 +15,14 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/coderd/apikey"
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
-	"github.com/coder/coder/v2/coderd/userpassword"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/cryptorand"
 )
 
 // CreateDynamicClientRegistration returns an http.HandlerFunc that handles POST /oauth2/register
@@ -100,7 +99,7 @@ func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, audi
 			Jwks:                    pqtype.NullRawMessage{RawMessage: req.JWKS, Valid: len(req.JWKS) > 0},
 			SoftwareID:              sql.NullString{String: req.SoftwareID, Valid: req.SoftwareID != ""},
 			SoftwareVersion:         sql.NullString{String: req.SoftwareVersion, Valid: req.SoftwareVersion != ""},
-			RegistrationAccessToken: sql.NullString{String: hashedRegToken, Valid: true},
+			RegistrationAccessToken: hashedRegToken,
 			RegistrationClientUri:   sql.NullString{String: fmt.Sprintf("%s/oauth2/clients/%s", accessURL.String(), clientID), Valid: true},
 		})
 		if err != nil {
@@ -127,7 +126,7 @@ func CreateDynamicClientRegistration(db database.Store, accessURL *url.URL, audi
 			ID:            uuid.New(),
 			CreatedAt:     now,
 			SecretPrefix:  []byte(parsedSecret.Prefix),
-			HashedSecret:  []byte(hashedSecret),
+			HashedSecret:  hashedSecret,
 			DisplaySecret: createDisplaySecret(clientSecret),
 			AppID:         clientID,
 		})
@@ -224,7 +223,7 @@ func GetClientConfiguration(db database.Store) http.HandlerFunc {
 			TokenEndpointAuthMethod: app.TokenEndpointAuthMethod.String,
 			Scope:                   app.Scope.String,
 			Contacts:                app.Contacts,
-			RegistrationAccessToken: "", // RFC 7592: Not returned in GET responses for security
+			RegistrationAccessToken: nil, // RFC 7592: Not returned in GET responses for security
 			RegistrationClientURI:   app.RegistrationClientUri.String,
 		}
 
@@ -348,7 +347,7 @@ func UpdateClientConfiguration(db database.Store, auditor *audit.Auditor, logger
 			TokenEndpointAuthMethod: updatedApp.TokenEndpointAuthMethod.String,
 			Scope:                   updatedApp.Scope.String,
 			Contacts:                updatedApp.Contacts,
-			RegistrationAccessToken: updatedApp.RegistrationAccessToken.String,
+			RegistrationAccessToken: updatedApp.RegistrationAccessToken,
 			RegistrationClientURI:   updatedApp.RegistrationClientUri.String,
 		}
 
@@ -476,20 +475,14 @@ func RequireRegistrationAccessToken(db database.Store) func(http.Handler) http.H
 			}
 
 			// Verify the registration access token
-			if !app.RegistrationAccessToken.Valid {
+			if len(app.RegistrationAccessToken) == 0 {
 				writeOAuth2RegistrationError(ctx, rw, http.StatusInternalServerError,
 					"server_error", "Client has no registration access token")
 				return
 			}
 
 			// Compare the provided token with the stored hash
-			valid, err := userpassword.Compare(app.RegistrationAccessToken.String, token)
-			if err != nil {
-				writeOAuth2RegistrationError(ctx, rw, http.StatusInternalServerError,
-					"server_error", "Failed to verify registration access token")
-				return
-			}
-			if !valid {
+			if !apikey.ValidateHash(app.RegistrationAccessToken, token) {
 				writeOAuth2RegistrationError(ctx, rw, http.StatusUnauthorized,
 					"invalid_token", "Invalid registration access token")
 				return
@@ -504,30 +497,19 @@ func RequireRegistrationAccessToken(db database.Store) func(http.Handler) http.H
 // Helper functions for RFC 7591 Dynamic Client Registration
 
 // generateClientCredentials generates a client secret for OAuth2 apps
-func generateClientCredentials() (plaintext, hashed string, err error) {
+func generateClientCredentials() (plaintext string, hashed []byte, err error) {
 	// Use the same pattern as existing OAuth2 app secrets
 	secret, err := GenerateSecret()
 	if err != nil {
-		return "", "", xerrors.Errorf("generate secret: %w", err)
+		return "", nil, xerrors.Errorf("generate secret: %w", err)
 	}
 
 	return secret.Formatted, secret.Hashed, nil
 }
 
 // generateRegistrationAccessToken generates a registration access token for RFC 7592
-func generateRegistrationAccessToken() (plaintext, hashed string, err error) {
-	token, err := cryptorand.String(secretLength)
-	if err != nil {
-		return "", "", xerrors.Errorf("generate registration token: %w", err)
-	}
-
-	// Hash the token for storage
-	hashedToken, err := userpassword.Hash(token)
-	if err != nil {
-		return "", "", xerrors.Errorf("hash registration token: %w", err)
-	}
-
-	return token, hashedToken, nil
+func generateRegistrationAccessToken() (plaintext string, hashed []byte, err error) {
+	return apikey.GenerateSecret(secretLength)
 }
 
 // writeOAuth2RegistrationError writes RFC 7591 compliant error responses

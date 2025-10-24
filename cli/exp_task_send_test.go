@@ -22,15 +22,15 @@ import (
 func Test_TaskSend(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ByWorkspaceName_WithArgument", func(t *testing.T) {
+	t.Run("ByTaskName_WithArgument", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		client, workspace := setupCLITaskTest(ctx, t, fakeAgentAPITaskSendOK(t, "carry on with the task", "you got it"))
+		client, task := setupCLITaskTest(ctx, t, fakeAgentAPITaskSendOK(t, "carry on with the task", "you got it"))
 		userClient := client
 
 		var stdout strings.Builder
-		inv, root := clitest.New(t, "exp", "task", "send", workspace.Name, "carry on with the task")
+		inv, root := clitest.New(t, "exp", "task", "send", task.Name, "carry on with the task")
 		inv.Stdout = &stdout
 		clitest.SetupConfig(t, userClient, root)
 
@@ -38,15 +38,15 @@ func Test_TaskSend(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("ByWorkspaceID_WithArgument", func(t *testing.T) {
+	t.Run("ByTaskID_WithArgument", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		client, workspace := setupCLITaskTest(ctx, t, fakeAgentAPITaskSendOK(t, "carry on with the task", "you got it"))
+		client, task := setupCLITaskTest(ctx, t, fakeAgentAPITaskSendOK(t, "carry on with the task", "you got it"))
 		userClient := client
 
 		var stdout strings.Builder
-		inv, root := clitest.New(t, "exp", "task", "send", workspace.ID.String(), "carry on with the task")
+		inv, root := clitest.New(t, "exp", "task", "send", task.ID.String(), "carry on with the task")
 		inv.Stdout = &stdout
 		clitest.SetupConfig(t, userClient, root)
 
@@ -54,15 +54,15 @@ func Test_TaskSend(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("ByWorkspaceName_WithStdin", func(t *testing.T) {
+	t.Run("ByTaskName_WithStdin", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		client, workspace := setupCLITaskTest(ctx, t, fakeAgentAPITaskSendOK(t, "carry on with the task", "you got it"))
+		client, task := setupCLITaskTest(ctx, t, fakeAgentAPITaskSendOK(t, "carry on with the task", "you got it"))
 		userClient := client
 
 		var stdout strings.Builder
-		inv, root := clitest.New(t, "exp", "task", "send", workspace.Name, "--stdin")
+		inv, root := clitest.New(t, "exp", "task", "send", task.Name, "--stdin")
 		inv.Stdout = &stdout
 		inv.Stdin = strings.NewReader("carry on with the task")
 		clitest.SetupConfig(t, userClient, root)
@@ -71,7 +71,7 @@ func Test_TaskSend(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("WorkspaceNotFound_ByName", func(t *testing.T) {
+	t.Run("TaskNotFound_ByName", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -89,7 +89,7 @@ func Test_TaskSend(t *testing.T) {
 		require.ErrorContains(t, err, httpapi.ResourceNotFoundResponse.Message)
 	})
 
-	t.Run("WorkspaceNotFound_ByID", func(t *testing.T) {
+	t.Run("TaskNotFound_ByID", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -111,10 +111,10 @@ func Test_TaskSend(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		userClient, workspace := setupCLITaskTest(ctx, t, fakeAgentAPITaskSendErr(t, assert.AnError))
+		userClient, task := setupCLITaskTest(ctx, t, fakeAgentAPITaskSendErr(t, assert.AnError))
 
 		var stdout strings.Builder
-		inv, root := clitest.New(t, "exp", "task", "send", workspace.Name, "some task input")
+		inv, root := clitest.New(t, "exp", "task", "send", task.Name, "some task input")
 		inv.Stdout = &stdout
 		clitest.SetupConfig(t, userClient, root)
 

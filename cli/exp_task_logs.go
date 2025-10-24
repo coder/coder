@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 
-	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
@@ -41,24 +40,17 @@ func (r *RootCmd) taskLogs() *serpent.Command {
 			}
 
 			var (
-				ctx    = inv.Context()
-				exp    = codersdk.NewExperimentalClient(client)
-				task   = inv.Args[0]
-				taskID uuid.UUID
+				ctx        = inv.Context()
+				exp        = codersdk.NewExperimentalClient(client)
+				identifier = inv.Args[0]
 			)
 
-			if id, err := uuid.Parse(task); err == nil {
-				taskID = id
-			} else {
-				ws, err := namedWorkspace(ctx, client, task)
-				if err != nil {
-					return xerrors.Errorf("resolve task %q: %w", task, err)
-				}
-
-				taskID = ws.ID
+			task, err := exp.TaskByIdentifier(ctx, identifier)
+			if err != nil {
+				return xerrors.Errorf("resolve task %q: %w", identifier, err)
 			}
 
-			logs, err := exp.TaskLogs(ctx, codersdk.Me, taskID)
+			logs, err := exp.TaskLogs(ctx, codersdk.Me, task.ID)
 			if err != nil {
 				return xerrors.Errorf("get task logs: %w", err)
 			}
