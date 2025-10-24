@@ -25,13 +25,12 @@ Rule #1: If you want exception to ANY rule, YOU MUST STOP and get explicit permi
 ## Proactiveness
 
 When asked to do something, just do it - including obvious follow-up actions needed to complete the task properly.
-  Only pause to ask for confirmation when:
+Only pause to ask for confirmation when:
 
 - Multiple valid approaches exist and the choice matters
 - The action would delete or significantly restructure existing code
 - You genuinely don't understand what's being asked
-- Your partner specifically asks "how should I approach X?" (answer the question, don't jump to
-  implementation)
+- Your partner asked a question (answer the question, don't jump to implementation)
 
 @.claude/docs/WORKFLOWS.md
 @package.json
