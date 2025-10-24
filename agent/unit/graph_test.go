@@ -251,10 +251,12 @@ func TestGraphThreadSafety(t *testing.T) {
 		errorIndex := 0
 		var mu sync.Mutex
 
+		barrier := make(chan struct{})
 		for i := 0; i < numGoroutines; i++ {
 			wg.Add(1)
 			go func(goroutineID int) {
 				defer wg.Done()
+				<-barrier
 				for j := 0; j < edgesPerGoroutine; j++ {
 					from := &testGraphVertex{Name: fmt.Sprintf("unit-%d-%d", goroutineID, j)}
 					to := &testGraphVertex{Name: fmt.Sprintf("unit-%d-%d", goroutineID, j+1)}
@@ -268,6 +270,7 @@ func TestGraphThreadSafety(t *testing.T) {
 			}(i)
 		}
 
+		close(barrier)
 		wg.Wait()
 
 		// Verify no errors occurred during concurrent operations
