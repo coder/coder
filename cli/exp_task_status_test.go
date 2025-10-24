@@ -55,8 +55,8 @@ func Test_TaskStatus(t *testing.T) {
 		},
 		{
 			args: []string{"exists"},
-			expectOutput: `STATE CHANGED  STATUS   HEALTHY  STATE    MESSAGE
-0s ago         running  true     working  Thinking furiously...`,
+			expectOutput: `STATE CHANGED  STATUS  HEALTHY  STATE    MESSAGE
+0s ago         active  true     working  Thinking furiously...`,
 			hf: func(ctx context.Context, now time.Time) func(w http.ResponseWriter, r *http.Request) {
 				return func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
@@ -114,12 +114,12 @@ func Test_TaskStatus(t *testing.T) {
 		},
 		{
 			args: []string{"exists", "--watch"},
-			expectOutput: `
-STATE CHANGED  STATUS   HEALTHY  STATE  MESSAGE
+			expectOutput: `STATE CHANGED  STATUS   HEALTHY  STATE  MESSAGE
 5s ago         pending  true
-4s ago         running  true
-3s ago         running  true     working  Reticulating splines...
-2s ago         running  true     complete  Splines reticulated successfully!`,
+4s ago         initializing  true
+4s ago         active  true
+3s ago         active  true     working  Reticulating splines...
+2s ago         active  true     complete  Splines reticulated successfully!`,
 			hf: func(ctx context.Context, now time.Time) func(http.ResponseWriter, *http.Request) {
 				var calls atomic.Int64
 				return func(w http.ResponseWriter, r *http.Request) {
