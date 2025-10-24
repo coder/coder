@@ -13,7 +13,8 @@ import { NavbarView } from "./NavbarView";
 export const Navbar: FC = () => {
 	const { metadata } = useEmbeddedMetadata();
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
-	const { appearance, canViewOrganizationSettings } = useDashboard();
+	const { appearance, experiments, canViewOrganizationSettings } =
+		useDashboard();
 	const { user: me, permissions, signOut } = useAuthenticated();
 	const featureVisibility = useFeatureVisibility();
 	const proxyContextValue = useProxy();
@@ -25,6 +26,9 @@ export const Navbar: FC = () => {
 		featureVisibility.audit_log && permissions.viewAnyAuditLog;
 	const canViewConnectionLog =
 		featureVisibility.connection_log && permissions.viewAnyConnectionLog;
+	// TODO: We should have a separate permission for this
+	const canViewAIGovernance =
+		featureVisibility.aibridge && experiments.includes("aibridge");
 
 	const uniqueLinks = new Map<string, LinkConfig>();
 	for (const link of appearance.support_links ?? []) {
@@ -44,6 +48,7 @@ export const Navbar: FC = () => {
 			canViewHealth={canViewHealth}
 			canViewAuditLog={canViewAuditLog}
 			canViewConnectionLog={canViewConnectionLog}
+			canViewAIGovernance={canViewAIGovernance}
 			proxyContextValue={proxyContextValue}
 		/>
 	);

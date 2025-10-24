@@ -2664,6 +2664,11 @@ class ApiMethods {
 	};
 }
 
+// TODO: Generate this
+interface AIBridgeInterceptionsRequest extends TypesGen.Pagination {
+	q?: string;
+}
+
 // Experimental API methods call endpoints under the /api/experimental/ prefix.
 // These endpoints are not stable and may change or be removed at any time.
 //
@@ -2747,6 +2752,16 @@ class ExperimentalApiMethods {
 		return new Promise<void>((res) => {
 			setTimeout(() => res(), 500);
 		});
+	};
+
+	getAIBridgeInterceptions = async (options: AIBridgeInterceptionsRequest) => {
+		const url = getURLWithSearchParams(
+			"/api/experimental/aibridge/interceptions",
+			options,
+		);
+		const response =
+			await this.axios.get<TypesGen.AIBridgeListInterceptionsResponse>(url);
+		return response.data;
 	};
 }
 
