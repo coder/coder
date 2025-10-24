@@ -181,16 +181,16 @@ type Task struct {
 	CreatedAt               time.Time                `json:"created_at" format:"date-time" table:"created at"`
 	UpdatedAt               time.Time                `json:"updated_at" format:"date-time" table:"updated at"`
 	// Deprecated: use LatestWorkspaceAppStatus instead.
-	CurrentState *TaskStateEntry `json:"current_state" table:"cs,recursive_inline,empty_nil"`
+	CurrentState *TaskStateEntry `json:"current_state" table:"-"`
 }
 
 // TaskStateEntry represents a single entry in the task's state history.
 //
 // Deprecated: use WorkspaceAppStatus instead.
 type TaskStateEntry struct {
-	Timestamp time.Time `json:"timestamp" format:"date-time" table:"timestamp"`
-	State     TaskState `json:"state" enum:"working,idle,completed,failed" table:"state"`
-	Message   string    `json:"message" table:"message"`
+	Timestamp time.Time `json:"timestamp" format:"date-time" table:"-"`
+	State     TaskState `json:"state" enum:"working,idle,completed,failed" table:"-"`
+	Message   string    `json:"message" table:"-"`
 	URI       string    `json:"uri" table:"-"`
 }
 

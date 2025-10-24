@@ -150,7 +150,13 @@ func taskWatchIsEnded(task codersdk.Task) bool {
 	if task.WorkspaceAgentLifecycle == nil || task.WorkspaceAgentLifecycle.Starting() || task.WorkspaceAgentLifecycle.ShuttingDown() {
 		return false
 	}
-	if (task.AppStatus == nil || task.AppStatus.State == codersdk.WorkspaceAppStatusStateWorking) || (task.CurrentState != nil || task.CurrentState.State == codersdk.TaskStateWorking) {
+	if task.AppStatus == nil && task.CurrentState == nil {
+		return false
+	}
+	if task.AppStatus != nil && task.AppStatus.State == codersdk.WorkspaceAppStatusStateWorking {
+		return false
+	}
+	if task.CurrentState != nil && task.CurrentState.State == codersdk.TaskStateWorking {
 		return false
 	}
 	return true
@@ -159,7 +165,8 @@ func taskWatchIsEnded(task codersdk.Task) bool {
 func taskListRowEqual(r1, r2 taskListRow) bool {
 	return r1.Task.Status == r2.Task.Status &&
 		r1.Healthy == r2.Healthy &&
-		(taskStateEqual(r1.Task.CurrentState, r2.Task.CurrentState) || workspaceAppStatusEqual(r1.Task.AppStatus, r2.Task.AppStatus))
+		taskStateEqual(r1.Task.CurrentState, r2.Task.CurrentState) &&
+		workspaceAppStatusEqual(r1.Task.AppStatus, r2.Task.AppStatus)
 }
 
 // TODO(cian): remove when codersdk.TaskStatus goes away

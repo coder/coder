@@ -250,14 +250,26 @@ func Test_TaskStatus(t *testing.T) {
   "workspace_app_id": null,
   "initial_prompt": "",
   "status": "active",
+  "latest_workspace_app_status": {
+    "id": "00000000-0000-0000-0000-000000000000",
+    "created_at": "2025-08-26T12:34:57Z",
+    "workspace_id": "00000000-0000-0000-0000-000000000000",
+    "agent_id": "00000000-0000-0000-0000-000000000000",
+    "app_id": "00000000-0000-0000-0000-000000000000",
+    "state": "working",
+    "message": "Thinking furiously...",
+    "uri": "",
+    "icon": "",
+    "needs_user_attention": false
+  },
+  "created_at": "2025-08-26T12:34:56Z",
+  "updated_at": "2025-08-26T12:34:56Z",
   "current_state": {
     "timestamp": "2025-08-26T12:34:57Z",
     "state": "working",
     "message": "Thinking furiously...",
     "uri": ""
-  },
-  "created_at": "2025-08-26T12:34:56Z",
-  "updated_at": "2025-08-26T12:34:56Z"
+  }
 }`,
 			hf: func(ctx context.Context, now time.Time) func(http.ResponseWriter, *http.Request) {
 				ts := time.Date(2025, 8, 26, 12, 34, 56, 0, time.UTC)
@@ -281,6 +293,11 @@ func Test_TaskStatus(t *testing.T) {
 										CreatedAt: ts.Add(time.Second),
 										Message:   "Thinking furiously...",
 									},
+									CurrentState: &codersdk.TaskStateEntry{
+										State:     codersdk.TaskStateWorking,
+										Timestamp: ts.Add(time.Second),
+										Message:   "Thinking furiously...",
+									},
 									WorkspaceAgentHealth: &codersdk.WorkspaceAgentHealth{
 										Healthy: true,
 									},
@@ -300,6 +317,11 @@ func Test_TaskStatus(t *testing.T) {
 							AppStatus: &codersdk.WorkspaceAppStatus{
 								State:     codersdk.WorkspaceAppStatusStateWorking,
 								CreatedAt: ts.Add(time.Second),
+								Message:   "Thinking furiously...",
+							},
+							CurrentState: &codersdk.TaskStateEntry{
+								State:     codersdk.TaskStateWorking,
+								Timestamp: ts.Add(time.Second),
 								Message:   "Thinking furiously...",
 							},
 							Status: codersdk.TaskStatusActive,
