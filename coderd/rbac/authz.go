@@ -160,6 +160,17 @@ func (s Subject) SafeScopeName() string {
 	return s.Scope.Name().String()
 }
 
+func (s Subject) SafeAllowList() []string {
+	if scope, err := s.Scope.Expand(); err == nil {
+		safeAllowList := make([]string, 0, len(scope.AllowIDList))
+		for _, v := range scope.AllowIDList {
+			safeAllowList = append(safeAllowList, v.String())
+		}
+		return safeAllowList
+	}
+	return []string{}
+}
+
 // SafeRoleNames prevent nil pointer dereference.
 func (s Subject) SafeRoleNames() []RoleIdentifier {
 	if s.Roles == nil {

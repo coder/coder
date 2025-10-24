@@ -229,3 +229,127 @@ func TestUnionAllowLists(t *testing.T) {
 		require.Empty(t, out)
 	})
 }
+
+func TestMergeDefaultsForMissingTypes(t *testing.T) {
+	t.Parallel()
+
+	workspaceID := uuid.NewString()
+	templateID := uuid.NewString()
+
+	t.Run("wildcard_list_unchanged", func(t *testing.T) {
+		t.Parallel()
+		// Global wildcard already allows everything, no defaults needed
+		list := []rbac.AllowListElement{rbac.AllowListAll()}
+		defaults := []rbac.AllowListElement{
+			{Type: rbac.ResourceWorkspace.Type, ID: ""},
+			{Type: rbac.ResourceTemplate.Type, ID: policy.WildcardSymbol},
+		}
+		out, err := rbac.MergeDefaultsForMissingTypes(list, defaults)
+		require.NoError(t, err)
+		require.Equal(t, []rbac.AllowListElement{rbac.AllowListAll()}, out)
+	})
+
+	t.Run("add_missing_template", func(t *testing.T) {
+		t.Parallel()
+		// User specified workspace but not template - add template default
+		list := []rbac.AllowListElement{
+			{Type: rbac.ResourceWorkspace.Type, ID: workspaceID},
+		}
+		defaults := []rbac.AllowListElement{
+			{Type: rbac.ResourceWorkspace.Type, ID: ""},
+			{Type: rbac.ResourceTemplate.Type, ID: policy.WildcardSymbol},
+		}
+		out, err := rbac.MergeDefaultsForMissingTypes(list, defaults)
+		require.NoError(t, err)
+		require.ElementsMatch(t, []rbac.AllowListElement{
+			{Type: rbac.ResourceTemplate.Type, ID: policy.WildcardSymbol},
+			{Type: rbac.ResourceWorkspace.Type, ID: workspaceID},
+		}, out)
+	})
+
+	t.Run("both_types_present_no_defaults", func(t *testing.T) {
+		t.Parallel()
+		// Both types present, don't add defaults even though IDs differ
+		list := []rbac.AllowListElement{
+			{Type: rbac.ResourceWorkspace.Type, ID: workspaceID},
+			{Type: rbac.ResourceTemplate.Type, ID: templateID},
+		}
+		defaults := []rbac.AllowListElement{
+			{Type: rbac.ResourceWorkspace.Type, ID: ""},
+			{Type: rbac.ResourceTemplate.Type, ID: policy.WildcardSymbol},
+		}
+		out, err := rbac.MergeDefaultsForMissingTypes(list, defaults)
+		require.NoError(t, err)
+		require.ElementsMatch(t, []rbac.AllowListElement{
+			{Type: rbac.ResourceTemplate.Type, ID: templateID},
+			{Type: rbac.ResourceWorkspace.Type, ID: workspaceID},
+		}, out)
+	})
+
+	t.Run("empty_id_preserved", func(t *testing.T) {
+		t.Parallel()
+		// Empty ID for workspace should be preserved (used for creation checks)
+		list := []rbac.AllowListElement{
+			{Type: rbac.ResourceTemplate.Type, ID: templateID},
+		}
+		defaults := []rbac.AllowListElement{
+			{Type: rbac.ResourceWorkspace.Type, ID: ""},
+		}
+		out, err := rbac.MergeDefaultsForMissingTypes(list, defaults)
+		require.NoError(t, err)
+		require.ElementsMatch(t, []rbac.AllowListElement{
+			{Type: rbac.ResourceTemplate.Type, ID: templateID},
+			{Type: rbac.ResourceWorkspace.Type, ID: ""},
+		}, out)
+	})
+
+	t.Run("multiple_defaults_for_different_types", func(t *testing.T) {
+		t.Parallel()
+		// Multiple defaults, add only the missing ones
+		list := []rbac.AllowListElement{
+			{Type: rbac.ResourceWorkspace.Type, ID: workspaceID},
+		}
+		defaults := []rbac.AllowListElement{
+			{Type: rbac.ResourceWorkspace.Type, ID: ""},
+			{Type: rbac.ResourceTemplate.Type, ID: policy.WildcardSymbol},
+			{Type: rbac.ResourceUser.Type, ID: policy.WildcardSymbol},
+		}
+		out, err := rbac.MergeDefaultsForMissingTypes(list, defaults)
+		require.NoError(t, err)
+		require.ElementsMatch(t, []rbac.AllowListElement{
+			{Type: rbac.ResourceTemplate.Type, ID: policy.WildcardSymbol},
+			{Type: rbac.ResourceUser.Type, ID: policy.WildcardSymbol},
+			{Type: rbac.ResourceWorkspace.Type, ID: workspaceID},
+		}, out)
+	})
+
+	t.Run("no_defaults_provided", func(t *testing.T) {
+		t.Parallel()
+		// Empty defaults list should return original list
+		list := []rbac.AllowListElement{
+			{Type: rbac.ResourceWorkspace.Type, ID: workspaceID},
+		}
+		defaults := []rbac.AllowListElement{}
+		out, err := rbac.MergeDefaultsForMissingTypes(list, defaults)
+		require.NoError(t, err)
+		require.Equal(t, list, out)
+	})
+
+	t.Run("typed_wildcard_in_list_no_default", func(t *testing.T) {
+		t.Parallel()
+		// If list has typed wildcard, don't add default for that type
+		list := []rbac.AllowListElement{
+			{Type: rbac.ResourceTemplate.Type, ID: policy.WildcardSymbol},
+		}
+		defaults := []rbac.AllowListElement{
+			{Type: rbac.ResourceWorkspace.Type, ID: ""},
+			{Type: rbac.ResourceTemplate.Type, ID: policy.WildcardSymbol},
+		}
+		out, err := rbac.MergeDefaultsForMissingTypes(list, defaults)
+		require.NoError(t, err)
+		require.ElementsMatch(t, []rbac.AllowListElement{
+			{Type: rbac.ResourceTemplate.Type, ID: policy.WildcardSymbol},
+			{Type: rbac.ResourceWorkspace.Type, ID: ""},
+		}, out)
+	})
+}
