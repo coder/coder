@@ -24,7 +24,7 @@ import {
 } from "components/Tooltip/Tooltip";
 import { RotateCcwIcon, TrashIcon } from "lucide-react";
 import { TaskDeleteDialog } from "modules/tasks/TaskDeleteDialog/TaskDeleteDialog";
-import type { Task } from "modules/tasks/tasks";
+import { getCleanTaskName, type Task } from "modules/tasks/tasks";
 import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
 import { WorkspaceStatus } from "modules/workspaces/WorkspaceStatus/WorkspaceStatus";
 import { type FC, type ReactNode, useState } from "react";
@@ -119,24 +119,52 @@ const TaskRow: FC<TaskRowProps> = ({ task }) => {
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 	const templateDisplayName =
 		task.workspace.template_display_name ?? task.workspace.template_name;
+	const cleanTaskName = getCleanTaskName(task.workspace.name);
+	const truncatedPrompt =
+		task.prompt.length > 100 ? `${task.prompt.slice(0, 100)}...` : task.prompt;
 
 	return (
 		<>
 			<TableRow key={task.workspace.id} className="relative" hover>
 				<TableCell>
+					<RouterLink
+						to={`/tasks/${task.workspace.owner_name}/${task.workspace.name}`}
+						className="absolute inset-0"
+					>
+						<span className="sr-only">Access task</span>
+					</RouterLink>
 					<AvatarData
 						title={
-							<>
-								<span className="block max-w-[520px] overflow-hidden text-ellipsis whitespace-nowrap">
-									{task.prompt}
-								</span>
-								<RouterLink
-									to={`/tasks/${task.workspace.owner_name}/${task.workspace.name}`}
-									className="absolute inset-0"
-								>
-									<span className="sr-only">Access task</span>
-								</RouterLink>
-							</>
+							<TooltipProvider>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<RouterLink
+											to={`/tasks/${task.workspace.owner_name}/${task.workspace.name}`}
+											className="block max-w-[520px] overflow-hidden text-ellipsis whitespace-nowrap cursor-help relative z-10 no-underline text-inherit"
+										>
+											{cleanTaskName}
+										</RouterLink>
+									</TooltipTrigger>
+									<TooltipContent className="max-w-md">
+										<div className="space-y-2">
+											<div>
+												<div className="text-xs text-content-secondary">
+													Workspace name
+												</div>
+												<div className="text-sm font-medium">
+													{task.workspace.name}
+												</div>
+											</div>
+											<div>
+												<div className="text-xs text-content-secondary">
+													Prompt
+												</div>
+												<div className="text-sm">{truncatedPrompt}</div>
+											</div>
+										</div>
+									</TooltipContent>
+								</Tooltip>
+							</TooltipProvider>
 						}
 						subtitle={templateDisplayName}
 						avatar={

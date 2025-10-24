@@ -21,7 +21,7 @@ import {
 import { useAuthenticated } from "hooks";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { EditIcon, EllipsisIcon, PanelLeftIcon, TrashIcon } from "lucide-react";
-import type { Task } from "modules/tasks/tasks";
+import { getCleanTaskName, type Task } from "modules/tasks/tasks";
 import { type FC, useState } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink, useNavigate, useParams } from "react-router";
@@ -179,66 +179,89 @@ const TaskSidebarMenuItem: FC<TaskSidebarMenuItemProps> = ({ task }) => {
 	const isActive = task.workspace.name === workspace;
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 	const navigate = useNavigate();
+	const cleanTaskName = getCleanTaskName(task.workspace.name);
+	const truncatedPrompt =
+		task.prompt.length > 100 ? `${task.prompt.slice(0, 100)}...` : task.prompt;
 
 	return (
 		<>
-			<Button
-				asChild
-				size="sm"
-				variant="subtle"
-				className={cn(
-					"overflow-visible group w-full justify-start text-content-secondary",
-					"transition-none hover:bg-surface-tertiary gap-2 has-[[data-state=open]]:bg-surface-tertiary",
-					{
-						"text-content-primary bg-surface-quaternary hover:bg-surface-quaternary has-[[data-state=open]]:bg-surface-quaternary":
-							isActive,
-					},
-				)}
-			>
-				<RouterLink
-					to={{
-						pathname: `/tasks/${task.workspace.owner_name}/${task.workspace.name}`,
-						search: window.location.search,
-					}}
-				>
-					<TaskSidebarMenuItemStatus task={task} />
-					<span className="truncate">{task.workspace.name}</span>
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button
-								size="icon"
-								variant="subtle"
-								className={`
-								ml-auto -mr-2 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100
-								focus-visible:opacity-100 data-[state=open]:opacity-100
-							`}
-								onClick={(e) => {
-									e.stopPropagation();
-									e.preventDefault();
+			<TooltipProvider>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button
+							asChild
+							size="sm"
+							variant="subtle"
+							className={cn(
+								"overflow-visible group w-full justify-start text-content-secondary",
+								"transition-none hover:bg-surface-tertiary gap-2 has-[[data-state=open]]:bg-surface-tertiary",
+								{
+									"text-content-primary bg-surface-quaternary hover:bg-surface-quaternary has-[[data-state=open]]:bg-surface-quaternary":
+										isActive,
+								},
+							)}
+						>
+							<RouterLink
+								to={{
+									pathname: `/tasks/${task.workspace.owner_name}/${task.workspace.name}`,
+									search: window.location.search,
 								}}
 							>
-								<EllipsisIcon />
-								<span className="sr-only">Task options</span>
-							</Button>
-						</DropdownMenuTrigger>
+								<TaskSidebarMenuItemStatus task={task} />
+								<span className="truncate">{cleanTaskName}</span>
+								<DropdownMenu>
+									<DropdownMenuTrigger asChild>
+										<Button
+											size="icon"
+											variant="subtle"
+											className={`
+											ml-auto -mr-2 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100
+											focus-visible:opacity-100 data-[state=open]:opacity-100
+										`}
+											onClick={(e) => {
+												e.stopPropagation();
+												e.preventDefault();
+											}}
+										>
+											<EllipsisIcon />
+											<span className="sr-only">Task options</span>
+										</Button>
+									</DropdownMenuTrigger>
 
-						<DropdownMenuContent align="end">
-							<DropdownMenuGroup>
-								<DropdownMenuItem
-									className="text-content-destructive focus:text-content-destructive"
-									onClick={(e) => {
-										e.stopPropagation();
-										setIsDeleteDialogOpen(true);
-									}}
-								>
-									<TrashIcon />
-									Delete
-								</DropdownMenuItem>
-							</DropdownMenuGroup>
-						</DropdownMenuContent>
-					</DropdownMenu>
-				</RouterLink>
-			</Button>
+									<DropdownMenuContent align="end">
+										<DropdownMenuGroup>
+											<DropdownMenuItem
+												className="text-content-destructive focus:text-content-destructive"
+												onClick={(e) => {
+													e.stopPropagation();
+													setIsDeleteDialogOpen(true);
+												}}
+											>
+												<TrashIcon />
+												Delete
+											</DropdownMenuItem>
+										</DropdownMenuGroup>
+									</DropdownMenuContent>
+								</DropdownMenu>
+							</RouterLink>
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent side="right" className="max-w-md">
+						<div className="space-y-2">
+							<div>
+								<div className="text-xs text-content-secondary">
+									Workspace name
+								</div>
+								<div className="text-sm font-medium">{task.workspace.name}</div>
+							</div>
+							<div>
+								<div className="text-xs text-content-secondary">Prompt</div>
+								<div className="text-sm">{truncatedPrompt}</div>
+							</div>
+						</div>
+					</TooltipContent>
+				</Tooltip>
+			</TooltipProvider>
 
 			<TaskDeleteDialog
 				open={isDeleteDialogOpen}

@@ -13,7 +13,7 @@ import {
 	LaptopMinimalIcon,
 	TerminalIcon,
 } from "lucide-react";
-import type { Task } from "modules/tasks/tasks";
+import { getCleanTaskName, type Task } from "modules/tasks/tasks";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
 import { TaskStatusLink } from "./TaskStatusLink";
@@ -21,6 +21,10 @@ import { TaskStatusLink } from "./TaskStatusLink";
 type TaskTopbarProps = { task: Task };
 
 export const TaskTopbar: FC<TaskTopbarProps> = ({ task }) => {
+	const cleanTaskName = getCleanTaskName(task.workspace.name);
+	const truncatedPrompt =
+		task.prompt.length > 100 ? `${task.prompt.slice(0, 100)}...` : task.prompt;
+
 	return (
 		<header className="flex flex-shrink-0 items-center p-3 border-solid border-border border-0 border-b">
 			<TooltipProvider>
@@ -37,9 +41,29 @@ export const TaskTopbar: FC<TaskTopbarProps> = ({ task }) => {
 				</Tooltip>
 			</TooltipProvider>
 
-			<h1 className="m-0 pl-2 text-base font-medium truncate">
-				{task.workspace.name}
-			</h1>
+			<TooltipProvider>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<h1 className="m-0 pl-2 text-base font-medium truncate cursor-help">
+							{cleanTaskName}
+						</h1>
+					</TooltipTrigger>
+					<TooltipContent className="max-w-md">
+						<div className="space-y-2">
+							<div>
+								<div className="text-xs text-content-secondary">
+									Workspace name
+								</div>
+								<div className="text-sm font-medium">{task.workspace.name}</div>
+							</div>
+							<div>
+								<div className="text-xs text-content-secondary">Prompt</div>
+								<div className="text-sm">{truncatedPrompt}</div>
+							</div>
+						</div>
+					</TooltipContent>
+				</Tooltip>
+			</TooltipProvider>
 
 			{task.workspace.latest_app_status?.uri && (
 				<div className="flex items-center gap-2 flex-wrap ml-4">
