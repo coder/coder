@@ -334,6 +334,16 @@ func TestAcquireJob(t *testing.T) {
 					Transition:        database.WorkspaceTransitionStart,
 					Reason:            database.BuildReasonInitiator,
 				})
+				task := dbgen.Task(t, db, database.TaskTable{
+					OrganizationID:     pd.OrganizationID,
+					OwnerID:            user.ID,
+					WorkspaceID:        uuid.NullUUID{Valid: true, UUID: workspace.ID},
+					TemplateVersionID:  version.ID,
+					TemplateParameters: json.RawMessage("{}"),
+					Prompt:             "Build me a REST API",
+					CreatedAt:          dbtime.Now(),
+					DeletedAt:          sql.NullTime{},
+				})
 
 				var agent database.WorkspaceAgent
 				if prebuiltWorkspaceBuildStage == sdkproto.PrebuiltWorkspaceBuildStage_CLAIM {
@@ -446,6 +456,8 @@ func TestAcquireJob(t *testing.T) {
 					WorkspaceBuildId:              build.ID.String(),
 					WorkspaceOwnerLoginType:       string(user.LoginType),
 					WorkspaceOwnerRbacRoles:       []*sdkproto.Role{{Name: rbac.RoleOrgMember(), OrgId: pd.OrganizationID.String()}, {Name: "member", OrgId: ""}, {Name: rbac.RoleOrgAuditor(), OrgId: pd.OrganizationID.String()}},
+					TaskId:                        task.ID.String(),
+					TaskPrompt:                    task.Prompt,
 				}
 				if prebuiltWorkspaceBuildStage == sdkproto.PrebuiltWorkspaceBuildStage_CLAIM {
 					// For claimed prebuilds, we expect the prebuild state to be set to CLAIM

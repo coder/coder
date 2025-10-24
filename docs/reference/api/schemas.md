@@ -686,6 +686,12 @@
 
 ```json
 {
+  "allow_list": [
+    {
+      "id": "string",
+      "type": "*"
+    }
+  ],
   "created_at": "2019-08-24T14:15:22Z",
   "expires_at": "2019-08-24T14:15:22Z",
   "id": "string",
@@ -704,19 +710,20 @@
 
 ### Properties
 
-| Name               | Type                                                  | Required | Restrictions | Description                     |
-|--------------------|-------------------------------------------------------|----------|--------------|---------------------------------|
-| `created_at`       | string                                                | true     |              |                                 |
-| `expires_at`       | string                                                | true     |              |                                 |
-| `id`               | string                                                | true     |              |                                 |
-| `last_used`        | string                                                | true     |              |                                 |
-| `lifetime_seconds` | integer                                               | true     |              |                                 |
-| `login_type`       | [codersdk.LoginType](#codersdklogintype)              | true     |              |                                 |
-| `scope`            | [codersdk.APIKeyScope](#codersdkapikeyscope)          | false    |              | Deprecated: use Scopes instead. |
-| `scopes`           | array of [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              |                                 |
-| `token_name`       | string                                                | true     |              |                                 |
-| `updated_at`       | string                                                | true     |              |                                 |
-| `user_id`          | string                                                | true     |              |                                 |
+| Name               | Type                                                                | Required | Restrictions | Description                     |
+|--------------------|---------------------------------------------------------------------|----------|--------------|---------------------------------|
+| `allow_list`       | array of [codersdk.APIAllowListTarget](#codersdkapiallowlisttarget) | false    |              |                                 |
+| `created_at`       | string                                                              | true     |              |                                 |
+| `expires_at`       | string                                                              | true     |              |                                 |
+| `id`               | string                                                              | true     |              |                                 |
+| `last_used`        | string                                                              | true     |              |                                 |
+| `lifetime_seconds` | integer                                                             | true     |              |                                 |
+| `login_type`       | [codersdk.LoginType](#codersdklogintype)                            | true     |              |                                 |
+| `scope`            | [codersdk.APIKeyScope](#codersdkapikeyscope)                        | false    |              | Deprecated: use Scopes instead. |
+| `scopes`           | array of [codersdk.APIKeyScope](#codersdkapikeyscope)               | false    |              |                                 |
+| `token_name`       | string                                                              | true     |              |                                 |
+| `updated_at`       | string                                                              | true     |              |                                 |
+| `user_id`          | string                                                              | true     |              |                                 |
 
 #### Enumerated Values
 
@@ -5292,7 +5299,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "redirect_uris": [
     "string"
   ],
-  "registration_access_token": "string",
+  "registration_access_token": [
+    0
+  ],
   "registration_client_uri": "string",
   "response_types": [
     "string"
@@ -5307,28 +5316,28 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ### Properties
 
-| Name                         | Type            | Required | Restrictions | Description |
-|------------------------------|-----------------|----------|--------------|-------------|
-| `client_id`                  | string          | false    |              |             |
-| `client_id_issued_at`        | integer         | false    |              |             |
-| `client_name`                | string          | false    |              |             |
-| `client_secret_expires_at`   | integer         | false    |              |             |
-| `client_uri`                 | string          | false    |              |             |
-| `contacts`                   | array of string | false    |              |             |
-| `grant_types`                | array of string | false    |              |             |
-| `jwks`                       | object          | false    |              |             |
-| `jwks_uri`                   | string          | false    |              |             |
-| `logo_uri`                   | string          | false    |              |             |
-| `policy_uri`                 | string          | false    |              |             |
-| `redirect_uris`              | array of string | false    |              |             |
-| `registration_access_token`  | string          | false    |              |             |
-| `registration_client_uri`    | string          | false    |              |             |
-| `response_types`             | array of string | false    |              |             |
-| `scope`                      | string          | false    |              |             |
-| `software_id`                | string          | false    |              |             |
-| `software_version`           | string          | false    |              |             |
-| `token_endpoint_auth_method` | string          | false    |              |             |
-| `tos_uri`                    | string          | false    |              |             |
+| Name                         | Type             | Required | Restrictions | Description |
+|------------------------------|------------------|----------|--------------|-------------|
+| `client_id`                  | string           | false    |              |             |
+| `client_id_issued_at`        | integer          | false    |              |             |
+| `client_name`                | string           | false    |              |             |
+| `client_secret_expires_at`   | integer          | false    |              |             |
+| `client_uri`                 | string           | false    |              |             |
+| `contacts`                   | array of string  | false    |              |             |
+| `grant_types`                | array of string  | false    |              |             |
+| `jwks`                       | object           | false    |              |             |
+| `jwks_uri`                   | string           | false    |              |             |
+| `logo_uri`                   | string           | false    |              |             |
+| `policy_uri`                 | string           | false    |              |             |
+| `redirect_uris`              | array of string  | false    |              |             |
+| `registration_access_token`  | array of integer | false    |              |             |
+| `registration_client_uri`    | string           | false    |              |             |
+| `response_types`             | array of string  | false    |              |             |
+| `scope`                      | string           | false    |              |             |
+| `software_id`                | string           | false    |              |             |
+| `software_version`           | string           | false    |              |             |
+| `token_endpoint_auth_method` | string           | false    |              |             |
+| `tos_uri`                    | string           | false    |              |             |
 
 ## codersdk.OAuth2ClientRegistrationRequest
 
@@ -10078,6 +10087,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       }
     ],
     "status": "pending",
+    "task_app_id": "ca438251-3e16-4fae-b9ab-dd3c237c3735",
     "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
     "template_version_name": "string",
     "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
@@ -11247,6 +11257,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     }
   ],
   "status": "pending",
+  "task_app_id": "ca438251-3e16-4fae-b9ab-dd3c237c3735",
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "template_version_name": "string",
   "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
@@ -11264,7 +11275,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 | Name                         | Type                                                              | Required | Restrictions | Description                                                         |
 |------------------------------|-------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------|
-| `ai_task_sidebar_app_id`     | string                                                            | false    |              |                                                                     |
+| `ai_task_sidebar_app_id`     | string                                                            | false    |              | Deprecated: This field has been replaced with `TaskAppID`           |
 | `build_number`               | integer                                                           | false    |              |                                                                     |
 | `created_at`                 | string                                                            | false    |              |                                                                     |
 | `daily_cost`                 | integer                                                           | false    |              |                                                                     |
@@ -11280,6 +11291,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `reason`                     | [codersdk.BuildReason](#codersdkbuildreason)                      | false    |              |                                                                     |
 | `resources`                  | array of [codersdk.WorkspaceResource](#codersdkworkspaceresource) | false    |              |                                                                     |
 | `status`                     | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)              | false    |              |                                                                     |
+| `task_app_id`                | string                                                            | false    |              |                                                                     |
 | `template_version_id`        | string                                                            | false    |              |                                                                     |
 | `template_version_name`      | string                                                            | false    |              |                                                                     |
 | `template_version_preset_id` | string                                                            | false    |              |                                                                     |
@@ -12069,6 +12081,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           }
         ],
         "status": "pending",
+        "task_app_id": "ca438251-3e16-4fae-b9ab-dd3c237c3735",
         "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
         "template_version_name": "string",
         "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",

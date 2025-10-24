@@ -141,6 +141,7 @@ export interface APIKey {
 	readonly scopes: readonly APIKeyScope[];
 	readonly token_name: string;
 	readonly lifetime_seconds: number;
+	readonly allow_list: readonly APIAllowListTarget[];
 }
 
 // From codersdk/apikey.go
@@ -4828,6 +4829,8 @@ export interface TasksFilter {
 
 // From codersdk/aitasks.go
 /**
+ * TaskListResponse is the response shape for tasks list.
+ *
  * Experimental response shape for tasks list (server returns []Task).
  */
 export interface TasksListResponse {
@@ -6374,7 +6377,11 @@ export interface WorkspaceBuild {
 	readonly matched_provisioners?: MatchedProvisioners;
 	readonly template_version_preset_id: string | null;
 	readonly has_ai_task?: boolean;
+	/**
+	 * Deprecated: This field has been replaced with `TaskAppID`
+	 */
 	readonly ai_task_sidebar_app_id?: string;
+	readonly task_app_id?: string;
 	readonly has_external_agent?: boolean;
 }
 

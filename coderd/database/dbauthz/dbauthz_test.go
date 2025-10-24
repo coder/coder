@@ -3925,9 +3925,9 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 	}))
 	s.Run("GetOAuth2ProviderAppByRegistrationToken", s.Subtest(func(db database.Store, check *expects) {
 		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{
-			RegistrationAccessToken: sql.NullString{String: "test-token", Valid: true},
+			RegistrationAccessToken: []byte("test-token"),
 		})
-		check.Args(sql.NullString{String: "test-token", Valid: true}).Asserts(rbac.ResourceOauth2App, policy.ActionRead).Returns(app)
+		check.Args([]byte("test-token")).Asserts(rbac.ResourceOauth2App, policy.ActionRead).Returns(app)
 	}))
 }
 

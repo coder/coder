@@ -629,9 +629,9 @@ func (api *API) taskDelete(rw http.ResponseWriter, r *http.Request) {
 // @Router /api/experimental/tasks/{user}/{task}/send [post]
 //
 // EXPERIMENTAL: This endpoint is experimental and not guaranteed to be stable.
-// taskSend submits task input to the tasks sidebar app by dialing the agent
+// taskSend submits task input to the task app by dialing the agent
 // directly over the tailnet. We enforce ApplicationConnect RBAC on the
-// workspace and validate the sidebar app health.
+// workspace and validate the task app health.
 func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	task := httpmw.TaskParam(r)
@@ -703,7 +703,7 @@ func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 //
 // EXPERIMENTAL: This endpoint is experimental and not guaranteed to be stable.
 // taskLogs reads task output by dialing the agent directly over the tailnet.
-// We enforce ApplicationConnect RBAC on the workspace and validate the sidebar app health.
+// We enforce ApplicationConnect RBAC on the workspace and validate the task app health.
 func (api *API) taskLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	task := httpmw.TaskParam(r)
@@ -761,7 +761,7 @@ func (api *API) taskLogs(rw http.ResponseWriter, r *http.Request) {
 //
 //   - Fetch the task workspace
 //   - Authorize ApplicationConnect on the workspace
-//   - Validate the AI task and sidebar app health
+//   - Validate the AI task and task app health
 //   - Dial the agent and construct an HTTP client to the apps loopback URL
 //
 // The provided callback receives the context, an HTTP client that dials via the
@@ -826,7 +826,7 @@ func (api *API) authAndDoWithTaskAppClient(
 	appURL := app.Url.String
 	if appURL == "" {
 		return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
-			Message: "Task sidebar app URL is not configured.",
+			Message: "Task app URL is not configured.",
 		})
 	}
 	parsedURL, err := url.Parse(appURL)

@@ -11880,6 +11880,12 @@ const docTemplate = `{
                 "user_id"
             ],
             "properties": {
+                "allow_list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.APIAllowListTarget"
+                    }
+                },
                 "created_at": {
                     "type": "string",
                     "format": "date-time"
@@ -15457,7 +15463,10 @@ const docTemplate = `{
                     }
                 },
                 "registration_access_token": {
-                    "type": "string"
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
                 },
                 "registration_client_uri": {
                     "type": "string"
@@ -20465,6 +20474,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "ai_task_sidebar_app_id": {
+                    "description": "Deprecated: This field has been replaced with ` + "`" + `TaskAppID` + "`" + `",
                     "type": "string",
                     "format": "uuid"
                 },
@@ -20545,6 +20555,10 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.WorkspaceStatus"
                         }
                     ]
+                },
+                "task_app_id": {
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "template_version_id": {
                     "type": "string",

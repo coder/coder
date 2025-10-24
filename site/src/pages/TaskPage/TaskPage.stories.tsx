@@ -207,7 +207,7 @@ export const SidebarAppNotFound: Story = {
 			...workspace,
 			latest_build: {
 				...workspace.latest_build,
-				ai_task_sidebar_app_id: "non-existent-app-id",
+				task_app_id: "non-existent-app-id",
 			},
 		});
 	},
@@ -454,7 +454,7 @@ function mockTaskWorkspace(
 		latest_build: {
 			...MockWorkspace.latest_build,
 			has_ai_task: true,
-			ai_task_sidebar_app_id: sidebarApp.id,
+			task_app_id: sidebarApp.id,
 			resources: [
 				{
 					...MockWorkspaceResource,

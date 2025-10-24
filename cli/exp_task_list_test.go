@@ -162,7 +162,7 @@ func TestExpTaskList(t *testing.T) {
 
 		// Validate the table includes the task and status.
 		pty.ExpectMatch(task.Name)
-		pty.ExpectMatch("running")
+		pty.ExpectMatch("initializing")
 		pty.ExpectMatch(wantPrompt)
 	})
 
@@ -175,9 +175,9 @@ func TestExpTaskList(t *testing.T) {
 		owner := coderdtest.CreateFirstUser(t, client)
 		memberClient, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
-		// Create two AI tasks: one running, one stopped.
-		runningTask := makeAITask(t, db, owner.OrganizationID, owner.UserID, memberUser.ID, database.WorkspaceTransitionStart, "keep me running")
-		stoppedTask := makeAITask(t, db, owner.OrganizationID, owner.UserID, memberUser.ID, database.WorkspaceTransitionStop, "stop me please")
+		// Create two AI tasks: one initializing, one paused.
+		initializingTask := makeAITask(t, db, owner.OrganizationID, owner.UserID, memberUser.ID, database.WorkspaceTransitionStart, "keep me initializing")
+		pausedTask := makeAITask(t, db, owner.OrganizationID, owner.UserID, memberUser.ID, database.WorkspaceTransitionStop, "stop me please")
 
 		// Use JSON output to reliably validate filtering.
 		inv, root := clitest.New(t, "exp", "task", "list", "--status=paused", "--output=json")
@@ -194,10 +194,10 @@ func TestExpTaskList(t *testing.T) {
 		var tasks []codersdk.Task
 		require.NoError(t, json.Unmarshal(stdout.Bytes(), &tasks))
 
-		// Only the stopped task is returned.
+		// Only the paused task is returned.
 		require.Len(t, tasks, 1, "expected one task after filtering")
-		require.Equal(t, stoppedTask.ID, tasks[0].ID)
-		require.NotEqual(t, runningTask.ID, tasks[0].ID)
+		require.Equal(t, pausedTask.ID, tasks[0].ID)
+		require.NotEqual(t, initializingTask.ID, tasks[0].ID)
 	})
 
 	t.Run("UserFlag_Me_Table", func(t *testing.T) {
@@ -234,7 +234,7 @@ func TestExpTaskList(t *testing.T) {
 		memberClient, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 		// Given: We have two tasks
-		task1 := makeAITask(t, db, owner.OrganizationID, owner.UserID, memberUser.ID, database.WorkspaceTransitionStart, "keep me running")
+		task1 := makeAITask(t, db, owner.OrganizationID, owner.UserID, memberUser.ID, database.WorkspaceTransitionStart, "keep me active")
 		task2 := makeAITask(t, db, owner.OrganizationID, owner.UserID, memberUser.ID, database.WorkspaceTransitionStop, "stop me please")
 
 		// Given: We add the `--quiet` flag
