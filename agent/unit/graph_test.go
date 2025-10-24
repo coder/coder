@@ -53,23 +53,6 @@ func randInt(limit int) int {
 	return int(n)
 }
 
-// saveDOTFile saves a DOT representation of the graph to a file for human inspection
-// during test debugging. This is useful for inspecting the graph structure.
-// this is not used for golden file verification. For golden files, see assertDOTGraph.
-func saveDOTFile(t *testing.T, graph *unit.Graph[testGraphEdge, *testGraphVertex], filename string) {
-	outputDir := t.TempDir()
-	dot, err := graph.ToDOT(filename)
-	if err != nil {
-		t.Logf("Failed to generate DOT for %s: %v", filename, err)
-		return
-	}
-
-	dotPath := filepath.Join(outputDir, filename+".dot")
-	err = os.WriteFile(dotPath, []byte(dot), 0o600)
-	require.NoError(t, err, "failed to write DOT file")
-	t.Logf("Saved DOT file: %s", dotPath)
-}
-
 // UpdateGoldenFiles indicates golden files should be updated.
 // To update the golden files:
 // make gen/golden-files
@@ -229,8 +212,8 @@ func TestGraph(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 			graph = testFunc(t)
+			assertDOTGraph(t, graph, testName)
 		})
-		assertDOTGraph(t, graph, testName)
 	}
 }
 
