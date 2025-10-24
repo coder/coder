@@ -241,4 +241,3 @@ If characters or colors appear incorrect:
 2. **Terminal type**: The terminal sets `TERM=xterm-256color` automatically
 3. **Color schemes**: Some applications may not render correctly in dark mode
 4. **Font rendering**: Try switching terminal fonts in your appearance settings
-
