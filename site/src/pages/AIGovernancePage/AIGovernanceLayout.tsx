@@ -7,6 +7,7 @@ import {
 import { Stack } from "components/Stack/Stack";
 import type { FC, PropsWithChildren } from "react";
 import { Outlet } from "react-router";
+import { AIGovernanceHelpTooltip } from "./AIGovernanceHelpTooltip";
 
 const Language = {
 	title: "AI Governance",
@@ -22,6 +23,7 @@ const AIGovernanceLayout: FC<PropsWithChildren> = ({
 				<PageHeaderTitle>
 					<Stack direction="row" spacing={1} alignItems="center">
 						<span>{Language.title}</span>
+						<AIGovernanceHelpTooltip />
 					</Stack>
 				</PageHeaderTitle>
 				<PageHeaderSubtitle>{Language.subtitle}</PageHeaderSubtitle>
