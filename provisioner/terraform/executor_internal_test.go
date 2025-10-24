@@ -198,7 +198,7 @@ func TestChecksumFileCRC32(t *testing.T) {
 		require.Equal(t, expectedChecksum, checksum)
 
 		// Modify file
-		err = os.WriteFile(tmpfile.Name(), []byte("modified content"), 0600)
+		err = os.WriteFile(tmpfile.Name(), []byte("modified content"), 0o600)
 		require.NoError(t, err)
 
 		// Checksum should be different
