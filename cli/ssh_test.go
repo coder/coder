@@ -2468,14 +2468,14 @@ func TestSSH_Completion(t *testing.T) {
 		defer cancel()
 
 		err := inv.WithContext(ctx).Run()
-		// Completion handlers may fail gracefully, so we don't assert error
-		_ = err
+		require.NoError(t, err)
 
 		// For single-agent workspaces, the workspace name should be suggested
 		// as an alias
 		output := stdout.String()
 		t.Logf("Completion output: %q", output)
 		require.Contains(t, output, workspace.Name)
+		require.Contains(t, output, "dev."+workspace.Name)
 	})
 
 	t.Run("MultiAgent", func(t *testing.T) {
@@ -2515,8 +2515,7 @@ func TestSSH_Completion(t *testing.T) {
 		defer cancel()
 
 		err := inv.WithContext(ctx).Run()
-		// Completion handlers may fail gracefully, so we don't assert error
-		_ = err
+		require.NoError(t, err)
 
 		// For multi-agent workspaces, completions should include agent.workspace format
 		// but NOT the bare workspace name
@@ -2540,10 +2539,9 @@ func TestSSH_Completion(t *testing.T) {
 		defer cancel()
 
 		err := inv.WithContext(ctx).Run()
-		_ = err
+		require.NoError(t, err)
 
 		output := stdout.String()
-		t.Logf("Completion output with error: %q", output)
-		require.Contains(t, output, "# Error:")
+		require.Empty(t, output)
 	})
 }

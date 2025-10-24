@@ -112,35 +112,44 @@ func (r *RootCmd) ssh() *serpent.Command {
 		CompletionHandler: func(inv *serpent.Invocation) []string {
 			client, err := r.InitClient(inv)
 			if err != nil {
-				return []string{"# Error: Unable to initialize client - " + err.Error()}
+				return []string{}
 			}
 
 			res, err := client.Workspaces(inv.Context(), codersdk.WorkspaceFilter{
-				Owner: "me",
+				Owner: codersdk.Me,
 			})
 			if err != nil {
-				return []string{"# Error: Unable to fetch workspaces - " + err.Error()}
+				return []string{}
 			}
 
+			var mu sync.Mutex
 			var completions []string
+			var wg sync.WaitGroup
 			for _, ws := range res.Workspaces {
-				if ws.LatestBuild.Status != codersdk.WorkspaceStatusRunning {
-					continue
-				}
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					resources, err := client.TemplateVersionResources(inv.Context(), ws.LatestBuild.TemplateVersionID)
+					if err != nil {
+						return
+					}
+					var agents []codersdk.WorkspaceAgent
+					for _, resource := range resources {
+						agents = append(agents, resource.Agents...)
+					}
 
-				var agents []codersdk.WorkspaceAgent
-				for _, resource := range ws.LatestBuild.Resources {
-					agents = append(agents, resource.Agents...)
-				}
-
-				if len(agents) == 1 {
-					completions = append(completions, ws.Name)
-				}
-
-				for _, agent := range agents {
-					completions = append(completions, fmt.Sprintf("%s.%s", agent.Name, ws.Name))
-				}
+					mu.Lock()
+					defer mu.Unlock()
+					if len(agents) == 1 {
+						completions = append(completions, ws.Name)
+					} else {
+						for _, agent := range agents {
+							completions = append(completions, fmt.Sprintf("%s.%s", ws.Name, agent.Name))
+						}
+					}
+				}()
 			}
+			wg.Wait()
 
 			slices.Sort(completions)
 			return completions
