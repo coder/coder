@@ -126,7 +126,16 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 													])}
 												>
 													<dt>{toolUsage.tool}</dt>
-													<dd>{toolUsage.input}</dd>
+													<dd>
+														<div className="flex flex-col gap-2">
+															<div>{toolUsage.input}</div>
+															{toolUsage.invocation_error && (
+																<div className="text-content-destructive">
+																	{toolUsage.invocation_error}
+																</div>
+															)}
+														</div>
+													</dd>
 												</dl>
 											);
 										})}
