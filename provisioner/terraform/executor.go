@@ -223,7 +223,7 @@ func (e *executor) init(ctx, killCtx context.Context, logr logSink) error {
 
 	// Record lock file checksum before init
 	lockFilePath := filepath.Join(e.workdir, ".terraform.lock.hcl")
-	preInitChecksum := checksumFileCRC32(lockFilePath)
+	preInitChecksum := checksumFileCRC32(ctx, e.logger, lockFilePath)
 
 	outWriter, doneOut := logWriter(logr, proto.LogLevel_DEBUG)
 	errWriter, doneErr := logWriter(logr, proto.LogLevel_ERROR)
@@ -256,46 +256,25 @@ func (e *executor) init(ctx, killCtx context.Context, logr logSink) error {
 	}
 
 	// Check if lock file was modified
-	postInitChecksum := checksumFileCRC32(lockFilePath)
+	postInitChecksum := checksumFileCRC32(ctx, e.logger, lockFilePath)
 	if preInitChecksum != 0 && postInitChecksum != 0 && preInitChecksum != postInitChecksum {
-		warnLockFileModified(ctx, e.logger, logr)
+		e.logger.Warn(ctx, fmt.Sprintf(".terraform.lock.hcl was modified during init. This means provider hashes "+
+			"are missing for the current platform (%s_%s). Update the lock file with:\n\n"+
+			"  terraform providers lock -platform=linux_amd64 -platform=linux_arm64 "+
+			"-platform=darwin_amd64 -platform=darwin_arm64 -platform=windows_amd64\n",
+			runtime.GOOS, runtime.GOARCH),
+		)
 	}
-
 	return nil
 }
 
-// checksumFileCRC32 calculates the CRC32 checksum of a file.
-// Returns 0 if the file doesn't exist or can't be read.
-func checksumFileCRC32(path string) uint32 {
+func checksumFileCRC32(ctx context.Context, logger slog.Logger, path string) uint32 {
 	content, err := os.ReadFile(path)
 	if err != nil {
+		logger.Debug(ctx, "file %s does not exist or can't be read, skip checksum calculation")
 		return 0
 	}
 	return crc32.ChecksumIEEE(content)
-}
-
-// warnLockFileModified warns the user that the .terraform.lock.hcl file was modified
-// during terraform init, indicating missing provider hashes for the current platform.
-func warnLockFileModified(ctx context.Context, logger slog.Logger, logr logSink) {
-	logger.Warn(ctx, "terraform modified .terraform.lock.hcl during init")
-
-	platform := fmt.Sprintf("%s_%s", runtime.GOOS, runtime.GOARCH)
-
-	warningWriter, done := logWriter(logr, proto.LogLevel_WARN)
-	defer func() {
-		_ = warningWriter.Close()
-		<-done
-	}()
-
-	warning := fmt.Sprintf(
-		"WARN: .terraform.lock.hcl was modified during init. This means provider hashes "+
-			"are missing for the current platform (%s). Update the lock file with:\n\n"+
-			"  terraform providers lock -platform=linux_amd64 -platform=linux_arm64 "+
-			"-platform=darwin_amd64 -platform=darwin_arm64 -platform=windows_amd64\n",
-		platform,
-	)
-
-	_, _ = warningWriter.Write([]byte(warning))
 }
 
 func getPlanFilePath(workdir string) string {

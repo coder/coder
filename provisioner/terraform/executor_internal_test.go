@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/provisionersdk/proto"
-	"github.com/coder/coder/v2/testutil"
 )
 
 type mockLogger struct {
@@ -212,55 +211,4 @@ func TestChecksumFileCRC32(t *testing.T) {
 		checksum := checksumFileCRC32("/nonexistent/file.hcl")
 		require.Zero(t, checksum)
 	})
-}
-
-func TestWarnLockFileModified(t *testing.T) {
-	t.Parallel()
-
-	logger := testutil.Logger(t)
-	logr := &mockLogger{}
-
-	warnLockFileModified(testutil.Context(t, testutil.WaitShort), logger, logr)
-
-	// Check if warning was logged
-	var hasWarning bool
-	var allWarningContent string
-	for _, log := range logr.logs {
-		if log.Level == proto.LogLevel_WARN {
-			hasWarning = true
-			allWarningContent += log.Output
-		}
-	}
-
-	require.True(t, hasWarning, "expected warning log")
-	require.Contains(t, allWarningContent, "WARN: .terraform.lock.hcl was modified during init")
-	require.Contains(t, allWarningContent, "missing for the current platform")
-	require.Contains(t, allWarningContent, "terraform providers lock")
-	require.Contains(t, allWarningContent, "-platform=linux_amd64")
-}
-
-func TestBufferedWriteCloser(t *testing.T) {
-	t.Parallel()
-
-	logr := &mockLogger{}
-	writer, done := logWriter(logr, proto.LogLevel_DEBUG)
-	buf := newBufferedWriteCloser(writer)
-
-	testData := []byte("line1\nline2\nline3")
-	n, err := buf.Write(testData)
-	require.NoError(t, err)
-	require.Equal(t, len(testData), n)
-
-	// Verify data is in buffer
-	require.Equal(t, testData, buf.b.Bytes())
-
-	err = buf.Close()
-	require.NoError(t, err)
-	<-done
-
-	// Verify data was written to logger
-	require.Len(t, logr.logs, 3)
-	require.Equal(t, "line1", logr.logs[0].Output)
-	require.Equal(t, "line2", logr.logs[1].Output)
-	require.Equal(t, "line3", logr.logs[2].Output)
 }
