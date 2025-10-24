@@ -3956,7 +3956,7 @@ type OAuth2ProviderApp struct {
 	// RFC 7591: Version of the client software
 	SoftwareVersion sql.NullString `db:"software_version" json:"software_version"`
 	// RFC 7592: Hashed registration access token for client management
-	RegistrationAccessToken sql.NullString `db:"registration_access_token" json:"registration_access_token"`
+	RegistrationAccessToken []byte `db:"registration_access_token" json:"registration_access_token"`
 	// RFC 7592: URI for client configuration endpoint
 	RegistrationClientUri sql.NullString `db:"registration_client_uri" json:"registration_client_uri"`
 }

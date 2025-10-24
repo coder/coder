@@ -151,31 +151,8 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query for filtering tasks",
+                        "description": "Search query for filtering tasks. Supports: owner:\u003cusername/uuid/me\u003e, organization:\u003corg-name/uuid\u003e, status:\u003cstatus\u003e",
                         "name": "q",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Return tasks after this ID for pagination",
-                        "name": "after_id",
-                        "in": "query"
-                    },
-                    {
-                        "maximum": 100,
-                        "minimum": 1,
-                        "type": "integer",
-                        "default": 25,
-                        "description": "Maximum number of tasks to return",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "minimum": 0,
-                        "type": "integer",
-                        "default": 0,
-                        "description": "Offset for pagination",
-                        "name": "offset",
                         "in": "query"
                     }
                 ],
@@ -183,7 +160,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/coderd.tasksListResponse"
+                            "$ref": "#/definitions/codersdk.TasksListResponse"
                         }
                     }
                 }
@@ -229,7 +206,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/experimental/tasks/{user}/{id}": {
+        "/api/experimental/tasks/{user}/{task}": {
             "get": {
                 "security": [
                     {
@@ -253,7 +230,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Task ID",
-                        "name": "id",
+                        "name": "task",
                         "in": "path",
                         "required": true
                     }
@@ -290,7 +267,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Task ID",
-                        "name": "id",
+                        "name": "task",
                         "in": "path",
                         "required": true
                     }
@@ -302,7 +279,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/experimental/tasks/{user}/{id}/logs": {
+        "/api/experimental/tasks/{user}/{task}/logs": {
             "get": {
                 "security": [
                     {
@@ -326,7 +303,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Task ID",
-                        "name": "id",
+                        "name": "task",
                         "in": "path",
                         "required": true
                     }
@@ -341,7 +318,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/experimental/tasks/{user}/{id}/send": {
+        "/api/experimental/tasks/{user}/{task}/send": {
             "post": {
                 "security": [
                     {
@@ -365,7 +342,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Task ID",
-                        "name": "id",
+                        "name": "task",
                         "in": "path",
                         "required": true
                     },
@@ -11663,20 +11640,6 @@ const docTemplate = `{
                 }
             }
         },
-        "coderd.tasksListResponse": {
-            "type": "object",
-            "properties": {
-                "count": {
-                    "type": "integer"
-                },
-                "tasks": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.Task"
-                    }
-                }
-            }
-        },
         "codersdk.ACLAvailable": {
             "type": "object",
             "properties": {
@@ -11917,6 +11880,12 @@ const docTemplate = `{
                 "user_id"
             ],
             "properties": {
+                "allow_list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.APIAllowListTarget"
+                    }
+                },
                 "created_at": {
                     "type": "string",
                     "format": "date-time"
@@ -15494,7 +15463,10 @@ const docTemplate = `{
                     }
                 },
                 "registration_access_token": {
-                    "type": "string"
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
                 },
                 "registration_client_uri": {
                     "type": "string"
@@ -17758,6 +17730,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "owner_avatar_url": {
+                    "type": "string"
+                },
                 "owner_id": {
                     "type": "string",
                     "format": "uuid"
@@ -17833,6 +17808,9 @@ const docTemplate = `{
                             "$ref": "#/definitions/uuid.NullUUID"
                         }
                     ]
+                },
+                "workspace_name": {
+                    "type": "string"
                 },
                 "workspace_status": {
                     "enum": [
@@ -17954,6 +17932,20 @@ const docTemplate = `{
                 "TaskStatusUnknown",
                 "TaskStatusError"
             ]
+        },
+        "codersdk.TasksListResponse": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "tasks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Task"
+                    }
+                }
+            }
         },
         "codersdk.TelemetryConfig": {
             "type": "object",
@@ -20482,6 +20474,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "ai_task_sidebar_app_id": {
+                    "description": "Deprecated: This field has been replaced with ` + "`" + `TaskAppID` + "`" + `",
                     "type": "string",
                     "format": "uuid"
                 },
@@ -20562,6 +20555,10 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.WorkspaceStatus"
                         }
                     ]
+                },
+                "task_app_id": {
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "template_version_id": {
                     "type": "string",

@@ -31,7 +31,7 @@ jobs:
           persist-credentials: false
 
       - name: Check Markdown links
-        uses: umbrelladocs/action-linkspector@874d01cae9fd488e3077b08952093235bd626977 # v1.3.7
+        uses: umbrelladocs/action-linkspector@652f85bc57bb1e7d4327260decc10aa68f7694c3 # v1.4.0
         id: markdown-link-check
         # checks all markdown files from /docs including all subfolders
         with:

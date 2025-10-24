@@ -1,6 +1,5 @@
 import {
 	MockAIPromptPresets,
-	MockNewTaskData,
 	MockPresets,
 	MockTask,
 	MockTasks,
@@ -14,9 +13,18 @@ import {
 import { withAuthProvider, withGlobalSnackbar } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
+import type { Task } from "api/typesGenerated";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import type TasksPage from "../../../pages/TasksPage/TasksPage";
 import { TaskPrompt } from "./TaskPrompt";
+
+const MockNewTaskData: Task = {
+	...MockTask,
+	current_state: {
+		...MockTask.current_state,
+		message: "Task created successfully!",
+	},
+};
 
 const meta: Meta<typeof TasksPage> = {
 	title: "modules/tasks/TaskPrompt",
@@ -77,7 +85,7 @@ export const SubmitEnabledWhenPromptNotEmpty: Story = {
 		const canvas = within(canvasElement);
 
 		const prompt = await canvas.findByLabelText(/prompt/i);
-		await userEvent.type(prompt, MockNewTaskData.prompt);
+		await userEvent.type(prompt, MockNewTaskData.initial_prompt);
 
 		const submitButton = canvas.getByRole("button", { name: /run task/i });
 		expect(submitButton).toBeEnabled();
@@ -152,7 +160,7 @@ export const OnSuccess: Story = {
 
 		await step("Run task", async () => {
 			const prompt = await canvas.findByLabelText(/prompt/i);
-			await userEvent.type(prompt, MockNewTaskData.prompt);
+			await userEvent.type(prompt, MockNewTaskData.initial_prompt);
 			const submitButton = canvas.getByRole("button", { name: /run task/i });
 			await waitFor(() => expect(submitButton).toBeEnabled());
 			await userEvent.click(submitButton);
@@ -162,7 +170,7 @@ export const OnSuccess: Story = {
 			expect(API.experimental.createTask).toHaveBeenCalledWith(
 				MockUserOwner.id,
 				{
-					input: MockNewTaskData.prompt,
+					input: MockNewTaskData.initial_prompt,
 					template_version_id: `${MockTemplate.active_version_id}-latest`,
 					template_version_preset_id: undefined,
 				},
@@ -267,7 +275,7 @@ export const SelectTemplateVersion: Story = {
 
 		await step("Fill prompt", async () => {
 			const prompt = await canvas.findByLabelText(/prompt/i);
-			await userEvent.type(prompt, MockNewTaskData.prompt);
+			await userEvent.type(prompt, MockNewTaskData.initial_prompt);
 		});
 
 		await step("Select version", async () => {
@@ -290,7 +298,7 @@ export const SelectTemplateVersion: Story = {
 			expect(API.experimental.createTask).toHaveBeenCalledWith(
 				MockUserOwner.id,
 				{
-					input: MockNewTaskData.prompt,
+					input: MockNewTaskData.initial_prompt,
 					template_version_id: "test-template-version-2",
 					template_version_preset_id: undefined,
 				},
@@ -375,7 +383,7 @@ export const MissingExternalAuth: Story = {
 
 		await step("Submit is disabled", async () => {
 			const prompt = await canvas.findByLabelText(/prompt/i);
-			await userEvent.type(prompt, MockNewTaskData.prompt);
+			await userEvent.type(prompt, MockNewTaskData.initial_prompt);
 			const submitButton = canvas.getByRole("button", { name: /run task/i });
 			expect(submitButton).toBeDisabled();
 		});
@@ -403,7 +411,7 @@ export const ExternalAuthError: Story = {
 
 		await step("Submit is disabled", async () => {
 			const prompt = await canvas.findByLabelText(/prompt/i);
-			await userEvent.type(prompt, MockNewTaskData.prompt);
+			await userEvent.type(prompt, MockNewTaskData.initial_prompt);
 			const submitButton = canvas.getByRole("button", { name: /run task/i });
 			expect(submitButton).toBeDisabled();
 		});

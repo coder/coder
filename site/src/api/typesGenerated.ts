@@ -141,6 +141,7 @@ export interface APIKey {
 	readonly scopes: readonly APIKeyScope[];
 	readonly token_name: string;
 	readonly lifetime_seconds: number;
+	readonly allow_list: readonly APIAllowListTarget[];
 }
 
 // From codersdk/apikey.go
@@ -4700,6 +4701,7 @@ export interface Task {
 	readonly organization_id: string;
 	readonly owner_id: string;
 	readonly owner_name: string;
+	readonly owner_avatar_url?: string;
 	readonly name: string;
 	readonly template_id: string;
 	readonly template_version_id: string;
@@ -4707,6 +4709,7 @@ export interface Task {
 	readonly template_display_name: string;
 	readonly template_icon: string;
 	readonly workspace_id: string | null;
+	readonly workspace_name: string;
 	readonly workspace_status?: WorkspaceStatus;
 	readonly workspace_build_number?: number;
 	readonly workspace_agent_id: string | null;
@@ -4810,6 +4813,29 @@ export interface TasksFilter {
 	 * Owner can be a username, UUID, or "me".
 	 */
 	readonly owner?: string;
+	/**
+	 * Organization can be an organization name or UUID.
+	 */
+	readonly organization?: string;
+	/**
+	 * Status filters the tasks by their task status.
+	 */
+	readonly status?: TaskStatus;
+	/**
+	 * FilterQuery allows specifying a raw filter query.
+	 */
+	readonly filter_query?: string;
+}
+
+// From codersdk/aitasks.go
+/**
+ * TaskListResponse is the response shape for tasks list.
+ *
+ * Experimental response shape for tasks list (server returns []Task).
+ */
+export interface TasksListResponse {
+	readonly tasks: readonly Task[];
+	readonly count: number;
 }
 
 // From codersdk/deployment.go
@@ -6351,7 +6377,11 @@ export interface WorkspaceBuild {
 	readonly matched_provisioners?: MatchedProvisioners;
 	readonly template_version_preset_id: string | null;
 	readonly has_ai_task?: boolean;
+	/**
+	 * Deprecated: This field has been replaced with `TaskAppID`
+	 */
 	readonly ai_task_sidebar_app_id?: string;
+	readonly task_app_id?: string;
 	readonly has_external_agent?: boolean;
 }
 

@@ -22,7 +22,6 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/userpassword"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -197,11 +196,9 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 	if err != nil {
 		return oauth2.Token{}, err
 	}
-	equal, err := userpassword.Compare(string(dbSecret.HashedSecret), secret.Secret)
-	if err != nil {
-		return oauth2.Token{}, xerrors.Errorf("unable to compare secret: %w", err)
-	}
-	if !equal {
+
+	equalSecret := apikey.ValidateHash(dbSecret.HashedSecret, secret.Secret)
+	if !equalSecret {
 		return oauth2.Token{}, errBadSecret
 	}
 
@@ -218,11 +215,8 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 	if err != nil {
 		return oauth2.Token{}, err
 	}
-	equal, err = userpassword.Compare(string(dbCode.HashedSecret), code.Secret)
-	if err != nil {
-		return oauth2.Token{}, xerrors.Errorf("unable to compare code: %w", err)
-	}
-	if !equal {
+	equalCode := apikey.ValidateHash(dbCode.HashedSecret, code.Secret)
+	if !equalCode {
 		return oauth2.Token{}, errBadCode
 	}
 
@@ -318,7 +312,7 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 			CreatedAt:   dbtime.Now(),
 			ExpiresAt:   refreshExpiresAt,
 			HashPrefix:  []byte(refreshToken.Prefix),
-			RefreshHash: []byte(refreshToken.Hashed),
+			RefreshHash: refreshToken.Hashed,
 			AppSecretID: dbSecret.ID,
 			APIKeyID:    newKey.ID,
 			UserID:      dbCode.UserID,
@@ -356,10 +350,7 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 	if err != nil {
 		return oauth2.Token{}, err
 	}
-	equal, err := userpassword.Compare(string(dbToken.RefreshHash), token.Secret)
-	if err != nil {
-		return oauth2.Token{}, xerrors.Errorf("unable to compare token: %w", err)
-	}
+	equal := apikey.ValidateHash(dbToken.RefreshHash, token.Secret)
 	if !equal {
 		return oauth2.Token{}, errBadToken
 	}
@@ -434,7 +425,7 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 			CreatedAt:   dbtime.Now(),
 			ExpiresAt:   refreshExpiresAt,
 			HashPrefix:  []byte(refreshToken.Prefix),
-			RefreshHash: []byte(refreshToken.Hashed),
+			RefreshHash: refreshToken.Hashed,
 			AppSecretID: dbToken.AppSecretID,
 			APIKeyID:    newKey.ID,
 			UserID:      dbToken.UserID,
