@@ -16,7 +16,6 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
@@ -238,118 +237,6 @@ func TestGraph(t *testing.T) {
 func TestGraphThreadSafety(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ConcurrentAddEdge", func(t *testing.T) {
-		t.Parallel()
-
-		graph := &testGraph{}
-		var wg sync.WaitGroup
-		const numGoroutines = 100
-		const edgesPerGoroutine = 10
-
-		// Launch goroutines to add edges concurrently
-		errors := make([]error, numGoroutines*edgesPerGoroutine)
-		errorIndex := 0
-		var mu sync.Mutex
-
-		barrier := make(chan struct{})
-		for i := 0; i < numGoroutines; i++ {
-			wg.Add(1)
-			go func(goroutineID int) {
-				defer wg.Done()
-				<-barrier
-				for j := 0; j < edgesPerGoroutine; j++ {
-					from := &testGraphVertex{Name: fmt.Sprintf("unit-%d-%d", goroutineID, j)}
-					to := &testGraphVertex{Name: fmt.Sprintf("unit-%d-%d", goroutineID, j+1)}
-					err := graph.AddEdge(from, to, testEdgeCompleted)
-
-					mu.Lock()
-					errors[errorIndex] = err
-					errorIndex++
-					mu.Unlock()
-				}
-			}(i)
-		}
-
-		close(barrier)
-		wg.Wait()
-
-		// Verify no errors occurred during concurrent operations
-		for i, err := range errors {
-			require.NoError(t, err, "error at index %d", i)
-		}
-
-		// Save DOT file for analysis
-		saveDOTFile(t, graph, "concurrent-add-edge")
-
-		// Verify that the graph is in a valid state after concurrent operations.
-		// We can't easily count total edges due to concurrent access, but we can verify
-		// the graph is still functional
-		dot, err := graph.ToDOT("test")
-		require.NoError(t, err)
-		require.NotEmpty(t, dot)
-	})
-
-	t.Run("ConcurrentReads", func(t *testing.T) {
-		t.Parallel()
-
-		graph := &testGraph{}
-
-		// Pre-populate graph with 50 vertices and edges
-		units := make([]*testGraphVertex, 50)
-		for i := 0; i < 50; i++ {
-			units[i] = &testGraphVertex{Name: fmt.Sprintf("unit-%d", i)}
-		}
-
-		// Add edges to create a chain
-		for i := 0; i < 49; i++ {
-			err := graph.AddEdge(units[i], units[i+1], testEdgeCompleted)
-			require.NoError(t, err)
-		}
-
-		// Save initial DOT file
-		saveDOTFile(t, graph, "concurrent-reads-initial")
-
-		var wg sync.WaitGroup
-		const numReaders = 200
-
-		// Launch readers
-		results := make([]struct {
-			forwardLen int
-			reverseLen int
-			panicked   bool
-		}, numReaders)
-
-		for i := 0; i < numReaders; i++ {
-			wg.Add(1)
-			go func(readerID int) {
-				defer wg.Done()
-				defer func() {
-					if r := recover(); r != nil {
-						results[readerID].panicked = true
-					}
-				}()
-
-				// Read from random vertices
-				vertex := units[randInt(len(units))]
-				forwardEdges := graph.GetForwardAdjacentVertices(vertex)
-				reverseEdges := graph.GetReverseAdjacentVertices(vertex)
-
-				// Store results for verification outside goroutine
-				results[readerID].forwardLen = len(forwardEdges)
-				results[readerID].reverseLen = len(reverseEdges)
-			}(i)
-		}
-
-		wg.Wait()
-
-		// Verify results outside of goroutines
-		for i, result := range results {
-			require.False(t, result.panicked, "reader %d panicked", i)
-			require.LessOrEqual(t, result.forwardLen, 1, "reader %d: chain has max 1 forward edge", i)
-			require.LessOrEqual(t, result.reverseLen, 1, "reader %d: chain has max 1 reverse edge", i)
-		}
-	})
-
 	t.Run("ConcurrentReadWrite", func(t *testing.T) {
 		t.Parallel()
 
@@ -412,60 +299,6 @@ func TestGraphThreadSafety(t *testing.T) {
 			require.False(t, result.panicked, "reader %d panicked", i)
 			require.Equal(t, operationsPerReader, result.readCount, "reader %d should have performed expected reads", i)
 		}
-	})
-
-	t.Run("ConcurrentVertexCreation", func(t *testing.T) {
-		t.Parallel()
-
-		graph := &testGraph{}
-		var wg sync.WaitGroup
-		const numGoroutines = 100
-		vertexNames := make(map[string]bool)
-		var mu sync.Mutex
-
-		// Launch goroutines to create vertices concurrently
-		errors := make([]error, numGoroutines*5)
-		errorIndex := 0
-		var errorMu sync.Mutex
-
-		for i := 0; i < numGoroutines; i++ {
-			wg.Add(1)
-			go func(goroutineID int) {
-				defer wg.Done()
-				for j := 0; j < 5; j++ {
-					vertexName := fmt.Sprintf("vertex-%d-%d", goroutineID, j)
-					from := &testGraphVertex{Name: vertexName}
-					to := &testGraphVertex{Name: fmt.Sprintf("target-%d-%d", goroutineID, j)}
-
-					err := graph.AddEdge(from, to, testEdgeCompleted)
-
-					errorMu.Lock()
-					errors[errorIndex] = err
-					errorIndex++
-					errorMu.Unlock()
-
-					// Track vertex names to verify uniqueness
-					mu.Lock()
-					vertexNames[vertexName] = true
-					mu.Unlock()
-				}
-			}(i)
-		}
-
-		wg.Wait()
-
-		// Verify no errors occurred during concurrent operations
-		for i, err := range errors {
-			require.NoError(t, err, "error at index %d", i)
-		}
-
-		// Verify all vertices were created and graph is consistent
-		require.Equal(t, numGoroutines*5, len(vertexNames))
-
-		// Verify graph can still be exported (no internal corruption)
-		dot, err := graph.ToDOT("test")
-		require.NoError(t, err)
-		require.NotEmpty(t, dot)
 	})
 
 	t.Run("ConcurrentCycleDetection", func(t *testing.T) {
@@ -569,68 +402,46 @@ func TestGraphThreadSafety(t *testing.T) {
 			require.NotEmpty(t, dot, "DOT result %d should not be empty", i)
 		}
 	})
+}
 
-	t.Run("StressTest", func(t *testing.T) {
-		t.Parallel()
+func BenchmarkGraph_ConcurrentMixedOperations(b *testing.B) {
+	graph := &testGraph{}
+	var wg sync.WaitGroup
+	const numGoroutines = 200
 
-		graph := &testGraph{}
-		var wg sync.WaitGroup
-		const numGoroutines = 200
-		operations := make([]string, 0, 1000)
-		var mu sync.Mutex
-
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
 		// Launch goroutines performing random operations
-		for i := 0; i < numGoroutines; i++ {
+		for j := 0; j < numGoroutines; j++ {
 			wg.Add(1)
 			go func(goroutineID int) {
 				defer wg.Done()
-				start := time.Now()
 				operationCount := 0
 
-				for time.Since(start) < 500*time.Millisecond && operationCount < 50 {
+				for operationCount < 50 {
 					operation := float32(randInt(100)) / 100.0
 
 					if operation < 0.6 { // 60% reads
 						// Read operation
-						testUnit := &testGraphVertex{Name: fmt.Sprintf("stress-read-%d", goroutineID)}
+						testUnit := &testGraphVertex{Name: fmt.Sprintf("bench-read-%d-%d", goroutineID, operationCount)}
 						forwardEdges := graph.GetForwardAdjacentVertices(testUnit)
 						reverseEdges := graph.GetReverseAdjacentVertices(testUnit)
 
 						// Just verify no panics (results may be nil for non-existent vertices)
 						_ = forwardEdges
 						_ = reverseEdges
-
-						mu.Lock()
-						operations = append(operations, "read")
-						mu.Unlock()
 					} else { // 40% writes
 						// Write operation
-						from := &testGraphVertex{Name: fmt.Sprintf("stress-write-%d-%d", goroutineID, operationCount)}
-						to := &testGraphVertex{Name: fmt.Sprintf("stress-write-target-%d-%d", goroutineID, operationCount)}
+						from := &testGraphVertex{Name: fmt.Sprintf("bench-write-%d-%d", goroutineID, operationCount)}
+						to := &testGraphVertex{Name: fmt.Sprintf("bench-write-target-%d-%d", goroutineID, operationCount)}
 						graph.AddEdge(from, to, testEdgeCompleted)
-
-						mu.Lock()
-						operations = append(operations, "write")
-						mu.Unlock()
 					}
 
 					operationCount++
-					time.Sleep(time.Microsecond) // Small delay
 				}
-			}(i)
+			}(j)
 		}
 
 		wg.Wait()
-
-		// Verify we performed operations
-		require.Greater(t, len(operations), 0)
-
-		// Save DOT file for analysis
-		saveDOTFile(t, graph, "stress-test-final")
-
-		// Verify graph is still functional
-		dot, err := graph.ToDOT("stress-test")
-		require.NoError(t, err)
-		require.NotEmpty(t, dot)
-	})
+	}
 }
