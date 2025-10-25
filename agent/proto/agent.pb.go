@@ -1516,7 +1516,10 @@ type Stats struct {
 	SessionCountReconnectingPty int64 `protobuf:"varint,10,opt,name=session_count_reconnecting_pty,json=sessionCountReconnectingPty,proto3" json:"session_count_reconnecting_pty,omitempty"`
 	// SessionCountSSH is the number of connections received by an agent
 	// that are normal, non-tagged SSH sessions.
-	SessionCountSsh int64           `protobuf:"varint,11,opt,name=session_count_ssh,json=sessionCountSsh,proto3" json:"session_count_ssh,omitempty"`
+	SessionCountSsh int64 `protobuf:"varint,11,opt,name=session_count_ssh,json=sessionCountSsh,proto3" json:"session_count_ssh,omitempty"`
+	// SessionCountRDP is the number of connections received by an agent
+	// that are RDP (Remote Desktop Protocol) sessions.
+	SessionCountRdp int64           `protobuf:"varint,13,opt,name=session_count_rdp,json=sessionCountRdp,proto3" json:"session_count_rdp,omitempty"`
 	Metrics         []*Stats_Metric `protobuf:"bytes,12,rep,name=metrics,proto3" json:"metrics,omitempty"`
 }
 
@@ -1625,6 +1628,13 @@ func (x *Stats) GetSessionCountReconnectingPty() int64 {
 func (x *Stats) GetSessionCountSsh() int64 {
 	if x != nil {
 		return x.SessionCountSsh
+	}
+	return 0
+}
+
+func (x *Stats) GetSessionCountRdp() int64 {
+	if x != nil {
+		return x.SessionCountRdp
 	}
 	return 0
 }

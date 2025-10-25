@@ -65,6 +65,7 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 		req.Stats.SessionCountJetbrains = 0
 		req.Stats.SessionCountVscode = 0
 		req.Stats.SessionCountReconnectingPty = 0
+		req.Stats.SessionCountRdp = 0
 	}
 
 	err = a.StatsReporter.ReportAgentStats(

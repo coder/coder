@@ -135,7 +135,7 @@ func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspac
 	}
 
 	// workspace activity: if no sessions we do not bump activity
-	if usage && stats.SessionCountVscode == 0 && stats.SessionCountJetbrains == 0 && stats.SessionCountReconnectingPty == 0 && stats.SessionCountSsh == 0 {
+	if usage && stats.SessionCountVscode == 0 && stats.SessionCountJetbrains == 0 && stats.SessionCountReconnectingPty == 0 && stats.SessionCountSsh == 0 && stats.SessionCountRdp == 0 {
 		return nil
 	}
 
