@@ -559,3 +559,27 @@ confidential resources to their local machines.
 
 For more advanced security needs, consider adopting an endpoint security
 solution.
+
+## How do I change the access URL for my Coder server?
+
+You may want to change the default domain that's used to access coder, i.e. `yourcompany.coder.com` and find yourself unfamiliar with the process.
+
+To change the access URL associated with your server, you can edit any of the following variables:
+
+- CLI using the `--access-url` flag
+- YAML using the `accessURL` option
+- or ENV using the `CODER_ACCESS_URL` environmental variable.
+
+For example, if you're using an environment file to configure your server, you'll want to edit the file located at `/etc/coder.d/coder.env` and edit the following:
+
+`CODER_ACCESS_URL=https://yourcompany.coder.com` to your new desired URL.
+
+Then save your changes, and reload daemon-ctl using the following command:
+
+`systemctl daemon-reload`
+
+and restart the service using:
+
+`systemctl restart coder`
+
+After coder restarts, your changes should be applied and should reflect in the admin settings.
