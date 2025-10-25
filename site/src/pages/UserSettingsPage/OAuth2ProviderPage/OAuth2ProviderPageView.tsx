@@ -11,6 +11,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "components/Table/Table";
+import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import type { FC } from "react";
 
@@ -40,18 +41,12 @@ const OAuth2ProviderPageView: FC<OAuth2ProviderPageViewProps> = ({
 				</TableHeader>
 				<TableBody>
 					{isLoading && <TableLoader />}
+					{(!apps || apps?.length === 0) && (
+						<TableEmpty message="No OAuth2 applications have been authorized" />
+					)}
 					{apps?.map((app) => (
 						<OAuth2AppRow key={app.id} app={app} revoke={revoke} />
 					))}
-					{apps?.length === 0 && (
-						<TableRow>
-							<TableCell colSpan={999}>
-								<div css={{ textAlign: "center" }}>
-									No OAuth2 applications have been authorized.
-								</div>
-							</TableCell>
-						</TableRow>
-					)}
 				</TableBody>
 			</Table>
 		</>
