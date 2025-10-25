@@ -9,26 +9,19 @@ vpn/version.go @spikecurtis @johnstcn
 
 # This caching code is particularly tricky, and one must be very careful when
 # altering it.
-coderd/files/ @aslilac
+coderd/files/ @aslilac @Emyrk
 
-coderd/dynamicparameters/ @Emyrk
-coderd/rbac/ @Emyrk
+# This feature is still in active development
+coderd/dynamicparameters/ @Emyrk @aslilac
+# Permissions are important to get right
+coderd/rbac/ @Emyrk @aslilac
 
-# Mainly dependent on coder/guts, which is maintained by @Emyrk
-scripts/apitypings/ @Emyrk
-scripts/gensite/ @aslilac
+# Mainly dependent on coder/guts
+scripts/apitypings/ @Emyrk @aslilac
+scripts/gensite/ @aslilac @Emyrk
 
-site/ @aslilac @Parkreiner
-site/src/hooks/ @Parkreiner
-# These rules intentionally do not specify any owners. More specific rules
-# override less specific rules, so these files are "ignored" by the site/ rule.
-site/e2e/google/protobuf/timestampGenerated.ts
-site/e2e/provisionerGenerated.ts
-site/src/api/countriesGenerated.ts
-site/src/api/rbacresourcesGenerated.ts
-site/src/api/typesGenerated.ts
-site/src/testHelpers/entities.ts
-site/CLAUDE.md
+# Hooks are important to get right for frontend performance concerns
+site/src/hooks/ @Parkreiner @aslilac
 
 # The blood and guts of the autostop algorithm, which is quite complex and
 # requires elite ball knowledge of most of the scheduling code to make changes
