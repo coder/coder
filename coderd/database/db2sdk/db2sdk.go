@@ -962,7 +962,7 @@ func AIBridgeInterception(interception database.AIBridgeInterception, initiator 
 		// created_at ASC
 		return sdkToolUsages[i].CreatedAt.Before(sdkToolUsages[j].CreatedAt)
 	})
-	return codersdk.AIBridgeInterception{
+	intc := codersdk.AIBridgeInterception{
 		ID:          interception.ID,
 		Initiator:   MinimalUserFromVisibleUser(initiator),
 		Provider:    interception.Provider,
@@ -973,6 +973,10 @@ func AIBridgeInterception(interception database.AIBridgeInterception, initiator 
 		UserPrompts: sdkUserPrompts,
 		ToolUsages:  sdkToolUsages,
 	}
+	if interception.EndedAt.Valid {
+		intc.EndedAt = &interception.EndedAt.Time
+	}
+	return intc
 }
 
 func AIBridgeTokenUsage(usage database.AIBridgeTokenUsage) codersdk.AIBridgeTokenUsage {

@@ -379,6 +379,7 @@
 
 ```json
 {
+  "ended_at": "2019-08-24T14:15:22Z",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "initiator": {
     "avatar_url": "http://example.com",
@@ -444,6 +445,7 @@
 
 | Name               | Type                                                                | Required | Restrictions | Description |
 |--------------------|---------------------------------------------------------------------|----------|--------------|-------------|
+| `ended_at`         | string                                                              | false    |              |             |
 | `id`               | string                                                              | false    |              |             |
 | `initiator`        | [codersdk.MinimalUser](#codersdkminimaluser)                        | false    |              |             |
 | `metadata`         | object                                                              | false    |              |             |
@@ -462,6 +464,7 @@
   "count": 0,
   "results": [
     {
+      "ended_at": "2019-08-24T14:15:22Z",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "initiator": {
         "avatar_url": "http://example.com",

@@ -43,16 +43,16 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		interception1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID: member.ID,
 			StartedAt:   now.Add(-time.Hour),
-		})
+		}, &now)
 		interception2 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID: member.ID,
 			StartedAt:   now,
-		})
+		}, nil)
 		// Should not be returned because the user can't see it.
 		_ = dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID: owner.UserID,
 			StartedAt:   now.Add(-2 * time.Hour),
-		})
+		}, nil)
 
 		args := []string{
 			"exp",
@@ -99,7 +99,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 			Provider:    "real-provider",
 			Model:       "real-model",
 			StartedAt:   now,
-		})
+		}, nil)
 
 		// These interceptions should not be returned since they don't match the
 		// filters.
@@ -108,33 +108,33 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 			Provider:    goodInterception.Provider,
 			Model:       goodInterception.Model,
 			StartedAt:   goodInterception.StartedAt,
-		})
+		}, nil)
 		_ = dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID: goodInterception.InitiatorID,
 			Provider:    "bad-provider",
 			Model:       goodInterception.Model,
 			StartedAt:   goodInterception.StartedAt,
-		})
+		}, nil)
 		_ = dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID: goodInterception.InitiatorID,
 			Provider:    goodInterception.Provider,
 			Model:       "bad-model",
 			StartedAt:   goodInterception.StartedAt,
-		})
+		}, nil)
 		_ = dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID: goodInterception.InitiatorID,
 			Provider:    goodInterception.Provider,
 			Model:       goodInterception.Model,
 			// Violates the started after filter.
 			StartedAt: now.Add(-2 * time.Hour),
-		})
+		}, nil)
 		_ = dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID: goodInterception.InitiatorID,
 			Provider:    goodInterception.Provider,
 			Model:       goodInterception.Model,
 			// Violates the started before filter.
 			StartedAt: now.Add(2 * time.Hour),
-		})
+		}, nil)
 
 		args := []string{
 			"exp",
@@ -181,15 +181,15 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		firstInterception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID: member.ID,
 			StartedAt:   now,
-		})
+		}, nil)
 		returnedInterception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID: member.ID,
 			StartedAt:   now.Add(-time.Hour),
-		})
+		}, &now)
 		_ = dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID: member.ID,
 			StartedAt:   now.Add(-2 * time.Hour),
-		})
+		}, nil)
 
 		args := []string{
 			"exp",

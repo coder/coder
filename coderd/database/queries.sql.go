@@ -778,6 +778,35 @@ func (q *sqlQuerier) ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Contex
 	return items, nil
 }
 
+const updateAIBridgeInterceptionEnded = `-- name: UpdateAIBridgeInterceptionEnded :one
+UPDATE aibridge_interceptions
+	SET ended_at = $1::timestamptz
+WHERE
+	id = $2::uuid
+	AND ended_at IS NULL
+RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at
+`
+
+type UpdateAIBridgeInterceptionEndedParams struct {
+	EndedAt time.Time `db:"ended_at" json:"ended_at"`
+	ID      uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateAIBridgeInterceptionEnded(ctx context.Context, arg UpdateAIBridgeInterceptionEndedParams) (AIBridgeInterception, error) {
+	row := q.db.QueryRowContext(ctx, updateAIBridgeInterceptionEnded, arg.EndedAt, arg.ID)
+	var i AIBridgeInterception
+	err := row.Scan(
+		&i.ID,
+		&i.InitiatorID,
+		&i.Provider,
+		&i.Model,
+		&i.StartedAt,
+		&i.Metadata,
+		&i.EndedAt,
+	)
+	return i, err
+}
+
 const deleteAPIKeyByID = `-- name: DeleteAPIKeyByID :exec
 DELETE FROM
 	api_keys

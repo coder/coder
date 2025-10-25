@@ -6,6 +6,14 @@ INSERT INTO aibridge_interceptions (
 )
 RETURNING *;
 
+-- name: UpdateAIBridgeInterceptionEnded :one
+UPDATE aibridge_interceptions
+	SET ended_at = @ended_at::timestamptz
+WHERE
+	id = @id::uuid
+	AND ended_at IS NULL
+RETURNING *;
+
 -- name: InsertAIBridgeTokenUsage :one
 INSERT INTO aibridge_token_usages (
   id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at
