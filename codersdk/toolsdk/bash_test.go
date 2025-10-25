@@ -2,7 +2,11 @@ package toolsdk_test
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -229,10 +233,11 @@ func TestWorkspaceBashTimeoutIntegration(t *testing.T) {
 		deps, err := toolsdk.NewDeps(client)
 		require.NoError(t, err)
 
+		sentinelFilePath := filepath.Join(os.TempDir(), "fg-test-sentinel")
 		args := toolsdk.WorkspaceBashArgs{
 			Workspace: workspace.Name,
-			Command:   `echo "123" && sleep 60 && echo "456"`, // This command would take 60+ seconds
-			TimeoutMs: 2000,                                   // 2 seconds timeout - should timeout after first echo
+			Command:   sentinelCommand(60, sentinelFilePath), // This command would take 60+ seconds.
+			TimeoutMs: 2000,                                  // 2 seconds timeout - should timeout after first echo
 		}
 
 		result, err := testTool(t, toolsdk.WorkspaceBash, deps, args)
@@ -247,11 +252,27 @@ func TestWorkspaceBashTimeoutIntegration(t *testing.T) {
 
 		t.Logf("result.Output: %s", result.Output)
 
-		// Should contain the first echo output
-		require.Contains(t, result.Output, "123")
+		// Should contain the started output.
+		require.Contains(t, result.Output, "started")
 
-		// Should NOT contain the second echo (it never executed due to timeout)
-		require.NotContains(t, result.Output, "456", "Should not contain output after sleep")
+		// Should NOT contain the done echo
+		require.NotContains(t, result.Output, "done", "Should not contain output after sleep")
+
+		// Should contain the started text.
+		b, err := os.ReadFile(sentinelFilePath)
+		require.NoError(t, err)
+		require.Contains(t, string(b), "started")
+
+		// The command should have caught the exit and logged that.
+		require.Eventually(t, func() bool {
+			b, err := os.ReadFile(sentinelFilePath)
+			return err == nil && strings.Contains(string(b), "exited")
+		}, testutil.WaitMedium, testutil.IntervalMedium)
+
+		// But it should never have made it to the done echo.
+		b, err = os.ReadFile(sentinelFilePath)
+		require.NoError(t, err)
+		require.NotContains(t, string(b), "done")
 	})
 
 	t.Run("NormalCommandExecution", func(t *testing.T) {
@@ -393,7 +414,6 @@ func TestWorkspaceBashBackgroundIntegration(t *testing.T) {
 
 		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
 
-		// Start the agent and wait for it to be fully ready
 		_ = agenttest.New(t, client.URL, agentToken)
 
 		// Wait for workspace agents to be ready
@@ -402,11 +422,13 @@ func TestWorkspaceBashBackgroundIntegration(t *testing.T) {
 		deps, err := toolsdk.NewDeps(client)
 		require.NoError(t, err)
 
+		sentinelFilePath := filepath.Join(os.TempDir(), "bg-test-sentinel")
 		args := toolsdk.WorkspaceBashArgs{
-			Workspace:  workspace.Name,
-			Command:    `echo "started" && sleep 4 && echo "done" > /tmp/bg-test-done`, // Command that will timeout but continue
-			TimeoutMs:  2000,                                                           // 2000ms timeout (shorter than command duration)
-			Background: true,                                                           // Run in background
+			Workspace: workspace.Name,
+			// Command that will run for at least 4 seconds.
+			Command:    sentinelCommand(4, sentinelFilePath),
+			TimeoutMs:  2000, // 2000ms timeout (shorter than command duration)
+			Background: true, // Run in background
 		}
 
 		result, err := testTool(t, toolsdk.WorkspaceBash, deps, args)
@@ -422,17 +444,35 @@ func TestWorkspaceBashBackgroundIntegration(t *testing.T) {
 		// Should capture output before timeout
 		require.Contains(t, result.Output, "started", "Should contain output captured before timeout")
 
+		// Should contain the started text.
+		b, err := os.ReadFile(sentinelFilePath)
+		require.NoError(t, err)
+		require.Contains(t, string(b), "started")
+
 		// Should contain background continuation message
 		require.Contains(t, result.Output, "Command continues running in background")
 
 		// Wait for the background command to complete (even though SSH session timed out)
 		require.Eventually(t, func() bool {
-			checkArgs := toolsdk.WorkspaceBashArgs{
-				Workspace: workspace.Name,
-				Command:   `cat /tmp/bg-test-done 2>/dev/null || echo "not found"`,
-			}
-			checkResult, err := toolsdk.WorkspaceBash.Handler(t.Context(), deps, checkArgs)
-			return err == nil && checkResult.Output == "done"
+			b, err := os.ReadFile(sentinelFilePath)
+			return err == nil && strings.Contains(string(b), "done")
 		}, testutil.WaitMedium, testutil.IntervalMedium, "Background command should continue running and complete after timeout")
 	})
+}
+
+// sentinelCommand takes a timeout and sentinel file and creates a command that:
+//
+//  1. Writes "started" to stdout and the file (overwriting it)
+//  2. Waits `time` seconds
+//  3. Writes "slept" to stdout and waits for that to flush
+//  4. Writes "done" to stdout and the file (appending)
+//  5. Writes "exit" to stdout and the file (appending) on exit (assuming the
+//     command is not violently killed).
+func sentinelCommand(time int64, filePath string) string {
+	// The extra sleep 1 is so the echo has a chance to flush (to test closed
+	// pipes), otherwise the command can exit before it crashes.
+	return fmt.Sprintf(
+		`trap "echo exited && echo exited >> %s" EXIT ; echo started && echo started > %s && sleep %d && echo slept && sleep 1 && echo done && echo done >> %s`,
+		filePath, filePath, time, filePath,
+	)
 }
