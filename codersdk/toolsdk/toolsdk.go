@@ -353,6 +353,18 @@ var CreateWorkspace = Tool[CreateWorkspaceArgs, codersdk.Workspace]{
 If a user is asking to "test a template", they are typically referring
 to creating a workspace from a template to ensure the infrastructure
 is provisioned correctly and the agent can connect to the control plane.
+
+Before creating a workspace, always confirm the template choice with the user by:
+
+	1. Listing the available templates that match their request.
+	2. Recommending the most relevant option.
+	2. Asking the user to confirm which template to use.
+
+It is important to not create a workspace without confirming the template
+choice with the user.
+
+After creating a workspace, watch the build logs and wait for the workspace to
+be ready before trying to use or connect to the workspace.
 `,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
@@ -530,8 +542,13 @@ type CreateWorkspaceBuildArgs struct {
 
 var CreateWorkspaceBuild = Tool[CreateWorkspaceBuildArgs, codersdk.WorkspaceBuild]{
 	Tool: aisdk.Tool{
-		Name:        ToolNameCreateWorkspaceBuild,
-		Description: "Create a new workspace build for an existing workspace. Use this to start, stop, or delete.",
+		Name: ToolNameCreateWorkspaceBuild,
+		Description: `Create a new workspace build for an existing workspace. Use this to start, stop, or delete.
+
+After creating a workspace build, watch the build logs and wait for the
+workspace build to complete before trying to start another build or use or
+connect to the workspace.
+`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
 				"workspace_id": map[string]any{
@@ -1531,8 +1548,20 @@ type WorkspaceWriteFileArgs struct {
 
 var WorkspaceWriteFile = Tool[WorkspaceWriteFileArgs, codersdk.Response]{
 	Tool: aisdk.Tool{
-		Name:        ToolNameWorkspaceWriteFile,
-		Description: `Write a file in a workspace.`,
+		Name: ToolNameWorkspaceWriteFile,
+		Description: `Write a file in a workspace.
+
+If a file write fails due to syntax errors or encoding issues, do NOT switch
+to using bash commands as a workaround. Instead:
+
+	1. Read the error message carefully to identify the issue
+	2. Fix the content encoding/syntax
+	3. Retry with this tool
+
+The content parameter expects base64-encoded bytes. Ensure your source content
+is correct before encoding it. If you encounter errors, decode and verify the
+content you are trying to write, then re-encode it properly.
+`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
 				"workspace": map[string]any{
