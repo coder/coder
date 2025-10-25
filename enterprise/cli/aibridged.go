@@ -4,11 +4,13 @@ package cli
 
 import (
 	"context"
+	"os"
 
 	"golang.org/x/xerrors"
 
 	"github.com/coder/aibridge"
 	"github.com/coder/coder/v2/enterprise/coderd"
+	aibridgepkg "github.com/coder/coder/v2/enterprise/coderd/aibridge"
 	"github.com/coder/coder/v2/enterprise/x/aibridged"
 )
 
@@ -19,16 +21,33 @@ func newAIBridgeDaemon(coderAPI *coderd.API) (*aibridged.Server, error) {
 	logger := coderAPI.Logger.Named("aibridged")
 
 	// Setup supported providers.
-	providers := []aibridge.Provider{
-		aibridge.NewOpenAIProvider(aibridge.ProviderConfig{
-			BaseURL: coderAPI.DeploymentValues.AI.BridgeConfig.OpenAI.BaseURL.String(),
-			Key:     coderAPI.DeploymentValues.AI.BridgeConfig.OpenAI.Key.String(),
-		}),
-		aibridge.NewAnthropicProvider(aibridge.ProviderConfig{
-			BaseURL: coderAPI.DeploymentValues.AI.BridgeConfig.Anthropic.BaseURL.String(),
-			Key:     coderAPI.DeploymentValues.AI.BridgeConfig.Anthropic.Key.String(),
-		}),
+	openAIConfig := aibridge.NewProviderConfig(
+		coderAPI.DeploymentValues.AI.BridgeConfig.OpenAI.BaseURL.String(),
+		coderAPI.DeploymentValues.AI.BridgeConfig.OpenAI.Key.String(),
+		os.TempDir(), // TODO: configurable?
+	)
+	anthropicConfig := aibridge.NewProviderConfig(
+		coderAPI.DeploymentValues.AI.BridgeConfig.Anthropic.BaseURL.String(),
+		coderAPI.DeploymentValues.AI.BridgeConfig.Anthropic.Key.String(),
+		os.TempDir(), // TODO: configurable?
+	)
+
+	openAIProvider, err := aibridge.NewOpenAIProvider(openAIConfig)
+	if err != nil {
+		return nil, xerrors.Errorf("create openai provider: %w", err)
 	}
+	anthropicProvider, err := aibridge.NewAnthropicProvider(anthropicConfig)
+	if err != nil {
+		return nil, xerrors.Errorf("create anthropic provider: %w", err)
+	}
+
+	providers := []aibridge.Provider{
+		openAIProvider,
+		anthropicProvider,
+	}
+
+	// Store provider configs so we can update them when logging is toggled.
+	aibridgepkg.SetProviderConfigs([]*aibridge.ProviderConfig{openAIConfig, anthropicConfig})
 
 	// Create pool for reusable stateful [aibridge.RequestBridge] instances (one per user).
 	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger.Named("pool")) // TODO: configurable.

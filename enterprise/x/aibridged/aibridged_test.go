@@ -287,10 +287,16 @@ func TestRouting(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			client := mock.NewMockDRPCClient(ctrl)
 
+			openAIProvider, err := aibridge.NewOpenAIProvider(aibridge.NewProviderConfig(openaiSrv.URL, "", ""))
+			require.NoError(t, err)
+			anthropicProvider, err := aibridge.NewAnthropicProvider(aibridge.NewProviderConfig(antSrv.URL, "", ""))
+			require.NoError(t, err)
+
 			providers := []aibridge.Provider{
-				aibridge.NewOpenAIProvider(aibridge.ProviderConfig{BaseURL: openaiSrv.URL}),
-				aibridge.NewAnthropicProvider(aibridge.ProviderConfig{BaseURL: antSrv.URL}),
+				openAIProvider,
+				anthropicProvider,
 			}
+
 			pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger)
 			require.NoError(t, err)
 			conn := &mockDRPCConn{}
