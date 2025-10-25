@@ -16,7 +16,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
-	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -342,7 +341,7 @@ func TestSessionExpiry(t *testing.T) {
 	err = db.UpdateAPIKeyByID(ctx, database.UpdateAPIKeyByIDParams{
 		ID:        apiKey.ID,
 		LastUsed:  apiKey.LastUsed,
-		ExpiresAt: dbtime.Now().Add(-time.Hour),
+		ExpiresAt: apiKey.CreatedAt,
 		IPAddress: apiKey.IPAddress,
 	})
 	require.NoError(t, err)

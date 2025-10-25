@@ -3355,7 +3355,7 @@ func (c *DeploymentValues) Validate() error {
 	refresh := c.Sessions.RefreshDefaultDuration.Value()
 
 	// Check if values appear uninitialized
-	if access == 0 {
+	if access == 0 || refresh == 0 {
 		return xerrors.New("developer error: sessions configuration appears uninitialized - ensure all values are loaded before validation")
 	}
 

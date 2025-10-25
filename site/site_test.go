@@ -91,6 +91,7 @@ func TestInjectionFailureProducesCleanHTML(t *testing.T) {
 	_, token := dbgen.APIKey(t, db, database.APIKey{
 		UserID:    user.ID,
 		LastUsed:  dbtime.Now().Add(-time.Hour),
+		CreatedAt: dbtime.Now().Add(-time.Hour),
 		ExpiresAt: dbtime.Now().Add(-time.Second),
 		LoginType: database.LoginTypeGithub,
 	})
