@@ -1,5 +1,10 @@
-import { MockWorkspace } from "testHelpers/entities";
+import {
+	MockTemplateVersionParameter1,
+	MockWorkspace,
+} from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { richParametersKey } from "api/queries/templates";
+import { workspaceBuildParametersKey } from "api/queries/workspaceBuilds";
 import { expect, screen, userEvent, waitFor } from "storybook/test";
 import { DebugButton } from "./DebugButton";
 
@@ -21,8 +26,12 @@ export const WithBuildParameters: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["workspace", MockWorkspace.id, "parameters"],
-				data: { templateVersionRichParameters: [], buildParameters: [] },
+				key: richParametersKey(MockWorkspace.latest_build.template_version_id),
+				data: [],
+			},
+			{
+				key: workspaceBuildParametersKey(MockWorkspace.latest_build.id),
+				data: [],
 			},
 		],
 	},
@@ -36,8 +45,12 @@ export const WithOpenBuildParameters: Story = {
 	parameters: {
 		queries: [
 			{
-				key: ["workspace", MockWorkspace.id, "parameters"],
-				data: { templateVersionRichParameters: [], buildParameters: [] },
+				key: richParametersKey(MockWorkspace.latest_build.template_version_id),
+				data: [MockTemplateVersionParameter1],
+			},
+			{
+				key: workspaceBuildParametersKey(MockWorkspace.latest_build.id),
+				data: [],
 			},
 		],
 	},

@@ -6,7 +6,7 @@ import type {
 } from "api/typesGenerated";
 import type { QueryOptions, UseInfiniteQueryOptions } from "react-query";
 
-function workspaceBuildParametersKey(workspaceBuildId: string) {
+export function workspaceBuildParametersKey(workspaceBuildId: string) {
 	return ["workspaceBuilds", workspaceBuildId, "parameters"] as const;
 }
 
