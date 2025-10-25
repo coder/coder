@@ -10,7 +10,6 @@ import { RocketIcon } from "components/Icons/RocketIcon";
 import { TerminalIcon } from "components/Icons/TerminalIcon";
 import { VSCodeIcon } from "components/Icons/VSCodeIcon";
 import { Link } from "components/Link/Link";
-import { Stack } from "components/Stack/Stack";
 import {
 	Tooltip,
 	TooltipContent,
@@ -391,10 +390,10 @@ const ValueSeparator: FC = () => {
 
 const HealthIssue: FC<PropsWithChildren> = ({ children }) => {
 	return (
-		<Stack direction="row" spacing={1} alignItems="center">
+		<div className="flex items-center gap-1">
 			<CircleAlertIcon className="size-icon-sm text-border-destructive" />
 			{children}
-		</Stack>
+		</div>
 	);
 };
 
