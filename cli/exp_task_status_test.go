@@ -73,9 +73,9 @@ func Test_TaskStatus(t *testing.T) {
 									WorkspaceStatus: codersdk.WorkspaceStatusRunning,
 									CreatedAt:       now,
 									UpdatedAt:       now,
-									CurrentState: &codersdk.TaskStateEntry{
-										State:     codersdk.TaskStateWorking,
-										Timestamp: now,
+									AppStatus: &codersdk.WorkspaceAppStatus{
+										State:     codersdk.WorkspaceAppStatusStateWorking,
+										CreatedAt: now,
 										Message:   "Thinking furiously...",
 									},
 									WorkspaceAgentHealth: &codersdk.WorkspaceAgentHealth{
@@ -94,9 +94,9 @@ func Test_TaskStatus(t *testing.T) {
 							WorkspaceStatus: codersdk.WorkspaceStatusRunning,
 							CreatedAt:       now,
 							UpdatedAt:       now,
-							CurrentState: &codersdk.TaskStateEntry{
-								State:     codersdk.TaskStateWorking,
-								Timestamp: now,
+							AppStatus: &codersdk.WorkspaceAppStatus{
+								State:     codersdk.WorkspaceAppStatusStateWorking,
+								CreatedAt: now,
 								Message:   "Thinking furiously...",
 							},
 							WorkspaceAgentHealth: &codersdk.WorkspaceAgentHealth{
@@ -189,9 +189,9 @@ func Test_TaskStatus(t *testing.T) {
 									Healthy: true,
 								},
 								WorkspaceAgentLifecycle: ptr.Ref(codersdk.WorkspaceAgentLifecycleReady),
-								CurrentState: &codersdk.TaskStateEntry{
-									State:     codersdk.TaskStateWorking,
-									Timestamp: now.Add(-3 * time.Second),
+								AppStatus: &codersdk.WorkspaceAppStatus{
+									State:     codersdk.WorkspaceAppStatusStateWorking,
+									CreatedAt: now.Add(-3 * time.Second),
 									Message:   "Reticulating splines...",
 								},
 								Status: codersdk.TaskStatusActive,
@@ -207,9 +207,9 @@ func Test_TaskStatus(t *testing.T) {
 									Healthy: true,
 								},
 								WorkspaceAgentLifecycle: ptr.Ref(codersdk.WorkspaceAgentLifecycleReady),
-								CurrentState: &codersdk.TaskStateEntry{
-									State:     codersdk.TaskStateComplete,
-									Timestamp: now.Add(-2 * time.Second),
+								AppStatus: &codersdk.WorkspaceAppStatus{
+									State:     codersdk.WorkspaceAppStatusStateComplete,
+									CreatedAt: now.Add(-2 * time.Second),
 									Message:   "Splines reticulated successfully!",
 								},
 								Status: codersdk.TaskStatusActive,
@@ -250,14 +250,26 @@ func Test_TaskStatus(t *testing.T) {
   "workspace_app_id": null,
   "initial_prompt": "",
   "status": "active",
+  "latest_workspace_app_status": {
+    "id": "00000000-0000-0000-0000-000000000000",
+    "created_at": "2025-08-26T12:34:57Z",
+    "workspace_id": "00000000-0000-0000-0000-000000000000",
+    "agent_id": "00000000-0000-0000-0000-000000000000",
+    "app_id": "00000000-0000-0000-0000-000000000000",
+    "state": "working",
+    "message": "Thinking furiously...",
+    "uri": "",
+    "icon": "",
+    "needs_user_attention": false
+  },
+  "created_at": "2025-08-26T12:34:56Z",
+  "updated_at": "2025-08-26T12:34:56Z",
   "current_state": {
     "timestamp": "2025-08-26T12:34:57Z",
     "state": "working",
     "message": "Thinking furiously...",
     "uri": ""
-  },
-  "created_at": "2025-08-26T12:34:56Z",
-  "updated_at": "2025-08-26T12:34:56Z"
+  }
 }`,
 			hf: func(ctx context.Context, now time.Time) func(http.ResponseWriter, *http.Request) {
 				ts := time.Date(2025, 8, 26, 12, 34, 56, 0, time.UTC)
@@ -276,6 +288,11 @@ func Test_TaskStatus(t *testing.T) {
 									WorkspaceStatus: codersdk.WorkspaceStatusRunning,
 									CreatedAt:       ts,
 									UpdatedAt:       ts,
+									AppStatus: &codersdk.WorkspaceAppStatus{
+										State:     codersdk.WorkspaceAppStatusStateWorking,
+										CreatedAt: ts.Add(time.Second),
+										Message:   "Thinking furiously...",
+									},
 									CurrentState: &codersdk.TaskStateEntry{
 										State:     codersdk.TaskStateWorking,
 										Timestamp: ts.Add(time.Second),
@@ -297,6 +314,11 @@ func Test_TaskStatus(t *testing.T) {
 							WorkspaceStatus: codersdk.WorkspaceStatusRunning,
 							CreatedAt:       ts,
 							UpdatedAt:       ts,
+							AppStatus: &codersdk.WorkspaceAppStatus{
+								State:     codersdk.WorkspaceAppStatusStateWorking,
+								CreatedAt: ts.Add(time.Second),
+								Message:   "Thinking furiously...",
+							},
 							CurrentState: &codersdk.TaskStateEntry{
 								State:     codersdk.TaskStateWorking,
 								Timestamp: ts.Add(time.Second),

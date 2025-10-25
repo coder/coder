@@ -4718,9 +4718,13 @@ export interface Task {
 	readonly workspace_app_id: string | null;
 	readonly initial_prompt: string;
 	readonly status: TaskStatus;
-	readonly current_state: TaskStateEntry | null;
+	readonly latest_workspace_app_status: WorkspaceAppStatus | null;
 	readonly created_at: string;
 	readonly updated_at: string;
+	/**
+	 * Deprecated: use LatestWorkspaceAppStatus instead.
+	 */
+	readonly current_state: TaskStateEntry | null;
 }
 
 // From codersdk/aitasks.go
@@ -4768,7 +4772,7 @@ export type TaskState = "complete" | "failed" | "idle" | "working";
 /**
  * TaskStateEntry represents a single entry in the task's state history.
  *
- * Experimental: This type is experimental and may change in the future.
+ * Deprecated: use WorkspaceAppStatus instead.
  */
 export interface TaskStateEntry {
 	readonly timestamp: string;
