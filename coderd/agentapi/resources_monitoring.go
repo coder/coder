@@ -36,65 +36,44 @@ type ResourcesMonitoringAPI struct {
 	Config   resourcesmonitor.Config
 
 	// Cache resource monitors on first call to avoid millions of DB queries per day.
-	memOnce        sync.Once
-	volOnce        sync.Once
-	memoryMonitor  *database.WorkspaceAgentMemoryResourceMonitor
+	memoryMonitor  database.WorkspaceAgentMemoryResourceMonitor
 	volumeMonitors []database.WorkspaceAgentVolumeResourceMonitor
 	monitorsLock   sync.RWMutex
 }
 
-// fetchMemoryMonitor fetches the memory monitor from the database and caches it.
-// Returns an error if the fetch fails (except for sql.ErrNoRows which is expected).
-func (a *ResourcesMonitoringAPI) fetchMemoryMonitor(ctx context.Context) error {
+// InitMonitors fetches resource monitors from the database and caches them.
+// This must be called once after creating a ResourcesMonitoringAPI, the context should be
+// the agent per-RPC connection context. If fetching fails with a real error (not sql.ErrNoRows), the
+// connection should be torn down.
+func (a *ResourcesMonitoringAPI) InitMonitors(ctx context.Context) error {
 	memMon, err := a.Database.FetchMemoryResourceMonitorsByAgentID(ctx, a.AgentID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return xerrors.Errorf("fetch memory resource monitor: %w", err)
 	}
+	// If sql.ErrNoRows, memoryMonitor stays as zero value (CreatedAt.IsZero() = true).
+	// Otherwise, store the fetched monitor.
 	if err == nil {
-		a.memoryMonitor = &memMon
+		a.memoryMonitor = memMon
 	}
-	return nil
-}
 
-// fetchVolumeMonitors fetches the volume monitors from the database and caches them.
-func (a *ResourcesMonitoringAPI) fetchVolumeMonitors(ctx context.Context) error {
 	volMons, err := a.Database.FetchVolumesResourceMonitorsByAgentID(ctx, a.AgentID)
 	if err != nil {
 		return xerrors.Errorf("fetch volume resource monitors: %w", err)
 	}
+	// 0 length is valid, indicating none configured, since the volume monitors in the DB can be many.
 	a.volumeMonitors = volMons
+
 	return nil
 }
 
 func (a *ResourcesMonitoringAPI) GetResourcesMonitoringConfiguration(ctx context.Context, _ *proto.GetResourcesMonitoringConfigurationRequest) (*proto.GetResourcesMonitoringConfigurationResponse, error) {
-	// Load memory monitor once
-	var memoryErr error
-	a.memOnce.Do(func() {
-		memoryErr = a.fetchMemoryMonitor(ctx)
-	})
-	if memoryErr != nil {
-		return nil, memoryErr
-	}
-
-	// Load volume monitors once
-	var volumeErr error
-	a.volOnce.Do(func() {
-		volumeErr = a.fetchVolumeMonitors(ctx)
-	})
-	if volumeErr != nil {
-		return nil, volumeErr
-	}
-
-	a.monitorsLock.RLock()
-	defer a.monitorsLock.RUnlock()
-
 	return &proto.GetResourcesMonitoringConfigurationResponse{
 		Config: &proto.GetResourcesMonitoringConfigurationResponse_Config{
 			CollectionIntervalSeconds: int32(a.Config.CollectionInterval.Seconds()),
 			NumDatapoints:             a.Config.NumDatapoints,
 		},
 		Memory: func() *proto.GetResourcesMonitoringConfigurationResponse_Memory {
-			if a.memoryMonitor == nil {
+			if a.memoryMonitor.CreatedAt.IsZero() {
 				return nil
 			}
 			return &proto.GetResourcesMonitoringConfigurationResponse_Memory{
@@ -117,6 +96,10 @@ func (a *ResourcesMonitoringAPI) GetResourcesMonitoringConfiguration(ctx context
 func (a *ResourcesMonitoringAPI) PushResourcesMonitoringUsage(ctx context.Context, req *proto.PushResourcesMonitoringUsageRequest) (*proto.PushResourcesMonitoringUsageResponse, error) {
 	var err error
 
+	// Lock for the entire push operation since calls are sequential from the agent
+	a.monitorsLock.Lock()
+	defer a.monitorsLock.Unlock()
+
 	if memoryErr := a.monitorMemory(ctx, req.Datapoints); memoryErr != nil {
 		err = errors.Join(err, xerrors.Errorf("monitor memory: %w", memoryErr))
 	}
@@ -129,25 +112,7 @@ func (a *ResourcesMonitoringAPI) PushResourcesMonitoringUsage(ctx context.Contex
 }
 
 func (a *ResourcesMonitoringAPI) monitorMemory(ctx context.Context, datapoints []*proto.PushResourcesMonitoringUsageRequest_Datapoint) error {
-	// Load monitor once
-	var fetchErr error
-	a.memOnce.Do(func() {
-		fetchErr = a.fetchMemoryMonitor(ctx)
-	})
-	if fetchErr != nil {
-		return fetchErr
-	}
-
-	a.monitorsLock.RLock()
-	monitor := a.memoryMonitor
-	a.monitorsLock.RUnlock()
-
-	// No memory monitor configured
-	if monitor == nil {
-		return nil
-	}
-
-	if !monitor.Enabled {
+	if !a.memoryMonitor.Enabled || a.memoryMonitor.CreatedAt.IsZero() {
 		return nil
 	}
 
@@ -156,12 +121,12 @@ func (a *ResourcesMonitoringAPI) monitorMemory(ctx context.Context, datapoints [
 		usageDatapoints = append(usageDatapoints, datapoint.Memory)
 	}
 
-	usageStates := resourcesmonitor.CalculateMemoryUsageStates(*monitor, usageDatapoints)
+	usageStates := resourcesmonitor.CalculateMemoryUsageStates(a.memoryMonitor, usageDatapoints)
 
-	oldState := monitor.State
+	oldState := a.memoryMonitor.State
 	newState := resourcesmonitor.NextState(a.Config, oldState, usageStates)
 
-	debouncedUntil, shouldNotify := monitor.Debounce(a.Debounce, a.Clock.Now(), oldState, newState)
+	debouncedUntil, shouldNotify := a.memoryMonitor.Debounce(a.Debounce, a.Clock.Now(), oldState, newState)
 
 	//nolint:gocritic // We need to be able to update the resource monitor here.
 	err := a.Database.UpdateMemoryResourceMonitor(dbauthz.AsResourceMonitor(ctx), database.UpdateMemoryResourceMonitorParams{
@@ -175,11 +140,9 @@ func (a *ResourcesMonitoringAPI) monitorMemory(ctx context.Context, datapoints [
 	}
 
 	// Update cached state
-	a.monitorsLock.Lock()
 	a.memoryMonitor.State = newState
 	a.memoryMonitor.DebouncedUntil = dbtime.Time(debouncedUntil)
 	a.memoryMonitor.UpdatedAt = dbtime.Time(a.Clock.Now())
-	a.monitorsLock.Unlock()
 
 	if !shouldNotify {
 		return nil
@@ -197,7 +160,7 @@ func (a *ResourcesMonitoringAPI) monitorMemory(ctx context.Context, datapoints [
 		notifications.TemplateWorkspaceOutOfMemory,
 		map[string]string{
 			"workspace": workspace.Name,
-			"threshold": fmt.Sprintf("%d%%", monitor.Threshold),
+			"threshold": fmt.Sprintf("%d%%", a.memoryMonitor.Threshold),
 		},
 		map[string]any{
 			// NOTE(DanielleMaywood):
@@ -223,22 +186,9 @@ func (a *ResourcesMonitoringAPI) monitorMemory(ctx context.Context, datapoints [
 }
 
 func (a *ResourcesMonitoringAPI) monitorVolumes(ctx context.Context, datapoints []*proto.PushResourcesMonitoringUsageRequest_Datapoint) error {
-	// Load monitors once
-	var fetchErr error
-	a.volOnce.Do(func() {
-		fetchErr = a.fetchVolumeMonitors(ctx)
-	})
-	if fetchErr != nil {
-		return fetchErr
-	}
-
-	a.monitorsLock.RLock()
-	volumeMonitors := a.volumeMonitors
-	a.monitorsLock.RUnlock()
-
 	outOfDiskVolumes := make([]map[string]any, 0)
 
-	for i, monitor := range volumeMonitors {
+	for i, monitor := range a.volumeMonitors {
 		if !monitor.Enabled {
 			continue
 		}
@@ -283,11 +233,9 @@ func (a *ResourcesMonitoringAPI) monitorVolumes(ctx context.Context, datapoints 
 		}
 
 		// Update cached state
-		a.monitorsLock.Lock()
 		a.volumeMonitors[i].State = newState
 		a.volumeMonitors[i].DebouncedUntil = dbtime.Time(debouncedUntil)
 		a.volumeMonitors[i].UpdatedAt = dbtime.Time(a.Clock.Now())
-		a.monitorsLock.Unlock()
 	}
 
 	if len(outOfDiskVolumes) == 0 {
