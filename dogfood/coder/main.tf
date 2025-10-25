@@ -417,12 +417,19 @@ module "jetbrains" {
   tooltip       = "You need to [Install Coder Desktop](https://coder.com/docs/user-guides/desktop#install-coder-desktop) to use this button."
 }
 
-module "filebrowser" {
+module "copyparty" {
   count      = data.coder_workspace.me.start_count
-  source     = "dev.registry.coder.com/coder/filebrowser/coder"
-  version    = "1.1.2"
+  source     = "dev.registry.coder.com/djarbz/copyparty/coder"
+  version    = "1.0.0"
   agent_id   = coder_agent.dev.id
-  agent_name = "dev"
+  subdomain  = true
+  arguments  = [
+    "-v", "/tmp:/tmp:r",
+    "-v", "/home/coder/:/home:rw",
+    "-v", "${local.repo_base_dir}/coder:/coder:A:c",
+    "-e2dsa",
+    "--re-maxage", "900",
+  ]
 }
 
 module "coder-login" {
