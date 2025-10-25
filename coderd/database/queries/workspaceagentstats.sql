@@ -17,6 +17,7 @@ INSERT INTO
 		session_count_jetbrains,
 		session_count_reconnecting_pty,
 		session_count_ssh,
+		session_count_rdp,
 		connection_median_latency_ms,
 		usage
 	)
@@ -37,6 +38,7 @@ SELECT
 	unnest(@session_count_jetbrains :: bigint[]) AS session_count_jetbrains,
 	unnest(@session_count_reconnecting_pty :: bigint[]) AS session_count_reconnecting_pty,
 	unnest(@session_count_ssh :: bigint[]) AS session_count_ssh,
+	unnest(@session_count_rdp :: bigint[]) AS session_count_rdp,
 	unnest(@connection_median_latency_ms :: double precision[]) AS connection_median_latency_ms,
 	unnest(@usage :: boolean[]) AS usage;
 
@@ -113,7 +115,8 @@ WITH agent_stats AS (
 		coalesce(SUM(session_count_vscode), 0)::bigint AS session_count_vscode,
 		coalesce(SUM(session_count_ssh), 0)::bigint AS session_count_ssh,
 		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
-		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty
+		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty,
+		coalesce(SUM(session_count_rdp), 0)::bigint AS session_count_rdp
 	 FROM (
 		SELECT *, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
 		FROM workspace_agent_stats WHERE created_at > $1
@@ -139,7 +142,8 @@ minute_buckets AS (
 		coalesce(SUM(session_count_vscode), 0)::bigint AS session_count_vscode,
 		coalesce(SUM(session_count_ssh), 0)::bigint AS session_count_ssh,
 		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
-		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty
+		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty,
+		coalesce(SUM(session_count_rdp), 0)::bigint AS session_count_rdp
 	FROM
 		workspace_agent_stats
 	WHERE
@@ -169,7 +173,8 @@ latest_agent_stats AS (
 		coalesce(SUM(session_count_vscode), 0)::bigint AS session_count_vscode,
 		coalesce(SUM(session_count_ssh), 0)::bigint AS session_count_ssh,
 		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
-		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty
+		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty,
+		coalesce(SUM(session_count_rdp), 0)::bigint AS session_count_rdp
     FROM
         latest_buckets
 )
@@ -197,7 +202,8 @@ WITH agent_stats AS (
 		coalesce(SUM(session_count_vscode), 0)::bigint AS session_count_vscode,
 		coalesce(SUM(session_count_ssh), 0)::bigint AS session_count_ssh,
 		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
-		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty
+		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty,
+		coalesce(SUM(session_count_rdp), 0)::bigint AS session_count_rdp
 	 FROM (
 		SELECT *, ROW_NUMBER() OVER(PARTITION BY agent_id ORDER BY created_at DESC) AS rn
 		FROM workspace_agent_stats WHERE created_at > $1
@@ -229,7 +235,8 @@ minute_buckets AS (
 		coalesce(SUM(session_count_vscode), 0)::bigint AS session_count_vscode,
 		coalesce(SUM(session_count_ssh), 0)::bigint AS session_count_ssh,
 		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
-		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty
+		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty,
+		coalesce(SUM(session_count_rdp), 0)::bigint AS session_count_rdp
 	FROM
 		workspace_agent_stats
 	WHERE
@@ -271,7 +278,8 @@ coalesce(latest_buckets.agent_id,agent_stats.agent_id) AS agent_id,
 coalesce(session_count_vscode, 0)::bigint AS session_count_vscode,
 coalesce(session_count_ssh, 0)::bigint AS session_count_ssh,
 coalesce(session_count_jetbrains, 0)::bigint AS session_count_jetbrains,
-coalesce(session_count_reconnecting_pty, 0)::bigint AS session_count_reconnecting_pty
+coalesce(session_count_reconnecting_pty, 0)::bigint AS session_count_reconnecting_pty,
+coalesce(session_count_rdp, 0)::bigint AS session_count_rdp
 FROM agent_stats LEFT JOIN latest_buckets ON agent_stats.agent_id = latest_buckets.agent_id;
 
 -- name: GetWorkspaceAgentStatsAndLabels :many
@@ -292,6 +300,7 @@ WITH agent_stats AS (
 		coalesce(SUM(session_count_ssh), 0)::bigint AS session_count_ssh,
 		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
 		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty,
+		coalesce(SUM(session_count_rdp), 0)::bigint AS session_count_rdp,
 		coalesce(SUM(connection_count), 0)::bigint AS connection_count,
 		coalesce(MAX(connection_median_latency_ms), 0)::float AS connection_median_latency_ms
 	 FROM (
@@ -305,7 +314,7 @@ WITH agent_stats AS (
 )
 SELECT
 	users.username, workspace_agents.name AS agent_name, workspaces.name AS workspace_name, rx_bytes, tx_bytes,
-	session_count_vscode, session_count_ssh, session_count_jetbrains, session_count_reconnecting_pty,
+	session_count_vscode, session_count_ssh, session_count_jetbrains, session_count_reconnecting_pty, session_count_rdp,
 	connection_count, connection_median_latency_ms
 FROM
 	agent_stats
@@ -346,6 +355,7 @@ WITH agent_stats AS (
 		coalesce(SUM(session_count_ssh), 0)::bigint AS session_count_ssh,
 		coalesce(SUM(session_count_jetbrains), 0)::bigint AS session_count_jetbrains,
 		coalesce(SUM(session_count_reconnecting_pty), 0)::bigint AS session_count_reconnecting_pty,
+		coalesce(SUM(session_count_rdp), 0)::bigint AS session_count_rdp,
 		coalesce(SUM(connection_count), 0)::bigint AS connection_count
 	FROM workspace_agent_stats
 	-- We only want the latest stats, but those stats might be

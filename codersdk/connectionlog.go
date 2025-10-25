@@ -46,6 +46,7 @@ const (
 	ConnectionTypeReconnectingPTY ConnectionType = "reconnecting_pty"
 	ConnectionTypeWorkspaceApp    ConnectionType = "workspace_app"
 	ConnectionTypePortForwarding  ConnectionType = "port_forwarding"
+	ConnectionTypeRDP             ConnectionType = "rdp"
 )
 
 // ConnectionLogStatus is the status of a connection log entry.
