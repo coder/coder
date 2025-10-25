@@ -1,6 +1,6 @@
-import Link from "@mui/material/Link";
 import type { Template, Workspace } from "api/typesGenerated";
 import { HelpTooltipTitle } from "components/HelpTooltip/HelpTooltip";
+import { Link } from "components/Link/Link";
 import cronParser from "cron-parser";
 import cronstrue from "cronstrue";
 import dayjs, { type Dayjs } from "dayjs";
@@ -149,8 +149,8 @@ export const autostopDisplay = (
 					{" "}
 					because this workspace has enabled autostop. You can disable autostop
 					from this workspace&apos;s{" "}
-					<Link component={RouterLink} to="settings/schedule">
-						schedule settings
+					<Link asChild size="sm">
+						<RouterLink to="settings/schedule">schedule settings</RouterLink>
 					</Link>
 					.
 				</span>

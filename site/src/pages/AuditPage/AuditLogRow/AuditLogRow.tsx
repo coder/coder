@@ -1,10 +1,10 @@
 import type { CSSObject, Interpolation, Theme } from "@emotion/react";
 import Collapse from "@mui/material/Collapse";
-import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
 import type { AuditLog, BuildReason } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
+import { Link } from "components/Link/Link";
 import { Stack } from "components/Stack/Stack";
 import { StatusPill } from "components/StatusPill/StatusPill";
 import { TableCell } from "components/Table/Table";
@@ -157,12 +157,13 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 															<h4 css={styles.auditLogInfoHeader}>
 																Organization:
 															</h4>
-															<Link
-																component={RouterLink}
-																to={`/organizations/${auditLog.organization.name}`}
-															>
-																{auditLog.organization.display_name ||
-																	auditLog.organization.name}
+															<Link asChild size="sm">
+																<RouterLink
+																	to={`/organizations/${auditLog.organization.name}`}
+																>
+																	{auditLog.organization.display_name ||
+																		auditLog.organization.name}
+																</RouterLink>
 															</Link>
 														</div>
 													)}

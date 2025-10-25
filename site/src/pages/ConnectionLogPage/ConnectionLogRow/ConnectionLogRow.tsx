@@ -1,8 +1,8 @@
 import type { CSSObject, Interpolation, Theme } from "@emotion/react";
-import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
 import type { ConnectionLog } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
+import { Link } from "components/Link/Link";
 import { Stack } from "components/Stack/Stack";
 import { StatusPill } from "components/StatusPill/StatusPill";
 import { TableCell } from "components/Table/Table";
@@ -115,12 +115,13 @@ export const ConnectionLogRow: FC<ConnectionLogRowProps> = ({
 													<h4 css={styles.connectionLogInfoheader}>
 														Organization:
 													</h4>
-													<Link
-														component={RouterLink}
-														to={`/organizations/${connectionLog.organization.name}`}
-													>
-														{connectionLog.organization.display_name ||
-															connectionLog.organization.name}
+													<Link asChild size="sm">
+														<RouterLink
+															to={`/organizations/${connectionLog.organization.name}`}
+														>
+															{connectionLog.organization.display_name ||
+																connectionLog.organization.name}
+														</RouterLink>
 													</Link>
 												</div>
 											)}

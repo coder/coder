@@ -4,7 +4,7 @@ import {
 	type Interpolation,
 	type Theme,
 } from "@emotion/react";
-import Link from "@mui/material/Link";
+import { Link } from "components/Link/Link";
 import { Stack } from "components/Stack/Stack";
 import {
 	Tooltip,
@@ -14,7 +14,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { CircleHelpIcon, ExternalLinkIcon } from "lucide-react";
+import { CircleHelpIcon } from "lucide-react";
 import {
 	type FC,
 	forwardRef,
@@ -141,8 +141,13 @@ interface HelpTooltipLink {
 
 export const HelpTooltipLink: FC<HelpTooltipLink> = ({ children, href }) => {
 	return (
-		<Link href={href} target="_blank" rel="noreferrer" css={styles.link}>
-			<ExternalLinkIcon className="size-icon-xs" css={styles.linkIcon} />
+		<Link
+			href={href}
+			target="_blank"
+			rel="noreferrer"
+			size="sm"
+			css={styles.link}
+		>
 			{children}
 		</Link>
 	);
@@ -213,13 +218,6 @@ const styles = {
 		...(theme.typography.body2 as CSSObject),
 		color: theme.roles.active.fill.outline,
 	}),
-
-	linkIcon: {
-		color: "inherit",
-		width: 14,
-		height: 14,
-		marginRight: 8,
-	},
 
 	linksGroup: {
 		marginTop: 16,

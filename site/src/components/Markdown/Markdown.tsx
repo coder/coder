@@ -1,5 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import Link from "@mui/material/Link";
+import { Link } from "components/Link/Link";
 import {
 	Table,
 	TableBody,

@@ -1,4 +1,3 @@
-import Link from "@mui/material/Link";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
 import { hasApiFieldErrors, isApiError } from "api/errors";
@@ -7,6 +6,7 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
 import { FormFooter } from "components/Form/Form";
 import { FullPageForm } from "components/FullPageForm/FullPageForm";
+import { Link } from "components/Link/Link";
 import { OrganizationAutocomplete } from "components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { PasswordField } from "components/PasswordField/PasswordField";
 import { Spinner } from "components/Spinner/Spinner";
