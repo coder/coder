@@ -66,7 +66,7 @@ func (a *ResourcesMonitoringAPI) InitMonitors(ctx context.Context) error {
 	return nil
 }
 
-func (a *ResourcesMonitoringAPI) GetResourcesMonitoringConfiguration(ctx context.Context, _ *proto.GetResourcesMonitoringConfigurationRequest) (*proto.GetResourcesMonitoringConfigurationResponse, error) {
+func (a *ResourcesMonitoringAPI) GetResourcesMonitoringConfiguration(_ context.Context, _ *proto.GetResourcesMonitoringConfigurationRequest) (*proto.GetResourcesMonitoringConfigurationResponse, error) {
 	return &proto.GetResourcesMonitoringConfigurationResponse{
 		Config: &proto.GetResourcesMonitoringConfigurationResponse_Config{
 			CollectionIntervalSeconds: int32(a.Config.CollectionInterval.Seconds()),

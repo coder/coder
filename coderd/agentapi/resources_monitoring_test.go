@@ -496,7 +496,6 @@ func TestVolumeResourceMonitorDebounce(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-
 	// Then:
 	//  - We expect a notification from only the first monitor
 	sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfDisk))
@@ -821,7 +820,7 @@ func TestVolumeResourceMonitorMultiple(t *testing.T) {
 			},
 		},
 	})
-	require.NoError(t, err)	
+	require.NoError(t, err)
 
 	// Then: We expect a notification to alert with information about both
 	sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfDisk))
