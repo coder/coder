@@ -542,8 +542,13 @@ type CreateWorkspaceBuildArgs struct {
 
 var CreateWorkspaceBuild = Tool[CreateWorkspaceBuildArgs, codersdk.WorkspaceBuild]{
 	Tool: aisdk.Tool{
-		Name:        ToolNameCreateWorkspaceBuild,
-		Description: "Create a new workspace build for an existing workspace. Use this to start, stop, or delete.",
+		Name: ToolNameCreateWorkspaceBuild,
+		Description: `Create a new workspace build for an existing workspace. Use this to start, stop, or delete.
+
+After creating a workspace build, watch the build logs and wait for the
+workspace build to complete before trying to start another build or use or
+connect to the workspace.
+`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
 				"workspace_id": map[string]any{
