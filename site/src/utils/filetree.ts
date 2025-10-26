@@ -1,6 +1,6 @@
+import set from "lodash/fp/set";
 import get from "lodash/get";
 import has from "lodash/has";
-import set from "lodash/set";
 import unset from "lodash/unset";
 
 export type FileTree = {
@@ -20,7 +20,7 @@ export const createFile = (
 		throw new Error(pathError);
 	}
 
-	return set(fileTree, path.split("/"), value);
+	return set(path.split("/"), value)(fileTree);
 };
 
 export const validatePath = (
@@ -43,7 +43,7 @@ export const updateFile = (
 	content: FileTree | string,
 	fileTree: FileTree,
 ): FileTree => {
-	return set(fileTree, path.split("/"), content);
+	return set(path.split("/"), content)(fileTree);
 };
 
 export const existsFile = (path: string, fileTree: FileTree) => {
