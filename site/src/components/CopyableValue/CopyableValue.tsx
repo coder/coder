@@ -21,6 +21,11 @@ export const CopyableValue: FC<CopyableValueProps> = ({
 	side = "bottom",
 	children,
 	className,
+	role,
+	tabIndex,
+	onClick,
+	onKeyDown,
+	onKeyUp,
 	...attrs
 }) => {
 	const { showCopiedSuccess, copyToClipboard } = useClipboard();
@@ -43,10 +48,23 @@ export const CopyableValue: FC<CopyableValueProps> = ({
 			>
 				<TooltipTrigger asChild>
 					<span
+						ref={clickableProps.ref}
 						{...attrs}
-						{...clickableProps}
-						role="button"
-						tabIndex={0}
+						className={cn("cursor-pointer", className)}
+						role={role ?? clickableProps.role}
+						tabIndex={tabIndex ?? clickableProps.tabIndex}
+						onClick={(event) => {
+							clickableProps.onClick(event);
+							onClick?.(event);
+						}}
+						onKeyDown={(event) => {
+							clickableProps.onKeyDown(event);
+							onKeyDown?.(event);
+						}}
+						onKeyUp={(event) => {
+							clickableProps.onKeyUp(event);
+							onKeyUp?.(event);
+						}}
 						onMouseEnter={() => {
 							setIsFocused(true);
 							setTooltipOpen(true);
@@ -60,7 +78,6 @@ export const CopyableValue: FC<CopyableValueProps> = ({
 						onBlur={() => {
 							setTooltipOpen(false);
 						}}
-						className={cn("cursor-pointer", className)}
 					>
 						{children}
 					</span>
