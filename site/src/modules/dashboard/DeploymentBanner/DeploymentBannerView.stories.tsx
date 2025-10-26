@@ -3,7 +3,7 @@ import {
 	MockDeploymentStats,
 } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { userEvent, waitFor, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { DeploymentBannerView } from "./DeploymentBannerView";
 
 const meta: Meta<typeof DeploymentBannerView> = {
