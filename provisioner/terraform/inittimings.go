@@ -96,7 +96,7 @@ func (t *timingAggregator) finishPrevious(ts time.Time, s *timingSpan) {
 		cpy.start = time.Time{}
 		cpy.end = ts
 		cpy.messageCode = step
-		cpy.resource, _ = resourceName[step]
+		cpy.resource = resourceName[step]
 		cpy.state = proto.TimingState_COMPLETED
 		t.stateLookup[cpy.hashByState(cpy.state)] = &cpy
 	}
@@ -110,6 +110,16 @@ func (t *timingAggregator) finishPrevious(ts time.Time, s *timingSpan) {
 // So before v1.9, the init stage is manually timed outside the `terraform init`.
 // After v1.9, the init stage is timed via logs.
 func mergeInitTimings(manualInit []*proto.Timing, existing []*proto.Timing) []*proto.Timing {
+	initFailed := slices.ContainsFunc(existing, func(timing *proto.Timing) bool {
+		return timing.State == proto.TimingState_FAILED
+	})
+
+	if initFailed {
+		// The init logs do not provide enough information for failed init timings.
+		// So use the manual timings in this case.
+		return append(manualInit, existing...)
+	}
+
 	hasInitStage := slices.ContainsFunc(existing, func(timing *proto.Timing) bool {
 		return timing.Stage == string(database.ProvisionerJobTimingStageInit)
 	})
