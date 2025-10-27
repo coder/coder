@@ -26,6 +26,7 @@ type recorderTranslation struct {
 func (t *recorderTranslation) RecordInterception(ctx context.Context, req *aibridge.InterceptionRecord) error {
 	_, err := t.client.RecordInterception(ctx, &proto.RecordInterceptionRequest{
 		Id:          req.ID,
+		ApiKeyId:    req.APIKeyID,
 		InitiatorId: req.InitiatorID,
 		Provider:    req.Provider,
 		Model:       req.Model,

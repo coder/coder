@@ -57,7 +57,7 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Rewire request context to include actor.
-	r = r.WithContext(aibridge.AsActor(ctx, resp.GetOwnerId(), nil))
+	r = r.WithContext(aibridge.AsActor(ctx, resp.GetApiKeyId(), resp.GetOwnerId(), nil))
 
 	id, err := uuid.Parse(resp.GetOwnerId())
 	if err != nil {

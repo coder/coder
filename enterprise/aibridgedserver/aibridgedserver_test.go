@@ -173,12 +173,17 @@ func TestAuthorization(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, srv)
 
-			_, err = srv.IsAuthorized(t.Context(), &proto.IsAuthorizedRequest{Key: tc.key})
+			resp, err := srv.IsAuthorized(t.Context(), &proto.IsAuthorizedRequest{Key: tc.key})
 			if tc.expectedErr != nil {
 				require.Error(t, err)
 				require.ErrorIs(t, err, tc.expectedErr)
 			} else {
+				expected := proto.IsAuthorizedResponse{
+					OwnerId:  user.ID.String(),
+					ApiKeyId: keyID,
+				}
 				require.NoError(t, err)
+				require.Equal(t, &expected, resp)
 			}
 		})
 	}
@@ -355,6 +360,7 @@ func TestRecordInterception(t *testing.T) {
 				name: "valid interception",
 				request: &proto.RecordInterceptionRequest{
 					Id:          uuid.NewString(),
+					ApiKeyId:    uuid.NewString(),
 					InitiatorId: uuid.NewString(),
 					Provider:    "anthropic",
 					Model:       "claude-4-opus",
@@ -369,6 +375,7 @@ func TestRecordInterception(t *testing.T) {
 
 					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), database.InsertAIBridgeInterceptionParams{
 						ID:          interceptionID,
+						APIKeyID:    sql.NullString{String: req.ApiKeyId, Valid: true},
 						InitiatorID: initiatorID,
 						Provider:    req.GetProvider(),
 						Model:       req.GetModel(),
@@ -376,6 +383,41 @@ func TestRecordInterception(t *testing.T) {
 						StartedAt:   req.StartedAt.AsTime().UTC(),
 					}).Return(database.AIBridgeInterception{
 						ID:          interceptionID,
+						APIKeyID:    sql.NullString{String: req.ApiKeyId, Valid: true},
+						InitiatorID: initiatorID,
+						Provider:    req.GetProvider(),
+						Model:       req.GetModel(),
+						StartedAt:   req.StartedAt.AsTime().UTC(),
+					}, nil)
+				},
+			},
+			{
+				name: "valid interception no api key set",
+				request: &proto.RecordInterceptionRequest{
+					Id:          uuid.NewString(),
+					InitiatorId: uuid.NewString(),
+					Provider:    "anthropic",
+					Model:       "claude-4-opus",
+					Metadata:    metadataProto,
+					StartedAt:   timestamppb.Now(),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
+					interceptionID, err := uuid.Parse(req.GetId())
+					assert.NoError(t, err, "parse interception UUID")
+					initiatorID, err := uuid.Parse(req.GetInitiatorId())
+					assert.NoError(t, err, "parse interception initiator UUID")
+
+					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), database.InsertAIBridgeInterceptionParams{
+						ID:          interceptionID,
+						APIKeyID:    sql.NullString{String: "", Valid: false},
+						InitiatorID: initiatorID,
+						Provider:    req.GetProvider(),
+						Model:       req.GetModel(),
+						Metadata:    json.RawMessage(metadataJSON),
+						StartedAt:   req.StartedAt.AsTime().UTC(),
+					}).Return(database.AIBridgeInterception{
+						ID:          interceptionID,
+						APIKeyID:    sql.NullString{String: "", Valid: false},
 						InitiatorID: initiatorID,
 						Provider:    req.GetProvider(),
 						Model:       req.GetModel(),
