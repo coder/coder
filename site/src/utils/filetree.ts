@@ -1,7 +1,7 @@
 import cloneDeep from "lodash/cloneDeep";
-import set from "lodash/set";
 import get from "lodash/get";
 import has from "lodash/has";
+import set from "lodash/set";
 import unset from "lodash/unset";
 
 export type FileTree = {
