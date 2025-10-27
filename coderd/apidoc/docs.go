@@ -12500,6 +12500,13 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "organization_member_permissions": {
+                    "description": "OrganizationMemberPermissions are specific for the organization in the field 'OrganizationID' above.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Permission"
+                    }
+                },
                 "organization_permissions": {
                     "description": "OrganizationPermissions are specific for the organization in the field 'OrganizationID' above.",
                     "type": "array",
@@ -13722,6 +13729,13 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "organization_member_permissions": {
+                    "description": "OrganizationMemberPermissions are specific to the organization the role belongs to.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Permission"
+                    }
                 },
                 "organization_permissions": {
                     "description": "OrganizationPermissions are specific to the organization the role belongs to.",
@@ -17489,6 +17503,13 @@ const docTemplate = `{
                 "organization_id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "organization_member_permissions": {
+                    "description": "OrganizationMemberPermissions are specific for the organization in the field 'OrganizationID' above.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Permission"
+                    }
                 },
                 "organization_permissions": {
                     "description": "OrganizationPermissions are specific for the organization in the field 'OrganizationID' above.",

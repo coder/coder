@@ -56,9 +56,11 @@ type Role struct {
 	OrganizationID  string       `json:"organization_id,omitempty" table:"organization id" format:"uuid"`
 	DisplayName     string       `json:"display_name" table:"display name"`
 	SitePermissions []Permission `json:"site_permissions" table:"site permissions"`
+	UserPermissions []Permission `json:"user_permissions" table:"user permissions"`
 	// OrganizationPermissions are specific for the organization in the field 'OrganizationID' above.
 	OrganizationPermissions []Permission `json:"organization_permissions" table:"organization permissions"`
-	UserPermissions         []Permission `json:"user_permissions" table:"user permissions"`
+	// OrganizationMemberPermissions are specific for the organization in the field 'OrganizationID' above.
+	OrganizationMemberPermissions []Permission `json:"organization_member_permissions" table:"organization member permissions"`
 }
 
 // CustomRoleRequest is used to edit custom roles.
@@ -66,9 +68,11 @@ type CustomRoleRequest struct {
 	Name            string       `json:"name" table:"name,default_sort" validate:"username"`
 	DisplayName     string       `json:"display_name" table:"display name"`
 	SitePermissions []Permission `json:"site_permissions" table:"site permissions"`
+	UserPermissions []Permission `json:"user_permissions" table:"user permissions"`
 	// OrganizationPermissions are specific to the organization the role belongs to.
 	OrganizationPermissions []Permission `json:"organization_permissions" table:"organization permissions"`
-	UserPermissions         []Permission `json:"user_permissions" table:"user permissions"`
+	// OrganizationMemberPermissions are specific to the organization the role belongs to.
+	OrganizationMemberPermissions []Permission `json:"organization_member_permissions" table:"organization member permissions"`
 }
 
 // FullName returns the role name scoped to the organization ID. This is useful if
@@ -85,11 +89,12 @@ func (r Role) FullName() string {
 // CreateOrganizationRole will create a custom organization role
 func (c *Client) CreateOrganizationRole(ctx context.Context, role Role) (Role, error) {
 	req := CustomRoleRequest{
-		Name:                    role.Name,
-		DisplayName:             role.DisplayName,
-		SitePermissions:         role.SitePermissions,
-		OrganizationPermissions: role.OrganizationPermissions,
-		UserPermissions:         role.UserPermissions,
+		Name:                          role.Name,
+		DisplayName:                   role.DisplayName,
+		SitePermissions:               role.SitePermissions,
+		UserPermissions:               role.UserPermissions,
+		OrganizationPermissions:       role.OrganizationPermissions,
+		OrganizationMemberPermissions: role.OrganizationMemberPermissions,
 	}
 
 	res, err := c.Request(ctx, http.MethodPost,
@@ -108,11 +113,12 @@ func (c *Client) CreateOrganizationRole(ctx context.Context, role Role) (Role, e
 // UpdateOrganizationRole will update an existing custom organization role
 func (c *Client) UpdateOrganizationRole(ctx context.Context, role Role) (Role, error) {
 	req := CustomRoleRequest{
-		Name:                    role.Name,
-		DisplayName:             role.DisplayName,
-		SitePermissions:         role.SitePermissions,
-		OrganizationPermissions: role.OrganizationPermissions,
-		UserPermissions:         role.UserPermissions,
+		Name:                          role.Name,
+		DisplayName:                   role.DisplayName,
+		SitePermissions:               role.SitePermissions,
+		UserPermissions:               role.UserPermissions,
+		OrganizationPermissions:       role.OrganizationPermissions,
+		OrganizationMemberPermissions: role.OrganizationMemberPermissions,
 	}
 
 	res, err := c.Request(ctx, http.MethodPut,

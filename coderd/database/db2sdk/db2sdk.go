@@ -714,12 +714,13 @@ func RBACRole(role rbac.Role) codersdk.Role {
 
 	orgPerms := role.ByOrgID[slim.OrganizationID]
 	return codersdk.Role{
-		Name:                    slim.Name,
-		OrganizationID:          slim.OrganizationID,
-		DisplayName:             slim.DisplayName,
-		SitePermissions:         List(role.Site, RBACPermission),
-		OrganizationPermissions: List(orgPerms.Org, RBACPermission),
-		UserPermissions:         List(role.User, RBACPermission),
+		Name:                          slim.Name,
+		OrganizationID:                slim.OrganizationID,
+		DisplayName:                   slim.DisplayName,
+		SitePermissions:               List(role.Site, RBACPermission),
+		UserPermissions:               List(role.User, RBACPermission),
+		OrganizationPermissions:       List(orgPerms.Org, RBACPermission),
+		OrganizationMemberPermissions: List(orgPerms.Member, RBACPermission),
 	}
 }
 
@@ -734,8 +735,8 @@ func Role(role database.CustomRole) codersdk.Role {
 		OrganizationID:          orgID,
 		DisplayName:             role.DisplayName,
 		SitePermissions:         List(role.SitePermissions, Permission),
-		OrganizationPermissions: List(role.OrgPermissions, Permission),
 		UserPermissions:         List(role.UserPermissions, Permission),
+		OrganizationPermissions: List(role.OrgPermissions, Permission),
 	}
 }
 
