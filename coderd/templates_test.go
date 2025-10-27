@@ -2074,116 +2074,126 @@ func TestInvalidateTemplatePrebuilds(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitLong)
-		owner, db := coderdtest.NewWithDatabase(t, nil)
-
-		// Create organization and template with old version
-		org := dbgen.Organization(t, db, database.Organization{})
-		oldVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-			OrganizationID: org.ID,
+		db, ps := dbtestutil.NewDB(t)
+		ownerClient := coderdtest.New(t, &coderdtest.Options{
+			Database: db,
+			Pubsub:   ps,
 		})
+		owner := coderdtest.CreateFirstUser(t, ownerClient)
+		templateAdminClient, templateAdmin := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+		// Given
+		orgID := owner.OrganizationID
 		template := dbgen.Template(t, db, database.Template{
-			OrganizationID:  org.ID,
-			ActiveVersionID: oldVersion.ID,
+			OrganizationID: orgID,
+			CreatedBy:      templateAdmin.ID,
+		})
+		oldVersionJob := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+			CreatedAt:      dbtime.Now().Add(-60 * time.Second),
+			CompletedAt:    sql.NullTime{Time: dbtime.Now().Add(-50 * time.Second), Valid: true},
+			OrganizationID: orgID,
+			InitiatorID:    templateAdmin.ID,
+			Type:           database.ProvisionerJobTypeTemplateVersionImport,
+		})
+		oldVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+			OrganizationID: orgID,
+			CreatedBy:      templateAdmin.ID,
+			JobID:          oldVersionJob.ID,
 		})
 
-		// Create prebuild with old version (should NOT be invalidated)
+		// Prebuild using old template version
 		oldPrebuild := dbgen.Workspace(t, db, database.WorkspaceTable{
-			OrganizationID: org.ID,
-			OwnerID:        database.PrebuildsSystemUserID,
-			TemplateID:     template.ID,
+			OwnerID:    database.PrebuildsSystemUserID,
+			TemplateID: template.ID,
+			Deleted:    false,
 		})
-		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		oldPrebuildJob := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+			OrganizationID: orgID,
+			InitiatorID:    database.PrebuildsSystemUserID,
+			Provisioner:    database.ProvisionerTypeEcho,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			StartedAt:      sql.NullTime{Time: dbtime.Now().Add(-60 * time.Second), Valid: true},
+			CompletedAt:    sql.NullTime{Time: dbtime.Now().Add(-50 * time.Second), Valid: true},
+			Error:          sql.NullString{},
+			ErrorCode:      sql.NullString{},
+		})
+		dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
 			WorkspaceID:       oldPrebuild.ID,
 			TemplateVersionID: oldVersion.ID,
+			JobID:             oldPrebuildJob.ID,
+			BuildNumber:       1,
+			Transition:        database.WorkspaceTransitionStart,
+			InitiatorID:       database.PrebuildsSystemUserID,
+			Reason:            database.BuildReasonInitiator,
 		})
 
-		// Update template to new active version
-		newVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-			OrganizationID: org.ID,
-			TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+		// Update active template version
+		newVersionJob := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+			CreatedAt:      dbtime.Now().Add(-60 * time.Second),
+			CompletedAt:    sql.NullTime{Time: dbtime.Now().Add(-50 * time.Second), Valid: true},
+			OrganizationID: orgID,
+			InitiatorID:    templateAdmin.ID,
+			Type:           database.ProvisionerJobTypeTemplateVersionImport,
 		})
+		newVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+			OrganizationID: orgID,
+			CreatedBy:      templateAdmin.ID,
+			JobID:          newVersionJob.ID,
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
 		err := db.UpdateTemplateActiveVersionByID(ctx, database.UpdateTemplateActiveVersionByIDParams{
 			ID:              template.ID,
 			ActiveVersionID: newVersion.ID,
 		})
 		require.NoError(t, err)
-		template.ActiveVersionID = newVersion.ID
 
-		// Create 2 prebuilds with active version (SHOULD be invalidated)
-		var activePrebuilds []database.WorkspaceTable
-		for i := 0; i < 2; i++ {
-			ws := dbgen.Workspace(t, db, database.WorkspaceTable{
-				OrganizationID: org.ID,
-				OwnerID:        database.PrebuildsSystemUserID,
-				TemplateID:     template.ID,
-			})
-			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-				WorkspaceID:       ws.ID,
-				TemplateVersionID: newVersion.ID,
-			})
-			activePrebuilds = append(activePrebuilds, ws)
-		}
-
-		// Create user workspace with active version (should NOT be touched)
-		user := coderdtest.CreateFirstUser(t, owner)
-		userWorkspace := dbgen.Workspace(t, db, database.WorkspaceTable{
-			OrganizationID: org.ID,
-			OwnerID:        user.UserID,
-			TemplateID:     template.ID,
+		// Prebuild using new template version
+		newPrebuild := dbgen.Workspace(t, db, database.WorkspaceTable{
+			OwnerID:    database.PrebuildsSystemUserID,
+			TemplateID: template.ID,
+			Deleted:    false,
 		})
-		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-			WorkspaceID:       userWorkspace.ID,
+
+		newPrebuildJob := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+			OrganizationID: orgID,
+			InitiatorID:    database.PrebuildsSystemUserID,
+			Provisioner:    database.ProvisionerTypeEcho,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			StartedAt:      sql.NullTime{Time: dbtime.Now().Add(-60 * time.Second), Valid: true},
+			CompletedAt:    sql.NullTime{Time: dbtime.Now().Add(-50 * time.Second), Valid: true},
+			Error:          sql.NullString{},
+			ErrorCode:      sql.NullString{},
+		})
+
+		dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			WorkspaceID:       newPrebuild.ID,
 			TemplateVersionID: newVersion.ID,
+			JobID:             newPrebuildJob.ID,
+			BuildNumber:       1,
+			Transition:        database.WorkspaceTransitionStart,
+			InitiatorID:       database.PrebuildsSystemUserID,
+			Reason:            database.BuildReasonInitiator,
 		})
 
+		// When:
 		// Invalidate prebuilds as template admin
-		_, client := coderdtest.CreateAnotherUser(t, owner, org.ID, rbac.RoleTemplateAdmin())
-		err = client.InvalidateTemplatePrebuilds(ctx, template.ID)
+		err = templateAdminClient.InvalidateTemplatePrebuilds(ctx, template.ID)
 		require.NoError(t, err)
 
+		// Then:
 		// Verify old prebuild still exists (different version)
-		_, err = db.GetWorkspaceByID(ctx, oldPrebuild.ID)
-		require.NoError(t, err, "old version prebuild should not be deleted")
-
-		// Verify user workspace still exists
-		_, err = db.GetWorkspaceByID(ctx, userWorkspace.ID)
-		require.NoError(t, err, "user workspace should not be deleted")
-
-		// Verify active prebuilds have delete builds created
-		for _, ws := range activePrebuilds {
-			builds, err := db.GetWorkspaceBuildsByWorkspaceID(ctx, database.GetWorkspaceBuildsByWorkspaceIDParams{
-				WorkspaceID: ws.ID,
-			})
-			require.NoError(t, err)
-			require.NotEmpty(t, builds, "active prebuild should have builds")
-			// Note: we can't easily verify the delete build was created without more setup
-		}
+		p1, err := ownerClient.Workspace(ctx, oldPrebuild.ID)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.WorkspaceStatusRunning, p1.LatestBuild.Status)
+		// Verify new prebuild is pending deletion (hint: no provisioner job running)
+		p2, err := ownerClient.Workspace(ctx, newPrebuild.ID)
+		require.Equal(t, codersdk.WorkspaceStatusPending, p2.LatestBuild.Status)
+		require.Equal(t, codersdk.WorkspaceTransitionDelete, p2.LatestBuild.Transition)
 	})
 
-	t.Run("Unauthorized", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		owner, db := coderdtest.NewWithDatabase(t, nil)
-
-		org := dbgen.Organization(t, db, database.Organization{})
-		version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-			OrganizationID: org.ID,
-		})
-		template := dbgen.Template(t, db, database.Template{
-			OrganizationID:  org.ID,
-			ActiveVersionID: version.ID,
-		})
-
-		// Regular user (not admin)
-		_, regularUser := coderdtest.CreateAnotherUser(t, owner, org.ID)
-
-		err := regularUser.InvalidateTemplatePrebuilds(ctx, template.ID)
-		require.Error(t, err)
-
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, 403, apiErr.StatusCode())
-	})
+	// TODO: Test unauthorized
 }

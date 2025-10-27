@@ -1162,12 +1162,12 @@ func (api *API) postInvalidateTemplatePrebuilds(rw http.ResponseWriter, r *http.
 	apiKey := httpmw.APIKey(r)
 
 	// Authorization: user must be able to update the template
-	if !api.Authorize(r, policy.ActionUpdate, template.RBACObject()) {
-		httpapi.Forbidden(rw)
+	if !api.Authorize(r, policy.ActionUpdate, template) {
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
-	// Get all workspaces for this template (returns WorkspaceTable without version info)
+	// Get all workspaces for this template
 	workspaceTables, err := api.Database.GetWorkspacesByTemplateID(ctx, template.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
