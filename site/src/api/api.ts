@@ -2659,11 +2659,6 @@ class ApiMethods {
 	};
 }
 
-// TODO: Generate this
-interface AIBridgeInterceptionsRequest extends TypesGen.Pagination {
-	q?: string;
-}
-
 // Experimental API methods call endpoints under the /api/experimental/ prefix.
 // These endpoints are not stable and may change or be removed at any time.
 //
@@ -2756,7 +2751,7 @@ class ExperimentalApiMethods {
 		});
 	};
 
-	getAIBridgeInterceptions = async (options: AIBridgeInterceptionsRequest) => {
+	getAIBridgeInterceptions = async (options: SearchParamOptions) => {
 		const url = getURLWithSearchParams(
 			"/api/experimental/aibridge/interceptions",
 			options,
