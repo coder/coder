@@ -1424,6 +1424,13 @@ func (q *querier) BulkMarkNotificationMessagesSent(ctx context.Context, arg data
 	return q.db.BulkMarkNotificationMessagesSent(ctx, arg)
 }
 
+func (q *querier) CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Context, arg database.CalculateAIBridgeInterceptionsTelemetrySummaryParams) (database.CalculateAIBridgeInterceptionsTelemetrySummaryRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAibridgeInterception); err != nil {
+		return database.CalculateAIBridgeInterceptionsTelemetrySummaryRow{}, err
+	}
+	return q.db.CalculateAIBridgeInterceptionsTelemetrySummary(ctx, arg)
+}
+
 func (q *querier) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	empty := database.ClaimPrebuiltWorkspaceRow{}
 
@@ -1721,6 +1728,13 @@ func (q *querier) DeleteOldProvisionerDaemons(ctx context.Context) error {
 		return err
 	}
 	return q.db.DeleteOldProvisionerDaemons(ctx)
+}
+
+func (q *querier) DeleteOldTelemetryLocks(ctx context.Context, beforeTime time.Time) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.DeleteOldTelemetryLocks(ctx, beforeTime)
 }
 
 func (q *querier) DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) error {
@@ -4212,6 +4226,13 @@ func (q *querier) InsertTelemetryItemIfNotExists(ctx context.Context, arg databa
 	return q.db.InsertTelemetryItemIfNotExists(ctx, arg)
 }
 
+func (q *querier) InsertTelemetryLock(ctx context.Context, arg database.InsertTelemetryLockParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.InsertTelemetryLock(ctx, arg)
+}
+
 func (q *querier) InsertTemplate(ctx context.Context, arg database.InsertTemplateParams) error {
 	obj := rbac.ResourceTemplate.InOrg(arg.OrganizationID)
 	if err := q.authorizeContext(ctx, policy.ActionCreate, obj); err != nil {
@@ -4521,6 +4542,13 @@ func (q *querier) ListAIBridgeInterceptions(ctx context.Context, arg database.Li
 		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
 	}
 	return q.db.ListAuthorizedAIBridgeInterceptions(ctx, arg, prep)
+}
+
+func (q *querier) ListAIBridgeInterceptionsTelemetrySummaries(ctx context.Context, arg database.ListAIBridgeInterceptionsTelemetrySummariesParams) ([]database.ListAIBridgeInterceptionsTelemetrySummariesRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAibridgeInterception); err != nil {
+		return nil, err
+	}
+	return q.db.ListAIBridgeInterceptionsTelemetrySummaries(ctx, arg)
 }
 
 func (q *querier) ListAIBridgeTokenUsagesByInterceptionIDs(ctx context.Context, interceptionIDs []uuid.UUID) ([]database.AIBridgeTokenUsage, error) {
