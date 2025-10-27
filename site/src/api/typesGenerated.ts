@@ -51,6 +51,11 @@ export interface AIBridgeOpenAIConfig {
 }
 
 // From codersdk/aibridge.go
+export interface AIBridgeSetRequestLoggingRequest {
+	readonly enabled: boolean;
+}
+
+// From codersdk/aibridge.go
 export interface AIBridgeTokenUsage {
 	readonly id: string;
 	readonly interception_id: string;
