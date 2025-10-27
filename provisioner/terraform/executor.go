@@ -225,7 +225,7 @@ func (e *executor) init(ctx, killCtx context.Context, logr logSink) error {
 	lockFilePath := filepath.Join(e.workdir, ".terraform.lock.hcl")
 	preInitChecksum := checksumFileCRC32(ctx, e.logger, lockFilePath)
 
-	outWriter, doneOut := logWriter(logr, proto.LogLevel_DEBUG)
+	outWriter, doneOut := e.provisionLogWriter(logr)
 	errWriter, doneErr := logWriter(logr, proto.LogLevel_ERROR)
 	defer func() {
 		_ = outWriter.Close()
@@ -242,6 +242,7 @@ func (e *executor) init(ctx, killCtx context.Context, logr logSink) error {
 		"init",
 		"-no-color",
 		"-input=false",
+		"-json",
 	}
 
 	err := e.execWriteOutput(ctx, killCtx, args, e.basicEnv(), outWriter, errBuf)
@@ -816,10 +817,11 @@ func extractTimingSpan(log *terraformProvisionLog) (time.Time, *timingSpan, erro
 	}
 
 	return ts, &timingSpan{
-		kind:     typ,
-		action:   log.Hook.Action,
-		provider: log.Hook.Resource.Provider,
-		resource: log.Hook.Resource.Addr,
+		kind:            typ,
+		initMessageCode: log.InitMessageCode,
+		action:          log.Hook.Action,
+		provider:        log.Hook.Resource.Provider,
+		resource:        log.Hook.Resource.Addr,
 	}, nil
 }
 
@@ -842,11 +844,13 @@ func convertTerraformLogLevel(logLevel string, sink logSink) proto.LogLevel {
 }
 
 type terraformProvisionLog struct {
-	Level     string                    `json:"@level"`
-	Message   string                    `json:"@message"`
-	Timestamp string                    `json:"@timestamp"`
-	Type      string                    `json:"type"`
-	Hook      terraformProvisionLogHook `json:"hook"`
+	Level     string `json:"@level"`
+	Message   string `json:"@message"`
+	Timestamp string `json:"@timestamp"`
+	Type      string `json:"type"`
+	// InitMessageCode is only set for init phase messages after Terraform 1.9.0
+	InitMessageCode initMessageCode           `json:"message_code,omitempty"`
+	Hook            terraformProvisionLogHook `json:"hook"`
 
 	Diagnostic *tfjson.Diagnostic `json:"diagnostic,omitempty"`
 }

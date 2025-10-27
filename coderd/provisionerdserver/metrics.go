@@ -2,6 +2,7 @@ package provisionerdserver
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -153,6 +154,6 @@ func (m *Metrics) UpdateWorkspaceTimingsMetrics(
 		m.workspaceClaimTimings.
 			WithLabelValues(organizationName, templateName, presetName).Observe(buildTime)
 	default:
-		m.logger.Warn(ctx, "unsupported workspace timing flags")
+		m.logger.Warn(ctx, fmt.Sprintf("unsupported workspace timing flags: %d", workspaceTimingType))
 	}
 }
