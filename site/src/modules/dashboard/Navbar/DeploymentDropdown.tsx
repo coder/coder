@@ -117,7 +117,11 @@ const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
 			)}
 			{canViewAIGovernance && (
 				<PopoverClose asChild>
-					<MenuItem component={NavLink} to="/aigovernance" css={styles.menuItem}>
+					<MenuItem
+						component={NavLink}
+						to="/aigovernance"
+						css={styles.menuItem}
+					>
 						AI Governance
 					</MenuItem>
 				</PopoverClose>
