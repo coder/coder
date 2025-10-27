@@ -1349,6 +1349,20 @@ func (q *querier) authorizeProvisionerJob(ctx context.Context, job database.Prov
 	return nil
 }
 
+func (q *querier) CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Context, arg database.CalculateAIBridgeInterceptionsTelemetrySummaryParams) (database.CalculateAIBridgeInterceptionsTelemetrySummaryRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAibridgeInterception); err != nil {
+		return database.CalculateAIBridgeInterceptionsTelemetrySummaryRow{}, err
+	}
+	return q.db.CalculateAIBridgeInterceptionsTelemetrySummary(ctx, arg)
+}
+
+func (q *querier) ListAIBridgeInterceptionsTelemetrySummaries(ctx context.Context, arg database.ListAIBridgeInterceptionsTelemetrySummariesParams) ([]database.ListAIBridgeInterceptionsTelemetrySummariesRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAibridgeInterception); err != nil {
+		return nil, err
+	}
+	return q.db.ListAIBridgeInterceptionsTelemetrySummaries(ctx, arg)
+}
+
 func (q *querier) AcquireLock(ctx context.Context, id int64) error {
 	return q.db.AcquireLock(ctx, id)
 }
@@ -1422,13 +1436,6 @@ func (q *querier) BulkMarkNotificationMessagesSent(ctx context.Context, arg data
 		return 0, err
 	}
 	return q.db.BulkMarkNotificationMessagesSent(ctx, arg)
-}
-
-func (q *querier) CalculateAIBridgeInterceptionsTelemetrySnapshot(ctx context.Context, arg database.CalculateAIBridgeInterceptionsTelemetrySnapshotParams) (database.CalculateAIBridgeInterceptionsTelemetrySnapshotRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAibridgeInterception); err != nil {
-		return database.CalculateAIBridgeInterceptionsTelemetrySnapshotRow{}, err
-	}
-	return q.db.CalculateAIBridgeInterceptionsTelemetrySnapshot(ctx, arg)
 }
 
 func (q *querier) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
@@ -1721,6 +1728,13 @@ func (q *querier) DeleteOldProvisionerDaemons(ctx context.Context) error {
 		return err
 	}
 	return q.db.DeleteOldProvisionerDaemons(ctx)
+}
+
+func (q *querier) DeleteOldTelemetryHeartbeats(ctx context.Context, beforeTime time.Time) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.DeleteOldTelemetryHeartbeats(ctx, beforeTime)
 }
 
 func (q *querier) DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) error {
@@ -4528,13 +4542,6 @@ func (q *querier) ListAIBridgeInterceptions(ctx context.Context, arg database.Li
 		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
 	}
 	return q.db.ListAuthorizedAIBridgeInterceptions(ctx, arg, prep)
-}
-
-func (q *querier) ListAIBridgeInterceptionsTelemetrySnapshots(ctx context.Context, arg database.ListAIBridgeInterceptionsTelemetrySnapshotsParams) ([]database.ListAIBridgeInterceptionsTelemetrySnapshotsRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAibridgeInterception); err != nil {
-		return nil, err
-	}
-	return q.db.ListAIBridgeInterceptionsTelemetrySnapshots(ctx, arg)
 }
 
 func (q *querier) ListAIBridgeTokenUsagesByInterceptionIDs(ctx context.Context, interceptionIDs []uuid.UUID) ([]database.AIBridgeTokenUsage, error) {

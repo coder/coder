@@ -345,9 +345,9 @@ func TestTelemetry(t *testing.T) {
 		}
 
 		// 2 unique provider + model + client combinations
-		require.Len(t, snapshot.AIBridgeInterceptionsSnapshots, 2)
-		snapshot1 := snapshot.AIBridgeInterceptionsSnapshots[0]
-		snapshot2 := snapshot.AIBridgeInterceptionsSnapshots[1]
+		require.Len(t, snapshot.AIBridgeInterceptionsSummaries, 2)
+		snapshot1 := snapshot.AIBridgeInterceptionsSummaries[0]
+		snapshot2 := snapshot.AIBridgeInterceptionsSummaries[1]
 		if snapshot1.Provider != aiBridgeInterception1.Provider {
 			snapshot1, snapshot2 = snapshot2, snapshot1
 		}

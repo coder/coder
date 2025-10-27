@@ -9,14 +9,21 @@ INSERT INTO
 VALUES
     ($1, $2);
 
--- name: ListAIBridgeInterceptionsTelemetrySnapshots :many
+-- name: DeleteOldTelemetryHeartbeats :exec
+-- Deletes old telemetry heartbeats from the telemetry_heartbeats table.
+DELETE FROM
+    telemetry_heartbeats
+WHERE
+    heartbeat_timestamp < @before_time::timestamptz;
+
+-- name: ListAIBridgeInterceptionsTelemetrySummaries :many
 -- Finds all unique AIBridge interception telemetry snapshots combinations
 -- (provider, model, client) in the given timeframe.
 SELECT
     DISTINCT ON (provider, model, client)
     provider,
     model,
-    -- TODO: use the client value once we have it
+    -- TODO: use the client value once we have it (see https://github.com/coder/aibridge/issues/31)
     'unknown' AS client
 FROM
     aibridge_interceptions
@@ -25,7 +32,7 @@ WHERE
     -- TODO: use the end time once we have it
     AND started_at < @ended_at_before::timestamptz;
 
--- name: CalculateAIBridgeInterceptionsTelemetrySnapshot :one
+-- name: CalculateAIBridgeInterceptionsTelemetrySummary :one
 -- Calculates the telemetry snapshot for a given provider, model, and client
 -- combination.
 WITH interceptions_in_range AS (
@@ -40,7 +47,7 @@ WITH interceptions_in_range AS (
     WHERE
         provider = @provider::text
         AND model = @model::text
-        -- TODO: use the client value once we have it
+        -- TODO: use the client value once we have it (see https://github.com/coder/aibridge/issues/31)
         AND 'unknown' = @client::text
         AND started_at >= @started_at_after::timestamptz
         -- TODO: use the end time once we have it

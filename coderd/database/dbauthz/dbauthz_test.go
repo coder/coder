@@ -4611,13 +4611,18 @@ func (s *MethodTestSuite) TestTelemetry() {
 		check.Args(database.InsertTelemetryHeartbeatParams{}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
 
-	s.Run("ListAIBridgeInterceptionsTelemetrySnapshots", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		db.EXPECT().ListAIBridgeInterceptionsTelemetrySnapshots(gomock.Any(), gomock.Any()).Return([]database.ListAIBridgeInterceptionsTelemetrySnapshotsRow{}, nil).AnyTimes()
-		check.Args(database.ListAIBridgeInterceptionsTelemetrySnapshotsParams{}).Asserts(rbac.ResourceAibridgeInterception, policy.ActionRead)
+	s.Run("DeleteOldTelemetryHeartbeats", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		db.EXPECT().DeleteOldTelemetryHeartbeats(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		check.Args(time.Time{}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
 	}))
 
-	s.Run("CalculateAIBridgeInterceptionsTelemetrySnapshot", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		db.EXPECT().CalculateAIBridgeInterceptionsTelemetrySnapshot(gomock.Any(), gomock.Any()).Return(database.CalculateAIBridgeInterceptionsTelemetrySnapshotRow{}, nil).AnyTimes()
-		check.Args(database.CalculateAIBridgeInterceptionsTelemetrySnapshotParams{}).Asserts(rbac.ResourceAibridgeInterception, policy.ActionRead)
+	s.Run("ListAIBridgeInterceptionsTelemetrySummaries", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		db.EXPECT().ListAIBridgeInterceptionsTelemetrySummaries(gomock.Any(), gomock.Any()).Return([]database.ListAIBridgeInterceptionsTelemetrySummariesRow{}, nil).AnyTimes()
+		check.Args(database.ListAIBridgeInterceptionsTelemetrySummariesParams{}).Asserts(rbac.ResourceAibridgeInterception, policy.ActionRead)
+	}))
+
+	s.Run("CalculateAIBridgeInterceptionsTelemetrySummary", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		db.EXPECT().CalculateAIBridgeInterceptionsTelemetrySummary(gomock.Any(), gomock.Any()).Return(database.CalculateAIBridgeInterceptionsTelemetrySummaryRow{}, nil).AnyTimes()
+		check.Args(database.CalculateAIBridgeInterceptionsTelemetrySummaryParams{}).Asserts(rbac.ResourceAibridgeInterception, policy.ActionRead)
 	}))
 }

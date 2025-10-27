@@ -62,7 +62,7 @@ type sqlcQuerier interface {
 	BulkMarkNotificationMessagesSent(ctx context.Context, arg BulkMarkNotificationMessagesSentParams) (int64, error)
 	// Calculates the telemetry snapshot for a given provider, model, and client
 	// combination.
-	CalculateAIBridgeInterceptionsTelemetrySnapshot(ctx context.Context, arg CalculateAIBridgeInterceptionsTelemetrySnapshotParams) (CalculateAIBridgeInterceptionsTelemetrySnapshotRow, error)
+	CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Context, arg CalculateAIBridgeInterceptionsTelemetrySummaryParams) (CalculateAIBridgeInterceptionsTelemetrySummaryRow, error)
 	ClaimPrebuiltWorkspace(ctx context.Context, arg ClaimPrebuiltWorkspaceParams) (ClaimPrebuiltWorkspaceRow, error)
 	CleanTailnetCoordinators(ctx context.Context) error
 	CleanTailnetLostPeers(ctx context.Context) error
@@ -108,6 +108,8 @@ type sqlcQuerier interface {
 	// A provisioner daemon with "zeroed" last_seen_at column indicates possible
 	// connectivity issues (no provisioner daemon activity since registration).
 	DeleteOldProvisionerDaemons(ctx context.Context) error
+	// Deletes old telemetry heartbeats from the telemetry_heartbeats table.
+	DeleteOldTelemetryHeartbeats(ctx context.Context, beforeTime time.Time) error
 	// If an agent hasn't connected in the last 7 days, we purge it's logs.
 	// Exception: if the logs are related to the latest build, we keep those around.
 	// Logs can take up a lot of space, so it's important we clean up frequently.
@@ -604,7 +606,7 @@ type sqlcQuerier interface {
 	ListAIBridgeInterceptions(ctx context.Context, arg ListAIBridgeInterceptionsParams) ([]ListAIBridgeInterceptionsRow, error)
 	// Finds all unique AIBridge interception telemetry snapshots combinations
 	// (provider, model, client) in the given timeframe.
-	ListAIBridgeInterceptionsTelemetrySnapshots(ctx context.Context, arg ListAIBridgeInterceptionsTelemetrySnapshotsParams) ([]ListAIBridgeInterceptionsTelemetrySnapshotsRow, error)
+	ListAIBridgeInterceptionsTelemetrySummaries(ctx context.Context, arg ListAIBridgeInterceptionsTelemetrySummariesParams) ([]ListAIBridgeInterceptionsTelemetrySummariesRow, error)
 	ListAIBridgeTokenUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeTokenUsage, error)
 	ListAIBridgeToolUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeToolUsage, error)
 	ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeUserPrompt, error)

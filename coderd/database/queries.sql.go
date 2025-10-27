@@ -12844,7 +12844,7 @@ func (q *sqlQuerier) UpsertTaskWorkspaceApp(ctx context.Context, arg UpsertTaskW
 	return i, err
 }
 
-const calculateAIBridgeInterceptionsTelemetrySnapshot = `-- name: CalculateAIBridgeInterceptionsTelemetrySnapshot :one
+const calculateAIBridgeInterceptionsTelemetrySummary = `-- name: CalculateAIBridgeInterceptionsTelemetrySummary :one
 WITH interceptions_in_range AS (
     -- Get all matching interceptions in the given timeframe.
     SELECT
@@ -12946,7 +12946,7 @@ FROM
     tool_aggregates tool_agg
 `
 
-type CalculateAIBridgeInterceptionsTelemetrySnapshotParams struct {
+type CalculateAIBridgeInterceptionsTelemetrySummaryParams struct {
 	Provider       string    `db:"provider" json:"provider"`
 	Model          string    `db:"model" json:"model"`
 	Client         string    `db:"client" json:"client"`
@@ -12954,7 +12954,7 @@ type CalculateAIBridgeInterceptionsTelemetrySnapshotParams struct {
 	EndedAtBefore  time.Time `db:"ended_at_before" json:"ended_at_before"`
 }
 
-type CalculateAIBridgeInterceptionsTelemetrySnapshotRow struct {
+type CalculateAIBridgeInterceptionsTelemetrySummaryRow struct {
 	InterceptionCount             int64 `db:"interception_count" json:"interception_count"`
 	InterceptionDurationP50Millis int64 `db:"interception_duration_p50_millis" json:"interception_duration_p50_millis"`
 	InterceptionDurationP90Millis int64 `db:"interception_duration_p90_millis" json:"interception_duration_p90_millis"`
@@ -12974,15 +12974,15 @@ type CalculateAIBridgeInterceptionsTelemetrySnapshotRow struct {
 
 // Calculates the telemetry snapshot for a given provider, model, and client
 // combination.
-func (q *sqlQuerier) CalculateAIBridgeInterceptionsTelemetrySnapshot(ctx context.Context, arg CalculateAIBridgeInterceptionsTelemetrySnapshotParams) (CalculateAIBridgeInterceptionsTelemetrySnapshotRow, error) {
-	row := q.db.QueryRowContext(ctx, calculateAIBridgeInterceptionsTelemetrySnapshot,
+func (q *sqlQuerier) CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Context, arg CalculateAIBridgeInterceptionsTelemetrySummaryParams) (CalculateAIBridgeInterceptionsTelemetrySummaryRow, error) {
+	row := q.db.QueryRowContext(ctx, calculateAIBridgeInterceptionsTelemetrySummary,
 		arg.Provider,
 		arg.Model,
 		arg.Client,
 		arg.StartedAtAfter,
 		arg.EndedAtBefore,
 	)
-	var i CalculateAIBridgeInterceptionsTelemetrySnapshotRow
+	var i CalculateAIBridgeInterceptionsTelemetrySummaryRow
 	err := row.Scan(
 		&i.InterceptionCount,
 		&i.InterceptionDurationP50Millis,
@@ -13001,6 +13001,19 @@ func (q *sqlQuerier) CalculateAIBridgeInterceptionsTelemetrySnapshot(ctx context
 		&i.InjectedToolCallErrorCount,
 	)
 	return i, err
+}
+
+const deleteOldTelemetryHeartbeats = `-- name: DeleteOldTelemetryHeartbeats :exec
+DELETE FROM
+    telemetry_heartbeats
+WHERE
+    heartbeat_timestamp < $1::timestamptz
+`
+
+// Deletes old telemetry heartbeats from the telemetry_heartbeats table.
+func (q *sqlQuerier) DeleteOldTelemetryHeartbeats(ctx context.Context, beforeTime time.Time) error {
+	_, err := q.db.ExecContext(ctx, deleteOldTelemetryHeartbeats, beforeTime)
+	return err
 }
 
 const insertTelemetryHeartbeat = `-- name: InsertTelemetryHeartbeat :exec
@@ -13025,7 +13038,7 @@ func (q *sqlQuerier) InsertTelemetryHeartbeat(ctx context.Context, arg InsertTel
 	return err
 }
 
-const listAIBridgeInterceptionsTelemetrySnapshots = `-- name: ListAIBridgeInterceptionsTelemetrySnapshots :many
+const listAIBridgeInterceptionsTelemetrySummaries = `-- name: ListAIBridgeInterceptionsTelemetrySummaries :many
 SELECT
     DISTINCT ON (provider, model, client)
     provider,
@@ -13040,12 +13053,12 @@ WHERE
     AND started_at < $2::timestamptz
 `
 
-type ListAIBridgeInterceptionsTelemetrySnapshotsParams struct {
+type ListAIBridgeInterceptionsTelemetrySummariesParams struct {
 	StartedAtAfter time.Time `db:"started_at_after" json:"started_at_after"`
 	EndedAtBefore  time.Time `db:"ended_at_before" json:"ended_at_before"`
 }
 
-type ListAIBridgeInterceptionsTelemetrySnapshotsRow struct {
+type ListAIBridgeInterceptionsTelemetrySummariesRow struct {
 	Provider string `db:"provider" json:"provider"`
 	Model    string `db:"model" json:"model"`
 	Client   string `db:"client" json:"client"`
@@ -13053,15 +13066,15 @@ type ListAIBridgeInterceptionsTelemetrySnapshotsRow struct {
 
 // Finds all unique AIBridge interception telemetry snapshots combinations
 // (provider, model, client) in the given timeframe.
-func (q *sqlQuerier) ListAIBridgeInterceptionsTelemetrySnapshots(ctx context.Context, arg ListAIBridgeInterceptionsTelemetrySnapshotsParams) ([]ListAIBridgeInterceptionsTelemetrySnapshotsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listAIBridgeInterceptionsTelemetrySnapshots, arg.StartedAtAfter, arg.EndedAtBefore)
+func (q *sqlQuerier) ListAIBridgeInterceptionsTelemetrySummaries(ctx context.Context, arg ListAIBridgeInterceptionsTelemetrySummariesParams) ([]ListAIBridgeInterceptionsTelemetrySummariesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAIBridgeInterceptionsTelemetrySummaries, arg.StartedAtAfter, arg.EndedAtBefore)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListAIBridgeInterceptionsTelemetrySnapshotsRow
+	var items []ListAIBridgeInterceptionsTelemetrySummariesRow
 	for rows.Next() {
-		var i ListAIBridgeInterceptionsTelemetrySnapshotsRow
+		var i ListAIBridgeInterceptionsTelemetrySummariesRow
 		if err := rows.Scan(&i.Provider, &i.Model, &i.Client); err != nil {
 			return nil, err
 		}
