@@ -817,11 +817,11 @@ func extractTimingSpan(log *terraformProvisionLog) (time.Time, *timingSpan, erro
 	}
 
 	return ts, &timingSpan{
-		kind:            typ,
-		initMessageCode: log.InitMessageCode,
-		action:          log.Hook.Action,
-		provider:        log.Hook.Resource.Provider,
-		resource:        log.Hook.Resource.Addr,
+		kind:        typ,
+		messageCode: log.MessageCode,
+		action:      log.Hook.Action,
+		provider:    log.Hook.Resource.Provider,
+		resource:    log.Hook.Resource.Addr,
 	}, nil
 }
 
@@ -848,9 +848,10 @@ type terraformProvisionLog struct {
 	Message   string `json:"@message"`
 	Timestamp string `json:"@timestamp"`
 	Type      string `json:"type"`
-	// InitMessageCode is only set for init phase messages after Terraform 1.9.0
-	InitMessageCode initMessageCode           `json:"message_code,omitempty"`
-	Hook            terraformProvisionLogHook `json:"hook"`
+	// MessageCode is only set for init phase messages after Terraform 1.9.0
+	// This field is not used by plan/apply.
+	MessageCode initMessageCode           `json:"message_code,omitempty"`
+	Hook        terraformProvisionLogHook `json:"hook"`
 
 	Diagnostic *tfjson.Diagnostic `json:"diagnostic,omitempty"`
 }

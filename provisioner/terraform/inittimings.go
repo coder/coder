@@ -35,7 +35,7 @@ var (
 // Since initialization is done serially, we can infer the end time of each
 // stage from the start time of the next stage.
 func (t *timingAggregator) ingestInitTiming(ts time.Time, s *timingSpan) {
-	switch s.initMessageCode {
+	switch s.messageCode {
 	case initInitializingBackendMessage:
 		// Backend loads the tfstate from the backend data source. For coder, this is
 		// always a state file on disk, making it nearly an instantaneous operation.
@@ -62,7 +62,7 @@ func (t *timingAggregator) ingestInitTiming(ts time.Time, s *timingSpan) {
 	// The default action is an empty string
 	s.action = "load"
 	// Resource name is an empty string. Name it something more useful.
-	s.resource = resourceName[s.initMessageCode]
+	s.resource = resourceName[s.messageCode]
 
 	t.finishPrevious(ts, s)
 
@@ -74,7 +74,7 @@ func (t *timingAggregator) ingestInitTiming(ts time.Time, s *timingSpan) {
 }
 
 func (t *timingAggregator) finishPrevious(ts time.Time, s *timingSpan) {
-	index := slices.Index(executionOrder, s.initMessageCode)
+	index := slices.Index(executionOrder, s.messageCode)
 	if index <= 0 {
 		// If the index is not found or is the first item, nothing to complete.
 		return
@@ -86,7 +86,7 @@ func (t *timingAggregator) finishPrevious(ts time.Time, s *timingSpan) {
 	cpy := *s
 	cpy.start = time.Time{}
 	cpy.end = ts
-	cpy.initMessageCode = previous
+	cpy.messageCode = previous
 	cpy.resource, _ = resourceName[previous]
 	cpy.state = proto.TimingState_COMPLETED
 

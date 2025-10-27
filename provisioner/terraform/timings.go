@@ -80,8 +80,8 @@ type timingAggregator struct {
 
 type timingSpan struct {
 	kind timingKind
-	// initMessageCode is only present in `terraform init` timings.
-	initMessageCode            initMessageCode
+	// messageCode is only present in `terraform init` timings.
+	messageCode                initMessageCode
 	start, end                 time.Time
 	stage                      database.ProvisionerJobTimingStage
 	action, provider, resource string
@@ -229,8 +229,8 @@ func (l timingKind) Category() string {
 // The combination of resource and provider names MUST be unique across entries.
 func (e *timingSpan) hashByState(state proto.TimingState) uint64 {
 	id := fmt.Sprintf("%s:%s:%s:%s:%s", e.kind.Category(), state.String(), e.action, e.resource, e.provider)
-	if e.initMessageCode != "" {
-		id += ":" + string(e.initMessageCode)
+	if e.messageCode != "" {
+		id += ":" + string(e.messageCode)
 	}
 	return xxhash.Sum64String(id)
 }
