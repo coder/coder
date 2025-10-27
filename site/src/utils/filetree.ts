@@ -1,4 +1,5 @@
-import set from "lodash/fp/set";
+import cloneDeep from "lodash/cloneDeep";
+import set from "lodash/set";
 import get from "lodash/get";
 import has from "lodash/has";
 import unset from "lodash/unset";
@@ -20,7 +21,8 @@ export const createFile = (
 		throw new Error(pathError);
 	}
 
-	return set(path.split("/"), value)(fileTree);
+	const updatedFileTree = cloneDeep(fileTree);
+	return set(updatedFileTree, path.split("/"), value);
 };
 
 export const validatePath = (
@@ -43,7 +45,8 @@ export const updateFile = (
 	content: FileTree | string,
 	fileTree: FileTree,
 ): FileTree => {
-	return set(path.split("/"), content)(fileTree);
+	const updatedFileTree = cloneDeep(fileTree);
+	return set(updatedFileTree, path.split("/"), content);
 };
 
 export const existsFile = (path: string, fileTree: FileTree) => {
@@ -51,7 +54,7 @@ export const existsFile = (path: string, fileTree: FileTree) => {
 };
 
 export const removeFile = (path: string, fileTree: FileTree) => {
-	const updatedFileTree = { ...fileTree };
+	const updatedFileTree = cloneDeep(fileTree);
 	unset(updatedFileTree, path.split("/"));
 	return updatedFileTree;
 };

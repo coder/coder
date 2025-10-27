@@ -10,18 +10,20 @@ import {
 } from "./filetree";
 
 test("createFile() set file into the file tree", () => {
-	let fileTree: FileTree = {
+	const fileTree: FileTree = {
 		"main.tf": "terraform",
 		images: { "java.Dockerfile": "java dockerfile" },
 	};
-	fileTree = createFile(
+	const updatedFileTree = createFile(
 		"images/python.Dockerfile",
 		fileTree,
 		"python dockerfile",
 	);
-	expect((fileTree.images as FileTree)["python.Dockerfile"]).toEqual(
+	expect((updatedFileTree.images as FileTree)["python.Dockerfile"]).toEqual(
 		"python dockerfile",
 	);
+	// Verify the original FileTree was not modified.
+	expect((fileTree.images as FileTree)["python.Dockerfile"]).toBeUndefined();
 });
 
 test("getFileContent() return the file content from the file tree", () => {
@@ -35,50 +37,56 @@ test("getFileContent() return the file content from the file tree", () => {
 });
 
 test("removeFile() removes a file from a folder", () => {
-	let fileTree: FileTree = {
+	const fileTree: FileTree = {
 		"main.tf": "terraform content",
 		images: {
 			"java.Dockerfile": "java dockerfile",
 			"python.Dockerfile": "python Dockerfile",
 		},
 	};
-	fileTree = removeFile("images/python.Dockerfile", fileTree);
+	const updatedFileTree = removeFile("images/python.Dockerfile", fileTree);
 	const expectedFileTree = {
 		"main.tf": "terraform content",
 		images: {
 			"java.Dockerfile": "java dockerfile",
 		},
 	};
-	expect(expectedFileTree).toEqual(fileTree);
+	expect(updatedFileTree).toEqual(expectedFileTree);
+	// Verify the original FileTree was not modified.
+	expect((fileTree.images as FileTree)["python.Dockerfile"]).toEqual(
+		"python Dockerfile",
+	);
 });
 
 test("removeFile() removes a file from root", () => {
-	let fileTree: FileTree = {
+	const fileTree: FileTree = {
 		"main.tf": "terraform content",
 		images: {
 			"java.Dockerfile": "java dockerfile",
 			"python.Dockerfile": "python Dockerfile",
 		},
 	};
-	fileTree = removeFile("main.tf", fileTree);
+	const updatedFileTree = removeFile("main.tf", fileTree);
 	const expectedFileTree = {
 		images: {
 			"java.Dockerfile": "java dockerfile",
 			"python.Dockerfile": "python Dockerfile",
 		},
 	};
-	expect(expectedFileTree).toEqual(fileTree);
+	expect(updatedFileTree).toEqual(expectedFileTree);
+	// Verify the original FileTree was not modified.
+	expect(fileTree["main.tf"]).toEqual("terraform content");
 });
 
 test("moveFile() moves a file from in file tree", () => {
-	let fileTree: FileTree = {
+	const fileTree: FileTree = {
 		"main.tf": "terraform content",
 		images: {
 			"java.Dockerfile": "java dockerfile",
 			"python.Dockerfile": "python Dockerfile",
 		},
 	};
-	fileTree = moveFile(
+	const updatedFileTree = moveFile(
 		"images/java.Dockerfile",
 		"other/java.Dockerfile",
 		fileTree,
@@ -92,7 +100,9 @@ test("moveFile() moves a file from in file tree", () => {
 			"java.Dockerfile": "java dockerfile",
 		},
 	};
-	expect(fileTree).toEqual(expectedFileTree);
+	expect(updatedFileTree).toEqual(expectedFileTree);
+	// Verify the original FileTree was not modified.
+	expect(fileTree["main.tf"]).toEqual("terraform content");
 });
 
 test("existsFile() returns if there is or not a file", () => {
