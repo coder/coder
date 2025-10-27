@@ -12,17 +12,22 @@ var (
 	// resourceName maps init message codes to human-readable resource names.
 	// This is purely for better readability in the timing spans.
 	resourceName = map[initMessageCode]string{
-		initInitializingBackendMessage:        "Backend",
-		initInitializingModulesMessage:        "Modules",
+		initInitializingBackendMessage:    "Backend",
+		initInitializingStateStoreMessage: "Backend",
+
+		initInitializingModulesMessage: "Modules",
+		initUpgradingModulesMessage:    "Modules",
+
 		initInitializingProviderPluginMessage: "Provider Plugins",
 	}
 
 	// executionOrder is the expected sequential steps during `terraform init`.
-	executionOrder = []initMessageCode{
-		initInitializingBackendMessage,
-		initInitializingModulesMessage,
-		initInitializingProviderPluginMessage,
-		initOutputInitSuccessMessage,
+	// The name of the stage depends on the
+	executionOrder = [][]initMessageCode{
+		{initInitializingBackendMessage, initInitializingStateStoreMessage},
+		{initInitializingModulesMessage, initUpgradingModulesMessage},
+		{initInitializingProviderPluginMessage},
+		{initOutputInitSuccessMessage, initOutputInitSuccessCloudMessage},
 	}
 )
 
@@ -36,7 +41,7 @@ var (
 // stage from the start time of the next stage.
 func (t *timingAggregator) ingestInitTiming(ts time.Time, s *timingSpan) {
 	switch s.messageCode {
-	case initInitializingBackendMessage:
+	case initInitializingBackendMessage, initInitializingStateStoreMessage:
 		// Backend loads the tfstate from the backend data source. For coder, this is
 		// always a state file on disk, making it nearly an instantaneous operation.
 		s.start = ts
@@ -74,26 +79,28 @@ func (t *timingAggregator) ingestInitTiming(ts time.Time, s *timingSpan) {
 }
 
 func (t *timingAggregator) finishPrevious(ts time.Time, s *timingSpan) {
-	index := slices.Index(executionOrder, s.messageCode)
+	index := slices.IndexFunc(executionOrder, func(codes []initMessageCode) bool {
+		return slices.Contains(codes, s.messageCode)
+	})
 	if index <= 0 {
 		// If the index is not found or is the first item, nothing to complete.
 		return
 	}
 
 	// Complete the previous message.
-	previous := executionOrder[index-1]
-
-	cpy := *s
-	cpy.start = time.Time{}
-	cpy.end = ts
-	cpy.messageCode = previous
-	cpy.resource, _ = resourceName[previous]
-	cpy.state = proto.TimingState_COMPLETED
+	previousSteps := executionOrder[index-1]
 
 	t.lookupMu.Lock()
-	// Memoize this span by its unique attributes and the determined state.
-	// This will be used in aggregate() to determine the duration of the resource action.
-	t.stateLookup[cpy.hashByState(cpy.state)] = &cpy
+	for _, step := range previousSteps {
+		cpy := *s
+		cpy.start = time.Time{}
+		cpy.end = ts
+		cpy.messageCode = step
+		cpy.resource, _ = resourceName[step]
+		cpy.state = proto.TimingState_COMPLETED
+		t.stateLookup[cpy.hashByState(cpy.state)] = &cpy
+	}
+
 	t.lookupMu.Unlock()
 }
 

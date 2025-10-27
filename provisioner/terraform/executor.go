@@ -810,6 +810,9 @@ func extractTimingSpan(log *terraformProvisionLog) (time.Time, *timingSpan, erro
 		return time.Time{}, nil, xerrors.Errorf("unexpected timing kind: %q", log.Type)
 	}
 
+	// Init logs omit millisecond precision, so using `time.Now` as a fallback
+	// for these logs is more precise than parsing the second precision alone.
+	// https://github.com/hashicorp/terraform/pull/37818
 	ts, err := time.Parse("2006-01-02T15:04:05.000000Z07:00", log.Timestamp)
 	if err != nil {
 		// TODO: log
