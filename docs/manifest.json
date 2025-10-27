@@ -210,6 +210,11 @@
 							"path": "./user-guides/workspace-access/vscode.md"
 						},
 						{
+							"title": "Web Terminal",
+							"description": "Use the browser-based terminal to access your workspace",
+							"path": "./user-guides/workspace-access/web-terminal.md"
+						},
+						{
 							"title": "JetBrains IDEs",
 							"description": "Use JetBrains IDEs with Coder",
 							"path": "./user-guides/workspace-access/jetbrains/index.md",
@@ -391,6 +396,11 @@
 									"title": "Up to 3,000 Users",
 									"description": "Enterprise-scale architecture recommendations for Coder deployments that support up to 3,000 users",
 									"path": "./admin/infrastructure/validated-architectures/3k-users.md"
+								},
+								{
+									"title": "Up to 10,000 Users",
+									"description": "Enterprise-scale architecture recommendations for Coder deployments that support up to 10,000 users",
+									"path": "./admin/infrastructure/validated-architectures/10k-users.md"
 								}
 							]
 						},
@@ -912,7 +922,7 @@
 					"title": "Agent Boundaries",
 					"description": "Understanding Agent Boundaries in Coder Tasks",
 					"path": "./ai-coder/agent-boundary.md",
-					"state": ["beta"]
+					"state": ["early access"]
 				},
 				{
 					"title": "AI Bridge",

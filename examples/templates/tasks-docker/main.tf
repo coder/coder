@@ -22,7 +22,7 @@ provider "docker" {}
 module "claude-code" {
   count               = data.coder_workspace.me.start_count
   source              = "registry.coder.com/coder/claude-code/coder"
-  version             = "3.0.0"
+  version             = "3.3.2"
   agent_id            = coder_agent.main.id
   workdir             = "/home/coder/projects"
   order               = 999
@@ -271,14 +271,14 @@ module "code-server" {
 module "windsurf" {
   count    = data.coder_workspace.me.start_count
   source   = "registry.coder.com/coder/windsurf/coder"
-  version  = "1.1.0"
+  version  = "1.2.0"
   agent_id = coder_agent.main.id
 }
 
 module "cursor" {
   count    = data.coder_workspace.me.start_count
   source   = "registry.coder.com/coder/cursor/coder"
-  version  = "1.2.0"
+  version  = "1.3.2"
   agent_id = coder_agent.main.id
 }
 

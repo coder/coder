@@ -2,8 +2,6 @@ package httpmw
 
 import (
 	"context"
-	"crypto/sha256"
-	"crypto/subtle"
 	"database/sql"
 	"net/http"
 	"strings"
@@ -12,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -125,8 +124,7 @@ func ExtractWorkspaceProxy(opts ExtractWorkspaceProxyConfig) func(http.Handler) 
 			}
 
 			// Do a subtle constant time comparison of the hash of the secret.
-			hashedSecret := sha256.Sum256([]byte(secret))
-			if subtle.ConstantTimeCompare(proxy.TokenHashedSecret, hashedSecret[:]) != 1 {
+			if !apikey.ValidateHash(proxy.TokenHashedSecret, secret) {
 				httpapi.Write(ctx, w, http.StatusUnauthorized, codersdk.Response{
 					Message: "Invalid external proxy token",
 					Detail:  "Invalid proxy token secret.",

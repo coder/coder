@@ -51,6 +51,13 @@ func ListLazy[F any, T any](convert func(F) T) func(list []F) []T {
 	}
 }
 
+func APIAllowListTarget(entry rbac.AllowListElement) codersdk.APIAllowListTarget {
+	return codersdk.APIAllowListTarget{
+		Type: codersdk.RBACResource(entry.Type),
+		ID:   entry.ID,
+	}
+}
+
 type ExternalAuthMeta struct {
 	Authenticated bool
 	ValidateError string
@@ -189,6 +196,16 @@ func MinimalUser(user database.User) codersdk.MinimalUser {
 	return codersdk.MinimalUser{
 		ID:        user.ID,
 		Username:  user.Username,
+		Name:      user.Name,
+		AvatarURL: user.AvatarURL,
+	}
+}
+
+func MinimalUserFromVisibleUser(user database.VisibleUser) codersdk.MinimalUser {
+	return codersdk.MinimalUser{
+		ID:        user.ID,
+		Username:  user.Username,
+		Name:      user.Name,
 		AvatarURL: user.AvatarURL,
 	}
 }
@@ -197,7 +214,6 @@ func ReducedUser(user database.User) codersdk.ReducedUser {
 	return codersdk.ReducedUser{
 		MinimalUser: MinimalUser(user),
 		Email:       user.Email,
-		Name:        user.Name,
 		CreatedAt:   user.CreatedAt,
 		UpdatedAt:   user.UpdatedAt,
 		LastSeenAt:  user.LastSeenAt,
@@ -374,6 +390,9 @@ func OAuth2ProviderApp(accessURL *url.URL, dbApp database.OAuth2ProviderApp) cod
 			}).String(),
 			// We do not currently support DeviceAuth.
 			DeviceAuth: "",
+			TokenRevoke: accessURL.ResolveReference(&url.URL{
+				Path: "/oauth2/revoke",
+			}).String(),
 		},
 	}
 }
@@ -928,7 +947,7 @@ func PreviewParameterValidation(v *previewtypes.ParameterValidation) codersdk.Pr
 	}
 }
 
-func AIBridgeInterception(interception database.AIBridgeInterception, tokenUsages []database.AIBridgeTokenUsage, userPrompts []database.AIBridgeUserPrompt, toolUsages []database.AIBridgeToolUsage) codersdk.AIBridgeInterception {
+func AIBridgeInterception(interception database.AIBridgeInterception, initiator database.VisibleUser, tokenUsages []database.AIBridgeTokenUsage, userPrompts []database.AIBridgeUserPrompt, toolUsages []database.AIBridgeToolUsage) codersdk.AIBridgeInterception {
 	sdkTokenUsages := List(tokenUsages, AIBridgeTokenUsage)
 	sort.Slice(sdkTokenUsages, func(i, j int) bool {
 		// created_at ASC
@@ -944,9 +963,9 @@ func AIBridgeInterception(interception database.AIBridgeInterception, tokenUsage
 		// created_at ASC
 		return sdkToolUsages[i].CreatedAt.Before(sdkToolUsages[j].CreatedAt)
 	})
-	return codersdk.AIBridgeInterception{
+	intc := codersdk.AIBridgeInterception{
 		ID:          interception.ID,
-		InitiatorID: interception.InitiatorID,
+		Initiator:   MinimalUserFromVisibleUser(initiator),
 		Provider:    interception.Provider,
 		Model:       interception.Model,
 		Metadata:    jsonOrEmptyMap(interception.Metadata),
@@ -955,6 +974,10 @@ func AIBridgeInterception(interception database.AIBridgeInterception, tokenUsage
 		UserPrompts: sdkUserPrompts,
 		ToolUsages:  sdkToolUsages,
 	}
+	if interception.EndedAt.Valid {
+		intc.EndedAt = &interception.EndedAt.Time
+	}
+	return intc
 }
 
 func AIBridgeTokenUsage(usage database.AIBridgeTokenUsage) codersdk.AIBridgeTokenUsage {

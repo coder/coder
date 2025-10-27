@@ -160,6 +160,19 @@ func (api *API) deleteOAuth2ProviderAppTokens() http.HandlerFunc {
 	return oauth2provider.RevokeApp(api.Database)
 }
 
+// @Summary Revoke OAuth2 tokens (RFC 7009).
+// @ID oauth2-token-revocation
+// @Accept x-www-form-urlencoded
+// @Tags Enterprise
+// @Param client_id formData string true "Client ID for authentication"
+// @Param token formData string true "The token to revoke"
+// @Param token_type_hint formData string false "Hint about token type (access_token or refresh_token)"
+// @Success 200 "Token successfully revoked"
+// @Router /oauth2/revoke [post]
+func (api *API) revokeOAuth2Token() http.HandlerFunc {
+	return oauth2provider.RevokeToken(api.Database, api.Logger)
+}
+
 // @Summary OAuth2 authorization server metadata.
 // @ID oauth2-authorization-server-metadata
 // @Produce json

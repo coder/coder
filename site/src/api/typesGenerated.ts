@@ -26,12 +26,13 @@ export interface AIBridgeConfig {
 // From codersdk/aibridge.go
 export interface AIBridgeInterception {
 	readonly id: string;
-	readonly initiator_id: string;
+	readonly initiator: MinimalUser;
 	readonly provider: string;
 	readonly model: string;
 	// empty interface{} type, falling back to unknown
 	readonly metadata: Record<string, unknown>;
 	readonly started_at: string;
+	readonly ended_at: string | null;
 	readonly token_usages: readonly AIBridgeTokenUsage[];
 	readonly user_prompts: readonly AIBridgeUserPrompt[];
 	readonly tool_usages: readonly AIBridgeToolUsage[];
@@ -39,6 +40,7 @@ export interface AIBridgeInterception {
 
 // From codersdk/aibridge.go
 export interface AIBridgeListInterceptionsResponse {
+	readonly count: number;
 	readonly results: readonly AIBridgeInterception[];
 }
 
@@ -140,6 +142,7 @@ export interface APIKey {
 	readonly scopes: readonly APIKeyScope[];
 	readonly token_name: string;
 	readonly lifetime_seconds: number;
+	readonly allow_list: readonly APIAllowListTarget[];
 }
 
 // From codersdk/apikey.go
@@ -324,6 +327,7 @@ export type APIKeyScope =
 	| "workspace_dormant:delete"
 	| "workspace_dormant:delete_agent"
 	| "workspace_dormant:read"
+	| "workspace_dormant:share"
 	| "workspace_dormant:ssh"
 	| "workspace_dormant:start"
 	| "workspace_dormant:stop"
@@ -334,6 +338,7 @@ export type APIKeyScope =
 	| "workspace_proxy:read"
 	| "workspace_proxy:update"
 	| "workspace:read"
+	| "workspace:share"
 	| "workspace:ssh"
 	| "workspace:start"
 	| "workspace:stop"
@@ -520,6 +525,7 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"workspace_dormant:delete",
 	"workspace_dormant:delete_agent",
 	"workspace_dormant:read",
+	"workspace_dormant:share",
 	"workspace_dormant:ssh",
 	"workspace_dormant:start",
 	"workspace_dormant:stop",
@@ -530,6 +536,7 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"workspace_proxy:read",
 	"workspace_proxy:update",
 	"workspace:read",
+	"workspace:share",
 	"workspace:ssh",
 	"workspace:start",
 	"workspace:stop",
@@ -1754,6 +1761,7 @@ export interface DeploymentValues {
 	readonly session_lifetime?: SessionLifetime;
 	readonly disable_password_auth?: boolean;
 	readonly support?: SupportConfig;
+	readonly enable_authz_recording?: boolean;
 	readonly external_auth?: SerpentStruct<ExternalAuthConfig[]>;
 	readonly config_ssh?: SSHConfig;
 	readonly wgtunnel_host?: string;
@@ -2513,6 +2521,7 @@ export interface LinkConfig {
 	readonly name: string;
 	readonly target: string;
 	readonly icon: string;
+	readonly location?: string;
 }
 
 // From codersdk/inboxnotification.go
@@ -2636,6 +2645,7 @@ export interface MinimalOrganization {
 export interface MinimalUser {
 	readonly id: string;
 	readonly username: string;
+	readonly name?: string;
 	readonly avatar_url?: string;
 }
 
@@ -2885,6 +2895,7 @@ export interface NullHCLString {
 export interface OAuth2AppEndpoints {
 	readonly authorization: string;
 	readonly token: string;
+	readonly token_revoke: string;
 	/**
 	 * DeviceAuth is optional.
 	 */
@@ -3816,6 +3827,7 @@ export type RBACAction =
 	| "read"
 	| "read_personal"
 	| "ssh"
+	| "share"
 	| "unassign"
 	| "update"
 	| "update_personal"
@@ -3834,6 +3846,7 @@ export const RBACActions: RBACAction[] = [
 	"read",
 	"read_personal",
 	"ssh",
+	"share",
 	"unassign",
 	"update",
 	"update_personal",
@@ -3947,7 +3960,6 @@ export interface RateLimitConfig {
  * required by the frontend.
  */
 export interface ReducedUser extends MinimalUser {
-	readonly name?: string;
 	readonly email: string;
 	readonly created_at: string;
 	readonly updated_at: string;
@@ -4698,19 +4710,23 @@ export interface Task {
 	readonly organization_id: string;
 	readonly owner_id: string;
 	readonly owner_name: string;
+	readonly owner_avatar_url?: string;
 	readonly name: string;
 	readonly template_id: string;
+	readonly template_version_id: string;
 	readonly template_name: string;
 	readonly template_display_name: string;
 	readonly template_icon: string;
 	readonly workspace_id: string | null;
+	readonly workspace_name: string;
+	readonly workspace_status?: WorkspaceStatus;
 	readonly workspace_build_number?: number;
 	readonly workspace_agent_id: string | null;
 	readonly workspace_agent_lifecycle: WorkspaceAgentLifecycle | null;
 	readonly workspace_agent_health: WorkspaceAgentHealth | null;
 	readonly workspace_app_id: string | null;
 	readonly initial_prompt: string;
-	readonly status: WorkspaceStatus;
+	readonly status: TaskStatus;
 	readonly current_state: TaskStateEntry | null;
 	readonly created_at: string;
 	readonly updated_at: string;
@@ -4778,6 +4794,24 @@ export const TaskStates: TaskState[] = [
 ];
 
 // From codersdk/aitasks.go
+export type TaskStatus =
+	| "active"
+	| "error"
+	| "initializing"
+	| "paused"
+	| "pending"
+	| "unknown";
+
+export const TaskStatuses: TaskStatus[] = [
+	"active",
+	"error",
+	"initializing",
+	"paused",
+	"pending",
+	"unknown",
+];
+
+// From codersdk/aitasks.go
 /**
  * TasksFilter filters the list of tasks.
  *
@@ -4788,6 +4822,29 @@ export interface TasksFilter {
 	 * Owner can be a username, UUID, or "me".
 	 */
 	readonly owner?: string;
+	/**
+	 * Organization can be an organization name or UUID.
+	 */
+	readonly organization?: string;
+	/**
+	 * Status filters the tasks by their task status.
+	 */
+	readonly status?: TaskStatus;
+	/**
+	 * FilterQuery allows specifying a raw filter query.
+	 */
+	readonly filter_query?: string;
+}
+
+// From codersdk/aitasks.go
+/**
+ * TaskListResponse is the response shape for tasks list.
+ *
+ * Experimental response shape for tasks list (server returns []Task).
+ */
+export interface TasksListResponse {
+	readonly tasks: readonly Task[];
+	readonly count: number;
 }
 
 // From codersdk/deployment.go
@@ -6329,7 +6386,11 @@ export interface WorkspaceBuild {
 	readonly matched_provisioners?: MatchedProvisioners;
 	readonly template_version_preset_id: string | null;
 	readonly has_ai_task?: boolean;
+	/**
+	 * Deprecated: This field has been replaced with `TaskAppID`
+	 */
 	readonly ai_task_sidebar_app_id?: string;
+	readonly task_app_id?: string;
 	readonly has_external_agent?: boolean;
 }
 

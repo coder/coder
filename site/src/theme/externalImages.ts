@@ -149,6 +149,7 @@ export const defaultParametersForBuiltinIcons = new Map<string, string>([
 	["/icon/aws-monochrome.svg", "monochrome"],
 	["/icon/coder.svg", "monochrome"],
 	["/icon/container.svg", "monochrome"],
+	["/icon/copyparty.svg", "blackWithColor"],
 	["/icon/database.svg", "monochrome"],
 	["/icon/docker-white.svg", "monochrome"],
 	["/icon/folder.svg", "monochrome"],

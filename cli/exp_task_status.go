@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
@@ -84,21 +83,10 @@ func (r *RootCmd) taskStatus() *serpent.Command {
 			}
 
 			ctx := i.Context()
-			ec := codersdk.NewExperimentalClient(client)
+			exp := codersdk.NewExperimentalClient(client)
 			identifier := i.Args[0]
 
-			taskID, err := uuid.Parse(identifier)
-			if err != nil {
-				// Try to resolve the task as a named workspace
-				// TODO: right now tasks are still "workspaces" under the hood.
-				// We should update this once we have a proper task model.
-				ws, err := namedWorkspace(ctx, client, identifier)
-				if err != nil {
-					return err
-				}
-				taskID = ws.ID
-			}
-			task, err := ec.TaskByID(ctx, taskID)
+			task, err := exp.TaskByIdentifier(ctx, identifier)
 			if err != nil {
 				return err
 			}
@@ -119,7 +107,7 @@ func (r *RootCmd) taskStatus() *serpent.Command {
 			// TODO: implement streaming updates instead of polling
 			lastStatusRow := tsr
 			for range t.C {
-				task, err := ec.TaskByID(ctx, taskID)
+				task, err := exp.TaskByID(ctx, task.ID)
 				if err != nil {
 					return err
 				}
@@ -152,7 +140,7 @@ func (r *RootCmd) taskStatus() *serpent.Command {
 }
 
 func taskWatchIsEnded(task codersdk.Task) bool {
-	if task.Status == codersdk.WorkspaceStatusStopped {
+	if task.WorkspaceStatus == codersdk.WorkspaceStatusStopped {
 		return true
 	}
 	if task.WorkspaceAgentHealth == nil || !task.WorkspaceAgentHealth.Healthy {
@@ -168,28 +156,21 @@ func taskWatchIsEnded(task codersdk.Task) bool {
 }
 
 type taskStatusRow struct {
-	codersdk.Task `table:"-"`
-	ChangedAgo    string    `json:"-" table:"state changed,default_sort"`
-	Timestamp     time.Time `json:"-" table:"-"`
-	TaskStatus    string    `json:"-" table:"status"`
-	Healthy       bool      `json:"-" table:"healthy"`
-	TaskState     string    `json:"-" table:"state"`
-	Message       string    `json:"-" table:"message"`
+	codersdk.Task `table:"r,recursive_inline"`
+	ChangedAgo    string `json:"-" table:"state changed"`
+	Healthy       bool   `json:"-" table:"healthy"`
 }
 
 func taskStatusRowEqual(r1, r2 taskStatusRow) bool {
-	return r1.TaskStatus == r2.TaskStatus &&
+	return r1.Status == r2.Status &&
 		r1.Healthy == r2.Healthy &&
-		r1.TaskState == r2.TaskState &&
-		r1.Message == r2.Message
+		taskStateEqual(r1.CurrentState, r2.CurrentState)
 }
 
 func toStatusRow(task codersdk.Task) taskStatusRow {
 	tsr := taskStatusRow{
 		Task:       task,
 		ChangedAgo: time.Since(task.UpdatedAt).Truncate(time.Second).String() + " ago",
-		Timestamp:  task.UpdatedAt,
-		TaskStatus: string(task.Status),
 	}
 	tsr.Healthy = task.WorkspaceAgentHealth != nil &&
 		task.WorkspaceAgentHealth.Healthy &&
@@ -199,9 +180,19 @@ func toStatusRow(task codersdk.Task) taskStatusRow {
 
 	if task.CurrentState != nil {
 		tsr.ChangedAgo = time.Since(task.CurrentState.Timestamp).Truncate(time.Second).String() + " ago"
-		tsr.Timestamp = task.CurrentState.Timestamp
-		tsr.TaskState = string(task.CurrentState.State)
-		tsr.Message = task.CurrentState.Message
 	}
 	return tsr
+}
+
+func taskStateEqual(se1, se2 *codersdk.TaskStateEntry) bool {
+	var s1, m1, s2, m2 string
+	if se1 != nil {
+		s1 = string(se1.State)
+		m1 = se1.Message
+	}
+	if se2 != nil {
+		s2 = string(se2.State)
+		m2 = se2.Message
+	}
+	return s1 == s2 && m1 == m2
 }

@@ -2,7 +2,6 @@ package aibridgedserver_test
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -21,6 +20,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -138,13 +138,12 @@ func TestAuthorization(t *testing.T) {
 			}
 
 			keyID, _ := cryptorand.String(10)
-			keySecret, _ := cryptorand.String(22)
+			keySecret, keySecretHashed, _ := apikey.GenerateSecret(22)
 			token := fmt.Sprintf("%s-%s", keyID, keySecret)
-			keySecretHashed := sha256.Sum256([]byte(keySecret))
 			apiKey := database.APIKey{
 				ID:              keyID,
 				LifetimeSeconds: 86400, // default in db
-				HashedSecret:    keySecretHashed[:],
+				HashedSecret:    keySecretHashed,
 				IPAddress: pqtype.Inet{
 					IPNet: net.IPNet{
 						IP:   net.IPv4(127, 0, 0, 1),
@@ -419,6 +418,60 @@ func TestRecordInterception(t *testing.T) {
 					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), gomock.Any()).Return(database.AIBridgeInterception{}, sql.ErrConnDone)
 				},
 				expectedErr: "start interception",
+			},
+		},
+	)
+}
+
+func TestRecordInterceptionEnded(t *testing.T) {
+	t.Parallel()
+
+	testRecordMethod(t,
+		func(srv *aibridgedserver.Server, ctx context.Context, req *proto.RecordInterceptionEndedRequest) (*proto.RecordInterceptionEndedResponse, error) {
+			return srv.RecordInterceptionEnded(ctx, req)
+		},
+		[]testRecordMethodCase[*proto.RecordInterceptionEndedRequest]{
+			{
+				name: "ok",
+				request: &proto.RecordInterceptionEndedRequest{
+					Id:      uuid.UUID{1}.String(),
+					EndedAt: timestamppb.Now(),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionEndedRequest) {
+					interceptionID, err := uuid.Parse(req.GetId())
+					assert.NoError(t, err, "parse interception UUID")
+
+					db.EXPECT().UpdateAIBridgeInterceptionEnded(gomock.Any(), database.UpdateAIBridgeInterceptionEndedParams{
+						ID:      interceptionID,
+						EndedAt: req.EndedAt.AsTime(),
+					}).Return(database.AIBridgeInterception{
+						ID:          interceptionID,
+						InitiatorID: uuid.UUID{2},
+						Provider:    "prov",
+						Model:       "mod",
+						StartedAt:   time.Now(),
+						EndedAt:     sql.NullTime{Time: req.EndedAt.AsTime(), Valid: true},
+					}, nil)
+				},
+			},
+			{
+				name: "bad_uuid_error",
+				request: &proto.RecordInterceptionEndedRequest{
+					Id: "this-is-not-uuid",
+				},
+				setupMocks:  func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionEndedRequest) {},
+				expectedErr: "invalid interception ID",
+			},
+			{
+				name: "database_error",
+				request: &proto.RecordInterceptionEndedRequest{
+					Id:      uuid.UUID{1}.String(),
+					EndedAt: timestamppb.Now(),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionEndedRequest) {
+					db.EXPECT().UpdateAIBridgeInterceptionEnded(gomock.Any(), gomock.Any()).Return(database.AIBridgeInterception{}, sql.ErrConnDone)
+				},
+				expectedErr: "end interception: " + sql.ErrConnDone.Error(),
 			},
 		},
 	)

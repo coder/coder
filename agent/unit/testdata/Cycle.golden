@@ -1,0 +1,8 @@
+strict digraph Cycle {
+  // Node definitions.
+  1;
+  2;
+
+  // Edge definitions.
+  1 -> 2;
+}

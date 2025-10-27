@@ -211,6 +211,8 @@ const (
 	ApiKeyScopeTaskUpdate                          APIKeyScope = "task:update"
 	ApiKeyScopeTaskDelete                          APIKeyScope = "task:delete"
 	ApiKeyScopeTask                                APIKeyScope = "task:*"
+	ApiKeyScopeWorkspaceShare                      APIKeyScope = "workspace:share"
+	ApiKeyScopeWorkspaceDormantShare               APIKeyScope = "workspace_dormant:share"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -441,7 +443,9 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeTaskRead,
 		ApiKeyScopeTaskUpdate,
 		ApiKeyScopeTaskDelete,
-		ApiKeyScopeTask:
+		ApiKeyScopeTask,
+		ApiKeyScopeWorkspaceShare,
+		ApiKeyScopeWorkspaceDormantShare:
 		return true
 	}
 	return false
@@ -641,6 +645,8 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeTaskUpdate,
 		ApiKeyScopeTaskDelete,
 		ApiKeyScopeTask,
+		ApiKeyScopeWorkspaceShare,
+		ApiKeyScopeWorkspaceDormantShare,
 	}
 }
 
@@ -3607,6 +3613,7 @@ type AIBridgeInterception struct {
 	Model       string                `db:"model" json:"model"`
 	StartedAt   time.Time             `db:"started_at" json:"started_at"`
 	Metadata    pqtype.NullRawMessage `db:"metadata" json:"metadata"`
+	EndedAt     sql.NullTime          `db:"ended_at" json:"ended_at"`
 }
 
 // Audit log of tokens used by intercepted requests in AI Bridge
@@ -3949,7 +3956,7 @@ type OAuth2ProviderApp struct {
 	// RFC 7591: Version of the client software
 	SoftwareVersion sql.NullString `db:"software_version" json:"software_version"`
 	// RFC 7592: Hashed registration access token for client management
-	RegistrationAccessToken sql.NullString `db:"registration_access_token" json:"registration_access_token"`
+	RegistrationAccessToken []byte `db:"registration_access_token" json:"registration_access_token"`
 	// RFC 7592: URI for client configuration endpoint
 	RegistrationClientUri sql.NullString `db:"registration_client_uri" json:"registration_client_uri"`
 }
