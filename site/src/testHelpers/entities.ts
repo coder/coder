@@ -4956,6 +4956,34 @@ export const MockPresets: TypesGen.Preset[] = [
 	},
 ];
 
+export const MockAIPromptPresets: TypesGen.Preset[] = [
+	{
+		ID: "ai-preset-1",
+		Name: "Code Review",
+		Description: "",
+		Icon: "",
+		Parameters: [
+			{ Name: "AI Prompt", Value: "Review the code for best practices" },
+			{ Name: "cpu", Value: "4" },
+			{ Name: "memory", Value: "8GB" },
+		],
+		Default: true,
+		DesiredPrebuildInstances: 0,
+	},
+	{
+		ID: "ai-preset-2",
+		Name: "Custom Prompt",
+		Description: "",
+		Icon: "",
+		Parameters: [
+			{ Name: "cpu", Value: "4" },
+			{ Name: "memory", Value: "8GB" },
+		],
+		Default: false,
+		DesiredPrebuildInstances: 0,
+	},
+];
+
 export const MockTask = {
 	id: "test-task",
 	name: "task-wild-test-123",
@@ -5011,34 +5039,6 @@ export const MockTasks = [
 		},
 	},
 ] satisfies TypesGen.Task[];
-
-export const MockAIPromptPresets: TypesGen.Preset[] = [
-	{
-		ID: "ai-preset-1",
-		Name: "Code Review",
-		Description: "",
-		Icon: "",
-		Parameters: [
-			{ Name: "AI Prompt", Value: "Review the code for best practices" },
-			{ Name: "cpu", Value: "4" },
-			{ Name: "memory", Value: "8GB" },
-		],
-		Default: true,
-		DesiredPrebuildInstances: 0,
-	},
-	{
-		ID: "ai-preset-2",
-		Name: "Custom Prompt",
-		Description: "",
-		Icon: "",
-		Parameters: [
-			{ Name: "cpu", Value: "4" },
-			{ Name: "memory", Value: "8GB" },
-		],
-		Default: false,
-		DesiredPrebuildInstances: 0,
-	},
-];
 
 export const MockInterception: TypesGen.AIBridgeInterception = {
 	id: "5c1da48a-9eb0-440e-9c82-5bc5692a603d",
