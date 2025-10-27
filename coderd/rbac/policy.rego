@@ -187,8 +187,8 @@ is_org_member if {
 #==============================================================================#
 
 # Org member level permissions apply to all objects owned by the subject _and_
-# the corresponding org. Permissions for objects which are not jointly owned
-# instead defer to the user level rules.
+# the corresponding org. Permissions for objects which are not owned by an
+# organization instead defer to the user level rules.
 #
 # The rules for this level are very similar to the rules for the organization
 # level, and so we reuse the `check_org_permissions` function from those rules.
