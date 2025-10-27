@@ -111,6 +111,164 @@ func (q *sqlQuerier) ActivityBumpWorkspace(ctx context.Context, arg ActivityBump
 	return err
 }
 
+const calculateAIBridgeInterceptionsTelemetrySummary = `-- name: CalculateAIBridgeInterceptionsTelemetrySummary :one
+WITH interceptions_in_range AS (
+    -- Get all matching interceptions in the given timeframe.
+    SELECT
+        id,
+        initiator_id,
+        (ended_at - started_at) AS duration
+    FROM
+        aibridge_interceptions
+    WHERE
+        provider = $1::text
+        AND model = $2::text
+        -- TODO: use the client value once we have it (see https://github.com/coder/aibridge/issues/31)
+        AND 'unknown' = $3::text
+        AND ended_at IS NOT NULL -- incomplete interceptions are not included in summaries
+        AND ended_at >= $4::timestamptz
+        AND ended_at < $5::timestamptz
+),
+interception_counts AS (
+    SELECT
+        COUNT(id) AS interception_count,
+        COUNT(DISTINCT initiator_id) AS unique_initiator_count
+    FROM
+        interceptions_in_range
+),
+duration_percentiles AS (
+    SELECT
+        (COALESCE(PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM duration)), 0) * 1000)::bigint AS interception_duration_p50_millis,
+        (COALESCE(PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM duration)), 0) * 1000)::bigint AS interception_duration_p90_millis,
+        (COALESCE(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM duration)), 0) * 1000)::bigint AS interception_duration_p95_millis,
+        (COALESCE(PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM duration)), 0) * 1000)::bigint AS interception_duration_p99_millis
+    FROM
+        interceptions_in_range
+),
+token_aggregates AS (
+    SELECT
+        COALESCE(SUM(tu.input_tokens), 0) AS token_count_input,
+        COALESCE(SUM(tu.output_tokens), 0) AS token_count_output,
+        -- Cached tokens are stored in metadata JSON, extract if available.
+        -- Read tokens may be stored in:
+        -- - cache_read_input (Anthropic)
+        -- - prompt_cached (OpenAI)
+        COALESCE(SUM(
+            COALESCE((tu.metadata->>'cache_read_input')::bigint, 0) +
+            COALESCE((tu.metadata->>'prompt_cached')::bigint, 0)
+        ), 0) AS token_count_cached_read,
+        -- Written tokens may be stored in:
+        -- - cache_creation_input (Anthropic)
+        -- Note that cache_ephemeral_5m_input and cache_ephemeral_1h_input on
+        -- Anthropic are included in the cache_creation_input field.
+        COALESCE(SUM(
+            COALESCE((tu.metadata->>'cache_creation_input')::bigint, 0)
+        ), 0) AS token_count_cached_written,
+        COUNT(tu.id) AS token_usages_count
+    FROM
+        interceptions_in_range i
+    LEFT JOIN
+        aibridge_token_usages tu ON i.id = tu.interception_id
+),
+prompt_aggregates AS (
+    SELECT
+        COUNT(up.id) AS user_prompts_count
+    FROM
+        interceptions_in_range i
+    LEFT JOIN
+        aibridge_user_prompts up ON i.id = up.interception_id
+),
+tool_aggregates AS (
+    SELECT
+        COUNT(tu.id) FILTER (WHERE tu.injected = true) AS tool_calls_count_injected,
+        COUNT(tu.id) FILTER (WHERE tu.injected = false) AS tool_calls_count_non_injected,
+        COUNT(tu.id) FILTER (WHERE tu.injected = true AND tu.invocation_error IS NOT NULL) AS injected_tool_call_error_count
+    FROM
+        interceptions_in_range i
+    LEFT JOIN
+        aibridge_tool_usages tu ON i.id = tu.interception_id
+)
+SELECT
+    ic.interception_count::bigint AS interception_count,
+    dp.interception_duration_p50_millis::bigint AS interception_duration_p50_millis,
+    dp.interception_duration_p90_millis::bigint AS interception_duration_p90_millis,
+    dp.interception_duration_p95_millis::bigint AS interception_duration_p95_millis,
+    dp.interception_duration_p99_millis::bigint AS interception_duration_p99_millis,
+    ic.unique_initiator_count::bigint AS unique_initiator_count,
+    pa.user_prompts_count::bigint AS user_prompts_count,
+    tok_agg.token_usages_count::bigint AS token_usages_count,
+    tok_agg.token_count_input::bigint AS token_count_input,
+    tok_agg.token_count_output::bigint AS token_count_output,
+    tok_agg.token_count_cached_read::bigint AS token_count_cached_read,
+    tok_agg.token_count_cached_written::bigint AS token_count_cached_written,
+    tool_agg.tool_calls_count_injected::bigint AS tool_calls_count_injected,
+    tool_agg.tool_calls_count_non_injected::bigint AS tool_calls_count_non_injected,
+    tool_agg.injected_tool_call_error_count::bigint AS injected_tool_call_error_count
+FROM
+    interception_counts ic,
+    duration_percentiles dp,
+    token_aggregates tok_agg,
+    prompt_aggregates pa,
+    tool_aggregates tool_agg
+`
+
+type CalculateAIBridgeInterceptionsTelemetrySummaryParams struct {
+	Provider      string    `db:"provider" json:"provider"`
+	Model         string    `db:"model" json:"model"`
+	Client        string    `db:"client" json:"client"`
+	EndedAtAfter  time.Time `db:"ended_at_after" json:"ended_at_after"`
+	EndedAtBefore time.Time `db:"ended_at_before" json:"ended_at_before"`
+}
+
+type CalculateAIBridgeInterceptionsTelemetrySummaryRow struct {
+	InterceptionCount             int64 `db:"interception_count" json:"interception_count"`
+	InterceptionDurationP50Millis int64 `db:"interception_duration_p50_millis" json:"interception_duration_p50_millis"`
+	InterceptionDurationP90Millis int64 `db:"interception_duration_p90_millis" json:"interception_duration_p90_millis"`
+	InterceptionDurationP95Millis int64 `db:"interception_duration_p95_millis" json:"interception_duration_p95_millis"`
+	InterceptionDurationP99Millis int64 `db:"interception_duration_p99_millis" json:"interception_duration_p99_millis"`
+	UniqueInitiatorCount          int64 `db:"unique_initiator_count" json:"unique_initiator_count"`
+	UserPromptsCount              int64 `db:"user_prompts_count" json:"user_prompts_count"`
+	TokenUsagesCount              int64 `db:"token_usages_count" json:"token_usages_count"`
+	TokenCountInput               int64 `db:"token_count_input" json:"token_count_input"`
+	TokenCountOutput              int64 `db:"token_count_output" json:"token_count_output"`
+	TokenCountCachedRead          int64 `db:"token_count_cached_read" json:"token_count_cached_read"`
+	TokenCountCachedWritten       int64 `db:"token_count_cached_written" json:"token_count_cached_written"`
+	ToolCallsCountInjected        int64 `db:"tool_calls_count_injected" json:"tool_calls_count_injected"`
+	ToolCallsCountNonInjected     int64 `db:"tool_calls_count_non_injected" json:"tool_calls_count_non_injected"`
+	InjectedToolCallErrorCount    int64 `db:"injected_tool_call_error_count" json:"injected_tool_call_error_count"`
+}
+
+// Calculates the telemetry summary for a given provider, model, and client
+// combination for telemetry reporting.
+func (q *sqlQuerier) CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Context, arg CalculateAIBridgeInterceptionsTelemetrySummaryParams) (CalculateAIBridgeInterceptionsTelemetrySummaryRow, error) {
+	row := q.db.QueryRowContext(ctx, calculateAIBridgeInterceptionsTelemetrySummary,
+		arg.Provider,
+		arg.Model,
+		arg.Client,
+		arg.EndedAtAfter,
+		arg.EndedAtBefore,
+	)
+	var i CalculateAIBridgeInterceptionsTelemetrySummaryRow
+	err := row.Scan(
+		&i.InterceptionCount,
+		&i.InterceptionDurationP50Millis,
+		&i.InterceptionDurationP90Millis,
+		&i.InterceptionDurationP95Millis,
+		&i.InterceptionDurationP99Millis,
+		&i.UniqueInitiatorCount,
+		&i.UserPromptsCount,
+		&i.TokenUsagesCount,
+		&i.TokenCountInput,
+		&i.TokenCountOutput,
+		&i.TokenCountCachedRead,
+		&i.TokenCountCachedWritten,
+		&i.ToolCallsCountInjected,
+		&i.ToolCallsCountNonInjected,
+		&i.InjectedToolCallErrorCount,
+	)
+	return i, err
+}
+
 const countAIBridgeInterceptions = `-- name: CountAIBridgeInterceptions :one
 SELECT
 	COUNT(*)
@@ -634,6 +792,57 @@ func (q *sqlQuerier) ListAIBridgeInterceptions(ctx context.Context, arg ListAIBr
 			&i.VisibleUser.Name,
 			&i.VisibleUser.AvatarURL,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAIBridgeInterceptionsTelemetrySummaries = `-- name: ListAIBridgeInterceptionsTelemetrySummaries :many
+SELECT
+    DISTINCT ON (provider, model, client)
+    provider,
+    model,
+    -- TODO: use the client value once we have it (see https://github.com/coder/aibridge/issues/31)
+    'unknown' AS client
+FROM
+    aibridge_interceptions
+WHERE
+    ended_at IS NOT NULL -- incomplete interceptions are not included in summaries
+    AND ended_at >= $1::timestamptz
+    AND ended_at < $2::timestamptz
+`
+
+type ListAIBridgeInterceptionsTelemetrySummariesParams struct {
+	EndedAtAfter  time.Time `db:"ended_at_after" json:"ended_at_after"`
+	EndedAtBefore time.Time `db:"ended_at_before" json:"ended_at_before"`
+}
+
+type ListAIBridgeInterceptionsTelemetrySummariesRow struct {
+	Provider string `db:"provider" json:"provider"`
+	Model    string `db:"model" json:"model"`
+	Client   string `db:"client" json:"client"`
+}
+
+// Finds all unique AIBridge interception telemetry summaries combinations
+// (provider, model, client) in the given timeframe for telemetry reporting.
+func (q *sqlQuerier) ListAIBridgeInterceptionsTelemetrySummaries(ctx context.Context, arg ListAIBridgeInterceptionsTelemetrySummariesParams) ([]ListAIBridgeInterceptionsTelemetrySummariesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAIBridgeInterceptionsTelemetrySummaries, arg.EndedAtAfter, arg.EndedAtBefore)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAIBridgeInterceptionsTelemetrySummariesRow
+	for rows.Next() {
+		var i ListAIBridgeInterceptionsTelemetrySummariesRow
+		if err := rows.Scan(&i.Provider, &i.Model, &i.Client); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -12985,250 +13194,6 @@ func (q *sqlQuerier) UpsertTaskWorkspaceApp(ctx context.Context, arg UpsertTaskW
 	return i, err
 }
 
-const calculateAIBridgeInterceptionsTelemetrySummary = `-- name: CalculateAIBridgeInterceptionsTelemetrySummary :one
-WITH interceptions_in_range AS (
-    -- Get all matching interceptions in the given timeframe.
-    SELECT
-        id,
-        initiator_id,
-        (ended_at - started_at) AS duration
-    FROM
-        aibridge_interceptions
-    WHERE
-        provider = $1::text
-        AND model = $2::text
-        -- TODO: use the client value once we have it (see https://github.com/coder/aibridge/issues/31)
-        AND 'unknown' = $3::text
-        AND ended_at IS NOT NULL -- incomplete interceptions are not included in summaries
-        AND ended_at >= $4::timestamptz
-        AND ended_at < $5::timestamptz
-),
-interception_counts AS (
-    SELECT
-        COUNT(id) AS interception_count,
-        COUNT(DISTINCT initiator_id) AS unique_initiator_count
-    FROM
-        interceptions_in_range
-),
-duration_percentiles AS (
-    SELECT
-        (COALESCE(PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM duration)), 0) * 1000)::bigint AS interception_duration_p50_millis,
-        (COALESCE(PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM duration)), 0) * 1000)::bigint AS interception_duration_p90_millis,
-        (COALESCE(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM duration)), 0) * 1000)::bigint AS interception_duration_p95_millis,
-        (COALESCE(PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM duration)), 0) * 1000)::bigint AS interception_duration_p99_millis
-    FROM
-        interceptions_in_range
-),
-token_aggregates AS (
-    SELECT
-        COALESCE(SUM(tu.input_tokens), 0) AS token_count_input,
-        COALESCE(SUM(tu.output_tokens), 0) AS token_count_output,
-        -- Cached tokens are stored in metadata JSON, extract if available.
-        -- Read tokens may be stored in:
-        -- - cache_read_input (Anthropic)
-        -- - prompt_cached (OpenAI)
-        COALESCE(SUM(
-            COALESCE((tu.metadata->>'cache_read_input')::bigint, 0) +
-            COALESCE((tu.metadata->>'prompt_cached')::bigint, 0)
-        ), 0) AS token_count_cached_read,
-        -- Written tokens may be stored in:
-        -- - cache_creation_input (Anthropic)
-        -- Note that cache_ephemeral_5m_input and cache_ephemeral_1h_input on
-        -- Anthropic are included in the cache_creation_input field.
-        COALESCE(SUM(
-            COALESCE((tu.metadata->>'cache_creation_input')::bigint, 0)
-        ), 0) AS token_count_cached_written,
-        COUNT(tu.id) AS token_usages_count
-    FROM
-        interceptions_in_range i
-    LEFT JOIN
-        aibridge_token_usages tu ON i.id = tu.interception_id
-),
-prompt_aggregates AS (
-    SELECT
-        COUNT(up.id) AS user_prompts_count
-    FROM
-        interceptions_in_range i
-    LEFT JOIN
-        aibridge_user_prompts up ON i.id = up.interception_id
-),
-tool_aggregates AS (
-    SELECT
-        COUNT(tu.id) FILTER (WHERE tu.injected = true) AS tool_calls_count_injected,
-        COUNT(tu.id) FILTER (WHERE tu.injected = false) AS tool_calls_count_non_injected,
-        COUNT(tu.id) FILTER (WHERE tu.injected = true AND tu.invocation_error IS NOT NULL) AS injected_tool_call_error_count
-    FROM
-        interceptions_in_range i
-    LEFT JOIN
-        aibridge_tool_usages tu ON i.id = tu.interception_id
-)
-SELECT
-    ic.interception_count::bigint AS interception_count,
-    dp.interception_duration_p50_millis::bigint AS interception_duration_p50_millis,
-    dp.interception_duration_p90_millis::bigint AS interception_duration_p90_millis,
-    dp.interception_duration_p95_millis::bigint AS interception_duration_p95_millis,
-    dp.interception_duration_p99_millis::bigint AS interception_duration_p99_millis,
-    ic.unique_initiator_count::bigint AS unique_initiator_count,
-    pa.user_prompts_count::bigint AS user_prompts_count,
-    tok_agg.token_usages_count::bigint AS token_usages_count,
-    tok_agg.token_count_input::bigint AS token_count_input,
-    tok_agg.token_count_output::bigint AS token_count_output,
-    tok_agg.token_count_cached_read::bigint AS token_count_cached_read,
-    tok_agg.token_count_cached_written::bigint AS token_count_cached_written,
-    tool_agg.tool_calls_count_injected::bigint AS tool_calls_count_injected,
-    tool_agg.tool_calls_count_non_injected::bigint AS tool_calls_count_non_injected,
-    tool_agg.injected_tool_call_error_count::bigint AS injected_tool_call_error_count
-FROM
-    interception_counts ic,
-    duration_percentiles dp,
-    token_aggregates tok_agg,
-    prompt_aggregates pa,
-    tool_aggregates tool_agg
-`
-
-type CalculateAIBridgeInterceptionsTelemetrySummaryParams struct {
-	Provider      string    `db:"provider" json:"provider"`
-	Model         string    `db:"model" json:"model"`
-	Client        string    `db:"client" json:"client"`
-	EndedAtAfter  time.Time `db:"ended_at_after" json:"ended_at_after"`
-	EndedAtBefore time.Time `db:"ended_at_before" json:"ended_at_before"`
-}
-
-type CalculateAIBridgeInterceptionsTelemetrySummaryRow struct {
-	InterceptionCount             int64 `db:"interception_count" json:"interception_count"`
-	InterceptionDurationP50Millis int64 `db:"interception_duration_p50_millis" json:"interception_duration_p50_millis"`
-	InterceptionDurationP90Millis int64 `db:"interception_duration_p90_millis" json:"interception_duration_p90_millis"`
-	InterceptionDurationP95Millis int64 `db:"interception_duration_p95_millis" json:"interception_duration_p95_millis"`
-	InterceptionDurationP99Millis int64 `db:"interception_duration_p99_millis" json:"interception_duration_p99_millis"`
-	UniqueInitiatorCount          int64 `db:"unique_initiator_count" json:"unique_initiator_count"`
-	UserPromptsCount              int64 `db:"user_prompts_count" json:"user_prompts_count"`
-	TokenUsagesCount              int64 `db:"token_usages_count" json:"token_usages_count"`
-	TokenCountInput               int64 `db:"token_count_input" json:"token_count_input"`
-	TokenCountOutput              int64 `db:"token_count_output" json:"token_count_output"`
-	TokenCountCachedRead          int64 `db:"token_count_cached_read" json:"token_count_cached_read"`
-	TokenCountCachedWritten       int64 `db:"token_count_cached_written" json:"token_count_cached_written"`
-	ToolCallsCountInjected        int64 `db:"tool_calls_count_injected" json:"tool_calls_count_injected"`
-	ToolCallsCountNonInjected     int64 `db:"tool_calls_count_non_injected" json:"tool_calls_count_non_injected"`
-	InjectedToolCallErrorCount    int64 `db:"injected_tool_call_error_count" json:"injected_tool_call_error_count"`
-}
-
-// Calculates the telemetry summary for a given provider, model, and client
-// combination.
-func (q *sqlQuerier) CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Context, arg CalculateAIBridgeInterceptionsTelemetrySummaryParams) (CalculateAIBridgeInterceptionsTelemetrySummaryRow, error) {
-	row := q.db.QueryRowContext(ctx, calculateAIBridgeInterceptionsTelemetrySummary,
-		arg.Provider,
-		arg.Model,
-		arg.Client,
-		arg.EndedAtAfter,
-		arg.EndedAtBefore,
-	)
-	var i CalculateAIBridgeInterceptionsTelemetrySummaryRow
-	err := row.Scan(
-		&i.InterceptionCount,
-		&i.InterceptionDurationP50Millis,
-		&i.InterceptionDurationP90Millis,
-		&i.InterceptionDurationP95Millis,
-		&i.InterceptionDurationP99Millis,
-		&i.UniqueInitiatorCount,
-		&i.UserPromptsCount,
-		&i.TokenUsagesCount,
-		&i.TokenCountInput,
-		&i.TokenCountOutput,
-		&i.TokenCountCachedRead,
-		&i.TokenCountCachedWritten,
-		&i.ToolCallsCountInjected,
-		&i.ToolCallsCountNonInjected,
-		&i.InjectedToolCallErrorCount,
-	)
-	return i, err
-}
-
-const deleteOldTelemetryHeartbeats = `-- name: DeleteOldTelemetryHeartbeats :exec
-DELETE FROM
-    telemetry_heartbeats
-WHERE
-    heartbeat_timestamp < $1::timestamptz
-`
-
-// Deletes old telemetry heartbeats from the telemetry_heartbeats table.
-func (q *sqlQuerier) DeleteOldTelemetryHeartbeats(ctx context.Context, beforeTime time.Time) error {
-	_, err := q.db.ExecContext(ctx, deleteOldTelemetryHeartbeats, beforeTime)
-	return err
-}
-
-const insertTelemetryHeartbeat = `-- name: InsertTelemetryHeartbeat :exec
-INSERT INTO
-    telemetry_heartbeats (event_type, heartbeat_timestamp)
-VALUES
-    ($1, $2)
-`
-
-type InsertTelemetryHeartbeatParams struct {
-	EventType          string    `db:"event_type" json:"event_type"`
-	HeartbeatTimestamp time.Time `db:"heartbeat_timestamp" json:"heartbeat_timestamp"`
-}
-
-// Inserts a new heartbeat event into the telemetry_heartbeats table. Replicas
-// should call this function prior to attempting to generate or publish the
-// event to the telemetry service.
-// If the query returns a duplicate primary key error, the replica should not
-// attempt to generate or publish the event to the telemetry service.
-func (q *sqlQuerier) InsertTelemetryHeartbeat(ctx context.Context, arg InsertTelemetryHeartbeatParams) error {
-	_, err := q.db.ExecContext(ctx, insertTelemetryHeartbeat, arg.EventType, arg.HeartbeatTimestamp)
-	return err
-}
-
-const listAIBridgeInterceptionsTelemetrySummaries = `-- name: ListAIBridgeInterceptionsTelemetrySummaries :many
-SELECT
-    DISTINCT ON (provider, model, client)
-    provider,
-    model,
-    -- TODO: use the client value once we have it (see https://github.com/coder/aibridge/issues/31)
-    'unknown' AS client
-FROM
-    aibridge_interceptions
-WHERE
-    ended_at IS NOT NULL -- incomplete interceptions are not included in summaries
-    AND ended_at >= $1::timestamptz
-    AND ended_at < $2::timestamptz
-`
-
-type ListAIBridgeInterceptionsTelemetrySummariesParams struct {
-	EndedAtAfter  time.Time `db:"ended_at_after" json:"ended_at_after"`
-	EndedAtBefore time.Time `db:"ended_at_before" json:"ended_at_before"`
-}
-
-type ListAIBridgeInterceptionsTelemetrySummariesRow struct {
-	Provider string `db:"provider" json:"provider"`
-	Model    string `db:"model" json:"model"`
-	Client   string `db:"client" json:"client"`
-}
-
-// Finds all unique AIBridge interception telemetry summaries combinations
-// (provider, model, client) in the given timeframe.
-func (q *sqlQuerier) ListAIBridgeInterceptionsTelemetrySummaries(ctx context.Context, arg ListAIBridgeInterceptionsTelemetrySummariesParams) ([]ListAIBridgeInterceptionsTelemetrySummariesRow, error) {
-	rows, err := q.db.QueryContext(ctx, listAIBridgeInterceptionsTelemetrySummaries, arg.EndedAtAfter, arg.EndedAtBefore)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ListAIBridgeInterceptionsTelemetrySummariesRow
-	for rows.Next() {
-		var i ListAIBridgeInterceptionsTelemetrySummariesRow
-		if err := rows.Scan(&i.Provider, &i.Model, &i.Client); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getTelemetryItem = `-- name: GetTelemetryItem :one
 SELECT key, value, created_at, updated_at FROM telemetry_items WHERE key = $1
 `
@@ -13306,6 +13271,41 @@ type UpsertTelemetryItemParams struct {
 
 func (q *sqlQuerier) UpsertTelemetryItem(ctx context.Context, arg UpsertTelemetryItemParams) error {
 	_, err := q.db.ExecContext(ctx, upsertTelemetryItem, arg.Key, arg.Value)
+	return err
+}
+
+const deleteOldTelemetryLocks = `-- name: DeleteOldTelemetryLocks :exec
+DELETE FROM
+    telemetry_locks
+WHERE
+    period_ending_at < $1::timestamptz
+`
+
+// Deletes old telemetry locks from the telemetry_locks table.
+func (q *sqlQuerier) DeleteOldTelemetryLocks(ctx context.Context, periodEndingAtBefore time.Time) error {
+	_, err := q.db.ExecContext(ctx, deleteOldTelemetryLocks, periodEndingAtBefore)
+	return err
+}
+
+const insertTelemetryLock = `-- name: InsertTelemetryLock :exec
+INSERT INTO
+    telemetry_locks (event_type, period_ending_at)
+VALUES
+    ($1, $2)
+`
+
+type InsertTelemetryLockParams struct {
+	EventType      string    `db:"event_type" json:"event_type"`
+	PeriodEndingAt time.Time `db:"period_ending_at" json:"period_ending_at"`
+}
+
+// Inserts a new lock row into the telemetry_locks table. Replicas should call
+// this function prior to attempting to generate or publish a heartbeat event to
+// the telemetry service.
+// If the query returns a duplicate primary key error, the replica should not
+// attempt to generate or publish the event to the telemetry service.
+func (q *sqlQuerier) InsertTelemetryLock(ctx context.Context, arg InsertTelemetryLockParams) error {
+	_, err := q.db.ExecContext(ctx, insertTelemetryLock, arg.EventType, arg.PeriodEndingAt)
 	return err
 }
 

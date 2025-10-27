@@ -751,18 +751,18 @@ func (mr *MockStoreMockRecorder) DeleteOldProvisionerDaemons(ctx any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldProvisionerDaemons", reflect.TypeOf((*MockStore)(nil).DeleteOldProvisionerDaemons), ctx)
 }
 
-// DeleteOldTelemetryHeartbeats mocks base method.
-func (m *MockStore) DeleteOldTelemetryHeartbeats(ctx context.Context, beforeTime time.Time) error {
+// DeleteOldTelemetryLocks mocks base method.
+func (m *MockStore) DeleteOldTelemetryLocks(ctx context.Context, periodEndingAtBefore time.Time) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteOldTelemetryHeartbeats", ctx, beforeTime)
+	ret := m.ctrl.Call(m, "DeleteOldTelemetryLocks", ctx, periodEndingAtBefore)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// DeleteOldTelemetryHeartbeats indicates an expected call of DeleteOldTelemetryHeartbeats.
-func (mr *MockStoreMockRecorder) DeleteOldTelemetryHeartbeats(ctx, beforeTime any) *gomock.Call {
+// DeleteOldTelemetryLocks indicates an expected call of DeleteOldTelemetryLocks.
+func (mr *MockStoreMockRecorder) DeleteOldTelemetryLocks(ctx, periodEndingAtBefore any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldTelemetryHeartbeats", reflect.TypeOf((*MockStore)(nil).DeleteOldTelemetryHeartbeats), ctx, beforeTime)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldTelemetryLocks", reflect.TypeOf((*MockStore)(nil).DeleteOldTelemetryLocks), ctx, periodEndingAtBefore)
 }
 
 // DeleteOldWorkspaceAgentLogs mocks base method.
@@ -5407,20 +5407,6 @@ func (mr *MockStoreMockRecorder) InsertTask(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertTask", reflect.TypeOf((*MockStore)(nil).InsertTask), ctx, arg)
 }
 
-// InsertTelemetryHeartbeat mocks base method.
-func (m *MockStore) InsertTelemetryHeartbeat(ctx context.Context, arg database.InsertTelemetryHeartbeatParams) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertTelemetryHeartbeat", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// InsertTelemetryHeartbeat indicates an expected call of InsertTelemetryHeartbeat.
-func (mr *MockStoreMockRecorder) InsertTelemetryHeartbeat(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertTelemetryHeartbeat", reflect.TypeOf((*MockStore)(nil).InsertTelemetryHeartbeat), ctx, arg)
-}
-
 // InsertTelemetryItemIfNotExists mocks base method.
 func (m *MockStore) InsertTelemetryItemIfNotExists(ctx context.Context, arg database.InsertTelemetryItemIfNotExistsParams) error {
 	m.ctrl.T.Helper()
@@ -5433,6 +5419,20 @@ func (m *MockStore) InsertTelemetryItemIfNotExists(ctx context.Context, arg data
 func (mr *MockStoreMockRecorder) InsertTelemetryItemIfNotExists(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertTelemetryItemIfNotExists", reflect.TypeOf((*MockStore)(nil).InsertTelemetryItemIfNotExists), ctx, arg)
+}
+
+// InsertTelemetryLock mocks base method.
+func (m *MockStore) InsertTelemetryLock(ctx context.Context, arg database.InsertTelemetryLockParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertTelemetryLock", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertTelemetryLock indicates an expected call of InsertTelemetryLock.
+func (mr *MockStoreMockRecorder) InsertTelemetryLock(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertTelemetryLock", reflect.TypeOf((*MockStore)(nil).InsertTelemetryLock), ctx, arg)
 }
 
 // InsertTemplate mocks base method.

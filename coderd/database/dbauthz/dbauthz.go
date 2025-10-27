@@ -1730,11 +1730,11 @@ func (q *querier) DeleteOldProvisionerDaemons(ctx context.Context) error {
 	return q.db.DeleteOldProvisionerDaemons(ctx)
 }
 
-func (q *querier) DeleteOldTelemetryHeartbeats(ctx context.Context, beforeTime time.Time) error {
+func (q *querier) DeleteOldTelemetryLocks(ctx context.Context, beforeTime time.Time) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
 		return err
 	}
-	return q.db.DeleteOldTelemetryHeartbeats(ctx, beforeTime)
+	return q.db.DeleteOldTelemetryLocks(ctx, beforeTime)
 }
 
 func (q *querier) DeleteOldWorkspaceAgentLogs(ctx context.Context, threshold time.Time) error {
@@ -4219,18 +4219,18 @@ func (q *querier) InsertTask(ctx context.Context, arg database.InsertTaskParams)
 	return insert(q.log, q.auth, obj, q.db.InsertTask)(ctx, arg)
 }
 
-func (q *querier) InsertTelemetryHeartbeat(ctx context.Context, arg database.InsertTelemetryHeartbeatParams) error {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
-		return err
-	}
-	return q.db.InsertTelemetryHeartbeat(ctx, arg)
-}
-
 func (q *querier) InsertTelemetryItemIfNotExists(ctx context.Context, arg database.InsertTelemetryItemIfNotExistsParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
 		return err
 	}
 	return q.db.InsertTelemetryItemIfNotExists(ctx, arg)
+}
+
+func (q *querier) InsertTelemetryLock(ctx context.Context, arg database.InsertTelemetryLockParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.InsertTelemetryLock(ctx, arg)
 }
 
 func (q *querier) InsertTemplate(ctx context.Context, arg database.InsertTemplateParams) error {

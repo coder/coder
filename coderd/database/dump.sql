@@ -2005,24 +2005,24 @@ CREATE VIEW tasks_with_status AS
           WHERE (workspace_app.id = task_app.workspace_app_id)) app_status)
   WHERE (tasks.deleted_at IS NULL);
 
-CREATE TABLE telemetry_heartbeats (
-    event_type text NOT NULL,
-    heartbeat_timestamp timestamp with time zone NOT NULL,
-    CONSTRAINT telemetry_heartbeat_event_type_check CHECK ((event_type = 'aibridge_interceptions_summary'::text))
-);
-
-COMMENT ON TABLE telemetry_heartbeats IS 'Telemetry heartbeat tracking table for deduplication of event types across replicas.';
-
-COMMENT ON COLUMN telemetry_heartbeats.event_type IS 'The type of event that was sent.';
-
-COMMENT ON COLUMN telemetry_heartbeats.heartbeat_timestamp IS 'The timestamp of the heartbeat event. Usually the end of the period for which the event contains data.';
-
 CREATE TABLE telemetry_items (
     key text NOT NULL,
     value text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
+
+CREATE TABLE telemetry_locks (
+    event_type text NOT NULL,
+    period_ending_at timestamp with time zone NOT NULL,
+    CONSTRAINT telemetry_lock_event_type_constraint CHECK ((event_type = 'aibridge_interceptions_summary'::text))
+);
+
+COMMENT ON TABLE telemetry_locks IS 'Telemetry lock tracking table for deduplication of heartbeat events across replicas.';
+
+COMMENT ON COLUMN telemetry_locks.event_type IS 'The type of event that was sent.';
+
+COMMENT ON COLUMN telemetry_locks.period_ending_at IS 'The heartbeat period end timestamp.';
 
 CREATE TABLE template_usage_stats (
     start_time timestamp with time zone NOT NULL,
@@ -3099,11 +3099,11 @@ ALTER TABLE ONLY task_workspace_apps
 ALTER TABLE ONLY tasks
     ADD CONSTRAINT tasks_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY telemetry_heartbeats
-    ADD CONSTRAINT telemetry_heartbeats_pkey PRIMARY KEY (event_type, heartbeat_timestamp);
-
 ALTER TABLE ONLY telemetry_items
     ADD CONSTRAINT telemetry_items_pkey PRIMARY KEY (key);
+
+ALTER TABLE ONLY telemetry_locks
+    ADD CONSTRAINT telemetry_locks_pkey PRIMARY KEY (event_type, period_ending_at);
 
 ALTER TABLE ONLY template_usage_stats
     ADD CONSTRAINT template_usage_stats_pkey PRIMARY KEY (start_time, template_id, user_id);
@@ -3330,7 +3330,7 @@ CREATE INDEX idx_tailnet_tunnels_dst_id ON tailnet_tunnels USING hash (dst_id);
 
 CREATE INDEX idx_tailnet_tunnels_src_id ON tailnet_tunnels USING hash (src_id);
 
-CREATE INDEX idx_telemetry_heartbeats_heartbeat_timestamp ON telemetry_heartbeats USING btree (heartbeat_timestamp);
+CREATE INDEX idx_telemetry_locks_period_ending_at ON telemetry_locks USING btree (period_ending_at);
 
 CREATE UNIQUE INDEX idx_template_version_presets_default ON template_version_presets USING btree (template_version_id) WHERE (is_default = true);
 

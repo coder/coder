@@ -4633,13 +4633,13 @@ func (s *MethodTestSuite) TestAIBridge() {
 }
 
 func (s *MethodTestSuite) TestTelemetry() {
-	s.Run("InsertTelemetryHeartbeat", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		db.EXPECT().InsertTelemetryHeartbeat(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-		check.Args(database.InsertTelemetryHeartbeatParams{}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	s.Run("InsertTelemetryLock", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		db.EXPECT().InsertTelemetryLock(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		check.Args(database.InsertTelemetryLockParams{}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
 
-	s.Run("DeleteOldTelemetryHeartbeats", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		db.EXPECT().DeleteOldTelemetryHeartbeats(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	s.Run("DeleteOldTelemetryLocks", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		db.EXPECT().DeleteOldTelemetryLocks(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		check.Args(time.Time{}).Asserts(rbac.ResourceSystem, policy.ActionDelete)
 	}))
 

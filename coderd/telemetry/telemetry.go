@@ -771,21 +771,21 @@ func (r *remoteReporter) generateAIBridgeInterceptionsSummaries(ctx context.Cont
 	endedAtAfter := endedAtBefore.Add(-1 * time.Hour)
 
 	// Note: we don't use a transaction for this function since we do tolerate
-	// some errors, like duplicate heartbeat rows, and we also calculate
+	// some errors, like duplicate lock rows, and we also calculate
 	// summaries in parallel.
 
-	// Claim the heartbeat row for this hour.
-	err := r.options.Database.InsertTelemetryHeartbeat(ctx, database.InsertTelemetryHeartbeatParams{
-		EventType:          "aibridge_interceptions_summary",
-		HeartbeatTimestamp: endedAtBefore,
+	// Claim the heartbeat lock row for this hour.
+	err := r.options.Database.InsertTelemetryLock(ctx, database.InsertTelemetryLockParams{
+		EventType:      "aibridge_interceptions_summary",
+		PeriodEndingAt: endedAtBefore,
 	})
-	if database.IsUniqueViolation(err, database.UniqueTelemetryHeartbeatsPkey) {
-		// Another replica has already claimed the heartbeat row for this hour.
-		r.options.Logger.Debug(ctx, "aibridge interceptions telemetry heartbeat already claimed for this hour by another replica, skipping", slog.F("ended_at_before", endedAtBefore))
+	if database.IsUniqueViolation(err, database.UniqueTelemetryLocksPkey) {
+		// Another replica has already claimed the lock row for this hour.
+		r.options.Logger.Debug(ctx, "aibridge interceptions telemetry lock already claimed for this hour by another replica, skipping", slog.F("period_ending_at", endedAtBefore))
 		return nil, nil
 	}
 	if err != nil {
-		return nil, xerrors.Errorf("insert AIBridge interceptions telemetry heartbeat (endedAtBefore=%q): %w", endedAtBefore, err)
+		return nil, xerrors.Errorf("insert AIBridge interceptions telemetry lock (period_ending_at=%q): %w", endedAtBefore, err)
 	}
 
 	// List the summary categories that need to be calculated.
