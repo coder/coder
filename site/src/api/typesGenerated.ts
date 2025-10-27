@@ -17,10 +17,20 @@ export interface AIBridgeAnthropicConfig {
 }
 
 // From codersdk/deployment.go
+export interface AIBridgeBedrockConfig {
+	readonly region: string;
+	readonly access_key: string;
+	readonly access_key_secret: string;
+	readonly model: string;
+	readonly small_fast_model: string;
+}
+
+// From codersdk/deployment.go
 export interface AIBridgeConfig {
 	readonly enabled: boolean;
 	readonly openai: AIBridgeOpenAIConfig;
 	readonly anthropic: AIBridgeAnthropicConfig;
+	readonly bedrock: AIBridgeBedrockConfig;
 }
 
 // From codersdk/aibridge.go

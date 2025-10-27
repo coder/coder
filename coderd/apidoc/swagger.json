@@ -10364,11 +10364,34 @@
 				}
 			}
 		},
+		"codersdk.AIBridgeBedrockConfig": {
+			"type": "object",
+			"properties": {
+				"access_key": {
+					"type": "string"
+				},
+				"access_key_secret": {
+					"type": "string"
+				},
+				"model": {
+					"type": "string"
+				},
+				"region": {
+					"type": "string"
+				},
+				"small_fast_model": {
+					"type": "string"
+				}
+			}
+		},
 		"codersdk.AIBridgeConfig": {
 			"type": "object",
 			"properties": {
 				"anthropic": {
 					"$ref": "#/definitions/codersdk.AIBridgeAnthropicConfig"
+				},
+				"bedrock": {
+					"$ref": "#/definitions/codersdk.AIBridgeBedrockConfig"
 				},
 				"enabled": {
 					"type": "boolean"

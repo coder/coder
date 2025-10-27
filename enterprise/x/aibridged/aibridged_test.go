@@ -288,8 +288,8 @@ func TestRouting(t *testing.T) {
 			client := mock.NewMockDRPCClient(ctrl)
 
 			providers := []aibridge.Provider{
-				aibridge.NewOpenAIProvider(aibridge.ProviderConfig{BaseURL: openaiSrv.URL}),
-				aibridge.NewAnthropicProvider(aibridge.ProviderConfig{BaseURL: antSrv.URL}),
+				aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{BaseURL: openaiSrv.URL}),
+				aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{BaseURL: antSrv.URL}, nil),
 			}
 			pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger)
 			require.NoError(t, err)

@@ -3280,18 +3280,73 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.AI.BridgeConfig.Anthropic.BaseURL,
 			Default:     "https://api.anthropic.com/",
 			Group:       &deploymentGroupAIBridge,
-			YAML:        "base_url",
+			YAML:        "base_url", // TODO: this needs to be namespaced to Anthropic, but may cause BC breaks.
 			Hidden:      true,
 		},
 		{
-			Name:        "AIBridge Anthropic KEY",
+			Name:        "AIBridge Anthropic Key",
 			Description: "The key to authenticate against the Anthropic API.",
 			Flag:        "aibridge-anthropic-key",
 			Env:         "CODER_AIBRIDGE_ANTHROPIC_KEY",
 			Value:       &c.AI.BridgeConfig.Anthropic.Key,
 			Default:     "",
 			Group:       &deploymentGroupAIBridge,
-			YAML:        "key",
+			YAML:        "key", // TODO: this needs to be namespaced to Anthropic, but may cause BC breaks.
+			Hidden:      true,
+		},
+		{
+			Name:        "AIBridge Bedrock Region",
+			Description: "The AWS Bedrock API region.",
+			Flag:        "aibridge-bedrock-region",
+			Env:         "CODER_AIBRIDGE_BEDROCK_REGION",
+			Value:       &c.AI.BridgeConfig.Bedrock.Region,
+			Default:     "",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "bedrock_region",
+			Hidden:      true,
+		},
+		{
+			Name:        "AIBridge Bedrock Access Key",
+			Description: "The access key to authenticate against the AWS Bedrock API.",
+			Flag:        "aibridge-bedrock-access-key",
+			Env:         "CODER_AIBRIDGE_BEDROCK_ACCESS_KEY",
+			Value:       &c.AI.BridgeConfig.Bedrock.AccessKey,
+			Default:     "",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "bedrock_access_key",
+			Hidden:      true,
+		},
+		{
+			Name:        "AIBridge Bedrock Access Key Secret",
+			Description: "The access key secret to use with the access key to authenticate against the AWS Bedrock API.",
+			Flag:        "aibridge-bedrock-access-key-secret",
+			Env:         "CODER_AIBRIDGE_BEDROCK_ACCESS_KEY_SECRET",
+			Value:       &c.AI.BridgeConfig.Bedrock.AccessKeySecret,
+			Default:     "",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "bedrock_access_key_secret",
+			Hidden:      true,
+		},
+		{
+			Name:        "AIBridge Bedrock Model",
+			Description: "The model to use when making requests to the AWS Bedrock API.",
+			Flag:        "aibridge-bedrock-model",
+			Env:         "CODER_AIBRIDGE_BEDROCK_MODEL",
+			Value:       &c.AI.BridgeConfig.Bedrock.Model,
+			Default:     "global.anthropic.claude-sonnet-4-5-20250929-v1:0", // See https://docs.claude.com/en/api/claude-on-amazon-bedrock#accessing-bedrock.
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "bedrock_model",
+			Hidden:      true,
+		},
+		{
+			Name:        "AIBridge Bedrock Small Fast Model",
+			Description: "The small fast model to use when making requests to the AWS Bedrock API. Claude Code uses Haiku-class models to perform background tasks. See https://docs.claude.com/en/docs/claude-code/settings#environment-variables.",
+			Flag:        "aibridge-bedrock-small-fastmodel",
+			Env:         "CODER_AIBRIDGE_BEDROCK_SMALL_FAST_MODEL",
+			Value:       &c.AI.BridgeConfig.Bedrock.SmallFastModel,
+			Default:     "global.anthropic.claude-haiku-4-5-20251001-v1:0", // See https://docs.claude.com/en/api/claude-on-amazon-bedrock#accessing-bedrock.
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "bedrock_small_fast_model",
 			Hidden:      true,
 		},
 		{
@@ -3316,6 +3371,7 @@ type AIBridgeConfig struct {
 	Enabled   serpent.Bool            `json:"enabled" typescript:",notnull"`
 	OpenAI    AIBridgeOpenAIConfig    `json:"openai" typescript:",notnull"`
 	Anthropic AIBridgeAnthropicConfig `json:"anthropic" typescript:",notnull"`
+	Bedrock   AIBridgeBedrockConfig   `json:"bedrock" typescript:",notnull"`
 }
 
 type AIBridgeOpenAIConfig struct {
@@ -3326,6 +3382,14 @@ type AIBridgeOpenAIConfig struct {
 type AIBridgeAnthropicConfig struct {
 	BaseURL serpent.String `json:"base_url" typescript:",notnull"`
 	Key     serpent.String `json:"key" typescript:",notnull"`
+}
+
+type AIBridgeBedrockConfig struct {
+	Region          serpent.String `json:"region" typescript:",notnull"`
+	AccessKey       serpent.String `json:"access_key" typescript:",notnull"`
+	AccessKeySecret serpent.String `json:"access_key_secret" typescript:",notnull"`
+	Model           serpent.String `json:"model" typescript:",notnull"`
+	SmallFastModel  serpent.String `json:"small_fast_model" typescript:",notnull"`
 }
 
 type AIConfig struct {
