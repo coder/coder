@@ -2916,10 +2916,10 @@ func (m queryMetricsStore) UnfavoriteWorkspace(ctx context.Context, arg uuid.UUI
 	return r0
 }
 
-func (m queryMetricsStore) UpdateAIBridgeInterceptionEndedAt(ctx context.Context, arg database.UpdateAIBridgeInterceptionEndedAtParams) (database.AIBridgeInterception, error) {
+func (m queryMetricsStore) UpdateAIBridgeInterceptionEnded(ctx context.Context, id database.UpdateAIBridgeInterceptionEndedParams) (database.AIBridgeInterception, error) {
 	start := time.Now()
-	r0, r1 := m.s.UpdateAIBridgeInterceptionEndedAt(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateAIBridgeInterceptionEndedAt").Observe(time.Since(start).Seconds())
+	r0, r1 := m.s.UpdateAIBridgeInterceptionEnded(ctx, id)
+	m.queryLatencies.WithLabelValues("UpdateAIBridgeInterceptionEnded").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 

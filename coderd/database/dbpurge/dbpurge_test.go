@@ -716,19 +716,19 @@ func TestDeleteOldTelemetryHeartbeats(t *testing.T) {
 	now := clk.Now().UTC()
 
 	// Insert telemetry heartbeats.
-	err := db.InsertTelemetryHeartbeat(ctx, database.InsertTelemetryHeartbeatParams{
-		EventType:          "aibridge_interceptions_summary",
-		HeartbeatTimestamp: now.Add(-25 * time.Hour), // should be purged
+	err := db.InsertTelemetryLock(ctx, database.InsertTelemetryLockParams{
+		EventType:      "aibridge_interceptions_summary",
+		PeriodEndingAt: now.Add(-25 * time.Hour), // should be purged
 	})
 	require.NoError(t, err)
-	err = db.InsertTelemetryHeartbeat(ctx, database.InsertTelemetryHeartbeatParams{
-		EventType:          "aibridge_interceptions_summary",
-		HeartbeatTimestamp: now.Add(-23 * time.Hour), // should be kept
+	err = db.InsertTelemetryLock(ctx, database.InsertTelemetryLockParams{
+		EventType:      "aibridge_interceptions_summary",
+		PeriodEndingAt: now.Add(-23 * time.Hour), // should be kept
 	})
 	require.NoError(t, err)
-	err = db.InsertTelemetryHeartbeat(ctx, database.InsertTelemetryHeartbeatParams{
-		EventType:          "aibridge_interceptions_summary",
-		HeartbeatTimestamp: now, // should be kept
+	err = db.InsertTelemetryLock(ctx, database.InsertTelemetryLockParams{
+		EventType:      "aibridge_interceptions_summary",
+		PeriodEndingAt: now, // should be kept
 	})
 	require.NoError(t, err)
 
@@ -742,13 +742,13 @@ func TestDeleteOldTelemetryHeartbeats(t *testing.T) {
 		// for deleting heartbeats in the application code.
 		var totalCount int
 		err := sqlDB.QueryRowContext(ctx, `
-			SELECT COUNT(*) FROM telemetry_heartbeats;
+			SELECT COUNT(*) FROM telemetry_locks;
 		`).Scan(&totalCount)
 		assert.NoError(t, err)
 
 		var oldCount int
 		err = sqlDB.QueryRowContext(ctx, `
-			SELECT COUNT(*) FROM telemetry_heartbeats WHERE heartbeat_timestamp < $1;
+			SELECT COUNT(*) FROM telemetry_locks WHERE period_ending_at < $1;
 		`, now.Add(-24*time.Hour)).Scan(&oldCount)
 		assert.NoError(t, err)
 

@@ -4528,19 +4528,6 @@ func (s *MethodTestSuite) TestAIBridge() {
 		check.Args(params).Asserts(intc, policy.ActionUpdate)
 	}))
 
-	s.Run("UpdateAIBridgeInterceptionEndedAt", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		intID := uuid.UUID{2}
-		intc := testutil.Fake(s.T(), faker, database.AIBridgeInterception{ID: intID})
-		db.EXPECT().GetAIBridgeInterceptionByID(gomock.Any(), intID).Return(intc, nil).AnyTimes() // Validation.
-
-		params := database.UpdateAIBridgeInterceptionEndedAtParams{
-			ID:      intID,
-			EndedAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
-		}
-		db.EXPECT().UpdateAIBridgeInterceptionEndedAt(gomock.Any(), params).Return(intc, nil).AnyTimes()
-		check.Args(params).Asserts(intc, policy.ActionUpdate)
-	}))
-
 	s.Run("GetAIBridgeInterceptionByID", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		intID := uuid.UUID{2}
 		intc := testutil.Fake(s.T(), faker, database.AIBridgeInterception{ID: intID})
@@ -4629,6 +4616,15 @@ func (s *MethodTestSuite) TestAIBridge() {
 		ids := []uuid.UUID{{1}}
 		db.EXPECT().ListAIBridgeToolUsagesByInterceptionIDs(gomock.Any(), ids).Return([]database.AIBridgeToolUsage{}, nil).AnyTimes()
 		check.Args(ids).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns([]database.AIBridgeToolUsage{})
+	}))
+
+	s.Run("UpdateAIBridgeInterceptionEnded", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		intcID := uuid.UUID{1}
+		params := database.UpdateAIBridgeInterceptionEndedParams{ID: intcID}
+		intc := testutil.Fake(s.T(), faker, database.AIBridgeInterception{ID: intcID})
+		db.EXPECT().GetAIBridgeInterceptionByID(gomock.Any(), intcID).Return(intc, nil).AnyTimes() // Validation.
+		db.EXPECT().UpdateAIBridgeInterceptionEnded(gomock.Any(), params).Return(intc, nil).AnyTimes()
+		check.Args(params).Asserts(intc, policy.ActionUpdate).Returns(intc)
 	}))
 }
 

@@ -217,7 +217,7 @@ func TestTelemetry(t *testing.T) {
 			Provider:    "anthropic",
 			Model:       "deanseek",
 			StartedAt:   previousAIBridgeInterceptionPeriod.Add(-30 * time.Minute),
-		})
+		}, nil)
 		_ = dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
 			InterceptionID: aiBridgeInterception1.ID,
 			InputTokens:    100,
@@ -232,19 +232,17 @@ func TestTelemetry(t *testing.T) {
 			Injected:        true,
 			InvocationError: sql.NullString{String: "error1", Valid: true},
 		})
-		db.UpdateAIBridgeInterceptionEndedAt(ctx, database.UpdateAIBridgeInterceptionEndedAtParams{
-			ID: aiBridgeInterception1.ID,
-			EndedAt: sql.NullTime{
-				Time:  aiBridgeInterception1.StartedAt.Add(1 * time.Minute), // 1 minute duration
-				Valid: true,
-			},
+		_, err = db.UpdateAIBridgeInterceptionEnded(ctx, database.UpdateAIBridgeInterceptionEndedParams{
+			ID:      aiBridgeInterception1.ID,
+			EndedAt: aiBridgeInterception1.StartedAt.Add(1 * time.Minute), // 1 minute duration
 		})
+		require.NoError(t, err)
 		aiBridgeInterception2 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID: user2.ID,
 			Provider:    aiBridgeInterception1.Provider,
 			Model:       aiBridgeInterception1.Model,
 			StartedAt:   aiBridgeInterception1.StartedAt,
-		})
+		}, nil)
 		_ = dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
 			InterceptionID: aiBridgeInterception2.ID,
 			InputTokens:    100,
@@ -258,32 +256,28 @@ func TestTelemetry(t *testing.T) {
 			InterceptionID: aiBridgeInterception2.ID,
 			Injected:       false,
 		})
-		db.UpdateAIBridgeInterceptionEndedAt(ctx, database.UpdateAIBridgeInterceptionEndedAtParams{
-			ID: aiBridgeInterception2.ID,
-			EndedAt: sql.NullTime{
-				Time:  aiBridgeInterception2.StartedAt.Add(2 * time.Minute), // 2 minute duration
-				Valid: true,
-			},
+		_, err = db.UpdateAIBridgeInterceptionEnded(ctx, database.UpdateAIBridgeInterceptionEndedParams{
+			ID:      aiBridgeInterception2.ID,
+			EndedAt: aiBridgeInterception2.StartedAt.Add(2 * time.Minute), // 2 minute duration
 		})
+		require.NoError(t, err)
 		aiBridgeInterception3 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID: user2.ID,
 			Provider:    "openai",
 			Model:       "gpt-5",
 			StartedAt:   aiBridgeInterception1.StartedAt,
+		}, nil)
+		_, err = db.UpdateAIBridgeInterceptionEnded(ctx, database.UpdateAIBridgeInterceptionEndedParams{
+			ID:      aiBridgeInterception3.ID,
+			EndedAt: aiBridgeInterception3.StartedAt.Add(3 * time.Minute), // 3 minute duration
 		})
-		db.UpdateAIBridgeInterceptionEndedAt(ctx, database.UpdateAIBridgeInterceptionEndedAtParams{
-			ID: aiBridgeInterception3.ID,
-			EndedAt: sql.NullTime{
-				Time:  aiBridgeInterception3.StartedAt.Add(3 * time.Minute), // 3 minute duration
-				Valid: true,
-			},
-		})
+		require.NoError(t, err)
 		_ = dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID: user2.ID,
 			Provider:    "openai",
 			Model:       "gpt-5",
 			StartedAt:   aiBridgeInterception1.StartedAt,
-		})
+		}, nil)
 		// not ended, so it should not affect summaries
 
 		clock := quartz.NewMock(t)

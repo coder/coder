@@ -77,9 +77,9 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, clk quartz.
 			if err := tx.ExpirePrebuildsAPIKeys(ctx, dbtime.Time(start)); err != nil {
 				return xerrors.Errorf("failed to expire prebuilds user api keys: %w", err)
 			}
-			deleteOldTelemetryHeartbeatsBefore := start.Add(-maxTelemetryHeartbeatAge)
-			if err := tx.DeleteOldTelemetryHeartbeats(ctx, deleteOldTelemetryHeartbeatsBefore); err != nil {
-				return xerrors.Errorf("failed to delete old telemetry heartbeats: %w", err)
+			deleteOldTelemetryLocksBefore := start.Add(-maxTelemetryHeartbeatAge)
+			if err := tx.DeleteOldTelemetryLocks(ctx, deleteOldTelemetryLocksBefore); err != nil {
+				return xerrors.Errorf("failed to delete old telemetry locks: %w", err)
 			}
 
 			deleteOldAuditLogConnectionEventsBefore := start.Add(-maxAuditLogConnectionEventAge)

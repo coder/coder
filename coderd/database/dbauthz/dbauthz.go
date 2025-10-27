@@ -4739,11 +4739,11 @@ func (q *querier) UnfavoriteWorkspace(ctx context.Context, id uuid.UUID) error {
 	return update(q.log, q.auth, fetch, q.db.UnfavoriteWorkspace)(ctx, id)
 }
 
-func (q *querier) UpdateAIBridgeInterceptionEndedAt(ctx context.Context, arg database.UpdateAIBridgeInterceptionEndedAtParams) (database.AIBridgeInterception, error) {
-	if err := q.authorizeAIBridgeInterceptionAction(ctx, policy.ActionUpdate, arg.ID); err != nil {
+func (q *querier) UpdateAIBridgeInterceptionEnded(ctx context.Context, params database.UpdateAIBridgeInterceptionEndedParams) (database.AIBridgeInterception, error) {
+	if err := q.authorizeAIBridgeInterceptionAction(ctx, policy.ActionUpdate, params.ID); err != nil {
 		return database.AIBridgeInterception{}, err
 	}
-	return q.db.UpdateAIBridgeInterceptionEndedAt(ctx, arg)
+	return q.db.UpdateAIBridgeInterceptionEnded(ctx, params)
 }
 
 func (q *querier) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKeyByIDParams) error {
