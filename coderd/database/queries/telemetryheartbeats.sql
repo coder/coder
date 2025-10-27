@@ -17,7 +17,7 @@ WHERE
     heartbeat_timestamp < @before_time::timestamptz;
 
 -- name: ListAIBridgeInterceptionsTelemetrySummaries :many
--- Finds all unique AIBridge interception telemetry snapshots combinations
+-- Finds all unique AIBridge interception telemetry summaries combinations
 -- (provider, model, client) in the given timeframe.
 SELECT
     DISTINCT ON (provider, model, client)
@@ -28,20 +28,19 @@ SELECT
 FROM
     aibridge_interceptions
 WHERE
-    started_at >= @started_at_after::timestamptz
-    -- TODO: use the end time once we have it
-    AND started_at < @ended_at_before::timestamptz;
+    ended_at IS NOT NULL -- incomplete interceptions are not included in summaries
+    AND ended_at >= @ended_at_after::timestamptz
+    AND ended_at < @ended_at_before::timestamptz;
 
 -- name: CalculateAIBridgeInterceptionsTelemetrySummary :one
--- Calculates the telemetry snapshot for a given provider, model, and client
+-- Calculates the telemetry summary for a given provider, model, and client
 -- combination.
 WITH interceptions_in_range AS (
     -- Get all matching interceptions in the given timeframe.
     SELECT
         id,
         initiator_id,
-        -- TODO: use the duration value once we have it
-        INTERVAL '0 seconds' AS duration
+        (ended_at - started_at) AS duration
     FROM
         aibridge_interceptions
     WHERE
@@ -49,9 +48,9 @@ WITH interceptions_in_range AS (
         AND model = @model::text
         -- TODO: use the client value once we have it (see https://github.com/coder/aibridge/issues/31)
         AND 'unknown' = @client::text
-        AND started_at >= @started_at_after::timestamptz
-        -- TODO: use the end time once we have it
-        AND started_at < @ended_at_before::timestamptz
+        AND ended_at IS NOT NULL -- incomplete interceptions are not included in summaries
+        AND ended_at >= @ended_at_after::timestamptz
+        AND ended_at < @ended_at_before::timestamptz
 ),
 interception_counts AS (
     SELECT

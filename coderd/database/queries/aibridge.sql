@@ -30,6 +30,15 @@ INSERT INTO aibridge_tool_usages (
 )
 RETURNING *;
 
+-- name: UpdateAIBridgeInterceptionEndedAt :one
+UPDATE
+	aibridge_interceptions
+SET
+	ended_at = @ended_at
+WHERE
+	id = @id::uuid
+RETURNING *;
+
 -- name: GetAIBridgeInterceptionByID :one
 SELECT
 	*

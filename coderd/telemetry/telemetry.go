@@ -768,7 +768,7 @@ func (r *remoteReporter) generateAIBridgeInterceptionsSummaries(ctx context.Cont
 	// Get the current timeframe, which is the previous hour.
 	now := dbtime.Time(r.options.Clock.Now()).UTC()
 	endedAtBefore := now.Truncate(time.Hour)
-	startedAtAfter := endedAtBefore.Add(-1 * time.Hour)
+	endedAtAfter := endedAtBefore.Add(-1 * time.Hour)
 
 	// Note: we don't use a transaction for this function since we do tolerate
 	// some errors, like duplicate heartbeat rows, and we also calculate
@@ -781,7 +781,7 @@ func (r *remoteReporter) generateAIBridgeInterceptionsSummaries(ctx context.Cont
 	})
 	if database.IsUniqueViolation(err, database.UniqueTelemetryHeartbeatsPkey) {
 		// Another replica has already claimed the heartbeat row for this hour.
-		r.options.Logger.Debug(ctx, "aibridge interceptions telemetry heartbeat already claimed for this hour by another replica, skipping", slog.F("endedAtBefore", endedAtBefore))
+		r.options.Logger.Debug(ctx, "aibridge interceptions telemetry heartbeat already claimed for this hour by another replica, skipping", slog.F("ended_at_before", endedAtBefore))
 		return nil, nil
 	}
 	if err != nil {
@@ -790,11 +790,11 @@ func (r *remoteReporter) generateAIBridgeInterceptionsSummaries(ctx context.Cont
 
 	// List the summary categories that need to be calculated.
 	summaryCategories, err := r.options.Database.ListAIBridgeInterceptionsTelemetrySummaries(ctx, database.ListAIBridgeInterceptionsTelemetrySummariesParams{
-		StartedAtAfter: startedAtAfter, // inclusive
-		EndedAtBefore:  endedAtBefore,  // exclusive
+		EndedAtAfter:  endedAtAfter,  // inclusive
+		EndedAtBefore: endedAtBefore, // exclusive
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("list AIBridge interceptions telemetry summaries (startedAtAfter=%q, endedAtBefore=%q): %w", startedAtAfter, endedAtBefore, err)
+		return nil, xerrors.Errorf("list AIBridge interceptions telemetry summaries (startedAtAfter=%q, endedAtBefore=%q): %w", endedAtAfter, endedAtBefore, err)
 	}
 
 	// Calculate and convert the summaries for all categories.
@@ -806,14 +806,14 @@ func (r *remoteReporter) generateAIBridgeInterceptionsSummaries(ctx context.Cont
 	for _, category := range summaryCategories {
 		eg.Go(func() error {
 			summary, err := r.options.Database.CalculateAIBridgeInterceptionsTelemetrySummary(egCtx, database.CalculateAIBridgeInterceptionsTelemetrySummaryParams{
-				Provider:       category.Provider,
-				Model:          category.Model,
-				Client:         category.Client,
-				StartedAtAfter: startedAtAfter,
-				EndedAtBefore:  endedAtBefore,
+				Provider:      category.Provider,
+				Model:         category.Model,
+				Client:        category.Client,
+				EndedAtAfter:  endedAtAfter,
+				EndedAtBefore: endedAtBefore,
 			})
 			if err != nil {
-				return xerrors.Errorf("calculate AIBridge interceptions telemetry summary (provider=%q, model=%q, client=%q, startedAtAfter=%q, endedAtBefore=%q): %w", category.Provider, category.Model, category.Client, startedAtAfter, endedAtBefore, err)
+				return xerrors.Errorf("calculate AIBridge interceptions telemetry summary (provider=%q, model=%q, client=%q, startedAtAfter=%q, endedAtBefore=%q): %w", category.Provider, category.Model, category.Client, endedAtAfter, endedAtBefore, err)
 			}
 
 			// Double check that at least one interception was found in the
@@ -1965,6 +1965,8 @@ type AIBridgeInterceptionsSummaryToolCallsCount struct {
 // interception data over a period of 1 hour. We send a summary each hour for
 // each unique provider + model + client combination.
 type AIBridgeInterceptionsSummary struct {
+	ID uuid.UUID `json:"id"`
+
 	// The end of the hour for which the summary is taken. This will always be a
 	// UTC timestamp truncated to the hour.
 	Timestamp time.Time `json:"timestamp"`
@@ -1992,6 +1994,7 @@ type AIBridgeInterceptionsSummary struct {
 
 func ConvertAIBridgeInterceptionsSummary(endTime time.Time, provider, model, client string, summary database.CalculateAIBridgeInterceptionsTelemetrySummaryRow) AIBridgeInterceptionsSummary {
 	return AIBridgeInterceptionsSummary{
+		ID:                uuid.New(),
 		Timestamp:         endTime,
 		Provider:          provider,
 		Model:             model,

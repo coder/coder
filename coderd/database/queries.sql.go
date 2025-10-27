@@ -778,6 +778,36 @@ func (q *sqlQuerier) ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Contex
 	return items, nil
 }
 
+const updateAIBridgeInterceptionEndedAt = `-- name: UpdateAIBridgeInterceptionEndedAt :one
+UPDATE
+	aibridge_interceptions
+SET
+	ended_at = $1
+WHERE
+	id = $2::uuid
+RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at
+`
+
+type UpdateAIBridgeInterceptionEndedAtParams struct {
+	EndedAt sql.NullTime `db:"ended_at" json:"ended_at"`
+	ID      uuid.UUID    `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateAIBridgeInterceptionEndedAt(ctx context.Context, arg UpdateAIBridgeInterceptionEndedAtParams) (AIBridgeInterception, error) {
+	row := q.db.QueryRowContext(ctx, updateAIBridgeInterceptionEndedAt, arg.EndedAt, arg.ID)
+	var i AIBridgeInterception
+	err := row.Scan(
+		&i.ID,
+		&i.InitiatorID,
+		&i.Provider,
+		&i.Model,
+		&i.StartedAt,
+		&i.Metadata,
+		&i.EndedAt,
+	)
+	return i, err
+}
+
 const deleteAPIKeyByID = `-- name: DeleteAPIKeyByID :exec
 DELETE FROM
 	api_keys
@@ -12961,18 +12991,17 @@ WITH interceptions_in_range AS (
     SELECT
         id,
         initiator_id,
-        -- TODO: use the duration value once we have it
-        INTERVAL '0 seconds' AS duration
+        (ended_at - started_at) AS duration
     FROM
         aibridge_interceptions
     WHERE
         provider = $1::text
         AND model = $2::text
-        -- TODO: use the client value once we have it
+        -- TODO: use the client value once we have it (see https://github.com/coder/aibridge/issues/31)
         AND 'unknown' = $3::text
-        AND started_at >= $4::timestamptz
-        -- TODO: use the end time once we have it
-        AND started_at < $5::timestamptz
+        AND ended_at IS NOT NULL -- incomplete interceptions are not included in summaries
+        AND ended_at >= $4::timestamptz
+        AND ended_at < $5::timestamptz
 ),
 interception_counts AS (
     SELECT
@@ -13058,11 +13087,11 @@ FROM
 `
 
 type CalculateAIBridgeInterceptionsTelemetrySummaryParams struct {
-	Provider       string    `db:"provider" json:"provider"`
-	Model          string    `db:"model" json:"model"`
-	Client         string    `db:"client" json:"client"`
-	StartedAtAfter time.Time `db:"started_at_after" json:"started_at_after"`
-	EndedAtBefore  time.Time `db:"ended_at_before" json:"ended_at_before"`
+	Provider      string    `db:"provider" json:"provider"`
+	Model         string    `db:"model" json:"model"`
+	Client        string    `db:"client" json:"client"`
+	EndedAtAfter  time.Time `db:"ended_at_after" json:"ended_at_after"`
+	EndedAtBefore time.Time `db:"ended_at_before" json:"ended_at_before"`
 }
 
 type CalculateAIBridgeInterceptionsTelemetrySummaryRow struct {
@@ -13083,14 +13112,14 @@ type CalculateAIBridgeInterceptionsTelemetrySummaryRow struct {
 	InjectedToolCallErrorCount    int64 `db:"injected_tool_call_error_count" json:"injected_tool_call_error_count"`
 }
 
-// Calculates the telemetry snapshot for a given provider, model, and client
+// Calculates the telemetry summary for a given provider, model, and client
 // combination.
 func (q *sqlQuerier) CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Context, arg CalculateAIBridgeInterceptionsTelemetrySummaryParams) (CalculateAIBridgeInterceptionsTelemetrySummaryRow, error) {
 	row := q.db.QueryRowContext(ctx, calculateAIBridgeInterceptionsTelemetrySummary,
 		arg.Provider,
 		arg.Model,
 		arg.Client,
-		arg.StartedAtAfter,
+		arg.EndedAtAfter,
 		arg.EndedAtBefore,
 	)
 	var i CalculateAIBridgeInterceptionsTelemetrySummaryRow
@@ -13154,19 +13183,19 @@ SELECT
     DISTINCT ON (provider, model, client)
     provider,
     model,
-    -- TODO: use the client value once we have it
+    -- TODO: use the client value once we have it (see https://github.com/coder/aibridge/issues/31)
     'unknown' AS client
 FROM
     aibridge_interceptions
 WHERE
-    started_at >= $1::timestamptz
-    -- TODO: use the end time once we have it
-    AND started_at < $2::timestamptz
+    ended_at IS NOT NULL -- incomplete interceptions are not included in summaries
+    AND ended_at >= $1::timestamptz
+    AND ended_at < $2::timestamptz
 `
 
 type ListAIBridgeInterceptionsTelemetrySummariesParams struct {
-	StartedAtAfter time.Time `db:"started_at_after" json:"started_at_after"`
-	EndedAtBefore  time.Time `db:"ended_at_before" json:"ended_at_before"`
+	EndedAtAfter  time.Time `db:"ended_at_after" json:"ended_at_after"`
+	EndedAtBefore time.Time `db:"ended_at_before" json:"ended_at_before"`
 }
 
 type ListAIBridgeInterceptionsTelemetrySummariesRow struct {
@@ -13175,10 +13204,10 @@ type ListAIBridgeInterceptionsTelemetrySummariesRow struct {
 	Client   string `db:"client" json:"client"`
 }
 
-// Finds all unique AIBridge interception telemetry snapshots combinations
+// Finds all unique AIBridge interception telemetry summaries combinations
 // (provider, model, client) in the given timeframe.
 func (q *sqlQuerier) ListAIBridgeInterceptionsTelemetrySummaries(ctx context.Context, arg ListAIBridgeInterceptionsTelemetrySummariesParams) ([]ListAIBridgeInterceptionsTelemetrySummariesRow, error) {
-	rows, err := q.db.QueryContext(ctx, listAIBridgeInterceptionsTelemetrySummaries, arg.StartedAtAfter, arg.EndedAtBefore)
+	rows, err := q.db.QueryContext(ctx, listAIBridgeInterceptionsTelemetrySummaries, arg.EndedAtAfter, arg.EndedAtBefore)
 	if err != nil {
 		return nil, err
 	}

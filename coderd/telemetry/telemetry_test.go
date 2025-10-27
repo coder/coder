@@ -232,6 +232,13 @@ func TestTelemetry(t *testing.T) {
 			Injected:        true,
 			InvocationError: sql.NullString{String: "error1", Valid: true},
 		})
+		db.UpdateAIBridgeInterceptionEndedAt(ctx, database.UpdateAIBridgeInterceptionEndedAtParams{
+			ID: aiBridgeInterception1.ID,
+			EndedAt: sql.NullTime{
+				Time:  aiBridgeInterception1.StartedAt.Add(1 * time.Minute), // 1 minute duration
+				Valid: true,
+			},
+		})
 		aiBridgeInterception2 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID: user2.ID,
 			Provider:    aiBridgeInterception1.Provider,
@@ -251,12 +258,33 @@ func TestTelemetry(t *testing.T) {
 			InterceptionID: aiBridgeInterception2.ID,
 			Injected:       false,
 		})
+		db.UpdateAIBridgeInterceptionEndedAt(ctx, database.UpdateAIBridgeInterceptionEndedAtParams{
+			ID: aiBridgeInterception2.ID,
+			EndedAt: sql.NullTime{
+				Time:  aiBridgeInterception2.StartedAt.Add(2 * time.Minute), // 2 minute duration
+				Valid: true,
+			},
+		})
 		aiBridgeInterception3 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID: user2.ID,
 			Provider:    "openai",
 			Model:       "gpt-5",
 			StartedAt:   aiBridgeInterception1.StartedAt,
 		})
+		db.UpdateAIBridgeInterceptionEndedAt(ctx, database.UpdateAIBridgeInterceptionEndedAtParams{
+			ID: aiBridgeInterception3.ID,
+			EndedAt: sql.NullTime{
+				Time:  aiBridgeInterception3.StartedAt.Add(3 * time.Minute), // 3 minute duration
+				Valid: true,
+			},
+		})
+		_ = dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: user2.ID,
+			Provider:    "openai",
+			Model:       "gpt-5",
+			StartedAt:   aiBridgeInterception1.StartedAt,
+		})
+		// not ended, so it should not affect summaries
 
 		clock := quartz.NewMock(t)
 		clock.Set(now)
@@ -357,10 +385,10 @@ func TestTelemetry(t *testing.T) {
 		require.Equal(t, snapshot1.Client, "unknown") // no client info yet
 		require.EqualValues(t, snapshot1.InterceptionCount, 2)
 		require.EqualValues(t, snapshot1.InterceptionsByRoute, map[string]int64{}) // no route info yet
-		require.EqualValues(t, snapshot1.InterceptionDurationMillis.P50, 0)        // no duration yet
-		require.EqualValues(t, snapshot1.InterceptionDurationMillis.P90, 0)
-		require.EqualValues(t, snapshot1.InterceptionDurationMillis.P95, 0)
-		require.EqualValues(t, snapshot1.InterceptionDurationMillis.P99, 0)
+		require.EqualValues(t, snapshot1.InterceptionDurationMillis.P50, 90_000)
+		require.EqualValues(t, snapshot1.InterceptionDurationMillis.P90, 114_000)
+		require.EqualValues(t, snapshot1.InterceptionDurationMillis.P95, 117_000)
+		require.EqualValues(t, snapshot1.InterceptionDurationMillis.P99, 119_400)
 		require.EqualValues(t, snapshot1.UniqueInitiatorCount, 2)
 		require.EqualValues(t, snapshot1.UserPromptsCount, 2)
 		require.EqualValues(t, snapshot1.TokenUsagesCount, 2)
@@ -377,10 +405,10 @@ func TestTelemetry(t *testing.T) {
 		require.Equal(t, snapshot2.Client, "unknown") // no client info yet
 		require.EqualValues(t, snapshot2.InterceptionCount, 1)
 		require.EqualValues(t, snapshot2.InterceptionsByRoute, map[string]int64{}) // no route info yet
-		require.EqualValues(t, snapshot2.InterceptionDurationMillis.P50, 0)        // no duration yet
-		require.EqualValues(t, snapshot2.InterceptionDurationMillis.P90, 0)
-		require.EqualValues(t, snapshot2.InterceptionDurationMillis.P95, 0)
-		require.EqualValues(t, snapshot2.InterceptionDurationMillis.P99, 0)
+		require.EqualValues(t, snapshot2.InterceptionDurationMillis.P50, 180_000)
+		require.EqualValues(t, snapshot2.InterceptionDurationMillis.P90, 180_000)
+		require.EqualValues(t, snapshot2.InterceptionDurationMillis.P95, 180_000)
+		require.EqualValues(t, snapshot2.InterceptionDurationMillis.P99, 180_000)
 		require.EqualValues(t, snapshot2.UniqueInitiatorCount, 1)
 		require.EqualValues(t, snapshot2.UserPromptsCount, 0)
 		require.EqualValues(t, snapshot2.TokenUsagesCount, 0)
