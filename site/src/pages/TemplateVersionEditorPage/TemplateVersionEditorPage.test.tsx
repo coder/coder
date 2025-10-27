@@ -255,6 +255,39 @@ test("The file is uploaded with the correct content type", async () => {
 	);
 });
 
+test("Preserves the currently open file path when building a template version", async () => {
+	const user = userEvent.setup();
+	const { router } = renderWithAuth(<TemplateVersionEditorPage />, {
+		route: `/templates/${MockTemplate.name}/versions/${MockTemplateVersion.name}/edit?path=myfile.tf`,
+		path: "/templates/:template/versions/:version/edit",
+		extraRoutes: [
+			{
+				path: "/templates/:templateId",
+				element: <div></div>,
+			},
+		],
+	});
+
+	const topbar = await screen.findByTestId("topbar");
+
+	const newTemplateVersion: TemplateVersion = {
+		...MockTemplateVersion,
+		id: "new-version-id",
+		name: "new-version",
+	};
+
+	await typeOnEditor("new content", user);
+	await buildTemplateVersion(newTemplateVersion, user, topbar);
+
+	// Verify that the path query parameter is preserved in the URL
+	await waitFor(() => {
+		expect(router.state.location.pathname).toBe(
+			`/templates/${MockTemplate.name}/versions/new-version/edit`,
+		);
+	});
+	expect(router.state.location.search).toBe("?path=myfile.tf");
+});
+
 describe.each([
 	{
 		testName: "Do not ask when template version has no errors",
