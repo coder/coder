@@ -512,8 +512,8 @@ func (c *Client) StarterTemplates(ctx context.Context) ([]TemplateExample, error
 type InvalidatePrebuildsResponse struct {
 	// Count is the number of prebuilt workspaces that were invalidated.
 	Count int `json:"count"`
-	// Workspaces is the list of invalidated prebuilt workspace IDs.
-	Workspaces []uuid.UUID `json:"workspaces"`
+	// Workspaces is the list of invalidated prebuilt workspace names.
+	Workspaces []string `json:"workspaces"`
 }
 
 // InvalidateTemplatePrebuilds invalidates all prebuilt workspaces for the

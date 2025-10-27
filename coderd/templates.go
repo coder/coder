@@ -1208,13 +1208,13 @@ func (api *API) postInvalidateTemplatePrebuilds(rw http.ResponseWriter, r *http.
 	if len(prebuildWorkspaces) == 0 {
 		httpapi.Write(ctx, rw, http.StatusOK, codersdk.InvalidatePrebuildsResponse{
 			Count:      0,
-			Workspaces: []uuid.UUID{},
+			Workspaces: []string{},
 		})
 		return
 	}
 
 	// Delete each prebuilt workspace using the existing workspace delete logic
-	var invalidatedWorkspaces []uuid.UUID
+	var invalidatedWorkspaces []string
 
 	api.Logger.Info(ctx, "invalidating prebuilt workspaces",
 		slog.F("template_id", template.ID),
@@ -1248,7 +1248,7 @@ func (api *API) postInvalidateTemplatePrebuilds(rw http.ResponseWriter, r *http.
 			continue
 		}
 
-		invalidatedWorkspaces = append(invalidatedWorkspaces, workspace.ID)
+		invalidatedWorkspaces = append(invalidatedWorkspaces, workspace.Name)
 	}
 
 	api.Logger.Info(ctx, "completed prebuild invalidation",
