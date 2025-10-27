@@ -329,7 +329,6 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 			&i.LatestBuildError,
 			&i.LatestBuildTransition,
 			&i.LatestBuildStatus,
-			&i.LatestBuildHasAITask,
 			&i.LatestBuildHasExternalAgent,
 			&i.Count,
 		); err != nil {

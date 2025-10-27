@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -24,61 +23,11 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/taskname"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 
 	aiagentapi "github.com/coder/agentapi-sdk-go"
 )
-
-// This endpoint is experimental and not guaranteed to be stable, so we're not
-// generating public-facing documentation for it.
-func (api *API) aiTasksPrompts(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	buildIDsParam := r.URL.Query().Get("build_ids")
-	if buildIDsParam == "" {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "build_ids query parameter is required",
-		})
-		return
-	}
-
-	// Parse build IDs
-	buildIDStrings := strings.Split(buildIDsParam, ",")
-	buildIDs := make([]uuid.UUID, 0, len(buildIDStrings))
-	for _, idStr := range buildIDStrings {
-		id, err := uuid.Parse(strings.TrimSpace(idStr))
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: fmt.Sprintf("Invalid build ID format: %s", idStr),
-				Detail:  err.Error(),
-			})
-			return
-		}
-		buildIDs = append(buildIDs, id)
-	}
-
-	parameters, err := api.Database.GetWorkspaceBuildParametersByBuildIDs(ctx, buildIDs)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace build parameters.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	promptsByBuildID := make(map[string]string, len(parameters))
-	for _, param := range parameters {
-		if param.Name != codersdk.AITaskPromptParameterName {
-			continue
-		}
-		buildID := param.WorkspaceBuildID.String()
-		promptsByBuildID[buildID] = param.Value
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AITasksPromptsResponse{
-		Prompts: promptsByBuildID,
-	})
-}
 
 // @Summary Create a new AI task
 // @Description: EXPERIMENTAL: this endpoint is experimental and not guaranteed to be stable.
@@ -174,13 +123,31 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Check if the template defines the AI Prompt parameter.
+	templateParams, err := api.Database.GetTemplateVersionParameters(ctx, req.TemplateVersionID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching template parameters.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	var richParams []codersdk.WorkspaceBuildParameter
+	if _, hasAIPromptParam := slice.Find(templateParams, func(param database.TemplateVersionParameter) bool {
+		return param.Name == codersdk.AITaskPromptParameterName
+	}); hasAIPromptParam {
+		// Only add the AI Prompt parameter if the template defines it.
+		richParams = []codersdk.WorkspaceBuildParameter{
+			{Name: codersdk.AITaskPromptParameterName, Value: req.Input},
+		}
+	}
+
 	createReq := codersdk.CreateWorkspaceRequest{
 		Name:                    taskName,
 		TemplateVersionID:       req.TemplateVersionID,
 		TemplateVersionPresetID: req.TemplateVersionPresetID,
-		RichParameterValues: []codersdk.WorkspaceBuildParameter{
-			{Name: codersdk.AITaskPromptParameterName, Value: req.Input},
-		},
+		RichParameterValues:     richParams,
 	}
 
 	var owner workspaceOwner
