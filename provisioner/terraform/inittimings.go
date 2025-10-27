@@ -22,12 +22,25 @@ var (
 	}
 
 	// executionOrder is the expected sequential steps during `terraform init`.
-	// The name of the stage depends on the
+	// Some steps of the init have more than 1 possible "initMessageCode".
+	//
+	// In practice, since Coder has a defined way of running Terraform, only
+	// one code per step is expected. However, this allows for future-proofing
+	// in case Coder adds more Terraform init configurations.
 	executionOrder = [][]initMessageCode{
-		{initInitializingBackendMessage, initInitializingStateStoreMessage},
-		{initInitializingModulesMessage, initUpgradingModulesMessage},
+		{
+			initInitializingBackendMessage,
+			initInitializingStateStoreMessage, // Using a state store backend
+		},
+		{
+			initInitializingModulesMessage,
+			initUpgradingModulesMessage, // if "-upgrade" flag provided
+		},
 		{initInitializingProviderPluginMessage},
-		{initOutputInitSuccessMessage, initOutputInitSuccessCloudMessage},
+		{
+			initOutputInitSuccessMessage,
+			initOutputInitSuccessCloudMessage, // If using terraform cloud
+		},
 	}
 )
 
@@ -46,13 +59,13 @@ func (t *timingAggregator) ingestInitTiming(ts time.Time, s *timingSpan) {
 		// always a state file on disk, making it nearly an instantaneous operation.
 		s.start = ts
 		s.state = proto.TimingState_STARTED
-	case initInitializingModulesMessage:
+	case initInitializingModulesMessage, initUpgradingModulesMessage:
 		s.start = ts
 		s.state = proto.TimingState_STARTED
 	case initInitializingProviderPluginMessage:
 		s.start = ts
 		s.state = proto.TimingState_STARTED
-	case initOutputInitSuccessMessage:
+	case initOutputInitSuccessMessage, initOutputInitSuccessCloudMessage:
 		// The final message indicates successful completion of init. There is no start
 		// message for this, but we want to continue the pattern such that this completes
 		// the previous stage.
