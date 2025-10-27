@@ -278,7 +278,6 @@ export const InvalidTimeRange: Story = {
 	},
 };
 
-
 // A template with no agent scripts.
 export const NoAgentScripts: Story = {
 	args: {
