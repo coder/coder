@@ -1206,15 +1206,15 @@ func (api *API) postInvalidateTemplatePrebuilds(rw http.ResponseWriter, r *http.
 	}
 
 	if len(prebuildWorkspaces) == 0 {
-		httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
-			Message: "No prebuilt workspaces found for this template's active version.",
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.InvalidatePrebuildsResponse{
+			Count:      0,
+			Workspaces: []uuid.UUID{},
 		})
 		return
 	}
 
 	// Delete each prebuilt workspace using the existing workspace delete logic
-	var invalidatedCount int
-	var errors []string
+	var invalidatedWorkspaces []uuid.UUID
 
 	api.Logger.Info(ctx, "invalidating prebuilt workspaces",
 		slog.F("template_id", template.ID),
@@ -1240,7 +1240,6 @@ func (api *API) postInvalidateTemplatePrebuilds(rw http.ResponseWriter, r *http.
 			audit.WorkspaceBuildBaggageFromRequest(r),
 		)
 		if err != nil {
-			errors = append(errors, fmt.Sprintf("workspace %s: %v", workspace.Name, err))
 			api.Logger.Warn(ctx, "failed to invalidate prebuilt workspace",
 				slog.F("workspace_id", workspace.ID),
 				slog.F("workspace_name", workspace.Name),
@@ -1249,22 +1248,17 @@ func (api *API) postInvalidateTemplatePrebuilds(rw http.ResponseWriter, r *http.
 			continue
 		}
 
-		invalidatedCount++
+		invalidatedWorkspaces = append(invalidatedWorkspaces, workspace.ID)
 	}
 
 	api.Logger.Info(ctx, "completed prebuild invalidation",
 		slog.F("template_id", template.ID),
-		slog.F("invalidated", invalidatedCount),
-		slog.F("failed", len(errors)),
+		slog.F("invalidated", len(invalidatedWorkspaces)),
+		slog.F("failed", len(prebuildWorkspaces)-len(invalidatedWorkspaces)),
 	)
 
-	message := fmt.Sprintf("Successfully invalidated %d prebuilt workspace(s).", invalidatedCount)
-	if len(errors) > 0 {
-		message = fmt.Sprintf("Invalidated %d prebuilt workspace(s), %d failed. Errors: %s",
-			invalidatedCount, len(errors), strings.Join(errors, "; "))
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
-		Message: message,
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.InvalidatePrebuildsResponse{
+		Count:      len(invalidatedWorkspaces),
+		Workspaces: invalidatedWorkspaces,
 	})
 }

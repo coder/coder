@@ -508,22 +508,31 @@ func (c *Client) StarterTemplates(ctx context.Context) ([]TemplateExample, error
 	return templateExamples, json.NewDecoder(res.Body).Decode(&templateExamples)
 }
 
+// InvalidatePrebuildsResponse contains the result of invalidating prebuilt workspaces.
+type InvalidatePrebuildsResponse struct {
+	// Count is the number of prebuilt workspaces that were invalidated.
+	Count int `json:"count"`
+	// Workspaces is the list of invalidated prebuilt workspace IDs.
+	Workspaces []uuid.UUID `json:"workspaces"`
+}
+
 // InvalidateTemplatePrebuilds invalidates all prebuilt workspaces for the
 // template's active version by deleting them. This is useful when prebuilds
 // become stale due to updated base images, repository changes, or other factors.
-func (c *Client) InvalidateTemplatePrebuilds(ctx context.Context, template uuid.UUID) error {
+func (c *Client) InvalidateTemplatePrebuilds(ctx context.Context, template uuid.UUID) (InvalidatePrebuildsResponse, error) {
 	res, err := c.Request(ctx, http.MethodPost,
 		fmt.Sprintf("/api/v2/templates/%s/prebuilds/invalidate", template),
 		nil,
 	)
 	if err != nil {
-		return err
+		return InvalidatePrebuildsResponse{}, err
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return ReadBodyAsError(res)
+		return InvalidatePrebuildsResponse{}, ReadBodyAsError(res)
 	}
 
-	return nil
+	var response InvalidatePrebuildsResponse
+	return response, json.NewDecoder(res.Body).Decode(&response)
 }
