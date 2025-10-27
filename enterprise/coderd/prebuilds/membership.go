@@ -2,7 +2,6 @@ package prebuilds
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 
 	"github.com/google/uuid"
@@ -32,103 +31,78 @@ func NewStoreMembershipReconciler(store database.Store, clock quartz.Clock) Stor
 	}
 }
 
-// ReconcileAll compares the current organization and group memberships of a user to the memberships required
-// in order to create prebuilt workspaces. If the user in question is not yet a member of an organization that
-// needs prebuilt workspaces, ReconcileAll will create the membership required.
+// ReconcileAll ensures the prebuilds system user has the necessary memberships to create prebuilt workspaces.
+// For each organization with prebuilds configured, it ensures:
+// * The user is a member of the organization
+// * A group exists with quota 0
+// * The user is a member of that group
 //
-// To facilitate quota management, ReconcileAll will ensure:
-// * the existence of a group (defined by PrebuiltWorkspacesGroupName) in each organization that needs prebuilt workspaces
-// * that the prebuilds system user belongs to the group in each organization that needs prebuilt workspaces
-// * that the group has a quota of 0 by default, which users can adjust based on their needs.
+// Unique constraint violations are safely ignored (concurrent creation).
 //
 // ReconcileAll does not have an opinion on transaction or lock management. These responsibilities are left to the caller.
-func (s StoreMembershipReconciler) ReconcileAll(ctx context.Context, userID uuid.UUID, presets []database.GetTemplatePresetsWithPrebuildsRow) error {
-	organizationMemberships, err := s.store.GetOrganizationsByUserID(ctx, database.GetOrganizationsByUserIDParams{
-		UserID: userID,
-		Deleted: sql.NullBool{
-			Bool:  false,
-			Valid: true,
-		},
+func (s StoreMembershipReconciler) ReconcileAll(ctx context.Context, userID uuid.UUID, groupName string) error {
+	orgStatuses, err := s.store.GetOrganizationsWithPrebuildStatus(ctx, database.GetOrganizationsWithPrebuildStatusParams{
+		UserID:    userID,
+		GroupName: groupName,
 	})
 	if err != nil {
-		return xerrors.Errorf("determine prebuild organization membership: %w", err)
-	}
-
-	orgMemberships := make(map[uuid.UUID]struct{}, 0)
-	defaultOrg, err := s.store.GetDefaultOrganization(ctx)
-	if err != nil {
-		return xerrors.Errorf("get default organization: %w", err)
-	}
-	orgMemberships[defaultOrg.ID] = struct{}{}
-	for _, o := range organizationMemberships {
-		orgMemberships[o.ID] = struct{}{}
+		return xerrors.Errorf("get organizations with prebuild status: %w", err)
 	}
 
 	var membershipInsertionErrors error
-	for _, preset := range presets {
-		_, alreadyOrgMember := orgMemberships[preset.OrganizationID]
-		if !alreadyOrgMember {
-			// Add the organization to our list of memberships regardless of potential failure below
-			// to avoid a retry that will probably be doomed anyway.
-			orgMemberships[preset.OrganizationID] = struct{}{}
-
-			// Insert the missing membership
+	for _, orgStatus := range orgStatuses {
+		// Add user to org if needed
+		if !orgStatus.HasPrebuildUser {
 			_, err = s.store.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
-				OrganizationID: preset.OrganizationID,
+				OrganizationID: orgStatus.OrganizationID,
 				UserID:         userID,
 				CreatedAt:      s.clock.Now(),
 				UpdatedAt:      s.clock.Now(),
 				Roles:          []string{},
 			})
-			if err != nil {
-				membershipInsertionErrors = errors.Join(membershipInsertionErrors, xerrors.Errorf("insert membership for prebuilt workspaces: %w", err))
+			// Unique violation means membership was created after status check, safe to ignore.
+			if err != nil && !database.IsUniqueViolation(err) {
+				membershipInsertionErrors = errors.Join(membershipInsertionErrors, err)
 				continue
 			}
 		}
 
-		// determine whether the org already has a prebuilds group
-		prebuildsGroupExists := true
-		prebuildsGroup, err := s.store.GetGroupByOrgAndName(ctx, database.GetGroupByOrgAndNameParams{
-			OrganizationID: preset.OrganizationID,
-			Name:           PrebuiltWorkspacesGroupName,
-		})
-		if err != nil {
-			if !xerrors.Is(err, sql.ErrNoRows) {
-				membershipInsertionErrors = errors.Join(membershipInsertionErrors, xerrors.Errorf("get prebuilds group: %w", err))
-				continue
-			}
-			prebuildsGroupExists = false
-		}
-
-		// if the prebuilds group does not exist, create it
-		if !prebuildsGroupExists {
-			// create a "prebuilds" group in the organization and add the system user to it
-			// this group will have a quota of 0 by default, which users can adjust based on their needs
-			prebuildsGroup, err = s.store.InsertGroup(ctx, database.InsertGroupParams{
+		// Create group if it doesn't exist
+		var groupID uuid.UUID
+		if !orgStatus.PrebuildsGroupID.Valid {
+			// Group doesn't exist, create it
+			group, err := s.store.InsertGroup(ctx, database.InsertGroupParams{
 				ID:             uuid.New(),
 				Name:           PrebuiltWorkspacesGroupName,
 				DisplayName:    PrebuiltWorkspacesGroupDisplayName,
-				OrganizationID: preset.OrganizationID,
+				OrganizationID: orgStatus.OrganizationID,
 				AvatarURL:      "",
-				QuotaAllowance: 0, // Default quota of 0, users should set this based on their needs
+				QuotaAllowance: 0,
 			})
-			if err != nil {
-				membershipInsertionErrors = errors.Join(membershipInsertionErrors, xerrors.Errorf("create prebuilds group: %w", err))
+			// Unique violation means membership was created after status check, safe to ignore.
+			if err != nil && !database.IsUniqueViolation(err) {
+				membershipInsertionErrors = errors.Join(membershipInsertionErrors, err)
+				continue
+			}
+			groupID = group.ID
+		} else {
+			// Group exists
+			groupID = orgStatus.PrebuildsGroupID.UUID
+		}
+
+		// Add user to group if needed
+		if !orgStatus.HasPrebuildUserInGroup {
+			err = s.store.InsertGroupMember(ctx, database.InsertGroupMemberParams{
+				GroupID: groupID,
+				UserID:  userID,
+			})
+			// Unique violation means membership was created after status check, safe to ignore.
+			if err != nil && !database.IsUniqueViolation(err) {
+				membershipInsertionErrors = errors.Join(membershipInsertionErrors, err)
 				continue
 			}
 		}
-
-		// add the system user to the prebuilds group
-		err = s.store.InsertGroupMember(ctx, database.InsertGroupMemberParams{
-			GroupID: prebuildsGroup.ID,
-			UserID:  userID,
-		})
-		if err != nil {
-			// ignore unique violation errors as the user might already be in the group
-			if !database.IsUniqueViolation(err) {
-				membershipInsertionErrors = errors.Join(membershipInsertionErrors, xerrors.Errorf("add system user to prebuilds group: %w", err))
-			}
-		}
 	}
+
 	return membershipInsertionErrors
 }
