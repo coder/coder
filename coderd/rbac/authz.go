@@ -711,7 +711,7 @@ func (a *authorizedSQLFilter) SQLString() string {
 type authCache struct {
 	// cache is a cache of hashed Authorize inputs to the result of the Authorize
 	// call.
-	// determistic function.
+	// deterministic function.
 	cache *tlru.Cache[[32]byte, error]
 
 	authz Authorizer

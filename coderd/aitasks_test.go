@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"io"
@@ -268,6 +269,7 @@ func TestTasks(t *testing.T) {
 		require.True(t, ok, "task should be found in the list")
 		assert.Equal(t, wantPrompt, got.InitialPrompt, "task prompt should match the AI Prompt parameter")
 		assert.Equal(t, task.WorkspaceID.UUID, got.WorkspaceID.UUID, "workspace id should match")
+		assert.Equal(t, task.WorkspaceName, got.WorkspaceName, "workspace name should match")
 		// Status should be populated via the tasks_with_status view.
 		assert.NotEmpty(t, got.Status, "task status should not be empty")
 		assert.NotEmpty(t, got.WorkspaceStatus, "workspace status should not be empty")
@@ -323,6 +325,7 @@ func TestTasks(t *testing.T) {
 		assert.Equal(t, task.Name, updated.Name, "task name should match")
 		assert.Equal(t, wantPrompt, updated.InitialPrompt, "task prompt should match the AI Prompt parameter")
 		assert.Equal(t, task.WorkspaceID.UUID, updated.WorkspaceID.UUID, "workspace id should match")
+		assert.Equal(t, task.WorkspaceName, updated.WorkspaceName, "workspace name should match")
 		assert.Equal(t, ws.LatestBuild.BuildNumber, updated.WorkspaceBuildNumber, "workspace build number should match")
 		assert.Equal(t, agentID, updated.WorkspaceAgentID.UUID, "workspace agent id should match")
 		assert.Equal(t, taskAppID, updated.WorkspaceAppID.UUID, "workspace app id should match")
@@ -374,18 +377,14 @@ func TestTasks(t *testing.T) {
 			require.NoError(t, err, "delete task request should be accepted")
 
 			// Poll until the workspace is deleted.
-			for {
+			testutil.Eventually(ctx, t, func(ctx context.Context) (done bool) {
 				dws, derr := client.DeletedWorkspace(ctx, task.WorkspaceID.UUID)
-				if derr == nil && dws.LatestBuild.Status == codersdk.WorkspaceStatusDeleted {
-					break
+				if !assert.NoError(t, derr, "expected to fetch deleted workspace before deadline") {
+					return false
 				}
-				if ctx.Err() != nil {
-					require.NoError(t, derr, "expected to fetch deleted workspace before deadline")
-					require.Equal(t, codersdk.WorkspaceStatusDeleted, dws.LatestBuild.Status, "workspace should be deleted before deadline")
-					break
-				}
-				time.Sleep(testutil.IntervalMedium)
-			}
+				t.Logf("workspace latest_build status: %q", dws.LatestBuild.Status)
+				return dws.LatestBuild.Status == codersdk.WorkspaceStatusDeleted
+			}, testutil.IntervalMedium, "workspace should be deleted before deadline")
 		})
 
 		t.Run("NotFound", func(t *testing.T) {
@@ -465,6 +464,32 @@ func TestTasks(t *testing.T) {
 			if authErr.StatusCode() != 403 && authErr.StatusCode() != 404 {
 				t.Fatalf("unexpected status code: %d (expected 403 or 404)", authErr.StatusCode())
 			}
+		})
+
+		t.Run("NoWorkspace", func(t *testing.T) {
+			t.Parallel()
+
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			template := createAITemplate(t, client, user)
+			ctx := testutil.Context(t, testutil.WaitLong)
+			exp := codersdk.NewExperimentalClient(client)
+			task, err := exp.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
+				TemplateVersionID: template.ActiveVersionID,
+				Input:             "delete me",
+			})
+			require.NoError(t, err)
+			require.True(t, task.WorkspaceID.Valid, "task should have a workspace ID")
+			ws, err := client.Workspace(ctx, task.WorkspaceID.UUID)
+			require.NoError(t, err)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+			// Delete the task workspace
+			coderdtest.MustTransitionWorkspace(t, client, ws.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionDelete)
+			// We should still be able to fetch the task after deleting its workspace
+			task, err = exp.TaskByID(ctx, task.ID)
+			require.NoError(t, err, "fetching a task should still work after deleting its related workspace")
+			err = exp.DeleteTask(ctx, task.OwnerID.String(), task.ID)
+			require.NoError(t, err, "should be possible to delete a task with no workspace")
 		})
 	})
 

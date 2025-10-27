@@ -121,7 +121,7 @@ ORDER BY latest_prebuilds.id;
 
 -- name: CountInProgressPrebuilds :many
 -- CountInProgressPrebuilds returns the number of in-progress prebuilds, grouped by preset ID and transition.
--- Prebuild considered in-progress if it's in the "starting", "stopping", or "deleting" state.
+-- Prebuild considered in-progress if it's in the "pending", "starting", "stopping", or "deleting" state.
 SELECT t.id AS template_id, wpb.template_version_id, wpb.transition, COUNT(wpb.transition)::int AS count, wlb.template_version_preset_id as preset_id
 FROM workspace_latest_builds wlb
 		INNER JOIN workspace_prebuild_builds wpb ON wpb.id = wlb.id
@@ -272,3 +272,56 @@ FROM preset_matches pm
 WHERE pm.total_preset_params = pm.matching_params  -- All preset parameters must match
 ORDER BY pm.total_preset_params DESC               -- Return the preset with the most parameters
 LIMIT 1;
+
+-- name: CountPendingNonActivePrebuilds :many
+-- CountPendingNonActivePrebuilds returns the number of pending prebuilds for non-active template versions
+SELECT
+	wpb.template_version_preset_id AS preset_id,
+	COUNT(*)::int AS count
+FROM workspace_prebuild_builds wpb
+INNER JOIN provisioner_jobs pj ON pj.id = wpb.job_id
+INNER JOIN workspaces w ON w.id = wpb.workspace_id
+INNER JOIN templates t ON t.id = w.template_id
+WHERE
+	wpb.template_version_id != t.active_version_id
+	-- Only considers initial builds, i.e. created by the reconciliation loop
+	AND wpb.build_number = 1
+	-- Only consider 'start' transitions (provisioning), not 'stop'/'delete' (deprovisioning)
+	-- Deprovisioning jobs should complete naturally as they're already cleaning up resources
+	AND wpb.transition = 'start'::workspace_transition
+	-- Pending jobs that have not yet been picked up by a provisioner
+	AND pj.job_status = 'pending'::provisioner_job_status
+	AND pj.worker_id IS NULL
+	AND pj.canceled_at IS NULL
+	AND pj.completed_at IS NULL
+GROUP BY wpb.template_version_preset_id;
+
+-- name: UpdatePrebuildProvisionerJobWithCancel :many
+-- Cancels all pending provisioner jobs for prebuilt workspaces on a specific preset from an
+-- inactive template version.
+-- This is an optimization to clean up stale pending jobs.
+UPDATE provisioner_jobs
+SET
+	canceled_at = @now::timestamptz,
+	completed_at = @now::timestamptz
+WHERE id IN (
+	SELECT pj.id
+	FROM provisioner_jobs pj
+	INNER JOIN workspace_prebuild_builds wpb ON wpb.job_id = pj.id
+	INNER JOIN workspaces w ON w.id = wpb.workspace_id
+	INNER JOIN templates t ON t.id = w.template_id
+	WHERE
+		wpb.template_version_id != t.active_version_id
+		AND wpb.template_version_preset_id = @preset_id
+		-- Only considers initial builds, i.e. created by the reconciliation loop
+		AND wpb.build_number = 1
+		-- Only consider 'start' transitions (provisioning), not 'stop'/'delete' (deprovisioning)
+		-- Deprovisioning jobs should complete naturally as they're already cleaning up resources
+		AND wpb.transition = 'start'::workspace_transition
+		-- Pending jobs that have not yet been picked up by a provisioner
+		AND pj.job_status = 'pending'::provisioner_job_status
+		AND pj.worker_id IS NULL
+		AND pj.canceled_at IS NULL
+		AND pj.completed_at IS NULL
+)
+RETURNING id;

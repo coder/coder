@@ -597,7 +597,7 @@ export const router = createBrowserRouter(
 				/>
 				<Route path="/cli-auth" element={<CliAuthPage />} />
 				<Route path="/icons" element={<IconsPage />} />
-				<Route path="/tasks/:username/:workspace" element={<TaskPage />} />
+				<Route path="/tasks/:username/:taskId" element={<TaskPage />} />
 			</Route>
 		</Route>,
 	),

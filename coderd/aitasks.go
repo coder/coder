@@ -339,6 +339,7 @@ func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) cod
 		OrganizationID:          dbTask.OrganizationID,
 		OwnerID:                 dbTask.OwnerID,
 		OwnerName:               ws.OwnerName,
+		OwnerAvatarURL:          ws.OwnerAvatarURL,
 		Name:                    dbTask.Name,
 		TemplateID:              ws.TemplateID,
 		TemplateVersionID:       dbTask.TemplateVersionID,
@@ -346,6 +347,7 @@ func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) cod
 		TemplateDisplayName:     ws.TemplateDisplayName,
 		TemplateIcon:            ws.TemplateIcon,
 		WorkspaceID:             dbTask.WorkspaceID,
+		WorkspaceName:           ws.Name,
 		WorkspaceBuildNumber:    dbTask.WorkspaceBuildNumber.Int32,
 		WorkspaceStatus:         ws.LatestBuild.Status,
 		WorkspaceAgentID:        dbTask.WorkspaceAgentID,
@@ -360,21 +362,13 @@ func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) cod
 	}
 }
 
-// tasksListResponse wraps a list of experimental tasks.
-//
-// Experimental: Response shape is experimental and may change.
-type tasksListResponse struct {
-	Tasks []codersdk.Task `json:"tasks"`
-	Count int             `json:"count"`
-}
-
 // @Summary List AI tasks
 // @Description: EXPERIMENTAL: this endpoint is experimental and not guaranteed to be stable.
 // @ID list-tasks
 // @Security CoderSessionToken
 // @Tags Experimental
 // @Param q query string false "Search query for filtering tasks. Supports: owner:<username/uuid/me>, organization:<org-name/uuid>, status:<status>"
-// @Success 200 {object} coderd.tasksListResponse
+// @Success 200 {object} codersdk.TasksListResponse
 // @Router /api/experimental/tasks [get]
 //
 // EXPERIMENTAL: This endpoint is experimental and not guaranteed to be stable.
@@ -413,7 +407,7 @@ func (api *API) tasksList(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, tasksListResponse{
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.TasksListResponse{
 		Tasks: tasks,
 		Count: len(tasks),
 	})
@@ -635,9 +629,9 @@ func (api *API) taskDelete(rw http.ResponseWriter, r *http.Request) {
 // @Router /api/experimental/tasks/{user}/{task}/send [post]
 //
 // EXPERIMENTAL: This endpoint is experimental and not guaranteed to be stable.
-// taskSend submits task input to the tasks sidebar app by dialing the agent
+// taskSend submits task input to the task app by dialing the agent
 // directly over the tailnet. We enforce ApplicationConnect RBAC on the
-// workspace and validate the sidebar app health.
+// workspace and validate the task app health.
 func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	task := httpmw.TaskParam(r)
@@ -709,7 +703,7 @@ func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 //
 // EXPERIMENTAL: This endpoint is experimental and not guaranteed to be stable.
 // taskLogs reads task output by dialing the agent directly over the tailnet.
-// We enforce ApplicationConnect RBAC on the workspace and validate the sidebar app health.
+// We enforce ApplicationConnect RBAC on the workspace and validate the task app health.
 func (api *API) taskLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	task := httpmw.TaskParam(r)
@@ -767,7 +761,7 @@ func (api *API) taskLogs(rw http.ResponseWriter, r *http.Request) {
 //
 //   - Fetch the task workspace
 //   - Authorize ApplicationConnect on the workspace
-//   - Validate the AI task and sidebar app health
+//   - Validate the AI task and task app health
 //   - Dial the agent and construct an HTTP client to the apps loopback URL
 //
 // The provided callback receives the context, an HTTP client that dials via the
@@ -832,7 +826,7 @@ func (api *API) authAndDoWithTaskAppClient(
 	appURL := app.Url.String
 	if appURL == "" {
 		return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
-			Message: "Task sidebar app URL is not configured.",
+			Message: "Task app URL is not configured.",
 		})
 	}
 	parsedURL, err := url.Parse(appURL)

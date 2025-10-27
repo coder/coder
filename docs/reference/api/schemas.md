@@ -277,64 +277,6 @@
 |--------------|--------|----------|--------------|-------------|
 | `csp-report` | object | false    |              |             |
 
-## coderd.tasksListResponse
-
-```json
-{
-  "count": 0,
-  "tasks": [
-    {
-      "created_at": "2019-08-24T14:15:22Z",
-      "current_state": {
-        "message": "string",
-        "state": "working",
-        "timestamp": "2019-08-24T14:15:22Z",
-        "uri": "string"
-      },
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "initial_prompt": "string",
-      "name": "string",
-      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
-      "owner_name": "string",
-      "status": "pending",
-      "template_display_name": "string",
-      "template_icon": "string",
-      "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
-      "template_name": "string",
-      "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
-      "updated_at": "2019-08-24T14:15:22Z",
-      "workspace_agent_health": {
-        "healthy": false,
-        "reason": "agent has lost connection"
-      },
-      "workspace_agent_id": {
-        "uuid": "string",
-        "valid": true
-      },
-      "workspace_agent_lifecycle": "created",
-      "workspace_app_id": {
-        "uuid": "string",
-        "valid": true
-      },
-      "workspace_build_number": 0,
-      "workspace_id": {
-        "uuid": "string",
-        "valid": true
-      },
-      "workspace_status": "pending"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name    | Type                                    | Required | Restrictions | Description |
-|---------|-----------------------------------------|----------|--------------|-------------|
-| `count` | integer                                 | false    |              |             |
-| `tasks` | array of [codersdk.Task](#codersdktask) | false    |              |             |
-
 ## codersdk.ACLAvailable
 
 ```json
@@ -744,6 +686,12 @@
 
 ```json
 {
+  "allow_list": [
+    {
+      "id": "string",
+      "type": "*"
+    }
+  ],
   "created_at": "2019-08-24T14:15:22Z",
   "expires_at": "2019-08-24T14:15:22Z",
   "id": "string",
@@ -762,19 +710,20 @@
 
 ### Properties
 
-| Name               | Type                                                  | Required | Restrictions | Description                     |
-|--------------------|-------------------------------------------------------|----------|--------------|---------------------------------|
-| `created_at`       | string                                                | true     |              |                                 |
-| `expires_at`       | string                                                | true     |              |                                 |
-| `id`               | string                                                | true     |              |                                 |
-| `last_used`        | string                                                | true     |              |                                 |
-| `lifetime_seconds` | integer                                               | true     |              |                                 |
-| `login_type`       | [codersdk.LoginType](#codersdklogintype)              | true     |              |                                 |
-| `scope`            | [codersdk.APIKeyScope](#codersdkapikeyscope)          | false    |              | Deprecated: use Scopes instead. |
-| `scopes`           | array of [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              |                                 |
-| `token_name`       | string                                                | true     |              |                                 |
-| `updated_at`       | string                                                | true     |              |                                 |
-| `user_id`          | string                                                | true     |              |                                 |
+| Name               | Type                                                                | Required | Restrictions | Description                     |
+|--------------------|---------------------------------------------------------------------|----------|--------------|---------------------------------|
+| `allow_list`       | array of [codersdk.APIAllowListTarget](#codersdkapiallowlisttarget) | false    |              |                                 |
+| `created_at`       | string                                                              | true     |              |                                 |
+| `expires_at`       | string                                                              | true     |              |                                 |
+| `id`               | string                                                              | true     |              |                                 |
+| `last_used`        | string                                                              | true     |              |                                 |
+| `lifetime_seconds` | integer                                                             | true     |              |                                 |
+| `login_type`       | [codersdk.LoginType](#codersdklogintype)                            | true     |              |                                 |
+| `scope`            | [codersdk.APIKeyScope](#codersdkapikeyscope)                        | false    |              | Deprecated: use Scopes instead. |
+| `scopes`           | array of [codersdk.APIKeyScope](#codersdkapikeyscope)               | false    |              |                                 |
+| `token_name`       | string                                                              | true     |              |                                 |
+| `updated_at`       | string                                                              | true     |              |                                 |
+| `user_id`          | string                                                              | true     |              |                                 |
 
 #### Enumerated Values
 
@@ -7729,6 +7678,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "initial_prompt": "string",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "owner_avatar_url": "string",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
   "status": "pending",
@@ -7756,6 +7706,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
     "uuid": "string",
     "valid": true
   },
+  "workspace_name": "string",
   "workspace_status": "pending"
 }
 ```
@@ -7770,6 +7721,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `initial_prompt`            | string                                                               | false    |              |             |
 | `name`                      | string                                                               | false    |              |             |
 | `organization_id`           | string                                                               | false    |              |             |
+| `owner_avatar_url`          | string                                                               | false    |              |             |
 | `owner_id`                  | string                                                               | false    |              |             |
 | `owner_name`                | string                                                               | false    |              |             |
 | `status`                    | [codersdk.TaskStatus](#codersdktaskstatus)                           | false    |              |             |
@@ -7785,6 +7737,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `workspace_app_id`          | [uuid.NullUUID](#uuidnulluuid)                                       | false    |              |             |
 | `workspace_build_number`    | integer                                                              | false    |              |             |
 | `workspace_id`              | [uuid.NullUUID](#uuidnulluuid)                                       | false    |              |             |
+| `workspace_name`            | string                                                               | false    |              |             |
 | `workspace_status`          | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)                 | false    |              |             |
 
 #### Enumerated Values
@@ -7933,6 +7886,66 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `paused`       |
 | `unknown`      |
 | `error`        |
+
+## codersdk.TasksListResponse
+
+```json
+{
+  "count": 0,
+  "tasks": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "current_state": {
+        "message": "string",
+        "state": "working",
+        "timestamp": "2019-08-24T14:15:22Z",
+        "uri": "string"
+      },
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "initial_prompt": "string",
+      "name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "owner_avatar_url": "string",
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "owner_name": "string",
+      "status": "pending",
+      "template_display_name": "string",
+      "template_icon": "string",
+      "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+      "template_name": "string",
+      "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "workspace_agent_health": {
+        "healthy": false,
+        "reason": "agent has lost connection"
+      },
+      "workspace_agent_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "workspace_agent_lifecycle": "created",
+      "workspace_app_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "workspace_build_number": 0,
+      "workspace_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "workspace_name": "string",
+      "workspace_status": "pending"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name    | Type                                    | Required | Restrictions | Description |
+|---------|-----------------------------------------|----------|--------------|-------------|
+| `count` | integer                                 | false    |              |             |
+| `tasks` | array of [codersdk.Task](#codersdktask) | false    |              |             |
 
 ## codersdk.TelemetryConfig
 
@@ -10074,6 +10087,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       }
     ],
     "status": "pending",
+    "task_app_id": "ca438251-3e16-4fae-b9ab-dd3c237c3735",
     "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
     "template_version_name": "string",
     "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
@@ -11243,6 +11257,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     }
   ],
   "status": "pending",
+  "task_app_id": "ca438251-3e16-4fae-b9ab-dd3c237c3735",
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "template_version_name": "string",
   "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
@@ -11260,7 +11275,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 | Name                         | Type                                                              | Required | Restrictions | Description                                                         |
 |------------------------------|-------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------|
-| `ai_task_sidebar_app_id`     | string                                                            | false    |              |                                                                     |
+| `ai_task_sidebar_app_id`     | string                                                            | false    |              | Deprecated: This field has been replaced with `TaskAppID`           |
 | `build_number`               | integer                                                           | false    |              |                                                                     |
 | `created_at`                 | string                                                            | false    |              |                                                                     |
 | `daily_cost`                 | integer                                                           | false    |              |                                                                     |
@@ -11276,6 +11291,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `reason`                     | [codersdk.BuildReason](#codersdkbuildreason)                      | false    |              |                                                                     |
 | `resources`                  | array of [codersdk.WorkspaceResource](#codersdkworkspaceresource) | false    |              |                                                                     |
 | `status`                     | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)              | false    |              |                                                                     |
+| `task_app_id`                | string                                                            | false    |              |                                                                     |
 | `template_version_id`        | string                                                            | false    |              |                                                                     |
 | `template_version_name`      | string                                                            | false    |              |                                                                     |
 | `template_version_preset_id` | string                                                            | false    |              |                                                                     |
@@ -12065,6 +12081,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           }
         ],
         "status": "pending",
+        "task_app_id": "ca438251-3e16-4fae-b9ab-dd3c237c3735",
         "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
         "template_version_name": "string",
         "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",

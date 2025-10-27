@@ -235,6 +235,13 @@ func (m queryMetricsStore) CountInProgressPrebuilds(ctx context.Context) ([]data
 	return r0, r1
 }
 
+func (m queryMetricsStore) CountPendingNonActivePrebuilds(ctx context.Context) ([]database.CountPendingNonActivePrebuildsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.CountPendingNonActivePrebuilds(ctx)
+	m.queryLatencies.WithLabelValues("CountPendingNonActivePrebuilds").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) CountUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.CountUnreadInboxNotificationsByUserID(ctx, userID)
@@ -3040,6 +3047,13 @@ func (m queryMetricsStore) UpdateOrganizationDeletedByID(ctx context.Context, ar
 	r0 := m.s.UpdateOrganizationDeletedByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateOrganizationDeletedByID").Observe(time.Since(start).Seconds())
 	return r0
+}
+
+func (m queryMetricsStore) UpdatePrebuildProvisionerJobWithCancel(ctx context.Context, arg database.UpdatePrebuildProvisionerJobWithCancelParams) ([]uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdatePrebuildProvisionerJobWithCancel(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdatePrebuildProvisionerJobWithCancel").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m queryMetricsStore) UpdatePresetPrebuildStatus(ctx context.Context, arg database.UpdatePresetPrebuildStatusParams) error {
