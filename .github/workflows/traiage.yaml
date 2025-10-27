@@ -13,12 +13,12 @@ on:
       template_name:
         description: "Coder template to use for workspace"
         required: true
-        default: "traiage"
+        default: "coder"
         type: string
       template_preset:
         description: "Template preset to use"
         required: true
-        default: "Default"
+        default: "none"
         type: string
       prefix:
         description: "Prefix for workspace name"
@@ -66,8 +66,8 @@ jobs:
           GITHUB_EVENT_USER_ID: ${{ github.event.sender.id }}
           GITHUB_EVENT_USER_LOGIN: ${{ github.event.sender.login }}
           INPUTS_ISSUE_URL: ${{ inputs.issue_url }}
-          INPUTS_TEMPLATE_NAME: ${{ inputs.template_name || 'traiage' }}
-          INPUTS_TEMPLATE_PRESET: ${{ inputs.template_preset || 'Default'}}
+          INPUTS_TEMPLATE_NAME: ${{ inputs.template_name || 'coder' }}
+          INPUTS_TEMPLATE_PRESET: ${{ inputs.template_preset || 'none'}}
           INPUTS_PREFIX: ${{ inputs.prefix || 'traiage' }}
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -168,7 +168,7 @@ jobs:
           echo "coder_username=${coder_username}" >> "${GITHUB_OUTPUT}"
 
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           persist-credentials: false
           fetch-depth: 0

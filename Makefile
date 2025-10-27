@@ -676,6 +676,7 @@ gen/db: $(DB_GEN_FILES)
 .PHONY: gen/db
 
 gen/golden-files: \
+	agent/unit/testdata/.gen-golden \
 	cli/testdata/.gen-golden \
 	coderd/.gen-golden \
 	coderd/notifications/.gen-golden \
@@ -952,6 +953,10 @@ clean/golden-files:
 		-type f -name '*.golden' -delete
 .PHONY: clean/golden-files
 
+agent/unit/testdata/.gen-golden: $(wildcard agent/unit/testdata/*.golden) $(GO_SRC_FILES) $(wildcard agent/unit/*_test.go)
+	TZ=UTC go test ./agent/unit -run="TestGraph" -update
+	touch "$@"
+
 cli/testdata/.gen-golden: $(wildcard cli/testdata/*.golden) $(wildcard cli/*.tpl) $(GO_SRC_FILES) $(wildcard cli/*_test.go)
 	TZ=UTC go test ./cli -run="Test(CommandHelp|ServerYAML|ErrorExamples|.*Golden)" -update
 	touch "$@"
@@ -1177,3 +1182,8 @@ endif
 
 dogfood/coder/nix.hash: flake.nix flake.lock
 	sha256sum flake.nix flake.lock >./dogfood/coder/nix.hash
+
+# Count the number of test databases created per test package.
+count-test-databases:
+	PGPASSWORD=postgres psql -h localhost -U postgres -d coder_testing -P pager=off -c 'SELECT test_package, count(*) as count from test_databases GROUP BY test_package ORDER BY count DESC'
+.PHONY: count-test-databases

@@ -3613,6 +3613,7 @@ type AIBridgeInterception struct {
 	Model       string                `db:"model" json:"model"`
 	StartedAt   time.Time             `db:"started_at" json:"started_at"`
 	Metadata    pqtype.NullRawMessage `db:"metadata" json:"metadata"`
+	EndedAt     sql.NullTime          `db:"ended_at" json:"ended_at"`
 }
 
 // Audit log of tokens used by intercepted requests in AI Bridge
@@ -3955,7 +3956,7 @@ type OAuth2ProviderApp struct {
 	// RFC 7591: Version of the client software
 	SoftwareVersion sql.NullString `db:"software_version" json:"software_version"`
 	// RFC 7592: Hashed registration access token for client management
-	RegistrationAccessToken sql.NullString `db:"registration_access_token" json:"registration_access_token"`
+	RegistrationAccessToken []byte `db:"registration_access_token" json:"registration_access_token"`
 	// RFC 7592: URI for client configuration endpoint
 	RegistrationClientUri sql.NullString `db:"registration_client_uri" json:"registration_client_uri"`
 }
@@ -4247,6 +4248,14 @@ type TelemetryItem struct {
 	Value     string    `db:"value" json:"value"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+}
+
+// Telemetry lock tracking table for deduplication of heartbeat events across replicas.
+type TelemetryLock struct {
+	// The type of event that was sent.
+	EventType string `db:"event_type" json:"event_type"`
+	// The heartbeat period end timestamp.
+	PeriodEndingAt time.Time `db:"period_ending_at" json:"period_ending_at"`
 }
 
 // Joins in the display name information such as username, avatar, and organization name.

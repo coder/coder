@@ -27,6 +27,7 @@ const (
 func (r *RootCmd) scaletestDynamicParameters() *serpent.Command {
 	var (
 		templateName    string
+		provisionerTags []string
 		numEvals        int64
 		tracingFlags    = &scaletestTracingFlags{}
 		prometheusFlags = &scaletestPrometheusFlags{}
@@ -54,6 +55,11 @@ func (r *RootCmd) scaletestDynamicParameters() *serpent.Command {
 			}
 			if templateName == "" {
 				return xerrors.Errorf("template cannot be empty")
+			}
+
+			tags, err := ParseProvisionerTags(provisionerTags)
+			if err != nil {
+				return err
 			}
 
 			org, err := orgContext.Selected(inv, client)
@@ -99,7 +105,7 @@ func (r *RootCmd) scaletestDynamicParameters() *serpent.Command {
 			}()
 			tracer := tracerProvider.Tracer(scaletestTracerName)
 
-			partitions, err := dynamicparameters.SetupPartitions(ctx, client, org.ID, templateName, numEvals, logger)
+			partitions, err := dynamicparameters.SetupPartitions(ctx, client, org.ID, templateName, tags, numEvals, logger)
 			if err != nil {
 				return xerrors.Errorf("setup dynamic parameters partitions: %w", err)
 			}
@@ -159,6 +165,11 @@ func (r *RootCmd) scaletestDynamicParameters() *serpent.Command {
 			Description: "Number of concurrent dynamic parameter evaluations to perform.",
 			Default:     "100",
 			Value:       serpent.Int64Of(&numEvals),
+		},
+		{
+			Flag:        "provisioner-tag",
+			Description: "Specify a set of tags to target provisioner daemons.",
+			Value:       serpent.StringArrayOf(&provisionerTags),
 		},
 	}
 	orgContext.AttachOptions(cmd)

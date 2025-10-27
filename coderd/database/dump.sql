@@ -1055,7 +1055,8 @@ CREATE TABLE aibridge_interceptions (
     provider text NOT NULL,
     model text NOT NULL,
     started_at timestamp with time zone NOT NULL,
-    metadata jsonb
+    metadata jsonb,
+    ended_at timestamp with time zone
 );
 
 COMMENT ON TABLE aibridge_interceptions IS 'Audit log of requests intercepted by AI Bridge';
@@ -1125,7 +1126,8 @@ CREATE TABLE api_keys (
     ip_address inet DEFAULT '0.0.0.0'::inet NOT NULL,
     token_name text DEFAULT ''::text NOT NULL,
     scopes api_key_scope[] NOT NULL,
-    allow_list text[] NOT NULL
+    allow_list text[] NOT NULL,
+    CONSTRAINT api_keys_allow_list_not_empty CHECK ((array_length(allow_list, 1) > 0))
 );
 
 COMMENT ON COLUMN api_keys.hashed_secret IS 'hashed_secret contains a SHA256 hash of the key secret. This is considered a secret and MUST NOT be returned from the API as it is used for API key encryption in app proxying code.';
@@ -1536,7 +1538,7 @@ CREATE TABLE oauth2_provider_apps (
     jwks jsonb,
     software_id text,
     software_version text,
-    registration_access_token text,
+    registration_access_token bytea,
     registration_client_uri text
 );
 
@@ -2009,6 +2011,18 @@ CREATE TABLE telemetry_items (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
+
+CREATE TABLE telemetry_locks (
+    event_type text NOT NULL,
+    period_ending_at timestamp with time zone NOT NULL,
+    CONSTRAINT telemetry_lock_event_type_constraint CHECK ((event_type = 'aibridge_interceptions_summary'::text))
+);
+
+COMMENT ON TABLE telemetry_locks IS 'Telemetry lock tracking table for deduplication of heartbeat events across replicas.';
+
+COMMENT ON COLUMN telemetry_locks.event_type IS 'The type of event that was sent.';
+
+COMMENT ON COLUMN telemetry_locks.period_ending_at IS 'The heartbeat period end timestamp.';
 
 CREATE TABLE template_usage_stats (
     start_time timestamp with time zone NOT NULL,
@@ -3088,6 +3102,9 @@ ALTER TABLE ONLY tasks
 ALTER TABLE ONLY telemetry_items
     ADD CONSTRAINT telemetry_items_pkey PRIMARY KEY (key);
 
+ALTER TABLE ONLY telemetry_locks
+    ADD CONSTRAINT telemetry_locks_pkey PRIMARY KEY (event_type, period_ending_at);
+
 ALTER TABLE ONLY template_usage_stats
     ADD CONSTRAINT template_usage_stats_pkey PRIMARY KEY (start_time, template_id, user_id);
 
@@ -3312,6 +3329,8 @@ CREATE INDEX idx_tailnet_peers_coordinator ON tailnet_peers USING btree (coordin
 CREATE INDEX idx_tailnet_tunnels_dst_id ON tailnet_tunnels USING hash (dst_id);
 
 CREATE INDEX idx_tailnet_tunnels_src_id ON tailnet_tunnels USING hash (src_id);
+
+CREATE INDEX idx_telemetry_locks_period_ending_at ON telemetry_locks USING btree (period_ending_at);
 
 CREATE UNIQUE INDEX idx_template_version_presets_default ON template_version_presets USING btree (template_version_id) WHERE (is_default = true);
 

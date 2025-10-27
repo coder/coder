@@ -111,6 +111,164 @@ func (q *sqlQuerier) ActivityBumpWorkspace(ctx context.Context, arg ActivityBump
 	return err
 }
 
+const calculateAIBridgeInterceptionsTelemetrySummary = `-- name: CalculateAIBridgeInterceptionsTelemetrySummary :one
+WITH interceptions_in_range AS (
+    -- Get all matching interceptions in the given timeframe.
+    SELECT
+        id,
+        initiator_id,
+        (ended_at - started_at) AS duration
+    FROM
+        aibridge_interceptions
+    WHERE
+        provider = $1::text
+        AND model = $2::text
+        -- TODO: use the client value once we have it (see https://github.com/coder/aibridge/issues/31)
+        AND 'unknown' = $3::text
+        AND ended_at IS NOT NULL -- incomplete interceptions are not included in summaries
+        AND ended_at >= $4::timestamptz
+        AND ended_at < $5::timestamptz
+),
+interception_counts AS (
+    SELECT
+        COUNT(id) AS interception_count,
+        COUNT(DISTINCT initiator_id) AS unique_initiator_count
+    FROM
+        interceptions_in_range
+),
+duration_percentiles AS (
+    SELECT
+        (COALESCE(PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM duration)), 0) * 1000)::bigint AS interception_duration_p50_millis,
+        (COALESCE(PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM duration)), 0) * 1000)::bigint AS interception_duration_p90_millis,
+        (COALESCE(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM duration)), 0) * 1000)::bigint AS interception_duration_p95_millis,
+        (COALESCE(PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM duration)), 0) * 1000)::bigint AS interception_duration_p99_millis
+    FROM
+        interceptions_in_range
+),
+token_aggregates AS (
+    SELECT
+        COALESCE(SUM(tu.input_tokens), 0) AS token_count_input,
+        COALESCE(SUM(tu.output_tokens), 0) AS token_count_output,
+        -- Cached tokens are stored in metadata JSON, extract if available.
+        -- Read tokens may be stored in:
+        -- - cache_read_input (Anthropic)
+        -- - prompt_cached (OpenAI)
+        COALESCE(SUM(
+            COALESCE((tu.metadata->>'cache_read_input')::bigint, 0) +
+            COALESCE((tu.metadata->>'prompt_cached')::bigint, 0)
+        ), 0) AS token_count_cached_read,
+        -- Written tokens may be stored in:
+        -- - cache_creation_input (Anthropic)
+        -- Note that cache_ephemeral_5m_input and cache_ephemeral_1h_input on
+        -- Anthropic are included in the cache_creation_input field.
+        COALESCE(SUM(
+            COALESCE((tu.metadata->>'cache_creation_input')::bigint, 0)
+        ), 0) AS token_count_cached_written,
+        COUNT(tu.id) AS token_usages_count
+    FROM
+        interceptions_in_range i
+    LEFT JOIN
+        aibridge_token_usages tu ON i.id = tu.interception_id
+),
+prompt_aggregates AS (
+    SELECT
+        COUNT(up.id) AS user_prompts_count
+    FROM
+        interceptions_in_range i
+    LEFT JOIN
+        aibridge_user_prompts up ON i.id = up.interception_id
+),
+tool_aggregates AS (
+    SELECT
+        COUNT(tu.id) FILTER (WHERE tu.injected = true) AS tool_calls_count_injected,
+        COUNT(tu.id) FILTER (WHERE tu.injected = false) AS tool_calls_count_non_injected,
+        COUNT(tu.id) FILTER (WHERE tu.injected = true AND tu.invocation_error IS NOT NULL) AS injected_tool_call_error_count
+    FROM
+        interceptions_in_range i
+    LEFT JOIN
+        aibridge_tool_usages tu ON i.id = tu.interception_id
+)
+SELECT
+    ic.interception_count::bigint AS interception_count,
+    dp.interception_duration_p50_millis::bigint AS interception_duration_p50_millis,
+    dp.interception_duration_p90_millis::bigint AS interception_duration_p90_millis,
+    dp.interception_duration_p95_millis::bigint AS interception_duration_p95_millis,
+    dp.interception_duration_p99_millis::bigint AS interception_duration_p99_millis,
+    ic.unique_initiator_count::bigint AS unique_initiator_count,
+    pa.user_prompts_count::bigint AS user_prompts_count,
+    tok_agg.token_usages_count::bigint AS token_usages_count,
+    tok_agg.token_count_input::bigint AS token_count_input,
+    tok_agg.token_count_output::bigint AS token_count_output,
+    tok_agg.token_count_cached_read::bigint AS token_count_cached_read,
+    tok_agg.token_count_cached_written::bigint AS token_count_cached_written,
+    tool_agg.tool_calls_count_injected::bigint AS tool_calls_count_injected,
+    tool_agg.tool_calls_count_non_injected::bigint AS tool_calls_count_non_injected,
+    tool_agg.injected_tool_call_error_count::bigint AS injected_tool_call_error_count
+FROM
+    interception_counts ic,
+    duration_percentiles dp,
+    token_aggregates tok_agg,
+    prompt_aggregates pa,
+    tool_aggregates tool_agg
+`
+
+type CalculateAIBridgeInterceptionsTelemetrySummaryParams struct {
+	Provider      string    `db:"provider" json:"provider"`
+	Model         string    `db:"model" json:"model"`
+	Client        string    `db:"client" json:"client"`
+	EndedAtAfter  time.Time `db:"ended_at_after" json:"ended_at_after"`
+	EndedAtBefore time.Time `db:"ended_at_before" json:"ended_at_before"`
+}
+
+type CalculateAIBridgeInterceptionsTelemetrySummaryRow struct {
+	InterceptionCount             int64 `db:"interception_count" json:"interception_count"`
+	InterceptionDurationP50Millis int64 `db:"interception_duration_p50_millis" json:"interception_duration_p50_millis"`
+	InterceptionDurationP90Millis int64 `db:"interception_duration_p90_millis" json:"interception_duration_p90_millis"`
+	InterceptionDurationP95Millis int64 `db:"interception_duration_p95_millis" json:"interception_duration_p95_millis"`
+	InterceptionDurationP99Millis int64 `db:"interception_duration_p99_millis" json:"interception_duration_p99_millis"`
+	UniqueInitiatorCount          int64 `db:"unique_initiator_count" json:"unique_initiator_count"`
+	UserPromptsCount              int64 `db:"user_prompts_count" json:"user_prompts_count"`
+	TokenUsagesCount              int64 `db:"token_usages_count" json:"token_usages_count"`
+	TokenCountInput               int64 `db:"token_count_input" json:"token_count_input"`
+	TokenCountOutput              int64 `db:"token_count_output" json:"token_count_output"`
+	TokenCountCachedRead          int64 `db:"token_count_cached_read" json:"token_count_cached_read"`
+	TokenCountCachedWritten       int64 `db:"token_count_cached_written" json:"token_count_cached_written"`
+	ToolCallsCountInjected        int64 `db:"tool_calls_count_injected" json:"tool_calls_count_injected"`
+	ToolCallsCountNonInjected     int64 `db:"tool_calls_count_non_injected" json:"tool_calls_count_non_injected"`
+	InjectedToolCallErrorCount    int64 `db:"injected_tool_call_error_count" json:"injected_tool_call_error_count"`
+}
+
+// Calculates the telemetry summary for a given provider, model, and client
+// combination for telemetry reporting.
+func (q *sqlQuerier) CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Context, arg CalculateAIBridgeInterceptionsTelemetrySummaryParams) (CalculateAIBridgeInterceptionsTelemetrySummaryRow, error) {
+	row := q.db.QueryRowContext(ctx, calculateAIBridgeInterceptionsTelemetrySummary,
+		arg.Provider,
+		arg.Model,
+		arg.Client,
+		arg.EndedAtAfter,
+		arg.EndedAtBefore,
+	)
+	var i CalculateAIBridgeInterceptionsTelemetrySummaryRow
+	err := row.Scan(
+		&i.InterceptionCount,
+		&i.InterceptionDurationP50Millis,
+		&i.InterceptionDurationP90Millis,
+		&i.InterceptionDurationP95Millis,
+		&i.InterceptionDurationP99Millis,
+		&i.UniqueInitiatorCount,
+		&i.UserPromptsCount,
+		&i.TokenUsagesCount,
+		&i.TokenCountInput,
+		&i.TokenCountOutput,
+		&i.TokenCountCachedRead,
+		&i.TokenCountCachedWritten,
+		&i.ToolCallsCountInjected,
+		&i.ToolCallsCountNonInjected,
+		&i.InjectedToolCallErrorCount,
+	)
+	return i, err
+}
+
 const countAIBridgeInterceptions = `-- name: CountAIBridgeInterceptions :one
 SELECT
 	COUNT(*)
@@ -168,7 +326,7 @@ func (q *sqlQuerier) CountAIBridgeInterceptions(ctx context.Context, arg CountAI
 
 const getAIBridgeInterceptionByID = `-- name: GetAIBridgeInterceptionByID :one
 SELECT
-	id, initiator_id, provider, model, started_at, metadata
+	id, initiator_id, provider, model, started_at, metadata, ended_at
 FROM
 	aibridge_interceptions
 WHERE
@@ -185,13 +343,14 @@ func (q *sqlQuerier) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UU
 		&i.Model,
 		&i.StartedAt,
 		&i.Metadata,
+		&i.EndedAt,
 	)
 	return i, err
 }
 
 const getAIBridgeInterceptions = `-- name: GetAIBridgeInterceptions :many
 SELECT
-	id, initiator_id, provider, model, started_at, metadata
+	id, initiator_id, provider, model, started_at, metadata, ended_at
 FROM
 	aibridge_interceptions
 `
@@ -212,6 +371,7 @@ func (q *sqlQuerier) GetAIBridgeInterceptions(ctx context.Context) ([]AIBridgeIn
 			&i.Model,
 			&i.StartedAt,
 			&i.Metadata,
+			&i.EndedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -361,7 +521,7 @@ INSERT INTO aibridge_interceptions (
 ) VALUES (
 	$1, $2, $3, $4, COALESCE($5::jsonb, '{}'::jsonb), $6
 )
-RETURNING id, initiator_id, provider, model, started_at, metadata
+RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at
 `
 
 type InsertAIBridgeInterceptionParams struct {
@@ -390,6 +550,7 @@ func (q *sqlQuerier) InsertAIBridgeInterception(ctx context.Context, arg InsertA
 		&i.Model,
 		&i.StartedAt,
 		&i.Metadata,
+		&i.EndedAt,
 	)
 	return i, err
 }
@@ -528,7 +689,7 @@ func (q *sqlQuerier) InsertAIBridgeUserPrompt(ctx context.Context, arg InsertAIB
 
 const listAIBridgeInterceptions = `-- name: ListAIBridgeInterceptions :many
 SELECT
-	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata,
+	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at,
 	visible_users.id, visible_users.username, visible_users.name, visible_users.avatar_url
 FROM
 	aibridge_interceptions
@@ -625,11 +786,63 @@ func (q *sqlQuerier) ListAIBridgeInterceptions(ctx context.Context, arg ListAIBr
 			&i.AIBridgeInterception.Model,
 			&i.AIBridgeInterception.StartedAt,
 			&i.AIBridgeInterception.Metadata,
+			&i.AIBridgeInterception.EndedAt,
 			&i.VisibleUser.ID,
 			&i.VisibleUser.Username,
 			&i.VisibleUser.Name,
 			&i.VisibleUser.AvatarURL,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAIBridgeInterceptionsTelemetrySummaries = `-- name: ListAIBridgeInterceptionsTelemetrySummaries :many
+SELECT
+    DISTINCT ON (provider, model, client)
+    provider,
+    model,
+    -- TODO: use the client value once we have it (see https://github.com/coder/aibridge/issues/31)
+    'unknown' AS client
+FROM
+    aibridge_interceptions
+WHERE
+    ended_at IS NOT NULL -- incomplete interceptions are not included in summaries
+    AND ended_at >= $1::timestamptz
+    AND ended_at < $2::timestamptz
+`
+
+type ListAIBridgeInterceptionsTelemetrySummariesParams struct {
+	EndedAtAfter  time.Time `db:"ended_at_after" json:"ended_at_after"`
+	EndedAtBefore time.Time `db:"ended_at_before" json:"ended_at_before"`
+}
+
+type ListAIBridgeInterceptionsTelemetrySummariesRow struct {
+	Provider string `db:"provider" json:"provider"`
+	Model    string `db:"model" json:"model"`
+	Client   string `db:"client" json:"client"`
+}
+
+// Finds all unique AIBridge interception telemetry summaries combinations
+// (provider, model, client) in the given timeframe for telemetry reporting.
+func (q *sqlQuerier) ListAIBridgeInterceptionsTelemetrySummaries(ctx context.Context, arg ListAIBridgeInterceptionsTelemetrySummariesParams) ([]ListAIBridgeInterceptionsTelemetrySummariesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAIBridgeInterceptionsTelemetrySummaries, arg.EndedAtAfter, arg.EndedAtBefore)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAIBridgeInterceptionsTelemetrySummariesRow
+	for rows.Next() {
+		var i ListAIBridgeInterceptionsTelemetrySummariesRow
+		if err := rows.Scan(&i.Provider, &i.Model, &i.Client); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -772,6 +985,35 @@ func (q *sqlQuerier) ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Contex
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateAIBridgeInterceptionEnded = `-- name: UpdateAIBridgeInterceptionEnded :one
+UPDATE aibridge_interceptions
+	SET ended_at = $1::timestamptz
+WHERE
+	id = $2::uuid
+	AND ended_at IS NULL
+RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at
+`
+
+type UpdateAIBridgeInterceptionEndedParams struct {
+	EndedAt time.Time `db:"ended_at" json:"ended_at"`
+	ID      uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateAIBridgeInterceptionEnded(ctx context.Context, arg UpdateAIBridgeInterceptionEndedParams) (AIBridgeInterception, error) {
+	row := q.db.QueryRowContext(ctx, updateAIBridgeInterceptionEnded, arg.EndedAt, arg.ID)
+	var i AIBridgeInterception
+	err := row.Scan(
+		&i.ID,
+		&i.InitiatorID,
+		&i.Provider,
+		&i.Model,
+		&i.StartedAt,
+		&i.Metadata,
+		&i.EndedAt,
+	)
+	return i, err
 }
 
 const deleteAPIKeyByID = `-- name: DeleteAPIKeyByID :exec
@@ -6202,7 +6444,7 @@ const getOAuth2ProviderAppByRegistrationToken = `-- name: GetOAuth2ProviderAppBy
 SELECT id, created_at, updated_at, name, icon, callback_url, redirect_uris, client_type, dynamically_registered, client_id_issued_at, client_secret_expires_at, grant_types, response_types, token_endpoint_auth_method, scope, contacts, client_uri, logo_uri, tos_uri, policy_uri, jwks_uri, jwks, software_id, software_version, registration_access_token, registration_client_uri FROM oauth2_provider_apps WHERE registration_access_token = $1
 `
 
-func (q *sqlQuerier) GetOAuth2ProviderAppByRegistrationToken(ctx context.Context, registrationAccessToken sql.NullString) (OAuth2ProviderApp, error) {
+func (q *sqlQuerier) GetOAuth2ProviderAppByRegistrationToken(ctx context.Context, registrationAccessToken []byte) (OAuth2ProviderApp, error) {
 	row := q.db.QueryRowContext(ctx, getOAuth2ProviderAppByRegistrationToken, registrationAccessToken)
 	var i OAuth2ProviderApp
 	err := row.Scan(
@@ -6603,7 +6845,7 @@ type InsertOAuth2ProviderAppParams struct {
 	Jwks                    pqtype.NullRawMessage `db:"jwks" json:"jwks"`
 	SoftwareID              sql.NullString        `db:"software_id" json:"software_id"`
 	SoftwareVersion         sql.NullString        `db:"software_version" json:"software_version"`
-	RegistrationAccessToken sql.NullString        `db:"registration_access_token" json:"registration_access_token"`
+	RegistrationAccessToken []byte                `db:"registration_access_token" json:"registration_access_token"`
 	RegistrationClientUri   sql.NullString        `db:"registration_client_uri" json:"registration_client_uri"`
 }
 
@@ -7920,7 +8162,7 @@ type CountInProgressPrebuildsRow struct {
 }
 
 // CountInProgressPrebuilds returns the number of in-progress prebuilds, grouped by preset ID and transition.
-// Prebuild considered in-progress if it's in the "starting", "stopping", or "deleting" state.
+// Prebuild considered in-progress if it's in the "pending", "starting", "stopping", or "deleting" state.
 func (q *sqlQuerier) CountInProgressPrebuilds(ctx context.Context) ([]CountInProgressPrebuildsRow, error) {
 	rows, err := q.db.QueryContext(ctx, countInProgressPrebuilds)
 	if err != nil {
@@ -7937,6 +8179,58 @@ func (q *sqlQuerier) CountInProgressPrebuilds(ctx context.Context) ([]CountInPro
 			&i.Count,
 			&i.PresetID,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const countPendingNonActivePrebuilds = `-- name: CountPendingNonActivePrebuilds :many
+SELECT
+	wpb.template_version_preset_id AS preset_id,
+	COUNT(*)::int AS count
+FROM workspace_prebuild_builds wpb
+INNER JOIN provisioner_jobs pj ON pj.id = wpb.job_id
+INNER JOIN workspaces w ON w.id = wpb.workspace_id
+INNER JOIN templates t ON t.id = w.template_id
+WHERE
+	wpb.template_version_id != t.active_version_id
+	-- Only considers initial builds, i.e. created by the reconciliation loop
+	AND wpb.build_number = 1
+	-- Only consider 'start' transitions (provisioning), not 'stop'/'delete' (deprovisioning)
+	-- Deprovisioning jobs should complete naturally as they're already cleaning up resources
+	AND wpb.transition = 'start'::workspace_transition
+	-- Pending jobs that have not yet been picked up by a provisioner
+	AND pj.job_status = 'pending'::provisioner_job_status
+	AND pj.worker_id IS NULL
+	AND pj.canceled_at IS NULL
+	AND pj.completed_at IS NULL
+GROUP BY wpb.template_version_preset_id
+`
+
+type CountPendingNonActivePrebuildsRow struct {
+	PresetID uuid.NullUUID `db:"preset_id" json:"preset_id"`
+	Count    int32         `db:"count" json:"count"`
+}
+
+// CountPendingNonActivePrebuilds returns the number of pending prebuilds for non-active template versions
+func (q *sqlQuerier) CountPendingNonActivePrebuilds(ctx context.Context) ([]CountPendingNonActivePrebuildsRow, error) {
+	rows, err := q.db.QueryContext(ctx, countPendingNonActivePrebuilds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CountPendingNonActivePrebuildsRow
+	for rows.Next() {
+		var i CountPendingNonActivePrebuildsRow
+		if err := rows.Scan(&i.PresetID, &i.Count); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -8382,6 +8676,65 @@ func (q *sqlQuerier) GetTemplatePresetsWithPrebuilds(ctx context.Context, templa
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updatePrebuildProvisionerJobWithCancel = `-- name: UpdatePrebuildProvisionerJobWithCancel :many
+UPDATE provisioner_jobs
+SET
+	canceled_at = $1::timestamptz,
+	completed_at = $1::timestamptz
+WHERE id IN (
+	SELECT pj.id
+	FROM provisioner_jobs pj
+	INNER JOIN workspace_prebuild_builds wpb ON wpb.job_id = pj.id
+	INNER JOIN workspaces w ON w.id = wpb.workspace_id
+	INNER JOIN templates t ON t.id = w.template_id
+	WHERE
+		wpb.template_version_id != t.active_version_id
+		AND wpb.template_version_preset_id = $2
+		-- Only considers initial builds, i.e. created by the reconciliation loop
+		AND wpb.build_number = 1
+		-- Only consider 'start' transitions (provisioning), not 'stop'/'delete' (deprovisioning)
+		-- Deprovisioning jobs should complete naturally as they're already cleaning up resources
+		AND wpb.transition = 'start'::workspace_transition
+		-- Pending jobs that have not yet been picked up by a provisioner
+		AND pj.job_status = 'pending'::provisioner_job_status
+		AND pj.worker_id IS NULL
+		AND pj.canceled_at IS NULL
+		AND pj.completed_at IS NULL
+)
+RETURNING id
+`
+
+type UpdatePrebuildProvisionerJobWithCancelParams struct {
+	Now      time.Time     `db:"now" json:"now"`
+	PresetID uuid.NullUUID `db:"preset_id" json:"preset_id"`
+}
+
+// Cancels all pending provisioner jobs for prebuilt workspaces on a specific preset from an
+// inactive template version.
+// This is an optimization to clean up stale pending jobs.
+func (q *sqlQuerier) UpdatePrebuildProvisionerJobWithCancel(ctx context.Context, arg UpdatePrebuildProvisionerJobWithCancelParams) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, updatePrebuildProvisionerJobWithCancel, arg.Now, arg.PresetID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -12577,6 +12930,39 @@ func (q *sqlQuerier) UpsertTailnetTunnel(ctx context.Context, arg UpsertTailnetT
 	return i, err
 }
 
+const deleteTask = `-- name: DeleteTask :one
+UPDATE tasks
+SET
+	deleted_at = $1::timestamptz
+WHERE
+	id = $2::uuid
+	AND deleted_at IS NULL
+RETURNING id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at
+`
+
+type DeleteTaskParams struct {
+	DeletedAt time.Time `db:"deleted_at" json:"deleted_at"`
+	ID        uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) DeleteTask(ctx context.Context, arg DeleteTaskParams) (TaskTable, error) {
+	row := q.db.QueryRowContext(ctx, deleteTask, arg.DeletedAt, arg.ID)
+	var i TaskTable
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.Name,
+		&i.WorkspaceID,
+		&i.TemplateVersionID,
+		&i.TemplateParameters,
+		&i.Prompt,
+		&i.CreatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
 const getTaskByID = `-- name: GetTaskByID :one
 SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, status, workspace_build_number, workspace_agent_id, workspace_app_id FROM tasks_with_status WHERE id = $1::uuid
 `
@@ -12680,16 +13066,18 @@ SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, t
 WHERE tws.deleted_at IS NULL
 AND CASE WHEN $1::UUID != '00000000-0000-0000-0000-000000000000' THEN tws.owner_id = $1::UUID ELSE TRUE END
 AND CASE WHEN $2::UUID != '00000000-0000-0000-0000-000000000000' THEN tws.organization_id = $2::UUID ELSE TRUE END
+AND CASE WHEN $3::text != '' THEN tws.status = $3::task_status ELSE TRUE END
 ORDER BY tws.created_at DESC
 `
 
 type ListTasksParams struct {
 	OwnerID        uuid.UUID `db:"owner_id" json:"owner_id"`
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Status         string    `db:"status" json:"status"`
 }
 
 func (q *sqlQuerier) ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, error) {
-	rows, err := q.db.QueryContext(ctx, listTasks, arg.OwnerID, arg.OrganizationID)
+	rows, err := q.db.QueryContext(ctx, listTasks, arg.OwnerID, arg.OrganizationID, arg.Status)
 	if err != nil {
 		return nil, err
 	}
@@ -12724,6 +13112,49 @@ func (q *sqlQuerier) ListTasks(ctx context.Context, arg ListTasksParams) ([]Task
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateTaskWorkspaceID = `-- name: UpdateTaskWorkspaceID :one
+UPDATE
+	tasks
+SET
+	workspace_id = $2
+FROM
+	workspaces w
+JOIN
+	template_versions tv
+ON
+	tv.template_id = w.template_id
+WHERE
+	tasks.id = $1
+	AND tasks.workspace_id IS NULL
+	AND w.id = $2
+	AND tv.id = tasks.template_version_id
+RETURNING
+	tasks.id, tasks.organization_id, tasks.owner_id, tasks.name, tasks.workspace_id, tasks.template_version_id, tasks.template_parameters, tasks.prompt, tasks.created_at, tasks.deleted_at
+`
+
+type UpdateTaskWorkspaceIDParams struct {
+	ID          uuid.UUID     `db:"id" json:"id"`
+	WorkspaceID uuid.NullUUID `db:"workspace_id" json:"workspace_id"`
+}
+
+func (q *sqlQuerier) UpdateTaskWorkspaceID(ctx context.Context, arg UpdateTaskWorkspaceIDParams) (TaskTable, error) {
+	row := q.db.QueryRowContext(ctx, updateTaskWorkspaceID, arg.ID, arg.WorkspaceID)
+	var i TaskTable
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.Name,
+		&i.WorkspaceID,
+		&i.TemplateVersionID,
+		&i.TemplateParameters,
+		&i.Prompt,
+		&i.CreatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
 }
 
 const upsertTaskWorkspaceApp = `-- name: UpsertTaskWorkspaceApp :one
@@ -12839,6 +13270,41 @@ type UpsertTelemetryItemParams struct {
 
 func (q *sqlQuerier) UpsertTelemetryItem(ctx context.Context, arg UpsertTelemetryItemParams) error {
 	_, err := q.db.ExecContext(ctx, upsertTelemetryItem, arg.Key, arg.Value)
+	return err
+}
+
+const deleteOldTelemetryLocks = `-- name: DeleteOldTelemetryLocks :exec
+DELETE FROM
+    telemetry_locks
+WHERE
+    period_ending_at < $1::timestamptz
+`
+
+// Deletes old telemetry locks from the telemetry_locks table.
+func (q *sqlQuerier) DeleteOldTelemetryLocks(ctx context.Context, periodEndingAtBefore time.Time) error {
+	_, err := q.db.ExecContext(ctx, deleteOldTelemetryLocks, periodEndingAtBefore)
+	return err
+}
+
+const insertTelemetryLock = `-- name: InsertTelemetryLock :exec
+INSERT INTO
+    telemetry_locks (event_type, period_ending_at)
+VALUES
+    ($1, $2)
+`
+
+type InsertTelemetryLockParams struct {
+	EventType      string    `db:"event_type" json:"event_type"`
+	PeriodEndingAt time.Time `db:"period_ending_at" json:"period_ending_at"`
+}
+
+// Inserts a new lock row into the telemetry_locks table. Replicas should call
+// this function prior to attempting to generate or publish a heartbeat event to
+// the telemetry service.
+// If the query returns a duplicate primary key error, the replica should not
+// attempt to generate or publish the event to the telemetry service.
+func (q *sqlQuerier) InsertTelemetryLock(ctx context.Context, arg InsertTelemetryLockParams) error {
+	_, err := q.db.ExecContext(ctx, insertTelemetryLock, arg.EventType, arg.PeriodEndingAt)
 	return err
 }
 
