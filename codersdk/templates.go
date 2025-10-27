@@ -510,10 +510,20 @@ func (c *Client) StarterTemplates(ctx context.Context) ([]TemplateExample, error
 
 // InvalidatePrebuildsResponse contains the result of invalidating prebuilt workspaces.
 type InvalidatePrebuildsResponse struct {
-	// Count is the number of prebuilt workspaces that were invalidated.
+	// Count is the number of prebuilt workspaces that were successfully invalidated.
 	Count int `json:"count"`
-	// Workspaces is the list of invalidated prebuilt workspace names.
-	Workspaces []string `json:"workspaces"`
+	// Invalidated is the list of successfully invalidated prebuilt workspace names.
+	Invalidated []string `json:"invalidated"`
+	// Failed is the list of prebuilt workspace names that failed to invalidate with error messages.
+	Failed []InvalidatedPrebuildError `json:"failed,omitempty"`
+}
+
+// InvalidatedPrebuildError represents a failed prebuild invalidation.
+type InvalidatedPrebuildError struct {
+	// WorkspaceName is the name of the workspace that failed to invalidate.
+	WorkspaceName string `json:"workspace_name"`
+	// Error is the error message.
+	Error string `json:"error"`
 }
 
 // InvalidateTemplatePrebuilds invalidates all prebuilt workspaces for the
