@@ -110,6 +110,21 @@ func (m *MockDRPCClient) RecordInterception(ctx context.Context, in *proto.Recor
 	return ret0, ret1
 }
 
+// RecordInterceptionEnded indicates an expected call of RecordInterception.
+func (mr *MockDRPCClientMockRecorder) RecordInterceptionEnded(ctx, in any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecordInterceptionEnded", reflect.TypeOf((*MockDRPCClient)(nil).RecordInterceptionEnded), ctx, in)
+}
+
+// RecordInterceptionEnded mocks base method.
+func (m *MockDRPCClient) RecordInterceptionEnded(ctx context.Context, in *proto.RecordInterceptionEndedRequest) (*proto.RecordInterceptionEndedResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RecordInterceptionEnded", ctx, in)
+	ret0, _ := ret[0].(*proto.RecordInterceptionEndedResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
 // RecordInterception indicates an expected call of RecordInterception.
 func (mr *MockDRPCClientMockRecorder) RecordInterception(ctx, in any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()

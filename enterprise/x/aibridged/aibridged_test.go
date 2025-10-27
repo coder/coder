@@ -305,6 +305,7 @@ func TestRouting(t *testing.T) {
 				interceptionID = in.GetId()
 				return &proto.RecordInterceptionResponse{}, nil
 			})
+			client.EXPECT().RecordInterceptionEnded(gomock.Any(), gomock.Any()).Times(tc.expectedHits)
 
 			// Given: aibridged is started.
 			srv, err := aibridged.New(t.Context(), pool, func(ctx context.Context) (aibridged.DRPCClient, error) {
