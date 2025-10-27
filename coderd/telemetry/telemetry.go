@@ -734,6 +734,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		dbTasks, err := r.options.Database.ListTasks(ctx, database.ListTasksParams{
 			OwnerID:        uuid.Nil,
 			OrganizationID: uuid.Nil,
+			Status:         "",
 		})
 		if err != nil {
 			return err

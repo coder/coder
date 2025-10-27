@@ -1,3 +1,4 @@
+import type { Workspace } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
 	DropdownMenu,
@@ -9,26 +10,26 @@ import { Spinner } from "components/Spinner/Spinner";
 import { useProxy } from "contexts/ProxyContext";
 import { EllipsisVertical, ExternalLinkIcon, HouseIcon } from "lucide-react";
 import { useAppLink } from "modules/apps/useAppLink";
-import type { Task, WorkspaceAppWithAgent } from "modules/tasks/tasks";
+import type { WorkspaceAppWithAgent } from "modules/tasks/apps";
 import { type FC, type HTMLProps, useRef } from "react";
 import { Link as RouterLink } from "react-router";
 import { cn } from "utils/cn";
 import { TaskWildcardWarning } from "./TaskWildcardWarning";
 
 type TaskAppIFrameProps = {
-	task: Task;
+	workspace: Workspace;
 	app: WorkspaceAppWithAgent;
 	active: boolean;
 };
 
 export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
-	task,
+	workspace,
 	app,
 	active,
 }) => {
 	const link = useAppLink(app, {
 		agent: app.agent,
-		workspace: task.workspace,
+		workspace,
 	});
 	const proxy = useProxy();
 	const frameRef = useRef<HTMLIFrameElement>(null);
@@ -115,8 +116,7 @@ export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
 								<code className="font-mono text-content-primary select-all">
 									/tmp/coder-agent.log
 								</code>{" "}
-								inside your workspace "{task.workspace.name}" for more
-								information.
+								inside your workspace "{workspace.name}" for more information.
 							</li>
 						</ul>
 					</div>

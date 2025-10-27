@@ -21,7 +21,6 @@
  */
 import globalAxios, { type AxiosInstance, isAxiosError } from "axios";
 import type dayjs from "dayjs";
-import type { Task } from "modules/tasks/tasks";
 import userAgentParser from "ua-parser-js";
 import { delay } from "../utils/delay";
 import { OneWayWebSocket } from "../utils/OneWayWebSocket";
@@ -424,10 +423,6 @@ export type GetProvisionerDaemonsParams = {
 	limit?: number;
 	// Include offline provisioner daemons?
 	offline?: boolean;
-};
-
-export type TasksFilter = {
-	username?: string;
 };
 
 /**
@@ -2717,28 +2712,35 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
-	getTasks = async (filter: TasksFilter): Promise<Task[]> => {
-		const queryExpressions = ["has-ai-task:true"];
-
-		if (filter.username) {
-			queryExpressions.push(`owner:${filter.username}`);
+	getTasks = async (
+		filter: TypesGen.TasksFilter,
+	): Promise<readonly TypesGen.Task[]> => {
+		const query: string[] = [];
+		if (filter.owner) {
+			query.push(`owner:${filter.owner}`);
+		}
+		if (filter.status) {
+			query.push(`status:${filter.status}`);
 		}
 
-		const res = await API.getWorkspaces({
-			q: queryExpressions.join(" "),
-		});
-		// Exclude prebuild workspaces as they are not user-facing.
-		const workspaces = res.workspaces.filter(
-			(workspace) => !workspace.is_prebuild,
-		);
-		const prompts = await API.experimental.getAITasksPrompts(
-			workspaces.map((workspace) => workspace.latest_build.id),
+		const res = await this.axios.get<TypesGen.TasksListResponse>(
+			"/api/experimental/tasks",
+			{
+				params: {
+					q: query.join(", "),
+				},
+			},
 		);
 
-		return workspaces.map((workspace) => ({
-			workspace,
-			prompt: prompts.prompts[workspace.latest_build.id],
-		}));
+		return res.data.tasks;
+	};
+
+	getTask = async (user: string, id: string): Promise<TypesGen.Task> => {
+		const response = await this.axios.get<TypesGen.Task>(
+			`/api/experimental/tasks/${user}/${id}`,
+		);
+
+		return response.data;
 	};
 
 	deleteTask = async (user: string, id: string): Promise<void> => {

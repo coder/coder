@@ -70,6 +70,7 @@ func TestSetupPartitions_TemplateExists(t *testing.T) {
 		t:                        t,
 		expectedTemplateName:     "test-template",
 		expectedOrgID:            orgID,
+		expectedTags:             map[string]string{"foo": "bar"},
 		matchedProvisioners:      1,
 		templateVersionJobStatus: codersdk.ProvisionerJobSucceeded,
 	}
@@ -77,13 +78,14 @@ func TestSetupPartitions_TemplateExists(t *testing.T) {
 	trap := mClock.Trap().TickerFunc("waitForTemplateVersionJobs")
 	defer trap.Close()
 	uut := partitioner{
-		ctx:          ctx,
-		client:       fClient,
-		orgID:        orgID,
-		templateName: "test-template",
-		numEvals:     600,
-		logger:       logger,
-		clock:        mClock,
+		ctx:             ctx,
+		client:          fClient,
+		orgID:           orgID,
+		templateName:    "test-template",
+		provisionerTags: map[string]string{"foo": "bar"},
+		numEvals:        600,
+		logger:          logger,
+		clock:           mClock,
 	}
 	var partitions []Partition
 	errCh := make(chan error, 1)
@@ -234,6 +236,7 @@ type fakeClient struct {
 	expectedOrgID        uuid.UUID
 	templateByNameError  error
 
+	expectedTags             map[string]string
 	matchedProvisioners      int
 	templateVersionJobStatus codersdk.ProvisionerJobStatus
 
@@ -270,6 +273,7 @@ func (f *fakeClient) CreateTemplate(ctx context.Context, orgID uuid.UUID, create
 
 func (f *fakeClient) CreateTemplateVersion(ctx context.Context, orgID uuid.UUID, createReq codersdk.CreateTemplateVersionRequest) (codersdk.TemplateVersion, error) {
 	f.templateVersionsCount++
+	require.Equal(f.t, f.expectedTags, createReq.ProvisionerTags)
 	return codersdk.TemplateVersion{
 		ID:                  uuid.New(),
 		Name:                f.expectedTemplateName,

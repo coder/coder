@@ -29,7 +29,6 @@ import {
 import { useAuthenticated } from "hooks/useAuthenticated";
 import { useExternalAuth } from "hooks/useExternalAuth";
 import { ArrowUpIcon, RedoIcon, RotateCcwIcon } from "lucide-react";
-import { AI_PROMPT_PARAMETER_NAME } from "modules/tasks/tasks";
 import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import TextareaAutosize, {
@@ -38,6 +37,8 @@ import TextareaAutosize, {
 import { docs } from "utils/docs";
 import { PromptSelectTrigger } from "./PromptSelectTrigger";
 import { TemplateVersionSelect } from "./TemplateVersionSelect";
+
+const AI_PROMPT_PARAMETER_NAME = "AI Prompt";
 
 type TaskPromptProps = {
 	templates: Template[] | undefined;

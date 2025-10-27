@@ -110,9 +110,6 @@ func TestTracker(t *testing.T) {
 // This test performs a more 'integration-style' test with multiple instances.
 func TestTracker_MultipleInstances(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("this test only makes sense with postgres")
-	}
 
 	// Given we have two coderd instances connected to the same database
 	var (

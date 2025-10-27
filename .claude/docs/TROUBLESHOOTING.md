@@ -91,6 +91,9 @@
 
 ## Systematic Debugging Approach
 
+YOU MUST ALWAYS find the root cause of any issue you are debugging
+YOU MUST NEVER fix a symptom or add a workaround instead of finding a root cause, even if it is faster.
+
 ### Multi-Issue Problem Solving
 
 When facing multiple failing tests or complex integration issues:
@@ -98,16 +101,21 @@ When facing multiple failing tests or complex integration issues:
 1. **Identify Root Causes**:
    - Run failing tests individually to isolate issues
    - Use LSP tools to trace through call chains
-   - Check both compilation and runtime errors
+   - Read Error Messages Carefully: Check both compilation and runtime errors
+   - Reproduce Consistently: Ensure you can reliably reproduce the issue before investigating
+   - Check Recent Changes: What changed that could have caused this? Git diff, recent commits, etc.
+   - When You Don't Know: Say "I don't understand X" rather than pretending to know
 
 2. **Fix in Logical Order**:
    - Address compilation issues first (imports, syntax)
    - Fix authorization and RBAC issues next
    - Resolve business logic and validation issues
    - Handle edge cases and race conditions last
+   - IF your first fix doesn't work, STOP and re-analyze rather than adding more fixes
 
 3. **Verification Strategy**:
-   - Test each fix individually before moving to next issue
+   - Always Test each fix individually before moving to next issue
+   - Verify Before Continuing: Did your test work? If not, form new hypothesis - don't add more fixes
    - Use `make lint` and `make gen` after database changes
    - Verify RFC compliance with actual specifications
    - Run comprehensive test suites before considering complete

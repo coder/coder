@@ -64,7 +64,7 @@ coder port-forward <workspace-name> --tcp 3399:3389
 Then, connect to your workspace via RDP at `localhost:3399`.
 ![windows-rdp](../../images/user-guides/remote-desktops/windows_rdp_client.png)
 
-</div>s
+</div>
 
 > [!NOTE]
 > Some versions of Windows, including Windows Server 2022, do not communicate correctly over UDP when using Coder Connect because they do not respect the maximum transmission unit (MTU) of the link. When this happens, the RDP client will appear to connect, but displays a blank screen.

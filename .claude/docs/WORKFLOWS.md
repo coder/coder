@@ -40,11 +40,15 @@
 - Use proper error types
 - Pattern: `xerrors.Errorf("failed to X: %w", err)`
 
-### Naming Conventions
+## Naming Conventions
 
-- Use clear, descriptive names
-- Abbreviate only when obvious
+- Names MUST tell what code does, not how it's implemented or its history
 - Follow Go and TypeScript naming conventions
+- When changing code, never document the old behavior or the behavior change
+- NEVER use implementation details in names (e.g., "ZodValidator", "MCPWrapper", "JSONParser")
+- NEVER use temporal/historical context in names (e.g., "LegacyHandler", "UnifiedTool", "ImprovedInterface", "EnhancedParser")
+- NEVER use pattern names unless they add clarity (e.g., prefer "Tool" over "ToolFactory")
+- Abbreviate only when obvious
 
 ### Comments
 

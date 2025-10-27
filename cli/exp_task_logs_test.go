@@ -38,15 +38,15 @@ func Test_TaskLogs(t *testing.T) {
 		},
 	}
 
-	t.Run("ByWorkspaceName_JSON", func(t *testing.T) {
+	t.Run("ByTaskName_JSON", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		client, workspace := setupCLITaskTest(ctx, t, fakeAgentAPITaskLogsOK(testMessages))
+		client, task := setupCLITaskTest(ctx, t, fakeAgentAPITaskLogsOK(testMessages))
 		userClient := client // user already has access to their own workspace
 
 		var stdout strings.Builder
-		inv, root := clitest.New(t, "exp", "task", "logs", workspace.Name, "--output", "json")
+		inv, root := clitest.New(t, "exp", "task", "logs", task.Name, "--output", "json")
 		inv.Stdout = &stdout
 		clitest.SetupConfig(t, userClient, root)
 
@@ -64,15 +64,15 @@ func Test_TaskLogs(t *testing.T) {
 		require.Equal(t, codersdk.TaskLogTypeOutput, logs[1].Type)
 	})
 
-	t.Run("ByWorkspaceID_JSON", func(t *testing.T) {
+	t.Run("ByTaskID_JSON", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		client, workspace := setupCLITaskTest(ctx, t, fakeAgentAPITaskLogsOK(testMessages))
+		client, task := setupCLITaskTest(ctx, t, fakeAgentAPITaskLogsOK(testMessages))
 		userClient := client
 
 		var stdout strings.Builder
-		inv, root := clitest.New(t, "exp", "task", "logs", workspace.ID.String(), "--output", "json")
+		inv, root := clitest.New(t, "exp", "task", "logs", task.ID.String(), "--output", "json")
 		inv.Stdout = &stdout
 		clitest.SetupConfig(t, userClient, root)
 
@@ -90,15 +90,15 @@ func Test_TaskLogs(t *testing.T) {
 		require.Equal(t, codersdk.TaskLogTypeOutput, logs[1].Type)
 	})
 
-	t.Run("ByWorkspaceID_Table", func(t *testing.T) {
+	t.Run("ByTaskID_Table", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		client, workspace := setupCLITaskTest(ctx, t, fakeAgentAPITaskLogsOK(testMessages))
+		client, task := setupCLITaskTest(ctx, t, fakeAgentAPITaskLogsOK(testMessages))
 		userClient := client
 
 		var stdout strings.Builder
-		inv, root := clitest.New(t, "exp", "task", "logs", workspace.ID.String())
+		inv, root := clitest.New(t, "exp", "task", "logs", task.ID.String())
 		inv.Stdout = &stdout
 		clitest.SetupConfig(t, userClient, root)
 
@@ -112,7 +112,7 @@ func Test_TaskLogs(t *testing.T) {
 		require.Contains(t, output, "output")
 	})
 
-	t.Run("WorkspaceNotFound_ByName", func(t *testing.T) {
+	t.Run("TaskNotFound_ByName", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -130,7 +130,7 @@ func Test_TaskLogs(t *testing.T) {
 		require.ErrorContains(t, err, httpapi.ResourceNotFoundResponse.Message)
 	})
 
-	t.Run("WorkspaceNotFound_ByID", func(t *testing.T) {
+	t.Run("TaskNotFound_ByID", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -152,10 +152,10 @@ func Test_TaskLogs(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		client, workspace := setupCLITaskTest(ctx, t, fakeAgentAPITaskLogsErr(assert.AnError))
+		client, task := setupCLITaskTest(ctx, t, fakeAgentAPITaskLogsErr(assert.AnError))
 		userClient := client
 
-		inv, root := clitest.New(t, "exp", "task", "logs", workspace.ID.String())
+		inv, root := clitest.New(t, "exp", "task", "logs", task.ID.String())
 		clitest.SetupConfig(t, userClient, root)
 
 		err := inv.WithContext(ctx).Run()

@@ -165,7 +165,7 @@ func ProcessAuthorize(db database.Store) http.HandlerFunc {
 				// has left) then they can just retry immediately and get a new code.
 				ExpiresAt:           dbtime.Now().Add(time.Duration(10) * time.Minute),
 				SecretPrefix:        []byte(code.Prefix),
-				HashedSecret:        []byte(code.Hashed),
+				HashedSecret:        code.Hashed,
 				AppID:               app.ID,
 				UserID:              apiKey.UserID,
 				ResourceUri:         sql.NullString{String: params.resource, Valid: params.resource != ""},
