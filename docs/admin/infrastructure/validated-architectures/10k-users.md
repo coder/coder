@@ -40,6 +40,22 @@ Test procedure:
 
 After, we examine the Coderd, Workspace Proxy, and Database metrics to look for issues.
 
+### Dynamic Parameters
+
+1000 connections simulating changing parameters while configuring a new workspace.
+
+Test procedure:
+
+1. Create a template with complex parameter logic and multiple template versions.
+1. Partition the connections among the template versions (forces Coder to process multiple template files)
+1. Simultaneously connect to the dynamic-parameters API websocket endpoint for the template version
+1. Wait for the initial parameter update.
+1. Send a new parameter value that has cascading effects among other parameters.
+1. Wait for the next update.
+
+After, we examine the latency in the initial connection and update, as well as Coderd and Database metrics to look for
+issues.
+
 ### API Request Traffic
 
 To be determined.
