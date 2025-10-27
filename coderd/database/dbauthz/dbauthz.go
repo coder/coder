@@ -1292,14 +1292,17 @@ func (q *querier) customRoleCheck(ctx context.Context, role database.CustomRole)
 		return xerrors.Errorf("invalid role: %w", err)
 	}
 
-	if len(rbacRole.ByOrgID) > 0 && len(rbacRole.Site) > 0 {
+	if len(rbacRole.ByOrgID) > 0 && (len(rbacRole.Site) > 0 || len(rbacRole.User) > 0) {
 		// This is a choice to keep roles simple. If we allow mixing site and org
-		// scoped perms, then knowing who can do what gets more complicated.
-		return xerrors.Errorf("invalid custom role, cannot assign both org and site permissions at the same time")
+		// scoped perms, then knowing who can do what gets more complicated. Roles
+		// should either be entirely org-scoped or entirely unrelated to
+		// organizations.
+		return xerrors.Errorf("invalid custom role, cannot assign both org-scoped and site/user permissions at the same time")
 	}
 
 	if len(rbacRole.ByOrgID) > 1 {
-		// Again to avoid more complexity in our roles
+		// Again to avoid more complexity in our roles. Roles are limited to one
+		// organization.
 		return xerrors.Errorf("invalid custom role, cannot assign permissions to more than 1 org at a time")
 	}
 
