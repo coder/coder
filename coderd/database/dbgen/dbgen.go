@@ -1498,6 +1498,7 @@ func ClaimPrebuild(
 func AIBridgeInterception(t testing.TB, db database.Store, seed database.InsertAIBridgeInterceptionParams, endedAt *time.Time) database.AIBridgeInterception {
 	interception, err := db.InsertAIBridgeInterception(genCtx, database.InsertAIBridgeInterceptionParams{
 		ID:          takeFirst(seed.ID, uuid.New()),
+		APIKeyID:    seed.APIKeyID,
 		InitiatorID: takeFirst(seed.InitiatorID, uuid.New()),
 		Provider:    takeFirst(seed.Provider, "provider"),
 		Model:       takeFirst(seed.Model, "model"),

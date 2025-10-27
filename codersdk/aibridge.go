@@ -13,6 +13,7 @@ import (
 
 type AIBridgeInterception struct {
 	ID          uuid.UUID            `json:"id" format:"uuid"`
+	APIKeyID    *string              `json:"api_key_id"`
 	Initiator   MinimalUser          `json:"initiator"`
 	Provider    string               `json:"provider"`
 	Model       string               `json:"model"`

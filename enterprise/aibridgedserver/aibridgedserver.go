@@ -115,14 +115,20 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		return nil, xerrors.Errorf("invalid initiator ID %q: %w", in.GetInitiatorId(), err)
 	}
 
-	_, err = s.store.InsertAIBridgeInterception(ctx, database.InsertAIBridgeInterceptionParams{
+	params := database.InsertAIBridgeInterceptionParams{
 		ID:          intcID,
+		APIKeyID:    sql.NullString{Valid: false},
 		InitiatorID: initID,
 		Provider:    in.Provider,
 		Model:       in.Model,
 		Metadata:    marshalMetadata(ctx, s.logger, in.GetMetadata()),
 		StartedAt:   in.StartedAt.AsTime(),
-	})
+	}
+	if in.ApiKeyId != "" {
+		params.APIKeyID = sql.NullString{String: in.ApiKeyId, Valid: true}
+	}
+
+	_, err = s.store.InsertAIBridgeInterception(ctx, params)
 	if err != nil {
 		return nil, xerrors.Errorf("start interception: %w", err)
 	}
@@ -398,7 +404,8 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 	}
 
 	return &proto.IsAuthorizedResponse{
-		OwnerId: key.UserID.String(),
+		OwnerId:  key.UserID.String(),
+		ApiKeyId: key.ID,
 	}, nil
 }
 
