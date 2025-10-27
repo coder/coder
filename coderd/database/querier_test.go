@@ -7724,3 +7724,68 @@ func TestUpdateTaskWorkspaceID(t *testing.T) {
 		})
 	}
 }
+
+func TestUpdateAIBridgeInterceptionEnded(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+
+	t.Run("NonExistingInterception", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		got, err := db.UpdateAIBridgeInterceptionEnded(ctx, database.UpdateAIBridgeInterceptionEndedParams{
+			ID:      uuid.New(),
+			EndedAt: time.Now(),
+		})
+		require.ErrorContains(t, err, "no rows in result set")
+		require.EqualValues(t, database.AIBridgeInterception{}, got)
+	})
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		user := dbgen.User(t, db, database.User{})
+		interceptions := []database.AIBridgeInterception{}
+
+		for _, uid := range []uuid.UUID{{1}, {2}, {3}} {
+			insertParams := database.InsertAIBridgeInterceptionParams{
+				ID:          uid,
+				InitiatorID: user.ID,
+				Metadata:    json.RawMessage("{}"),
+			}
+
+			intc, err := db.InsertAIBridgeInterception(ctx, insertParams)
+			require.NoError(t, err)
+			require.Equal(t, uid, intc.ID)
+			require.False(t, intc.EndedAt.Valid)
+			interceptions = append(interceptions, intc)
+		}
+
+		intc0 := interceptions[0]
+		endedAt := time.Now()
+		// Mark first interception as done
+		updated, err := db.UpdateAIBridgeInterceptionEnded(ctx, database.UpdateAIBridgeInterceptionEndedParams{
+			ID:      intc0.ID,
+			EndedAt: endedAt,
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, updated.ID, intc0.ID)
+		require.True(t, updated.EndedAt.Valid)
+		require.WithinDuration(t, endedAt, updated.EndedAt.Time, 5*time.Second)
+
+		// Updating first interception again should fail
+		updated, err = db.UpdateAIBridgeInterceptionEnded(ctx, database.UpdateAIBridgeInterceptionEndedParams{
+			ID:      intc0.ID,
+			EndedAt: endedAt.Add(time.Hour),
+		})
+		require.ErrorIs(t, err, sql.ErrNoRows)
+
+		// Other interceptions should not have ended_at set
+		for _, intc := range interceptions[1:] {
+			got, err := db.GetAIBridgeInterceptionByID(ctx, intc.ID)
+			require.NoError(t, err)
+			require.False(t, got.EndedAt.Valid)
+		}
+	})
+}

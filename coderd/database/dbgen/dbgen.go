@@ -1495,7 +1495,7 @@ func ClaimPrebuild(
 	return claimedWorkspace
 }
 
-func AIBridgeInterception(t testing.TB, db database.Store, seed database.InsertAIBridgeInterceptionParams) database.AIBridgeInterception {
+func AIBridgeInterception(t testing.TB, db database.Store, seed database.InsertAIBridgeInterceptionParams, endedAt *time.Time) database.AIBridgeInterception {
 	interception, err := db.InsertAIBridgeInterception(genCtx, database.InsertAIBridgeInterceptionParams{
 		ID:          takeFirst(seed.ID, uuid.New()),
 		InitiatorID: takeFirst(seed.InitiatorID, uuid.New()),
@@ -1504,6 +1504,13 @@ func AIBridgeInterception(t testing.TB, db database.Store, seed database.InsertA
 		Metadata:    takeFirstSlice(seed.Metadata, json.RawMessage("{}")),
 		StartedAt:   takeFirst(seed.StartedAt, dbtime.Now()),
 	})
+	if endedAt != nil {
+		interception, err = db.UpdateAIBridgeInterceptionEnded(genCtx, database.UpdateAIBridgeInterceptionEndedParams{
+			ID:      interception.ID,
+			EndedAt: *endedAt,
+		})
+		require.NoError(t, err, "insert aibridge interception")
+	}
 	require.NoError(t, err, "insert aibridge interception")
 	return interception
 }

@@ -107,7 +107,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		i1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID: user1.ID,
 			StartedAt:   now.Add(-time.Hour),
-		})
+		}, nil)
 		i1tok1 := dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
 			InterceptionID: i1.ID,
 			CreatedAt:      now,
@@ -135,7 +135,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		i2 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID: user2.ID,
 			StartedAt:   now,
-		})
+		}, &now)
 
 		// Convert to SDK types for response comparison.
 		// You may notice that the ordering of the inner arrays are ASC, this is
@@ -169,6 +169,13 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		res.Results[1].ToolUsages[0].CreatedAt = i1SDK.ToolUsages[0].CreatedAt
 		res.Results[1].ToolUsages[1].CreatedAt = i1SDK.ToolUsages[1].CreatedAt
 
+		// Time comparison
+		require.Len(t, res.Results, 2)
+		require.Equal(t, res.Results[0].ID, i2SDK.ID)
+		require.NotNil(t, now, res.Results[0].EndedAt)
+		require.WithinDuration(t, now, *res.Results[0].EndedAt, 5*time.Second)
+		res.Results[0].EndedAt = i2SDK.EndedAt
+
 		require.Equal(t, []codersdk.AIBridgeInterception{i2SDK, i1SDK}, res.Results)
 	})
 
@@ -200,7 +207,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 				ID:          uuid.UUID{byte(i)},
 				InitiatorID: firstUser.UserID,
 				StartedAt:   now,
-			})
+			}, &now)
 			allInterceptionIDs = append(allInterceptionIDs, interception.ID)
 		}
 
@@ -213,7 +220,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 				ID:          uuid.UUID{byte(i + 10)},
 				InitiatorID: firstUser.UserID,
 				StartedAt:   now.Add(randomOffsetDur),
-			})
+			}, nil)
 			allInterceptionIDs = append(allInterceptionIDs, interception.ID)
 		}
 
@@ -313,11 +320,11 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		i1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID: firstUser.UserID,
 			StartedAt:   now,
-		})
+		}, nil)
 		i2 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID: secondUser.ID,
 			StartedAt:   now.Add(-time.Hour),
-		})
+		}, &now)
 
 		// Admin can see all interceptions.
 		res, err := adminExperimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{})
@@ -377,21 +384,21 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 			Provider:    "one",
 			Model:       "one",
 			StartedAt:   now,
-		})
+		}, nil)
 		i2 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			ID:          uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 			InitiatorID: user1.ID,
 			Provider:    "two",
 			Model:       "two",
 			StartedAt:   now.Add(-time.Hour),
-		})
+		}, &now)
 		i3 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			ID:          uuid.MustParse("00000000-0000-0000-0000-000000000003"),
 			InitiatorID: user2.ID,
 			Provider:    "three",
 			Model:       "three",
 			StartedAt:   now.Add(-2 * time.Hour),
-		})
+		}, &now)
 
 		// Convert to SDK types for response comparison. We don't care about the
 		// inner arrays for this test.
