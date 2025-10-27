@@ -895,37 +895,27 @@ func TestTools(t *testing.T) {
 			},
 		}).Do()
 
-		ws1Table := dbgen.Workspace(t, store, database.WorkspaceTable{
+		build1 := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
 			Name:           "delete-task-workspace-1",
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        member.ID,
 			TemplateID:     aiTV.Template.ID,
-		})
-		task1 := dbgen.Task(t, store, database.TaskTable{
-			OrganizationID:    owner.OrganizationID,
-			OwnerID:           member.ID,
-			Name:              ws1Table.Name,
-			WorkspaceID:       uuid.NullUUID{UUID: ws1Table.ID, Valid: true},
-			TemplateVersionID: aiTV.TemplateVersion.ID,
-			Prompt:            "delete task 1",
-		})
-		_ = dbfake.WorkspaceBuild(t, store, ws1Table).WithTask(nil).Do()
+		}).WithTask(database.TaskTable{
+			Name:   "delete-task-1",
+			Prompt: "delete task 1",
+		}, nil).Do()
+		task1 := build1.Task
 
-		ws2Table := dbgen.Workspace(t, store, database.WorkspaceTable{
+		build2 := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
 			Name:           "delete-task-workspace-2",
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        member.ID,
 			TemplateID:     aiTV.Template.ID,
-		})
-		task2 := dbgen.Task(t, store, database.TaskTable{
-			OrganizationID:    owner.OrganizationID,
-			OwnerID:           member.ID,
-			Name:              ws2Table.Name,
-			WorkspaceID:       uuid.NullUUID{UUID: ws2Table.ID, Valid: true},
-			TemplateVersionID: aiTV.TemplateVersion.ID,
-			Prompt:            "delete task 2",
-		})
-		_ = dbfake.WorkspaceBuild(t, store, ws2Table).WithTask(nil).Do()
+		}).WithTask(database.TaskTable{
+			Name:   "delete-task-2",
+			Prompt: "delete task 2",
+		}, nil).Do()
+		task2 := build2.Task
 
 		tests := []struct {
 			name  string
@@ -1113,21 +1103,16 @@ func TestTools(t *testing.T) {
 			},
 		}).Do()
 
-		ws1Table := dbgen.Workspace(t, store, database.WorkspaceTable{
+		build := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
 			Name:           "get-task-workspace-1",
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        member.ID,
 			TemplateID:     aiTV.Template.ID,
-		})
-		task := dbgen.Task(t, store, database.TaskTable{
-			OrganizationID:    owner.OrganizationID,
-			OwnerID:           member.ID,
-			Name:              "get-task-1",
-			WorkspaceID:       uuid.NullUUID{UUID: ws1Table.ID, Valid: true},
-			TemplateVersionID: aiTV.TemplateVersion.ID,
-			Prompt:            "get task",
-		})
-		_ = dbfake.WorkspaceBuild(t, store, ws1Table).WithTask(nil).Do()
+		}).WithTask(database.TaskTable{
+			Name:   "get-task-1",
+			Prompt: "get task",
+		}, nil).Do()
+		task := build.Task
 
 		tests := []struct {
 			name     string
@@ -1376,21 +1361,16 @@ func TestTools(t *testing.T) {
 			},
 		}).Do()
 
-		wsTable := dbgen.Workspace(t, store, database.WorkspaceTable{
+		ws := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
 			Name:           "send-task-input-ws",
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        member.ID,
 			TemplateID:     aiTV.Template.ID,
-		})
-		task := dbgen.Task(t, store, database.TaskTable{
-			OrganizationID:    owner.OrganizationID,
-			OwnerID:           member.ID,
-			Name:              "send-task-input",
-			WorkspaceID:       uuid.NullUUID{UUID: wsTable.ID, Valid: true},
-			TemplateVersionID: aiTV.TemplateVersion.ID,
-			Prompt:            "send task input",
-		})
-		ws := dbfake.WorkspaceBuild(t, store, wsTable).WithTask(&proto.App{Url: srv.URL}).Do()
+		}).WithTask(database.TaskTable{
+			Name:   "send-task-input",
+			Prompt: "send task input",
+		}, &proto.App{Url: srv.URL}).Do()
+		task := ws.Task
 
 		_ = agenttest.New(t, client.URL, ws.AgentToken)
 		coderdtest.NewWorkspaceAgentWaiter(t, client, ws.Workspace.ID).Wait()
@@ -1513,21 +1493,16 @@ func TestTools(t *testing.T) {
 			},
 		}).Do()
 
-		wsTable := dbgen.Workspace(t, store, database.WorkspaceTable{
+		ws := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
 			Name:           "get-task-logs-ws",
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        member.ID,
 			TemplateID:     aiTV.Template.ID,
-		})
-		task := dbgen.Task(t, store, database.TaskTable{
-			OrganizationID:    owner.OrganizationID,
-			OwnerID:           member.ID,
-			Name:              "get-task-logs",
-			WorkspaceID:       uuid.NullUUID{UUID: wsTable.ID, Valid: true},
-			TemplateVersionID: aiTV.TemplateVersion.ID,
-			Prompt:            "get task logs",
-		})
-		ws := dbfake.WorkspaceBuild(t, store, wsTable).WithTask(&proto.App{Url: srv.URL}).Do()
+		}).WithTask(database.TaskTable{
+			Name:   "get-task-logs",
+			Prompt: "get task logs",
+		}, &proto.App{Url: srv.URL}).Do()
+		task := ws.Task
 
 		_ = agenttest.New(t, client.URL, ws.AgentToken)
 		coderdtest.NewWorkspaceAgentWaiter(t, client, ws.Workspace.ID).Wait()
