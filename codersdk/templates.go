@@ -507,3 +507,23 @@ func (c *Client) StarterTemplates(ctx context.Context) ([]TemplateExample, error
 	var templateExamples []TemplateExample
 	return templateExamples, json.NewDecoder(res.Body).Decode(&templateExamples)
 }
+
+// InvalidateTemplatePrebuilds invalidates all prebuilt workspaces for the
+// template's active version by deleting them. This is useful when prebuilds
+// become stale due to updated base images, repository changes, or other factors.
+func (c *Client) InvalidateTemplatePrebuilds(ctx context.Context, template uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodPost,
+		fmt.Sprintf("/api/v2/templates/%s/prebuilds/invalidate", template),
+		nil,
+	)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return ReadBodyAsError(res)
+	}
+
+	return nil
+}

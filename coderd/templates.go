@@ -1146,3 +1146,125 @@ func findTemplateAdmins(ctx context.Context, store database.Store) ([]database.G
 	}
 	return append(owners, templateAdmins...), nil
 }
+
+// @Summary Invalidate all prebuilt workspaces for a template
+// @ID invalidate-template-prebuilds
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Templates
+// @Param template path string true "Template ID" format(uuid)
+// @Success 200 {object} codersdk.Response
+// @Router /templates/{template}/prebuilds/invalidate [post]
+func (api *API) postInvalidateTemplatePrebuilds(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	template := httpmw.TemplateParam(r)
+	apiKey := httpmw.APIKey(r)
+
+	// Authorization: user must be able to update the template
+	if !api.Authorize(r, policy.ActionUpdate, template.RBACObject()) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	// Get all workspaces for this template (returns WorkspaceTable without version info)
+	workspaceTables, err := api.Database.GetWorkspacesByTemplateID(ctx, template.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to fetch workspaces.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Filter and fetch full workspace details for prebuilt workspaces only
+	var prebuildWorkspaces []database.Workspace
+	for _, wt := range workspaceTables {
+		// Quick filter: only check prebuilt workspaces
+		if wt.OwnerID != database.PrebuildsSystemUserID {
+			continue
+		}
+
+		// Fetch latest build to get template_version_id
+		build, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, wt.ID)
+		if err != nil {
+			api.Logger.Warn(ctx, "failed to fetch workspace build",
+				slog.F("workspace_id", wt.ID),
+				slog.Error(err),
+			)
+			continue
+		}
+
+		// Only include if the latest build uses the active template version
+		if build.TemplateVersionID == template.ActiveVersionID {
+			ws, err := api.Database.GetWorkspaceByID(ctx, wt.ID)
+			if err != nil {
+				continue
+			}
+			prebuildWorkspaces = append(prebuildWorkspaces, ws)
+		}
+	}
+
+	if len(prebuildWorkspaces) == 0 {
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
+			Message: "No prebuilt workspaces found for this template's active version.",
+		})
+		return
+	}
+
+	// Delete each prebuilt workspace using the existing workspace delete logic
+	var invalidatedCount int
+	var errors []string
+
+	api.Logger.Info(ctx, "invalidating prebuilt workspaces",
+		slog.F("template_id", template.ID),
+		slog.F("template_name", template.Name),
+		slog.F("workspace_count", len(prebuildWorkspaces)),
+		slog.F("initiator_id", apiKey.UserID),
+	)
+
+	for _, workspace := range prebuildWorkspaces {
+		// Reuse the existing delete workspace logic
+		createBuild := codersdk.CreateWorkspaceBuildRequest{
+			Transition: codersdk.WorkspaceTransitionDelete,
+		}
+
+		_, err := api.postWorkspaceBuildsInternal(
+			ctx,
+			apiKey,
+			workspace,
+			createBuild,
+			func(action policy.Action, object rbac.Objecter) bool {
+				return api.Authorize(r, action, object)
+			},
+			audit.WorkspaceBuildBaggageFromRequest(r),
+		)
+		if err != nil {
+			errors = append(errors, fmt.Sprintf("workspace %s: %v", workspace.Name, err))
+			api.Logger.Warn(ctx, "failed to invalidate prebuilt workspace",
+				slog.F("workspace_id", workspace.ID),
+				slog.F("workspace_name", workspace.Name),
+				slog.Error(err),
+			)
+			continue
+		}
+
+		invalidatedCount++
+	}
+
+	api.Logger.Info(ctx, "completed prebuild invalidation",
+		slog.F("template_id", template.ID),
+		slog.F("invalidated", invalidatedCount),
+		slog.F("failed", len(errors)),
+	)
+
+	message := fmt.Sprintf("Successfully invalidated %d prebuilt workspace(s).", invalidatedCount)
+	if len(errors) > 0 {
+		message = fmt.Sprintf("Invalidated %d prebuilt workspace(s), %d failed. Errors: %s",
+			invalidatedCount, len(errors), strings.Join(errors, "; "))
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
+		Message: message,
+	})
+}
