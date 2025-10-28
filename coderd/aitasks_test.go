@@ -1440,3 +1440,98 @@ func TestTasksNotification(t *testing.T) {
 		})
 	}
 }
+
+func TestTaskGetByWorkspaceID(t *testing.T) {
+	t.Parallel()
+
+	var (
+		ctx        = testutil.Context(t, testutil.WaitShort)
+		taskPrompt = "Build a dashboard"
+		client, db = coderdtest.NewWithDatabase(t, nil)
+		owner      = coderdtest.CreateFirstUser(t, client)
+
+		// Given: two "regular" non-owner users
+		memberUser, memberUserData = coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		anotherMemberUser, _       = coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		// Given: a workspace with a related task
+		taskWorkspaceBuild = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: owner.OrganizationID,
+			OwnerID:        memberUserData.ID,
+		}).Do()
+		taskWorkspace = taskWorkspaceBuild.Workspace
+		task          = dbgen.Task(t, db, database.TaskTable{
+			OrganizationID:    owner.OrganizationID,
+			OwnerID:           memberUserData.ID,
+			TemplateVersionID: taskWorkspaceBuild.Build.TemplateVersionID,
+			WorkspaceID: uuid.NullUUID{
+				UUID:  taskWorkspace.ID,
+				Valid: true,
+			},
+			Prompt: taskPrompt,
+		})
+
+		// Given: a regular workspace with no associated task
+		regularWorkspaceBuild = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: owner.OrganizationID,
+			OwnerID:        memberUserData.ID,
+		}).Do()
+		regularWorkspace = regularWorkspaceBuild.Workspace
+		expClient        = codersdk.NewExperimentalClient(memberUser)
+		anotherExpClient = codersdk.NewExperimentalClient(anotherMemberUser)
+	)
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		// When: we query a task by its associated workspace
+		got, err := expClient.TaskByWorkspaceID(ctx, taskWorkspace.ID)
+		require.NoError(t, err)
+
+		// Then: the correct task is returned
+		assert.Equal(t, task.ID, got.ID, "task id should match")
+		assert.Equal(t, taskWorkspace.ID, got.WorkspaceID.UUID, "workspace id should match")
+		assert.Equal(t, task.Name, got.Name, "task name should match")
+		assert.Equal(t, taskPrompt, got.InitialPrompt, "initial prompt should match")
+	})
+
+	t.Run("NotFound", func(t *testing.T) {
+		t.Parallel()
+
+		// When: we query a random UUID that should not exist
+		nonexistentWorkspaceID := uuid.New()
+		_, err := expClient.TaskByWorkspaceID(ctx, nonexistentWorkspaceID)
+
+		// Then: we get a 404 Not Found error
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+	})
+
+	t.Run("OtherUser", func(t *testing.T) {
+		t.Parallel()
+
+		// When: we query a workspace owned by another user
+		_, err := anotherExpClient.TaskByWorkspaceID(ctx, taskWorkspace.ID)
+
+		// Then: we get a 404 Not Found error
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+	})
+
+	t.Run("NoTask", func(t *testing.T) {
+		t.Parallel()
+
+		// When: we query for a "regular" workspace with no task
+		_, err := expClient.TaskByWorkspaceID(ctx, regularWorkspace.ID)
+
+		// Then: we also get a 404 not found error
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+	})
+}

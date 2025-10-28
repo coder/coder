@@ -281,6 +281,27 @@ func (c *ExperimentalClient) TaskByID(ctx context.Context, id uuid.UUID) (Task, 
 	return task, nil
 }
 
+// TaskByWorkspaceID fetches a single experimental task by its workspace ID.
+//
+// Experimental: This method is experimental and may change in the future.
+func (c *ExperimentalClient) TaskByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (Task, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/task/workspace/%s", workspaceID.String()), nil)
+	if err != nil {
+		return Task{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return Task{}, ReadBodyAsError(res)
+	}
+
+	var task Task
+	if err := json.NewDecoder(res.Body).Decode(&task); err != nil {
+		return Task{}, err
+	}
+
+	return task, nil
+}
+
 func splitTaskIdentifier(identifier string) (owner string, taskName string, err error) {
 	parts := strings.Split(identifier, "/")
 

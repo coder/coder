@@ -1043,6 +1043,13 @@ func New(options *Options) *API {
 				})
 			})
 		})
+		r.Route("/task/workspace/{workspace}", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractWorkspaceParam(options.Database),
+			)
+			r.Get("/", api.taskGetByWorkspaceID)
+		})
 		r.Route("/mcp", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,

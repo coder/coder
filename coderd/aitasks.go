@@ -544,6 +544,83 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, taskResp)
 }
 
+// @Summary Get AI task by workspace ID
+// @Description: EXPERIMENTAL: this endpoint is experimental and not guaranteed to be stable.
+// @ID get-task-by-workspace-id
+// @Security CoderSessionToken
+// @Tags Experimental
+// @Param workspace path string true "Workspace ID" format(uuid)
+// @Success 200 {object} codersdk.Task
+// @Router /api/experimental/task/workspace/{workspace} [get]
+//
+// EXPERIMENTAL: This endpoint is experimental and not guaranteed to be stable.
+// taskGetByWorkspaceID is an experimental endpoint to fetch a single AI task by workspace ID.
+// It returns a synthesized task response including prompt and status.
+func (api *API) taskGetByWorkspaceID(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+	workspace := httpmw.WorkspaceParam(r)
+
+	// Get the task by workspace ID
+	task, err := api.Database.GetTaskByWorkspaceID(ctx, workspace.ID)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching task.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	if !task.WorkspaceID.Valid {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching task.",
+			Detail:  "Task workspace ID is invalid.",
+		})
+		return
+	}
+
+	data, err := api.workspaceData(ctx, []database.Workspace{workspace})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace resources.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if len(data.builds) == 0 || len(data.templates) == 0 {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	appStatus := codersdk.WorkspaceAppStatus{}
+	if len(data.appStatuses) > 0 {
+		appStatus = data.appStatuses[0]
+	}
+
+	ws, err := convertWorkspace(
+		apiKey.UserID,
+		workspace,
+		data.builds[0],
+		data.templates[0],
+		api.Options.AllowWorkspaceRenames,
+		appStatus,
+	)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error converting workspace.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	taskResp := taskFromDBTaskAndWorkspace(task, ws)
+	httpapi.Write(ctx, rw, http.StatusOK, taskResp)
+}
+
 // @Summary Delete AI task by ID
 // @Description: EXPERIMENTAL: this endpoint is experimental and not guaranteed to be stable.
 // @ID delete-task
