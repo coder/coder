@@ -20,8 +20,18 @@ const meta: Meta<typeof AppStatuses> = {
 		referenceDate: new Date("2024-03-26T15:15:00Z"),
 		agent: mockAgent(MockWorkspaceAppStatuses),
 		workspace: MockWorkspace,
+		task: MockTask,
 	},
 	decorators: [withProxyProvider()],
+	// Normally, we expect an AppStatus to have a related task to which you can navigate...
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const taskLink = canvas.getByRole("link", { name: /view task/i });
+		await expect(taskLink).toHaveAttribute(
+			"href",
+			`/tasks/${MockWorkspace.owner_name}/${MockTask.id}`,
+		);
+	},
 };
 
 export default meta;
@@ -146,32 +156,35 @@ export const MultipleStatuses: Story = {
 		const submitButton = canvas.getByRole("button");
 		await userEvent.click(submitButton);
 		await canvas.findByText(/working/i);
+		const taskLink = canvas.getByRole("link", { name: /view task/i });
+		await expect(taskLink).toHaveAttribute(
+			"href",
+			`/tasks/${MockWorkspace.owner_name}/${MockTask.id}`,
+		);
 	},
 };
 
-export const WithTask: Story = {
+export const NoTask: Story = {
 	args: {
 		agent: mockAgent([
 			{
 				...MockWorkspaceAppStatus,
 				id: "status-8",
 				icon: "",
-				message: "Task in progress",
+				message: "just messing with curl",
 				created_at: createTimestamp(5, 20),
 				uri: "",
-				state: "working" as const,
+				state: "idle" as const,
 			},
 			...MockWorkspaceAppStatuses,
 		]),
-		task: MockTask,
+		task: undefined,
 	},
 	play: async ({ canvasElement }) => {
+		/// ...except if there is no related task
 		const canvas = within(canvasElement);
-		const taskLink = canvas.getByRole("link", { name: /view task/i });
-		await expect(taskLink).toHaveAttribute(
-			"href",
-			`/tasks/${MockWorkspace.owner_name}/${MockTask.id}`,
-		);
+		const taskLink = canvas.queryByRole("link", { name: /view task/i });
+		await expect(taskLink).toBeNull();
 	},
 };
 
