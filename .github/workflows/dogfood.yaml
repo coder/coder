@@ -36,7 +36,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Nix
-        uses: nixbuild/nix-quick-install-action@1f095fee853b33114486cfdeae62fa099cda35a9 # v33
+        uses: nixbuild/nix-quick-install-action@2c9db80fb984ceb1bcaa77cdda3fdf8cfba92035 # v34
         with:
           # Pinning to 2.28 here, as Nix gets a "error: [json.exception.type_error.302] type must be array, but is string"
           # on version 2.29 and above.

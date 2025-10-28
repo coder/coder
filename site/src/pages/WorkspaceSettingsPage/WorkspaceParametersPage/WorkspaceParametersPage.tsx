@@ -1,7 +1,13 @@
 import { API } from "api/api";
 import { isApiValidationError } from "api/errors";
 import { checkAuthorization } from "api/queries/authCheck";
-import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
+import { richParameters } from "api/queries/templates";
+import { workspaceBuildParameters } from "api/queries/workspaceBuilds";
+import type {
+	TemplateVersionParameter,
+	Workspace,
+	WorkspaceBuildParameter,
+} from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
 import { EmptyState } from "components/EmptyState/EmptyState";
@@ -24,10 +30,13 @@ import {
 
 const WorkspaceParametersPage: FC = () => {
 	const workspace = useWorkspaceSettings();
-	const parameters = useQuery({
-		queryKey: ["workspace", workspace.id, "parameters"],
-		queryFn: () => API.getWorkspaceParameters(workspace),
-	});
+	const build = workspace.latest_build;
+	const { data: templateVersionParameters } = useQuery(
+		richParameters(build.template_version_id),
+	);
+	const { data: buildParameters } = useQuery(
+		workspaceBuildParameters(build.id),
+	);
 	const navigate = useNavigate();
 	const updateParameters = useMutation({
 		mutationFn: (buildParameters: WorkspaceBuildParameter[]) =>
@@ -75,30 +84,30 @@ const WorkspaceParametersPage: FC = () => {
 
 			<WorkspaceParametersPageView
 				workspace={workspace}
+				templateVersionParameters={templateVersionParameters}
+				buildParameters={buildParameters}
 				canChangeVersions={canChangeVersions}
 				templatePermissions={templatePermissions}
-				data={parameters.data}
 				submitError={updateParameters.error}
 				isSubmitting={updateParameters.isPending}
 				onSubmit={(values) => {
-					if (!parameters.data) {
+					if (!templateVersionParameters) {
 						return;
 					}
 					// When updating the parameters, the API does not accept immutable
 					// values so we need to filter them
-					const onlyMultableValues =
-						parameters.data.templateVersionRichParameters
-							.filter((p) => p.mutable)
-							.map((p) => {
-								const value = values.rich_parameter_values.find(
-									(v) => v.name === p.name,
-								);
-								if (!value) {
-									throw new Error(`Missing value for parameter ${p.name}`);
-								}
-								return value;
-							});
-					updateParameters.mutate(onlyMultableValues);
+					const onlyMutableValues = templateVersionParameters
+						.filter((p) => p.mutable)
+						.map((p) => {
+							const value = values.rich_parameter_values.find(
+								(v) => v.name === p.name,
+							);
+							if (!value) {
+								throw new Error(`Missing value for parameter ${p.name}`);
+							}
+							return value;
+						});
+					updateParameters.mutate(onlyMutableValues);
 				}}
 				onCancel={() => {
 					navigate("../..");
@@ -112,7 +121,8 @@ type WorkspaceParametersPageViewProps = {
 	workspace: Workspace;
 	canChangeVersions: boolean;
 	templatePermissions: { canUpdateTemplate: boolean } | undefined;
-	data: Awaited<ReturnType<typeof API.getWorkspaceParameters>> | undefined;
+	templateVersionParameters?: TemplateVersionParameter[];
+	buildParameters?: WorkspaceBuildParameter[];
 	submitError: unknown;
 	isSubmitting: boolean;
 	onSubmit: (formValues: WorkspaceParametersFormValues) => void;
@@ -125,7 +135,8 @@ export const WorkspaceParametersPageView: FC<
 	workspace,
 	canChangeVersions,
 	templatePermissions,
-	data,
+	templateVersionParameters,
+	buildParameters,
 	submitError,
 	onSubmit,
 	isSubmitting,
@@ -143,17 +154,17 @@ export const WorkspaceParametersPageView: FC<
 				<ErrorAlert error={submitError} css={{ marginBottom: 48 }} />
 			) : null}
 
-			{data ? (
-				data.templateVersionRichParameters.length > 0 ? (
+			{templateVersionParameters && buildParameters ? (
+				templateVersionParameters.length > 0 ? (
 					<WorkspaceParametersForm
 						workspace={workspace}
 						canChangeVersions={canChangeVersions}
 						templatePermissions={templatePermissions}
-						autofillParams={data.buildParameters.map((p) => ({
+						autofillParams={buildParameters.map((p) => ({
 							...p,
 							source: "active_build",
 						}))}
-						templateVersionRichParameters={data.templateVersionRichParameters}
+						templateVersionRichParameters={templateVersionParameters}
 						error={submitError}
 						isSubmitting={isSubmitting}
 						onSubmit={onSubmit}

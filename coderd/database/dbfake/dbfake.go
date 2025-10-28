@@ -161,6 +161,19 @@ func (b WorkspaceBuildBuilder) Canceled() WorkspaceBuildBuilder {
 // Workspace will be optionally populated if no ID is set on the provided
 // workspace.
 func (b WorkspaceBuildBuilder) Do() WorkspaceResponse {
+	var resp WorkspaceResponse
+	// Use transaction, like real wsbuilder.
+	err := b.db.InTx(func(tx database.Store) error {
+		//nolint:revive // calls do on modified struct
+		b.db = tx
+		resp = b.doInTX()
+		return nil
+	}, nil)
+	require.NoError(b.t, err)
+	return resp
+}
+
+func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 	b.t.Helper()
 	jobID := uuid.New()
 	b.seed.ID = uuid.New()

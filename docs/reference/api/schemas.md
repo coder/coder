@@ -351,6 +351,28 @@
 | `base_url` | string | false    |              |             |
 | `key`      | string | false    |              |             |
 
+## codersdk.AIBridgeBedrockConfig
+
+```json
+{
+  "access_key": "string",
+  "access_key_secret": "string",
+  "model": "string",
+  "region": "string",
+  "small_fast_model": "string"
+}
+```
+
+### Properties
+
+| Name                | Type   | Required | Restrictions | Description |
+|---------------------|--------|----------|--------------|-------------|
+| `access_key`        | string | false    |              |             |
+| `access_key_secret` | string | false    |              |             |
+| `model`             | string | false    |              |             |
+| `region`            | string | false    |              |             |
+| `small_fast_model`  | string | false    |              |             |
+
 ## codersdk.AIBridgeConfig
 
 ```json
@@ -358,6 +380,13 @@
   "anthropic": {
     "base_url": "string",
     "key": "string"
+  },
+  "bedrock": {
+    "access_key": "string",
+    "access_key_secret": "string",
+    "model": "string",
+    "region": "string",
+    "small_fast_model": "string"
   },
   "enabled": true,
   "openai": {
@@ -372,6 +401,7 @@
 | Name        | Type                                                                 | Required | Restrictions | Description |
 |-------------|----------------------------------------------------------------------|----------|--------------|-------------|
 | `anthropic` | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig) | false    |              |             |
+| `bedrock`   | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)     | false    |              |             |
 | `enabled`   | boolean                                                              | false    |              |             |
 | `openai`    | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              |             |
 
@@ -379,6 +409,7 @@
 
 ```json
 {
+  "ended_at": "2019-08-24T14:15:22Z",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "initiator": {
     "avatar_url": "http://example.com",
@@ -444,6 +475,7 @@
 
 | Name               | Type                                                                | Required | Restrictions | Description |
 |--------------------|---------------------------------------------------------------------|----------|--------------|-------------|
+| `ended_at`         | string                                                              | false    |              |             |
 | `id`               | string                                                              | false    |              |             |
 | `initiator`        | [codersdk.MinimalUser](#codersdkminimaluser)                        | false    |              |             |
 | `metadata`         | object                                                              | false    |              |             |
@@ -462,6 +494,7 @@
   "count": 0,
   "results": [
     {
+      "ended_at": "2019-08-24T14:15:22Z",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "initiator": {
         "avatar_url": "http://example.com",
@@ -650,6 +683,13 @@
     "anthropic": {
       "base_url": "string",
       "key": "string"
+    },
+    "bedrock": {
+      "access_key": "string",
+      "access_key_secret": "string",
+      "model": "string",
+      "region": "string",
+      "small_fast_model": "string"
     },
     "enabled": true,
     "openai": {
@@ -1103,6 +1143,13 @@
   "display_name": "string",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organization_member_permissions": [
+    {
+      "action": "application_connect",
+      "negate": true,
+      "resource_type": "*"
+    }
+  ],
   "organization_permissions": [
     {
       "action": "application_connect",
@@ -1129,16 +1176,17 @@
 
 ### Properties
 
-| Name                       | Type                                                | Required | Restrictions | Description                                                                                     |
-|----------------------------|-----------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------|
-| `assignable`               | boolean                                             | false    |              |                                                                                                 |
-| `built_in`                 | boolean                                             | false    |              | Built in roles are immutable                                                                    |
-| `display_name`             | string                                              | false    |              |                                                                                                 |
-| `name`                     | string                                              | false    |              |                                                                                                 |
-| `organization_id`          | string                                              | false    |              |                                                                                                 |
-| `organization_permissions` | array of [codersdk.Permission](#codersdkpermission) | false    |              | Organization permissions are specific for the organization in the field 'OrganizationID' above. |
-| `site_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                                 |
-| `user_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                                 |
+| Name                              | Type                                                | Required | Restrictions | Description                                                                                            |
+|-----------------------------------|-----------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------|
+| `assignable`                      | boolean                                             | false    |              |                                                                                                        |
+| `built_in`                        | boolean                                             | false    |              | Built in roles are immutable                                                                           |
+| `display_name`                    | string                                              | false    |              |                                                                                                        |
+| `name`                            | string                                              | false    |              |                                                                                                        |
+| `organization_id`                 | string                                              | false    |              |                                                                                                        |
+| `organization_member_permissions` | array of [codersdk.Permission](#codersdkpermission) | false    |              | Organization member permissions are specific for the organization in the field 'OrganizationID' above. |
+| `organization_permissions`        | array of [codersdk.Permission](#codersdkpermission) | false    |              | Organization permissions are specific for the organization in the field 'OrganizationID' above.        |
+| `site_permissions`                | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                                        |
+| `user_permissions`                | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                                        |
 
 ## codersdk.AuditAction
 
@@ -2488,6 +2536,13 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 {
   "display_name": "string",
   "name": "string",
+  "organization_member_permissions": [
+    {
+      "action": "application_connect",
+      "negate": true,
+      "resource_type": "*"
+    }
+  ],
   "organization_permissions": [
     {
       "action": "application_connect",
@@ -2514,13 +2569,14 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name                       | Type                                                | Required | Restrictions | Description                                                                    |
-|----------------------------|-----------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------|
-| `display_name`             | string                                              | false    |              |                                                                                |
-| `name`                     | string                                              | false    |              |                                                                                |
-| `organization_permissions` | array of [codersdk.Permission](#codersdkpermission) | false    |              | Organization permissions are specific to the organization the role belongs to. |
-| `site_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                |
-| `user_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                |
+| Name                              | Type                                                | Required | Restrictions | Description                                                                           |
+|-----------------------------------|-----------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------|
+| `display_name`                    | string                                              | false    |              |                                                                                       |
+| `name`                            | string                                              | false    |              |                                                                                       |
+| `organization_member_permissions` | array of [codersdk.Permission](#codersdkpermission) | false    |              | Organization member permissions are specific to the organization the role belongs to. |
+| `organization_permissions`        | array of [codersdk.Permission](#codersdkpermission) | false    |              | Organization permissions are specific to the organization the role belongs to.        |
+| `site_permissions`                | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                       |
+| `user_permissions`                | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                       |
 
 ## codersdk.DAUEntry
 
@@ -2783,6 +2839,13 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "anthropic": {
           "base_url": "string",
           "key": "string"
+        },
+        "bedrock": {
+          "access_key": "string",
+          "access_key_secret": "string",
+          "model": "string",
+          "region": "string",
+          "small_fast_model": "string"
         },
         "enabled": true,
         "openai": {
@@ -3290,6 +3353,13 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "anthropic": {
         "base_url": "string",
         "key": "string"
+      },
+      "bedrock": {
+        "access_key": "string",
+        "access_key_secret": "string",
+        "model": "string",
+        "region": "string",
+        "small_fast_model": "string"
       },
       "enabled": true,
       "openai": {
@@ -7388,6 +7458,13 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "display_name": "string",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organization_member_permissions": [
+    {
+      "action": "application_connect",
+      "negate": true,
+      "resource_type": "*"
+    }
+  ],
   "organization_permissions": [
     {
       "action": "application_connect",
@@ -7414,14 +7491,15 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ### Properties
 
-| Name                       | Type                                                | Required | Restrictions | Description                                                                                     |
-|----------------------------|-----------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------|
-| `display_name`             | string                                              | false    |              |                                                                                                 |
-| `name`                     | string                                              | false    |              |                                                                                                 |
-| `organization_id`          | string                                              | false    |              |                                                                                                 |
-| `organization_permissions` | array of [codersdk.Permission](#codersdkpermission) | false    |              | Organization permissions are specific for the organization in the field 'OrganizationID' above. |
-| `site_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                                 |
-| `user_permissions`         | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                                 |
+| Name                              | Type                                                | Required | Restrictions | Description                                                                                            |
+|-----------------------------------|-----------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------|
+| `display_name`                    | string                                              | false    |              |                                                                                                        |
+| `name`                            | string                                              | false    |              |                                                                                                        |
+| `organization_id`                 | string                                              | false    |              |                                                                                                        |
+| `organization_member_permissions` | array of [codersdk.Permission](#codersdkpermission) | false    |              | Organization member permissions are specific for the organization in the field 'OrganizationID' above. |
+| `organization_permissions`        | array of [codersdk.Permission](#codersdkpermission) | false    |              | Organization permissions are specific for the organization in the field 'OrganizationID' above.        |
+| `site_permissions`                | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                                        |
+| `user_permissions`                | array of [codersdk.Permission](#codersdkpermission) | false    |              |                                                                                                        |
 
 ## codersdk.RoleSyncSettings
 

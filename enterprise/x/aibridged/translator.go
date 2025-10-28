@@ -35,6 +35,14 @@ func (t *recorderTranslation) RecordInterception(ctx context.Context, req *aibri
 	return err
 }
 
+func (t *recorderTranslation) RecordInterceptionEnded(ctx context.Context, req *aibridge.InterceptionRecordEnded) error {
+	_, err := t.client.RecordInterceptionEnded(ctx, &proto.RecordInterceptionEndedRequest{
+		Id:      req.ID,
+		EndedAt: timestamppb.New(req.EndedAt),
+	})
+	return err
+}
+
 func (t *recorderTranslation) RecordPromptUsage(ctx context.Context, req *aibridge.PromptUsageRecord) error {
 	_, err := t.client.RecordPromptUsage(ctx, &proto.RecordPromptUsageRequest{
 		InterceptionId: req.InterceptionID,

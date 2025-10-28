@@ -11668,11 +11668,34 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AIBridgeBedrockConfig": {
+            "type": "object",
+            "properties": {
+                "access_key": {
+                    "type": "string"
+                },
+                "access_key_secret": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "region": {
+                    "type": "string"
+                },
+                "small_fast_model": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.AIBridgeConfig": {
             "type": "object",
             "properties": {
                 "anthropic": {
                     "$ref": "#/definitions/codersdk.AIBridgeAnthropicConfig"
+                },
+                "bedrock": {
+                    "$ref": "#/definitions/codersdk.AIBridgeBedrockConfig"
                 },
                 "enabled": {
                     "type": "boolean"
@@ -11685,6 +11708,10 @@ const docTemplate = `{
         "codersdk.AIBridgeInterception": {
             "type": "object",
             "properties": {
+                "ended_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
                 "id": {
                     "type": "string",
                     "format": "uuid"
@@ -12495,6 +12522,13 @@ const docTemplate = `{
                 "organization_id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "organization_member_permissions": {
+                    "description": "OrganizationMemberPermissions are specific for the organization in the field 'OrganizationID' above.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Permission"
+                    }
                 },
                 "organization_permissions": {
                     "description": "OrganizationPermissions are specific for the organization in the field 'OrganizationID' above.",
@@ -13718,6 +13752,13 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "organization_member_permissions": {
+                    "description": "OrganizationMemberPermissions are specific to the organization the role belongs to.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Permission"
+                    }
                 },
                 "organization_permissions": {
                     "description": "OrganizationPermissions are specific to the organization the role belongs to.",
@@ -17485,6 +17526,13 @@ const docTemplate = `{
                 "organization_id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "organization_member_permissions": {
+                    "description": "OrganizationMemberPermissions are specific for the organization in the field 'OrganizationID' above.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Permission"
+                    }
                 },
                 "organization_permissions": {
                     "description": "OrganizationPermissions are specific for the organization in the field 'OrganizationID' above.",

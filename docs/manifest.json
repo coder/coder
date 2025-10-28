@@ -1799,6 +1799,11 @@
 							"path": "reference/cli/tokens_remove.md"
 						},
 						{
+							"title": "tokens view",
+							"description": "Display detailed information about a token",
+							"path": "reference/cli/tokens_view.md"
+						},
+						{
 							"title": "unfavorite",
 							"description": "Remove a workspace from your favorites",
 							"path": "reference/cli/unfavorite.md"

@@ -4250,6 +4250,14 @@ type TelemetryItem struct {
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
 
+// Telemetry lock tracking table for deduplication of heartbeat events across replicas.
+type TelemetryLock struct {
+	// The type of event that was sent.
+	EventType string `db:"event_type" json:"event_type"`
+	// The heartbeat period end timestamp.
+	PeriodEndingAt time.Time `db:"period_ending_at" json:"period_ending_at"`
+}
+
 // Joins in the display name information such as username, avatar, and organization name.
 type Template struct {
 	ID                            uuid.UUID       `db:"id" json:"id"`

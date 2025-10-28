@@ -18,18 +18,6 @@ coderd/rbac/ @Emyrk
 scripts/apitypings/ @Emyrk
 scripts/gensite/ @aslilac
 
-site/ @aslilac @Parkreiner
-site/src/hooks/ @Parkreiner
-# These rules intentionally do not specify any owners. More specific rules
-# override less specific rules, so these files are "ignored" by the site/ rule.
-site/e2e/google/protobuf/timestampGenerated.ts
-site/e2e/provisionerGenerated.ts
-site/src/api/countriesGenerated.ts
-site/src/api/rbacresourcesGenerated.ts
-site/src/api/typesGenerated.ts
-site/src/testHelpers/entities.ts
-site/CLAUDE.md
-
 # The blood and guts of the autostop algorithm, which is quite complex and
 # requires elite ball knowledge of most of the scheduling code to make changes
 # without inadvertently affecting other parts of the codebase.
