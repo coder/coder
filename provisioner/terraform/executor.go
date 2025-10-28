@@ -622,8 +622,6 @@ func (e *executor) apply(
 	defer e.mut.Unlock()
 
 	if e.server.terraformWorkspaces {
-		id := e.server.tfWorkspaceID.String()
-		fmt.Println(id)
 		err := e.workspaceUse(ctx, killCtx, e.server.tfWorkspaceID)
 		if err != nil {
 			return nil, err
