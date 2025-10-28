@@ -1445,7 +1445,6 @@ func TestTaskGetByWorkspaceID(t *testing.T) {
 	t.Parallel()
 
 	var (
-		ctx        = testutil.Context(t, testutil.WaitShort)
 		taskPrompt = "Build a dashboard"
 		client, db = coderdtest.NewWithDatabase(t, nil)
 		owner      = coderdtest.CreateFirstUser(t, client)
@@ -1484,6 +1483,7 @@ func TestTaskGetByWorkspaceID(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := testutil.Context(t, testutil.WaitShort)
 		// When: we query a task by its associated workspace
 		got, err := expClient.TaskByWorkspaceID(ctx, taskWorkspace.ID)
 		require.NoError(t, err)
@@ -1498,6 +1498,7 @@ func TestTaskGetByWorkspaceID(t *testing.T) {
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := testutil.Context(t, testutil.WaitShort)
 		// When: we query a random UUID that should not exist
 		nonexistentWorkspaceID := uuid.New()
 		_, err := expClient.TaskByWorkspaceID(ctx, nonexistentWorkspaceID)
@@ -1512,6 +1513,7 @@ func TestTaskGetByWorkspaceID(t *testing.T) {
 	t.Run("OtherUser", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := testutil.Context(t, testutil.WaitShort)
 		// When: we query a workspace owned by another user
 		_, err := anotherExpClient.TaskByWorkspaceID(ctx, taskWorkspace.ID)
 
@@ -1525,6 +1527,7 @@ func TestTaskGetByWorkspaceID(t *testing.T) {
 	t.Run("NoTask", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := testutil.Context(t, testutil.WaitShort)
 		// When: we query for a "regular" workspace with no task
 		_, err := expClient.TaskByWorkspaceID(ctx, regularWorkspace.ID)
 
