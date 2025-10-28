@@ -25,7 +25,7 @@ export const AIGovernanceHelpTooltip: FC = () => {
 				<HelpTooltipTitle>{Language.title}</HelpTooltipTitle>
 				<HelpTooltipText>{Language.body}</HelpTooltipText>
 				<HelpTooltipLinksGroup>
-					<HelpTooltipLink href={docs("/admin/security/audit-logs")}>
+					<HelpTooltipLink href={docs("/docs/ai-coder/ai-bridge")}>
 						{Language.docs}
 					</HelpTooltipLink>
 				</HelpTooltipLinksGroup>
