@@ -376,13 +376,6 @@ jobs:
         id: go-paths
         uses: ./.github/actions/setup-go-paths
 
-      - name: Download Go Build Cache
-        id: download-go-build-cache
-        uses: ./.github/actions/test-cache/download
-        with:
-          key-prefix: test-go-build-${{ runner.os }}-${{ runner.arch }}
-          cache-path: ${{ steps.go-paths.outputs.cached-dirs }}
-
       - name: Setup Go
         uses: ./.github/actions/setup-go
         with:
@@ -390,8 +383,7 @@ jobs:
           # download the toolchain configured in go.mod, so we don't
           # need to reinstall it. It's faster on Windows runners.
           use-preinstalled-go: ${{ runner.os == 'Windows' }}
-          # Cache is already downloaded above
-          use-cache: false
+          use-cache: true
 
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
@@ -504,12 +496,6 @@ jobs:
         with:
           name: failed-test-db-dump-${{matrix.os}}
           path: "**/*.test.sql"
-
-      - name: Upload Go Build Cache
-        uses: ./.github/actions/test-cache/upload
-        with:
-          cache-key: ${{ steps.download-go-build-cache.outputs.cache-key }}
-          cache-path: ${{ steps.go-paths.outputs.cached-dirs }}
 
       - name: Upload Test Cache
         uses: ./.github/actions/test-cache/upload
