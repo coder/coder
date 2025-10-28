@@ -34,7 +34,7 @@ func TestPool(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { pool.Shutdown(context.Background()) })
 
-	id, id2 := uuid.New(), uuid.New()
+	id, id2, apiKeyID1, apiKeyID2 := uuid.New(), uuid.New(), uuid.New(), uuid.New()
 	clientFn := func() (aibridged.DRPCClient, error) {
 		return client, nil
 	}
@@ -50,7 +50,7 @@ func TestPool(t *testing.T) {
 	inst, err := pool.Acquire(t.Context(), aibridged.Request{
 		SessionKey:  "key",
 		InitiatorID: id,
-		APIKeyID:    "apiKeyId",
+		APIKeyID:    apiKeyID1.String(),
 	}, clientFn, newMockMCPFactory(mcpProxy))
 	require.NoError(t, err, "acquire pool instance")
 
@@ -58,7 +58,7 @@ func TestPool(t *testing.T) {
 	instB, err := pool.Acquire(t.Context(), aibridged.Request{
 		SessionKey:  "key",
 		InitiatorID: id,
-		APIKeyID:    "apiKeyId",
+		APIKeyID:    apiKeyID1.String(),
 	}, clientFn, newMockMCPFactory(mcpProxy))
 	require.NoError(t, err, "acquire pool instance")
 	require.Same(t, inst, instB)
@@ -76,7 +76,7 @@ func TestPool(t *testing.T) {
 	inst2, err := pool.Acquire(t.Context(), aibridged.Request{
 		SessionKey:  "key",
 		InitiatorID: id2,
-		APIKeyID:    "apiKeyId",
+		APIKeyID:    apiKeyID1.String(),
 	}, clientFn, newMockMCPFactory(mcpProxy))
 	require.NoError(t, err, "acquire pool instance")
 	require.NotSame(t, inst, inst2)
@@ -87,13 +87,14 @@ func TestPool(t *testing.T) {
 	require.EqualValues(t, 1, metrics.Hits())
 	require.EqualValues(t, 2, metrics.Misses())
 
-	// Different instance is returned for different api key id
+	// This will get called again because a new instance will be created.
 	mcpProxy.EXPECT().Init(gomock.Any()).Times(1).Return(nil)
 
+	// New instance is created for different api key id
 	inst2B, err := pool.Acquire(t.Context(), aibridged.Request{
 		SessionKey:  "key",
 		InitiatorID: id2,
-		APIKeyID:    "newApiKeyId",
+		APIKeyID:    apiKeyID2.String(),
 	}, clientFn, newMockMCPFactory(mcpProxy))
 	require.NoError(t, err, "acquire pool instance 2B")
 	require.NotSame(t, inst2, inst2B)
