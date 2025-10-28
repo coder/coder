@@ -3061,6 +3061,7 @@ type Config struct {
 	// state is the provisioner state (if any)
 	State               []byte `protobuf:"bytes,2,opt,name=state,proto3" json:"state,omitempty"`
 	ProvisionerLogLevel string `protobuf:"bytes,3,opt,name=provisioner_log_level,json=provisionerLogLevel,proto3" json:"provisioner_log_level,omitempty"`
+	TemplateVersionId   string `protobuf:"bytes,4,opt,name=template_version_id,json=templateVersionId,proto3" json:"template_version_id,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -3112,6 +3113,13 @@ func (x *Config) GetState() []byte {
 func (x *Config) GetProvisionerLogLevel() string {
 	if x != nil {
 		return x.ProvisionerLogLevel
+	}
+	return ""
+}
+
+func (x *Config) GetTemplateVersionId() string {
+	if x != nil {
+		return x.TemplateVersionId
 	}
 	return ""
 }
@@ -4541,11 +4549,12 @@ const file_provisionersdk_proto_provisioner_proto_rawDesc = "" +
 	"\atask_id\x18\x16 \x01(\tR\x06taskId\x12\x1f\n" +
 	"\vtask_prompt\x18\x17 \x01(\tR\n" +
 	"taskPrompt\x12.\n" +
-	"\x13template_version_id\x18\x18 \x01(\tR\x11templateVersionId\"\x8a\x01\n" +
+	"\x13template_version_id\x18\x18 \x01(\tR\x11templateVersionId\"\xba\x01\n" +
 	"\x06Config\x126\n" +
 	"\x17template_source_archive\x18\x01 \x01(\fR\x15templateSourceArchive\x12\x14\n" +
 	"\x05state\x18\x02 \x01(\fR\x05state\x122\n" +
-	"\x15provisioner_log_level\x18\x03 \x01(\tR\x13provisionerLogLevel\"\x0e\n" +
+	"\x15provisioner_log_level\x18\x03 \x01(\tR\x13provisionerLogLevel\x12.\n" +
+	"\x13template_version_id\x18\x04 \x01(\tR\x11templateVersionId\"\x0e\n" +
 	"\fParseRequest\"\xa3\x02\n" +
 	"\rParseComplete\x12\x14\n" +
 	"\x05error\x18\x01 \x01(\tR\x05error\x12L\n" +

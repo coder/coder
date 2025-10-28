@@ -374,6 +374,7 @@ message Config {
   // state is the provisioner state (if any)
   bytes state = 2;
   string provisioner_log_level = 3;
+  string template_version_id = 4;
 }
 
 // ParseRequest consumes source-code to produce inputs.

@@ -3,7 +3,6 @@ package terraform
 import (
 	"context"
 	"errors"
-	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -15,7 +14,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/v2/provisionersdk/proto"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/jobreaper"

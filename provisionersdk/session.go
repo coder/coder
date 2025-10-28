@@ -51,16 +51,27 @@ func (p *protoServer) Session(stream proto.DRPCProvisioner_SessionStream) error 
 		return xerrors.Errorf("unable to clean stale sessions %q: %w", s.WorkDirectory, err)
 	}
 
-	s.WorkDirectory = filepath.Join(p.opts.WorkDirectory, SessionDir(sessID))
+	req, err := stream.Recv()
+	if err != nil {
+		return xerrors.Errorf("receive config: %w", err)
+	}
+	config := req.GetConfig()
+	if config == nil {
+		return xerrors.New("first request must be Config")
+	}
+	s.Config = config
+	if s.Config.ProvisionerLogLevel != "" {
+		s.logLevel = proto.LogLevel_value[strings.ToUpper(s.Config.ProvisionerLogLevel)]
+	}
 
+	s.WorkDirectory = filepath.Join(p.opts.WorkDirectory, SessionDir(sessID))
 	if p.opts.TerraformWorkspaces {
-		// Using a static "shared" directory for all sessions. Each executor
-		// will have to create/use a subdirectory for its workspace.
-		// TODO: This does not have to be a subdirectory, since the "WorkDirectory"
-		// is already a top level container. However, to keep this experiment files
-		// isolated, we use a "shared" subdirectory alongside the previous "session"
-		// directories.
-		s.WorkDirectory = filepath.Join(p.opts.WorkDirectory, "shared")
+		// All workspaces with the same template version will share the same
+		// terraform directory. Leveraging terraform workspaces to isolate tfstate.
+		// Using a `shared` directory to contain next to session directories.
+		// TODO: Remove the `shared` directory level, and add a cleanup routine
+		// to remove old template version directories.
+		s.WorkDirectory = filepath.Join(p.opts.WorkDirectory, "shared", s.Config.TemplateVersionId)
 	}
 
 	err = os.MkdirAll(s.WorkDirectory, 0o700)
@@ -94,18 +105,6 @@ func (p *protoServer) Session(stream proto.DRPCProvisioner_SessionStream) error 
 		s.Logger.Error(s.Context(), "failed to clean up work directory after multiple attempts",
 			slog.F("path", s.WorkDirectory), slog.Error(err))
 	}()
-	req, err := stream.Recv()
-	if err != nil {
-		return xerrors.Errorf("receive config: %w", err)
-	}
-	config := req.GetConfig()
-	if config == nil {
-		return xerrors.New("first request must be Config")
-	}
-	s.Config = config
-	if s.Config.ProvisionerLogLevel != "" {
-		s.logLevel = proto.LogLevel_value[strings.ToUpper(s.Config.ProvisionerLogLevel)]
-	}
 
 	err = s.extractArchive()
 	if err != nil {

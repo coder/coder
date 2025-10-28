@@ -1021,6 +1021,7 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 		TemplateSourceArchive: r.job.GetTemplateSourceArchive(),
 		State:                 r.job.GetWorkspaceBuild().State,
 		ProvisionerLogLevel:   r.job.GetWorkspaceBuild().LogLevel,
+		TemplateVersionId:     r.job.GetWorkspaceBuild().Metadata.TemplateVersionId,
 	})
 	if failedJob != nil {
 		return nil, failedJob
