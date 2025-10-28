@@ -34,13 +34,13 @@ const meta: Meta<typeof RequestLogsPageView> = {
 export default meta;
 type Story = StoryObj<typeof RequestLogsPageView>;
 
-export const NotEnabled: Story = {
+export const Paywall: Story = {
 	args: {
 		isRequestLogsVisible: false,
 	},
 };
 
-export const WithLogs: Story = {
+export const Loaded: Story = {
 	args: {
 		isRequestLogsVisible: true,
 		interceptions,
@@ -55,7 +55,7 @@ export const WithLogs: Story = {
 	},
 };
 
-export const EmptyLogs: Story = {
+export const Empty: Story = {
 	args: {
 		isRequestLogsVisible: true,
 		interceptions: [],
