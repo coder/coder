@@ -1,6 +1,6 @@
 import { describe, expect, test, beforeEach, mock } from "bun:test";
 import {
-	CoderClient,
+	RealCoderClient,
 	CoderAPIError,
 	ExperimentalCoderSDKCreateTaskRequestSchema,
 	ExperimentalCoderSDKCreateTaskRequest,
@@ -21,12 +21,12 @@ import {
 } from "./test-helpers";
 
 describe("CoderClient", () => {
-	let client: CoderClient;
+	let client: RealCoderClient;
 	let mockFetch: ReturnType<typeof mock>;
 
 	beforeEach(() => {
 		const mockInputs = createMockInputs();
-		client = new CoderClient(mockInputs.coderURL, mockInputs.coderToken);
+		client = new RealCoderClient(mockInputs.coderURL, mockInputs.coderToken);
 		mockFetch = mock(() => Promise.resolve(createMockResponse([])));
 		global.fetch = mockFetch as unknown as typeof fetch;
 	});

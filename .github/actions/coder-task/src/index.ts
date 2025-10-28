@@ -1,7 +1,7 @@
 import * as core from "@actions/core";
 import * as github from "@actions/github";
 import { CoderTaskAction } from "./action";
-import { CoderClient } from "./coder-client";
+import { RealCoderClient } from "./coder-client";
 import { ActionInputsSchema } from "./schemas";
 
 async function main() {
@@ -32,7 +32,7 @@ async function main() {
 		core.debug(`Organization: ${inputs.coderOrganization}`);
 
 		// Initialize clients
-		const coder = new CoderClient(inputs.coderURL, inputs.coderToken);
+		const coder = new RealCoderClient(inputs.coderURL, inputs.coderToken);
 		const octokit = github.getOctokit(inputs.githubToken);
 
 		core.debug("Clients initialized");

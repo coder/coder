@@ -1,7 +1,34 @@
 import { z } from "zod";
 
+export interface CoderClient {
+	getCoderUserByGitHubId(
+		githubUserId: number | undefined,
+	): Promise<CoderSDKUser>;
+
+	getTemplateByOrganizationAndName(
+		organizationName: string,
+		templateName: string,
+	): Promise<CoderSDKTemplate>;
+
+	getTemplateVersionPresets(
+		templateVersionId: string,
+	): Promise<CoderSDKTemplateVersionPreset[]>;
+
+	getTask(
+		owner: string,
+		taskName: string,
+	): Promise<ExperimentalCoderSDKTask | null>;
+
+	createTask(
+		owner: string,
+		params: ExperimentalCoderSDKCreateTaskRequest,
+	): Promise<ExperimentalCoderSDKTask>;
+
+	sendTaskInput(owner: string, taskName: string, input: string): Promise<void>;
+}
+
 // CoderClient provides a minimal set of methods for interacting with the Coder API.
-export class CoderClient {
+export class RealCoderClient implements CoderClient {
 	private readonly headers: Record<string, string>;
 
 	constructor(

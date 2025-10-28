@@ -107,44 +107,53 @@ export function createMockInputs(
 /**
  * Mock CoderClient for testing
  */
-export class MockCoderClient extends CoderClient {
-	public mockGetCoderSDKUserByGitHubId = mock();
-	public mockGetUserByUsername = mock();
-	public mockGetTemplateByName = mock();
-	public mockGetTaskStatus = mock();
+export class MockCoderClient implements CoderClient {
+	private readonly headers: Record<string, string>;
+	public mockGetCoderUserByGithubID = mock();
+	public mockGetTemplateByOrganizationAndName = mock();
+	public mockGetTemplateVersionPresets = mock();
+	public mockGetTask = mock();
 	public mockCreateTask = mock();
 	public mockSendTaskInput = mock();
 
-	constructor() {
-		super("https://coder.test", "test-token");
+	constructor() // private readonly serverURL: string,
+	// apiToken: string,
+	{
+		this.headers = {};
 	}
 
-	async getCoderSDKUserByGitHubId(githubUserId: number): Promise<CoderSDKUser> {
-		return this.mockGetCoderSDKUserByGitHubId(githubUserId);
+	async getCoderUserByGitHubId(githubUserId: number): Promise<CoderSDKUser> {
+		return this.mockGetCoderUserByGithubID(githubUserId);
 	}
 
-	async getUserByUsername(username: string): Promise<CoderSDKUser> {
-		return this.mockGetUserByUsername(username);
-	}
-
-	async getTemplateByName(
+	async getTemplateByOrganizationAndName(
 		organization: string,
 		templateName: string,
 	): Promise<CoderSDKTemplate> {
-		return this.mockGetTemplateByName(organization, templateName);
+		return this.mockGetTemplateByOrganizationAndName(
+			organization,
+			templateName,
+		);
+	}
+
+	async getTemplateVersionPresets(
+		templateVersionId: string,
+	): Promise<CoderSDKTemplateVersionPreset[]> {
+		return this.mockGetTemplateVersionPresets(templateVersionId);
 	}
 
 	async getTask(
 		username: string,
 		taskName: string,
 	): Promise<ExperimentalCoderSDKTask | null> {
-		return this.mockGetTaskStatus(username, taskName);
+		return this.mockGetTask(username, taskName);
 	}
 
 	async createTask(
+		username: string,
 		params: ExperimentalCoderSDKCreateTaskRequest,
 	): Promise<ExperimentalCoderSDKTask> {
-		return this.mockCreateTask(params);
+		return this.mockCreateTask(username, params);
 	}
 
 	async sendTaskInput(

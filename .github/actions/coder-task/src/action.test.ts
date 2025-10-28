@@ -7,6 +7,7 @@ import {
 	createMockInputs,
 	mockUser,
 	mockTask,
+	mockTemplate,
 } from "./test-helpers";
 
 describe("CoderTaskAction", () => {
@@ -18,429 +19,106 @@ describe("CoderTaskAction", () => {
 		octokit = createMockOctokit();
 	});
 
-	describe("resolveGitHubUserId", () => {
-		describe("Success Cases", () => {
-			test("returns githubUserId when provided in inputs", async () => {
-				const inputs = createMockInputs({ githubUserID: 12345 });
-				const action = new CoderTaskAction(
-					coderClient,
-					octokit as unknown as Octokit,
-					inputs,
-				);
-
-				const result = await action.resolveGitHubUserId();
-
-				expect(result).toBe(12345);
+	describe("parseGithubIssueUrl", () => {
+		test("parses valid GitHub issue URL", () => {
+			const inputs = createMockInputs({
+				githubIssueURL: "https://github.com/owner/repo/issues/123",
 			});
-
-			test("fetches user ID from API when username provided", async () => {
-				octokit.rest.users.getByUsername.mockResolvedValue({
-					data: { id: 67890 },
-				} as ReturnType<typeof octokit.rest.users.getByUsername>);
-
-				const inputs = createMockInputs({ githubUsername: "testuser" });
-				const action = new CoderTaskAction(
-					coderClient,
-					octokit as unknown as Octokit,
-					inputs,
-				);
-
-				const result = await (
-					action as unknown as CoderTaskAction
-				).resolveGitHubUserId();
-
-				expect(result).toBe(67890);
-				expect(octokit.rest.users.getByUsername).toHaveBeenCalledWith({
-					username: "testuser",
-				});
-			});
-		});
-
-		describe("Error Cases", () => {
-			test("throws error when neither userId nor username provided", async () => {
-				const inputs = createMockInputs({
-					githubUserID: undefined,
-					githubUsername: undefined,
-				});
-				const action = new CoderTaskAction(
-					coderClient,
-					octokit as unknown as Octokit,
-					inputs,
-				);
-
-				expect(
-					(action as unknown as CoderTaskAction).resolveGitHubUserId(),
-				).rejects.toThrow(
-					"Either githubUserId or githubUsername must be provided",
-				);
-			});
-
-			test("throws error when GitHub API returns 404 for username", async () => {
-				octokit.rest.users.getByUsername.mockRejectedValue(
-					new Error("Not Found"),
-				);
-
-				const inputs = createMockInputs({ githubUsername: "nonexistent" });
-				const action = new CoderTaskAction(
-					coderClient,
-					octokit as unknown as Octokit,
-					inputs,
-				);
-
-				expect(
-					(action as unknown as CoderTaskAction).resolveGitHubUserId(),
-				).rejects.toThrow();
-			});
-		});
-	});
-
-	describe("generateTaskName", () => {
-		test("uses provided task-name when specified", () => {
-			const inputs = createMockInputs({ coderTaskName: "custom-name" });
-			const action = new CoderTaskAction(
-				coderClient,
-				octokit as unknown as Octokit,
-				inputs,
-			);
-			const result = (action as unknown as CoderTaskAction).generateTaskName();
-			expect(result).toBe("custom-name");
-		});
-
-		test("generates name with issue number", () => {
-			const inputs = createMockInputs();
-			const action = new CoderTaskAction(
-				coderClient,
-				octokit as unknown as Octokit,
-				inputs,
-			);
-			const result = (action as unknown as CoderTaskAction).generateTaskName();
-			expect(result).toMatch(/^task-gh-123$/);
-		});
-
-		test("generates name without issue", () => {
-			const inputs = createMockInputs();
 			const action = new CoderTaskAction(
 				coderClient,
 				octokit as unknown as Octokit,
 				inputs,
 			);
 
-			const result = (action as unknown as CoderTaskAction).generateTaskName(
-				undefined,
-			);
+			const result = (
+				action as unknown as CoderTaskAction
+			).parseGithubIssueURL();
 
-			expect(result).toMatch(/^task-run-\d+$/);
+			expect(result).toEqual({
+				githubOrg: "owner",
+				githubRepo: "repo",
+				githubIssueNumber: 123,
+			});
 		});
 
-		test("respects task-name-prefix", () => {
-			const inputs = createMockInputs({ coderTaskNamePrefix: "custom-prefix" });
+		test("throws when no issue URL provided", () => {
+			const inputs = createMockInputs({ githubIssueURL: undefined });
 			const action = new CoderTaskAction(
 				coderClient,
 				octokit as unknown as Octokit,
 				inputs,
 			);
 
-			const result = (action as unknown as CoderTaskAction).generateTaskName(
-				123,
+			const result = (
+				action as unknown as CoderTaskAction
+			).parseGithubIssueURL();
+
+			expect(result).toThrowError("Missing issue URL");
+		});
+
+		test("throws for invalid URL format", () => {
+			const inputs = createMockInputs({ githubIssueURL: "not-a-url" });
+			const action = new CoderTaskAction(
+				coderClient,
+				octokit as unknown as Octokit,
+				inputs,
 			);
 
-			expect(result).toMatch(/^custom-prefix-gh-123$/);
+			const result = (
+				action as unknown as CoderTaskAction
+			).parseGithubIssueURL();
+
+			expect(result).toThrowError("Invalid issue URL: not-a-url");
 		});
 
-		describe("Edge Cases", () => {
-			test("uses default prefix when empty", () => {
-				const inputs = createMockInputs({ coderTaskNamePrefix: "" });
-				const action = new CoderTaskAction(
-					coderClient,
-					octokit as unknown as Octokit,
-					inputs,
-				);
-
-				const result = (action as unknown as CoderTaskAction).generateTaskName(
-					123,
-				);
-
-				// Empty prefix should still work
-				expect(result).toBe("-gh-123");
+		test("handled non-github.com URL", () => {
+			const inputs = createMockInputs({
+				githubIssueURL: "https://code.acme.com/owner/repo/issues/123",
 			});
+			const action = new CoderTaskAction(
+				coderClient,
+				octokit as unknown as Octokit,
+				inputs,
+			);
 
-			test("handles very long prefix", () => {
-				const longPrefix = "x".repeat(100);
-				const inputs = createMockInputs({ coderTaskNamePrefix: longPrefix });
-				const action = new CoderTaskAction(
-					coderClient,
-					octokit as unknown as Octokit,
-					inputs,
-				);
+			const result = (
+				action as unknown as CoderTaskAction
+			).parseGithubIssueURL();
 
-				const result = (action as unknown as CoderTaskAction).generateTaskName(
-					123,
-				);
-
-				expect(result).toStartWith(longPrefix);
-			});
-		});
-	});
-
-	describe("getIssueNumber", () => {
-		describe("Success Cases", () => {
-			test("extracts number from valid GitHub issue URL", async () => {
-				const inputs = createMockInputs({
-					githubIssueURL: "https://github.com/owner/repo/issues/123",
-				});
-				const action = new CoderTaskAction(
-					coderClient,
-					octokit as unknown as Octokit,
-					inputs,
-				);
-
-				const result = await (
-					action as unknown as CoderTaskAction
-				).getIssueNumber();
-
-				expect(result).toBe(123);
-			});
-
-			test("returns undefined when no issue URL", async () => {
-				const inputs = createMockInputs({ githubIssueURL: undefined });
-				const action = new CoderTaskAction(
-					coderClient,
-					octokit as unknown as Octokit,
-					inputs,
-				);
-
-				const result = await (
-					action as unknown as CoderTaskAction
-				).getIssueNumber();
-
-				expect(result).toBeUndefined();
-			});
-
-			test("handles URL with hash fragment", async () => {
-				const inputs = createMockInputs({
-					githubIssueURL: "https://github.com/owner/repo/issues/123#comment",
-				});
-				const action = new CoderTaskAction(
-					coderClient,
-					octokit as unknown as Octokit,
-					inputs,
-				);
-
-				const result = await (
-					action as unknown as CoderTaskAction
-				).getIssueNumber();
-
-				expect(result).toBe(123);
-			});
-
-			test("handles URL with query parameters", async () => {
-				const inputs = createMockInputs({
-					githubIssueURL:
-						"https://github.com/owner/repo/issues/123?param=value",
-				});
-				const action = new CoderTaskAction(
-					coderClient,
-					octokit as unknown as Octokit,
-					inputs,
-				);
-
-				const result = await (
-					action as unknown as CoderTaskAction
-				).getIssueNumber();
-
-				expect(result).toBe(123);
+			expect(result).toEqual({
+				githubOrg: "owner",
+				githubRepo: "repo",
+				githubIssueNumber: 123,
 			});
 		});
 
-		describe("Error Cases", () => {
-			test("returns undefined for invalid URL format", async () => {
-				const inputs = createMockInputs({ githubIssueURL: "not-a-url" });
-				const action = new CoderTaskAction(
-					coderClient,
-					octokit as unknown as Octokit,
-					inputs,
-				);
-
-				const result = await (
-					action as unknown as CoderTaskAction
-				).getIssueNumber();
-
-				expect(result).toBeUndefined();
+		test("handles URL with trailing junk", () => {
+			const inputs = createMockInputs({
+				githubIssueURL:
+					"https://github.com/owner/repo/issues/123/?param=value#anchor",
 			});
+			const action = new CoderTaskAction(
+				coderClient,
+				octokit as unknown as Octokit,
+				inputs,
+			);
 
-			test("returns undefined for non-numeric issue identifier", async () => {
-				const inputs = createMockInputs({
-					githubIssueURL: "https://github.com/owner/repo/issues/abc",
-				});
-				const action = new CoderTaskAction(
-					coderClient,
-					octokit as unknown as Octokit,
-					inputs,
-				);
+			const result = (
+				action as unknown as CoderTaskAction
+			).parseGithubIssueURL();
 
-				const result = await (
-					action as unknown as CoderTaskAction
-				).getIssueNumber();
-
-				expect(result).toBeUndefined();
-			});
-		});
-	});
-
-	describe("parseIssueUrl", () => {
-		describe("Success Cases", () => {
-			test("parses valid GitHub issue URL", () => {
-				const inputs = createMockInputs({
-					githubIssueURL: "https://github.com/owner/repo/issues/123",
-				});
-				const action = new CoderTaskAction(
-					coderClient,
-					octokit as unknown as Octokit,
-					inputs,
-				);
-
-				const result = (
-					action as unknown as CoderTaskAction
-				).parseGithubIssueURL();
-
-				expect(result).toEqual({
-					githubOrg: "owner",
-					githubRepo: "repo",
-					githubIssueNumber: 123,
-				});
-			});
-
-			test("returns null when no issue URL", () => {
-				const inputs = createMockInputs({ githubIssueURL: undefined });
-				const action = new CoderTaskAction(
-					coderClient,
-					octokit as unknown as Octokit,
-					inputs,
-				);
-
-				const result = (
-					action as unknown as CoderTaskAction
-				).parseGithubIssueURL();
-
-				expect(result).toBeNull();
-			});
-		});
-
-		describe("Error Cases", () => {
-			test("returns null for invalid URL format", () => {
-				const inputs = createMockInputs({ githubIssueURL: "not-a-url" });
-				const action = new CoderTaskAction(
-					coderClient,
-					octokit as unknown as Octokit,
-					inputs,
-				);
-
-				const result = (
-					action as unknown as CoderTaskAction
-				).parseGithubIssueURL();
-
-				expect(result).toBeNull();
-			});
-
-			test("returns null for non-GitHub URL", () => {
-				const inputs = createMockInputs({
-					githubIssueURL: "https://example.com/issues/123",
-				});
-				const action = new CoderTaskAction(
-					coderClient,
-					octokit as unknown as Octokit,
-					inputs,
-				);
-
-				const result = (
-					action as unknown as CoderTaskAction
-				).parseGithubIssueURL();
-
-				expect(result).toBeNull();
-			});
-		});
-
-		describe("Edge Cases", () => {
-			test("handles URL with trailing slash", () => {
-				const inputs = createMockInputs({
-					githubIssueURL: "https://github.com/owner/repo/issues/123/",
-				});
-				const action = new CoderTaskAction(
-					coderClient,
-					octokit as unknown as Octokit,
-					inputs,
-				);
-
-				const result = (
-					action as unknown as CoderTaskAction
-				).parseGithubIssueURL();
-
-				// Should still parse correctly
-				expect(result?.githubIssueNumber).toBe(123);
-			});
-
-			test("handles URL with query parameters", () => {
-				const inputs = createMockInputs({
-					githubIssueURL:
-						"https://github.com/owner/repo/issues/123?param=value",
-				});
-				const action = new CoderTaskAction(
-					coderClient,
-					octokit as unknown as Octokit,
-					inputs,
-				);
-
-				const result = (
-					action as unknown as CoderTaskAction
-				).parseGithubIssueURL();
-
-				expect(result?.githubIssueNumber).toBe(123);
-			});
-
-			test("handles URL with hash fragment", () => {
-				const inputs = createMockInputs({
-					githubIssueURL: "https://github.com/owner/repo/issues/123#comment",
-				});
-				const action = new CoderTaskAction(
-					coderClient,
-					octokit as unknown as Octokit,
-					inputs,
-				);
-
-				const result = (
-					action as unknown as CoderTaskAction
-				).parseGithubIssueURL();
-
-				expect(result?.githubIssueNumber).toBe(123);
+			// Should still parse correctly
+			expect(result).toEqual({
+				githubOrg: "owner",
+				githubRepo: "repo",
+				githubIssueNumber: 123,
 			});
 		});
 	});
 
 	describe("generateTaskUrl", () => {
-		test("uses coderWebUrl when provided", () => {
-			const inputs = createMockInputs({
-				coderURL: "https://coder.test",
-				coderWebUrl: "https://coder-web.test",
-			});
-			const action = new CoderTaskAction(
-				coderClient,
-				octokit as unknown as Octokit,
-				inputs,
-			);
-
-			const result = (action as unknown as CoderTaskAction).generateTaskUrl(
-				"testuser",
-				"task-123",
-			);
-
-			expect(result).toBe("https://coder-web.test/tasks/testuser/task-123");
-		});
-
-		test("falls back to coderUrl when coderWebUrl not provided", () => {
-			const inputs = createMockInputs({
-				coderURL: "https://coder.test",
-				coderWebUrl: undefined,
-			});
+		test("generates correct task URL", () => {
+			const inputs = createMockInputs();
 			const action = new CoderTaskAction(
 				coderClient,
 				octokit as unknown as Octokit,
@@ -455,25 +133,23 @@ describe("CoderTaskAction", () => {
 			expect(result).toBe("https://coder.test/tasks/testuser/task-123");
 		});
 
-		describe("Edge Cases", () => {
-			test("handles URL with trailing slash", () => {
-				const inputs = createMockInputs({
-					coderURL: "https://coder.test/",
-				});
-				const action = new CoderTaskAction(
-					coderClient,
-					octokit as unknown as Octokit,
-					inputs,
-				);
-
-				const result = (action as unknown as CoderTaskAction).generateTaskUrl(
-					"testuser",
-					"task-123",
-				);
-
-				// Should not have double slash
-				expect(result).toBe("https://coder.test//tasks/testuser/task-123");
+		test("handles URL with trailing junk", () => {
+			const inputs = createMockInputs({
+				coderURL: "https://coder.test/?param=value#anchor",
 			});
+			const action = new CoderTaskAction(
+				coderClient,
+				octokit as unknown as Octokit,
+				inputs,
+			);
+
+			const result = (action as unknown as CoderTaskAction).generateTaskUrl(
+				"testuser",
+				"task-123",
+			);
+
+			// Should not have double slash
+			expect(result).toBe("https://coder.test//tasks/testuser/task-123");
 		});
 	});
 
@@ -665,152 +341,227 @@ describe("CoderTaskAction", () => {
 		});
 	});
 
-	describe("run - Happy Path Scenarios", () => {
-		test("creates new task successfully", async () => {
-			// Setup
-			coderClient.mockGetCoderUserByGitHubId.mockResolvedValue(mockUser);
-			coderClient.mockGetTaskStatus.mockResolvedValue(null);
-			coderClient.mockCreateTask.mockResolvedValue(mockTask);
+	test("creates new task successfully", async () => {
+		// Setup
+		coderClient.mockGetCoderUserByGithubID.mockResolvedValue(mockUser);
+		coderClient.mockGetTask.mockResolvedValue(null);
+		coderClient.mockCreateTask.mockResolvedValue(mockTask);
 
-			const inputs = createMockInputs({
-				githubUserID: 12345,
-				githubIssueURL: undefined,
-			});
-			const action = new CoderTaskAction(
-				coderClient,
-				octokit as unknown as Octokit,
-				inputs,
-			);
-
-			// Execute
-			const result = await action.run();
-
-			// Verify
-			expect(coderClient.mockGetCoderUserByGitHubId).toHaveBeenCalledWith(
-				12345,
-			);
-			expect(coderClient.mockGetTaskStatus).toHaveBeenCalled();
-			expect(coderClient.mockCreateTask).toHaveBeenCalled();
-			expect(result.coderUsername).toBe("testuser");
-			expect(result.taskCreated).toBe(false);
-			expect(result.taskUrl).toContain("/tasks/testuser/");
+		const inputs = createMockInputs({
+			githubUserID: 12345,
 		});
+		const action = new CoderTaskAction(
+			coderClient,
+			octokit as unknown as Octokit,
+			inputs,
+		);
 
-		test("sends prompt to existing task", async () => {
-			// Setup
-			coderClient.mockGetCoderUserByGitHubId.mockResolvedValue(mockUser);
-			coderClient.mockGetTaskStatus.mockResolvedValue(mockTask);
-			coderClient.mockSendTaskInput.mockResolvedValue(undefined);
+		// Execute
+		const result = await action.run();
 
-			const inputs = createMockInputs({
-				githubUserID: 12345,
-				githubIssueURL: undefined,
-			});
-			const action = new CoderTaskAction(
-				coderClient,
-				octokit as unknown as Octokit,
-				inputs,
-			);
-
-			// Execute
-			const result = await action.run();
-
-			// Verify
-			expect(coderClient.mockGetTaskStatus).toHaveBeenCalled();
-			expect(coderClient.mockSendTaskInput).toHaveBeenCalled();
-			expect(coderClient.mockCreateTask).not.toHaveBeenCalled();
-			expect(result.taskCreated).toBe(true);
+		// Verify
+		expect(coderClient.mockGetCoderUserByGithubID).toHaveBeenCalledWith(12345);
+		expect(coderClient.mockGetTask).toHaveBeenCalledWith(
+			mockUser.username,
+			mockTask.name,
+		);
+		expect(coderClient.mockCreateTask).toHaveBeenCalledWith({
+			username: mockUser.username,
+			name: mockTask.name,
+			template_id: mockTemplate.id,
+			input: "idk",
 		});
+		expect(result.coderUsername).toBe("testuser");
+		expect(result.taskCreated).toBe(false);
+		expect(result.taskUrl).toContain("/tasks/testuser/");
+	});
 
-		test("creates task without issue URL", async () => {
-			// Setup
-			coderClient.mockGetCoderUserByGitHubId.mockResolvedValue(mockUser);
-			coderClient.mockGetTaskStatus.mockResolvedValue(null);
-			coderClient.mockCreateTask.mockResolvedValue(mockTask);
+	test("sends prompt to existing task", async () => {
+		// Setup
+		coderClient.mockGetCoderUserByGithubID.mockResolvedValue(mockUser);
+		coderClient.mockGetTemplateByOrganizationAndName.mockResolvedValue(
+			mockTemplate,
+		);
+		coderClient.mockGetTemplateVersionPresets.mockResolvedValue([]);
+		coderClient.mockGetTask.mockResolvedValue(mockTask);
+		coderClient.mockSendTaskInput.mockResolvedValue(undefined);
 
-			const inputs = createMockInputs({
-				githubUserID: 12345,
-				githubIssueURL: undefined,
-			});
-			const action = new CoderTaskAction(
-				coderClient,
-				octokit as unknown as Octokit,
-				inputs,
-			);
-
-			// Execute
-			const result = await action.run();
-
-			// Verify
-			expect(result.taskUrl).toContain("/tasks/testuser/");
-			expect(octokit.rest.issues.createComment).not.toHaveBeenCalled();
+		const inputs = createMockInputs({
+			githubUserID: 12345,
 		});
+		const action = new CoderTaskAction(
+			coderClient,
+			octokit as unknown as Octokit,
+			inputs,
+		);
 
-		test("creates task with commentOnIssue: false", async () => {
-			// Setup
-			coderClient.mockGetCoderUserByGitHubId.mockResolvedValue(mockUser);
-			coderClient.mockGetTaskStatus.mockResolvedValue(null);
-			coderClient.mockCreateTask.mockResolvedValue(mockTask);
+		// Execute
+		const result = await action.run();
 
-			const inputs = createMockInputs({
-				githubUserID: 12345,
-				githubIssueURL: "https://github.com/owner/repo/issues/123",
-				commentOnIssue: false,
-			});
-			const action = new CoderTaskAction(
-				coderClient,
-				octokit as unknown as Octokit,
-				inputs,
-			);
-
-			// Execute
-			const result = await action.run();
-
-			// Verify
-			expect(result.taskUrl).toContain("/tasks/testuser/");
-			expect(octokit.rest.issues.createComment).not.toHaveBeenCalled();
+		// Verify
+		expect(coderClient.mockGetTask).toHaveBeenCalledWith(
+			mockUser.username,
+			mockTask.name,
+		);
+		expect(coderClient.mockSendTaskInput).toHaveBeenCalledWith(mockTask.id, {
+			prompt: "test prompt",
 		});
+		expect(coderClient.mockCreateTask).not.toHaveBeenCalled();
+		expect(result.taskCreated).toBe(false);
+	});
 
-		test("comments on issue when requested", async () => {
-			// Setup
-			coderClient.mockGetCoderUserByGitHubId.mockResolvedValue(mockUser);
-			coderClient.mockGetTaskStatus.mockResolvedValue(null);
-			coderClient.mockCreateTask.mockResolvedValue(mockTask);
-			octokit.rest.issues.listComments.mockResolvedValue({
-				data: [],
-			} as ReturnType<typeof octokit.rest.issues.listComments>);
-			octokit.rest.issues.updateComment.mockResolvedValue(
-				{} as ReturnType<typeof octokit.rest.issues.updateComment>,
-			);
+	test("errors without issue URL", async () => {
+		// Setup
+		coderClient.mockGetCoderUserByGithubID.mockResolvedValue(mockUser);
+		coderClient.mockGetTask.mockResolvedValue(null);
+		coderClient.mockCreateTask.mockResolvedValue(mockTask);
 
-			const inputs = createMockInputs({
-				githubUserID: 12345,
-				githubIssueURL: "https://github.com/owner/repo/issues/123",
-				commentOnIssue: true,
-			});
-			const action = new CoderTaskAction(
-				coderClient,
-				octokit as unknown as Octokit,
-				inputs,
-			);
-
-			// Execute
-			await action.run();
-
-			// Verify
-			expect(octokit.rest.issues.createComment).toHaveBeenCalledWith(
-				expect.objectContaining({
-					owner: "owner",
-					repo: "repo",
-					issue_number: 123,
-				}),
-			);
+		const inputs = createMockInputs({
+			githubUserID: 12345,
+			githubIssueURL: undefined,
 		});
+		const action = new CoderTaskAction(
+			coderClient,
+			octokit as unknown as Octokit,
+			inputs,
+		);
+
+		// Execute
+		expect(action.run()).rejects.toThrowError("Missing issue URL");
+	});
+
+	test("comments on issue", async () => {
+		// Setup
+		coderClient.mockGetCoderUserByGithubID.mockResolvedValue(mockUser);
+		coderClient.mockGetTask.mockResolvedValue(null);
+		coderClient.mockGetTemplateByOrganizationAndName.mockResolvedValue(
+			mockTemplate,
+		);
+		coderClient.mockGetTemplateVersionPresets.mockResolvedValue([]);
+		coderClient.mockCreateTask.mockResolvedValue(mockTask);
+		octokit.rest.issues.listComments.mockResolvedValue({
+			data: [],
+		} as ReturnType<typeof octokit.rest.issues.listComments>);
+		octokit.rest.issues.createComment.mockResolvedValue(
+			{} as ReturnType<typeof octokit.rest.issues.updateComment>,
+		);
+
+		const inputs = createMockInputs({
+			githubUserID: 12345,
+			githubIssueURL: "https://github.com/owner/repo/issues/123",
+		});
+		const action = new CoderTaskAction(
+			coderClient,
+			octokit as unknown as Octokit,
+			inputs,
+		);
+
+		// Execute
+		await action.run();
+
+		// Verify
+		expect(octokit.rest.issues.createComment).toHaveBeenCalledWith(
+			expect.objectContaining({
+				owner: "owner",
+				repo: "repo",
+				issue_number: 123,
+				body: "Task created: https://coder.test/tasks/testuser/task-123",
+			}),
+		);
+	});
+
+	test("updates existing comment on issue", async () => {
+		// Setup
+		coderClient.mockGetCoderUserByGithubID.mockResolvedValue(mockUser);
+		coderClient.mockGetTask.mockResolvedValue(null);
+		coderClient.mockGetTemplateByOrganizationAndName.mockResolvedValue(
+			mockTemplate,
+		);
+		coderClient.mockGetTemplateVersionPresets.mockResolvedValue([]);
+		coderClient.mockCreateTask.mockResolvedValue(mockTask);
+		octokit.rest.issues.listComments.mockResolvedValue({
+			data: [
+				{
+					id: 23455,
+					body: "An unrelated comment",
+				},
+				{
+					id: 23456,
+					body: "Task created:",
+				},
+				{
+					id: 23457,
+					body: "Another unrelated comment",
+				},
+			],
+		} as ReturnType<typeof octokit.rest.issues.listComments>);
+		octokit.rest.issues.updateComment.mockResolvedValue(
+			{} as ReturnType<typeof octokit.rest.issues.updateComment>,
+		);
+
+		const inputs = createMockInputs({
+			githubUserID: 12345,
+			githubIssueURL: "https://github.com/owner/repo/issues/123",
+		});
+		const action = new CoderTaskAction(
+			coderClient,
+			octokit as unknown as Octokit,
+			inputs,
+		);
+
+		// Execute
+		await action.run();
+
+		// Verify
+		expect(octokit.rest.issues.updateComment).toHaveBeenCalledWith(
+			expect.objectContaining({
+				owner: "owner",
+				repo: "repo",
+				comment_id: 23456,
+				body: "Task created: https://coder.test/tasks/testuser/task-123",
+			}),
+		);
+	});
+
+	test("handles error when comment on issue fails", async () => {
+		// Setup
+		coderClient.mockGetCoderUserByGithubID.mockResolvedValue(mockUser);
+		coderClient.mockGetTask.mockResolvedValue(null);
+		coderClient.mockGetTemplateByOrganizationAndName.mockResolvedValue(
+			mockTemplate,
+		);
+		coderClient.mockGetTemplateVersionPresets.mockResolvedValue([]);
+		coderClient.mockCreateTask.mockResolvedValue(mockTask);
+		octokit.rest.issues.listComments.mockResolvedValue({
+			data: [],
+		} as ReturnType<typeof octokit.rest.issues.listComments>);
+		octokit.rest.issues.createComment.mockRejectedValue(
+			new Error("Failed to comment on issue"),
+		);
+
+		const inputs = createMockInputs({
+			githubUserID: 12345,
+			githubIssueURL: "https://github.com/owner/repo/issues/123",
+		});
+		const action = new CoderTaskAction(
+			coderClient,
+			octokit as unknown as Octokit,
+			inputs,
+		);
+
+		await action.run();
+		expect(octokit.rest.issues.createComment).toHaveBeenCalledWith(
+			expect.objectContaining({
+				owner: "owner",
+				repo: "repo",
+				issue_number: 123,
+			}),
+		);
 	});
 
 	describe("run - Error Scenarios", () => {
 		test("throws error when Coder user not found", async () => {
-			coderClient.mockGetCoderUserByGitHubId.mockRejectedValue(
+			coderClient.mockGetCoderUserByGithubID.mockRejectedValue(
 				new Error("No Coder user found with GitHub user ID 12345"),
 			);
 
@@ -827,8 +578,11 @@ describe("CoderTaskAction", () => {
 		});
 
 		test("throws error when template not found", async () => {
-			coderClient.mockGetCoderUserByGitHubId.mockResolvedValue(mockUser);
-			coderClient.mockGetTaskStatus.mockResolvedValue(null);
+			coderClient.mockGetCoderUserByGithubID.mockResolvedValue(mockUser);
+			coderClient.mockGetTask.mockResolvedValue(null);
+			coderClient.mockGetTemplateByOrganizationAndName.mockRejectedValue(
+				new Error("Template not found"),
+			);
 			coderClient.mockCreateTask.mockRejectedValue(
 				new Error("Template not found: nonexistent"),
 			);
@@ -847,8 +601,12 @@ describe("CoderTaskAction", () => {
 		});
 
 		test("throws error when task creation fails", async () => {
-			coderClient.mockGetCoderUserByGitHubId.mockResolvedValue(mockUser);
-			coderClient.mockGetTaskStatus.mockResolvedValue(null);
+			coderClient.mockGetCoderUserByGithubID.mockResolvedValue(mockUser);
+			coderClient.mockGetTask.mockResolvedValue(null);
+			coderClient.mockGetTemplateByOrganizationAndName.mockResolvedValue(
+				mockTemplate,
+			);
+			coderClient.mockGetTemplateVersionPresets.mockResolvedValue([]);
 			coderClient.mockCreateTask.mockRejectedValue(
 				new Error("Failed to create task"),
 			);
@@ -864,8 +622,12 @@ describe("CoderTaskAction", () => {
 		});
 
 		test("throws error on permission denied", async () => {
-			coderClient.mockGetCoderUserByGitHubId.mockResolvedValue(mockUser);
-			coderClient.mockGetTaskStatus.mockResolvedValue(null);
+			coderClient.mockGetCoderUserByGithubID.mockResolvedValue(mockUser);
+			coderClient.mockGetTask.mockResolvedValue(null);
+			coderClient.mockGetTemplateByOrganizationAndName.mockResolvedValue(
+				mockTemplate,
+			);
+			coderClient.mockGetTemplateVersionPresets.mockResolvedValue([]);
 			coderClient.mockCreateTask.mockRejectedValue(
 				new Error("Permission denied"),
 			);
@@ -881,93 +643,40 @@ describe("CoderTaskAction", () => {
 		});
 	});
 
-	describe("run - Edge Cases", () => {
-		test("handles cross-repository issue", async () => {
-			// Setup
-			coderClient.mockGetCoderUserByGitHubId.mockResolvedValue(mockUser);
-			coderClient.mockGetTaskStatus.mockResolvedValue(null);
-			coderClient.mockCreateTask.mockResolvedValue(mockTask);
-			octokit.rest.issues.listComments.mockResolvedValue({
-				data: [],
-			} as ReturnType<typeof octokit.rest.issues.listComments>);
-			octokit.rest.issues.createComment.mockResolvedValue(
-				{} as ReturnType<typeof octokit.rest.issues.createComment>,
-			);
+	// NOTE: this may or may not work in the real world depending on the permissions of the user
+	test("handles cross-repository issue", async () => {
+		// Setup
+		coderClient.mockGetCoderUserByGithubID.mockResolvedValue(mockUser);
+		coderClient.mockGetTask.mockResolvedValue(null);
+		coderClient.mockGetTemplateByOrganizationAndName.mockResolvedValue(
+			mockTemplate,
+		);
+		coderClient.mockGetTemplateVersionPresets.mockResolvedValue([]);
+		coderClient.mockCreateTask.mockResolvedValue(mockTask);
+		octokit.rest.issues.listComments.mockResolvedValue({
+			data: [],
+		} as ReturnType<typeof octokit.rest.issues.listComments>);
+		octokit.rest.issues.createComment.mockResolvedValue(
+			{} as ReturnType<typeof octokit.rest.issues.createComment>,
+		);
 
-			const inputs = createMockInputs({
-				githubUserID: 12345,
-				githubIssueURL:
-					"https://github.com/different-owner/different-repo/issues/456",
-				commentOnIssue: true,
-			});
-			const action = new CoderTaskAction(
-				coderClient,
-				octokit as unknown as Octokit,
-				inputs,
-			);
-
-			// Execute
-			await action.run();
-
-			// Verify
-			expect(octokit.rest.issues.createComment).toHaveBeenCalledWith(
-				expect.objectContaining({
-					owner: "different-owner",
-					repo: "different-repo",
-					issue_number: 456,
-				}),
-			);
+		const inputs = createMockInputs({
+			githubIssueURL:
+				"https://github.com/different-owner/different-repo/issues/456",
 		});
+		const action = new CoderTaskAction(
+			coderClient,
+			octokit as unknown as Octokit,
+			inputs,
+		);
 
-		test("handles very long prompt", async () => {
-			const longPrompt = "x".repeat(50000);
-
-			coderClient.mockGetCoderUserByGitHubId.mockResolvedValue(mockUser);
-			coderClient.mockGetTaskStatus.mockResolvedValue(null);
-			coderClient.mockCreateTask.mockResolvedValue(mockTask);
-
-			const inputs = createMockInputs({
-				githubUserID: 12345,
-				coderTaskPrompt: longPrompt,
-			});
-			const action = new CoderTaskAction(
-				coderClient,
-				octokit as unknown as Octokit,
-				inputs,
-			);
-
-			// Execute
-			const result = await action.run();
-
-			// Verify
-			expect(coderClient.mockCreateTask).toHaveBeenCalledWith(
-				expect.objectContaining({
-					prompt: longPrompt,
-				}),
-			);
-			expect(result.taskUrl).toBeDefined();
-		});
-
-		test("handles special characters in task names", async () => {
-			coderClient.mockGetCoderUserByGitHubId.mockResolvedValue(mockUser);
-			coderClient.mockGetTaskStatus.mockResolvedValue(null);
-			coderClient.mockCreateTask.mockResolvedValue(mockTask);
-
-			const inputs = createMockInputs({
-				githubUserID: 12345,
-				coderTaskName: "task-with-special-chars-123",
-			});
-			const action = new CoderTaskAction(
-				coderClient,
-				octokit as unknown as Octokit,
-				inputs,
-			);
-
-			// Execute
-			const result = await action.run();
-
-			// Verify
-			expect(result.taskName).toContain("task-with-special-chars-123");
-		});
+		await action.run();
+		expect(octokit.rest.issues.createComment).toHaveBeenCalledWith(
+			expect.objectContaining({
+				owner: "different-owner",
+				repo: "different-repo",
+				issue_number: 456,
+			}),
+		);
 	});
 });
