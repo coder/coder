@@ -1,7 +1,18 @@
 import type { AIBridgeInterception } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { TableCell, TableRow } from "components/Table/Table";
-import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
+import {
+	ArrowDownIcon,
+	ArrowUpIcon,
+	ChevronDownIcon,
+	ChevronRightIcon,
+} from "lucide-react";
 import { type FC, useState } from "react";
 import { cn } from "utils/cn";
 
@@ -57,7 +68,30 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 				</TableCell>
 				<TableCell>{firstPrompt?.prompt}</TableCell>
 				<TableCell>
-					{inputTokens} / {outputTokens}
+					<div className="flex items-center gap-4">
+						<TooltipProvider>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<div className="flex items-center gap-1">
+										<ArrowDownIcon size={16} />
+										<div>{inputTokens}</div>
+									</div>
+								</TooltipTrigger>
+								<TooltipContent>Input Tokens</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+						<TooltipProvider>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<div className="flex items-center gap-1">
+										<ArrowUpIcon size={16} />
+										<div>{outputTokens}</div>
+									</div>
+								</TooltipTrigger>
+								<TooltipContent>Output Tokens</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+					</div>
 				</TableCell>
 				<TableCell>{toolCalls}</TableCell>
 			</TableRow>
