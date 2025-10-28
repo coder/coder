@@ -123,7 +123,7 @@ func (r *RootCmd) createToken() *serpent.Command {
 		{
 			Flag:        "lifetime",
 			Env:         "CODER_TOKEN_LIFETIME",
-			Description: "Specify a duration for the lifetime of the token.",
+			Description: "Duration for the token lifetime. Supports standard Go duration units (ns, us, ms, s, m, h) plus d (days) and y (years). Examples: 8h, 30d, 1y, 1d12h30m.",
 			Value:       serpent.StringOf(&tokenLifetime),
 		},
 		{
