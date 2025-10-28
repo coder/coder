@@ -249,7 +249,7 @@ func (e *executor) init(ctx, killCtx context.Context, logr logSink) error {
 
 	ver, err := e.version(ctx)
 	if err != nil {
-		return xerrors.Errorf("version: %w", err)
+		return xerrors.Errorf("extract version: %w", err)
 	}
 	if ver.GreaterThanOrEqual(version190) {
 		// Added in v1.9.0:
