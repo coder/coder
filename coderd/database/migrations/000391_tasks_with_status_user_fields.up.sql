@@ -38,14 +38,14 @@ AS
 		task_owner.*
 	FROM
 		tasks
-	LEFT JOIN LATERAL (
+	CROSS JOIN LATERAL (
 		SELECT
 			vu.username AS owner_username,
 			vu.name AS owner_name,
 			vu.avatar_url AS owner_avatar_url
 			FROM visible_users vu
 		WHERE vu.id = tasks.owner_id
-	) task_owner ON TRUE
+	) task_owner
 	LEFT JOIN LATERAL (
 		SELECT workspace_build_number, workspace_agent_id, workspace_app_id
 		FROM task_workspace_apps task_app

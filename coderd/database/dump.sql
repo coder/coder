@@ -1992,11 +1992,11 @@ CREATE VIEW tasks_with_status AS
     task_owner.owner_name,
     task_owner.owner_avatar_url
    FROM (((((tasks
-     LEFT JOIN LATERAL ( SELECT vu.username AS owner_username,
+     CROSS JOIN LATERAL ( SELECT vu.username AS owner_username,
             vu.name AS owner_name,
             vu.avatar_url AS owner_avatar_url
            FROM visible_users vu
-          WHERE (vu.id = tasks.owner_id)) task_owner ON (true))
+          WHERE (vu.id = tasks.owner_id)) task_owner)
      LEFT JOIN LATERAL ( SELECT task_app_1.workspace_build_number,
             task_app_1.workspace_agent_id,
             task_app_1.workspace_app_id
