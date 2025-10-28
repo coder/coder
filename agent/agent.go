@@ -400,24 +400,8 @@ func (a *agent) initSocketServer() {
 }
 
 // getSocketPath returns the socket path from options or environment
-func (a *agent) getSocketPath() string {
-	// Check if socket path is explicitly configured
-	if a.getSocketPathFromOptions() != "" {
-		return a.getSocketPathFromOptions()
-	}
-
-	// Check environment variable
-	if path := os.Getenv("CODER_AGENT_SOCKET_PATH"); path != "" {
-		return path
-	}
-
-	// Return empty to disable socket server
-	return ""
-}
-
-// getSocketPathFromOptions returns the socket path from agent options
-func (a *agent) getSocketPathFromOptions() string {
-	return a.socketPath
+func (*agent) getSocketPath() string {
+	return "/tmp/coder.sock"
 }
 
 // runLoop attempts to start the agent in a retry loop.

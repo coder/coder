@@ -74,12 +74,15 @@ func (s *Server) Start() error {
 	}
 
 	// Check if socket is available
-	if !isSocketAvailable(path) {
+	s.logger.Debug(s.ctx, "SOCKET_DEBUG: Checking if socket path is available", slog.F("path", path))
+	if !isSocketAvailable(path, s.logger) {
+		s.logger.Error(s.ctx, "SOCKET_DEBUG: Socket path is not available", slog.F("path", path))
 		return xerrors.Errorf("socket path %s is not available", path)
 	}
+	s.logger.Debug(s.ctx, "SOCKET_DEBUG: Socket path is available", slog.F("path", path))
 
 	// Create socket listener
-	listener, err := createSocket(s.ctx, path)
+	listener, err := createSocket(s.ctx, path, s.logger)
 	if err != nil {
 		return xerrors.Errorf("create socket: %w", err)
 	}
@@ -218,7 +221,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 
 			// Send error response
 			resp := NewErrorResponse("", NewError(ErrCodeParseError, "Parse error", err.Error()))
-			encoder.Encode(resp)
+			_ = encoder.Encode(resp)
 			return
 		}
 
