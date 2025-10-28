@@ -3646,6 +3646,9 @@ const (
 	ExperimentMCPServerHTTP      Experiment = "mcp-server-http"      // Enables the MCP HTTP server functionality.
 	ExperimentWorkspaceSharing   Experiment = "workspace-sharing"    // Enables updating workspace ACLs for sharing with users and groups.
 	ExperimentAIBridge           Experiment = "aibridge"             // Enables AI Bridge functionality.
+	// ExperimentTerraformWorkspace enables using the terraform feature called "Workspaces".
+	// Not to be confused with Coder Workspaces.
+	ExperimentTerraformWorkspace Experiment = "terraform-workspace" // Enables using terraform workspaces to reduce terraform init time.
 )
 
 func (e Experiment) DisplayName() string {
@@ -3668,6 +3671,8 @@ func (e Experiment) DisplayName() string {
 		return "Workspace Sharing"
 	case ExperimentAIBridge:
 		return "AI Bridge"
+	case ExperimentTerraformWorkspace:
+		return "Terraform Workspace Caching"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "web-push" -> "Web Push", "mcp-server-http" -> "Mcp Server Http"
@@ -3687,6 +3692,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentMCPServerHTTP,
 	ExperimentWorkspaceSharing,
 	ExperimentAIBridge,
+	ExperimentTerraformWorkspace,
 }
 
 // ExperimentsSafe should include all experiments that are safe for
