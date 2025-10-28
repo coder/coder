@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"golang.org/x/xerrors"
 )
 
 // SocketClient provides a client for communicating with the agent socket
@@ -27,13 +29,13 @@ func NewSocketClient(config SocketConfig) (*SocketClient, error) {
 		var err error
 		path, err = discoverSocketPath()
 		if err != nil {
-			return nil, fmt.Errorf("discover socket path: %w", err)
+			return nil, xerrors.Errorf("discover socket path: %w", err)
 		}
 	}
 
 	conn, err := net.Dial("unix", path)
 	if err != nil {
-		return nil, fmt.Errorf("connect to socket: %w", err)
+		return nil, xerrors.Errorf("connect to socket: %w", err)
 	}
 
 	return &SocketClient{
@@ -60,12 +62,12 @@ func (c *SocketClient) Ping(ctx context.Context) (*PingResponse, error) {
 	}
 
 	if resp.Error != nil {
-		return nil, fmt.Errorf("ping error: %s", resp.Error.Message)
+		return nil, xerrors.Errorf("ping error: %s", resp.Error.Message)
 	}
 
 	var pingResp PingResponse
 	if err := json.Unmarshal(resp.Result, &pingResp); err != nil {
-		return nil, fmt.Errorf("unmarshal ping response: %w", err)
+		return nil, xerrors.Errorf("unmarshal ping response: %w", err)
 	}
 
 	return &pingResp, nil
@@ -85,12 +87,12 @@ func (c *SocketClient) Health(ctx context.Context) (*HealthResponse, error) {
 	}
 
 	if resp.Error != nil {
-		return nil, fmt.Errorf("health error: %s", resp.Error.Message)
+		return nil, xerrors.Errorf("health error: %s", resp.Error.Message)
 	}
 
 	var healthResp HealthResponse
 	if err := json.Unmarshal(resp.Result, &healthResp); err != nil {
-		return nil, fmt.Errorf("unmarshal health response: %w", err)
+		return nil, xerrors.Errorf("unmarshal health response: %w", err)
 	}
 
 	return &healthResp, nil
@@ -110,12 +112,12 @@ func (c *SocketClient) AgentInfo(ctx context.Context) (*AgentInfo, error) {
 	}
 
 	if resp.Error != nil {
-		return nil, fmt.Errorf("agent info error: %s", resp.Error.Message)
+		return nil, xerrors.Errorf("agent info error: %s", resp.Error.Message)
 	}
 
 	var agentInfo AgentInfo
 	if err := json.Unmarshal(resp.Result, &agentInfo); err != nil {
-		return nil, fmt.Errorf("unmarshal agent info response: %w", err)
+		return nil, xerrors.Errorf("unmarshal agent info response: %w", err)
 	}
 
 	return &agentInfo, nil
@@ -135,38 +137,38 @@ func (c *SocketClient) ListMethods(ctx context.Context) ([]string, error) {
 	}
 
 	if resp.Error != nil {
-		return nil, fmt.Errorf("list methods error: %s", resp.Error.Message)
+		return nil, xerrors.Errorf("list methods error: %s", resp.Error.Message)
 	}
 
 	var methods []string
 	if err := json.Unmarshal(resp.Result, &methods); err != nil {
-		return nil, fmt.Errorf("unmarshal methods response: %w", err)
+		return nil, xerrors.Errorf("unmarshal methods response: %w", err)
 	}
 
 	return methods, nil
 }
 
 // sendRequest sends a request and returns the response
-func (c *SocketClient) sendRequest(ctx context.Context, req *Request) (*Response, error) {
+func (c *SocketClient) sendRequest(_ context.Context, req *Request) (*Response, error) {
 	// Set write deadline
 	if err := c.conn.SetWriteDeadline(time.Now().Add(30 * time.Second)); err != nil {
-		return nil, fmt.Errorf("set write deadline: %w", err)
+		return nil, xerrors.Errorf("set write deadline: %w", err)
 	}
 
 	// Send request
 	if err := json.NewEncoder(c.conn).Encode(req); err != nil {
-		return nil, fmt.Errorf("send request: %w", err)
+		return nil, xerrors.Errorf("send request: %w", err)
 	}
 
 	// Set read deadline
 	if err := c.conn.SetReadDeadline(time.Now().Add(30 * time.Second)); err != nil {
-		return nil, fmt.Errorf("set read deadline: %w", err)
+		return nil, xerrors.Errorf("set read deadline: %w", err)
 	}
 
 	// Read response
 	var resp Response
 	if err := json.NewDecoder(c.conn).Decode(&resp); err != nil {
-		return nil, fmt.Errorf("read response: %w", err)
+		return nil, xerrors.Errorf("read response: %w", err)
 	}
 
 	return &resp, nil
@@ -198,7 +200,7 @@ func discoverSocketPath() (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("agent socket not found")
+	return "", xerrors.New("agent socket not found")
 }
 
 // generateRequestID generates a unique request ID

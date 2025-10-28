@@ -1,33 +1,34 @@
-package agentsdk
+package agentsdk_test
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"cdr.dev/slog"
+
+	"github.com/coder/coder/v2/agent/agentsocket"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
 
 func TestSocketClient_Integration(t *testing.T) {
-	t.Parallel()
-
 	// Create temporary socket path
 	tmpDir := t.TempDir()
 	socketPath := filepath.Join(tmpDir, "test.sock")
 
 	// Set environment variable for socket discovery
-	oldPath := os.Getenv("CODER_AGENT_SOCKET_PATH")
-	defer os.Setenv("CODER_AGENT_SOCKET_PATH", oldPath)
-	os.Setenv("CODER_AGENT_SOCKET_PATH", socketPath)
+	t.Setenv("CODER_AGENT_SOCKET_PATH", socketPath)
 
-	// Start a mock server
-	server := startMockServer(t, socketPath)
+	// Start a real socket server
+	server := startSocketServer(t, socketPath)
 	defer server.Stop()
 
 	// Create client
-	client, err := NewSocketClient(SocketConfig{})
+	client, err := agentsdk.NewSocketClient(agentsdk.SocketConfig{})
 	require.NoError(t, err)
 	defer client.Close()
 
@@ -60,16 +61,14 @@ func TestSocketClient_Integration(t *testing.T) {
 }
 
 func TestSocketClient_Discovery(t *testing.T) {
-	t.Parallel()
-
 	// Test with explicit path
 	tmpDir := t.TempDir()
 	socketPath := filepath.Join(tmpDir, "test.sock")
 
-	server := startMockServer(t, socketPath)
+	server := startSocketServer(t, socketPath)
 	defer server.Stop()
 
-	client, err := NewSocketClient(SocketConfig{Path: socketPath})
+	client, err := agentsdk.NewSocketClient(agentsdk.SocketConfig{Path: socketPath})
 	require.NoError(t, err)
 	defer client.Close()
 
@@ -79,27 +78,33 @@ func TestSocketClient_Discovery(t *testing.T) {
 }
 
 func TestSocketClient_ErrorHandling(t *testing.T) {
-	t.Parallel()
-
 	// Test with non-existent socket
-	client, err := NewSocketClient(SocketConfig{Path: "/nonexistent/socket"})
+	client, err := agentsdk.NewSocketClient(agentsdk.SocketConfig{Path: "/nonexistent/socket"})
 	assert.Error(t, err)
 	assert.Nil(t, client)
 }
 
-// Mock server for testing
-type mockServer struct {
-	path string
-	// Add server implementation here if needed
-}
+// startSocketServer starts a real socket server for testing
+func startSocketServer(t *testing.T, path string) *agentsocket.Server {
+	// Create server
+	server := agentsocket.NewServer(agentsocket.Config{
+		Path:   path,
+		Logger: slog.Make().Leveled(slog.LevelDebug),
+	})
 
-func startMockServer(t *testing.T, path string) *mockServer {
-	// This is a simplified mock - in a real test you'd start an actual server
-	// For now, we'll just return a mock that can be stopped
-	return &mockServer{path: path}
-}
+	// Register default handlers with test data
+	handlerCtx := agentsocket.CreateHandlerContext(
+		"test-agent",
+		"1.0.0",
+		"ready",
+		time.Now().Add(-time.Hour),
+		slog.Make(),
+	)
+	agentsocket.RegisterDefaultHandlers(server, handlerCtx)
 
-func (s *mockServer) Stop() {
-	// Clean up mock server
-	os.Remove(s.path)
+	// Start server
+	err := server.Start()
+	require.NoError(t, err)
+
+	return server
 }
