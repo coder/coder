@@ -230,7 +230,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		r.Route("/aibridge", func(r chi.Router) {
 			r.Use(
 				api.RequireFeatureMW(codersdk.FeatureAIBridge),
-				httpmw.RequireExperimentWithDevBypass(api.AGPL.Experiments, codersdk.ExperimentAIBridge),
+				httpmw.RequireExperimentWithDevBypass(api.AGPL.Experiments),
 			)
 			r.Group(func(r chi.Router) {
 				r.Use(apiKeyMiddleware)
