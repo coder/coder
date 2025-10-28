@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 function terraform_version() {
 	cat <<'EOL'
