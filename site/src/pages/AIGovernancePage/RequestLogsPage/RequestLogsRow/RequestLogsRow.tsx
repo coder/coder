@@ -14,9 +14,12 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 
 	const [firstPrompt] = interception.user_prompts;
 
-	const tokens = interception.token_usages.reduce(
-		(acc, tokenUsage) =>
-			acc + tokenUsage.input_tokens + tokenUsage.output_tokens,
+	const inputTokens = interception.token_usages.reduce(
+		(acc, tokenUsage) => acc + tokenUsage.input_tokens,
+		0,
+	);
+	const outputTokens = interception.token_usages.reduce(
+		(acc, tokenUsage) => acc + tokenUsage.output_tokens,
 		0,
 	);
 	const toolCalls = interception.tool_usages.length;
@@ -53,7 +56,9 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 					</div>
 				</TableCell>
 				<TableCell>{firstPrompt?.prompt}</TableCell>
-				<TableCell>{tokens}</TableCell>
+				<TableCell>
+					{inputTokens} / {outputTokens}
+				</TableCell>
 				<TableCell>{toolCalls}</TableCell>
 			</TableRow>
 			{isOpen && (
@@ -83,8 +88,11 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 								<dt>Model:</dt>
 								<dd data-chromatic="ignore">{interception.model}</dd>
 
-								<dt>Total Tokens:</dt>
-								<dd data-chromatic="ignore">{tokens}</dd>
+								<dt>Input Tokens:</dt>
+								<dd data-chromatic="ignore">{inputTokens}</dd>
+
+								<dt>Output Tokens:</dt>
+								<dd data-chromatic="ignore">{outputTokens}</dd>
 
 								<dt>Tool Calls:</dt>
 								<dd data-chromatic="ignore">
