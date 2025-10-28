@@ -364,6 +364,7 @@ message Metadata {
   repeated RunningAgentAuthToken running_agent_auth_tokens = 21;
   string task_id = 22;
   string task_prompt = 23;
+  string template_version_id = 24;
 }
 
 // Config represents execution configuration shared by all subsequent requests in the Session

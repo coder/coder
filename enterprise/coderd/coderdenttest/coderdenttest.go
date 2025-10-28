@@ -412,8 +412,9 @@ func newExternalProvisionerDaemon(t testing.TB, client *codersdk.Client, org uui
 				BinaryPath: terraformPath,
 				CachePath:  t.TempDir(),
 				ServeOptions: &provisionersdk.ServeOptions{
-					Listener:      provisionerSrv,
-					WorkDirectory: t.TempDir(),
+					Listener:            provisionerSrv,
+					WorkDirectory:       t.TempDir(),
+					TerraformWorkspaces: false,
 				},
 			}))
 		}()

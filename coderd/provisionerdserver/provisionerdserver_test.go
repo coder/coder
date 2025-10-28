@@ -450,6 +450,7 @@ func TestAcquireJob(t *testing.T) {
 					TemplateId:                    template.ID.String(),
 					TemplateName:                  template.Name,
 					TemplateVersion:               version.Name,
+					TemplateVersionId:             version.ID.String(),
 					WorkspaceOwnerSessionToken:    sessionToken,
 					WorkspaceOwnerSshPublicKey:    sshKey.PublicKey,
 					WorkspaceOwnerSshPrivateKey:   sshKey.PrivateKey,
@@ -2873,7 +2874,7 @@ func TestCompleteJob(t *testing.T) {
 				{
 					name:       "has_ai_task is false by default",
 					transition: database.WorkspaceTransitionStart,
-					input:      &proto.CompletedJob_WorkspaceBuild{
+					input: &proto.CompletedJob_WorkspaceBuild{
 						// No AiTasks defined.
 					},
 					isTask:           false,

@@ -30,6 +30,11 @@ type ServeOptions struct {
 	Logger              slog.Logger
 	WorkDirectory       string
 	ExternalProvisioner bool
+
+	// TerraformWorkspaces is an experimental feature to reuse the same directory for
+	// the same template version. Leveraging terraform workspaces to keep tfstate
+	// isolated per workspace.
+	TerraformWorkspaces bool
 }
 
 type Server interface {

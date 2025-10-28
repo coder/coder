@@ -718,6 +718,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					TemplateId:                    template.ID.String(),
 					TemplateName:                  template.Name,
 					TemplateVersion:               templateVersion.Name,
+					TemplateVersionId:             templateVersion.ID.String(),
 					WorkspaceOwnerSessionToken:    sessionToken,
 					WorkspaceOwnerSshPublicKey:    ownerSSHPublicKey,
 					WorkspaceOwnerSshPrivateKey:   ownerSSHPrivateKey,

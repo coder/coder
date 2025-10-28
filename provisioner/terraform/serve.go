@@ -3,6 +3,7 @@ package terraform
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/jobreaper"
@@ -134,13 +136,14 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 		options.ExitTimeout = jobreaper.HungJobExitTimeout
 	}
 	return provisionersdk.Serve(ctx, &server{
-		execMut:       &sync.Mutex{},
-		binaryPath:    options.BinaryPath,
-		cachePath:     options.CachePath,
-		cliConfigPath: options.CliConfigPath,
-		logger:        options.Logger,
-		tracer:        options.Tracer,
-		exitTimeout:   options.ExitTimeout,
+		execMut:             &sync.Mutex{},
+		binaryPath:          options.BinaryPath,
+		cachePath:           options.CachePath,
+		cliConfigPath:       options.CliConfigPath,
+		logger:              options.Logger,
+		tracer:              options.Tracer,
+		exitTimeout:         options.ExitTimeout,
+		terraformWorkspaces: options.TerraformWorkspaces,
 	}, options.ServeOptions)
 }
 
@@ -152,6 +155,8 @@ type server struct {
 	logger        slog.Logger
 	tracer        trace.Tracer
 	exitTimeout   time.Duration
+
+	terraformWorkspaces bool
 }
 
 func (s *server) startTrace(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {

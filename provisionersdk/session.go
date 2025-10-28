@@ -52,11 +52,29 @@ func (p *protoServer) Session(stream proto.DRPCProvisioner_SessionStream) error 
 	}
 
 	s.WorkDirectory = filepath.Join(p.opts.WorkDirectory, SessionDir(sessID))
+
+	if p.opts.TerraformWorkspaces {
+		// Using a static "shared" directory for all sessions. Each executor
+		// will have to create/use a subdirectory for its workspace.
+		// TODO: This does not have to be a subdirectory, since the "WorkDirectory"
+		// is already a top level container. However, to keep this experiment files
+		// isolated, we use a "shared" subdirectory alongside the previous "session"
+		// directories.
+		s.WorkDirectory = filepath.Join(p.opts.WorkDirectory, "shared")
+	}
+
 	err = os.MkdirAll(s.WorkDirectory, 0o700)
 	if err != nil {
 		return xerrors.Errorf("create work directory %q: %w", s.WorkDirectory, err)
 	}
 	defer func() {
+		if p.opts.TerraformWorkspaces {
+			// No cleanup is required here.
+			// TODO: Some cron style cleanup of old terraform directories.
+			// These files will currently accumulate forever.
+			return
+		}
+
 		var err error
 		// Cleanup the work directory after execution.
 		for attempt := 0; attempt < 5; attempt++ {

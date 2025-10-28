@@ -3648,7 +3648,7 @@ const (
 	ExperimentAIBridge           Experiment = "aibridge"             // Enables AI Bridge functionality.
 	// ExperimentTerraformWorkspace enables using the terraform feature called "Workspaces".
 	// Not to be confused with Coder Workspaces.
-	ExperimentTerraformWorkspace Experiment = "terraform-workspace" // Enables using terraform workspaces to reduce terraform init time.
+	ExperimentTerraformWorkspace Experiment = "terraform-workspaces" // Enables using terraform workspaces to reduce terraform init time.
 )
 
 func (e Experiment) DisplayName() string {

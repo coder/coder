@@ -70,9 +70,10 @@ func setupProvisioner(t *testing.T, opts *provisionerServeOptions) (context.Cont
 	go func() {
 		serverErr <- terraform.Serve(ctx, &terraform.ServeOptions{
 			ServeOptions: &provisionersdk.ServeOptions{
-				Listener:      server,
-				Logger:        *opts.logger,
-				WorkDirectory: opts.workDir,
+				Listener:            server,
+				Logger:              *opts.logger,
+				WorkDirectory:       opts.workDir,
+				TerraformWorkspaces: false,
 			},
 			BinaryPath:    opts.binaryPath,
 			CachePath:     cachePath,

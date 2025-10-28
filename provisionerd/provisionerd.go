@@ -378,6 +378,7 @@ func (p *Server) acquireAndRunOne(client proto.DRPCProvisionerDaemonClient) erro
 			slog.F("workspace_owner", build.Metadata.WorkspaceOwner),
 			slog.F("template_name", build.Metadata.TemplateName),
 			slog.F("template_version", build.Metadata.TemplateVersion),
+			slog.F("template_version_id", build.Metadata.TemplateVersionId),
 			slog.F("workspace_build_id", build.WorkspaceBuildId),
 			slog.F("workspace_id", build.Metadata.WorkspaceId),
 			slog.F("workspace_name", build.WorkspaceName),

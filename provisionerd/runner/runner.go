@@ -129,6 +129,7 @@ func New(
 		logger = logger.With(
 			slog.F("template_name", build.Metadata.TemplateName),
 			slog.F("template_version", build.Metadata.TemplateVersion),
+			slog.F("template_version_id", build.Metadata.TemplateVersionId),
 			slog.F("workspace_build_id", build.WorkspaceBuildId),
 			slog.F("workspace_id", build.Metadata.WorkspaceId),
 			slog.F("workspace_name", build.Metadata.WorkspaceName),
@@ -848,6 +849,13 @@ func (r *Runner) runTemplateDryRun(ctx context.Context) (*proto.CompletedJob, *p
 			return nil, r.failedJobf("generate random ID: %s", err)
 		}
 		metadata.WorkspaceOwnerId = id.String()
+	}
+	if metadata.TemplateVersionId == "" {
+		id, err := uuid.NewRandom()
+		if err != nil {
+			return nil, r.failedJobf("generate random ID: %s", err)
+		}
+		metadata.TemplateVersionId = id.String()
 	}
 
 	failedJob := r.configure(&sdkproto.Config{
