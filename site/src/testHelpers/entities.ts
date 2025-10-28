@@ -5061,6 +5061,7 @@ export const MockInterception: TypesGen.AIBridgeInterception = {
 	provider: "openai",
 	model: "gpt-4o",
 	started_at: "2022-05-17T17:39:01.382927298Z",
+	ended_at: "2022-05-17T17:39:01.382927298Z",
 	token_usages: [
 		{
 			id: "32e7fd17-24be-46b9-b867-2f0adfd42aff",
