@@ -759,6 +759,10 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					// There is no owner for a template import, but we can assume
 					// the "Everyone" group as a placeholder.
 					WorkspaceOwnerGroups: []string{database.EveryoneGroup},
+					// Make up a random TemplateVersionId to avoid collisions
+					// TODO: If using terraform workspaces, this will leave behind
+					// directories.
+					TemplateVersionId: uuid.NewString(),
 				},
 			},
 		}
@@ -782,6 +786,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					// There is no owner for a template import, but we can assume
 					// the "Everyone" group as a placeholder.
 					WorkspaceOwnerGroups: []string{database.EveryoneGroup},
+					TemplateVersionId:    input.TemplateVersionID.String(),
 				},
 			},
 		}

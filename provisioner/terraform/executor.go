@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hashicorp/go-version"
 	tfjson "github.com/hashicorp/terraform-json"
 	"go.opentelemetry.io/otel/attribute"
@@ -289,14 +290,6 @@ func checksumFileCRC32(ctx context.Context, logger slog.Logger, path string) uin
 	return crc32.ChecksumIEEE(content)
 }
 
-func getPlanFilePath(workdir string) string {
-	return filepath.Join(workdir, "terraform.tfplan")
-}
-
-func getStateFilePath(workdir string) string {
-	return filepath.Join(workdir, "terraform.tfstate")
-}
-
 // revive:disable-next-line:flag-parameter
 func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr logSink, req *proto.PlanRequest) (*proto.PlanComplete, error) {
 	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
@@ -305,9 +298,16 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 	e.mut.Lock()
 	defer e.mut.Unlock()
 
+	if e.server.terraformWorkspaces {
+		err := e.workspaceUse(ctx, killCtx, e.server.tfWorkspaceID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	metadata := req.Metadata
 
-	planfilePath := getPlanFilePath(e.workdir)
+	planfilePath := e.server.getPlanFilePath(e.workdir)
 	args := []string{
 		"plan",
 		"-no-color",
@@ -571,6 +571,45 @@ func (e *executor) graph(ctx, killCtx context.Context) (string, error) {
 	return out.String(), nil
 }
 
+// graph must only be called while the lock is held.
+func (e *executor) workspaceUse(ctx, killCtx context.Context, workspaceID uuid.UUID) error {
+	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
+	defer span.End()
+
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+
+	args := []string{
+		"workspace",
+		"select",
+		workspaceID.String(),
+	}
+
+	var out strings.Builder
+	cmd := exec.CommandContext(killCtx, e.binaryPath, args...) // #nosec
+	cmd.Stdout = &out
+	cmd.Dir = e.workdir
+	cmd.Env = e.basicEnv()
+
+	e.server.logger.Debug(ctx, "executing terraform new workspace",
+		slog.F("binary_path", e.binaryPath),
+		slog.F("args", strings.Join(args, " ")),
+	)
+	err := cmd.Start()
+	if err != nil {
+		return err
+	}
+	interruptCommandOnCancel(ctx, killCtx, e.logger, cmd)
+
+	// TODO: The output here could be useful for debugging.
+	err = cmd.Wait()
+	if err != nil {
+		return xerrors.Errorf("workspace new (%s): %w", workspaceID.String(), err)
+	}
+	return nil
+}
+
 func (e *executor) apply(
 	ctx, killCtx context.Context,
 	env []string,
@@ -582,13 +621,22 @@ func (e *executor) apply(
 	e.mut.Lock()
 	defer e.mut.Unlock()
 
+	if e.server.terraformWorkspaces {
+		id := e.server.tfWorkspaceID.String()
+		fmt.Println(id)
+		err := e.workspaceUse(ctx, killCtx, e.server.tfWorkspaceID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	args := []string{
 		"apply",
 		"-no-color",
 		"-auto-approve",
 		"-input=false",
 		"-json",
-		getPlanFilePath(e.workdir),
+		e.server.getPlanFilePath(e.workdir),
 	}
 
 	outWriter, doneOut := e.provisionLogWriter(logr)
@@ -608,7 +656,7 @@ func (e *executor) apply(
 	if err != nil {
 		return nil, err
 	}
-	statefilePath := filepath.Join(e.workdir, "terraform.tfstate")
+	statefilePath := e.server.getStateFilePath(e.workdir)
 	stateContent, err := os.ReadFile(statefilePath)
 	if err != nil {
 		return nil, xerrors.Errorf("read statefile %q: %w", statefilePath, err)

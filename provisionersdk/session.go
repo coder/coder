@@ -39,9 +39,10 @@ type protoServer struct {
 }
 
 func (p *protoServer) Session(stream proto.DRPCProvisioner_SessionStream) error {
-	sessID := uuid.New().String()
+	sessID := uuid.New()
 	s := &Session{
-		Logger: p.opts.Logger.With(slog.F("session_id", sessID)),
+		ID:     sessID,
+		Logger: p.opts.Logger.With(slog.F("session_id", sessID.String())),
 		stream: stream,
 		server: p.server,
 	}
@@ -64,8 +65,11 @@ func (p *protoServer) Session(stream proto.DRPCProvisioner_SessionStream) error 
 		s.logLevel = proto.LogLevel_value[strings.ToUpper(s.Config.ProvisionerLogLevel)]
 	}
 
-	s.WorkDirectory = filepath.Join(p.opts.WorkDirectory, SessionDir(sessID))
+	s.WorkDirectory = filepath.Join(p.opts.WorkDirectory, SessionDir(sessID.String()))
 	if p.opts.TerraformWorkspaces {
+		if s.Config.TemplateVersionId == "" {
+			return xerrors.Errorf("template version id is required")
+		}
 		// All workspaces with the same template version will share the same
 		// terraform directory. Leveraging terraform workspaces to isolate tfstate.
 		// Using a `shared` directory to contain next to session directories.
@@ -238,6 +242,7 @@ func (s *Session) handleRequests() error {
 
 type Session struct {
 	Logger        slog.Logger
+	ID            uuid.UUID
 	WorkDirectory string
 	Config        *proto.Config
 

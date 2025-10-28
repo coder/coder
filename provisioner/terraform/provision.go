@@ -92,7 +92,7 @@ func (s *server) Plan(
 		return &proto.PlanComplete{}
 	}
 
-	statefilePath := getStateFilePath(sess.WorkDirectory)
+	statefilePath := e.server.getStateFilePath(sess.WorkDirectory)
 	if len(sess.Config.State) > 0 {
 		err := os.WriteFile(statefilePath, sess.Config.State, 0o600)
 		if err != nil {
@@ -201,7 +201,7 @@ func (s *server) Apply(
 	}
 
 	// Earlier in the session, Plan() will have written the state file and the plan file.
-	statefilePath := getStateFilePath(sess.WorkDirectory)
+	statefilePath := e.server.getStateFilePath(sess.WorkDirectory)
 	env, err := provisionEnv(sess.Config, request.Metadata, nil, nil, nil)
 	if err != nil {
 		return provisionersdk.ApplyErrorf("provision env: %s", err)

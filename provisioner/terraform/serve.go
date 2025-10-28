@@ -3,11 +3,13 @@ package terraform
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/cli/safeexec"
+	"github.com/google/uuid"
 	"github.com/hashicorp/go-version"
 	semconv "go.opentelemetry.io/otel/semconv/v1.14.0"
 	"go.opentelemetry.io/otel/trace"
@@ -142,6 +144,7 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 		tracer:              options.Tracer,
 		exitTimeout:         options.ExitTimeout,
 		terraformWorkspaces: options.TerraformWorkspaces,
+		tfWorkspaceID:       uuid.New(),
 	}, options.ServeOptions)
 }
 
@@ -155,6 +158,7 @@ type server struct {
 	exitTimeout   time.Duration
 
 	terraformWorkspaces bool
+	tfWorkspaceID       uuid.UUID
 }
 
 func (s *server) startTrace(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
@@ -164,7 +168,7 @@ func (s *server) startTrace(ctx context.Context, name string, opts ...trace.Span
 }
 
 func (s *server) executor(workdir string, stage database.ProvisionerJobTimingStage) *executor {
-	return &executor{
+	e := &executor{
 		server:        s,
 		mut:           s.execMut,
 		binaryPath:    s.binaryPath,
@@ -174,4 +178,30 @@ func (s *server) executor(workdir string, stage database.ProvisionerJobTimingSta
 		logger:        s.logger.Named("executor"),
 		timings:       newTimingAggregator(stage),
 	}
+
+	if s.terraformWorkspaces {
+		// TODO: Catch this error
+		_ = os.MkdirAll(s.tfWorkspaceDir(workdir), 0o700)
+	}
+	return e
+}
+
+func (s *server) tfWorkspaceDir(workdir string) string {
+	return filepath.Join(workdir, "terraform.tfstate.d", s.tfWorkspaceID.String())
+}
+
+func (s *server) getPlanFilePath(workdir string) string {
+	const filename = "terraform.tfplan"
+	if s.terraformWorkspaces {
+		return filepath.Join(s.tfWorkspaceDir(workdir), filename)
+	}
+	return filepath.Join(workdir, filename)
+}
+
+func (s *server) getStateFilePath(workdir string) string {
+	const filename = "terraform.tfstate"
+	if s.terraformWorkspaces {
+		return filepath.Join(s.tfWorkspaceDir(workdir), filename)
+	}
+	return filepath.Join(workdir, filename)
 }

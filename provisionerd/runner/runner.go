@@ -516,6 +516,7 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 
 	failedJob := r.configure(&sdkproto.Config{
 		TemplateSourceArchive: r.job.GetTemplateSourceArchive(),
+		TemplateVersionId:     r.job.GetTemplateImport().Metadata.TemplateVersionId,
 	})
 	if failedJob != nil {
 		return nil, failedJob
