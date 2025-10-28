@@ -120,7 +120,6 @@ func (b WorkspaceBuildBuilder) WithAgent(mutations ...func([]*sdkproto.Agent) []
 func (b WorkspaceBuildBuilder) WithTask(taskSeed database.TaskTable, appSeed *sdkproto.App) WorkspaceBuildBuilder {
 	//nolint:revive // returns modified struct
 	b.taskSeed = taskSeed
-	b.taskSeed.Prompt = takeFirst(b.taskSeed.Prompt, "list me")
 
 	if appSeed == nil {
 		appSeed = &sdkproto.App{}
