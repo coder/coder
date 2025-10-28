@@ -480,3 +480,123 @@ export const CheckExternalAuthOnChangingVersions: Story = {
 		});
 	},
 };
+
+export const CheckPresetsWhenChangingTemplate: Story = {
+	args: {
+		templates: [
+			{
+				...MockTemplate,
+				id: "claude-code",
+				name: "claude-code",
+				display_name: "Claude Code",
+				active_version_id: "claude-code-version",
+			},
+			{
+				...MockTemplate,
+				id: "codex",
+				name: "codex",
+				display_name: "Codex",
+				active_version_id: "codex-version",
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API, "getTemplateVersionPresets").mockImplementation((versionId) => {
+			if (versionId === "claude-code-version") {
+				return Promise.resolve([
+					{
+						...MockPresets[0],
+						ID: "claude-code-preset-1",
+						Name: "Claude Code Dev",
+					},
+				]);
+			}
+			if (versionId === "codex-version") {
+				return Promise.resolve([
+					{
+						...MockPresets[0],
+						ID: "codex-preset-1",
+						Name: "Codex Dev",
+					},
+				]);
+			}
+			return Promise.resolve([]);
+		});
+		spyOn(API, "getTemplateVersions").mockImplementation((templateId) => {
+			if (templateId === "claude-code") {
+				return Promise.resolve([
+					{
+						...MockTemplateVersion,
+						id: "claude-code-version",
+						name: "claude-code-version",
+					},
+				]);
+			}
+			if (templateId === "codex") {
+				return Promise.resolve([
+					{
+						...MockTemplateVersion,
+						id: "codex-version",
+						name: "codex-version",
+					},
+				]);
+			}
+			return Promise.resolve([]);
+		});
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+
+		await step("Presets are initially present", async () => {
+			const presetSelect = await canvas.findByLabelText(/preset/i);
+			await userEvent.click(presetSelect);
+
+			const options = await body.findAllByRole("option");
+			expect(options).toHaveLength(1);
+			expect(options[0]).toContainHTML("Claude Code Dev");
+
+			await userEvent.click(options[0]);
+		});
+
+		await step("Switch template", async () => {
+			const templateSelect = await canvas.findByLabelText(/select template/i);
+			await userEvent.click(templateSelect);
+
+			const codexTemplateOption = await body.findByRole("option", {
+				name: /codex/i,
+			});
+			await userEvent.click(codexTemplateOption);
+		});
+
+		await step("Presets are present in new template", async () => {
+			const presetSelect = await canvas.findByLabelText(/preset/i);
+			await userEvent.click(presetSelect);
+
+			const options = await body.findAllByRole("option");
+			expect(options).toHaveLength(1);
+			expect(options[0]).toContainHTML("Codex Dev");
+
+			await userEvent.click(options[0]);
+		});
+
+		await step("Switch template back", async () => {
+			const templateSelect = await canvas.findByLabelText(/select template/i);
+			await userEvent.click(templateSelect);
+
+			const codexTemplateOption = await body.findByRole("option", {
+				name: /claude code/i,
+			});
+			await userEvent.click(codexTemplateOption);
+		});
+
+		await step("Presets are present in original template", async () => {
+			const presetSelect = await canvas.findByLabelText(/preset/i);
+			await userEvent.click(presetSelect);
+
+			const options = await body.findAllByRole("option");
+			expect(options).toHaveLength(1);
+			expect(options[0]).toContainHTML("Claude Code Dev");
+		});
+	},
+};
