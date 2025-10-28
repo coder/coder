@@ -4,7 +4,10 @@ import {
 	getDefaultFilterProps,
 	MockMenu,
 } from "components/Filter/storyHelpers";
-import { mockSuccessResult } from "components/PaginationWidget/PaginationContainer.mocks";
+import {
+	mockInitialRenderResult,
+	mockSuccessResult,
+} from "components/PaginationWidget/PaginationContainer.mocks";
 import type { UsePaginatedQueryResult } from "hooks/usePaginatedQuery";
 import type { ComponentProps } from "react";
 import { RequestLogsPageView } from "./RequestLogsPageView";
@@ -66,6 +69,20 @@ export const Empty: Story = {
 			...mockSuccessResult,
 			totalRecords: 0,
 			data: { interceptions: [], total: 0 },
+		} as UsePaginatedQueryResult,
+	},
+};
+
+export const Loading: Story = {
+	args: {
+		isLoading: true,
+		isRequestLogsVisible: true,
+		interceptions: [],
+		filterProps: {
+			...defaultFilterProps,
+		},
+		interceptionsQuery: {
+			...mockInitialRenderResult,
 		} as UsePaginatedQueryResult,
 	},
 };
