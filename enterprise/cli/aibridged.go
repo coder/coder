@@ -7,6 +7,8 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/coder/aibridge"
 	"github.com/coder/coder/v2/enterprise/coderd"
 	"github.com/coder/coder/v2/enterprise/x/aibridged"
@@ -39,7 +41,7 @@ func newAIBridgeDaemon(coderAPI *coderd.API) (*aibridged.Server, error) {
 	// Create daemon.
 	srv, err := aibridged.New(ctx, pool, func(dialCtx context.Context) (aibridged.DRPCClient, error) {
 		return coderAPI.CreateInMemoryAIBridgeServer(dialCtx)
-	}, logger)
+	}, prometheus.WrapRegistererWithPrefix("coder_aibridged_", coderAPI.PrometheusRegistry), logger)
 	if err != nil {
 		return nil, xerrors.Errorf("start in-memory aibridge daemon: %w", err)
 	}
