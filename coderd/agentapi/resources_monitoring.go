@@ -112,7 +112,7 @@ func (a *ResourcesMonitoringAPI) PushResourcesMonitoringUsage(ctx context.Contex
 }
 
 func (a *ResourcesMonitoringAPI) monitorMemory(ctx context.Context, datapoints []*proto.PushResourcesMonitoringUsageRequest_Datapoint) error {
-	if !a.memoryMonitor.Enabled || a.memoryMonitor.CreatedAt.IsZero() {
+	if !a.memoryMonitor.Enabled {
 		return nil
 	}
 
