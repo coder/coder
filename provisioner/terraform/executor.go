@@ -28,7 +28,10 @@ import (
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
-var version170 = version.Must(version.NewVersion("1.7.0"))
+var (
+	version170 = version.Must(version.NewVersion("1.7.0"))
+	version190 = version.Must(version.NewVersion("1.9.0"))
+)
 
 type executor struct {
 	logger     slog.Logger
@@ -242,10 +245,18 @@ func (e *executor) init(ctx, killCtx context.Context, logr logSink) error {
 		"init",
 		"-no-color",
 		"-input=false",
-		"-json",
 	}
 
-	err := e.execWriteOutput(ctx, killCtx, args, e.basicEnv(), outWriter, errBuf)
+	ver, err := e.version(ctx)
+	if err != nil {
+		return xerrors.Errorf("version: %w", err)
+	}
+	if ver.GreaterThanOrEqual(version190) {
+		// Added in v1.9.0:
+		args = append(args, "-json")
+	}
+
+	err = e.execWriteOutput(ctx, killCtx, args, e.basicEnv(), outWriter, errBuf)
 	var exitErr *exec.ExitError
 	if xerrors.As(err, &exitErr) {
 		if bytes.Contains(errBuf.b.Bytes(), []byte("text file busy")) {
