@@ -13019,11 +13019,12 @@ const insertTask = `-- name: InsertTask :one
 INSERT INTO tasks
 	(id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at)
 VALUES
-	(gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8)
+	($1, $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at
 `
 
 type InsertTaskParams struct {
+	ID                 uuid.UUID       `db:"id" json:"id"`
 	OrganizationID     uuid.UUID       `db:"organization_id" json:"organization_id"`
 	OwnerID            uuid.UUID       `db:"owner_id" json:"owner_id"`
 	Name               string          `db:"name" json:"name"`
@@ -13036,6 +13037,7 @@ type InsertTaskParams struct {
 
 func (q *sqlQuerier) InsertTask(ctx context.Context, arg InsertTaskParams) (TaskTable, error) {
 	row := q.db.QueryRowContext(ctx, insertTask,
+		arg.ID,
 		arg.OrganizationID,
 		arg.OwnerID,
 		arg.Name,

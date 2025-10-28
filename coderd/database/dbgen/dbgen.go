@@ -1576,6 +1576,7 @@ func Task(t testing.TB, db database.Store, orig database.TaskTable) database.Tas
 	}
 
 	task, err := db.InsertTask(genCtx, database.InsertTaskParams{
+		ID:                 takeFirst(orig.ID, uuid.New()),
 		OrganizationID:     orig.OrganizationID,
 		OwnerID:            orig.OwnerID,
 		Name:               takeFirst(orig.Name, taskname.GenerateFallback()),
