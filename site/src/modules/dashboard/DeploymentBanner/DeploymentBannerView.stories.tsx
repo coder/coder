@@ -33,7 +33,9 @@ export const WithHealthIssues: Story = {
 			return;
 		}
 		await userEvent.hover(healthLink);
-		await waitFor(() => expect(screen.getByRole("tooltip")).toBeInTheDocument());
+		await waitFor(() =>
+			expect(screen.getByRole("tooltip")).toBeInTheDocument(),
+		);
 	},
 };
 
