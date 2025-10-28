@@ -75,10 +75,19 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 								<dt>Request ID:</dt>
 								<dd data-chromatic="ignore">{interception.id}</dd>
 
-								<dt>Timestamp:</dt>
+								<dt>Start Time:</dt>
 								<dd data-chromatic="ignore">
 									{new Date(interception.started_at).toLocaleString()}
 								</dd>
+
+								{interception.ended_at && (
+									<>
+										<dt>End Time:</dt>
+										<dd data-chromatic="ignore">
+											{new Date(interception.ended_at).toLocaleString()}
+										</dd>
+									</>
+								)}
 
 								<dt>Initiator:</dt>
 								<dd data-chromatic="ignore">
