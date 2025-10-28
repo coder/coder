@@ -30,7 +30,7 @@ var (
 	executionOrder = [][]initMessageCode{
 		{
 			initInitializingBackendMessage,
-			initInitializingStateStoreMessage, // Using a state store backend
+			initInitializingStateStoreMessage, // If using a state store backend
 		},
 		{
 			initInitializingModulesMessage,
@@ -48,10 +48,10 @@ var (
 // These logs are formatted differently from plan/apply logs, so they need their
 // own ingestion logic.
 //
-// The logs are also less granular, only indicating the start and end of
-// major init stages, rather than per-resource actions.
-// Since initialization is done serially, we can infer the end time of each
-// stage from the start time of the next stage.
+// The logs are also less granular, only indicating the start of major init
+// steps, rather than per-resource actions. Since initialization is done
+// serially, we can infer the end time of each stage from the start time of the
+// next stage.
 func (t *timingAggregator) ingestInitTiming(ts time.Time, s *timingSpan) {
 	switch s.messageCode {
 	case initInitializingBackendMessage, initInitializingStateStoreMessage:
@@ -76,12 +76,15 @@ func (t *timingAggregator) ingestInitTiming(ts time.Time, s *timingSpan) {
 	}
 
 	// Init logs should be assigned to the init stage.
+	// Ideally the executor could use an `init` stage aggregator directly, but
+	// that would require a larger refactor.
 	s.stage = database.ProvisionerJobTimingStageInit
-	// The default action is an empty string
+	// The default action is an empty string. Set it to "load" for some human readability.
 	s.action = "load"
 	// Resource name is an empty string. Name it something more useful.
 	s.resource = resourceName[s.messageCode]
 
+	// finishPrevious completes the previous step in the init sequence, if applicable.
 	t.finishPrevious(ts, s)
 
 	t.lookupMu.Lock()
@@ -104,6 +107,16 @@ func (t *timingAggregator) finishPrevious(ts time.Time, s *timingSpan) {
 	previousSteps := executionOrder[index-1]
 
 	t.lookupMu.Lock()
+	// Complete the previous step. We are not tracking the state of these steps, so
+	// we cannot tell for sure what the previous step `MessageCode` was. The
+	// aggregator only reports timings that have a start & end. So if we end all
+	// possible previous step `MessageCodes`, the aggregator will only report the one
+	// that was actually started.
+	//
+	// This is a bit of a hack, but it works given the constraints of the init logs.
+	// Ideally we would store more state about the init steps. Or loop over the
+	// stored timings to find the one that was started. This is just simpler and
+	// accomplishes the same goal.
 	for _, step := range previousSteps {
 		cpy := *s
 		cpy.start = time.Time{}
