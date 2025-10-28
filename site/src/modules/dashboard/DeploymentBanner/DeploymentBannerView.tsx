@@ -115,12 +115,18 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 								className="flex p-3 bg-content-destructive"
 								showExternalIcon={false}
 							>
-								<RouterLink to="/health">
+								<RouterLink
+									to="/health"
+									data-testid="deployment-health-trigger"
+								>
 									<CircleAlertIcon className="text-content-primary" />
 								</RouterLink>
 							</Link>
 						) : (
-							<div className="flex h-full items-center justify-center pl-3">
+							<div
+								className="flex h-full items-center justify-center pl-3"
+								data-testid="deployment-health-trigger"
+							>
 								<RocketIcon className="size-icon-sm" />
 							</div>
 						)}

@@ -25,14 +25,8 @@ export const WithHealthIssues: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const healthLink = canvas
-			.getAllByRole("link")
-			.find((el) => el.getAttribute("href") === "/health");
-		if (!healthLink) {
-			expect(healthLink).toBeDefined();
-			return;
-		}
-		await userEvent.hover(healthLink);
+		const trigger = canvas.getByTestId("deployment-health-trigger");
+		await userEvent.hover(trigger);
 		await waitFor(() =>
 			expect(screen.getByRole("tooltip")).toBeInTheDocument(),
 		);
@@ -48,5 +42,13 @@ export const WithDismissedHealthIssues: Story = {
 				dismissed: true,
 			},
 		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const trigger = canvas.getByTestId("deployment-health-trigger");
+		await userEvent.hover(trigger);
+		await waitFor(() =>
+			expect(screen.getByRole("tooltip")).toBeInTheDocument(),
+		);
 	},
 };
