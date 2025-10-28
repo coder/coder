@@ -86,12 +86,12 @@ export const WorkspaceParametersPageViewExperimental: FC<
 	);
 
 	useEffect(() => {
-		parameters.forEach((parameter) => {
+		for (const parameter of parameters) {
 			if (autofillByName[parameter.name] === undefined) {
 				return;
 			}
 			setFormFieldTouched(parameter);
-		});
+		};
 	}, [autofillByName, parameters, setFormFieldTouched]);
 
 	const handleChange = async (
@@ -117,14 +117,14 @@ export const WorkspaceParametersPageViewExperimental: FC<
 		const values = form.values.rich_parameter_values ?? [];
 
 		const touchedNames = new Set<string>();
-		values.forEach((param, idx) => {
+		for (const [idx, param] of values.entries()) {
 			const valuePath = `rich_parameter_values.${idx}.value`;
 			if (getIn(form.touched, valuePath)) {
 				touchedNames.add(param.name);
 			}
-		});
+		};
 
-		values.forEach((param) => {
+		for (const param of values) {
 			if (
 				param?.name &&
 				param.name !== parameter.name &&
@@ -133,7 +133,7 @@ export const WorkspaceParametersPageViewExperimental: FC<
 			) {
 				formInputs[param.name] = param.value;
 			}
-		});
+		};
 
 		sendMessage(formInputs);
 	};
