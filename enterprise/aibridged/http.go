@@ -9,7 +9,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/aibridge"
-	"github.com/coder/coder/v2/enterprise/x/aibridged/proto"
+	"github.com/coder/coder/v2/enterprise/aibridged/proto"
 )
 
 var _ http.Handler = &Server{}

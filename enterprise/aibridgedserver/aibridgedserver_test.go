@@ -28,9 +28,9 @@ import (
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
-	"github.com/coder/coder/v2/enterprise/x/aibridged"
-	"github.com/coder/coder/v2/enterprise/x/aibridged/proto"
-	"github.com/coder/coder/v2/enterprise/x/aibridgedserver"
+	"github.com/coder/coder/v2/enterprise/aibridged"
+	"github.com/coder/coder/v2/enterprise/aibridged/proto"
+	"github.com/coder/coder/v2/enterprise/aibridgedserver"
 	"github.com/coder/coder/v2/testutil"
 )
 

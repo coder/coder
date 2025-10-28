@@ -18,9 +18,9 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/aibridge"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/enterprise/x/aibridged"
-	mock "github.com/coder/coder/v2/enterprise/x/aibridged/aibridgedmock"
-	"github.com/coder/coder/v2/enterprise/x/aibridged/proto"
+	"github.com/coder/coder/v2/enterprise/aibridged"
+	mock "github.com/coder/coder/v2/enterprise/aibridged/aibridgedmock"
+	"github.com/coder/coder/v2/enterprise/aibridged/proto"
 	"github.com/coder/coder/v2/testutil"
 )
 
