@@ -8,17 +8,25 @@ import (
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
+const (
+	// defaultInitAction is a human-readable action for init timing spans. The coder
+	// frontend displays the action, which would be an empty string if not set to
+	// this constant. Setting it to "load" gives more context to users about what is
+	// happening during init. The init steps either "load" from disk or http.
+	defaultInitAction = "load"
+)
+
 var (
 	// resourceName maps init message codes to human-readable resource names.
 	// This is purely for better readability in the timing spans.
 	resourceName = map[initMessageCode]string{
-		initInitializingBackendMessage:    "Backend",
-		initInitializingStateStoreMessage: "Backend",
+		initInitializingBackendMessage:    "backend",
+		initInitializingStateStoreMessage: "backend",
 
-		initInitializingModulesMessage: "Modules",
-		initUpgradingModulesMessage:    "Modules",
+		initInitializingModulesMessage: "modules",
+		initUpgradingModulesMessage:    "modules",
 
-		initInitializingProviderPluginMessage: "Provider Plugins",
+		initInitializingProviderPluginMessage: "provider plugins",
 	}
 
 	// executionOrder is the expected sequential steps during `terraform init`.
@@ -80,7 +88,7 @@ func (t *timingAggregator) ingestInitTiming(ts time.Time, s *timingSpan) {
 	// that would require a larger refactor.
 	s.stage = database.ProvisionerJobTimingStageInit
 	// The default action is an empty string. Set it to "load" for some human readability.
-	s.action = "load"
+	s.action = defaultInitAction
 	// Resource name is an empty string. Name it something more useful.
 	s.resource = resourceName[s.messageCode]
 
