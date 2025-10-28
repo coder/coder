@@ -64,6 +64,17 @@ const (
 	DeprovisionModeOrphan
 )
 
+func (d DeprovisionMode) String() string {
+	switch d {
+	case DeprovisionModeOrphan:
+		return "orphan"
+	case DeprovisionModeNormal:
+		return "normal"
+	default:
+		return "unknown"
+	}
+}
+
 func NewStoreReconciler(store database.Store,
 	ps pubsub.Pubsub,
 	fileCache *files.Cache,
@@ -728,8 +739,8 @@ func (c *StoreReconciler) provisionDelete(ctx context.Context, db database.Store
 		return xerrors.Errorf("prebuilt workspace is not owned by prebuild user anymore, probably it was claimed")
 	}
 
-	c.logger.Info(ctx, "attempting to delete prebuild",
-		slog.F("workspace_id", workspaceID.String()), slog.F("preset_id", presetID.String()))
+	c.logger.Info(ctx, "attempting to delete prebuild", slog.F("orphan", mode.String()),
+		slog.F("name", workspace.Name), slog.F("workspace_id", workspaceID.String()), slog.F("preset_id", presetID.String()))
 
 	return c.provision(ctx, db, workspaceID, template, presetID,
 		database.WorkspaceTransitionDelete, workspace, mode)

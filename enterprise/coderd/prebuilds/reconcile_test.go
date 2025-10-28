@@ -204,6 +204,9 @@ func TestPrebuildReconciliation(t *testing.T) {
 			templateDeleted:         []bool{false},
 		},
 		{
+			// TODO(ssncferreira): Investigate why the GetRunningPrebuiltWorkspaces query is returning 0 rows.
+			//   When a template version is inactive (templateVersionActive = false), any prebuilds in the
+			//   database.ProvisionerJobStatusRunning state should be deleted.
 			name: "never attempt to interfere with prebuilds from an active template version",
 			// The workspace builder does not allow scheduling a new build if there is already a build
 			// pending, running, or canceling. As such, we should never attempt to start, stop or delete
