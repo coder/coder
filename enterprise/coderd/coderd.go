@@ -226,7 +226,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		return api.refreshEntitlements(ctx)
 	}
 
-	api.AGPL.ExperimentalHandler.Group(func(r chi.Router) {
+	api.AGPL.APIHandler.Group(func(r chi.Router) {
 		r.Route("/aibridge", func(r chi.Router) {
 			r.Use(api.RequireFeatureMW(codersdk.FeatureAIBridge))
 			r.Group(func(r chi.Router) {
@@ -243,7 +243,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 					})
 					return
 				}
-				http.StripPrefix("/api/experimental/aibridge", api.aibridgedHandler).ServeHTTP(rw, r)
+				http.StripPrefix("/api/v2/aibridge", api.aibridgedHandler).ServeHTTP(rw, r)
 			})
 		})
 	})
