@@ -316,9 +316,14 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 								presets.length > 0 &&
 								selectedPresetId && (
 									<Select
+										key={`preset-select-${selectedTemplate.active_version_id}`}
 										name="presetID"
 										value={selectedPresetId}
-										onValueChange={setSelectedPresetId}
+										onValueChange={(value) => {
+											if (value) {
+												setSelectedPresetId(value);
+											}
+										}}
 									>
 										<PromptSelectTrigger id="presetID" tooltip="Preset">
 											<SelectValue placeholder="Select a preset" />
