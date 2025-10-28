@@ -98,9 +98,9 @@ func TestTimingsFromProvision(t *testing.T) {
 
 	// Then: the received timings should match the expected values below.
 	// NOTE: These timings have been encoded to JSON format to make the tests more readable.
-	initTimings := terraform_internal.ParseTimingLines(t, []byte(`{"start":"2025-10-22T17:48:29Z","end":"2025-10-22T17:48:31Z","action":"load","resource":"Modules","stage":"init","state":"COMPLETED"}
-{"start":"2025-10-22T17:48:29Z","end":"2025-10-22T17:48:29Z","action":"load","resource":"Backend","stage":"init","state":"COMPLETED"}
-{"start":"2025-10-22T17:48:31Z","end":"2025-10-22T17:48:34Z","action":"load","resource":"Provider Plugins","stage":"init","state":"COMPLETED"}`))
+	initTimings := terraform_internal.ParseTimingLines(t, []byte(`{"start":"2025-10-22T17:48:29Z","end":"2025-10-22T17:48:31Z","action":"load","resource":"modules","stage":"init","state":"COMPLETED"}
+{"start":"2025-10-22T17:48:29Z","end":"2025-10-22T17:48:29Z","action":"load","resource":"backend","stage":"init","state":"COMPLETED"}
+{"start":"2025-10-22T17:48:31Z","end":"2025-10-22T17:48:34Z","action":"load","resource":"provider plugins","stage":"init","state":"COMPLETED"}`))
 	planTimings := terraform_internal.ParseTimingLines(t, []byte(`{"start":"2024-08-15T08:26:39.194726Z", "end":"2024-08-15T08:26:39.195836Z", "action":"read", "source":"coder", "resource":"data.coder_parameter.memory_size", "stage":"plan", "state":"COMPLETED"}
 {"start":"2024-08-15T08:26:39.194726Z", "end":"2024-08-15T08:26:39.195712Z", "action":"read", "source":"coder", "resource":"data.coder_provisioner.me", "stage":"plan", "state":"COMPLETED"}
 {"start":"2024-08-15T08:26:39.194726Z", "end":"2024-08-15T08:26:39.195820Z", "action":"read", "source":"coder", "resource":"data.coder_workspace.me", "stage":"plan", "state":"COMPLETED"}`))

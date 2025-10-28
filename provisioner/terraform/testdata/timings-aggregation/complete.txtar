@@ -52,9 +52,9 @@ A successful build which results in successful plan and apply timings.
 {"@level":"info","@message":"Apply complete! Resources: 4 added, 0 changed, 0 destroyed.","@module":"terraform.ui","@timestamp":"2024-08-15T10:26:40.204593+02:00","changes":{"add":4,"change":0,"import":0,"remove":0,"operation":"apply"},"type":"change_summary"}
 {"@level":"info","@message":"Outputs: 0","@module":"terraform.ui","@timestamp":"2024-08-15T10:26:40.205051+02:00","outputs":{},"type":"outputs"}
 -- timings --
-{"start":"2025-10-22T17:48:29Z","end":"2025-10-22T17:48:31Z","action":"load","resource":"Modules","stage":"init","state":"COMPLETED"}
-{"start":"2025-10-22T17:48:29Z","end":"2025-10-22T17:48:29Z","action":"load","resource":"Backend","stage":"init","state":"COMPLETED"}
-{"start":"2025-10-22T17:48:31Z","end":"2025-10-22T17:48:34Z","action":"load","resource":"Provider Plugins","stage":"init","state":"COMPLETED"}
+{"start":"2025-10-22T17:48:29Z","end":"2025-10-22T17:48:31Z","action":"load","resource":"modules","stage":"init","state":"COMPLETED"}
+{"start":"2025-10-22T17:48:29Z","end":"2025-10-22T17:48:29Z","action":"load","resource":"backend","stage":"init","state":"COMPLETED"}
+{"start":"2025-10-22T17:48:31Z","end":"2025-10-22T17:48:34Z","action":"load","resource":"provider plugins","stage":"init","state":"COMPLETED"}
 {"start":"2024-08-15T08:26:39.194726Z","end":"2024-08-15T08:26:39.195820Z","action":"read","source":"coder","resource":"data.coder_workspace.me","stage":"plan","state":"COMPLETED"}
 {"start":"2024-08-15T08:26:39.194726Z","end":"2024-08-15T08:26:39.195712Z","action":"read","source":"coder","resource":"data.coder_provisioner.me","stage":"plan","state":"COMPLETED"}
 {"start":"2024-08-15T08:26:39.194726Z","end":"2024-08-15T08:26:39.195836Z","action":"read","source":"coder","resource":"data.coder_parameter.memory_size","stage":"plan","state":"COMPLETED"}
