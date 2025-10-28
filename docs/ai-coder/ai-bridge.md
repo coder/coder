@@ -1,8 +1,5 @@
 # AI Bridge
 
-> [!NOTE]
-> AI Bridge is currently an _experimental_ feature.
-
 ![AI bridge diagram](../images/aibridge/aibridge_diagram.png)
 
 Bridge is a smart proxy for AI. It acts as a man-in-the-middle between your users' coding agents / IDEs
@@ -45,16 +42,13 @@ Bridge runs inside the Coder control plane, requiring no separate compute to dep
 
 ### Activation
 
-To enable this feature, activate the `aibridge` experiment using an environment variable or a CLI flag.
-Additionally, you will need to enable Bridge explicitly:
+You will need to enable Bridge explicitly:
 
 ```sh
-CODER_EXPERIMENTS="aibridge" CODER_AIBRIDGE_ENABLED=true coder server
+CODER_AIBRIDGE_ENABLED=true coder server
 # or
-coder server --experiments=aibridge --aibridge-enabled=true
+coder server --aibridge-enabled=true
 ```
-
-_If you have other experiments enabled, separate them by commas._
 
 ### Providers
 
@@ -133,7 +127,7 @@ All of these records are associated to an "interception" record, which maps 1:1 
 
 These logs can be used to determine usage patterns, track costs, and evaluate tooling adoption.
 
-This data is currently accessible through the API and CLI (experimental), which we advise administrators export to their observability platform of choice. We've configured a Grafana dashboard to display Claude Code usage internally which can be imported as a starting point for your tooling adoption metrics.
+This data is currently accessible through the API and CLI, which we advise administrators export to their observability platform of choice. We've configured a Grafana dashboard to display Claude Code usage internally which can be imported as a starting point for your tooling adoption metrics.
 
 ![User Leaderboard](../images/aibridge/grafana_user_leaderboard.png)
 
