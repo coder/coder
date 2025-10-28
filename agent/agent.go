@@ -40,6 +40,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentscripts"
+	"github.com/coder/coder/v2/agent/agentsocket"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/proto/resourcesmonitor"
@@ -91,6 +92,7 @@ type Options struct {
 	Devcontainers                bool
 	DevcontainerAPIOptions       []agentcontainers.Option // Enable Devcontainers for these to be effective.
 	Clock                        quartz.Clock
+	SocketPath                   string // Path for the agent socket server
 }
 
 type Client interface {
@@ -190,6 +192,7 @@ func New(options Options) Agent {
 
 		devcontainers:       options.Devcontainers,
 		containerAPIOptions: options.DevcontainerAPIOptions,
+		socketPath:          options.SocketPath,
 	}
 	// Initially, we have a closed channel, reflecting the fact that we are not initially connected.
 	// Each time we connect we replace the channel (while holding the closeMutex) with a new one
@@ -271,6 +274,10 @@ type agent struct {
 	devcontainers       bool
 	containerAPIOptions []agentcontainers.Option
 	containerAPI        *agentcontainers.API
+
+	// Socket server for CLI communication
+	socketPath   string
+	socketServer *agentsocket.Server
 }
 
 func (a *agent) TailnetConn() *tailnet.Conn {
@@ -350,7 +357,67 @@ func (a *agent) init() {
 			s.ExperimentalContainers = a.devcontainers
 		},
 	)
+
+	// Initialize socket server for CLI communication
+	a.initSocketServer()
+
 	go a.runLoop()
+}
+
+// initSocketServer initializes the socket server for CLI communication
+func (a *agent) initSocketServer() {
+	// Get socket path from options or environment
+	socketPath := a.getSocketPath()
+	if socketPath == "" {
+		a.logger.Debug(a.hardCtx, "socket server disabled (no path configured)")
+		return
+	}
+
+	// Create socket server
+	server := agentsocket.NewServer(agentsocket.Config{
+		Path:   socketPath,
+		Logger: a.logger.Named("socket"),
+	})
+
+	// Register default handlers
+	handlerCtx := agentsocket.CreateHandlerContext(
+		"", // Agent ID will be set when manifest is available
+		buildinfo.Version(),
+		"starting",
+		time.Now(),
+		a.logger,
+	)
+	agentsocket.RegisterDefaultHandlers(server, handlerCtx)
+
+	// Start the server
+	if err := server.Start(); err != nil {
+		a.logger.Warn(a.hardCtx, "failed to start socket server", slog.Error(err))
+		return
+	}
+
+	a.socketServer = server
+	a.logger.Info(a.hardCtx, "socket server started", slog.F("path", socketPath))
+}
+
+// getSocketPath returns the socket path from options or environment
+func (a *agent) getSocketPath() string {
+	// Check if socket path is explicitly configured
+	if a.getSocketPathFromOptions() != "" {
+		return a.getSocketPathFromOptions()
+	}
+
+	// Check environment variable
+	if path := os.Getenv("CODER_AGENT_SOCKET_PATH"); path != "" {
+		return path
+	}
+
+	// Return empty to disable socket server
+	return ""
+}
+
+// getSocketPathFromOptions returns the socket path from agent options
+func (a *agent) getSocketPathFromOptions() string {
+	return a.socketPath
 }
 
 // runLoop attempts to start the agent in a retry loop.
@@ -1929,6 +1996,13 @@ func (a *agent) Close() error {
 
 	if err := a.containerAPI.Close(); err != nil {
 		a.logger.Error(a.hardCtx, "container API close", slog.Error(err))
+	}
+
+	// Close socket server
+	if a.socketServer != nil {
+		if err := a.socketServer.Stop(); err != nil {
+			a.logger.Error(a.hardCtx, "socket server close", slog.Error(err))
+		}
 	}
 
 	// Wait for the graceful shutdown to complete, but don't wait forever so
