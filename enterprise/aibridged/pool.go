@@ -112,7 +112,7 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn Cl
 	defer p.cache.Wait()
 
 	// Fast path.
-	cacheKey := req.InitiatorID.String() + req.APIKeyID
+	cacheKey := req.InitiatorID.String() + "|" + req.APIKeyID
 	bridge, ok := p.cache.Get(cacheKey)
 	if ok && bridge != nil {
 		// TODO: future improvement:
