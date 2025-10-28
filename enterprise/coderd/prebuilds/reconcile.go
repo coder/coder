@@ -280,7 +280,7 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) error {
 			return nil
 		}
 
-		membershipReconciler := NewStoreMembershipReconciler(c.store, c.clock)
+		membershipReconciler := NewStoreMembershipReconciler(c.store, c.clock, logger)
 		err = membershipReconciler.ReconcileAll(ctx, database.PrebuildsSystemUserID, PrebuiltWorkspacesGroupName)
 		if err != nil {
 			return xerrors.Errorf("reconcile prebuild membership: %w", err)

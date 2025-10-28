@@ -8,6 +8,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -143,7 +145,7 @@ func TestReconcileAll(t *testing.T) {
 						require.ElementsMatch(t, expectedMembershipsBefore, extractOrgIDs(preReconcileMemberships))
 
 						// Reconcile
-						reconciler := prebuilds.NewStoreMembershipReconciler(db, clock)
+						reconciler := prebuilds.NewStoreMembershipReconciler(db, clock, slogtest.Make(t, nil))
 						require.NoError(t, reconciler.ReconcileAll(ctx, database.PrebuildsSystemUserID, prebuilds.PrebuiltWorkspacesGroupName))
 
 						// Verify memberships after reconciliation.

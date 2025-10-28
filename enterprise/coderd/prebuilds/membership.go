@@ -7,6 +7,8 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/quartz"
 )
@@ -20,14 +22,16 @@ const (
 // organizations for which prebuilt workspaces are requested. This is necessary because our data model requires that such
 // prebuilt workspaces belong to a member of the organization of their eventual claimant.
 type StoreMembershipReconciler struct {
-	store database.Store
-	clock quartz.Clock
+	store  database.Store
+	clock  quartz.Clock
+	logger slog.Logger
 }
 
-func NewStoreMembershipReconciler(store database.Store, clock quartz.Clock) StoreMembershipReconciler {
+func NewStoreMembershipReconciler(store database.Store, clock quartz.Clock, logger slog.Logger) StoreMembershipReconciler {
 	return StoreMembershipReconciler{
-		store: store,
-		clock: clock,
+		store:  store,
+		clock:  clock,
+		logger: logger,
 	}
 }
 
@@ -51,6 +55,13 @@ func (s StoreMembershipReconciler) ReconcileAll(ctx context.Context, userID uuid
 
 	var membershipInsertionErrors error
 	for _, orgStatus := range orgStatuses {
+		s.logger.Debug(ctx, "organization prebuild status",
+			slog.F("organization_id", orgStatus.OrganizationID),
+			slog.F("organization_name", orgStatus.OrganizationName),
+			slog.F("has_prebuild_user", orgStatus.HasPrebuildUser),
+			slog.F("has_prebuild_group", orgStatus.PrebuildsGroupID.Valid),
+			slog.F("has_prebuild_user_in_group", orgStatus.HasPrebuildUserInGroup))
+
 		// Add user to org if needed
 		if !orgStatus.HasPrebuildUser {
 			_, err = s.store.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
@@ -60,10 +71,16 @@ func (s StoreMembershipReconciler) ReconcileAll(ctx context.Context, userID uuid
 				UpdatedAt:      s.clock.Now(),
 				Roles:          []string{},
 			})
-			// Unique violation means membership was created after status check, safe to ignore.
+			// Unique violation means organization membership was created after status check, safe to ignore.
 			if err != nil && !database.IsUniqueViolation(err) {
 				membershipInsertionErrors = errors.Join(membershipInsertionErrors, err)
 				continue
+			}
+			if err == nil {
+				s.logger.Info(ctx, "added prebuilds user to organization",
+					slog.F("organization_id", orgStatus.OrganizationID),
+					slog.F("organization_name", orgStatus.OrganizationName),
+					slog.F("prebuilds_user", userID.String()))
 			}
 		}
 
@@ -79,10 +96,16 @@ func (s StoreMembershipReconciler) ReconcileAll(ctx context.Context, userID uuid
 				AvatarURL:      "",
 				QuotaAllowance: 0,
 			})
-			// Unique violation means membership was created after status check, safe to ignore.
+			// Unique violation means group was created after status check, safe to ignore.
 			if err != nil && !database.IsUniqueViolation(err) {
 				membershipInsertionErrors = errors.Join(membershipInsertionErrors, err)
 				continue
+			}
+			if err == nil {
+				s.logger.Info(ctx, "created prebuilds group in organization",
+					slog.F("organization_id", orgStatus.OrganizationID),
+					slog.F("organization_name", orgStatus.OrganizationName),
+					slog.F("prebuilds_group", group.ID.String()))
 			}
 			groupID = group.ID
 		} else {
@@ -96,10 +119,17 @@ func (s StoreMembershipReconciler) ReconcileAll(ctx context.Context, userID uuid
 				GroupID: groupID,
 				UserID:  userID,
 			})
-			// Unique violation means membership was created after status check, safe to ignore.
+			// Unique violation means group membership was created after status check, safe to ignore.
 			if err != nil && !database.IsUniqueViolation(err) {
 				membershipInsertionErrors = errors.Join(membershipInsertionErrors, err)
 				continue
+			}
+			if err == nil {
+				s.logger.Info(ctx, "added prebuilds user to prebuilds group",
+					slog.F("organization_id", orgStatus.OrganizationID),
+					slog.F("organization_name", orgStatus.OrganizationName),
+					slog.F("prebuilds_user", userID.String()),
+					slog.F("prebuilds_group", groupID.String()))
 			}
 		}
 	}
