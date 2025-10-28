@@ -351,6 +351,28 @@
 | `base_url` | string | false    |              |             |
 | `key`      | string | false    |              |             |
 
+## codersdk.AIBridgeBedrockConfig
+
+```json
+{
+  "access_key": "string",
+  "access_key_secret": "string",
+  "model": "string",
+  "region": "string",
+  "small_fast_model": "string"
+}
+```
+
+### Properties
+
+| Name                | Type   | Required | Restrictions | Description |
+|---------------------|--------|----------|--------------|-------------|
+| `access_key`        | string | false    |              |             |
+| `access_key_secret` | string | false    |              |             |
+| `model`             | string | false    |              |             |
+| `region`            | string | false    |              |             |
+| `small_fast_model`  | string | false    |              |             |
+
 ## codersdk.AIBridgeConfig
 
 ```json
@@ -358,6 +380,13 @@
   "anthropic": {
     "base_url": "string",
     "key": "string"
+  },
+  "bedrock": {
+    "access_key": "string",
+    "access_key_secret": "string",
+    "model": "string",
+    "region": "string",
+    "small_fast_model": "string"
   },
   "enabled": true,
   "openai": {
@@ -372,6 +401,7 @@
 | Name        | Type                                                                 | Required | Restrictions | Description |
 |-------------|----------------------------------------------------------------------|----------|--------------|-------------|
 | `anthropic` | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig) | false    |              |             |
+| `bedrock`   | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)     | false    |              |             |
 | `enabled`   | boolean                                                              | false    |              |             |
 | `openai`    | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              |             |
 
@@ -653,6 +683,13 @@
     "anthropic": {
       "base_url": "string",
       "key": "string"
+    },
+    "bedrock": {
+      "access_key": "string",
+      "access_key_secret": "string",
+      "model": "string",
+      "region": "string",
+      "small_fast_model": "string"
     },
     "enabled": true,
     "openai": {
@@ -2803,6 +2840,13 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "base_url": "string",
           "key": "string"
         },
+        "bedrock": {
+          "access_key": "string",
+          "access_key_secret": "string",
+          "model": "string",
+          "region": "string",
+          "small_fast_model": "string"
+        },
         "enabled": true,
         "openai": {
           "base_url": "string",
@@ -3309,6 +3353,13 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "anthropic": {
         "base_url": "string",
         "key": "string"
+      },
+      "bedrock": {
+        "access_key": "string",
+        "access_key_secret": "string",
+        "model": "string",
+        "region": "string",
+        "small_fast_model": "string"
       },
       "enabled": true,
       "openai": {

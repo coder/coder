@@ -167,6 +167,13 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
           "base_url": "string",
           "key": "string"
         },
+        "bedrock": {
+          "access_key": "string",
+          "access_key_secret": "string",
+          "model": "string",
+          "region": "string",
+          "small_fast_model": "string"
+        },
         "enabled": true,
         "openai": {
           "base_url": "string",
