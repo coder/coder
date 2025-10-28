@@ -77,7 +77,7 @@ export const WorkspaceParametersPageViewExperimental: FC<
 			const index = values.findIndex((p) => p.name === parameter.name);
 			if (index !== -1) {
 				const path = `rich_parameter_values.${index}.value`;
-				if (getIn(form.touched, path) !== true) {
+				if (!getIn(form.touched, path)) {
 					form.setFieldTouched(path, true, false);
 				}
 			}
@@ -114,24 +114,24 @@ export const WorkspaceParametersPageViewExperimental: FC<
 	) => {
 		const formInputs: Record<string, string> = {};
 		formInputs[parameter.name] = value;
-		const values = form.values.rich_parameter_values ?? [];
+		const formParameters = form.values.rich_parameter_values ?? [];
 
 		const touchedNames = new Set<string>();
-		for (const [idx, param] of values.entries()) {
+		for (const [idx, param] of formParameters.entries()) {
 			const valuePath = `rich_parameter_values.${idx}.value`;
 			if (getIn(form.touched, valuePath)) {
 				touchedNames.add(param.name);
 			}
 		};
 
-		for (const param of values) {
+		for (const formParam of formParameters) {
 			if (
-				param?.name &&
-				param.name !== parameter.name &&
-				touchedNames.has(param.name) &&
-				param.value
+				formParam?.name &&
+				formParam.name !== parameter.name &&
+				touchedNames.has(formParam.name) &&
+				formParam.value
 			) {
-				formInputs[param.name] = param.value;
+				formInputs[formParam.name] = formParam.value;
 			}
 		};
 
