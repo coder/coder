@@ -1,5 +1,6 @@
 import type {
 	WorkspaceAppStatus as APIWorkspaceAppStatus,
+	Task,
 	Workspace,
 	WorkspaceAgent,
 	WorkspaceApp,
@@ -34,6 +35,8 @@ interface AppStatusesProps {
 	agent: WorkspaceAgent;
 	/** Optional reference date for calculating relative time. Defaults to Date.now(). Useful for Storybook. */
 	referenceDate?: Date;
+	/** Optional task associated with this workspace. */
+	task?: Task;
 }
 
 // Extend the API status type to include the app icon and the app itself
@@ -46,6 +49,7 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 	workspace,
 	agent,
 	referenceDate,
+	task,
 }) => {
 	const [displayStatuses, setDisplayStatuses] = useState(false);
 	const allStatuses: StatusWithAppInfo[] = agent.apps.flatMap((app) =>
@@ -121,12 +125,14 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 							</Button>
 						))}
 
-					<Button asChild size="sm" variant="outline">
-						<RouterLink to={`/tasks/${workspace.owner_name}/${workspace.name}`}>
-							<SquareCheckBigIcon />
-							View task
-						</RouterLink>
-					</Button>
+					{task && (
+						<Button asChild size="sm" variant="outline">
+							<RouterLink to={`/tasks/${workspace.owner_name}/${task.id}`}>
+								<SquareCheckBigIcon />
+								View task
+							</RouterLink>
+						</Button>
+					)}
 
 					<TooltipProvider>
 						<Tooltip>

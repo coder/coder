@@ -1,5 +1,6 @@
 import Skeleton from "@mui/material/Skeleton";
 import type {
+	Task,
 	Template,
 	Workspace,
 	WorkspaceAgent,
@@ -43,6 +44,7 @@ type AgentDevcontainerCardProps = {
 	workspace: Workspace;
 	template: Template;
 	wildcardHostname: string;
+	task?: Task;
 };
 
 export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
@@ -52,6 +54,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 	workspace,
 	template,
 	wildcardHostname,
+	task,
 }) => {
 	const { browser_only } = useFeatureVisibility();
 	const { proxy } = useProxy();
@@ -290,7 +293,11 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 						workspace.latest_app_status?.agent_id === subAgent.id && (
 							<section>
 								<h3 className="sr-only">App statuses</h3>
-								<AppStatuses workspace={workspace} agent={subAgent} />
+								<AppStatuses
+									workspace={workspace}
+									agent={subAgent}
+									task={task}
+								/>
 							</section>
 						)}
 

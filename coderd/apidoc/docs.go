@@ -136,6 +136,38 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/task/workspace/{workspace}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Experimental"
+                ],
+                "summary": "Get AI task by workspace ID",
+                "operationId": "get-task-by-workspace-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Task"
+                        }
+                    }
+                }
+            }
+        },
         "/api/experimental/tasks": {
             "get": {
                 "security": [

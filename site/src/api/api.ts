@@ -2725,6 +2725,16 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	getTaskByWorkspaceID = async (
+		workspaceId: string,
+	): Promise<TypesGen.Task> => {
+		const response = await this.axios.get<TypesGen.Task>(
+			`/api/experimental/task/workspace/${workspaceId}`,
+		);
+
+		return response.data;
+	};
+
 	deleteTask = async (user: string, id: string): Promise<void> => {
 		await this.axios.delete(`/api/experimental/tasks/${user}/${id}`);
 	};

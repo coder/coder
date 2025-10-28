@@ -2,7 +2,9 @@ import type { Interpolation, Theme } from "@emotion/react";
 import Collapse from "@mui/material/Collapse";
 import Divider from "@mui/material/Divider";
 import Skeleton from "@mui/material/Skeleton";
+import { API } from "api/api";
 import type {
+	Task,
 	Template,
 	Workspace,
 	WorkspaceAgent,
@@ -71,6 +73,17 @@ export const AgentRow: FC<AgentRowProps> = ({
 		agent.display_apps.includes("vscode") ||
 		agent.display_apps.includes("vscode_insiders");
 	const showVSCode = hasVSCodeApp && !browser_only;
+
+	// Fetch task if workspace has an app status
+	const [task, setTask] = useState<Task | undefined>(undefined);
+	useEffect(() => {
+		if (workspace.latest_app_status?.agent_id === agent.id) {
+			API.experimental
+				.getTaskByWorkspaceID(workspace.id)
+				.then((task) => setTask(task))
+				.catch(() => setTask(undefined)); // Ignore errors, task may not exist
+		}
+	}, [workspace.id, workspace.latest_app_status?.agent_id, agent.id]);
 
 	const hasStartupFeatures = Boolean(agent.logs_length);
 	const { proxy } = useProxy();
@@ -211,7 +224,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 				{workspace.latest_app_status?.agent_id === agent.id && (
 					<section>
 						<h3 className="sr-only">App statuses</h3>
-						<AppStatuses workspace={workspace} agent={agent} />
+						<AppStatuses workspace={workspace} agent={agent} task={task} />
 					</section>
 				)}
 
@@ -280,6 +293,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 									wildcardHostname={proxy.preferredWildcardHostname}
 									parentAgent={agent}
 									subAgents={subAgents ?? []}
+									task={task}
 								/>
 							);
 						})}

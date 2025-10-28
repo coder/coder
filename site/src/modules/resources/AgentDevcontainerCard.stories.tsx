@@ -2,6 +2,7 @@ import { chromatic } from "testHelpers/chromatic";
 import {
 	MockListeningPortsResponse,
 	MockPrimaryWorkspaceProxy,
+	MockTask,
 	MockTemplate,
 	MockWorkspace,
 	MockWorkspaceAgent,
@@ -9,6 +10,7 @@ import {
 	MockWorkspaceAgentContainerPorts,
 	MockWorkspaceAgentDevcontainer,
 	MockWorkspaceApp,
+	MockWorkspaceAppStatus,
 	MockWorkspaceProxies,
 	MockWorkspaceSubAgent,
 } from "testHelpers/entities";
@@ -18,6 +20,7 @@ import {
 } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { getPreferredProxy } from "contexts/ProxyContext";
+import { expect, within } from "storybook/test";
 import { AgentDevcontainerCard } from "./AgentDevcontainerCard";
 
 const meta: Meta<typeof AgentDevcontainerCard> = {
@@ -160,4 +163,33 @@ export const WithPortForwarding: Story = {
 			proxies: MockWorkspaceProxies,
 		}),
 	],
+};
+
+export const WithTask: Story = {
+	args: {
+		task: MockTask,
+		workspace: {
+			...MockWorkspace,
+			latest_app_status: {
+				...MockWorkspaceAppStatus,
+				agent_id: MockWorkspaceSubAgent.id,
+				message: "Task is running",
+				state: "working",
+			},
+		},
+		subAgents: [
+			{
+				...MockWorkspaceSubAgent,
+				apps: [MockWorkspaceApp],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const taskLink = canvas.getByRole("link", { name: /view task/i });
+		await expect(taskLink).toHaveAttribute(
+			"href",
+			`/tasks/${MockWorkspace.owner_name}/${MockTask.id}`,
+		);
+	},
 };

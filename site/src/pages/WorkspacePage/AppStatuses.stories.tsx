@@ -1,5 +1,6 @@
 import {
 	createTimestamp,
+	MockTask,
 	MockWorkspace,
 	MockWorkspaceAgent,
 	MockWorkspaceApp,
@@ -9,7 +10,7 @@ import {
 import { withProxyProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { WorkspaceAppStatus } from "api/typesGenerated";
-import { userEvent, within } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 import { AppStatuses } from "./AppStatuses";
 
 const meta: Meta<typeof AppStatuses> = {
@@ -145,6 +146,32 @@ export const MultipleStatuses: Story = {
 		const submitButton = canvas.getByRole("button");
 		await userEvent.click(submitButton);
 		await canvas.findByText(/working/i);
+	},
+};
+
+export const WithTask: Story = {
+	args: {
+		agent: mockAgent([
+			{
+				...MockWorkspaceAppStatus,
+				id: "status-8",
+				icon: "",
+				message: "Task in progress",
+				created_at: createTimestamp(5, 20),
+				uri: "",
+				state: "working" as const,
+			},
+			...MockWorkspaceAppStatuses,
+		]),
+		task: MockTask,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const taskLink = canvas.getByRole("link", { name: /view task/i });
+		await expect(taskLink).toHaveAttribute(
+			"href",
+			`/tasks/${MockWorkspace.owner_name}/${MockTask.id}`,
+		);
 	},
 };
 
