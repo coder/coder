@@ -41,6 +41,7 @@ type WorkspaceResponse struct {
 	Build      database.WorkspaceBuild
 	AgentToken string
 	TemplateVersionResponse
+	Task database.Task
 }
 
 // WorkspaceBuildBuilder generates workspace builds and associated
@@ -57,6 +58,7 @@ type WorkspaceBuildBuilder struct {
 	agentToken string
 	jobStatus  database.ProvisionerJobStatus
 	taskAppID  uuid.UUID
+	taskSeed   database.TaskTable
 }
 
 // WorkspaceBuild generates a workspace build for the provided workspace.
@@ -115,25 +117,28 @@ func (b WorkspaceBuildBuilder) WithAgent(mutations ...func([]*sdkproto.Agent) []
 	return b
 }
 
-func (b WorkspaceBuildBuilder) WithTask(seed *sdkproto.App) WorkspaceBuildBuilder {
-	if seed == nil {
-		seed = &sdkproto.App{}
+func (b WorkspaceBuildBuilder) WithTask(taskSeed database.TaskTable, appSeed *sdkproto.App) WorkspaceBuildBuilder {
+	//nolint:revive // returns modified struct
+	b.taskSeed = taskSeed
+
+	if appSeed == nil {
+		appSeed = &sdkproto.App{}
 	}
 
 	var err error
 	//nolint: revive // returns modified struct
-	b.taskAppID, err = uuid.Parse(takeFirst(seed.Id, uuid.NewString()))
+	b.taskAppID, err = uuid.Parse(takeFirst(appSeed.Id, uuid.NewString()))
 	require.NoError(b.t, err)
 
 	return b.Params(database.WorkspaceBuildParameter{
 		Name:  codersdk.AITaskPromptParameterName,
-		Value: "list me",
+		Value: b.taskSeed.Prompt,
 	}).WithAgent(func(a []*sdkproto.Agent) []*sdkproto.Agent {
 		a[0].Apps = []*sdkproto.App{
 			{
 				Id:   b.taskAppID.String(),
-				Slug: takeFirst(seed.Slug, "task-app"),
-				Url:  takeFirst(seed.Url, ""),
+				Slug: takeFirst(appSeed.Slug, "task-app"),
+				Url:  takeFirst(appSeed.Url, ""),
 			},
 		}
 		return a
@@ -161,6 +166,19 @@ func (b WorkspaceBuildBuilder) Canceled() WorkspaceBuildBuilder {
 // Workspace will be optionally populated if no ID is set on the provided
 // workspace.
 func (b WorkspaceBuildBuilder) Do() WorkspaceResponse {
+	var resp WorkspaceResponse
+	// Use transaction, like real wsbuilder.
+	err := b.db.InTx(func(tx database.Store) error {
+		//nolint:revive // calls do on modified struct
+		b.db = tx
+		resp = b.doInTX()
+		return nil
+	}, nil)
+	require.NoError(b.t, err)
+	return resp
+}
+
+func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 	b.t.Helper()
 	jobID := uuid.New()
 	b.seed.ID = uuid.New()
@@ -211,6 +229,37 @@ func (b WorkspaceBuildBuilder) Do() WorkspaceResponse {
 	resp.Workspace = b.ws
 	b.seed.WorkspaceID = b.ws.ID
 	b.seed.InitiatorID = takeFirst(b.seed.InitiatorID, b.ws.OwnerID)
+
+	// If a task was requested, ensure it exists and is associated with this
+	// workspace.
+	if b.taskAppID != uuid.Nil {
+		b.logger.Debug(context.Background(), "creating or updating task", "task_id", b.taskSeed.ID)
+		b.taskSeed.OrganizationID = takeFirst(b.taskSeed.OrganizationID, b.ws.OrganizationID)
+		b.taskSeed.OwnerID = takeFirst(b.taskSeed.OwnerID, b.ws.OwnerID)
+		b.taskSeed.Name = takeFirst(b.taskSeed.Name, b.ws.Name)
+		b.taskSeed.WorkspaceID = uuid.NullUUID{UUID: takeFirst(b.taskSeed.WorkspaceID.UUID, b.ws.ID), Valid: true}
+		b.taskSeed.TemplateVersionID = takeFirst(b.taskSeed.TemplateVersionID, b.seed.TemplateVersionID)
+
+		// Try to fetch existing task and update its workspace ID.
+		if task, err := b.db.GetTaskByID(ownerCtx, b.taskSeed.ID); err == nil {
+			if !task.WorkspaceID.Valid {
+				b.logger.Info(context.Background(), "updating task workspace id", "task_id", b.taskSeed.ID, "workspace_id", b.ws.ID)
+				_, err = b.db.UpdateTaskWorkspaceID(ownerCtx, database.UpdateTaskWorkspaceIDParams{
+					ID:          b.taskSeed.ID,
+					WorkspaceID: uuid.NullUUID{UUID: b.ws.ID, Valid: true},
+				})
+				require.NoError(b.t, err, "update task workspace id")
+			} else if task.WorkspaceID.UUID != b.ws.ID {
+				require.Fail(b.t, "task already has a workspace id, mismatch", task.WorkspaceID.UUID, b.ws.ID)
+			}
+		} else if errors.Is(err, sql.ErrNoRows) {
+			task := dbgen.Task(b.t, b.db, b.taskSeed)
+			b.taskSeed.ID = task.ID
+			b.logger.Info(context.Background(), "created new task", "task_id", b.taskSeed.ID)
+		} else {
+			require.NoError(b.t, err, "get task by id")
+		}
+	}
 
 	// Create a provisioner job for the build!
 	payload, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
@@ -324,6 +373,11 @@ func (b WorkspaceBuildBuilder) Do() WorkspaceResponse {
 		b.logger.Debug(context.Background(), "linked task to workspace build",
 			slog.F("task_id", task.ID),
 			slog.F("build_number", resp.Build.BuildNumber))
+
+		// Update task after linking.
+		task, err = b.db.GetTaskByID(ownerCtx, task.ID)
+		require.NoError(b.t, err, "get task by id")
+		resp.Task = task
 	}
 
 	for i := range b.params {

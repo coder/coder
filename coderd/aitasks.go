@@ -241,6 +241,7 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 			// Create task record in the database before creating the workspace so that
 			// we can request that the workspace be linked to it after creation.
 			dbTaskTable, err = tx.InsertTask(ctx, database.InsertTaskParams{
+				ID:                 uuid.New(),
 				OrganizationID:     templateVersion.OrganizationID,
 				OwnerID:            owner.ID,
 				Name:               taskName,
@@ -338,8 +339,8 @@ func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) cod
 		ID:                      dbTask.ID,
 		OrganizationID:          dbTask.OrganizationID,
 		OwnerID:                 dbTask.OwnerID,
-		OwnerName:               ws.OwnerName,
-		OwnerAvatarURL:          ws.OwnerAvatarURL,
+		OwnerName:               dbTask.OwnerUsername,
+		OwnerAvatarURL:          dbTask.OwnerAvatarUrl,
 		Name:                    dbTask.Name,
 		TemplateID:              ws.TemplateID,
 		TemplateVersionID:       dbTask.TemplateVersionID,

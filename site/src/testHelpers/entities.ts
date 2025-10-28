@@ -281,45 +281,50 @@ export const MockOwnerRole: TypesGen.Role = {
 	name: "owner",
 	display_name: "Owner",
 	site_permissions: [],
-	organization_permissions: [],
 	user_permissions: [],
 	organization_id: "",
+	organization_permissions: [],
+	organization_member_permissions: [],
 };
 
 export const MockUserAdminRole: TypesGen.Role = {
 	name: "user_admin",
 	display_name: "User Admin",
 	site_permissions: [],
-	organization_permissions: [],
 	user_permissions: [],
 	organization_id: "",
+	organization_permissions: [],
+	organization_member_permissions: [],
 };
 
 export const MockTemplateAdminRole: TypesGen.Role = {
 	name: "template_admin",
 	display_name: "Template Admin",
 	site_permissions: [],
-	organization_permissions: [],
 	user_permissions: [],
 	organization_id: "",
+	organization_permissions: [],
+	organization_member_permissions: [],
 };
 
 export const MockAuditorRole: TypesGen.Role = {
 	name: "auditor",
 	display_name: "Auditor",
 	site_permissions: [],
-	organization_permissions: [],
 	user_permissions: [],
 	organization_id: "",
+	organization_permissions: [],
+	organization_member_permissions: [],
 };
 
 export const MockWorkspaceCreationBanRole: TypesGen.Role = {
 	name: "organization-workspace-creation-ban",
 	display_name: "Organization Workspace Creation Ban",
 	site_permissions: [],
-	organization_permissions: [],
 	user_permissions: [],
 	organization_id: "",
+	organization_permissions: [],
+	organization_member_permissions: [],
 };
 
 export const MockMemberRole: TypesGen.SlimRole = {
@@ -331,27 +336,30 @@ export const MockOrganizationAdminRole: TypesGen.Role = {
 	name: "organization-admin",
 	display_name: "Organization Admin",
 	site_permissions: [],
-	organization_permissions: [],
 	user_permissions: [],
 	organization_id: MockOrganization.id,
+	organization_permissions: [],
+	organization_member_permissions: [],
 };
 
 export const MockOrganizationUserAdminRole: TypesGen.Role = {
 	name: "organization-user-admin",
 	display_name: "Organization User Admin",
 	site_permissions: [],
-	organization_permissions: [],
 	user_permissions: [],
 	organization_id: MockOrganization.id,
+	organization_permissions: [],
+	organization_member_permissions: [],
 };
 
 export const MockOrganizationTemplateAdminRole: TypesGen.Role = {
 	name: "organization-template-admin",
 	display_name: "Organization Template Admin",
 	site_permissions: [],
-	organization_permissions: [],
 	user_permissions: [],
 	organization_id: MockOrganization.id,
+	organization_permissions: [],
+	organization_member_permissions: [],
 };
 
 export const MockOrganizationAuditorRole: TypesGen.AssignableRoles = {
@@ -360,18 +368,20 @@ export const MockOrganizationAuditorRole: TypesGen.AssignableRoles = {
 	assignable: true,
 	built_in: false,
 	site_permissions: [],
-	organization_permissions: [],
 	user_permissions: [],
 	organization_id: MockOrganization.id,
+	organization_permissions: [],
+	organization_member_permissions: [],
 };
 
 export const MockRoleWithOrgPermissions: TypesGen.AssignableRoles = {
 	name: "my-role-1",
 	display_name: "My Role 1",
-	organization_id: MockOrganization.id,
 	assignable: true,
 	built_in: false,
 	site_permissions: [],
+	user_permissions: [],
+	organization_id: MockOrganization.id,
 	organization_permissions: [
 		{
 			negate: false,
@@ -454,14 +464,15 @@ export const MockRoleWithOrgPermissions: TypesGen.AssignableRoles = {
 			action: "create",
 		},
 	],
-	user_permissions: [],
+	organization_member_permissions: [],
 };
 
 export const MockRole2WithOrgPermissions: TypesGen.Role = {
 	name: "my-role-1",
 	display_name: "My Role 1",
-	organization_id: MockOrganization.id,
 	site_permissions: [],
+	user_permissions: [],
+	organization_id: MockOrganization.id,
 	organization_permissions: [
 		{
 			negate: false,
@@ -469,7 +480,7 @@ export const MockRole2WithOrgPermissions: TypesGen.Role = {
 			action: "create",
 		},
 	],
-	user_permissions: [],
+	organization_member_permissions: [],
 };
 
 // assignableRole takes a role and a boolean. The boolean implies if the

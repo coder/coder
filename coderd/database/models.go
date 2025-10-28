@@ -4221,6 +4221,9 @@ type Task struct {
 	WorkspaceBuildNumber sql.NullInt32   `db:"workspace_build_number" json:"workspace_build_number"`
 	WorkspaceAgentID     uuid.NullUUID   `db:"workspace_agent_id" json:"workspace_agent_id"`
 	WorkspaceAppID       uuid.NullUUID   `db:"workspace_app_id" json:"workspace_app_id"`
+	OwnerUsername        string          `db:"owner_username" json:"owner_username"`
+	OwnerName            string          `db:"owner_name" json:"owner_name"`
+	OwnerAvatarUrl       string          `db:"owner_avatar_url" json:"owner_avatar_url"`
 }
 
 type TaskTable struct {
@@ -4248,6 +4251,14 @@ type TelemetryItem struct {
 	Value     string    `db:"value" json:"value"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+}
+
+// Telemetry lock tracking table for deduplication of heartbeat events across replicas.
+type TelemetryLock struct {
+	// The type of event that was sent.
+	EventType string `db:"event_type" json:"event_type"`
+	// The heartbeat period end timestamp.
+	PeriodEndingAt time.Time `db:"period_ending_at" json:"period_ending_at"`
 }
 
 // Joins in the display name information such as username, avatar, and organization name.

@@ -14,6 +14,7 @@ const (
 	CheckSubsystemsNotNone                         CheckConstraint = "subsystems_not_none"                              // workspace_agents
 	CheckWorkspaceBuildsAiTaskSidebarAppIDRequired CheckConstraint = "workspace_builds_ai_task_sidebar_app_id_required" // workspace_builds
 	CheckWorkspaceBuildsDeadlineBelowMaxDeadline   CheckConstraint = "workspace_builds_deadline_below_max_deadline"     // workspace_builds
+	CheckTelemetryLockEventTypeConstraint          CheckConstraint = "telemetry_lock_event_type_constraint"             // telemetry_locks
 	CheckValidationMonotonicOrder                  CheckConstraint = "validation_monotonic_order"                       // template_version_parameters
 	CheckUsageEventTypeCheck                       CheckConstraint = "usage_event_type_check"                           // usage_events
 )

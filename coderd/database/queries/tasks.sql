@@ -2,7 +2,7 @@
 INSERT INTO tasks
 	(id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at)
 VALUES
-	(gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8)
+	($1, $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING *;
 
 -- name: UpdateTaskWorkspaceID :one
