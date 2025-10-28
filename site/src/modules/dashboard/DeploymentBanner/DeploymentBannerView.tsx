@@ -103,8 +103,8 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 	return (
 		<div
 			className="sticky bottom-0 z-[1] flex h-9 w-full items-center gap-8
-		 overflow-x-auto whitespace-nowrap border-0 border-t border-solid border-border
-		 bg-surface-primary pr-4 font-mono text-xs leading-none"
+		 		overflow-x-auto whitespace-nowrap border-0 border-t border-solid border-border
+				bg-surface-primary pr-4 font-mono text-xs leading-none"
 		>
 			<TooltipProvider delayDuration={100}>
 				<Tooltip>
@@ -127,7 +127,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 					</TooltipTrigger>
 					<TooltipContent
 						className="ml-3 mb-1 p-4 text-sm text-content-primary
-						border border-solid border-border pointer-events-none"
+							border border-solid border-border pointer-events-none"
 					>
 						{healthErrors.length > 0 ? (
 							<>
