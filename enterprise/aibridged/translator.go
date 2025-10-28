@@ -20,13 +20,14 @@ var _ aibridge.Recorder = &recorderTranslation{}
 
 // recorderTranslation satisfies the aibridge.Recorder interface and translates calls into dRPC calls to aibridgedserver.
 type recorderTranslation struct {
-	client proto.DRPCRecorderClient
+	apiKeyID string
+	client   proto.DRPCRecorderClient
 }
 
 func (t *recorderTranslation) RecordInterception(ctx context.Context, req *aibridge.InterceptionRecord) error {
 	_, err := t.client.RecordInterception(ctx, &proto.RecordInterceptionRequest{
 		Id:          req.ID,
-		ApiKeyId:    req.APIKeyID,
+		ApiKeyId:    t.apiKeyID,
 		InitiatorId: req.InitiatorID,
 		Provider:    req.Provider,
 		Model:       req.Model,

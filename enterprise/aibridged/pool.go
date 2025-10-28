@@ -111,17 +111,9 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn Cl
 	// may visit the slow path unnecessarily.
 	defer p.cache.Wait()
 
-	recorder := aibridge.NewRecorder(p.logger.Named("recorder"), func() (aibridge.Recorder, error) {
-		client, err := clientFn()
-		if err != nil {
-			return nil, xerrors.Errorf("acquire client: %w", err)
-		}
-
-		return &recorderTranslation{client: client}, nil
-	})
-
 	// Fast path.
-	bridge, ok := p.cache.Get(req.InitiatorID.String())
+	cacheKey := req.InitiatorID.String() + req.APIKeyID
+	bridge, ok := p.cache.Get(cacheKey)
 	if ok && bridge != nil {
 		// TODO: future improvement:
 		// Once we can detect token expiry against an MCP server, we no longer need to let these instances
@@ -130,6 +122,15 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn Cl
 
 		return bridge, nil
 	}
+
+	recorder := aibridge.NewRecorder(p.logger.Named("recorder"), func() (aibridge.Recorder, error) {
+		client, err := clientFn()
+		if err != nil {
+			return nil, xerrors.Errorf("acquire client: %w", err)
+		}
+
+		return &recorderTranslation{apiKeyID: req.APIKeyID, client: client}, nil
+	})
 
 	// Slow path.
 	// Creating an *aibridge.RequestBridge may take some time, so gate all subsequent callers behind the initial request and return the resulting value.
@@ -158,7 +159,7 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn Cl
 			return nil, xerrors.Errorf("create new request bridge: %w", err)
 		}
 
-		p.cache.SetWithTTL(req.InitiatorID.String(), bridge, cacheCost, p.options.TTL)
+		p.cache.SetWithTTL(cacheKey, bridge, cacheCost, p.options.TTL)
 
 		return bridge, nil
 	})
