@@ -3280,7 +3280,7 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.AI.BridgeConfig.Anthropic.BaseURL,
 			Default:     "https://api.anthropic.com/",
 			Group:       &deploymentGroupAIBridge,
-			YAML:        "base_url", // TODO: this needs to be namespaced to Anthropic, but may cause BC breaks.
+			YAML:        "anthropic_base_url",
 			Hidden:      true,
 		},
 		{
@@ -3291,7 +3291,7 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.AI.BridgeConfig.Anthropic.Key,
 			Default:     "",
 			Group:       &deploymentGroupAIBridge,
-			YAML:        "key", // TODO: this needs to be namespaced to Anthropic, but may cause BC breaks.
+			YAML:        "anthropic_key",
 			Hidden:      true,
 		},
 		{
