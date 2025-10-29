@@ -119,34 +119,6 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: coder-workspace-perms
-  namespace: test-namespace2
-rules:
-  - apiGroups:
-    - apps
-    resources:
-    - deployments
-    verbs:
-    - create
-    - delete
-    - deletecollection
-    - get
-    - list
-    - patch
-    - update
-    - watch
-  - apiGroups:
-    - networking.k8s.io
-    resources:
-    - ingresses
-    verbs:
-    - get
-    - list
----
-# Source: coder/templates/rbac.yaml
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: coder-workspace-perms
   namespace: test-namespace3
 rules:
   - apiGroups: [""]
@@ -250,21 +222,6 @@ kind: RoleBinding
 metadata:
   name: "coder"
   namespace: test-namespace1
-subjects:
-  - kind: ServiceAccount
-    name: "coder"
-    namespace: coder
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: coder-workspace-perms
----
-# Source: coder/templates/rbac.yaml
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: "coder"
-  namespace: test-namespace2
 subjects:
   - kind: ServiceAccount
     name: "coder"

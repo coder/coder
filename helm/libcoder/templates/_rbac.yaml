@@ -1,7 +1,9 @@
 {{- define "libcoder.rbac.forNamespace" -}}
   {{- $nsPerms := ternary .workspacePerms .Top.Values.coder.serviceAccount.workspacePerms (hasKey . "workspacePerms") -}}
-  {{- $nsDeploy := ternary .enableDeployments .Top.Values.coder.serviceAccount.enableDeployments (hasKey . "enableDeployments") -}}
-  {{- $nsExtra := ternary .extraRules .Top.Values.coder.serviceAccount.extraRules (hasKey . "extraRules") -}}
+  {{- $nsDeployRaw := ternary .enableDeployments .Top.Values.coder.serviceAccount.enableDeployments (hasKey . "enableDeployments") -}}
+  {{- $nsExtraRaw := ternary .extraRules .Top.Values.coder.serviceAccount.extraRules (hasKey . "extraRules") -}}
+  {{- $nsDeploy := and $nsPerms $nsDeployRaw -}}
+  {{- $nsExtra := ternary $nsExtraRaw (list) $nsPerms -}}
 
   {{- if or $nsPerms (or $nsDeploy $nsExtra) }}
 ---
