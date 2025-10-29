@@ -31,7 +31,7 @@ module.exports = {
 			testEnvironmentOptions: {
 				customExportConditions: [""],
 			},
-			testRegex: "(/__tests__/.*|(\\.|/)(test|spec))\\.tsx?$",
+			testRegex: "(/__tests__/.*|(\\.|/)(jest))\\.tsx?$",
 			testPathIgnorePatterns: [
 				"/node_modules/",
 				"/e2e/",

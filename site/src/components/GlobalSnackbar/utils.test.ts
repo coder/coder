@@ -1,3 +1,4 @@
+import type { Mock } from "vitest";
 import {
 	displayError,
 	displaySuccess,
@@ -7,7 +8,6 @@ import {
 	type NotificationTextPrefixed,
 	SnackbarEventType,
 } from "./utils";
-import type { Mock } from "vitest";
 
 describe("Snackbar", () => {
 	describe("isNotificationTextPrefixed", () => {

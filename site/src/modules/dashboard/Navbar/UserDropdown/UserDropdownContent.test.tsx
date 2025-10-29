@@ -10,7 +10,7 @@ describe("UserDropdownContent", () => {
 			<Popover>
 				<UserDropdownContent
 					user={MockUserOwner}
-					onSignOut={jest.fn()}
+					onSignOut={vi.fn()}
 					supportLinks={[]}
 				/>
 			</Popover>,
@@ -26,7 +26,7 @@ describe("UserDropdownContent", () => {
 	});
 
 	it("calls the onSignOut function", async () => {
-		const onSignOut = jest.fn();
+		const onSignOut = vi.fn();
 		render(
 			<Popover>
 				<UserDropdownContent
