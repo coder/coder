@@ -715,7 +715,8 @@ resource "docker_container" "workspace" {
   # Hostname makes the shell more user friendly: coder@my-workspace:~$
   hostname = data.coder_workspace.me.name
   # Use the docker gateway if the access URL is 127.0.0.1
-  entrypoint = ["sh", "-c", coder_agent.dev.init_script]
+  # Wrap agent with choom to set OOM score to -900 for protection from OOM killer
+  entrypoint = ["sh", "-c", "exec choom -n -900 -- sh -c \"$0\"", coder_agent.dev.init_script]
   # CPU limits are unnecessary since Docker will load balance automatically
   memory  = data.coder_workspace_owner.me.name == "code-asher" ? 65536 : 32768
   runtime = "sysbox-runc"
