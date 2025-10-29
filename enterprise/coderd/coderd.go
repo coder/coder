@@ -228,10 +228,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 
 	api.AGPL.ExperimentalHandler.Group(func(r chi.Router) {
 		r.Route("/aibridge", func(r chi.Router) {
-			r.Use(
-				api.RequireFeatureMW(codersdk.FeatureAIBridge),
-				httpmw.RequireExperimentWithDevBypass(api.AGPL.Experiments, codersdk.ExperimentAIBridge),
-			)
+			r.Use(api.RequireFeatureMW(codersdk.FeatureAIBridge))
 			r.Group(func(r chi.Router) {
 				r.Use(apiKeyMiddleware)
 				r.Get("/interceptions", api.aiBridgeListInterceptions)
