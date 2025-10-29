@@ -608,7 +608,7 @@ func (e *executor) apply(
 	if err != nil {
 		return nil, err
 	}
-	statefilePath := filepath.Join(e.workdir, "terraform.tfstate")
+	statefilePath := getStateFilePath(e.workdir)
 	stateContent, err := os.ReadFile(statefilePath)
 	if err != nil {
 		return nil, xerrors.Errorf("read statefile %q: %w", statefilePath, err)
