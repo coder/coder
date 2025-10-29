@@ -202,7 +202,9 @@ CREATE TYPE api_key_scope AS ENUM (
     'task:read',
     'task:update',
     'task:delete',
-    'task:*'
+    'task:*',
+    'workspace:share',
+    'workspace_dormant:share'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -1053,7 +1055,8 @@ CREATE TABLE aibridge_interceptions (
     provider text NOT NULL,
     model text NOT NULL,
     started_at timestamp with time zone NOT NULL,
-    metadata jsonb
+    metadata jsonb,
+    ended_at timestamp with time zone
 );
 
 COMMENT ON TABLE aibridge_interceptions IS 'Audit log of requests intercepted by AI Bridge';
@@ -1123,7 +1126,8 @@ CREATE TABLE api_keys (
     ip_address inet DEFAULT '0.0.0.0'::inet NOT NULL,
     token_name text DEFAULT ''::text NOT NULL,
     scopes api_key_scope[] NOT NULL,
-    allow_list text[] NOT NULL
+    allow_list text[] NOT NULL,
+    CONSTRAINT api_keys_allow_list_not_empty CHECK ((array_length(allow_list, 1) > 0))
 );
 
 COMMENT ON COLUMN api_keys.hashed_secret IS 'hashed_secret contains a SHA256 hash of the key secret. This is considered a secret and MUST NOT be returned from the API as it is used for API key encryption in app proxying code.';
@@ -1534,7 +1538,7 @@ CREATE TABLE oauth2_provider_apps (
     jwks jsonb,
     software_id text,
     software_version text,
-    registration_access_token text,
+    registration_access_token bytea,
     registration_client_uri text
 );
 
@@ -1824,6 +1828,15 @@ CREATE TABLE tasks (
     deleted_at timestamp with time zone
 );
 
+CREATE VIEW visible_users AS
+ SELECT users.id,
+    users.username,
+    users.name,
+    users.avatar_url
+   FROM users;
+
+COMMENT ON VIEW visible_users IS 'Visible fields of users are allowed to be joined with other tables for including context of other resources.';
+
 CREATE TABLE workspace_agents (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -1974,8 +1987,16 @@ CREATE VIEW tasks_with_status AS
         END AS status,
     task_app.workspace_build_number,
     task_app.workspace_agent_id,
-    task_app.workspace_app_id
-   FROM ((((tasks
+    task_app.workspace_app_id,
+    task_owner.owner_username,
+    task_owner.owner_name,
+    task_owner.owner_avatar_url
+   FROM (((((tasks
+     CROSS JOIN LATERAL ( SELECT vu.username AS owner_username,
+            vu.name AS owner_name,
+            vu.avatar_url AS owner_avatar_url
+           FROM visible_users vu
+          WHERE (vu.id = tasks.owner_id)) task_owner)
      LEFT JOIN LATERAL ( SELECT task_app_1.workspace_build_number,
             task_app_1.workspace_agent_id,
             task_app_1.workspace_app_id
@@ -2007,6 +2028,18 @@ CREATE TABLE telemetry_items (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
+
+CREATE TABLE telemetry_locks (
+    event_type text NOT NULL,
+    period_ending_at timestamp with time zone NOT NULL,
+    CONSTRAINT telemetry_lock_event_type_constraint CHECK ((event_type = 'aibridge_interceptions_summary'::text))
+);
+
+COMMENT ON TABLE telemetry_locks IS 'Telemetry lock tracking table for deduplication of heartbeat events across replicas.';
+
+COMMENT ON COLUMN telemetry_locks.event_type IS 'The type of event that was sent.';
+
+COMMENT ON COLUMN telemetry_locks.period_ending_at IS 'The heartbeat period end timestamp.';
 
 CREATE TABLE template_usage_stats (
     start_time timestamp with time zone NOT NULL,
@@ -2193,15 +2226,6 @@ CREATE TABLE template_versions (
 COMMENT ON COLUMN template_versions.external_auth_providers IS 'IDs of External auth providers for a specific template version';
 
 COMMENT ON COLUMN template_versions.message IS 'Message describing the changes in this version of the template, similar to a Git commit message. Like a commit message, this should be a short, high-level description of the changes in this version of the template. This message is immutable and should not be updated after the fact.';
-
-CREATE VIEW visible_users AS
- SELECT users.id,
-    users.username,
-    users.name,
-    users.avatar_url
-   FROM users;
-
-COMMENT ON VIEW visible_users IS 'Visible fields of users are allowed to be joined with other tables for including context of other resources.';
 
 CREATE VIEW template_version_with_user AS
  SELECT template_versions.id,
@@ -2898,11 +2922,13 @@ CREATE VIEW workspaces_expanded AS
     templates.name AS template_name,
     templates.display_name AS template_display_name,
     templates.icon AS template_icon,
-    templates.description AS template_description
-   FROM (((workspaces
+    templates.description AS template_description,
+    tasks.id AS task_id
+   FROM ((((workspaces
      JOIN visible_users ON ((workspaces.owner_id = visible_users.id)))
      JOIN organizations ON ((workspaces.organization_id = organizations.id)))
-     JOIN templates ON ((workspaces.template_id = templates.id)));
+     JOIN templates ON ((workspaces.template_id = templates.id)))
+     LEFT JOIN tasks ON ((workspaces.id = tasks.workspace_id)));
 
 COMMENT ON VIEW workspaces_expanded IS 'Joins in the display name information such as username, avatar, and organization name.';
 
@@ -3085,6 +3111,9 @@ ALTER TABLE ONLY tasks
 
 ALTER TABLE ONLY telemetry_items
     ADD CONSTRAINT telemetry_items_pkey PRIMARY KEY (key);
+
+ALTER TABLE ONLY telemetry_locks
+    ADD CONSTRAINT telemetry_locks_pkey PRIMARY KEY (event_type, period_ending_at);
 
 ALTER TABLE ONLY template_usage_stats
     ADD CONSTRAINT template_usage_stats_pkey PRIMARY KEY (start_time, template_id, user_id);
@@ -3311,6 +3340,8 @@ CREATE INDEX idx_tailnet_tunnels_dst_id ON tailnet_tunnels USING hash (dst_id);
 
 CREATE INDEX idx_tailnet_tunnels_src_id ON tailnet_tunnels USING hash (src_id);
 
+CREATE INDEX idx_telemetry_locks_period_ending_at ON telemetry_locks USING btree (period_ending_at);
+
 CREATE UNIQUE INDEX idx_template_version_presets_default ON template_version_presets USING btree (template_version_id) WHERE (is_default = true);
 
 CREATE INDEX idx_template_versions_has_ai_task ON template_versions USING btree (has_ai_task);
@@ -3508,6 +3539,9 @@ CREATE TRIGGER workspace_agent_name_unique_trigger BEFORE INSERT OR UPDATE OF na
 COMMENT ON TRIGGER workspace_agent_name_unique_trigger ON workspace_agents IS 'Use a trigger instead of a unique constraint because existing data may violate
 the uniqueness requirement. A trigger allows us to enforce uniqueness going
 forward without requiring a migration to clean up historical data.';
+
+ALTER TABLE ONLY aibridge_interceptions
+    ADD CONSTRAINT aibridge_interceptions_initiator_id_fkey FOREIGN KEY (initiator_id) REFERENCES users(id);
 
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;

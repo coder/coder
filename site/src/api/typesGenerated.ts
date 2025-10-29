@@ -17,21 +17,32 @@ export interface AIBridgeAnthropicConfig {
 }
 
 // From codersdk/deployment.go
+export interface AIBridgeBedrockConfig {
+	readonly region: string;
+	readonly access_key: string;
+	readonly access_key_secret: string;
+	readonly model: string;
+	readonly small_fast_model: string;
+}
+
+// From codersdk/deployment.go
 export interface AIBridgeConfig {
 	readonly enabled: boolean;
 	readonly openai: AIBridgeOpenAIConfig;
 	readonly anthropic: AIBridgeAnthropicConfig;
+	readonly bedrock: AIBridgeBedrockConfig;
 }
 
 // From codersdk/aibridge.go
 export interface AIBridgeInterception {
 	readonly id: string;
-	readonly initiator_id: string;
+	readonly initiator: MinimalUser;
 	readonly provider: string;
 	readonly model: string;
 	// empty interface{} type, falling back to unknown
 	readonly metadata: Record<string, unknown>;
 	readonly started_at: string;
+	readonly ended_at: string | null;
 	readonly token_usages: readonly AIBridgeTokenUsage[];
 	readonly user_prompts: readonly AIBridgeUserPrompt[];
 	readonly tool_usages: readonly AIBridgeToolUsage[];
@@ -39,6 +50,7 @@ export interface AIBridgeInterception {
 
 // From codersdk/aibridge.go
 export interface AIBridgeListInterceptionsResponse {
+	readonly count: number;
 	readonly results: readonly AIBridgeInterception[];
 }
 
@@ -96,22 +108,16 @@ export interface AIConfig {
  * AITaskPromptParameterName is the name of the parameter used to pass prompts
  * to AI tasks.
  *
- * Experimental: This value is experimental and may change in the future.
+ * Deprecated: This constant is deprecated and maintained only for backwards
+ * compatibility with older templates. Task prompts are now stored directly
+ * in the tasks.prompt database column. New code should access prompts via
+ * the Task.InitialPrompt field returned from task endpoints.
+ *
+ * This constant will be removed in a future major version. Templates should
+ * not rely on this parameter name, as the backend will continue to create it
+ * automatically for compatibility but reads from tasks.prompt.
  */
 export const AITaskPromptParameterName = "AI Prompt";
-
-// From codersdk/aitasks.go
-/**
- * AITasksPromptsResponse represents the response from the AITaskPrompts method.
- *
- * Experimental: This method is experimental and may change in the future.
- */
-export interface AITasksPromptsResponse {
-	/**
-	 * Prompts is a map of workspace build IDs to prompts.
-	 */
-	readonly prompts: Record<string, string>;
-}
 
 // From codersdk/allowlist.go
 /**
@@ -140,6 +146,7 @@ export interface APIKey {
 	readonly scopes: readonly APIKeyScope[];
 	readonly token_name: string;
 	readonly lifetime_seconds: number;
+	readonly allow_list: readonly APIAllowListTarget[];
 }
 
 // From codersdk/apikey.go
@@ -324,6 +331,7 @@ export type APIKeyScope =
 	| "workspace_dormant:delete"
 	| "workspace_dormant:delete_agent"
 	| "workspace_dormant:read"
+	| "workspace_dormant:share"
 	| "workspace_dormant:ssh"
 	| "workspace_dormant:start"
 	| "workspace_dormant:stop"
@@ -334,6 +342,7 @@ export type APIKeyScope =
 	| "workspace_proxy:read"
 	| "workspace_proxy:update"
 	| "workspace:read"
+	| "workspace:share"
 	| "workspace:ssh"
 	| "workspace:start"
 	| "workspace:stop"
@@ -520,6 +529,7 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"workspace_dormant:delete",
 	"workspace_dormant:delete_agent",
 	"workspace_dormant:read",
+	"workspace_dormant:share",
 	"workspace_dormant:ssh",
 	"workspace_dormant:start",
 	"workspace_dormant:stop",
@@ -530,6 +540,7 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"workspace_proxy:read",
 	"workspace_proxy:update",
 	"workspace:read",
+	"workspace:share",
 	"workspace:ssh",
 	"workspace:start",
 	"workspace:stop",
@@ -1513,11 +1524,15 @@ export interface CustomRoleRequest {
 	readonly name: string;
 	readonly display_name: string;
 	readonly site_permissions: readonly Permission[];
+	readonly user_permissions: readonly Permission[];
 	/**
 	 * OrganizationPermissions are specific to the organization the role belongs to.
 	 */
 	readonly organization_permissions: readonly Permission[];
-	readonly user_permissions: readonly Permission[];
+	/**
+	 * OrganizationMemberPermissions are specific to the organization the role belongs to.
+	 */
+	readonly organization_member_permissions: readonly Permission[];
 }
 
 // From codersdk/deployment.go
@@ -1750,6 +1765,7 @@ export interface DeploymentValues {
 	readonly session_lifetime?: SessionLifetime;
 	readonly disable_password_auth?: boolean;
 	readonly support?: SupportConfig;
+	readonly enable_authz_recording?: boolean;
 	readonly external_auth?: SerpentStruct<ExternalAuthConfig[]>;
 	readonly config_ssh?: SSHConfig;
 	readonly wgtunnel_host?: string;
@@ -1872,7 +1888,6 @@ export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
 
 // From codersdk/deployment.go
 export type Experiment =
-	| "aibridge"
 	| "auto-fill-parameters"
 	| "example"
 	| "mcp-server-http"
@@ -1883,7 +1898,6 @@ export type Experiment =
 	| "workspace-usage";
 
 export const Experiments: Experiment[] = [
-	"aibridge",
 	"auto-fill-parameters",
 	"example",
 	"mcp-server-http",
@@ -2509,6 +2523,7 @@ export interface LinkConfig {
 	readonly name: string;
 	readonly target: string;
 	readonly icon: string;
+	readonly location?: string;
 }
 
 // From codersdk/inboxnotification.go
@@ -2632,6 +2647,7 @@ export interface MinimalOrganization {
 export interface MinimalUser {
 	readonly id: string;
 	readonly username: string;
+	readonly name?: string;
 	readonly avatar_url?: string;
 }
 
@@ -2881,6 +2897,7 @@ export interface NullHCLString {
 export interface OAuth2AppEndpoints {
 	readonly authorization: string;
 	readonly token: string;
+	readonly token_revoke: string;
 	/**
 	 * DeviceAuth is optional.
 	 */
@@ -3812,6 +3829,7 @@ export type RBACAction =
 	| "read"
 	| "read_personal"
 	| "ssh"
+	| "share"
 	| "unassign"
 	| "update"
 	| "update_personal"
@@ -3830,6 +3848,7 @@ export const RBACActions: RBACAction[] = [
 	"read",
 	"read_personal",
 	"ssh",
+	"share",
 	"unassign",
 	"update",
 	"update_personal",
@@ -3943,7 +3962,6 @@ export interface RateLimitConfig {
  * required by the frontend.
  */
 export interface ReducedUser extends MinimalUser {
-	readonly name?: string;
 	readonly email: string;
 	readonly created_at: string;
 	readonly updated_at: string;
@@ -4128,11 +4146,15 @@ export interface Role {
 	readonly organization_id?: string;
 	readonly display_name: string;
 	readonly site_permissions: readonly Permission[];
+	readonly user_permissions: readonly Permission[];
 	/**
 	 * OrganizationPermissions are specific for the organization in the field 'OrganizationID' above.
 	 */
 	readonly organization_permissions: readonly Permission[];
-	readonly user_permissions: readonly Permission[];
+	/**
+	 * OrganizationMemberPermissions are specific for the organization in the field 'OrganizationID' above.
+	 */
+	readonly organization_member_permissions: readonly Permission[];
 }
 
 // From codersdk/rbacroles.go
@@ -4690,19 +4712,23 @@ export interface Task {
 	readonly organization_id: string;
 	readonly owner_id: string;
 	readonly owner_name: string;
+	readonly owner_avatar_url?: string;
 	readonly name: string;
 	readonly template_id: string;
+	readonly template_version_id: string;
 	readonly template_name: string;
 	readonly template_display_name: string;
 	readonly template_icon: string;
 	readonly workspace_id: string | null;
+	readonly workspace_name: string;
+	readonly workspace_status?: WorkspaceStatus;
 	readonly workspace_build_number?: number;
 	readonly workspace_agent_id: string | null;
 	readonly workspace_agent_lifecycle: WorkspaceAgentLifecycle | null;
 	readonly workspace_agent_health: WorkspaceAgentHealth | null;
 	readonly workspace_app_id: string | null;
 	readonly initial_prompt: string;
-	readonly status: WorkspaceStatus;
+	readonly status: TaskStatus;
 	readonly current_state: TaskStateEntry | null;
 	readonly created_at: string;
 	readonly updated_at: string;
@@ -4770,6 +4796,24 @@ export const TaskStates: TaskState[] = [
 ];
 
 // From codersdk/aitasks.go
+export type TaskStatus =
+	| "active"
+	| "error"
+	| "initializing"
+	| "paused"
+	| "pending"
+	| "unknown";
+
+export const TaskStatuses: TaskStatus[] = [
+	"active",
+	"error",
+	"initializing",
+	"paused",
+	"pending",
+	"unknown",
+];
+
+// From codersdk/aitasks.go
 /**
  * TasksFilter filters the list of tasks.
  *
@@ -4780,6 +4824,29 @@ export interface TasksFilter {
 	 * Owner can be a username, UUID, or "me".
 	 */
 	readonly owner?: string;
+	/**
+	 * Organization can be an organization name or UUID.
+	 */
+	readonly organization?: string;
+	/**
+	 * Status filters the tasks by their task status.
+	 */
+	readonly status?: TaskStatus;
+	/**
+	 * FilterQuery allows specifying a raw filter query.
+	 */
+	readonly filter_query?: string;
+}
+
+// From codersdk/aitasks.go
+/**
+ * TaskListResponse is the response shape for tasks list.
+ *
+ * Experimental response shape for tasks list (server returns []Task).
+ */
+export interface TasksListResponse {
+	readonly tasks: readonly Task[];
+	readonly count: number;
 }
 
 // From codersdk/deployment.go
@@ -5802,6 +5869,10 @@ export interface Workspace {
 	 * and IsPrebuild returns false.
 	 */
 	readonly is_prebuild: boolean;
+	/**
+	 * TaskID, if set, indicates that the workspace is relevant to the given codersdk.Task.
+	 */
+	readonly task_id?: string;
 }
 
 // From codersdk/workspaces.go
@@ -6321,7 +6392,11 @@ export interface WorkspaceBuild {
 	readonly matched_provisioners?: MatchedProvisioners;
 	readonly template_version_preset_id: string | null;
 	readonly has_ai_task?: boolean;
+	/**
+	 * Deprecated: This field has been replaced with `TaskAppID`
+	 */
 	readonly ai_task_sidebar_app_id?: string;
+	readonly task_app_id?: string;
 	readonly has_external_agent?: boolean;
 }
 

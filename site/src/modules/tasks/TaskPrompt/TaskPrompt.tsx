@@ -7,6 +7,7 @@ import type {
 	Template,
 	TemplateVersionExternalAuth,
 } from "api/typesGenerated";
+import { AITaskPromptParameterName } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
@@ -29,7 +30,6 @@ import {
 import { useAuthenticated } from "hooks/useAuthenticated";
 import { useExternalAuth } from "hooks/useExternalAuth";
 import { ArrowUpIcon, RedoIcon, RotateCcwIcon } from "lucide-react";
-import { AI_PROMPT_PARAMETER_NAME } from "modules/tasks/tasks";
 import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import TextareaAutosize, {
@@ -167,7 +167,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 
 	// Read-only prompt if defined in preset
 	const presetPrompt = selectedPreset?.Parameters?.find(
-		(param) => param.Name === AI_PROMPT_PARAMETER_NAME,
+		(param) => param.Name === AITaskPromptParameterName,
 	)?.Value;
 	const isPromptReadOnly = !!presetPrompt;
 	useEffect(() => {

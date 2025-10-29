@@ -181,7 +181,7 @@ jobs:
           echo "LINT_CACHE_DIR=$dir" >> "$GITHUB_ENV"
 
       - name: golangci-lint cache
-        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ${{ env.LINT_CACHE_DIR }}
@@ -191,7 +191,7 @@ jobs:
 
       # Check for any typos
       - name: Check for typos
-        uses: crate-ci/typos@85f62a8a84f939ae994ab3763f01a0296d61a7ee # v1.36.2
+        uses: crate-ci/typos@80c8a4945eec0f6d464eaf9e65ed98ef085283d1 # v1.38.1
         with:
           config: .github/workflows/typos.toml
 
@@ -204,9 +204,17 @@ jobs:
 
       # Needed for helm chart linting
       - name: Install helm
-        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
-        with:
-          version: v3.9.2
+        # uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+        # with:
+          # version: v3.9.2
+        # The below is taken from https://helm.sh/docs/intro/install/#from-apt-debianubuntu
+        run: |
+          set -euo pipefail
+          sudo apt-get install curl gpg apt-transport-https --yes
+          curl -fsSL https://packages.buildkite.com/helm-linux/helm-debian/gpgkey | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/helm.gpg] https://packages.buildkite.com/helm-linux/helm-debian/any/ any main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
+          sudo apt-get update
+          sudo apt-get install helm
 
       - name: make lint
         run: |
@@ -376,13 +384,6 @@ jobs:
         id: go-paths
         uses: ./.github/actions/setup-go-paths
 
-      - name: Download Go Build Cache
-        id: download-go-build-cache
-        uses: ./.github/actions/test-cache/download
-        with:
-          key-prefix: test-go-build-${{ runner.os }}-${{ runner.arch }}
-          cache-path: ${{ steps.go-paths.outputs.cached-dirs }}
-
       - name: Setup Go
         uses: ./.github/actions/setup-go
         with:
@@ -390,8 +391,7 @@ jobs:
           # download the toolchain configured in go.mod, so we don't
           # need to reinstall it. It's faster on Windows runners.
           use-preinstalled-go: ${{ runner.os == 'Windows' }}
-          # Cache is already downloaded above
-          use-cache: false
+          use-cache: true
 
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
@@ -500,16 +500,10 @@ jobs:
           make test
 
       - name: Upload failed test db dumps
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: failed-test-db-dump-${{matrix.os}}
           path: "**/*.test.sql"
-
-      - name: Upload Go Build Cache
-        uses: ./.github/actions/test-cache/upload
-        with:
-          cache-key: ${{ steps.download-go-build-cache.outputs.cache-key }}
-          cache-path: ${{ steps.go-paths.outputs.cached-dirs }}
 
       - name: Upload Test Cache
         uses: ./.github/actions/test-cache/upload
@@ -762,7 +756,7 @@ jobs:
 
       - name: Upload Playwright Failed Tests
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: failed-test-videos${{ matrix.variant.premium && '-premium' || '' }}
           path: ./site/test-results/**/*.webm
@@ -770,7 +764,7 @@ jobs:
 
       - name: Upload pprof dumps
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: debug-pprof-dumps${{ matrix.variant.premium && '-premium' || ''  }}
           path: ./site/test-results/**/debug-pprof-*.txt
@@ -806,7 +800,7 @@ jobs:
       # the check to pass. This is desired in PRs, but not in mainline.
       - name: Publish to Chromatic (non-mainline)
         if: github.ref != 'refs/heads/main' && github.repository_owner == 'coder'
-        uses: chromaui/action@20c7e42e1b2f6becd5d188df9acb02f3e2f51519 # v13.2.0
+        uses: chromaui/action@bc2d84ad2b60813a67d995c5582d696104a19383 # v13.3.2
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
           STORYBOOK: true
@@ -838,7 +832,7 @@ jobs:
       # infinitely "in progress" in mainline unless we re-review each build.
       - name: Publish to Chromatic (mainline)
         if: github.ref == 'refs/heads/main' && github.repository_owner == 'coder'
-        uses: chromaui/action@20c7e42e1b2f6becd5d188df9acb02f3e2f51519 # v13.2.0
+        uses: chromaui/action@bc2d84ad2b60813a67d995c5582d696104a19383 # v13.3.2
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
           STORYBOOK: true
@@ -1036,7 +1030,7 @@ jobs:
 
       - name: Upload build artifacts
         if: ${{ github.repository_owner == 'coder' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: dylibs
           path: |
@@ -1123,7 +1117,7 @@ jobs:
           persist-credentials: false
 
       - name: GHCR Login
-        uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -1201,7 +1195,7 @@ jobs:
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
       - name: Download dylibs
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
           name: dylibs
           path: ./build
@@ -1468,7 +1462,7 @@ jobs:
 
       - name: Upload build artifacts
         if: github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: coder
           path: |
@@ -1537,7 +1531,7 @@ jobs:
     steps:
       - name: Send Slack notification
         run: |
-          ESCAPED_PROMPT=$(printf "%s" "<@A09M3J8FK1U> $BLINK_CI_FAILURE_PROMPT" | jq -Rsa .)
+          ESCAPED_PROMPT=$(printf "%s" "<@U09LQ75AHKR> $BLINK_CI_FAILURE_PROMPT" | jq -Rsa .)
           curl -X POST -H 'Content-type: application/json' \
           --data '{
             "blocks": [

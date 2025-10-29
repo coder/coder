@@ -277,6 +277,7 @@ of the template will be used.
       }
     ],
     "status": "pending",
+    "task_app_id": "ca438251-3e16-4fae-b9ab-dd3c237c3735",
     "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
     "template_version_name": "string",
     "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
@@ -296,6 +297,10 @@ of the template will be used.
   "owner_avatar_url": "string",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
+  "task_id": {
+    "uuid": "string",
+    "valid": true
+  },
   "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",
@@ -568,6 +573,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
       }
     ],
     "status": "pending",
+    "task_app_id": "ca438251-3e16-4fae-b9ab-dd3c237c3735",
     "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
     "template_version_name": "string",
     "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
@@ -587,6 +593,10 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
   "owner_avatar_url": "string",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
+  "task_id": {
+    "uuid": "string",
+    "valid": true
+  },
   "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",
@@ -884,6 +894,7 @@ of the template will be used.
       }
     ],
     "status": "pending",
+    "task_app_id": "ca438251-3e16-4fae-b9ab-dd3c237c3735",
     "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
     "template_version_name": "string",
     "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
@@ -903,6 +914,10 @@ of the template will be used.
   "owner_avatar_url": "string",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
+  "task_id": {
+    "uuid": "string",
+    "valid": true
+  },
   "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",
@@ -1161,6 +1176,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
           }
         ],
         "status": "pending",
+        "task_app_id": "ca438251-3e16-4fae-b9ab-dd3c237c3735",
         "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
         "template_version_name": "string",
         "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
@@ -1180,6 +1196,10 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
       "owner_avatar_url": "string",
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
       "owner_name": "string",
+      "task_id": {
+        "uuid": "string",
+        "valid": true
+      },
       "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
       "template_allow_user_cancel_workspace_jobs": true,
       "template_display_name": "string",
@@ -1453,6 +1473,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
       }
     ],
     "status": "pending",
+    "task_app_id": "ca438251-3e16-4fae-b9ab-dd3c237c3735",
     "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
     "template_version_name": "string",
     "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
@@ -1472,6 +1493,10 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
   "owner_avatar_url": "string",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
+  "task_id": {
+    "uuid": "string",
+    "valid": true
+  },
   "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",
@@ -1588,6 +1613,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/acl \
     {
       "avatar_url": "http://example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
       "role": "admin",
       "username": "string"
     }
@@ -2003,6 +2029,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
       }
     ],
     "status": "pending",
+    "task_app_id": "ca438251-3e16-4fae-b9ab-dd3c237c3735",
     "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
     "template_version_name": "string",
     "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
@@ -2022,6 +2049,10 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
   "owner_avatar_url": "string",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
+  "task_id": {
+    "uuid": "string",
+    "valid": true
+  },
   "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",

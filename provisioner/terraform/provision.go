@@ -170,7 +170,7 @@ func (s *server) Plan(
 
 	// Prepend init timings since they occur prior to plan timings.
 	// Order is irrelevant; this is merely indicative.
-	resp.Timings = append(initTimings.aggregate(), resp.Timings...)
+	resp.Timings = mergeInitTimings(initTimings.aggregate(), resp.Timings)
 	resp.Modules = modules
 	return resp
 }

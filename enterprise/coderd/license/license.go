@@ -490,15 +490,15 @@ func LicensesEntitlements(
 		if featureArguments.ManagedAgentCountFn != nil {
 			managedAgentCount, err = featureArguments.ManagedAgentCountFn(ctx, agentLimit.UsagePeriod.Start, agentLimit.UsagePeriod.End)
 		}
-		switch {
-		case xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded):
+		if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
 			// If the context is canceled, we want to bail the entire
 			// LicensesEntitlements call.
 			return entitlements, xerrors.Errorf("get managed agent count: %w", err)
-		case err != nil:
-			entitlements.Errors = append(entitlements.Errors,
-				fmt.Sprintf("Error getting managed agent count: %s", err.Error()))
-		default:
+		}
+		if err != nil {
+			entitlements.Errors = append(entitlements.Errors, fmt.Sprintf("Error getting managed agent count: %s", err.Error()))
+			// no return
+		} else {
 			agentLimit.Actual = &managedAgentCount
 			entitlements.AddFeature(codersdk.FeatureManagedAgentLimit, agentLimit)
 
@@ -612,6 +612,8 @@ var (
 	ErrMissingLicenseExpires = xerrors.New("license has invalid or missing license_expires claim")
 	ErrMissingExp            = xerrors.New("license has invalid or missing exp (expires at) claim")
 	ErrMultipleIssues        = xerrors.New("license has multiple issues; contact support")
+	ErrMissingAccountType    = xerrors.New("license must contain valid account type")
+	ErrMissingAccountID      = xerrors.New("license must contain valid account ID")
 )
 
 type Features map[codersdk.FeatureName]int64
@@ -696,11 +698,19 @@ func validateClaims(tok *jwt.Token) (*Claims, error) {
 		if claims.NotBefore == nil {
 			return nil, ErrMissingNotBefore
 		}
-		if claims.LicenseExpires == nil {
+
+		yearsHardLimit := time.Now().Add(5 /* years */ * 365 * 24 * time.Hour)
+		if claims.LicenseExpires == nil || claims.LicenseExpires.Time.After(yearsHardLimit) {
 			return nil, ErrMissingLicenseExpires
 		}
 		if claims.ExpiresAt == nil {
 			return nil, ErrMissingExp
+		}
+		if claims.AccountType == "" {
+			return nil, ErrMissingAccountType
+		}
+		if claims.AccountID == "" {
+			return nil, ErrMissingAccountID
 		}
 		return claims, nil
 	}

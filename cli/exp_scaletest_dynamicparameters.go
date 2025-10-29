@@ -27,9 +27,12 @@ const (
 func (r *RootCmd) scaletestDynamicParameters() *serpent.Command {
 	var (
 		templateName    string
+		provisionerTags []string
 		numEvals        int64
 		tracingFlags    = &scaletestTracingFlags{}
 		prometheusFlags = &scaletestPrometheusFlags{}
+		// This test requires unlimited concurrency
+		timeoutStrategy = &timeoutFlags{}
 	)
 	orgContext := NewOrganizationContext()
 	output := &scaletestOutputFlags{}
@@ -52,6 +55,11 @@ func (r *RootCmd) scaletestDynamicParameters() *serpent.Command {
 			}
 			if templateName == "" {
 				return xerrors.Errorf("template cannot be empty")
+			}
+
+			tags, err := ParseProvisionerTags(provisionerTags)
+			if err != nil {
+				return err
 			}
 
 			org, err := orgContext.Selected(inv, client)
@@ -97,12 +105,15 @@ func (r *RootCmd) scaletestDynamicParameters() *serpent.Command {
 			}()
 			tracer := tracerProvider.Tracer(scaletestTracerName)
 
-			partitions, err := dynamicparameters.SetupPartitions(ctx, client, org.ID, templateName, numEvals, logger)
+			partitions, err := dynamicparameters.SetupPartitions(ctx, client, org.ID, templateName, tags, numEvals, logger)
 			if err != nil {
 				return xerrors.Errorf("setup dynamic parameters partitions: %w", err)
 			}
 
-			th := harness.NewTestHarness(harness.ConcurrentExecutionStrategy{}, harness.ConcurrentExecutionStrategy{})
+			th := harness.NewTestHarness(
+				timeoutStrategy.wrapStrategy(harness.ConcurrentExecutionStrategy{}),
+				// there is no cleanup since it's just a connection that we sever.
+				nil)
 
 			for i, part := range partitions {
 				for j := range part.ConcurrentEvaluations {
@@ -123,7 +134,9 @@ func (r *RootCmd) scaletestDynamicParameters() *serpent.Command {
 				}
 			}
 
-			err = th.Run(ctx)
+			testCtx, testCancel := timeoutStrategy.toContext(ctx)
+			defer testCancel()
+			err = th.Run(testCtx)
 			if err != nil {
 				return xerrors.Errorf("run test harness: %w", err)
 			}
@@ -153,10 +166,16 @@ func (r *RootCmd) scaletestDynamicParameters() *serpent.Command {
 			Default:     "100",
 			Value:       serpent.Int64Of(&numEvals),
 		},
+		{
+			Flag:        "provisioner-tag",
+			Description: "Specify a set of tags to target provisioner daemons.",
+			Value:       serpent.StringArrayOf(&provisionerTags),
+		},
 	}
 	orgContext.AttachOptions(cmd)
 	output.attach(&cmd.Options)
 	tracingFlags.attach(&cmd.Options)
 	prometheusFlags.attach(&cmd.Options)
+	timeoutStrategy.attach(&cmd.Options)
 	return cmd
 }

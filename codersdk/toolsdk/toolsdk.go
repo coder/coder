@@ -353,6 +353,18 @@ var CreateWorkspace = Tool[CreateWorkspaceArgs, codersdk.Workspace]{
 If a user is asking to "test a template", they are typically referring
 to creating a workspace from a template to ensure the infrastructure
 is provisioned correctly and the agent can connect to the control plane.
+
+Before creating a workspace, always confirm the template choice with the user by:
+
+	1. Listing the available templates that match their request.
+	2. Recommending the most relevant option.
+	2. Asking the user to confirm which template to use.
+
+It is important to not create a workspace without confirming the template
+choice with the user.
+
+After creating a workspace, watch the build logs and wait for the workspace to
+be ready before trying to use or connect to the workspace.
 `,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
@@ -530,8 +542,13 @@ type CreateWorkspaceBuildArgs struct {
 
 var CreateWorkspaceBuild = Tool[CreateWorkspaceBuildArgs, codersdk.WorkspaceBuild]{
 	Tool: aisdk.Tool{
-		Name:        ToolNameCreateWorkspaceBuild,
-		Description: "Create a new workspace build for an existing workspace. Use this to start, stop, or delete.",
+		Name: ToolNameCreateWorkspaceBuild,
+		Description: `Create a new workspace build for an existing workspace. Use this to start, stop, or delete.
+
+After creating a workspace build, watch the build logs and wait for the
+workspace build to complete before trying to start another build or use or
+connect to the workspace.
+`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
 				"workspace_id": map[string]any{
@@ -1531,8 +1548,20 @@ type WorkspaceWriteFileArgs struct {
 
 var WorkspaceWriteFile = Tool[WorkspaceWriteFileArgs, codersdk.Response]{
 	Tool: aisdk.Tool{
-		Name:        ToolNameWorkspaceWriteFile,
-		Description: `Write a file in a workspace.`,
+		Name: ToolNameWorkspaceWriteFile,
+		Description: `Write a file in a workspace.
+
+If a file write fails due to syntax errors or encoding issues, do NOT switch
+to using bash commands as a workaround. Instead:
+
+	1. Read the error message carefully to identify the issue
+	2. Fix the content encoding/syntax
+	3. Retry with this tool
+
+The content parameter expects base64-encoded bytes. Ensure your source content
+is correct before encoding it. If you encounter errors, decode and verify the
+content you are trying to write, then re-encode it properly.
+`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
 				"workspace": map[string]any{
@@ -1909,24 +1938,12 @@ var DeleteTask = Tool[DeleteTaskArgs, codersdk.Response]{
 
 		expClient := codersdk.NewExperimentalClient(deps.coderClient)
 
-		var owner string
-		id, err := uuid.Parse(args.TaskID)
-		if err == nil {
-			task, err := expClient.TaskByID(ctx, id)
-			if err != nil {
-				return codersdk.Response{}, xerrors.Errorf("get task %q: %w", args.TaskID, err)
-			}
-			owner = task.OwnerName
-		} else {
-			ws, err := normalizedNamedWorkspace(ctx, deps.coderClient, args.TaskID)
-			if err != nil {
-				return codersdk.Response{}, xerrors.Errorf("get task workspace %q: %w", args.TaskID, err)
-			}
-			owner = ws.OwnerName
-			id = ws.ID
+		task, err := expClient.TaskByIdentifier(ctx, args.TaskID)
+		if err != nil {
+			return codersdk.Response{}, xerrors.Errorf("resolve task: %w", err)
 		}
 
-		err = expClient.DeleteTask(ctx, owner, id)
+		err = expClient.DeleteTask(ctx, task.OwnerName, task.ID)
 		if err != nil {
 			return codersdk.Response{}, xerrors.Errorf("delete task: %w", err)
 		}
@@ -1938,8 +1955,8 @@ var DeleteTask = Tool[DeleteTaskArgs, codersdk.Response]{
 }
 
 type ListTasksArgs struct {
-	Status string `json:"status"`
-	User   string `json:"user"`
+	Status codersdk.TaskStatus `json:"status"`
+	User   string              `json:"user"`
 }
 
 type ListTasksResponse struct {
@@ -1990,7 +2007,7 @@ type GetTaskStatusArgs struct {
 }
 
 type GetTaskStatusResponse struct {
-	Status codersdk.WorkspaceStatus `json:"status"`
+	Status codersdk.TaskStatus      `json:"status"`
 	State  *codersdk.TaskStateEntry `json:"state"`
 }
 
@@ -2016,18 +2033,9 @@ var GetTaskStatus = Tool[GetTaskStatusArgs, GetTaskStatusResponse]{
 
 		expClient := codersdk.NewExperimentalClient(deps.coderClient)
 
-		id, err := uuid.Parse(args.TaskID)
+		task, err := expClient.TaskByIdentifier(ctx, args.TaskID)
 		if err != nil {
-			ws, err := normalizedNamedWorkspace(ctx, deps.coderClient, args.TaskID)
-			if err != nil {
-				return GetTaskStatusResponse{}, xerrors.Errorf("get task workspace %q: %w", args.TaskID, err)
-			}
-			id = ws.ID
-		}
-
-		task, err := expClient.TaskByID(ctx, id)
-		if err != nil {
-			return GetTaskStatusResponse{}, xerrors.Errorf("get task %q: %w", args.TaskID, err)
+			return GetTaskStatusResponse{}, xerrors.Errorf("resolve task %q: %w", args.TaskID, err)
 		}
 
 		return GetTaskStatusResponse{
@@ -2071,12 +2079,13 @@ var SendTaskInput = Tool[SendTaskInputArgs, codersdk.Response]{
 		}
 
 		expClient := codersdk.NewExperimentalClient(deps.coderClient)
-		id, owner, err := resolveTaskID(ctx, deps.coderClient, args.TaskID)
+
+		task, err := expClient.TaskByIdentifier(ctx, args.TaskID)
 		if err != nil {
-			return codersdk.Response{}, err
+			return codersdk.Response{}, xerrors.Errorf("resolve task %q: %w", args.TaskID, err)
 		}
 
-		err = expClient.TaskSend(ctx, owner, id, codersdk.TaskSendRequest{
+		err = expClient.TaskSend(ctx, task.OwnerName, task.ID, codersdk.TaskSendRequest{
 			Input: args.Input,
 		})
 		if err != nil {
@@ -2114,25 +2123,19 @@ var GetTaskLogs = Tool[GetTaskLogsArgs, codersdk.TaskLogsResponse]{
 		}
 
 		expClient := codersdk.NewExperimentalClient(deps.coderClient)
-		id, owner, err := resolveTaskID(ctx, deps.coderClient, args.TaskID)
+
+		task, err := expClient.TaskByIdentifier(ctx, args.TaskID)
 		if err != nil {
 			return codersdk.TaskLogsResponse{}, err
 		}
 
-		logs, err := expClient.TaskLogs(ctx, owner, id)
+		logs, err := expClient.TaskLogs(ctx, task.OwnerName, task.ID)
 		if err != nil {
 			return codersdk.TaskLogsResponse{}, xerrors.Errorf("get task logs %q: %w", args.TaskID, err)
 		}
 
 		return logs, nil
 	},
-}
-
-// normalizedNamedWorkspace normalizes the workspace name before getting the
-// workspace by name.
-func normalizedNamedWorkspace(ctx context.Context, client *codersdk.Client, name string) (codersdk.Workspace, error) {
-	// Maybe namedWorkspace should itself call NormalizeWorkspaceInput?
-	return namedWorkspace(ctx, client, NormalizeWorkspaceInput(name))
 }
 
 // NormalizeWorkspaceInput converts workspace name input to standard format.
@@ -2204,16 +2207,4 @@ func taskIDDescription(action string) string {
 
 func userDescription(action string) string {
 	return fmt.Sprintf("Username or ID of the user for which to %s. Omit or use the `me` keyword to %s for the authenticated user.", action, action)
-}
-
-func resolveTaskID(ctx context.Context, coderClient *codersdk.Client, taskID string) (uuid.UUID, string, error) {
-	id, err := uuid.Parse(taskID)
-	if err == nil {
-		return id, codersdk.Me, nil
-	}
-	ws, err := normalizedNamedWorkspace(ctx, coderClient, taskID)
-	if err != nil {
-		return uuid.UUID{}, codersdk.Me, xerrors.Errorf("get task workspace %q: %w", taskID, err)
-	}
-	return ws.ID, ws.OwnerName, nil
 }

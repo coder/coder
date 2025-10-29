@@ -3,7 +3,6 @@ package cli
 import (
 	"io"
 
-	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
@@ -39,12 +38,11 @@ func (r *RootCmd) taskSend() *serpent.Command {
 			}
 
 			var (
-				ctx  = inv.Context()
-				exp  = codersdk.NewExperimentalClient(client)
-				task = inv.Args[0]
+				ctx        = inv.Context()
+				exp        = codersdk.NewExperimentalClient(client)
+				identifier = inv.Args[0]
 
 				taskInput string
-				taskID    uuid.UUID
 			)
 
 			if stdin {
@@ -62,18 +60,12 @@ func (r *RootCmd) taskSend() *serpent.Command {
 				taskInput = inv.Args[1]
 			}
 
-			if id, err := uuid.Parse(task); err == nil {
-				taskID = id
-			} else {
-				ws, err := namedWorkspace(ctx, client, task)
-				if err != nil {
-					return xerrors.Errorf("resolve task: %w", err)
-				}
-
-				taskID = ws.ID
+			task, err := exp.TaskByIdentifier(ctx, identifier)
+			if err != nil {
+				return xerrors.Errorf("resolve task: %w", err)
 			}
 
-			if err = exp.TaskSend(ctx, codersdk.Me, taskID, codersdk.TaskSendRequest{Input: taskInput}); err != nil {
+			if err = exp.TaskSend(ctx, codersdk.Me, task.ID, codersdk.TaskSendRequest{Input: taskInput}); err != nil {
 				return xerrors.Errorf("send input to task: %w", err)
 			}
 

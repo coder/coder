@@ -388,7 +388,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		AvatarURL: member.AvatarURL,
 	}
 
-	w, err := createWorkspace(ctx, aReq, apiKey.UserID, api, owner, req, r)
+	w, err := createWorkspace(ctx, aReq, apiKey.UserID, api, owner, req, r, nil)
 	if err != nil {
 		httperror.WriteResponseError(ctx, rw, err)
 		return
@@ -484,7 +484,7 @@ func (api *API) postUserWorkspaces(rw http.ResponseWriter, r *http.Request) {
 
 	defer commitAudit()
 
-	w, err := createWorkspace(ctx, aReq, apiKey.UserID, api, owner, req, r)
+	w, err := createWorkspace(ctx, aReq, apiKey.UserID, api, owner, req, r, nil)
 	if err != nil {
 		httperror.WriteResponseError(ctx, rw, err)
 		return
@@ -499,6 +499,15 @@ type workspaceOwner struct {
 	AvatarURL string
 }
 
+type createWorkspaceOptions struct {
+	// preCreateInTX is a function that is called within the transaction, before
+	// the workspace is created.
+	preCreateInTX func(ctx context.Context, tx database.Store) error
+	// postCreateInTX is a function that is called within the transaction, after
+	// the workspace is created but before the workspace build is created.
+	postCreateInTX func(ctx context.Context, tx database.Store, workspace database.Workspace) error
+}
+
 func createWorkspace(
 	ctx context.Context,
 	auditReq *audit.Request[database.WorkspaceTable],
@@ -507,7 +516,12 @@ func createWorkspace(
 	owner workspaceOwner,
 	req codersdk.CreateWorkspaceRequest,
 	r *http.Request,
+	opts *createWorkspaceOptions,
 ) (codersdk.Workspace, error) {
+	if opts == nil {
+		opts = &createWorkspaceOptions{}
+	}
+
 	template, err := requestTemplate(ctx, req, api.Database)
 	if err != nil {
 		return codersdk.Workspace{}, err
@@ -636,6 +650,16 @@ func createWorkspace(
 			claimedWorkspace *database.Workspace
 		)
 
+		// If a preCreate hook is provided, execute it before creating or
+		// claiming the workspace. This can be used to perform additional
+		// setup or validation before the workspace is created (e.g. task
+		// creation).
+		if opts.preCreateInTX != nil {
+			if err := opts.preCreateInTX(ctx, db); err != nil {
+				return xerrors.Errorf("workspace preCreate failed: %w", err)
+			}
+		}
+
 		// Use injected Clock to allow time mocking in tests
 		now := dbtime.Time(api.Clock.Now())
 
@@ -727,6 +751,15 @@ func createWorkspace(
 		workspace, err = db.GetWorkspaceByID(ctx, workspaceID)
 		if err != nil {
 			return xerrors.Errorf("get workspace by ID: %w", err)
+		}
+
+		// If the postCreate hook is provided, execute it. This can be used to
+		// perform additional actions after the workspace has been created, like
+		// linking the workspace to a task.
+		if opts.postCreateInTX != nil {
+			if err := opts.postCreateInTX(ctx, db, workspace); err != nil {
+				return xerrors.Errorf("workspace postCreate failed: %w", err)
+			}
 		}
 
 		builder := wsbuilder.New(workspace, database.WorkspaceTransitionStart, *api.BuildUsageChecker.Load()).
@@ -2621,6 +2654,7 @@ func convertWorkspace(
 		Favorite:         requesterFavorite,
 		NextStartAt:      nextStartAt,
 		IsPrebuild:       workspace.IsPrebuild(),
+		TaskID:           workspace.TaskID,
 	}, nil
 }
 

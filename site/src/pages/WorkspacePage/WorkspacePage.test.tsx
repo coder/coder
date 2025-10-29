@@ -47,7 +47,6 @@ const renderWorkspacePage = async (
 ) => {
 	jest.spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(workspace);
 	jest.spyOn(API, "getTemplate").mockResolvedValueOnce(MockTemplate);
-	jest.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce([]);
 	jest
 		.spyOn(API, "getDeploymentConfig")
 		.mockResolvedValueOnce(MockDeploymentConfig);
@@ -380,18 +379,18 @@ describe("WorkspacePage", () => {
 
 	it("restart the workspace with one time parameters when having the confirmation dialog", async () => {
 		localStorage.removeItem(`${MockUserOwner.id}_ignoredWarnings`);
-		jest.spyOn(API, "getWorkspaceParameters").mockResolvedValue({
-			templateVersionRichParameters: [
-				{
-					...MockTemplateVersionParameter1,
-					ephemeral: true,
-					name: "rebuild",
-					description: "Rebuild",
-					required: false,
-				},
-			],
-			buildParameters: [{ name: "rebuild", value: "false" }],
-		});
+		jest.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValue([
+			{
+				...MockTemplateVersionParameter1,
+				ephemeral: true,
+				name: "rebuild",
+				description: "Rebuild",
+				required: false,
+			},
+		]);
+		jest
+			.spyOn(API, "getWorkspaceBuildParameters")
+			.mockResolvedValue([{ name: "rebuild", value: "false" }]);
 		const restartWorkspaceSpy = jest.spyOn(API, "restartWorkspace");
 		const user = userEvent.setup();
 		await renderWorkspacePage(MockWorkspace);

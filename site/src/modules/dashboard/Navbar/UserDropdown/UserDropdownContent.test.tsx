@@ -8,7 +8,11 @@ describe("UserDropdownContent", () => {
 	it("has the correct link for the account item", async () => {
 		render(
 			<Popover>
-				<UserDropdownContent user={MockUserOwner} onSignOut={jest.fn()} />
+				<UserDropdownContent
+					user={MockUserOwner}
+					onSignOut={jest.fn()}
+					supportLinks={[]}
+				/>
 			</Popover>,
 		);
 		await waitForLoaderToBeRemoved();
@@ -25,7 +29,11 @@ describe("UserDropdownContent", () => {
 		const onSignOut = jest.fn();
 		render(
 			<Popover>
-				<UserDropdownContent user={MockUserOwner} onSignOut={onSignOut} />
+				<UserDropdownContent
+					user={MockUserOwner}
+					onSignOut={onSignOut}
+					supportLinks={[]}
+				/>
 			</Popover>,
 		);
 		await waitForLoaderToBeRemoved();

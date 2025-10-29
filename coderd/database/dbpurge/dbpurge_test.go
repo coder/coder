@@ -704,3 +704,56 @@ func TestExpireOldAPIKeys(t *testing.T) {
 	// Out of an abundance of caution, we do not expire explicitly named prebuilds API keys.
 	assertKeyActive(namedPrebuildsAPIKey.ID)
 }
+
+func TestDeleteOldTelemetryHeartbeats(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	clk := quartz.NewMock(t)
+	now := clk.Now().UTC()
+
+	// Insert telemetry heartbeats.
+	err := db.InsertTelemetryLock(ctx, database.InsertTelemetryLockParams{
+		EventType:      "aibridge_interceptions_summary",
+		PeriodEndingAt: now.Add(-25 * time.Hour), // should be purged
+	})
+	require.NoError(t, err)
+	err = db.InsertTelemetryLock(ctx, database.InsertTelemetryLockParams{
+		EventType:      "aibridge_interceptions_summary",
+		PeriodEndingAt: now.Add(-23 * time.Hour), // should be kept
+	})
+	require.NoError(t, err)
+	err = db.InsertTelemetryLock(ctx, database.InsertTelemetryLockParams{
+		EventType:      "aibridge_interceptions_summary",
+		PeriodEndingAt: now, // should be kept
+	})
+	require.NoError(t, err)
+
+	done := awaitDoTick(ctx, t, clk)
+	closer := dbpurge.New(ctx, logger, db, clk)
+	defer closer.Close()
+	<-done // doTick() has now run.
+
+	require.Eventuallyf(t, func() bool {
+		// We use an SQL queries directly here because we don't expose queries
+		// for deleting heartbeats in the application code.
+		var totalCount int
+		err := sqlDB.QueryRowContext(ctx, `
+			SELECT COUNT(*) FROM telemetry_locks;
+		`).Scan(&totalCount)
+		assert.NoError(t, err)
+
+		var oldCount int
+		err = sqlDB.QueryRowContext(ctx, `
+			SELECT COUNT(*) FROM telemetry_locks WHERE period_ending_at < $1;
+		`, now.Add(-24*time.Hour)).Scan(&oldCount)
+		assert.NoError(t, err)
+
+		// Expect 2 heartbeats remaining and none older than 24 hours.
+		t.Logf("eventually: total count: %d, old count: %d", totalCount, oldCount)
+		return totalCount == 2 && oldCount == 0
+	}, testutil.WaitShort, testutil.IntervalFast, "it should delete old telemetry heartbeats")
+}

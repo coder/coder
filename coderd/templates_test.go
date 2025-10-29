@@ -944,10 +944,6 @@ func TestPatchTemplateMeta(t *testing.T) {
 	t.Run("AlreadyExists", func(t *testing.T) {
 		t.Parallel()
 
-		if !dbtestutil.WillUsePostgres() {
-			t.Skip("This test requires Postgres constraints")
-		}
-
 		ownerClient := coderdtest.New(t, nil)
 		owner := coderdtest.CreateFirstUser(t, ownerClient)
 		client, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgTemplateAdmin(owner.OrganizationID))

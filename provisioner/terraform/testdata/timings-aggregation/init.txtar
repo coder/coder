@@ -2,8 +2,6 @@ Init produces JSON logs, but not with discrete fields which we can parse.
 It only gained the ability to output JSON logs in v1.9.0 (https://github.com/hashicorp/terraform/blob/v1.9/CHANGELOG.md#190-june-26-2024),
 so I've included the non-JSON logs as well.
 
-Neither one produces any timings.
-
 -- init --
 # Before v1.9.0
 Initializing the backend...
@@ -24,15 +22,30 @@ If you ever set or change modules or backend configuration for Terraform,
 rerun this command to reinitialize your working directory. If you forget, other
 commands will detect it and remind you to do so if necessary.
 
-# After v1.9.0
-{"@level":"info","@message":"Terraform 1.9.2","@module":"terraform.ui","@timestamp":"2024-08-15T09:19:30.835464+02:00","terraform":"1.9.2","type":"version","ui":"1.2"}
-{"@level":"info","@message":"Initializing the backend...","@module":"terraform.ui","@timestamp":"2024-08-15T07:19:30Z","message_code":"initializing_backend_message","type":"init_output"}
-{"@level":"info","@message":"Initializing modules...","@module":"terraform.ui","@timestamp":"2024-08-15T07:19:30Z","message_code":"initializing_modules_message","type":"init_output"}
-{"@level":"info","@message":"Initializing provider plugins...","@module":"terraform.ui","@timestamp":"2024-08-15T07:19:30Z","message_code":"initializing_provider_plugin_message","type":"init_output"}
-{"@level":"info","@message":"coder/coder: Reusing previous version from the dependency lock file","@module":"terraform.ui","@timestamp":"2024-08-15T09:19:30.870861+02:00","type":"log"}
-{"@level":"info","@message":"hashicorp/http: Reusing previous version from the dependency lock file","@module":"terraform.ui","@timestamp":"2024-08-15T09:19:31.282247+02:00","type":"log"}
-{"@level":"info","@message":"coder/coder v1.0.1: Using previously-installed provider version","@module":"terraform.ui","@timestamp":"2024-08-15T09:19:31.466355+02:00","type":"log"}
-{"@level":"info","@message":"hashicorp/http v3.4.4: Using previously-installed provider version","@module":"terraform.ui","@timestamp":"2024-08-15T09:19:31.479221+02:00","type":"log"}
-{"@level":"info","@message":"Terraform has been successfully initialized!","@module":"terraform.ui","@timestamp":"2024-08-15T07:19:31Z","message_code":"output_init_success_message","type":"init_output"}
-{"@level":"info","@message":"You may now begin working with Terraform. Try running \"terraform plan\" to see\nany changes that are required for your infrastructure. All Terraform commands\nshould now work.\n\nIf you ever set or change modules or backend configuration for Terraform,\nrerun this command to reinitialize your working directory. If you forget, other\ncommands will detect it and remind you to do so if necessary.","@module":"terraform.ui","@timestamp":"2024-08-15T07:19:31Z","message_code":"output_init_success_cli_message","type":"init_output"}
+# After v1.9.0, uncached
+{"@level":"info","@message":"Terraform 1.13.3","@module":"terraform.ui","@timestamp":"2025-10-22T12:48:29.576675-05:00","terraform":"1.13.3","type":"version","ui":"1.2"}
+{"@level":"info","@message":"Initializing the backend...","@module":"terraform.ui","@timestamp":"2025-10-22T17:48:29.000000Z","message_code":"initializing_backend_message","type":"init_output"}
+{"@level":"info","@message":"Initializing modules...","@module":"terraform.ui","@timestamp":"2025-10-22T17:48:29.000000Z","message_code":"initializing_modules_message","type":"init_output"}
+{"@level":"info","@message":"Downloading registry.coder.com/coder/cursor/coder 1.3.2 for cursor...","@module":"terraform.ui","@timestamp":"2025-10-22T12:48:29.780639-05:00","type":"log"}
+{"@level":"info","@message":"- cursor in .terraform/modules/cursor","@module":"terraform.ui","@timestamp":"2025-10-22T12:48:29.982904-05:00","type":"log"}
+{"@level":"info","@message":"Downloading registry.coder.com/coder/jetbrains/coder 1.1.0 for jetbrains...","@module":"terraform.ui","@timestamp":"2025-10-22T12:48:30.039894-05:00","type":"log"}
+{"@level":"info","@message":"- jetbrains in .terraform/modules/jetbrains","@module":"terraform.ui","@timestamp":"2025-10-22T12:48:30.202355-05:00","type":"log"}
+{"@level":"info","@message":"Downloading git::https://github.com/coder/large-module.git for large-5mb-module...","@module":"terraform.ui","@timestamp":"2025-10-22T12:48:30.202394-05:00","type":"log"}
+{"@level":"info","@message":"- large-5mb-module in .terraform/modules/large-5mb-module","@module":"terraform.ui","@timestamp":"2025-10-22T12:48:31.799988-05:00","type":"log"}
+{"@level":"info","@message":"Initializing provider plugins...","@module":"terraform.ui","@timestamp":"2025-10-22T17:48:31.000000Z","message_code":"initializing_provider_plugin_message","type":"init_output"}
+{"@level":"info","@message":"kreuzwerker/docker: Reusing previous version from the dependency lock file","@module":"terraform.ui","@timestamp":"2025-10-22T12:48:31.801342-05:00","type":"log"}
+{"@level":"info","@message":"hashicorp/http: Reusing previous version from the dependency lock file","@module":"terraform.ui","@timestamp":"2025-10-22T12:48:31.868885-05:00","type":"log"}
+{"@level":"info","@message":"coder/coder: Reusing previous version from the dependency lock file","@module":"terraform.ui","@timestamp":"2025-10-22T12:48:31.894724-05:00","type":"log"}
+{"@level":"info","@message":"Installing provider version: hashicorp/http v3.5.0...","@module":"terraform.ui","@timestamp":"2025-10-22T12:48:32.081468-05:00","type":"log"}
+{"@level":"info","@message":"Installed provider version: hashicorp/http v3.5.0 (signed by HashiCorp)","@module":"terraform.ui","@timestamp":"2025-10-22T12:48:32.375580-05:00","type":"log"}
+{"@level":"info","@message":"Installing provider version: coder/coder v2.11.0...","@module":"terraform.ui","@timestamp":"2025-10-22T12:48:32.869110-05:00","type":"log"}
+{"@level":"info","@message":"Installed provider version: coder/coder v2.11.0 (signed by a HashiCorp partnerkey_id: 93C75807601AA0EC)","@module":"terraform.ui","@timestamp":"2025-10-22T12:48:33.350069-05:00","type":"log"}
+{"@level":"info","@message":"Installing provider version: kreuzwerker/docker v3.6.2...","@module":"terraform.ui","@timestamp":"2025-10-22T12:48:33.572112-05:00","type":"log"}
+{"@level":"info","@message":"Installed provider version: kreuzwerker/docker v3.6.2 (self-signedkey_id: BD080C4571C6104C)","@module":"terraform.ui","@timestamp":"2025-10-22T12:48:34.458153-05:00","type":"log"}
+{"@level":"info","@message":"Partner and community providers are signed by their developers.\nIf you'd like to know more about provider signing, you can read about it here:\nhttps://developer.hashicorp.com/terraform/cli/plugins/signing","@module":"terraform.ui","@timestamp":"2025-10-22T12:48:34.458177-05:00","type":"log"}
+{"@level":"info","@message":"Terraform has been successfully initialized!","@module":"terraform.ui","@timestamp":"2025-10-22T17:48:34.000000Z","message_code":"output_init_success_message","type":"init_output"}
+{"@level":"info","@message":"You may now begin working with Terraform. Try running \"terraform plan\" to see\nany changes that are required for your infrastructure. All Terraform commands\nshould now work.\n\nIf you ever set or change modules or backend configuration for Terraform,\nrerun this command to reinitialize your working directory. If you forget, other\ncommands will detect it and remind you to do so if necessary.","@module":"terraform.ui","@timestamp":"2025-10-22T17:48:34Z","message_code":"output_init_success_cli_message","type":"init_output"}
 -- timings --
+{"start":"2025-10-22T17:48:29Z","end":"2025-10-22T17:48:31Z","action":"load","resource":"modules","stage":"init","state":"COMPLETED"}
+{"start":"2025-10-22T17:48:29Z","end":"2025-10-22T17:48:29Z","action":"load","resource":"backend","stage":"init","state":"COMPLETED"}
+{"start":"2025-10-22T17:48:31Z","end":"2025-10-22T17:48:34Z","action":"load","resource":"provider plugins","stage":"init","state":"COMPLETED"}

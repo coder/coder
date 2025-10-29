@@ -7,17 +7,17 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"tailscale.com/types/ptr"
 
-	"github.com/coder/quartz"
+	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 // TestReconcileAll verifies that StoreMembershipReconciler correctly updates membership
@@ -27,177 +27,178 @@ func TestReconcileAll(t *testing.T) {
 
 	clock := quartz.NewMock(t)
 
-	// Helper to build a minimal Preset row belonging to a given org.
-	newPresetRow := func(orgID uuid.UUID) database.GetTemplatePresetsWithPrebuildsRow {
-		return database.GetTemplatePresetsWithPrebuildsRow{
-			ID:             uuid.New(),
-			OrganizationID: orgID,
-		}
-	}
-
 	tests := []struct {
 		name                       string
-		includePreset              []bool
+		includePreset              bool
 		preExistingOrgMembership   []bool
 		preExistingGroup           []bool
 		preExistingGroupMembership []bool
 		// Expected outcomes
-		expectOrgMembershipExists *bool
-		expectGroupExists         *bool
-		expectUserInGroup         *bool
+		expectOrgMembershipExists bool
+		expectGroupExists         bool
+		expectUserInGroup         bool
 	}{
 		{
 			name:                       "if there are no presets, membership reconciliation is a no-op",
-			includePreset:              []bool{false},
+			includePreset:              false,
 			preExistingOrgMembership:   []bool{true, false},
 			preExistingGroup:           []bool{true, false},
 			preExistingGroupMembership: []bool{true, false},
-			expectOrgMembershipExists:  ptr.To(false),
-			expectGroupExists:          ptr.To(false),
+			expectOrgMembershipExists:  false,
+			expectGroupExists:          false,
+			expectUserInGroup:          false,
 		},
 		{
 			name:                       "if there is a preset, then we should enforce org and group membership in all cases",
-			includePreset:              []bool{true},
+			includePreset:              true,
 			preExistingOrgMembership:   []bool{true, false},
 			preExistingGroup:           []bool{true, false},
 			preExistingGroupMembership: []bool{true, false},
-			expectOrgMembershipExists:  ptr.To(true),
-			expectGroupExists:          ptr.To(true),
-			expectUserInGroup:          ptr.To(true),
+			expectOrgMembershipExists:  true,
+			expectGroupExists:          true,
+			expectUserInGroup:          true,
 		},
 	}
 
 	for _, tc := range tests {
 		tc := tc
-		for _, includePreset := range tc.includePreset {
-			includePreset := includePreset
-			for _, preExistingOrgMembership := range tc.preExistingOrgMembership {
-				preExistingOrgMembership := preExistingOrgMembership
-				for _, preExistingGroup := range tc.preExistingGroup {
-					preExistingGroup := preExistingGroup
-					for _, preExistingGroupMembership := range tc.preExistingGroupMembership {
-						preExistingGroupMembership := preExistingGroupMembership
-						t.Run(tc.name, func(t *testing.T) {
-							t.Parallel()
+		includePreset := tc.includePreset
+		for _, preExistingOrgMembership := range tc.preExistingOrgMembership {
+			preExistingOrgMembership := preExistingOrgMembership
+			for _, preExistingGroup := range tc.preExistingGroup {
+				preExistingGroup := preExistingGroup
+				for _, preExistingGroupMembership := range tc.preExistingGroupMembership {
+					preExistingGroupMembership := preExistingGroupMembership
+					t.Run(tc.name, func(t *testing.T) {
+						t.Parallel()
 
-							// nolint:gocritic // Reconciliation happens as prebuilds system user, not a human user.
-							ctx := dbauthz.AsPrebuildsOrchestrator(testutil.Context(t, testutil.WaitLong))
-							_, db := coderdtest.NewWithDatabase(t, nil)
+						// nolint:gocritic // Reconciliation happens as prebuilds system user, not a human user.
+						ctx := dbauthz.AsPrebuildsOrchestrator(testutil.Context(t, testutil.WaitLong))
+						client, db := coderdtest.NewWithDatabase(t, nil)
+						owner := coderdtest.CreateFirstUser(t, client)
 
-							defaultOrg, err := db.GetDefaultOrganization(ctx)
-							require.NoError(t, err)
+						defaultOrg, err := db.GetDefaultOrganization(ctx)
+						require.NoError(t, err)
 
-							// introduce an unrelated organization to ensure that the membership reconciler doesn't interfere with it.
-							unrelatedOrg := dbgen.Organization(t, db, database.Organization{})
-							targetOrg := dbgen.Organization(t, db, database.Organization{})
+						// Introduce an unrelated organization to ensure that the membership reconciler doesn't interfere with it.
+						unrelatedOrg := dbgen.Organization(t, db, database.Organization{})
+						dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: unrelatedOrg.ID, UserID: database.PrebuildsSystemUserID})
 
-							if !dbtestutil.WillUsePostgres() {
-								// dbmem doesn't ensure membership to the default organization
-								dbgen.OrganizationMember(t, db, database.OrganizationMember{
-									OrganizationID: defaultOrg.ID,
-									UserID:         database.PrebuildsSystemUserID,
-								})
-							}
+						// Organization to test
+						targetOrg := dbgen.Organization(t, db, database.Organization{})
 
-							// Ensure membership to unrelated org.
-							dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: unrelatedOrg.ID, UserID: database.PrebuildsSystemUserID})
+						// Prebuilds system user is a member of the organization
+						if preExistingOrgMembership {
+							dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: targetOrg.ID, UserID: database.PrebuildsSystemUserID})
+						}
 
-							if preExistingOrgMembership {
-								// System user already a member of both orgs.
-								dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: targetOrg.ID, UserID: database.PrebuildsSystemUserID})
-							}
-
-							// Create pre-existing prebuilds group if required by test case
-							var prebuildsGroup database.Group
-							if preExistingGroup {
-								prebuildsGroup = dbgen.Group(t, db, database.Group{
-									Name:           prebuilds.PrebuiltWorkspacesGroupName,
-									DisplayName:    prebuilds.PrebuiltWorkspacesGroupDisplayName,
-									OrganizationID: targetOrg.ID,
-									QuotaAllowance: 0,
-								})
-
-								// Add the system user to the group if preExistingGroupMembership is true
-								if preExistingGroupMembership {
-									dbgen.GroupMember(t, db, database.GroupMemberTable{
-										GroupID: prebuildsGroup.ID,
-										UserID:  database.PrebuildsSystemUserID,
-									})
-								}
-							}
-
-							presets := []database.GetTemplatePresetsWithPrebuildsRow{newPresetRow(unrelatedOrg.ID)}
-							if includePreset {
-								presets = append(presets, newPresetRow(targetOrg.ID))
-							}
-
-							// Verify memberships before reconciliation.
-							preReconcileMemberships, err := db.GetOrganizationsByUserID(ctx, database.GetOrganizationsByUserIDParams{
-								UserID: database.PrebuildsSystemUserID,
-							})
-							require.NoError(t, err)
-							expectedMembershipsBefore := []uuid.UUID{defaultOrg.ID, unrelatedOrg.ID}
-							if preExistingOrgMembership {
-								expectedMembershipsBefore = append(expectedMembershipsBefore, targetOrg.ID)
-							}
-							require.ElementsMatch(t, expectedMembershipsBefore, extractOrgIDs(preReconcileMemberships))
-
-							// Reconcile
-							reconciler := prebuilds.NewStoreMembershipReconciler(db, clock)
-							require.NoError(t, reconciler.ReconcileAll(ctx, database.PrebuildsSystemUserID, presets))
-
-							// Verify memberships after reconciliation.
-							postReconcileMemberships, err := db.GetOrganizationsByUserID(ctx, database.GetOrganizationsByUserIDParams{
-								UserID: database.PrebuildsSystemUserID,
-							})
-							require.NoError(t, err)
-							expectedMembershipsAfter := expectedMembershipsBefore
-							if !preExistingOrgMembership && tc.expectOrgMembershipExists != nil && *tc.expectOrgMembershipExists {
-								expectedMembershipsAfter = append(expectedMembershipsAfter, targetOrg.ID)
-							}
-							require.ElementsMatch(t, expectedMembershipsAfter, extractOrgIDs(postReconcileMemberships))
-
-							// Verify prebuilds group behavior based on expected outcomes
-							prebuildsGroup, err = db.GetGroupByOrgAndName(ctx, database.GetGroupByOrgAndNameParams{
-								OrganizationID: targetOrg.ID,
+						// Organization has the prebuilds group
+						var prebuildsGroup database.Group
+						if preExistingGroup {
+							prebuildsGroup = dbgen.Group(t, db, database.Group{
 								Name:           prebuilds.PrebuiltWorkspacesGroupName,
+								DisplayName:    prebuilds.PrebuiltWorkspacesGroupDisplayName,
+								OrganizationID: targetOrg.ID,
+								QuotaAllowance: 0,
 							})
-							if tc.expectGroupExists != nil && *tc.expectGroupExists {
-								require.NoError(t, err)
-								require.Equal(t, prebuilds.PrebuiltWorkspacesGroupName, prebuildsGroup.Name)
-								require.Equal(t, prebuilds.PrebuiltWorkspacesGroupDisplayName, prebuildsGroup.DisplayName)
-								require.Equal(t, int32(0), prebuildsGroup.QuotaAllowance) // Default quota should be 0
 
-								if tc.expectUserInGroup != nil && *tc.expectUserInGroup {
-									// Check that the system user is a member of the prebuilds group
-									groupMembers, err := db.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams{
-										GroupID:       prebuildsGroup.ID,
-										IncludeSystem: true,
-									})
-									require.NoError(t, err)
-									require.Len(t, groupMembers, 1)
-									require.Equal(t, database.PrebuildsSystemUserID, groupMembers[0].UserID)
-								}
-
-								// If no preset exists, then we do not enforce group membership:
-								if tc.expectUserInGroup != nil && !*tc.expectUserInGroup {
-									// Check that the system user is NOT a member of the prebuilds group
-									groupMembers, err := db.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams{
-										GroupID:       prebuildsGroup.ID,
-										IncludeSystem: true,
-									})
-									require.NoError(t, err)
-									require.Len(t, groupMembers, 0)
-								}
+							// Add the system user to the group if required by test case
+							if preExistingGroupMembership {
+								dbgen.GroupMember(t, db, database.GroupMemberTable{
+									GroupID: prebuildsGroup.ID,
+									UserID:  database.PrebuildsSystemUserID,
+								})
 							}
+						}
 
-							if !preExistingGroup && tc.expectGroupExists != nil && !*tc.expectGroupExists {
-								// Verify that no prebuilds group exists
-								require.Error(t, err)
-								require.True(t, errors.Is(err, sql.ErrNoRows))
-							}
+						// Setup unrelated org preset
+						dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
+							OrganizationID: unrelatedOrg.ID,
+							CreatedBy:      owner.UserID,
+						}).Preset(database.TemplateVersionPreset{
+							DesiredInstances: sql.NullInt32{
+								Int32: 1,
+								Valid: true,
+							},
+						}).Do()
+
+						// Setup target org preset
+						dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
+							OrganizationID: targetOrg.ID,
+							CreatedBy:      owner.UserID,
+						}).Preset(database.TemplateVersionPreset{
+							DesiredInstances: sql.NullInt32{
+								Int32: 0,
+								Valid: includePreset,
+							},
+						}).Do()
+
+						// Verify memberships before reconciliation.
+						preReconcileMemberships, err := db.GetOrganizationsByUserID(ctx, database.GetOrganizationsByUserIDParams{
+							UserID: database.PrebuildsSystemUserID,
 						})
-					}
+						require.NoError(t, err)
+						expectedMembershipsBefore := []uuid.UUID{defaultOrg.ID, unrelatedOrg.ID}
+						if preExistingOrgMembership {
+							expectedMembershipsBefore = append(expectedMembershipsBefore, targetOrg.ID)
+						}
+						require.ElementsMatch(t, expectedMembershipsBefore, extractOrgIDs(preReconcileMemberships))
+
+						// Reconcile
+						reconciler := prebuilds.NewStoreMembershipReconciler(db, clock, slogtest.Make(t, nil))
+						require.NoError(t, reconciler.ReconcileAll(ctx, database.PrebuildsSystemUserID, prebuilds.PrebuiltWorkspacesGroupName))
+
+						// Verify memberships after reconciliation.
+						postReconcileMemberships, err := db.GetOrganizationsByUserID(ctx, database.GetOrganizationsByUserIDParams{
+							UserID: database.PrebuildsSystemUserID,
+						})
+						require.NoError(t, err)
+						expectedMembershipsAfter := expectedMembershipsBefore
+						if !preExistingOrgMembership && tc.expectOrgMembershipExists {
+							expectedMembershipsAfter = append(expectedMembershipsAfter, targetOrg.ID)
+						}
+						require.ElementsMatch(t, expectedMembershipsAfter, extractOrgIDs(postReconcileMemberships))
+
+						// Verify prebuilds group behavior based on expected outcomes
+						prebuildsGroup, err = db.GetGroupByOrgAndName(ctx, database.GetGroupByOrgAndNameParams{
+							OrganizationID: targetOrg.ID,
+							Name:           prebuilds.PrebuiltWorkspacesGroupName,
+						})
+						if tc.expectGroupExists {
+							require.NoError(t, err)
+							require.Equal(t, prebuilds.PrebuiltWorkspacesGroupName, prebuildsGroup.Name)
+							require.Equal(t, prebuilds.PrebuiltWorkspacesGroupDisplayName, prebuildsGroup.DisplayName)
+							require.Equal(t, int32(0), prebuildsGroup.QuotaAllowance) // Default quota should be 0
+
+							if tc.expectUserInGroup {
+								// Check that the system user is a member of the prebuilds group
+								groupMembers, err := db.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams{
+									GroupID:       prebuildsGroup.ID,
+									IncludeSystem: true,
+								})
+								require.NoError(t, err)
+								require.Len(t, groupMembers, 1)
+								require.Equal(t, database.PrebuildsSystemUserID, groupMembers[0].UserID)
+							}
+
+							// If no preset exists, then we do not enforce group membership:
+							if !tc.expectUserInGroup {
+								// Check that the system user is NOT a member of the prebuilds group
+								groupMembers, err := db.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams{
+									GroupID:       prebuildsGroup.ID,
+									IncludeSystem: true,
+								})
+								require.NoError(t, err)
+								require.Len(t, groupMembers, 0)
+							}
+						}
+
+						if !preExistingGroup && !tc.expectGroupExists {
+							// Verify that no prebuilds group exists
+							require.Error(t, err)
+							require.True(t, errors.Is(err, sql.ErrNoRows))
+						}
+					})
 				}
 			}
 		}
