@@ -321,6 +321,7 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 			&i.TemplateDisplayName,
 			&i.TemplateIcon,
 			&i.TemplateDescription,
+			&i.TaskID,
 			&i.TemplateVersionID,
 			&i.TemplateVersionName,
 			&i.LatestBuildCompletedAt,

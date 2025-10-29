@@ -4663,6 +4663,7 @@ type Workspace struct {
 	TemplateDisplayName     string           `db:"template_display_name" json:"template_display_name"`
 	TemplateIcon            string           `db:"template_icon" json:"template_icon"`
 	TemplateDescription     string           `db:"template_description" json:"template_description"`
+	TaskID                  uuid.NullUUID    `db:"task_id" json:"task_id"`
 }
 
 type WorkspaceAgent struct {

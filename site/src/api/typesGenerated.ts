@@ -5877,6 +5877,10 @@ export interface Workspace {
 	 * and IsPrebuild returns false.
 	 */
 	readonly is_prebuild: boolean;
+	/**
+	 * TaskID, if set, indicates that the workspace is relevant to the given codersdk.Task.
+	 */
+	readonly task_id?: string;
 }
 
 // From codersdk/workspaces.go
