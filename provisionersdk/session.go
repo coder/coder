@@ -67,10 +67,13 @@ func (p *protoServer) Session(stream proto.DRPCProvisioner_SessionStream) error 
 		s.logLevel = proto.LogLevel_value[strings.ToUpper(s.Config.ProvisionerLogLevel)]
 	}
 
+	// Extract the template source archive into the work directory.
 	err = s.Files.ExtractArchive(s.Context(), s.Logger, afero.NewOsFs(), s.Config)
 	if err != nil {
 		return xerrors.Errorf("extract archive: %w", err)
 	}
+
+	// Handle requests, which will amount to terraform cli execs.
 	return s.handleRequests()
 }
 
