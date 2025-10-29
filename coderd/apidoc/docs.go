@@ -15435,6 +15435,9 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "revocation_endpoint": {
+                    "type": "string"
+                },
                 "scopes_supported": {
                     "type": "array",
                     "items": {

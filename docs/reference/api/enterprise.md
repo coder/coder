@@ -30,6 +30,7 @@ curl -X GET http://coder-server:8080/api/v2/.well-known/oauth-authorization-serv
   "response_types_supported": [
     "string"
   ],
+  "revocation_endpoint": "string",
   "scopes_supported": [
     "string"
   ],
