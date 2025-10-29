@@ -233,13 +233,11 @@ const WorkspaceNotRunning: FC<WorkspaceNotRunningProps> = ({ workspace }) => {
 					<span className="text-content-secondary text-sm">
 						This task can't continue. Delete this task and create a new one.
 					</span>
-					<div className="flex flex-row mt-4 gap-4">
-						<Button size="sm">
-							<RouterLink to="/tasks" data-testid="task-create-new">
-								Create a new task
-							</RouterLink>
-						</Button>
-					</div>
+					<Button size="sm" variant="outline" asChild className="mt-4">
+						<RouterLink to="/tasks" data-testid="task-create-new">
+							Create a new task
+						</RouterLink>
+					</Button>
 				</div>
 			</div>
 		</Margins>
