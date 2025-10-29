@@ -520,7 +520,7 @@ func TestEntitlements(t *testing.T) {
 	t.Run("Premium", func(t *testing.T) {
 		t.Parallel()
 		const userLimit = 1
-		const expectedAgentSoftLimit = 0
+		const expectedAgentSoftLimit = 1000
 		const expectedAgentHardLimit = 1000
 
 		db, _ := dbtestutil.NewDB(t)
@@ -1504,7 +1504,7 @@ func TestManagedAgentLimitDefault(t *testing.T) {
 		t.Parallel()
 
 		const userLimit = 100
-		const softLimit = 0
+		const softLimit = 1000
 		const hardLimit = 1000
 		lic := database.License{
 			ID:         1,

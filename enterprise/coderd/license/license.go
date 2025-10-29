@@ -273,10 +273,10 @@ func LicensesEntitlements(
 				// licenses with the corresponding features actually set
 				// trump this default entitlement, even if they are set to a
 				// smaller value.
-				defaultManagedAgentsIsuedAt   = time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC)
-				defaultManagedAgentsStart     = defaultManagedAgentsIsuedAt
-				defaultManagedAgentsEnd       = defaultManagedAgentsStart.AddDate(100, 0, 0)
-				defaultManagedAgentsSoftLimit int64
+				defaultManagedAgentsIsuedAt         = time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC)
+				defaultManagedAgentsStart           = defaultManagedAgentsIsuedAt
+				defaultManagedAgentsEnd             = defaultManagedAgentsStart.AddDate(100, 0, 0)
+				defaultManagedAgentsSoftLimit int64 = 1000
 				defaultManagedAgentsHardLimit int64 = 1000
 			)
 			entitlements.AddFeature(codersdk.FeatureManagedAgentLimit, codersdk.Feature{
