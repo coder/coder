@@ -54,7 +54,6 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		}, nil)
 
 		args := []string{
-			"exp",
 			"aibridge",
 			"interceptions",
 			"list",
@@ -135,7 +134,6 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		}, nil)
 
 		args := []string{
-			"exp",
 			"aibridge",
 			"interceptions",
 			"list",
@@ -189,7 +187,6 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		}, nil)
 
 		args := []string{
-			"exp",
 			"aibridge",
 			"interceptions",
 			"list",

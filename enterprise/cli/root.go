@@ -25,13 +25,12 @@ func (r *RootCmd) enterpriseOnly() []*serpent.Command {
 		r.prebuilds(),
 		r.provisionerd(),
 		r.externalWorkspaces(),
+		r.aibridge(),
 	}
 }
 
-func (r *RootCmd) enterpriseExperimental() []*serpent.Command {
-	return []*serpent.Command{
-		r.aibridge(),
-	}
+func (*RootCmd) enterpriseExperimental() []*serpent.Command {
+	return []*serpent.Command{}
 }
 
 func (r *RootCmd) EnterpriseSubcommands() []*serpent.Command {
