@@ -54,6 +54,8 @@ type API struct {
 	*SubAgentAPI
 	*tailnet.DRPCService
 
+	cachedWorkspace database.Workspace
+
 	mu sync.Mutex
 }
 
@@ -92,14 +94,15 @@ type Options struct {
 	UpdateAgentMetricsFn func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 }
 
-func New(opts Options) *API {
+func New(opts Options, workspace database.Workspace) *API {
 	if opts.Clock == nil {
 		opts.Clock = quartz.NewReal()
 	}
 
 	api := &API{
-		opts: opts,
-		mu:   sync.Mutex{},
+		opts:            opts,
+		cachedWorkspace: workspace,
+		mu:              sync.Mutex{},
 	}
 
 	api.ManifestAPI = &ManifestAPI{
@@ -139,6 +142,7 @@ func New(opts Options) *API {
 
 	api.StatsAPI = &StatsAPI{
 		AgentFn:                   api.agent,
+		WorkspaceFn:               api.workspace,
 		Database:                  opts.Database,
 		Log:                       opts.Log,
 		StatsReporter:             opts.StatsReporter,
@@ -252,6 +256,10 @@ func (a *API) agent(ctx context.Context) (database.WorkspaceAgent, error) {
 		return database.WorkspaceAgent{}, xerrors.Errorf("get workspace agent by id %q: %w", a.opts.AgentID, err)
 	}
 	return agent, nil
+}
+
+func (a *API) workspace() (database.Workspace, error) {
+	return a.cachedWorkspace, nil
 }
 
 func (a *API) publishWorkspaceUpdate(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
