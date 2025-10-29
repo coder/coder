@@ -22,6 +22,8 @@ var (
 	inputSimple []byte
 	//go:embed testdata/timings-aggregation/init.txtar
 	inputInit []byte
+	//go:embed testdata/timings-aggregation/initupgrade.txtar
+	inputInitUpgrade []byte
 	//go:embed testdata/timings-aggregation/error.txtar
 	inputError []byte
 	//go:embed testdata/timings-aggregation/complete.txtar
@@ -44,6 +46,10 @@ func TestAggregation(t *testing.T) {
 		{
 			name:  "init",
 			input: inputInit,
+		},
+		{
+			name:  "initupgrade",
+			input: inputInitUpgrade,
 		},
 		{
 			name:  "simple",

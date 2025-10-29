@@ -8774,12 +8774,8 @@ func (q *sqlQuerier) GetTemplatePresetsWithPrebuilds(ctx context.Context, templa
 }
 
 const updatePrebuildProvisionerJobWithCancel = `-- name: UpdatePrebuildProvisionerJobWithCancel :many
-UPDATE provisioner_jobs
-SET
-	canceled_at = $1::timestamptz,
-	completed_at = $1::timestamptz
-WHERE id IN (
-	SELECT pj.id
+WITH jobs_to_cancel AS (
+	SELECT pj.id, w.id AS workspace_id, w.template_id, wpb.template_version_preset_id
 	FROM provisioner_jobs pj
 	INNER JOIN workspace_prebuild_builds wpb ON wpb.job_id = pj.id
 	INNER JOIN workspaces w ON w.id = wpb.workspace_id
@@ -8798,7 +8794,13 @@ WHERE id IN (
 		AND pj.canceled_at IS NULL
 		AND pj.completed_at IS NULL
 )
-RETURNING id
+UPDATE provisioner_jobs
+SET
+	canceled_at = $1::timestamptz,
+	completed_at = $1::timestamptz
+FROM jobs_to_cancel
+WHERE provisioner_jobs.id = jobs_to_cancel.id
+RETURNING jobs_to_cancel.id, jobs_to_cancel.workspace_id, jobs_to_cancel.template_id, jobs_to_cancel.template_version_preset_id
 `
 
 type UpdatePrebuildProvisionerJobWithCancelParams struct {
@@ -8806,22 +8808,34 @@ type UpdatePrebuildProvisionerJobWithCancelParams struct {
 	PresetID uuid.NullUUID `db:"preset_id" json:"preset_id"`
 }
 
+type UpdatePrebuildProvisionerJobWithCancelRow struct {
+	ID                      uuid.UUID     `db:"id" json:"id"`
+	WorkspaceID             uuid.UUID     `db:"workspace_id" json:"workspace_id"`
+	TemplateID              uuid.UUID     `db:"template_id" json:"template_id"`
+	TemplateVersionPresetID uuid.NullUUID `db:"template_version_preset_id" json:"template_version_preset_id"`
+}
+
 // Cancels all pending provisioner jobs for prebuilt workspaces on a specific preset from an
 // inactive template version.
 // This is an optimization to clean up stale pending jobs.
-func (q *sqlQuerier) UpdatePrebuildProvisionerJobWithCancel(ctx context.Context, arg UpdatePrebuildProvisionerJobWithCancelParams) ([]uuid.UUID, error) {
+func (q *sqlQuerier) UpdatePrebuildProvisionerJobWithCancel(ctx context.Context, arg UpdatePrebuildProvisionerJobWithCancelParams) ([]UpdatePrebuildProvisionerJobWithCancelRow, error) {
 	rows, err := q.db.QueryContext(ctx, updatePrebuildProvisionerJobWithCancel, arg.Now, arg.PresetID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []uuid.UUID
+	var items []UpdatePrebuildProvisionerJobWithCancelRow
 	for rows.Next() {
-		var id uuid.UUID
-		if err := rows.Scan(&id); err != nil {
+		var i UpdatePrebuildProvisionerJobWithCancelRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.TemplateID,
+			&i.TemplateVersionPresetID,
+		); err != nil {
 			return nil, err
 		}
-		items = append(items, id)
+		items = append(items, i)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
