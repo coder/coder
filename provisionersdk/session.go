@@ -13,6 +13,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/provisionersdk/tfpath"
 
@@ -66,6 +67,17 @@ func (p *protoServer) Session(stream proto.DRPCProvisioner_SessionStream) error 
 	if s.Config.ProvisionerLogLevel != "" {
 		s.logLevel = proto.LogLevel_value[strings.ToUpper(s.Config.ProvisionerLogLevel)]
 	}
+
+	if p.opts.Experiments.Enabled(codersdk.ExperimentTerraformWorkspace) {
+		// TODO: Also indicate if opted into the feature via config
+		s.Files = x.SessionDir(p.opts.WorkDirectory, sessID, config)
+
+		err = s.Files.CleanInactiveTemplateVersions(s.Context(), s.Logger, afero.NewOsFs())
+		if err != nil {
+			return xerrors.Errorf("unable to clean inactive versions %q: %w", s.Files.WorkDirectory(), err)
+		}
+	}
+
 
 	err = s.Files.ExtractArchive(s.Context(), s.Logger, afero.NewOsFs(), s.Config)
 	if err != nil {
