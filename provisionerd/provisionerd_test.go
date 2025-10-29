@@ -353,7 +353,7 @@ func TestProvisionerd(t *testing.T) {
 					_ *sdkproto.ParseRequest,
 					cancelOrComplete <-chan struct{},
 				) *sdkproto.ParseComplete {
-					data, err := os.ReadFile(filepath.Join(s.Files, "test.txt"))
+					data, err := os.ReadFile(filepath.Join(s.Files.WorkDirectory(), "test.txt"))
 					require.NoError(t, err)
 					require.Equal(t, "content", string(data))
 					s.ProvisionLog(sdkproto.LogLevel_INFO, "hello")

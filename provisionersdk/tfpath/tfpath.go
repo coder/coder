@@ -27,12 +27,7 @@ const (
 )
 
 func Session(parent, sessionID string) Layout {
-	return Layout(filepath.Join(parent, SessionDir(sessionID)))
-}
-
-// SessionDir returns the directory name with mandatory prefix.
-func SessionDir(sessID string) string {
-	return sessionDirPrefix + sessID
+	return Layout(filepath.Join(parent, sessionDirPrefix+sessionID))
 }
 
 // TODO: Maybe we should include the afero.FS here as well, then all operations
