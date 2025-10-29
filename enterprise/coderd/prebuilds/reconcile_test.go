@@ -72,7 +72,8 @@ func TestNoReconciliationActionsIfNoPresets(t *testing.T) {
 	require.Equal(t, templateVersion, gotTemplateVersion)
 
 	// when we trigger the reconciliation loop for all templates
-	require.NoError(t, controller.ReconcileAll(ctx))
+	_, err = controller.ReconcileAll(ctx)
+	require.NoError(t, err)
 
 	// then no reconciliation actions are taken
 	// because without presets, there are no prebuilds
@@ -126,7 +127,8 @@ func TestNoReconciliationActionsIfNoPrebuilds(t *testing.T) {
 	require.NotEmpty(t, presetParameters)
 
 	// when we trigger the reconciliation loop for all templates
-	require.NoError(t, controller.ReconcileAll(ctx))
+	_, err = controller.ReconcileAll(ctx)
+	require.NoError(t, err)
 
 	// then no reconciliation actions are taken
 	// because without prebuilds, there is nothing to reconcile
@@ -428,7 +430,8 @@ func (tc testCase) run(t *testing.T) {
 		// Run the reconciliation multiple times to ensure idempotency
 		// 8 was arbitrary, but large enough to reasonably trust the result
 		for i := 1; i <= 8; i++ {
-			require.NoErrorf(t, controller.ReconcileAll(ctx), "failed on iteration %d", i)
+			_, err := controller.ReconcileAll(ctx)
+			require.NoErrorf(t, err, "failed on iteration %d", i)
 
 			if tc.shouldCreateNewPrebuild != nil {
 				newPrebuildCount := 0
@@ -542,7 +545,8 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 	// Run the reconciliation multiple times to ensure idempotency
 	// 8 was arbitrary, but large enough to reasonably trust the result
 	for i := 1; i <= 8; i++ {
-		require.NoErrorf(t, controller.ReconcileAll(ctx), "failed on iteration %d", i)
+		_, err := controller.ReconcileAll(ctx)
+		require.NoErrorf(t, err, "failed on iteration %d", i)
 
 		newPrebuildCount := 0
 		workspaces, err := db.GetWorkspacesByTemplateID(ctx, template.ID)
@@ -668,7 +672,7 @@ func TestPrebuildScheduling(t *testing.T) {
 				DesiredInstances: 5,
 			})
 
-			err := controller.ReconcileAll(ctx)
+			_, err := controller.ReconcileAll(ctx)
 			require.NoError(t, err)
 
 			// get workspace builds
@@ -751,7 +755,8 @@ func TestInvalidPreset(t *testing.T) {
 	// Run the reconciliation multiple times to ensure idempotency
 	// 8 was arbitrary, but large enough to reasonably trust the result
 	for i := 1; i <= 8; i++ {
-		require.NoErrorf(t, controller.ReconcileAll(ctx), "failed on iteration %d", i)
+		_, err := controller.ReconcileAll(ctx)
+		require.NoErrorf(t, err, "failed on iteration %d", i)
 
 		workspaces, err := db.GetWorkspacesByTemplateID(ctx, template.ID)
 		require.NoError(t, err)
@@ -817,7 +822,8 @@ func TestDeletionOfPrebuiltWorkspaceWithInvalidPreset(t *testing.T) {
 	})
 
 	// Old prebuilt workspace should be deleted.
-	require.NoError(t, controller.ReconcileAll(ctx))
+	_, err = controller.ReconcileAll(ctx)
+	require.NoError(t, err)
 
 	builds, err := db.GetWorkspaceBuildsByWorkspaceID(ctx, database.GetWorkspaceBuildsByWorkspaceIDParams{
 		WorkspaceID: prebuiltWorkspace.ID,
@@ -916,12 +922,15 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 
 			// Trigger reconciliation to attempt creating a new prebuild.
 			// The outcome depends on whether the hard limit has been reached.
-			require.NoError(t, controller.ReconcileAll(ctx))
+			_, err = controller.ReconcileAll(ctx)
+			require.NoError(t, err)
 
 			// These two additional calls to ReconcileAll should not trigger any notifications.
 			// A notification is only sent once.
-			require.NoError(t, controller.ReconcileAll(ctx))
-			require.NoError(t, controller.ReconcileAll(ctx))
+			_, err = controller.ReconcileAll(ctx)
+			require.NoError(t, err)
+			_, err = controller.ReconcileAll(ctx)
+			require.NoError(t, err)
 
 			// Verify the final state after reconciliation.
 			workspaces, err = db.GetWorkspacesByTemplateID(ctx, template.ID)
@@ -1093,12 +1102,15 @@ func TestHardLimitedPresetShouldNotBlockDeletion(t *testing.T) {
 
 			// Trigger reconciliation to attempt creating a new prebuild.
 			// The outcome depends on whether the hard limit has been reached.
-			require.NoError(t, controller.ReconcileAll(ctx))
+			_, err = controller.ReconcileAll(ctx)
+			require.NoError(t, err)
 
 			// These two additional calls to ReconcileAll should not trigger any notifications.
 			// A notification is only sent once.
-			require.NoError(t, controller.ReconcileAll(ctx))
-			require.NoError(t, controller.ReconcileAll(ctx))
+			_, err = controller.ReconcileAll(ctx)
+			require.NoError(t, err)
+			_, err = controller.ReconcileAll(ctx)
+			require.NoError(t, err)
 
 			// Verify the final state after reconciliation.
 			// When hard limit is reached, no new workspace should be created.
@@ -1141,7 +1153,8 @@ func TestHardLimitedPresetShouldNotBlockDeletion(t *testing.T) {
 			}
 
 			// Trigger reconciliation to make sure that successful, but outdated prebuilt workspace will be deleted.
-			require.NoError(t, controller.ReconcileAll(ctx))
+			_, err = controller.ReconcileAll(ctx)
+			require.NoError(t, err)
 
 			workspaces, err = db.GetWorkspacesByTemplateID(ctx, template.ID)
 			require.NoError(t, err)
@@ -1740,7 +1753,8 @@ func TestExpiredPrebuildsMultipleActions(t *testing.T) {
 			}
 
 			// Trigger reconciliation to process expired prebuilds and enforce desired state.
-			require.NoError(t, controller.ReconcileAll(ctx))
+			_, err = controller.ReconcileAll(ctx)
+			require.NoError(t, err)
 
 			// Sort non-expired workspaces by CreatedAt in ascending order (oldest first)
 			sort.Slice(nonExpiredWorkspaces, func(i, j int) bool {
@@ -2145,7 +2159,8 @@ func TestCancelPendingPrebuilds(t *testing.T) {
 				require.NoError(t, err)
 
 				// When: the reconciliation loop is triggered
-				require.NoError(t, reconciler.ReconcileAll(ctx))
+				_, err = reconciler.ReconcileAll(ctx)
+				require.NoError(t, err)
 
 				if tt.shouldCancel {
 					// Then: the pending prebuild job from non-active version should be canceled
@@ -2347,7 +2362,8 @@ func TestCancelPendingPrebuilds(t *testing.T) {
 		templateBVersion3Pending := setupPrebuilds(t, db, owner.OrganizationID, templateBID, templateBVersion3ID, templateBVersion3PresetID, 1, true)
 
 		// When: the reconciliation loop is executed
-		require.NoError(t, reconciler.ReconcileAll(ctx))
+		_, err := reconciler.ReconcileAll(ctx)
+		require.NoError(t, err)
 
 		// Then: template A version 1 running workspaces should not be canceled
 		checkIfJobCanceledAndDeleted(t, clock, ctx, db, false, templateAVersion1Running)
@@ -2367,6 +2383,51 @@ func TestCancelPendingPrebuilds(t *testing.T) {
 		checkIfJobCanceledAndDeleted(t, clock, ctx, db, false, templateBVersion3Running)
 		checkIfJobCanceledAndDeleted(t, clock, ctx, db, false, templateBVersion3Pending)
 	})
+}
+
+func TestReconciliationStats(t *testing.T) {
+	t.Parallel()
+
+	// Setup
+	clock := quartz.NewReal()
+	db, ps := dbtestutil.NewDB(t)
+	client, _, _ := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   ps,
+		Clock:    clock,
+	})
+	fakeEnqueuer := newFakeEnqueuer()
+	registry := prometheus.NewRegistry()
+	cache := files.New(registry, &coderdtest.FakeAuthorizer{})
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
+	reconciler := prebuilds.NewStoreReconciler(db, ps, cache, codersdk.PrebuildsConfig{}, logger, clock, registry, fakeEnqueuer, newNoopUsageCheckerPtr())
+	owner := coderdtest.CreateFirstUser(t, client)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+
+	// Create a template version with a preset
+	dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
+		OrganizationID: owner.OrganizationID,
+		CreatedBy:      owner.UserID,
+	}).Preset(database.TemplateVersionPreset{
+		DesiredInstances: sql.NullInt32{
+			Int32: 1,
+			Valid: true,
+		},
+	}).Do()
+
+	// Verify that ReconcileAll tracks and returns elapsed time
+	start := time.Now()
+	stats, err := reconciler.ReconcileAll(ctx)
+	actualElapsed := time.Since(start)
+	require.NoError(t, err)
+	require.Greater(t, stats.Elapsed, time.Duration(0))
+
+	// Verify stats.Elapsed matches actual execution time
+	require.InDelta(t, actualElapsed.Milliseconds(), stats.Elapsed.Milliseconds(), 100)
+	// Verify reconciliation loop is not unexpectedly slow
+	require.Less(t, stats.Elapsed, 5*time.Second)
 }
 
 func newNoopEnqueuer() *notifications.NoopEnqueuer {
@@ -2863,7 +2924,7 @@ func TestReconciliationRespectsPauseSetting(t *testing.T) {
 	_ = setupTestDBPreset(t, db, templateVersionID, 2, "test")
 
 	// Initially, reconciliation should create prebuilds
-	err := reconciler.ReconcileAll(ctx)
+	_, err := reconciler.ReconcileAll(ctx)
 	require.NoError(t, err)
 
 	// Verify that prebuilds were created
@@ -2890,7 +2951,7 @@ func TestReconciliationRespectsPauseSetting(t *testing.T) {
 	require.Len(t, workspaces, 0, "prebuilds should be deleted")
 
 	// Run reconciliation again - it should be paused and not recreate prebuilds
-	err = reconciler.ReconcileAll(ctx)
+	_, err = reconciler.ReconcileAll(ctx)
 	require.NoError(t, err)
 
 	// Verify that no new prebuilds were created because reconciliation is paused
@@ -2903,7 +2964,7 @@ func TestReconciliationRespectsPauseSetting(t *testing.T) {
 	require.NoError(t, err)
 
 	// Run reconciliation again - it should now recreate the prebuilds
-	err = reconciler.ReconcileAll(ctx)
+	_, err = reconciler.ReconcileAll(ctx)
 	require.NoError(t, err)
 
 	// Verify that prebuilds were recreated
