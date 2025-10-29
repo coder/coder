@@ -2403,7 +2403,7 @@ func TestReconciliationStats(t *testing.T) {
 	reconciler := prebuilds.NewStoreReconciler(db, ps, cache, codersdk.PrebuildsConfig{}, logger, clock, registry, fakeEnqueuer, newNoopUsageCheckerPtr())
 	owner := coderdtest.CreateFirstUser(t, client)
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
 
 	// Create a template version with a preset
@@ -2418,9 +2418,16 @@ func TestReconciliationStats(t *testing.T) {
 	}).Do()
 
 	// Verify that ReconcileAll tracks and returns elapsed time
+	start := time.Now()
 	stats, err := reconciler.ReconcileAll(ctx)
+	actualElapsed := time.Since(start)
 	require.NoError(t, err)
 	require.Greater(t, stats.Elapsed, time.Duration(0))
+
+	// Verify stats.Elapsed matches actual execution time
+	require.InDelta(t, actualElapsed.Milliseconds(), stats.Elapsed.Milliseconds(), 100)
+	// Verify reconciliation loop is not unexpectedly slow
+	require.Less(t, stats.Elapsed, 5*time.Second)
 }
 
 func newNoopEnqueuer() *notifications.NoopEnqueuer {
