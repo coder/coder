@@ -41,12 +41,11 @@ export const TaskTopbar: FC<TaskTopbarProps> = ({ task }) => {
 				{task.workspace.name}
 			</h1>
 
-			{task.workspace.latest_app_status?.uri &&
-				task.workspace.latest_app_status.uri.trim() !== "" && (
-					<div className="flex items-center gap-2 flex-wrap ml-4">
-						<TaskStatusLink uri={task.workspace.latest_app_status.uri} />
-					</div>
-				)}
+			{task.workspace.latest_app_status?.uri && (
+				<div className="flex items-center gap-2 flex-wrap ml-4">
+					<TaskStatusLink uri={task.workspace.latest_app_status.uri} />
+				</div>
+			)}
 
 			<div className="ml-auto gap-2 flex items-center">
 				<TooltipProvider delayDuration={250}>
