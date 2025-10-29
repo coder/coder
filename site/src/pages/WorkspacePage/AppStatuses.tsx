@@ -121,12 +121,16 @@ export const AppStatuses: FC<AppStatusesProps> = ({
 							</Button>
 						))}
 
-					<Button asChild size="sm" variant="outline">
-						<RouterLink to={`/tasks/${workspace.owner_name}/${workspace.name}`}>
-							<SquareCheckBigIcon />
-							View task
-						</RouterLink>
-					</Button>
+					{workspace.task_id && (
+						<Button asChild size="sm" variant="outline">
+							<RouterLink
+								to={`/tasks/${workspace.owner_name}/${workspace.task_id}`}
+							>
+								<SquareCheckBigIcon />
+								View task
+							</RouterLink>
+						</Button>
+					)}
 
 					<TooltipProvider>
 						<Tooltip>

@@ -297,6 +297,10 @@ of the template will be used.
   "owner_avatar_url": "string",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
+  "task_id": {
+    "uuid": "string",
+    "valid": true
+  },
   "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",
@@ -589,6 +593,10 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
   "owner_avatar_url": "string",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
+  "task_id": {
+    "uuid": "string",
+    "valid": true
+  },
   "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",
@@ -906,6 +914,10 @@ of the template will be used.
   "owner_avatar_url": "string",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
+  "task_id": {
+    "uuid": "string",
+    "valid": true
+  },
   "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",
@@ -1184,6 +1196,10 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
       "owner_avatar_url": "string",
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
       "owner_name": "string",
+      "task_id": {
+        "uuid": "string",
+        "valid": true
+      },
       "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
       "template_allow_user_cancel_workspace_jobs": true,
       "template_display_name": "string",
@@ -1477,6 +1493,10 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
   "owner_avatar_url": "string",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
+  "task_id": {
+    "uuid": "string",
+    "valid": true
+  },
   "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",
@@ -2029,6 +2049,10 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
   "owner_avatar_url": "string",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
+  "task_id": {
+    "uuid": "string",
+    "valid": true
+  },
   "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",

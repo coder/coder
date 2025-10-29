@@ -259,6 +259,9 @@ func TestTasks(t *testing.T) {
 		// Wait for the workspace to be built.
 		workspace, err := client.Workspace(ctx, task.WorkspaceID.UUID)
 		require.NoError(t, err)
+		if assert.True(t, workspace.TaskID.Valid, "task id should be set on workspace") {
+			assert.Equal(t, task.ID, workspace.TaskID.UUID, "workspace task id should match")
+		}
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		// List tasks via experimental API and verify the prompt and status mapping.
@@ -297,6 +300,9 @@ func TestTasks(t *testing.T) {
 		// Get the workspace and wait for it to be ready.
 		ws, err := client.Workspace(ctx, task.WorkspaceID.UUID)
 		require.NoError(t, err)
+		if assert.True(t, ws.TaskID.Valid, "task id should be set on workspace") {
+			assert.Equal(t, task.ID, ws.TaskID.UUID, "workspace task id should match")
+		}
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 		ws = coderdtest.MustWorkspace(t, client, task.WorkspaceID.UUID)
 		// Assert invariant: the workspace has exactly one resource with one agent with one app.
@@ -371,6 +377,9 @@ func TestTasks(t *testing.T) {
 			require.True(t, task.WorkspaceID.Valid, "task should have a workspace ID")
 			ws, err := client.Workspace(ctx, task.WorkspaceID.UUID)
 			require.NoError(t, err)
+			if assert.True(t, ws.TaskID.Valid, "task id should be set on workspace") {
+				assert.Equal(t, task.ID, ws.TaskID.UUID, "workspace task id should match")
+			}
 			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 
 			err = exp.DeleteTask(ctx, "me", task.ID)
@@ -417,6 +426,9 @@ func TestTasks(t *testing.T) {
 			coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 			ws := coderdtest.CreateWorkspace(t, client, template.ID)
+			if assert.False(t, ws.TaskID.Valid, "task id should not be set on non-task workspace") {
+				assert.Zero(t, ws.TaskID, "non-task workspace task id should be empty")
+			}
 			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 
 			exp := codersdk.NewExperimentalClient(client)

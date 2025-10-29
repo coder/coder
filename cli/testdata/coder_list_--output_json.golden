@@ -90,6 +90,7 @@
     "allow_renames": false,
     "favorite": false,
     "next_start_at": "====[timestamp]=====",
-    "is_prebuild": false
+    "is_prebuild": false,
+    "task_id": null
   }
 ]
