@@ -3646,8 +3646,8 @@ const (
 	ExperimentOAuth2             Experiment = "oauth2"               // Enables OAuth2 provider functionality.
 	ExperimentMCPServerHTTP      Experiment = "mcp-server-http"      // Enables the MCP HTTP server functionality.
 	ExperimentWorkspaceSharing   Experiment = "workspace-sharing"    // Enables updating workspace ACLs for sharing with users and groups.
-	// ExperimentTerraformWorkspace is named after the "Terraform Workspaces" feature, not to be confused with Coder Workspaces.
-	ExperimentTerraformWorkspace Experiment = "terraform-workspaces" // Enables reuse of existing terraform directory for builds
+	// ExperimentTerraformWorkspace uses the "Terraform Workspaces" feature, not to be confused with Coder Workspaces.
+	ExperimentTerraformWorkspace Experiment = "terraform-directory-reuse" // Enables reuse of existing terraform directory for builds
 )
 
 func (e Experiment) DisplayName() string {
@@ -3669,7 +3669,7 @@ func (e Experiment) DisplayName() string {
 	case ExperimentWorkspaceSharing:
 		return "Workspace Sharing"
 	case ExperimentTerraformWorkspace:
-		return "Terraform Workspace Caching"
+		return "Terraform Directory Reuse"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "web-push" -> "Web Push", "mcp-server-http" -> "Mcp Server Http"
