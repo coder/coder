@@ -11,7 +11,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/coder/coder/v2/coderd/util/ptr"
-	"github.com/coder/coder/v2/enterprise/x/aibridged/proto"
+	"github.com/coder/coder/v2/enterprise/aibridged/proto"
 
 	"github.com/coder/aibridge"
 )

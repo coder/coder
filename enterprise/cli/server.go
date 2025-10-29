@@ -16,6 +16,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/enterprise/aibridged"
 	"github.com/coder/coder/v2/enterprise/audit"
 	"github.com/coder/coder/v2/enterprise/audit/backends"
 	"github.com/coder/coder/v2/enterprise/coderd"
@@ -23,7 +24,6 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/usage"
 	"github.com/coder/coder/v2/enterprise/dbcrypt"
 	"github.com/coder/coder/v2/enterprise/trialer"
-	"github.com/coder/coder/v2/enterprise/x/aibridged"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"

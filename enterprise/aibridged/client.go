@@ -5,7 +5,7 @@ import (
 
 	"storj.io/drpc"
 
-	"github.com/coder/coder/v2/enterprise/x/aibridged/proto"
+	"github.com/coder/coder/v2/enterprise/aibridged/proto"
 )
 
 type Dialer func(ctx context.Context) (DRPCClient, error)
