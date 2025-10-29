@@ -69,7 +69,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 				<TableCell>{firstPrompt?.prompt}</TableCell>
 				<TableCell>
 					<div className="flex items-center gap-4">
-						<TooltipProvider>
+						<TooltipProvider delayDuration={100}>
 							<Tooltip>
 								<TooltipTrigger asChild>
 									<div className="flex items-center gap-1">
@@ -80,7 +80,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 								<TooltipContent>Input Tokens</TooltipContent>
 							</Tooltip>
 						</TooltipProvider>
-						<TooltipProvider>
+						<TooltipProvider delayDuration={100}>
 							<Tooltip>
 								<TooltipTrigger asChild>
 									<div className="flex items-center gap-1">
