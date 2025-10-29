@@ -108,22 +108,16 @@ export interface AIConfig {
  * AITaskPromptParameterName is the name of the parameter used to pass prompts
  * to AI tasks.
  *
- * Experimental: This value is experimental and may change in the future.
+ * Deprecated: This constant is deprecated and maintained only for backwards
+ * compatibility with older templates. Task prompts are now stored directly
+ * in the tasks.prompt database column. New code should access prompts via
+ * the Task.InitialPrompt field returned from task endpoints.
+ *
+ * This constant will be removed in a future major version. Templates should
+ * not rely on this parameter name, as the backend will continue to create it
+ * automatically for compatibility but reads from tasks.prompt.
  */
 export const AITaskPromptParameterName = "AI Prompt";
-
-// From codersdk/aitasks.go
-/**
- * AITasksPromptsResponse represents the response from the AITaskPrompts method.
- *
- * Experimental: This method is experimental and may change in the future.
- */
-export interface AITasksPromptsResponse {
-	/**
-	 * Prompts is a map of workspace build IDs to prompts.
-	 */
-	readonly prompts: Record<string, string>;
-}
 
 // From codersdk/allowlist.go
 /**

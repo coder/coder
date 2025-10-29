@@ -2661,27 +2661,6 @@ export type CreateTaskFeedbackRequest = {
 class ExperimentalApiMethods {
 	constructor(protected readonly axios: AxiosInstance) {}
 
-	getAITasksPrompts = async (
-		buildIds: TypesGen.WorkspaceBuild["id"][],
-	): Promise<TypesGen.AITasksPromptsResponse> => {
-		if (buildIds.length === 0) {
-			return {
-				prompts: {},
-			};
-		}
-
-		const response = await this.axios.get<TypesGen.AITasksPromptsResponse>(
-			"/api/experimental/aitasks/prompts",
-			{
-				params: {
-					build_ids: buildIds.join(","),
-				},
-			},
-		);
-
-		return response.data;
-	};
-
 	createTask = async (
 		user: string,
 		req: TypesGen.CreateTaskRequest,

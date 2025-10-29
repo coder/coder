@@ -1021,10 +1021,7 @@ func New(options *Options) *API {
 			apiRateLimiter,
 			httpmw.ReportCLITelemetry(api.Logger, options.Telemetry),
 		)
-		r.Route("/aitasks", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
-			r.Get("/prompts", api.aiTasksPrompts)
-		})
+
 		r.Route("/tasks", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 
