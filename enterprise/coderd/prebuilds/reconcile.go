@@ -57,6 +57,24 @@ type StoreReconciler struct {
 
 var _ prebuilds.ReconciliationOrchestrator = &StoreReconciler{}
 
+type DeprovisionMode int
+
+const (
+	DeprovisionModeNormal DeprovisionMode = iota
+	DeprovisionModeOrphan
+)
+
+func (d DeprovisionMode) String() string {
+	switch d {
+	case DeprovisionModeOrphan:
+		return "orphan"
+	case DeprovisionModeNormal:
+		return "normal"
+	default:
+		return "unknown"
+	}
+}
+
 func NewStoreReconciler(store database.Store,
 	ps pubsub.Pubsub,
 	fileCache *files.Cache,
@@ -642,34 +660,7 @@ func (c *StoreReconciler) executeReconciliationAction(ctx context.Context, logge
 		return multiErr.ErrorOrNil()
 
 	case prebuilds.ActionTypeCancelPending:
-		// Cancel pending prebuild jobs from non-active template versions to avoid
-		// provisioning obsolete workspaces that would immediately be deprovisioned.
-		// This uses a criteria-based update to ensure only jobs that are still pending
-		// at execution time are canceled, avoiding race conditions where jobs may have
-		// transitioned to running status between query and update.
-		canceledJobs, err := c.store.UpdatePrebuildProvisionerJobWithCancel(
-			ctx,
-			database.UpdatePrebuildProvisionerJobWithCancelParams{
-				Now: c.clock.Now(),
-				PresetID: uuid.NullUUID{
-					UUID:  ps.Preset.ID,
-					Valid: true,
-				},
-			})
-		if err != nil {
-			logger.Error(ctx, "failed to cancel pending prebuild jobs",
-				slog.F("template_version_id", ps.Preset.TemplateVersionID.String()),
-				slog.F("preset_id", ps.Preset.ID),
-				slog.Error(err))
-			return err
-		}
-		if len(canceledJobs) > 0 {
-			logger.Info(ctx, "canceled pending prebuild jobs for inactive version",
-				slog.F("template_version_id", ps.Preset.TemplateVersionID.String()),
-				slog.F("preset_id", ps.Preset.ID),
-				slog.F("count", len(canceledJobs)))
-		}
-		return nil
+		return c.cancelAndOrphanDeletePendingPrebuilds(ctx, ps.Preset.TemplateID, ps.Preset.TemplateVersionID, ps.Preset.ID)
 
 	default:
 		return xerrors.Errorf("unknown action type: %v", action.ActionType)
@@ -717,7 +708,91 @@ func (c *StoreReconciler) createPrebuiltWorkspace(ctx context.Context, prebuiltW
 		c.logger.Info(ctx, "attempting to create prebuild", slog.F("name", name),
 			slog.F("workspace_id", prebuiltWorkspaceID.String()), slog.F("preset_id", presetID.String()))
 
-		return c.provision(ctx, db, prebuiltWorkspaceID, template, presetID, database.WorkspaceTransitionStart, workspace)
+		return c.provision(ctx, db, prebuiltWorkspaceID, template, presetID, database.WorkspaceTransitionStart, workspace, DeprovisionModeNormal)
+	}, &database.TxOptions{
+		Isolation: sql.LevelRepeatableRead,
+		ReadOnly:  false,
+	})
+}
+
+// provisionDelete provisions a delete transition for a prebuilt workspace.
+//
+// If mode is DeprovisionModeOrphan, the builder will not send Terraform state to the provisioner.
+// This allows the workspace to be deleted even when no provisioners are available, and is safe
+// when no Terraform resources were actually created (e.g., for pending prebuilds that were canceled
+// before provisioning started).
+//
+// IMPORTANT: This function must be called within a database transaction. It does not create its own transaction.
+// The caller is responsible for managing the transaction boundary via db.InTx().
+func (c *StoreReconciler) provisionDelete(ctx context.Context, db database.Store, workspaceID uuid.UUID, templateID uuid.UUID, presetID uuid.UUID, mode DeprovisionMode) error {
+	workspace, err := db.GetWorkspaceByID(ctx, workspaceID)
+	if err != nil {
+		return xerrors.Errorf("get workspace by ID: %w", err)
+	}
+
+	template, err := db.GetTemplateByID(ctx, templateID)
+	if err != nil {
+		return xerrors.Errorf("failed to get template: %w", err)
+	}
+
+	if workspace.OwnerID != database.PrebuildsSystemUserID {
+		return xerrors.Errorf("prebuilt workspace is not owned by prebuild user anymore, probably it was claimed")
+	}
+
+	c.logger.Info(ctx, "attempting to delete prebuild", slog.F("orphan", mode.String()),
+		slog.F("name", workspace.Name), slog.F("workspace_id", workspaceID.String()), slog.F("preset_id", presetID.String()))
+
+	return c.provision(ctx, db, workspaceID, template, presetID,
+		database.WorkspaceTransitionDelete, workspace, mode)
+}
+
+// cancelAndOrphanDeletePendingPrebuilds cancels pending prebuild jobs from inactive template versions
+// and orphan-deletes their associated workspaces.
+//
+// The cancel operation uses a criteria-based update to ensure only jobs that are still pending at
+// execution time are canceled, avoiding race conditions where jobs may have transitioned to running.
+//
+// Since these jobs were never processed by a provisioner, no Terraform resources were created,
+// making it safe to orphan-delete the workspaces (skipping Terraform destroy).
+func (c *StoreReconciler) cancelAndOrphanDeletePendingPrebuilds(ctx context.Context, templateID uuid.UUID, templateVersionID uuid.UUID, presetID uuid.UUID) error {
+	return c.store.InTx(func(db database.Store) error {
+		canceledJobs, err := db.UpdatePrebuildProvisionerJobWithCancel(
+			ctx,
+			database.UpdatePrebuildProvisionerJobWithCancelParams{
+				Now: c.clock.Now(),
+				PresetID: uuid.NullUUID{
+					UUID:  presetID,
+					Valid: true,
+				},
+			})
+		if err != nil {
+			c.logger.Error(ctx, "failed to cancel pending prebuild jobs",
+				slog.F("template_id", templateID.String()),
+				slog.F("template_version_id", templateVersionID.String()),
+				slog.F("preset_id", presetID.String()),
+				slog.Error(err))
+			return err
+		}
+
+		if len(canceledJobs) > 0 {
+			c.logger.Info(ctx, "canceled pending prebuild jobs for inactive version",
+				slog.F("template_id", templateID.String()),
+				slog.F("template_version_id", templateVersionID.String()),
+				slog.F("preset_id", presetID.String()),
+				slog.F("count", len(canceledJobs)))
+		}
+
+		var multiErr multierror.Error
+		for _, job := range canceledJobs {
+			err = c.provisionDelete(ctx, db, job.WorkspaceID, job.TemplateID, presetID, DeprovisionModeOrphan)
+			if err != nil {
+				c.logger.Error(ctx, "failed to orphan delete canceled prebuild",
+					slog.F("workspace_id", job.WorkspaceID.String()), slog.Error(err))
+				multiErr.Errors = append(multiErr.Errors, err)
+			}
+		}
+
+		return multiErr.ErrorOrNil()
 	}, &database.TxOptions{
 		Isolation: sql.LevelRepeatableRead,
 		ReadOnly:  false,
@@ -726,24 +801,7 @@ func (c *StoreReconciler) createPrebuiltWorkspace(ctx context.Context, prebuiltW
 
 func (c *StoreReconciler) deletePrebuiltWorkspace(ctx context.Context, prebuiltWorkspaceID uuid.UUID, templateID uuid.UUID, presetID uuid.UUID) error {
 	return c.store.InTx(func(db database.Store) error {
-		workspace, err := db.GetWorkspaceByID(ctx, prebuiltWorkspaceID)
-		if err != nil {
-			return xerrors.Errorf("get workspace by ID: %w", err)
-		}
-
-		template, err := db.GetTemplateByID(ctx, templateID)
-		if err != nil {
-			return xerrors.Errorf("failed to get template: %w", err)
-		}
-
-		if workspace.OwnerID != database.PrebuildsSystemUserID {
-			return xerrors.Errorf("prebuilt workspace is not owned by prebuild user anymore, probably it was claimed")
-		}
-
-		c.logger.Info(ctx, "attempting to delete prebuild",
-			slog.F("workspace_id", prebuiltWorkspaceID.String()), slog.F("preset_id", presetID.String()))
-
-		return c.provision(ctx, db, prebuiltWorkspaceID, template, presetID, database.WorkspaceTransitionDelete, workspace)
+		return c.provisionDelete(ctx, db, prebuiltWorkspaceID, templateID, presetID, DeprovisionModeNormal)
 	}, &database.TxOptions{
 		Isolation: sql.LevelRepeatableRead,
 		ReadOnly:  false,
@@ -758,6 +816,7 @@ func (c *StoreReconciler) provision(
 	presetID uuid.UUID,
 	transition database.WorkspaceTransition,
 	workspace database.Workspace,
+	mode DeprovisionMode,
 ) error {
 	tvp, err := db.GetPresetParametersByTemplateVersionID(ctx, template.ActiveVersionID)
 	if err != nil {
@@ -793,6 +852,11 @@ func (c *StoreReconciler) provision(
 		// This mirrors the behavior of regular workspace deletion (see cli/delete.go).
 		builder = builder.TemplateVersionPresetID(presetID)
 		builder = builder.RichParameterValues(params)
+	}
+
+	// Use orphan mode for deletes when no Terraform resources exist
+	if transition == database.WorkspaceTransitionDelete && mode == DeprovisionModeOrphan {
+		builder = builder.Orphan()
 	}
 
 	_, provisionerJob, _, err := builder.Build(
