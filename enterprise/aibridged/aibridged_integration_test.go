@@ -19,8 +19,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/aibridged"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
-	"github.com/coder/coder/v2/enterprise/x/aibridged"
 	"github.com/coder/coder/v2/testutil"
 )
 

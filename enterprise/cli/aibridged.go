@@ -9,8 +9,8 @@ import (
 
 	"github.com/coder/aibridge"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/aibridged"
 	"github.com/coder/coder/v2/enterprise/coderd"
-	"github.com/coder/coder/v2/enterprise/x/aibridged"
 )
 
 func newAIBridgeDaemon(coderAPI *coderd.API) (*aibridged.Server, error) {

@@ -134,8 +134,7 @@ func (r *RootCmd) aibridgeInterceptionsList() *serpent.Command {
 				return xerrors.Errorf("limit value must be between 1 and %d", maxInterceptionsLimit)
 			}
 
-			expCli := codersdk.NewExperimentalClient(client)
-			resp, err := expCli.AIBridgeListInterceptions(inv.Context(), codersdk.AIBridgeListInterceptionsFilter{
+			resp, err := client.AIBridgeListInterceptions(inv.Context(), codersdk.AIBridgeListInterceptionsFilter{
 				Pagination: codersdk.Pagination{
 					AfterID: afterID,
 					// #nosec G115 - Checked above.
