@@ -18,6 +18,7 @@ func GetAuthorizationServerMetadata(accessURL *url.URL) http.HandlerFunc {
 			AuthorizationEndpoint:             accessURL.JoinPath("/oauth2/authorize").String(),
 			TokenEndpoint:                     accessURL.JoinPath("/oauth2/tokens").String(),
 			RegistrationEndpoint:              accessURL.JoinPath("/oauth2/register").String(), // RFC 7591
+			RevocationEndpoint:                accessURL.JoinPath("/oauth2/revoke").String(),   // RFC 7009
 			ResponseTypesSupported:            []string{"code"},
 			GrantTypesSupported:               []string{"authorization_code", "refresh_token"},
 			CodeChallengeMethodsSupported:     []string{"S256"},
