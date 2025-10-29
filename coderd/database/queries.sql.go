@@ -8285,6 +8285,93 @@ func (q *sqlQuerier) FindMatchingPresetID(ctx context.Context, arg FindMatchingP
 	return template_version_preset_id, err
 }
 
+const getOrganizationsWithPrebuildStatus = `-- name: GetOrganizationsWithPrebuildStatus :many
+WITH orgs_with_prebuilds AS (
+	-- Get unique organizations that have presets with prebuilds configured
+	SELECT DISTINCT o.id, o.name
+	FROM organizations o
+	INNER JOIN templates t ON t.organization_id = o.id
+	INNER JOIN template_versions tv ON tv.template_id = t.id
+	INNER JOIN template_version_presets tvp ON tvp.template_version_id = tv.id
+	WHERE tvp.desired_instances IS NOT NULL
+),
+prebuild_user_membership AS (
+	-- Check if the user is a member of the organizations
+	SELECT om.organization_id
+	FROM organization_members om
+	INNER JOIN orgs_with_prebuilds owp ON owp.id = om.organization_id
+	WHERE om.user_id = $1::uuid
+),
+prebuild_groups AS (
+	-- Check if the organizations have the prebuilds group
+	SELECT g.organization_id, g.id as group_id
+	FROM groups g
+	INNER JOIN orgs_with_prebuilds owp ON owp.id = g.organization_id
+	WHERE g.name = $2::text
+),
+prebuild_group_membership AS (
+	-- Check if the user is in the prebuilds group
+	SELECT pg.organization_id
+	FROM prebuild_groups pg
+	INNER JOIN group_members gm ON gm.group_id = pg.group_id
+	WHERE gm.user_id = $1::uuid
+)
+SELECT
+	owp.id AS organization_id,
+	owp.name AS organization_name,
+	(pum.organization_id IS NOT NULL)::boolean AS has_prebuild_user,
+	pg.group_id AS prebuilds_group_id,
+	(pgm.organization_id IS NOT NULL)::boolean AS has_prebuild_user_in_group
+FROM orgs_with_prebuilds owp
+LEFT JOIN prebuild_groups pg ON pg.organization_id = owp.id
+LEFT JOIN prebuild_user_membership pum ON pum.organization_id = owp.id
+LEFT JOIN prebuild_group_membership pgm ON pgm.organization_id = owp.id
+`
+
+type GetOrganizationsWithPrebuildStatusParams struct {
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+	GroupName string    `db:"group_name" json:"group_name"`
+}
+
+type GetOrganizationsWithPrebuildStatusRow struct {
+	OrganizationID         uuid.UUID     `db:"organization_id" json:"organization_id"`
+	OrganizationName       string        `db:"organization_name" json:"organization_name"`
+	HasPrebuildUser        bool          `db:"has_prebuild_user" json:"has_prebuild_user"`
+	PrebuildsGroupID       uuid.NullUUID `db:"prebuilds_group_id" json:"prebuilds_group_id"`
+	HasPrebuildUserInGroup bool          `db:"has_prebuild_user_in_group" json:"has_prebuild_user_in_group"`
+}
+
+// GetOrganizationsWithPrebuildStatus returns organizations with prebuilds configured and their
+// membership status for the prebuilds system user (org membership, group existence, group membership).
+func (q *sqlQuerier) GetOrganizationsWithPrebuildStatus(ctx context.Context, arg GetOrganizationsWithPrebuildStatusParams) ([]GetOrganizationsWithPrebuildStatusRow, error) {
+	rows, err := q.db.QueryContext(ctx, getOrganizationsWithPrebuildStatus, arg.UserID, arg.GroupName)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetOrganizationsWithPrebuildStatusRow
+	for rows.Next() {
+		var i GetOrganizationsWithPrebuildStatusRow
+		if err := rows.Scan(
+			&i.OrganizationID,
+			&i.OrganizationName,
+			&i.HasPrebuildUser,
+			&i.PrebuildsGroupID,
+			&i.HasPrebuildUserInGroup,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getPrebuildMetrics = `-- name: GetPrebuildMetrics :many
 SELECT
 	t.name as template_name,

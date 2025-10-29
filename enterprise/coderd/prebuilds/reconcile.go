@@ -322,6 +322,12 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) (stats prebuilds.Rec
 			return nil
 		}
 
+		membershipReconciler := NewStoreMembershipReconciler(c.store, c.clock, logger)
+		err = membershipReconciler.ReconcileAll(ctx, database.PrebuildsSystemUserID, PrebuiltWorkspacesGroupName)
+		if err != nil {
+			return xerrors.Errorf("reconcile prebuild membership: %w", err)
+		}
+
 		snapshot, err := c.SnapshotState(ctx, c.store)
 		if err != nil {
 			return xerrors.Errorf("determine current snapshot: %w", err)
@@ -332,12 +338,6 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) (stats prebuilds.Rec
 		if len(snapshot.Presets) == 0 {
 			logger.Debug(ctx, "no templates found with prebuilds configured")
 			return nil
-		}
-
-		membershipReconciler := NewStoreMembershipReconciler(c.store, c.clock)
-		err = membershipReconciler.ReconcileAll(ctx, database.PrebuildsSystemUserID, snapshot.Presets)
-		if err != nil {
-			return xerrors.Errorf("reconcile prebuild membership: %w", err)
 		}
 
 		var eg errgroup.Group
