@@ -42,7 +42,7 @@ Bridge runs inside the Coder control plane, requiring no separate compute to dep
 
 ### Activation
 
-You will need to enable Bridge explicitly:
+You will need to enable AI Bridge explicitly:
 
 ```sh
 CODER_AIBRIDGE_ENABLED=true coder server
