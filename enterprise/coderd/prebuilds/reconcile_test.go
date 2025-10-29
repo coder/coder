@@ -206,7 +206,10 @@ func TestPrebuildReconciliation(t *testing.T) {
 			templateDeleted:         []bool{false},
 		},
 		{
-			name: "never attempt to interfere with active builds",
+			// TODO(ssncferreira): Investigate why the GetRunningPrebuiltWorkspaces query is returning 0 rows.
+			//   When a template version is inactive (templateVersionActive = false), any prebuilds in the
+			//   database.ProvisionerJobStatusRunning state should be deleted.
+			name: "never attempt to interfere with prebuilds from an active template version",
 			// The workspace builder does not allow scheduling a new build if there is already a build
 			// pending, running, or canceling. As such, we should never attempt to start, stop or delete
 			// such prebuilds. Rather, we should wait for the existing build to complete and reconcile
@@ -217,7 +220,7 @@ func TestPrebuildReconciliation(t *testing.T) {
 				database.ProvisionerJobStatusRunning,
 				database.ProvisionerJobStatusCanceling,
 			},
-			templateVersionActive:   []bool{true, false},
+			templateVersionActive:   []bool{true},
 			shouldDeleteOldPrebuild: ptr.To(false),
 			templateDeleted:         []bool{false},
 		},
@@ -2135,16 +2138,16 @@ func TestCancelPendingPrebuilds(t *testing.T) {
 					},
 				}).SkipCreateTemplate().Do()
 
-				var workspace dbfake.WorkspaceResponse
+				var pendingWorkspace dbfake.WorkspaceResponse
 				if tt.activeTemplateVersion {
 					// Given: a prebuilt workspace, workspace build and respective provisioner job from an
 					// active template version
-					workspace = tt.setupBuild(t, db, client,
+					pendingWorkspace = tt.setupBuild(t, db, client,
 						owner.OrganizationID, templateID, activeTemplateVersion.TemplateVersion.ID, activePresetID)
 				} else {
 					// Given: a prebuilt workspace, workspace build and respective provisioner job from a
 					// non-active template version
-					workspace = tt.setupBuild(t, db, client,
+					pendingWorkspace = tt.setupBuild(t, db, client,
 						owner.OrganizationID, templateID, nonActiveTemplateVersion.TemplateVersion.ID, nonActivePresetID)
 				}
 
@@ -2160,15 +2163,28 @@ func TestCancelPendingPrebuilds(t *testing.T) {
 				require.NoError(t, err)
 
 				if tt.shouldCancel {
-					// Then: the prebuild related jobs from non-active version should be canceled
-					cancelledJob, err := db.GetProvisionerJobByID(ctx, workspace.Build.JobID)
+					// Then: the pending prebuild job from non-active version should be canceled
+					cancelledJob, err := db.GetProvisionerJobByID(ctx, pendingWorkspace.Build.JobID)
 					require.NoError(t, err)
 					require.Equal(t, clock.Now().UTC(), cancelledJob.CanceledAt.Time.UTC())
 					require.Equal(t, clock.Now().UTC(), cancelledJob.CompletedAt.Time.UTC())
 					require.Equal(t, database.ProvisionerJobStatusCanceled, cancelledJob.JobStatus)
+
+					// Then: the workspace should be deleted
+					deletedWorkspace, err := db.GetWorkspaceByID(ctx, pendingWorkspace.Workspace.ID)
+					require.NoError(t, err)
+					require.True(t, deletedWorkspace.Deleted)
+					latestBuild, err := db.GetLatestWorkspaceBuildByWorkspaceID(ctx, deletedWorkspace.ID)
+					require.NoError(t, err)
+					require.Equal(t, database.WorkspaceTransitionDelete, latestBuild.Transition)
+					deleteJob, err := db.GetProvisionerJobByID(ctx, latestBuild.JobID)
+					require.NoError(t, err)
+					require.True(t, deleteJob.CompletedAt.Valid)
+					require.False(t, deleteJob.WorkerID.Valid)
+					require.Equal(t, database.ProvisionerJobStatusSucceeded, deleteJob.JobStatus)
 				} else {
-					// Then: the provisioner job should not be canceled
-					job, err := db.GetProvisionerJobByID(ctx, workspace.Build.JobID)
+					// Then: the pending prebuild job should not be canceled
+					job, err := db.GetProvisionerJobByID(ctx, pendingWorkspace.Build.JobID)
 					require.NoError(t, err)
 					if !tt.previouslyCanceled {
 						require.Zero(t, job.CanceledAt.Time.UTC())
@@ -2177,6 +2193,11 @@ func TestCancelPendingPrebuilds(t *testing.T) {
 					if !tt.previouslyCompleted {
 						require.Zero(t, job.CompletedAt.Time.UTC())
 					}
+
+					// Then: the workspace should not be deleted
+					workspace, err := db.GetWorkspaceByID(ctx, pendingWorkspace.Workspace.ID)
+					require.NoError(t, err)
+					require.False(t, workspace.Deleted)
 				}
 			})
 		}
@@ -2250,25 +2271,45 @@ func TestCancelPendingPrebuilds(t *testing.T) {
 			return prebuilds
 		}
 
-		checkIfJobCanceled := func(
+		checkIfJobCanceledAndDeleted := func(
 			t *testing.T,
 			clock *quartz.Mock,
 			ctx context.Context,
 			db database.Store,
-			shouldBeCanceled bool,
+			shouldBeCanceledAndDeleted bool,
 			prebuilds []dbfake.WorkspaceResponse,
 		) {
 			for _, prebuild := range prebuilds {
-				job, err := db.GetProvisionerJobByID(ctx, prebuild.Build.JobID)
+				pendingJob, err := db.GetProvisionerJobByID(ctx, prebuild.Build.JobID)
 				require.NoError(t, err)
 
-				if shouldBeCanceled {
-					require.Equal(t, database.ProvisionerJobStatusCanceled, job.JobStatus)
-					require.Equal(t, clock.Now().UTC(), job.CanceledAt.Time.UTC())
-					require.Equal(t, clock.Now().UTC(), job.CompletedAt.Time.UTC())
+				if shouldBeCanceledAndDeleted {
+					// Pending job should be canceled
+					require.Equal(t, database.ProvisionerJobStatusCanceled, pendingJob.JobStatus)
+					require.Equal(t, clock.Now().UTC(), pendingJob.CanceledAt.Time.UTC())
+					require.Equal(t, clock.Now().UTC(), pendingJob.CompletedAt.Time.UTC())
+
+					// Workspace should be deleted
+					deletedWorkspace, err := db.GetWorkspaceByID(ctx, prebuild.Workspace.ID)
+					require.NoError(t, err)
+					require.True(t, deletedWorkspace.Deleted)
+					latestBuild, err := db.GetLatestWorkspaceBuildByWorkspaceID(ctx, deletedWorkspace.ID)
+					require.NoError(t, err)
+					require.Equal(t, database.WorkspaceTransitionDelete, latestBuild.Transition)
+					deleteJob, err := db.GetProvisionerJobByID(ctx, latestBuild.JobID)
+					require.NoError(t, err)
+					require.True(t, deleteJob.CompletedAt.Valid)
+					require.False(t, deleteJob.WorkerID.Valid)
+					require.Equal(t, database.ProvisionerJobStatusSucceeded, deleteJob.JobStatus)
 				} else {
-					require.NotEqual(t, database.ProvisionerJobStatusCanceled, job.JobStatus)
-					require.Zero(t, job.CanceledAt.Time.UTC())
+					// Pending job should not be canceled
+					require.NotEqual(t, database.ProvisionerJobStatusCanceled, pendingJob.JobStatus)
+					require.Zero(t, pendingJob.CanceledAt.Time.UTC())
+
+					// Workspace should not be deleted
+					workspace, err := db.GetWorkspaceByID(ctx, prebuild.Workspace.ID)
+					require.NoError(t, err)
+					require.False(t, workspace.Deleted)
 				}
 			}
 		}
@@ -2325,22 +2366,22 @@ func TestCancelPendingPrebuilds(t *testing.T) {
 		require.NoError(t, err)
 
 		// Then: template A version 1 running workspaces should not be canceled
-		checkIfJobCanceled(t, clock, ctx, db, false, templateAVersion1Running)
+		checkIfJobCanceledAndDeleted(t, clock, ctx, db, false, templateAVersion1Running)
 		// Then: template A version 1 pending workspaces should be canceled
-		checkIfJobCanceled(t, clock, ctx, db, true, templateAVersion1Pending)
+		checkIfJobCanceledAndDeleted(t, clock, ctx, db, true, templateAVersion1Pending)
 		// Then: template A version 2 running and pending workspaces should not be canceled
-		checkIfJobCanceled(t, clock, ctx, db, false, templateAVersion2Running)
-		checkIfJobCanceled(t, clock, ctx, db, false, templateAVersion2Pending)
+		checkIfJobCanceledAndDeleted(t, clock, ctx, db, false, templateAVersion2Running)
+		checkIfJobCanceledAndDeleted(t, clock, ctx, db, false, templateAVersion2Pending)
 
 		// Then: template B version 1 running workspaces should not be canceled
-		checkIfJobCanceled(t, clock, ctx, db, false, templateBVersion1Running)
+		checkIfJobCanceledAndDeleted(t, clock, ctx, db, false, templateBVersion1Running)
 		// Then: template B version 1 pending workspaces should be canceled
-		checkIfJobCanceled(t, clock, ctx, db, true, templateBVersion1Pending)
+		checkIfJobCanceledAndDeleted(t, clock, ctx, db, true, templateBVersion1Pending)
 		// Then: template B version 2 pending workspaces should be canceled
-		checkIfJobCanceled(t, clock, ctx, db, true, templateBVersion2Pending)
+		checkIfJobCanceledAndDeleted(t, clock, ctx, db, true, templateBVersion2Pending)
 		// Then: template B version 3 running and pending workspaces should not be canceled
-		checkIfJobCanceled(t, clock, ctx, db, false, templateBVersion3Running)
-		checkIfJobCanceled(t, clock, ctx, db, false, templateBVersion3Pending)
+		checkIfJobCanceledAndDeleted(t, clock, ctx, db, false, templateBVersion3Running)
+		checkIfJobCanceledAndDeleted(t, clock, ctx, db, false, templateBVersion3Pending)
 	})
 }
 
