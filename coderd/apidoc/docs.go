@@ -14316,11 +14316,9 @@ const docTemplate = `{
                 "web-push",
                 "oauth2",
                 "mcp-server-http",
-                "workspace-sharing",
-                "aibridge"
+                "workspace-sharing"
             ],
             "x-enum-comments": {
-                "ExperimentAIBridge": "Enables AI Bridge functionality.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
@@ -14338,8 +14336,7 @@ const docTemplate = `{
                 "ExperimentWebPush",
                 "ExperimentOAuth2",
                 "ExperimentMCPServerHTTP",
-                "ExperimentWorkspaceSharing",
-                "ExperimentAIBridge"
+                "ExperimentWorkspaceSharing"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {
