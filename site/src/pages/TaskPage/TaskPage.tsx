@@ -221,7 +221,7 @@ const WorkspaceNotRunning: FC<WorkspaceNotRunningProps> = ({ workspace }) => {
 		? mutateStartWorkspace.error
 		: undefined;
 
-	const deleted = workspace.latest_build?.transition === "delete" as const;
+	const deleted = workspace.latest_build?.transition === ("delete" as const);
 
 	return deleted ? (
 		<Margins>
@@ -234,10 +234,10 @@ const WorkspaceNotRunning: FC<WorkspaceNotRunningProps> = ({ workspace }) => {
 						This task can't continue. Delete this task and create a new one.
 					</span>
 					<div className="flex flex-row mt-4 gap-4">
-						<Button
-							size="sm"
-						>
-							<RouterLink to="/tasks" data-testid="task-create-new">Create a new task</RouterLink>
+						<Button size="sm">
+							<RouterLink to="/tasks" data-testid="task-create-new">
+								Create a new task
+							</RouterLink>
 						</Button>
 					</div>
 				</div>

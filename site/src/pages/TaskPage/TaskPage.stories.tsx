@@ -177,7 +177,7 @@ export const DeletedWorkspace: Story = {
 			MockDeletedWorkspace,
 		);
 	},
-}
+};
 
 export const WaitingStartupScripts: Story = {
 	beforeEach: () => {
