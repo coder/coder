@@ -17,7 +17,11 @@ func (NoopReconciler) Run(context.Context)         {}
 func (NoopReconciler) Stop(context.Context, error) {}
 func (NoopReconciler) TrackResourceReplacement(context.Context, uuid.UUID, uuid.UUID, []*sdkproto.ResourceReplacement) {
 }
-func (NoopReconciler) ReconcileAll(context.Context) error { return nil }
+
+func (NoopReconciler) ReconcileAll(context.Context) (ReconcileStats, error) {
+	return ReconcileStats{}, nil
+}
+
 func (NoopReconciler) SnapshotState(context.Context, database.Store) (*GlobalSnapshot, error) {
 	return &GlobalSnapshot{}, nil
 }

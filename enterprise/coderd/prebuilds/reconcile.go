@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
@@ -44,7 +45,6 @@ type StoreReconciler struct {
 	logger            slog.Logger
 	clock             quartz.Clock
 	registerer        prometheus.Registerer
-	metrics           *MetricsCollector
 	notifEnq          notifications.Enqueuer
 	buildUsageChecker *atomic.Pointer[wsbuilder.UsageChecker]
 
@@ -53,6 +53,11 @@ type StoreReconciler struct {
 	stopped           atomic.Bool
 	done              chan struct{}
 	provisionNotifyCh chan database.ProvisionerJob
+
+	// Prebuild state metrics
+	metrics *MetricsCollector
+	// Operational metrics
+	reconciliationDuration prometheus.Histogram
 }
 
 var _ prebuilds.ReconciliationOrchestrator = &StoreReconciler{}
@@ -87,6 +92,15 @@ func NewStoreReconciler(store database.Store,
 			// If the registerer fails to register the metrics collector, it's not fatal.
 			logger.Error(context.Background(), "failed to register prometheus metrics", slog.Error(err))
 		}
+
+		factory := promauto.With(registerer)
+		reconciler.reconciliationDuration = factory.NewHistogram(prometheus.HistogramOpts{
+			Namespace: "coderd",
+			Subsystem: "prebuilds",
+			Name:      "reconciliation_duration_seconds",
+			Help:      "Duration of each prebuilds reconciliation cycle.",
+			Buckets:   prometheus.DefBuckets,
+		})
 	}
 
 	return reconciler
@@ -158,10 +172,15 @@ func (c *StoreReconciler) Run(ctx context.Context) {
 		//		 instead of waiting for the next reconciliation interval
 		case <-ticker.C:
 			// Trigger a new iteration on each tick.
-			err := c.ReconcileAll(ctx)
+			stats, err := c.ReconcileAll(ctx)
 			if err != nil {
 				c.logger.Error(context.Background(), "reconciliation failed", slog.Error(err))
 			}
+
+			if c.reconciliationDuration != nil {
+				c.reconciliationDuration.Observe(stats.Elapsed.Seconds())
+			}
+			c.logger.Debug(ctx, "reconciliation stats", slog.F("elapsed", stats.Elapsed))
 		case <-ctx.Done():
 			// nolint:gocritic // it's okay to use slog.F() for an error in this case
 			// because we want to differentiate two different types of errors: ctx.Err() and context.Cause()
@@ -245,19 +264,24 @@ func (c *StoreReconciler) Stop(ctx context.Context, cause error) {
 // be reconciled again, leading to another workspace being provisioned. Two workspace builds will be occurring
 // simultaneously for the same preset, but once both jobs have completed the reconciliation loop will notice the
 // extraneous instance and delete it.
-func (c *StoreReconciler) ReconcileAll(ctx context.Context) error {
+func (c *StoreReconciler) ReconcileAll(ctx context.Context) (stats prebuilds.ReconcileStats, err error) {
+	start := c.clock.Now()
+	defer func() {
+		stats.Elapsed = c.clock.Since(start)
+	}()
+
 	logger := c.logger.With(slog.F("reconcile_context", "all"))
 
 	select {
 	case <-ctx.Done():
 		logger.Warn(context.Background(), "reconcile exiting prematurely; context done", slog.Error(ctx.Err()))
-		return nil
+		return stats, nil
 	default:
 	}
 
 	logger.Debug(ctx, "starting reconciliation")
 
-	err := c.WithReconciliationLock(ctx, logger, func(ctx context.Context, _ database.Store) error {
+	err = c.WithReconciliationLock(ctx, logger, func(ctx context.Context, _ database.Store) error {
 		// Check if prebuilds reconciliation is paused
 		settingsJSON, err := c.store.GetPrebuildsSettings(ctx)
 		if err != nil {
@@ -330,7 +354,7 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) error {
 		logger.Error(ctx, "failed to reconcile", slog.Error(err))
 	}
 
-	return err
+	return stats, err
 }
 
 func (c *StoreReconciler) reportHardLimitedPresets(snapshot *prebuilds.GlobalSnapshot) {
