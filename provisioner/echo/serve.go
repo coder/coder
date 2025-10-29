@@ -122,8 +122,8 @@ func readResponses(sess *provisionersdk.Session, trans string, suffix string) ([
 	for i := 0; ; i++ {
 		paths := []string{
 			// Try more specific path first, then fallback to generic.
-			filepath.Join(sess.WorkDirectory, fmt.Sprintf("%d.%s.%s", i, trans, suffix)),
-			filepath.Join(sess.WorkDirectory, fmt.Sprintf("%d.%s", i, suffix)),
+			filepath.Join(sess.Files.WorkDirectory(), fmt.Sprintf("%d.%s.%s", i, trans, suffix)),
+			filepath.Join(sess.Files.WorkDirectory(), fmt.Sprintf("%d.%s", i, suffix)),
 		}
 		for pathIndex, path := range paths {
 			_, err := os.Stat(path)
