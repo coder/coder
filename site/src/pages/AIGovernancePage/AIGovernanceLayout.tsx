@@ -21,10 +21,10 @@ const AIGovernanceLayout: FC<PropsWithChildren> = ({
 		<Margins className="pb-12">
 			<PageHeader>
 				<PageHeaderTitle>
-					<Stack direction="row" spacing={1} alignItems="center">
+					<div className="flex items-center gap-2">
 						<span>{Language.title}</span>
 						<AIGovernanceHelpTooltip />
-					</Stack>
+					</div>
 				</PageHeaderTitle>
 				<PageHeaderSubtitle>{Language.subtitle}</PageHeaderSubtitle>
 			</PageHeader>
