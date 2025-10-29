@@ -113,8 +113,8 @@ func (f AIBridgeListInterceptionsFilter) asRequestOption() RequestOption {
 
 // AIBridgeListInterceptions returns AIBridge interceptions with the given
 // filter.
-func (c *ExperimentalClient) AIBridgeListInterceptions(ctx context.Context, filter AIBridgeListInterceptionsFilter) (AIBridgeListInterceptionsResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/aibridge/interceptions", nil, filter.asRequestOption(), filter.Pagination.asRequestOption(), filter.Pagination.asRequestOption())
+func (c *Client) AIBridgeListInterceptions(ctx context.Context, filter AIBridgeListInterceptionsFilter) (AIBridgeListInterceptionsResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/aibridge/interceptions", nil, filter.asRequestOption(), filter.Pagination.asRequestOption(), filter.Pagination.asRequestOption())
 	if err != nil {
 		return AIBridgeListInterceptionsResponse{}, err
 	}

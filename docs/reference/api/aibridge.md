@@ -6,12 +6,12 @@
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/api/experimental/aibridge/interceptions \
+curl -X GET http://coder-server:8080/api/v2/aibridge/interceptions \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /api/experimental/aibridge/interceptions`
+`GET /aibridge/interceptions`
 
 ### Parameters
 
