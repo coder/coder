@@ -14,6 +14,7 @@ USAGE:
        $ coder templates init
 
 SUBCOMMANDS:
+    aibridge               Manage AIBridge.
     external-workspaces    Create or manage external workspaces
     features               List Enterprise features
     groups                 Manage groups
