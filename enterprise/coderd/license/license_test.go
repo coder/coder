@@ -520,8 +520,8 @@ func TestEntitlements(t *testing.T) {
 	t.Run("Premium", func(t *testing.T) {
 		t.Parallel()
 		const userLimit = 1
-		const expectedAgentSoftLimit = 800 * userLimit
-		const expectedAgentHardLimit = 1000 * userLimit
+		const expectedAgentSoftLimit = 800
+		const expectedAgentHardLimit = 1000
 
 		db, _ := dbtestutil.NewDB(t)
 		licenseOptions := coderdenttest.LicenseOptions{
@@ -1495,15 +1495,15 @@ func TestManagedAgentLimitDefault(t *testing.T) {
 		require.Nil(t, feature.UsagePeriod)
 	})
 
-	// "Premium" licenses should receive a default managed agent limit of:
-	// soft = 800 * user_limit
-	// hard = 1000 * user_limit
+	// "Premium" licenses should receive a default flat managed agent limit per deployment:
+	// soft = 800
+	// hard = 1000
 	t.Run("Premium", func(t *testing.T) {
 		t.Parallel()
 
 		const userLimit = 100
-		const softLimit = 800 * userLimit
-		const hardLimit = 1000 * userLimit
+		const softLimit = 800
+		const hardLimit = 1000
 		lic := database.License{
 			ID:         1,
 			UploadedAt: time.Now(),
