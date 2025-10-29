@@ -714,8 +714,7 @@ workspace_prebuilds:
   # (default: 3, type: int)
   failure_hard_limit: 3
 aibridge:
-  # Whether to start an in-memory aibridged instance ("aibridge" experiment must be
-  # enabled, too).
+  # Whether to start an in-memory aibridged instance.
   # (default: false, type: bool)
   enabled: false
   # The base URL of the OpenAI API.
