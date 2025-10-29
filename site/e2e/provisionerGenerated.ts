@@ -405,6 +405,7 @@ export interface Metadata {
   runningAgentAuthTokens: RunningAgentAuthToken[];
   taskId: string;
   taskPrompt: string;
+  templateVersionId: string;
 }
 
 /** Config represents execution configuration shared by all subsequent requests in the Session */
@@ -414,6 +415,10 @@ export interface Config {
   /** state is the provisioner state (if any) */
   state: Uint8Array;
   provisionerLogLevel: string;
+  templateId: string;
+  templateVersionId: string;
+  /** Whether to reuse existing terraform workspaces if they exist. */
+  terraformWorkspaceReuse: boolean;
 }
 
 /** ParseRequest consumes source-code to produce inputs. */
@@ -1298,6 +1303,9 @@ export const Metadata = {
     if (message.taskPrompt !== "") {
       writer.uint32(186).string(message.taskPrompt);
     }
+    if (message.templateVersionId !== "") {
+      writer.uint32(194).string(message.templateVersionId);
+    }
     return writer;
   },
 };
@@ -1312,6 +1320,15 @@ export const Config = {
     }
     if (message.provisionerLogLevel !== "") {
       writer.uint32(26).string(message.provisionerLogLevel);
+    }
+    if (message.templateId !== "") {
+      writer.uint32(34).string(message.templateId);
+    }
+    if (message.templateVersionId !== "") {
+      writer.uint32(42).string(message.templateVersionId);
+    }
+    if (message.terraformWorkspaceReuse !== false) {
+      writer.uint32(48).bool(message.terraformWorkspaceReuse);
     }
     return writer;
   },

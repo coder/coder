@@ -57,9 +57,14 @@ import "github.com/coder/coder/v2/apiversion"
 // API v1.11:
 //   - Added new fields `task_id` and `task_prompt` to `Manifest`.
 //   - Added new field `app_id` to `AITask`
+//
+// API v1.12:
+//   - Added new field `template_version_id` to `provisioner.Metadata`
+//   - Added new field `terraform_workspace_reuse` to `provisioner.Job.WorkspaceBuild`
+//   - Added fields `template_version_id`, `template_id`, and `terraform_workspace_reuse` to `provisioner.Config`
 const (
 	CurrentMajor = 1
-	CurrentMinor = 11
+	CurrentMinor = 12
 )
 
 // CurrentVersion is the current provisionerd API version.

@@ -704,6 +704,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 				PreviousParameterValues: convertRichParameterValues(lastWorkspaceBuildParameters),
 				VariableValues:          asVariableValues(templateVariables),
 				ExternalAuthProviders:   externalAuthProviders,
+				ReuseTerraformWorkspace: false, // TODO: Toggle based on experiment
 				Metadata: &sdkproto.Metadata{
 					CoderUrl:                      s.AccessURL.String(),
 					WorkspaceTransition:           transition,
@@ -773,6 +774,11 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			return nil, failJob(err.Error())
 		}
 
+		templateID := ""
+		if input.TemplateID.Valid {
+			templateID = input.TemplateID.UUID.String()
+		}
+
 		protoJob.Type = &proto.AcquiredJob_TemplateImport_{
 			TemplateImport: &proto.AcquiredJob_TemplateImport{
 				UserVariableValues: convertVariableValues(userVariableValues),
@@ -781,6 +787,8 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					// There is no owner for a template import, but we can assume
 					// the "Everyone" group as a placeholder.
 					WorkspaceOwnerGroups: []string{database.EveryoneGroup},
+					TemplateId:           templateID,
+					TemplateVersionId:    input.TemplateVersionID.String(),
 				},
 			},
 		}
@@ -3210,6 +3218,10 @@ func auditActionFromTransition(transition database.WorkspaceTransition) database
 }
 
 type TemplateVersionImportJob struct {
+	// TemplateID is not guaranteed to be set. Template versions can be created
+	// without being associated with a template. Resulting in a template id of
+	// `uuid.Nil`
+	TemplateID         uuid.NullUUID            `json:"template_id"`
 	TemplateVersionID  uuid.UUID                `json:"template_version_id"`
 	UserVariableValues []codersdk.VariableValue `json:"user_variable_values"`
 }

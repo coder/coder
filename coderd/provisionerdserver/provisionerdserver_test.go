@@ -629,6 +629,7 @@ func TestAcquireJob(t *testing.T) {
 					Metadata: &sdkproto.Metadata{
 						CoderUrl:             (&url.URL{}).String(),
 						WorkspaceOwnerGroups: []string{database.EveryoneGroup},
+						TemplateVersionId:    uuid.Nil.String(),
 					},
 				},
 			})
@@ -677,6 +678,7 @@ func TestAcquireJob(t *testing.T) {
 					Metadata: &sdkproto.Metadata{
 						CoderUrl:             (&url.URL{}).String(),
 						WorkspaceOwnerGroups: []string{database.EveryoneGroup},
+						TemplateVersionId:    version.ID.String(),
 					},
 				},
 			})
