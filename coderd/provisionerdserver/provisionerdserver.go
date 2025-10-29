@@ -781,6 +781,8 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					// There is no owner for a template import, but we can assume
 					// the "Everyone" group as a placeholder.
 					WorkspaceOwnerGroups: []string{database.EveryoneGroup},
+					TemplateId:           input.TemplateID.String(),
+					TemplateVersionId:    input.TemplateVersionID.String(),
 				},
 			},
 		}
@@ -3249,6 +3251,10 @@ func auditActionFromTransition(transition database.WorkspaceTransition) database
 }
 
 type TemplateVersionImportJob struct {
+	// TemplateID is not guaranteed to be set. Template versions can be created
+	// without being associated with a template. Resulting in a template id of
+	// `uuid.Nil`
+	TemplateID         uuid.UUID                `json:"template_id"`
 	TemplateVersionID  uuid.UUID                `json:"template_version_id"`
 	UserVariableValues []codersdk.VariableValue `json:"user_variable_values"`
 }
