@@ -1999,6 +1999,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 		api.NotificationsEnqueuer,
 		&api.PrebuildsReconciler,
 		api.ProvisionerdServerMetrics,
+		api.Experiments,
 	)
 	if err != nil {
 		return nil, err

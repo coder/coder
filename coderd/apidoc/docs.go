@@ -14316,7 +14316,8 @@ const docTemplate = `{
                 "web-push",
                 "oauth2",
                 "mcp-server-http",
-                "workspace-sharing"
+                "workspace-sharing",
+                "terraform-workspaces"
             ],
             "x-enum-comments": {
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
@@ -14324,6 +14325,7 @@ const docTemplate = `{
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentOAuth2": "Enables OAuth2 provider functionality.",
+                "ExperimentTerraformWorkspace": "Enables reuse of existing terraform directory for builds",
                 "ExperimentWebPush": "Enables web push notifications through the browser.",
                 "ExperimentWorkspaceSharing": "Enables updating workspace ACLs for sharing with users and groups.",
                 "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
@@ -14336,7 +14338,8 @@ const docTemplate = `{
                 "ExperimentWebPush",
                 "ExperimentOAuth2",
                 "ExperimentMCPServerHTTP",
-                "ExperimentWorkspaceSharing"
+                "ExperimentWorkspaceSharing",
+                "ExperimentTerraformWorkspace"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {

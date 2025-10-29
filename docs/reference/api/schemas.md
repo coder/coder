@@ -4059,6 +4059,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `oauth2`               |
 | `mcp-server-http`      |
 | `workspace-sharing`    |
+| `terraform-workspaces` |
 
 ## codersdk.ExternalAPIKeyScopes
 

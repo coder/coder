@@ -362,6 +362,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		api.NotificationsEnqueuer,
 		&api.AGPL.PrebuildsReconciler,
 		api.ProvisionerdServerMetrics,
+		api.AGPL.Experiments,
 	)
 	if err != nil {
 		if !xerrors.Is(err, context.Canceled) {

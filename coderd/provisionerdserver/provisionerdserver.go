@@ -120,6 +120,7 @@ type server struct {
 	NotificationsEnqueuer       notifications.Enqueuer
 	PrebuildsOrchestrator       *atomic.Pointer[prebuilds.ReconciliationOrchestrator]
 	UsageInserter               *atomic.Pointer[usage.Inserter]
+	Experiments                 codersdk.Experiments
 
 	OIDCConfig promoauth.OAuth2Config
 
@@ -181,6 +182,7 @@ func NewServer(
 	enqueuer notifications.Enqueuer,
 	prebuildsOrchestrator *atomic.Pointer[prebuilds.ReconciliationOrchestrator],
 	metrics *Metrics,
+	experiments codersdk.Experiments,
 ) (proto.DRPCProvisionerDaemonServer, error) {
 	// Fail-fast if pointers are nil
 	if lifecycleCtx == nil {
@@ -252,6 +254,7 @@ func NewServer(
 		PrebuildsOrchestrator:       prebuildsOrchestrator,
 		UsageInserter:               usageInserter,
 		metrics:                     metrics,
+		Experiments:                 experiments,
 	}
 
 	if s.heartbeatFn == nil {
