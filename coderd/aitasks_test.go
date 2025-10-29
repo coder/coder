@@ -355,7 +355,7 @@ func TestTasks(t *testing.T) {
 			}
 		})
 
-		t.Run("NoWorkspace", func(t *testing.T) {
+		t.Run("DeletedWorkspace", func(t *testing.T) {
 			t.Parallel()
 
 			client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
@@ -373,15 +373,17 @@ func TestTasks(t *testing.T) {
 			require.NoError(t, err)
 			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 
-			// Dirty-delete the task workspace.
+			// Mark the workspace as deleted directly in the database, bypassing provisionerd.
 			require.NoError(t, db.UpdateWorkspaceDeletedByID(dbauthz.AsProvisionerd(ctx), database.UpdateWorkspaceDeletedByIDParams{
 				ID:      ws.ID,
 				Deleted: true,
 			}))
 			// We should still be able to fetch the task if its workspace was deleted.
-			// Provisionerdserver should normally do this but we want to still be able to handle this edge case.
+			// Provisionerdserver will attempt delete the related task when deleting a workspace.
+			// This test ensures that we can still handle the case where, for some reason, the
+			// task has not been marked as deleted, but the workspace has.
 			task, err = exp.TaskByID(ctx, task.ID)
-			require.NoError(t, err, "fetching a task should still work after deleting its related workspace")
+			require.NoError(t, err, "fetching a task should still work if its related workspace is deleted")
 			err = exp.DeleteTask(ctx, task.OwnerID.String(), task.ID)
 			require.NoError(t, err, "should be possible to delete a task with no workspace")
 		})
