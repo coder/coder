@@ -457,6 +457,7 @@ WHERE
 		'', -- template_display_name
 		'', -- template_icon
 		'', -- template_description
+		'00000000-0000-0000-0000-000000000000'::uuid, -- task_id
 		-- Extra columns added to `filtered_workspaces`
 		'00000000-0000-0000-0000-000000000000'::uuid, -- template_version_id
 		'', -- template_version_name

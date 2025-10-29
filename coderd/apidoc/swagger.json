@@ -18098,6 +18098,14 @@
 					"description": "OwnerName is the username of the owner of the workspace.",
 					"type": "string"
 				},
+				"task_id": {
+					"description": "TaskID, if set, indicates that the workspace is relevant to the given codersdk.Task.",
+					"allOf": [
+						{
+							"$ref": "#/definitions/uuid.NullUUID"
+						}
+					]
+				},
 				"template_active_version_id": {
 					"type": "string",
 					"format": "uuid"
