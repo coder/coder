@@ -13,6 +13,7 @@ import (
 	"syscall"
 
 	"github.com/icholy/replace"
+	"github.com/spf13/afero"
 	"golang.org/x/text/transform"
 	"golang.org/x/xerrors"
 
@@ -20,7 +21,6 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
-	"github.com/coder/coder/v2/cryptorand"
 )
 
 type HTTPResponseCode = int
@@ -252,16 +252,7 @@ func (a *agent) editFile(ctx context.Context, path string, edits []workspacesdk.
 
 	// Create an adjacent file to ensure it will be on the same device and can be
 	// moved atomically.
-	randSuffix, err := cryptorand.String(8)
-	if err != nil {
-		return http.StatusInternalServerError, err
-	}
-	tmpfilePath := filepath.Join(filepath.Dir(path), fmt.Sprintf(
-		".%s.mcp-file-edit.%s",
-		filepath.Base(path),
-		randSuffix,
-	))
-	tmpfile, err := a.filesystem.Create(tmpfilePath)
+	tmpfile, err := afero.TempFile(a.filesystem, filepath.Dir(path), filepath.Base(path))
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
