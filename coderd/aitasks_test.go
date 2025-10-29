@@ -358,7 +358,7 @@ func TestTasks(t *testing.T) {
 		t.Run("NoWorkspace", func(t *testing.T) {
 			t.Parallel()
 
-			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			user := coderdtest.CreateFirstUser(t, client)
 			template := createAITemplate(t, client, user)
 			ctx := testutil.Context(t, testutil.WaitLong)
@@ -372,13 +372,51 @@ func TestTasks(t *testing.T) {
 			ws, err := client.Workspace(ctx, task.WorkspaceID.UUID)
 			require.NoError(t, err)
 			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
-			// Delete the task workspace
-			coderdtest.MustTransitionWorkspace(t, client, ws.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionDelete)
-			// We should still be able to fetch the task after deleting its workspace
+
+			// Dirty-delete the task workspace.
+			require.NoError(t, db.UpdateWorkspaceDeletedByID(dbauthz.AsProvisionerd(ctx), database.UpdateWorkspaceDeletedByIDParams{
+				ID:      ws.ID,
+				Deleted: true,
+			}))
+			// We should still be able to fetch the task if its workspace was deleted.
+			// Provisionerdserver should normally do this but we want to still be able to handle this edge case.
 			task, err = exp.TaskByID(ctx, task.ID)
 			require.NoError(t, err, "fetching a task should still work after deleting its related workspace")
 			err = exp.DeleteTask(ctx, task.OwnerID.String(), task.ID)
 			require.NoError(t, err, "should be possible to delete a task with no workspace")
+		})
+
+		t.Run("DeletingTaskWorkspaceDeletesTask", func(t *testing.T) {
+			t.Parallel()
+
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			template := createAITemplate(t, client, user)
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			exp := codersdk.NewExperimentalClient(client)
+			task, err := exp.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
+				TemplateVersionID: template.ActiveVersionID,
+				Input:             "delete me",
+			})
+			require.NoError(t, err)
+			require.True(t, task.WorkspaceID.Valid, "task should have a workspace ID")
+			ws, err := client.Workspace(ctx, task.WorkspaceID.UUID)
+			require.NoError(t, err)
+			if assert.True(t, ws.TaskID.Valid, "task id should be set on workspace") {
+				assert.Equal(t, task.ID, ws.TaskID.UUID, "workspace task id should match")
+			}
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+			// When; the task workspace is deleted
+			coderdtest.MustTransitionWorkspace(t, client, ws.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionDelete)
+			// Then: the task associated with the workspace is also deleted
+			_, err = exp.TaskByID(ctx, task.ID)
+			require.Error(t, err, "expected an error fetching the task")
+			var sdkErr *codersdk.Error
+			require.ErrorAs(t, err, &sdkErr, "expected a codersdk.Error")
+			require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 		})
 	})
 
