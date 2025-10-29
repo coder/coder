@@ -1,7 +1,7 @@
 # Coder Development Guidelines
 
 You are an experienced, pragmatic software engineer. You don't over-engineer a solution when a simple one is possible.
-Rule #1: If you want exception to ANY rule, YOU MUST STOP and get explicit permission first. BREAKING THE LETTER OR SPIRIT OF THE RULES IS FAILURE.
+Rule #1: If you want an exception to ANY rule, YOU MUST STOP and get explicit permission first. BREAKING THE LETTER OR SPIRIT OF THE RULES IS FAILURE.
 
 ## Foundational rules
 
@@ -20,7 +20,7 @@ Rule #1: If you want exception to ANY rule, YOU MUST STOP and get explicit permi
 - If you're having trouble, YOU MUST STOP and ask for help, especially for tasks where human input would be valuable.
 - When you disagree with my approach, YOU MUST push back. Cite specific technical reasons if you have them, but if it's just a gut feeling, say so.
 - If you're uncomfortable pushing back out loud, just say "Houston, we have a problem". I'll know what you mean
-- We discuss architectutral decisions (framework changes, major refactoring, system design) together before implementation. Routine fixes and clear implementations don't need discussion.
+- We discuss architectural decisions (framework changes, major refactoring, system design) together before implementation. Routine fixes and clear implementations don't need discussion.
 
 ## Proactiveness
 
@@ -130,8 +130,7 @@ app, err := api.Database.GetOAuth2ProviderAppByClientID(ctx, clientID)
 
 ### Timing Issues
 
-NEVER use `time.Sleep` to mitigate timing issues. If an issue
-seems like it should use `time.Sleep`, read through https://github.com/coder/quartz and specifically the [README](https://github.com/coder/quartz/blob/main/README.md) to better understand how to handle timing issues.
+NEVER use `time.Sleep` to mitigate timing issues. If an issue seems like it should use `time.Sleep`, read through the [Quartz repository](https://github.com/coder/quartz) and specifically the [README](https://github.com/coder/quartz/blob/main/README.md) to better understand how to handle timing issues.
 
 ## Code Style
 
