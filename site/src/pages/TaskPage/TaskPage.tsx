@@ -231,7 +231,7 @@ const WorkspaceNotRunning: FC<WorkspaceNotRunningProps> = ({ workspace }) => {
 						Task workspace was deleted.
 					</h3>
 					<span className="text-content-secondary text-sm">
-						This task can't continue. Delete this task and create a new one.
+						This task cannot be resumed. Delete this task and create a new one.
 					</span>
 					<Button size="sm" variant="outline" asChild className="mt-4">
 						<RouterLink to="/tasks" data-testid="task-create-new">
