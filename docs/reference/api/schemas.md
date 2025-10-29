@@ -5322,6 +5322,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "response_types_supported": [
     "string"
   ],
+  "revocation_endpoint": "string",
   "scopes_supported": [
     "string"
   ],
@@ -5342,6 +5343,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `issuer`                                | string          | false    |              |             |
 | `registration_endpoint`                 | string          | false    |              |             |
 | `response_types_supported`              | array of string | false    |              |             |
+| `revocation_endpoint`                   | string          | false    |              |             |
 | `scopes_supported`                      | array of string | false    |              |             |
 | `token_endpoint`                        | string          | false    |              |             |
 | `token_endpoint_auth_methods_supported` | array of string | false    |              |             |

@@ -2913,6 +2913,7 @@ export interface OAuth2AuthorizationServerMetadata {
 	readonly authorization_endpoint: string;
 	readonly token_endpoint: string;
 	readonly registration_endpoint?: string;
+	readonly revocation_endpoint?: string;
 	readonly response_types_supported: readonly string[];
 	readonly grant_types_supported: readonly string[];
 	readonly code_challenge_methods_supported: readonly string[];
