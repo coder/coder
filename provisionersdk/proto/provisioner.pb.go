@@ -2850,6 +2850,7 @@ type Metadata struct {
 	RunningAgentAuthTokens        []*RunningAgentAuthToken    `protobuf:"bytes,21,rep,name=running_agent_auth_tokens,json=runningAgentAuthTokens,proto3" json:"running_agent_auth_tokens,omitempty"`
 	TaskId                        string                      `protobuf:"bytes,22,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
 	TaskPrompt                    string                      `protobuf:"bytes,23,opt,name=task_prompt,json=taskPrompt,proto3" json:"task_prompt,omitempty"`
+	TemplateVersionId             string                      `protobuf:"bytes,24,opt,name=template_version_id,json=templateVersionId,proto3" json:"template_version_id,omitempty"`
 	unknownFields                 protoimpl.UnknownFields
 	sizeCache                     protoimpl.SizeCache
 }
@@ -3041,6 +3042,13 @@ func (x *Metadata) GetTaskId() string {
 func (x *Metadata) GetTaskPrompt() string {
 	if x != nil {
 		return x.TaskPrompt
+	}
+	return ""
+}
+
+func (x *Metadata) GetTemplateVersionId() string {
+	if x != nil {
+		return x.TemplateVersionId
 	}
 	return ""
 }
@@ -4520,7 +4528,7 @@ const file_provisionersdk_proto_provisioner_proto_rawDesc = "" +
 	"\vsidebar_app\x18\x02 \x01(\v2\x1d.provisioner.AITaskSidebarAppH\x00R\n" +
 	"sidebarApp\x88\x01\x01\x12\x15\n" +
 	"\x06app_id\x18\x03 \x01(\tR\x05appIdB\x0e\n" +
-	"\f_sidebar_app\"\x84\n" +
+	"\f_sidebar_app\"\xb4\n" +
 	"\n" +
 	"\bMetadata\x12\x1b\n" +
 	"\tcoder_url\x18\x01 \x01(\tR\bcoderUrl\x12S\n" +
@@ -4548,7 +4556,8 @@ const file_provisionersdk_proto_provisioner_proto_rawDesc = "" +
 	"\x19running_agent_auth_tokens\x18\x15 \x03(\v2\".provisioner.RunningAgentAuthTokenR\x16runningAgentAuthTokens\x12\x17\n" +
 	"\atask_id\x18\x16 \x01(\tR\x06taskId\x12\x1f\n" +
 	"\vtask_prompt\x18\x17 \x01(\tR\n" +
-	"taskPrompt\"\xdb\x01\n" +
+	"taskPrompt\x12.\n" +
+	"\x13template_version_id\x18\x18 \x01(\tR\x11templateVersionId\"\xdb\x01\n" +
 	"\x06Config\x126\n" +
 	"\x17template_source_archive\x18\x01 \x01(\fR\x15templateSourceArchive\x12\x14\n" +
 	"\x05state\x18\x02 \x01(\fR\x05state\x122\n" +
