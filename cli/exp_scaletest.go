@@ -384,6 +384,88 @@ func (s *scaletestPrometheusFlags) attach(opts *serpent.OptionSet) {
 	)
 }
 
+// workspaceTargetFlags holds common flags for targeting specific workspaces in scale tests.
+type workspaceTargetFlags struct {
+	template         string
+	targetWorkspaces string
+	useHostLogin     bool
+}
+
+// attach adds the workspace target flags to the given options set.
+func (f *workspaceTargetFlags) attach(opts *serpent.OptionSet) {
+	*opts = append(*opts,
+		serpent.Option{
+			Flag:          "template",
+			FlagShorthand: "t",
+			Env:           "CODER_SCALETEST_TEMPLATE",
+			Description:   "Name or ID of the template. Traffic generation will be limited to workspaces created from this template.",
+			Value:         serpent.StringOf(&f.template),
+		},
+		serpent.Option{
+			Flag:        "target-workspaces",
+			Env:         "CODER_SCALETEST_TARGET_WORKSPACES",
+			Description: "Target a specific range of workspaces in the format [START]:[END] (exclusive). Example: 0:10 will target the 10 first alphabetically sorted workspaces (0-9).",
+			Value:       serpent.StringOf(&f.targetWorkspaces),
+		},
+		serpent.Option{
+			Flag:        "use-host-login",
+			Env:         "CODER_SCALETEST_USE_HOST_LOGIN",
+			Default:     "false",
+			Description: "Connect as the currently logged in user.",
+			Value:       serpent.BoolOf(&f.useHostLogin),
+		},
+	)
+}
+
+// getTargetedWorkspaces retrieves the workspaces based on the template filter and target range. warnWriter is where to
+// write a warning message if any workspaces were skipped due to ownership mismatch.
+func (f *workspaceTargetFlags) getTargetedWorkspaces(ctx context.Context, client *codersdk.Client, organizationIDs []uuid.UUID, warnWriter io.Writer) ([]codersdk.Workspace, error) {
+	// Validate template if provided
+	if f.template != "" {
+		_, err := parseTemplate(ctx, client, organizationIDs, f.template)
+		if err != nil {
+			return nil, xerrors.Errorf("parse template: %w", err)
+		}
+	}
+
+	// Parse target range
+	targetStart, targetEnd, err := parseTargetRange("workspaces", f.targetWorkspaces)
+	if err != nil {
+		return nil, xerrors.Errorf("parse target workspaces: %w", err)
+	}
+
+	// Determine owner based on useHostLogin
+	var owner string
+	if f.useHostLogin {
+		owner = codersdk.Me
+	}
+
+	// Get workspaces
+	workspaces, numSkipped, err := getScaletestWorkspaces(ctx, client, owner, f.template)
+	if err != nil {
+		return nil, err
+	}
+	if numSkipped > 0 {
+		cliui.Warnf(warnWriter, "CODER_DISABLE_OWNER_WORKSPACE_ACCESS is set on the deployment.\n\t%d workspace(s) were skipped due to ownership mismatch.\n\tSet --use-host-login to only target workspaces you own.", numSkipped)
+	}
+
+	// Adjust targetEnd if not specified
+	if targetEnd == 0 {
+		targetEnd = len(workspaces)
+	}
+
+	// Validate range
+	if len(workspaces) == 0 {
+		return nil, xerrors.Errorf("no scaletest workspaces exist")
+	}
+	if targetEnd > len(workspaces) {
+		return nil, xerrors.Errorf("target workspace end %d is greater than the number of workspaces %d", targetEnd, len(workspaces))
+	}
+
+	// Return the sliced workspaces
+	return workspaces[targetStart:targetEnd], nil
+}
+
 func requireAdmin(ctx context.Context, client *codersdk.Client) (codersdk.User, error) {
 	me, err := client.User(ctx, codersdk.Me)
 	if err != nil {
@@ -1193,12 +1275,10 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 		bytesPerTick      int64
 		ssh               bool
 		disableDirect     bool
-		useHostLogin      bool
 		app               string
-		template          string
-		targetWorkspaces  string
 		workspaceProxyURL string
 
+		targetFlags     = &workspaceTargetFlags{}
 		tracingFlags    = &scaletestTracingFlags{}
 		strategy        = &scaletestStrategyFlags{}
 		cleanupStrategy = newScaletestCleanupStrategy()
@@ -1243,44 +1323,14 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 				},
 			}
 
-			if template != "" {
-				_, err := parseTemplate(ctx, client, me.OrganizationIDs, template)
-				if err != nil {
-					return xerrors.Errorf("parse template: %w", err)
-				}
-			}
-			targetWorkspaceStart, targetWorkspaceEnd, err := parseTargetRange("workspaces", targetWorkspaces)
+			workspaces, err := targetFlags.getTargetedWorkspaces(ctx, client, me.OrganizationIDs, inv.Stdout)
 			if err != nil {
-				return xerrors.Errorf("parse target workspaces: %w", err)
+				return err
 			}
 
 			appHost, err := client.AppHost(ctx)
 			if err != nil {
 				return xerrors.Errorf("get app host: %w", err)
-			}
-
-			var owner string
-			if useHostLogin {
-				owner = codersdk.Me
-			}
-
-			workspaces, numSkipped, err := getScaletestWorkspaces(inv.Context(), client, owner, template)
-			if err != nil {
-				return err
-			}
-			if numSkipped > 0 {
-				cliui.Warnf(inv.Stdout, "CODER_DISABLE_OWNER_WORKSPACE_ACCESS is set on the deployment.\n\t%d workspace(s) were skipped due to ownership mismatch.\n\tSet --use-host-login to only target workspaces you own.", numSkipped)
-			}
-
-			if targetWorkspaceEnd == 0 {
-				targetWorkspaceEnd = len(workspaces)
-			}
-
-			if len(workspaces) == 0 {
-				return xerrors.Errorf("no scaletest workspaces exist")
-			}
-			if targetWorkspaceEnd > len(workspaces) {
-				return xerrors.Errorf("target workspace end %d is greater than the number of workspaces %d", targetWorkspaceEnd, len(workspaces))
 			}
 
 			tracerProvider, closeTracing, tracingEnabled, err := tracingFlags.provider(ctx)
@@ -1307,10 +1357,6 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 
 			th := harness.NewTestHarness(strategy.toStrategy(), cleanupStrategy.toStrategy())
 			for idx, ws := range workspaces {
-				if idx < targetWorkspaceStart || idx >= targetWorkspaceEnd {
-					continue
-				}
-
 				var (
 					agent codersdk.WorkspaceAgent
 					name  = "workspace-traffic"
@@ -1416,19 +1462,6 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 
 	cmd.Options = []serpent.Option{
 		{
-			Flag:          "template",
-			FlagShorthand: "t",
-			Env:           "CODER_SCALETEST_TEMPLATE",
-			Description:   "Name or ID of the template. Traffic generation will be limited to workspaces created from this template.",
-			Value:         serpent.StringOf(&template),
-		},
-		{
-			Flag:        "target-workspaces",
-			Env:         "CODER_SCALETEST_TARGET_WORKSPACES",
-			Description: "Target a specific range of workspaces in the format [START]:[END] (exclusive). Example: 0:10 will target the 10 first alphabetically sorted workspaces (0-9).",
-			Value:       serpent.StringOf(&targetWorkspaces),
-		},
-		{
 			Flag:        "bytes-per-tick",
 			Env:         "CODER_SCALETEST_WORKSPACE_TRAFFIC_BYTES_PER_TICK",
 			Default:     "1024",
@@ -1464,13 +1497,6 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 			Value:       serpent.StringOf(&app),
 		},
 		{
-			Flag:        "use-host-login",
-			Env:         "CODER_SCALETEST_USE_HOST_LOGIN",
-			Default:     "false",
-			Description: "Connect as the currently logged in user.",
-			Value:       serpent.BoolOf(&useHostLogin),
-		},
-		{
 			Flag:        "workspace-proxy-url",
 			Env:         "CODER_SCALETEST_WORKSPACE_PROXY_URL",
 			Default:     "",
@@ -1479,6 +1505,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 		},
 	}
 
+	targetFlags.attach(&cmd.Options)
 	tracingFlags.attach(&cmd.Options)
 	strategy.attach(&cmd.Options)
 	cleanupStrategy.attach(&cmd.Options)
