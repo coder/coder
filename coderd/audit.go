@@ -509,11 +509,11 @@ func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAudit
 		if err != nil {
 			return ""
 		}
-		workspace, err := api.Database.GetWorkspaceByID(ctx, task.WorkspaceID.UUID)
+		user, err := api.Database.GetUserByID(ctx, task.OwnerID)
 		if err != nil {
 			return ""
 		}
-		return fmt.Sprintf("/tasks/%s/%s", workspace.OwnerName, task.Name)
+		return fmt.Sprintf("/tasks/%s/%s", user.Username, task.ID)
 
 	default:
 		return ""
