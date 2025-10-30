@@ -87,9 +87,13 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	workspaceBuildConfig.OrganizationID = r.cfg.User.OrganizationID
 	workspaceBuildConfig.UserID = user.ID.String()
 	r.workspacebuildRunner = workspacebuild.NewRunner(client, workspaceBuildConfig)
-	workspace, err := r.workspacebuildRunner.RunReturningWorkspace(ctx, id, logs)
+	slimWorkspace, err := r.workspacebuildRunner.RunReturningWorkspace(ctx, id, logs)
 	if err != nil {
 		return xerrors.Errorf("create workspace: %w", err)
+	}
+	workspace, err := client.Workspace(ctx, slimWorkspace.ID)
+	if err != nil {
+		return xerrors.Errorf("get full workspace info: %w", err)
 	}
 
 	if r.cfg.Workspace.NoWaitForAgents {
