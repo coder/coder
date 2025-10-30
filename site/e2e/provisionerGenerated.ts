@@ -417,6 +417,8 @@ export interface Config {
   provisionerLogLevel: string;
   templateId: string;
   templateVersionId: string;
+  /** Whether to reuse existing terraform workspaces if they exist. */
+  terraformWorkspaceReuse: boolean;
 }
 
 /** ParseRequest consumes source-code to produce inputs. */
@@ -1324,6 +1326,9 @@ export const Config = {
     }
     if (message.templateVersionId !== "") {
       writer.uint32(42).string(message.templateVersionId);
+    }
+    if (message.terraformWorkspaceReuse !== false) {
+      writer.uint32(48).bool(message.terraformWorkspaceReuse);
     }
     return writer;
   },
