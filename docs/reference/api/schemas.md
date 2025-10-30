@@ -10164,7 +10164,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       }
     ],
     "status": "pending",
-    "task_app_id": "ca438251-3e16-4fae-b9ab-dd3c237c3735",
     "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
     "template_version_name": "string",
     "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
@@ -11339,7 +11338,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     }
   ],
   "status": "pending",
-  "task_app_id": "ca438251-3e16-4fae-b9ab-dd3c237c3735",
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "template_version_name": "string",
   "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
@@ -11357,7 +11355,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 | Name                         | Type                                                              | Required | Restrictions | Description                                                         |
 |------------------------------|-------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------|
-| `ai_task_sidebar_app_id`     | string                                                            | false    |              | Deprecated: This field has been replaced with `TaskAppID`           |
+| `ai_task_sidebar_app_id`     | string                                                            | false    |              | Deprecated: This field has been replaced with `Task.WorkspaceAppID` |
 | `build_number`               | integer                                                           | false    |              |                                                                     |
 | `created_at`                 | string                                                            | false    |              |                                                                     |
 | `daily_cost`                 | integer                                                           | false    |              |                                                                     |
@@ -11373,7 +11371,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `reason`                     | [codersdk.BuildReason](#codersdkbuildreason)                      | false    |              |                                                                     |
 | `resources`                  | array of [codersdk.WorkspaceResource](#codersdkworkspaceresource) | false    |              |                                                                     |
 | `status`                     | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)              | false    |              |                                                                     |
-| `task_app_id`                | string                                                            | false    |              |                                                                     |
 | `template_version_id`        | string                                                            | false    |              |                                                                     |
 | `template_version_name`      | string                                                            | false    |              |                                                                     |
 | `template_version_preset_id` | string                                                            | false    |              |                                                                     |
@@ -12163,7 +12160,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           }
         ],
         "status": "pending",
-        "task_app_id": "ca438251-3e16-4fae-b9ab-dd3c237c3735",
         "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
         "template_version_name": "string",
         "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
