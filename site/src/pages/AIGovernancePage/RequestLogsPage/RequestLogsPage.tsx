@@ -17,8 +17,9 @@ const RequestLogsPage: FC = () => {
 	// It may happen if owner removes the license.
 	//
 	// see: https://github.com/coder/coder/issues/14798
-	const isRequestLogsVisible =
-		(feats.aibridge && experiments.includes("aibridge")) || false;
+	const isRequestLogsVisible = Boolean(
+		feats.aibridge && experiments.includes("aibridge"),
+	);
 
 	const [searchParams, setSearchParams] = useSearchParams();
 	const interceptionsQuery = usePaginatedQuery(
