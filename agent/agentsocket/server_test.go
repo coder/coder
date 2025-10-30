@@ -16,10 +16,10 @@ func TestServer(t *testing.T) {
 	t.Run("StartStop", func(t *testing.T) {
 		t.Parallel()
 
-		server := agentsocket.NewServer(agentsocket.Config{
-			Path:   filepath.Join(t.TempDir(), "test.sock"),
-			Logger: slog.Make().Leveled(slog.LevelDebug),
-		})
+		socketPath := filepath.Join(t.TempDir(), "test.sock")
+		logger := slog.Make().Leveled(slog.LevelDebug)
+		server, err := agentsocket.NewServer(socketPath, logger)
+		require.NoError(t, err)
 		require.NoError(t, server.Start())
 		require.NoError(t, server.Stop())
 	})
@@ -27,10 +27,10 @@ func TestServer(t *testing.T) {
 	t.Run("AlreadyStarted", func(t *testing.T) {
 		t.Parallel()
 
-		server := agentsocket.NewServer(agentsocket.Config{
-			Path:   filepath.Join(t.TempDir(), "test.sock"),
-			Logger: slog.Make().Leveled(slog.LevelDebug),
-		})
+		socketPath := filepath.Join(t.TempDir(), "test.sock")
+		logger := slog.Make().Leveled(slog.LevelDebug)
+		server, err := agentsocket.NewServer(socketPath, logger)
+		require.NoError(t, err)
 		require.NoError(t, server.Start())
 		require.ErrorIs(t, server.Start(), agentsocket.ErrServerAlreadyStarted)
 	})
@@ -38,11 +38,10 @@ func TestServer(t *testing.T) {
 	t.Run("AutoSocketPath", func(t *testing.T) {
 		t.Parallel()
 
-		server := agentsocket.NewServer(agentsocket.Config{
-			Logger: slog.Make().Leveled(slog.LevelDebug),
-		})
-		// The details of how a socket path is chosen are tested separately.
-		// Here, we just want to make sure it doesn't break the server.
+		socketPath := filepath.Join(t.TempDir(), "test.sock")
+		logger := slog.Make().Leveled(slog.LevelDebug)
+		server, err := agentsocket.NewServer(socketPath, logger)
+		require.NoError(t, err)
 		require.NoError(t, server.Start())
 		require.NoError(t, server.Stop())
 	})

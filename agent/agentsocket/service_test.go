@@ -21,11 +21,14 @@ func TestDRPCAgentSocketService(t *testing.T) {
 
 		socketPath := filepath.Join(t.TempDir(), "test.sock")
 
-		server := agentsocket.NewServer(agentsocket.Config{
-			Path:   socketPath,
-			Logger: slog.Make().Leveled(slog.LevelDebug),
-		})
-		require.NoError(t, server.Start())
+		server, err := agentsocket.NewServer(
+			socketPath,
+			slog.Make().Leveled(slog.LevelDebug),
+		)
+		require.NoError(t, err)
+
+		err = server.Start()
+		require.NoError(t, err)
 		defer server.Stop()
 
 		client, err := agentsdk.NewSocketClient(agentsdk.SocketConfig{
@@ -46,11 +49,13 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			t.Parallel()
 			socketPath := filepath.Join(t.TempDir(), "test.sock")
 
-			server := agentsocket.NewServer(agentsocket.Config{
-				Path:   socketPath,
-				Logger: slog.Make().Leveled(slog.LevelDebug),
-			})
-			require.NoError(t, server.Start())
+			server, err := agentsocket.NewServer(
+				socketPath,
+				slog.Make().Leveled(slog.LevelDebug),
+			)
+			require.NoError(t, err)
+			err = server.Start()
+			require.NoError(t, err)
 			defer server.Stop()
 
 			client, err := agentsdk.NewSocketClient(agentsdk.SocketConfig{
@@ -72,11 +77,13 @@ func TestDRPCAgentSocketService(t *testing.T) {
 
 			socketPath := filepath.Join(t.TempDir(), "test.sock")
 
-			server := agentsocket.NewServer(agentsocket.Config{
-				Path:   socketPath,
-				Logger: slog.Make().Leveled(slog.LevelDebug),
-			})
-			require.NoError(t, server.Start())
+			server, err := agentsocket.NewServer(
+				socketPath,
+				slog.Make().Leveled(slog.LevelDebug),
+			)
+			require.NoError(t, err)
+			err = server.Start()
+			require.NoError(t, err)
 			defer server.Stop()
 
 			client, err := agentsdk.NewSocketClient(agentsdk.SocketConfig{
@@ -111,11 +118,13 @@ func TestDRPCAgentSocketService(t *testing.T) {
 
 			socketPath := filepath.Join(t.TempDir(), "test.sock")
 
-			server := agentsocket.NewServer(agentsocket.Config{
-				Path:   socketPath,
-				Logger: slog.Make().Leveled(slog.LevelDebug),
-			})
-			require.NoError(t, server.Start())
+			server, err := agentsocket.NewServer(
+				socketPath,
+				slog.Make().Leveled(slog.LevelDebug),
+			)
+			require.NoError(t, err)
+			err = server.Start()
+			require.NoError(t, err)
 			defer server.Stop()
 
 			client, err := agentsdk.NewSocketClient(agentsdk.SocketConfig{
@@ -154,11 +163,13 @@ func TestDRPCAgentSocketService(t *testing.T) {
 
 			socketPath := filepath.Join(t.TempDir(), "test.sock")
 
-			server := agentsocket.NewServer(agentsocket.Config{
-				Path:   socketPath,
-				Logger: slog.Make().Leveled(slog.LevelDebug),
-			})
-			require.NoError(t, server.Start())
+			server, err := agentsocket.NewServer(
+				socketPath,
+				slog.Make().Leveled(slog.LevelDebug),
+			)
+			require.NoError(t, err)
+			err = server.Start()
+			require.NoError(t, err)
 			defer server.Stop()
 
 			client, err := agentsdk.NewSocketClient(agentsdk.SocketConfig{
@@ -187,11 +198,13 @@ func TestDRPCAgentSocketService(t *testing.T) {
 
 			socketPath := filepath.Join(t.TempDir(), "test.sock")
 
-			server := agentsocket.NewServer(agentsocket.Config{
-				Path:   socketPath,
-				Logger: slog.Make().Leveled(slog.LevelDebug),
-			})
-			require.NoError(t, server.Start())
+			server, err := agentsocket.NewServer(
+				socketPath,
+				slog.Make().Leveled(slog.LevelDebug),
+			)
+			require.NoError(t, err)
+			err = server.Start()
+			require.NoError(t, err)
 			defer server.Stop()
 
 			client, err := agentsdk.NewSocketClient(agentsdk.SocketConfig{
@@ -215,11 +228,13 @@ func TestDRPCAgentSocketService(t *testing.T) {
 
 			socketPath := filepath.Join(t.TempDir(), "test.sock")
 
-			server := agentsocket.NewServer(agentsocket.Config{
-				Path:   socketPath,
-				Logger: slog.Make().Leveled(slog.LevelDebug),
-			})
-			require.NoError(t, server.Start())
+			server, err := agentsocket.NewServer(
+				socketPath,
+				slog.Make().Leveled(slog.LevelDebug),
+			)
+			require.NoError(t, err)
+			err = server.Start()
+			require.NoError(t, err)
 			defer server.Stop()
 
 			client, err := agentsdk.NewSocketClient(agentsdk.SocketConfig{
@@ -254,11 +269,13 @@ func TestDRPCAgentSocketService(t *testing.T) {
 
 			socketPath := filepath.Join(t.TempDir(), "test.sock")
 
-			server := agentsocket.NewServer(agentsocket.Config{
-				Path:   socketPath,
-				Logger: slog.Make().Leveled(slog.LevelDebug),
-			})
-			require.NoError(t, server.Start())
+			server, err := agentsocket.NewServer(
+				socketPath,
+				slog.Make().Leveled(slog.LevelDebug),
+			)
+			require.NoError(t, err)
+			err = server.Start()
+			require.NoError(t, err)
 			defer server.Stop()
 
 			client, err := agentsdk.NewSocketClient(agentsdk.SocketConfig{

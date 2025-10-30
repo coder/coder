@@ -3,7 +3,6 @@ package agentsocket
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net"
 	"sync"
 	"time"
@@ -48,7 +47,7 @@ func NewServer(path string, logger slog.Logger) (*Server, error) {
 	mux := drpcmux.New()
 	err := proto.DRPCRegisterAgentSocket(mux, server.service)
 	if err != nil {
-		return nil, fmt.Errorf("failed to register drpc service: %w", err)
+		return nil, xerrors.Errorf("failed to register drpc service: %w", err)
 	}
 
 	server.drpcServer = drpcserver.NewWithOptions(mux, drpcserver.Options{

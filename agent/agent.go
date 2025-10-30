@@ -362,20 +362,20 @@ func (a *agent) init() {
 	go a.runLoop()
 }
 
-// initSocketServer initializes server that allows direct communication with a workspace agent
-// using IPC.
+// initSocketServer initializes server that allows direct communication with a workspace agent using IPC.
 func (a *agent) initSocketServer() {
 	if a.socketPath == "" {
 		a.logger.Info(a.hardCtx, "socket server disabled (no path configured)")
 		return
 	}
 
-	server := agentsocket.NewServer(agentsocket.Config{
-		Path:   a.socketPath,
-		Logger: a.logger.Named("socket"),
-	})
+	server, err := agentsocket.NewServer(a.socketPath, a.logger.Named("socket"))
+	if err != nil {
+		a.logger.Warn(a.hardCtx, "failed to create socket server", slog.Error(err))
+		return
+	}
 
-	err := server.Start()
+	err = server.Start()
 	if err != nil {
 		a.logger.Warn(a.hardCtx, "failed to start socket server", slog.Error(err))
 		return
