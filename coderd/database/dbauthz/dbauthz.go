@@ -254,6 +254,7 @@ var (
 					rbac.ResourceFile.Type:                {policy.ActionRead}, // Required to read terraform files
 					rbac.ResourceNotificationMessage.Type: {policy.ActionCreate, policy.ActionRead},
 					rbac.ResourceSystem.Type:              {policy.WildcardSymbol},
+					rbac.ResourceTask.Type:                {policy.ActionRead, policy.ActionUpdate},
 					rbac.ResourceTemplate.Type:            {policy.ActionRead, policy.ActionUpdate},
 					rbac.ResourceUser.Type:                {policy.ActionRead},
 					rbac.ResourceWorkspace.Type:           {policy.ActionDelete, policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceStart, policy.ActionWorkspaceStop},
@@ -2648,6 +2649,13 @@ func (q *querier) GetOrganizationsByUserID(ctx context.Context, userID database.
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetOrganizationsByUserID)(ctx, userID)
 }
 
+func (q *querier) GetOrganizationsWithPrebuildStatus(ctx context.Context, arg database.GetOrganizationsWithPrebuildStatusParams) ([]database.GetOrganizationsWithPrebuildStatusRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceOrganization.All()); err != nil {
+		return nil, err
+	}
+	return q.db.GetOrganizationsWithPrebuildStatus(ctx, arg)
+}
+
 func (q *querier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]database.ParameterSchema, error) {
 	version, err := q.db.GetTemplateVersionByJobID(ctx, jobID)
 	if err != nil {
@@ -4933,10 +4941,10 @@ func (q *querier) UpdateOrganizationDeletedByID(ctx context.Context, arg databas
 	return deleteQ(q.log, q.auth, q.db.GetOrganizationByID, deleteF)(ctx, arg.ID)
 }
 
-func (q *querier) UpdatePrebuildProvisionerJobWithCancel(ctx context.Context, arg database.UpdatePrebuildProvisionerJobWithCancelParams) ([]uuid.UUID, error) {
+func (q *querier) UpdatePrebuildProvisionerJobWithCancel(ctx context.Context, arg database.UpdatePrebuildProvisionerJobWithCancelParams) ([]database.UpdatePrebuildProvisionerJobWithCancelRow, error) {
 	// Prebuild operation for canceling pending prebuild jobs from non-active template versions
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourcePrebuiltWorkspace); err != nil {
-		return []uuid.UUID{}, err
+		return []database.UpdatePrebuildProvisionerJobWithCancelRow{}, err
 	}
 	return q.db.UpdatePrebuildProvisionerJobWithCancel(ctx, arg)
 }

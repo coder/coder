@@ -7248,7 +7248,9 @@ func TestTaskNameUniqueness(t *testing.T) {
 
 			ctx := testutil.Context(t, testutil.WaitShort)
 
+			taskID := uuid.New()
 			task, err := db.InsertTask(ctx, database.InsertTaskParams{
+				ID:                 taskID,
 				OrganizationID:     org.ID,
 				OwnerID:            tt.ownerID,
 				Name:               tt.taskName,
@@ -7263,6 +7265,7 @@ func TestTaskNameUniqueness(t *testing.T) {
 				require.NoError(t, err)
 				require.NotEqual(t, uuid.Nil, task.ID)
 				require.NotEqual(t, task1.ID, task.ID)
+				require.Equal(t, taskID, task.ID)
 			}
 		})
 	}

@@ -69,7 +69,7 @@ const TasksPage: FC = () => {
 						onRetry={aiTemplatesQuery.refetch}
 					/>
 					{aiTemplatesQuery.isSuccess && (
-						<section>
+						<section className="py-8">
 							{permissions.viewDeploymentConfig && (
 								<section
 									className="mt-6 flex justify-between"

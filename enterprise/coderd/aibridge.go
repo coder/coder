@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -23,6 +25,38 @@ const (
 	defaultListInterceptionsLimit = 100
 )
 
+// aibridgeHandler handles all aibridged-related endpoints.
+func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) func(r chi.Router) {
+	return func(r chi.Router) {
+		r.Use(api.RequireFeatureMW(codersdk.FeatureAIBridge))
+		r.Group(func(r chi.Router) {
+			r.Use(middlewares...)
+			r.Get("/interceptions", api.aiBridgeListInterceptions)
+		})
+
+		// This is a bit funky but since aibridge only exposes a HTTP
+		// handler, this is how it has to be.
+		r.HandleFunc("/*", func(rw http.ResponseWriter, r *http.Request) {
+			if api.aibridgedHandler == nil {
+				httpapi.Write(r.Context(), rw, http.StatusNotFound, codersdk.Response{
+					Message: "aibridged handler not mounted",
+				})
+				return
+			}
+
+			// Strip either the experimental or stable prefix.
+			// TODO: experimental route is deprecated and must be removed with Beta.
+			prefixes := []string{"/api/experimental/aibridge", "/api/v2/aibridge"}
+			for _, prefix := range prefixes {
+				if strings.Contains(r.URL.String(), prefix) {
+					http.StripPrefix(prefix, api.aibridgedHandler).ServeHTTP(rw, r)
+					break
+				}
+			}
+		})
+	}
+}
+
 // aiBridgeListInterceptions returns all AIBridge interceptions a user can read.
 // Optional filters with query params
 //
@@ -36,7 +70,7 @@ const (
 // @Param after_id query string false "Cursor pagination after ID (cannot be used with offset)"
 // @Param offset query int false "Offset pagination (cannot be used with after_id)"
 // @Success 200 {object} codersdk.AIBridgeListInterceptionsResponse
-// @Router /api/experimental/aibridge/interceptions [get]
+// @Router /aibridge/interceptions [get]
 func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)

@@ -262,6 +262,7 @@ type OAuth2AuthorizationServerMetadata struct {
 	AuthorizationEndpoint             string   `json:"authorization_endpoint"`
 	TokenEndpoint                     string   `json:"token_endpoint"`
 	RegistrationEndpoint              string   `json:"registration_endpoint,omitempty"`
+	RevocationEndpoint                string   `json:"revocation_endpoint,omitempty"`
 	ResponseTypesSupported            []string `json:"response_types_supported"`
 	GrantTypesSupported               []string `json:"grant_types_supported"`
 	CodeChallengeMethodsSupported     []string `json:"code_challenge_methods_supported"`

@@ -19,7 +19,7 @@ var _ io.Closer = &Server{}
 
 // Server provides the AI Bridge functionality.
 // It is responsible for:
-//   - receiving requests on /api/experimental/aibridged/* // TODO: update endpoint once out of experimental
+//   - receiving requests on /api/v2/aibridged/*
 //   - manipulating the requests
 //   - relaying requests to upstream AI services and relaying responses to caller
 //

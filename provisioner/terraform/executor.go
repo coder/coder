@@ -28,7 +28,10 @@ import (
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
-var version170 = version.Must(version.NewVersion("1.7.0"))
+var (
+	version170 = version.Must(version.NewVersion("1.7.0"))
+	version190 = version.Must(version.NewVersion("1.9.0"))
+)
 
 type executor struct {
 	logger     slog.Logger
@@ -225,7 +228,7 @@ func (e *executor) init(ctx, killCtx context.Context, logr logSink) error {
 	lockFilePath := filepath.Join(e.workdir, ".terraform.lock.hcl")
 	preInitChecksum := checksumFileCRC32(ctx, e.logger, lockFilePath)
 
-	outWriter, doneOut := logWriter(logr, proto.LogLevel_DEBUG)
+	outWriter, doneOut := e.provisionLogWriter(logr)
 	errWriter, doneErr := logWriter(logr, proto.LogLevel_ERROR)
 	defer func() {
 		_ = outWriter.Close()
@@ -244,7 +247,16 @@ func (e *executor) init(ctx, killCtx context.Context, logr logSink) error {
 		"-input=false",
 	}
 
-	err := e.execWriteOutput(ctx, killCtx, args, e.basicEnv(), outWriter, errBuf)
+	ver, err := e.version(ctx)
+	if err != nil {
+		return xerrors.Errorf("extract version: %w", err)
+	}
+	if ver.GreaterThanOrEqual(version190) {
+		// Added in v1.9.0:
+		args = append(args, "-json")
+	}
+
+	err = e.execWriteOutput(ctx, killCtx, args, e.basicEnv(), outWriter, errBuf)
 	var exitErr *exec.ExitError
 	if xerrors.As(err, &exitErr) {
 		if bytes.Contains(errBuf.b.Bytes(), []byte("text file busy")) {
@@ -596,7 +608,7 @@ func (e *executor) apply(
 	if err != nil {
 		return nil, err
 	}
-	statefilePath := filepath.Join(e.workdir, "terraform.tfstate")
+	statefilePath := getStateFilePath(e.workdir)
 	stateContent, err := os.ReadFile(statefilePath)
 	if err != nil {
 		return nil, xerrors.Errorf("read statefile %q: %w", statefilePath, err)
@@ -809,6 +821,9 @@ func extractTimingSpan(log *terraformProvisionLog) (time.Time, *timingSpan, erro
 		return time.Time{}, nil, xerrors.Errorf("unexpected timing kind: %q", log.Type)
 	}
 
+	// Init logs omit millisecond precision, so using `time.Now` as a fallback
+	// for these logs is more precise than parsing the second precision alone.
+	// https://github.com/hashicorp/terraform/pull/37818
 	ts, err := time.Parse("2006-01-02T15:04:05.000000Z07:00", log.Timestamp)
 	if err != nil {
 		// TODO: log
@@ -816,10 +831,11 @@ func extractTimingSpan(log *terraformProvisionLog) (time.Time, *timingSpan, erro
 	}
 
 	return ts, &timingSpan{
-		kind:     typ,
-		action:   log.Hook.Action,
-		provider: log.Hook.Resource.Provider,
-		resource: log.Hook.Resource.Addr,
+		kind:        typ,
+		messageCode: log.MessageCode,
+		action:      log.Hook.Action,
+		provider:    log.Hook.Resource.Provider,
+		resource:    log.Hook.Resource.Addr,
 	}, nil
 }
 
@@ -842,11 +858,14 @@ func convertTerraformLogLevel(logLevel string, sink logSink) proto.LogLevel {
 }
 
 type terraformProvisionLog struct {
-	Level     string                    `json:"@level"`
-	Message   string                    `json:"@message"`
-	Timestamp string                    `json:"@timestamp"`
-	Type      string                    `json:"type"`
-	Hook      terraformProvisionLogHook `json:"hook"`
+	Level     string `json:"@level"`
+	Message   string `json:"@message"`
+	Timestamp string `json:"@timestamp"`
+	Type      string `json:"type"`
+	// MessageCode is only set for init phase messages after Terraform 1.9.0
+	// This field is not used by plan/apply.
+	MessageCode initMessageCode           `json:"message_code,omitempty"`
+	Hook        terraformProvisionLogHook `json:"hook"`
 
 	Diagnostic *tfjson.Diagnostic `json:"diagnostic,omitempty"`
 }

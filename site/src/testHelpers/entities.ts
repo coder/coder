@@ -5029,6 +5029,11 @@ export const MockTask = {
 	updated_at: "2022-05-17T17:39:01.382927298Z",
 } satisfies TypesGen.Task;
 
+export const MockTaskWorkspace: TypesGen.Workspace = {
+	...MockWorkspace,
+	task_id: MockTask.id,
+};
+
 export const MockTasks = [
 	MockTask,
 	{

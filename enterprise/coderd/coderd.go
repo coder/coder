@@ -227,28 +227,13 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 
 	api.AGPL.ExperimentalHandler.Group(func(r chi.Router) {
-		r.Route("/aibridge", func(r chi.Router) {
-			r.Use(
-				api.RequireFeatureMW(codersdk.FeatureAIBridge),
-				httpmw.RequireExperimentWithDevBypass(api.AGPL.Experiments, codersdk.ExperimentAIBridge),
-			)
-			r.Group(func(r chi.Router) {
-				r.Use(apiKeyMiddleware)
-				r.Get("/interceptions", api.aiBridgeListInterceptions)
-			})
+		// Deprecated.
+		// TODO: remove with Beta release.
+		r.Route("/aibridge", aibridgeHandler(api, apiKeyMiddleware))
+	})
 
-			// This is a bit funky but since aibridge only exposes a HTTP
-			// handler, this is how it has to be.
-			r.HandleFunc("/*", func(rw http.ResponseWriter, r *http.Request) {
-				if api.aibridgedHandler == nil {
-					httpapi.Write(r.Context(), rw, http.StatusNotFound, codersdk.Response{
-						Message: "aibridged handler not mounted",
-					})
-					return
-				}
-				http.StripPrefix("/api/experimental/aibridge", api.aibridgedHandler).ServeHTTP(rw, r)
-			})
-		})
+	api.AGPL.APIHandler.Group(func(r chi.Router) {
+		r.Route("/aibridge", aibridgeHandler(api, apiKeyMiddleware))
 	})
 
 	api.AGPL.APIHandler.Group(func(r chi.Router) {

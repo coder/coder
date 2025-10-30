@@ -293,7 +293,6 @@ func createAITaskTemplate(t *testing.T, client *codersdk.Client, orgID uuid.UUID
 			{
 				Type: &proto.Response_Plan{
 					Plan: &proto.PlanComplete{
-						Parameters: []*proto.RichParameter{{Name: codersdk.AITaskPromptParameterName, Type: "string"}},
 						HasAiTasks: true,
 					},
 				},
@@ -328,9 +327,7 @@ func createAITaskTemplate(t *testing.T, client *codersdk.Client, orgID uuid.UUID
 						},
 						AiTasks: []*proto.AITask{
 							{
-								SidebarApp: &proto.AITaskSidebarApp{
-									Id: taskAppID.String(),
-								},
+								AppId: taskAppID.String(),
 							},
 						},
 					},

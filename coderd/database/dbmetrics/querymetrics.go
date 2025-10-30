@@ -1243,6 +1243,13 @@ func (m queryMetricsStore) GetOrganizationsByUserID(ctx context.Context, userID 
 	return organizations, err
 }
 
+func (m queryMetricsStore) GetOrganizationsWithPrebuildStatus(ctx context.Context, arg database.GetOrganizationsWithPrebuildStatusParams) ([]database.GetOrganizationsWithPrebuildStatusRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOrganizationsWithPrebuildStatus(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetOrganizationsWithPrebuildStatus").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]database.ParameterSchema, error) {
 	start := time.Now()
 	schemas, err := m.s.GetParameterSchemasByJobID(ctx, jobID)
@@ -3042,7 +3049,7 @@ func (m queryMetricsStore) UpdateOrganizationDeletedByID(ctx context.Context, ar
 	return r0
 }
 
-func (m queryMetricsStore) UpdatePrebuildProvisionerJobWithCancel(ctx context.Context, arg database.UpdatePrebuildProvisionerJobWithCancelParams) ([]uuid.UUID, error) {
+func (m queryMetricsStore) UpdatePrebuildProvisionerJobWithCancel(ctx context.Context, arg database.UpdatePrebuildProvisionerJobWithCancelParams) ([]database.UpdatePrebuildProvisionerJobWithCancelRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdatePrebuildProvisionerJobWithCancel(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdatePrebuildProvisionerJobWithCancel").Observe(time.Since(start).Seconds())

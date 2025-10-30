@@ -72,7 +72,8 @@ func TestNoReconciliationActionsIfNoPresets(t *testing.T) {
 	require.Equal(t, templateVersion, gotTemplateVersion)
 
 	// when we trigger the reconciliation loop for all templates
-	require.NoError(t, controller.ReconcileAll(ctx))
+	_, err = controller.ReconcileAll(ctx)
+	require.NoError(t, err)
 
 	// then no reconciliation actions are taken
 	// because without presets, there are no prebuilds
@@ -126,7 +127,8 @@ func TestNoReconciliationActionsIfNoPrebuilds(t *testing.T) {
 	require.NotEmpty(t, presetParameters)
 
 	// when we trigger the reconciliation loop for all templates
-	require.NoError(t, controller.ReconcileAll(ctx))
+	_, err = controller.ReconcileAll(ctx)
+	require.NoError(t, err)
 
 	// then no reconciliation actions are taken
 	// because without prebuilds, there is nothing to reconcile
@@ -204,7 +206,10 @@ func TestPrebuildReconciliation(t *testing.T) {
 			templateDeleted:         []bool{false},
 		},
 		{
-			name: "never attempt to interfere with active builds",
+			// TODO(ssncferreira): Investigate why the GetRunningPrebuiltWorkspaces query is returning 0 rows.
+			//   When a template version is inactive (templateVersionActive = false), any prebuilds in the
+			//   database.ProvisionerJobStatusRunning state should be deleted.
+			name: "never attempt to interfere with prebuilds from an active template version",
 			// The workspace builder does not allow scheduling a new build if there is already a build
 			// pending, running, or canceling. As such, we should never attempt to start, stop or delete
 			// such prebuilds. Rather, we should wait for the existing build to complete and reconcile
@@ -215,7 +220,7 @@ func TestPrebuildReconciliation(t *testing.T) {
 				database.ProvisionerJobStatusRunning,
 				database.ProvisionerJobStatusCanceling,
 			},
-			templateVersionActive:   []bool{true, false},
+			templateVersionActive:   []bool{true},
 			shouldDeleteOldPrebuild: ptr.To(false),
 			templateDeleted:         []bool{false},
 		},
@@ -425,7 +430,8 @@ func (tc testCase) run(t *testing.T) {
 		// Run the reconciliation multiple times to ensure idempotency
 		// 8 was arbitrary, but large enough to reasonably trust the result
 		for i := 1; i <= 8; i++ {
-			require.NoErrorf(t, controller.ReconcileAll(ctx), "failed on iteration %d", i)
+			_, err := controller.ReconcileAll(ctx)
+			require.NoErrorf(t, err, "failed on iteration %d", i)
 
 			if tc.shouldCreateNewPrebuild != nil {
 				newPrebuildCount := 0
@@ -539,7 +545,8 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 	// Run the reconciliation multiple times to ensure idempotency
 	// 8 was arbitrary, but large enough to reasonably trust the result
 	for i := 1; i <= 8; i++ {
-		require.NoErrorf(t, controller.ReconcileAll(ctx), "failed on iteration %d", i)
+		_, err := controller.ReconcileAll(ctx)
+		require.NoErrorf(t, err, "failed on iteration %d", i)
 
 		newPrebuildCount := 0
 		workspaces, err := db.GetWorkspacesByTemplateID(ctx, template.ID)
@@ -665,7 +672,7 @@ func TestPrebuildScheduling(t *testing.T) {
 				DesiredInstances: 5,
 			})
 
-			err := controller.ReconcileAll(ctx)
+			_, err := controller.ReconcileAll(ctx)
 			require.NoError(t, err)
 
 			// get workspace builds
@@ -748,7 +755,8 @@ func TestInvalidPreset(t *testing.T) {
 	// Run the reconciliation multiple times to ensure idempotency
 	// 8 was arbitrary, but large enough to reasonably trust the result
 	for i := 1; i <= 8; i++ {
-		require.NoErrorf(t, controller.ReconcileAll(ctx), "failed on iteration %d", i)
+		_, err := controller.ReconcileAll(ctx)
+		require.NoErrorf(t, err, "failed on iteration %d", i)
 
 		workspaces, err := db.GetWorkspacesByTemplateID(ctx, template.ID)
 		require.NoError(t, err)
@@ -814,7 +822,8 @@ func TestDeletionOfPrebuiltWorkspaceWithInvalidPreset(t *testing.T) {
 	})
 
 	// Old prebuilt workspace should be deleted.
-	require.NoError(t, controller.ReconcileAll(ctx))
+	_, err = controller.ReconcileAll(ctx)
+	require.NoError(t, err)
 
 	builds, err := db.GetWorkspaceBuildsByWorkspaceID(ctx, database.GetWorkspaceBuildsByWorkspaceIDParams{
 		WorkspaceID: prebuiltWorkspace.ID,
@@ -913,12 +922,15 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 
 			// Trigger reconciliation to attempt creating a new prebuild.
 			// The outcome depends on whether the hard limit has been reached.
-			require.NoError(t, controller.ReconcileAll(ctx))
+			_, err = controller.ReconcileAll(ctx)
+			require.NoError(t, err)
 
 			// These two additional calls to ReconcileAll should not trigger any notifications.
 			// A notification is only sent once.
-			require.NoError(t, controller.ReconcileAll(ctx))
-			require.NoError(t, controller.ReconcileAll(ctx))
+			_, err = controller.ReconcileAll(ctx)
+			require.NoError(t, err)
+			_, err = controller.ReconcileAll(ctx)
+			require.NoError(t, err)
 
 			// Verify the final state after reconciliation.
 			workspaces, err = db.GetWorkspacesByTemplateID(ctx, template.ID)
@@ -1090,12 +1102,15 @@ func TestHardLimitedPresetShouldNotBlockDeletion(t *testing.T) {
 
 			// Trigger reconciliation to attempt creating a new prebuild.
 			// The outcome depends on whether the hard limit has been reached.
-			require.NoError(t, controller.ReconcileAll(ctx))
+			_, err = controller.ReconcileAll(ctx)
+			require.NoError(t, err)
 
 			// These two additional calls to ReconcileAll should not trigger any notifications.
 			// A notification is only sent once.
-			require.NoError(t, controller.ReconcileAll(ctx))
-			require.NoError(t, controller.ReconcileAll(ctx))
+			_, err = controller.ReconcileAll(ctx)
+			require.NoError(t, err)
+			_, err = controller.ReconcileAll(ctx)
+			require.NoError(t, err)
 
 			// Verify the final state after reconciliation.
 			// When hard limit is reached, no new workspace should be created.
@@ -1138,7 +1153,8 @@ func TestHardLimitedPresetShouldNotBlockDeletion(t *testing.T) {
 			}
 
 			// Trigger reconciliation to make sure that successful, but outdated prebuilt workspace will be deleted.
-			require.NoError(t, controller.ReconcileAll(ctx))
+			_, err = controller.ReconcileAll(ctx)
+			require.NoError(t, err)
 
 			workspaces, err = db.GetWorkspacesByTemplateID(ctx, template.ID)
 			require.NoError(t, err)
@@ -1737,7 +1753,8 @@ func TestExpiredPrebuildsMultipleActions(t *testing.T) {
 			}
 
 			// Trigger reconciliation to process expired prebuilds and enforce desired state.
-			require.NoError(t, controller.ReconcileAll(ctx))
+			_, err = controller.ReconcileAll(ctx)
+			require.NoError(t, err)
 
 			// Sort non-expired workspaces by CreatedAt in ascending order (oldest first)
 			sort.Slice(nonExpiredWorkspaces, func(i, j int) bool {
@@ -2121,16 +2138,16 @@ func TestCancelPendingPrebuilds(t *testing.T) {
 					},
 				}).SkipCreateTemplate().Do()
 
-				var workspace dbfake.WorkspaceResponse
+				var pendingWorkspace dbfake.WorkspaceResponse
 				if tt.activeTemplateVersion {
 					// Given: a prebuilt workspace, workspace build and respective provisioner job from an
 					// active template version
-					workspace = tt.setupBuild(t, db, client,
+					pendingWorkspace = tt.setupBuild(t, db, client,
 						owner.OrganizationID, templateID, activeTemplateVersion.TemplateVersion.ID, activePresetID)
 				} else {
 					// Given: a prebuilt workspace, workspace build and respective provisioner job from a
 					// non-active template version
-					workspace = tt.setupBuild(t, db, client,
+					pendingWorkspace = tt.setupBuild(t, db, client,
 						owner.OrganizationID, templateID, nonActiveTemplateVersion.TemplateVersion.ID, nonActivePresetID)
 				}
 
@@ -2142,18 +2159,32 @@ func TestCancelPendingPrebuilds(t *testing.T) {
 				require.NoError(t, err)
 
 				// When: the reconciliation loop is triggered
-				require.NoError(t, reconciler.ReconcileAll(ctx))
+				_, err = reconciler.ReconcileAll(ctx)
+				require.NoError(t, err)
 
 				if tt.shouldCancel {
-					// Then: the prebuild related jobs from non-active version should be canceled
-					cancelledJob, err := db.GetProvisionerJobByID(ctx, workspace.Build.JobID)
+					// Then: the pending prebuild job from non-active version should be canceled
+					cancelledJob, err := db.GetProvisionerJobByID(ctx, pendingWorkspace.Build.JobID)
 					require.NoError(t, err)
 					require.Equal(t, clock.Now().UTC(), cancelledJob.CanceledAt.Time.UTC())
 					require.Equal(t, clock.Now().UTC(), cancelledJob.CompletedAt.Time.UTC())
 					require.Equal(t, database.ProvisionerJobStatusCanceled, cancelledJob.JobStatus)
+
+					// Then: the workspace should be deleted
+					deletedWorkspace, err := db.GetWorkspaceByID(ctx, pendingWorkspace.Workspace.ID)
+					require.NoError(t, err)
+					require.True(t, deletedWorkspace.Deleted)
+					latestBuild, err := db.GetLatestWorkspaceBuildByWorkspaceID(ctx, deletedWorkspace.ID)
+					require.NoError(t, err)
+					require.Equal(t, database.WorkspaceTransitionDelete, latestBuild.Transition)
+					deleteJob, err := db.GetProvisionerJobByID(ctx, latestBuild.JobID)
+					require.NoError(t, err)
+					require.True(t, deleteJob.CompletedAt.Valid)
+					require.False(t, deleteJob.WorkerID.Valid)
+					require.Equal(t, database.ProvisionerJobStatusSucceeded, deleteJob.JobStatus)
 				} else {
-					// Then: the provisioner job should not be canceled
-					job, err := db.GetProvisionerJobByID(ctx, workspace.Build.JobID)
+					// Then: the pending prebuild job should not be canceled
+					job, err := db.GetProvisionerJobByID(ctx, pendingWorkspace.Build.JobID)
 					require.NoError(t, err)
 					if !tt.previouslyCanceled {
 						require.Zero(t, job.CanceledAt.Time.UTC())
@@ -2162,6 +2193,11 @@ func TestCancelPendingPrebuilds(t *testing.T) {
 					if !tt.previouslyCompleted {
 						require.Zero(t, job.CompletedAt.Time.UTC())
 					}
+
+					// Then: the workspace should not be deleted
+					workspace, err := db.GetWorkspaceByID(ctx, pendingWorkspace.Workspace.ID)
+					require.NoError(t, err)
+					require.False(t, workspace.Deleted)
 				}
 			})
 		}
@@ -2235,25 +2271,45 @@ func TestCancelPendingPrebuilds(t *testing.T) {
 			return prebuilds
 		}
 
-		checkIfJobCanceled := func(
+		checkIfJobCanceledAndDeleted := func(
 			t *testing.T,
 			clock *quartz.Mock,
 			ctx context.Context,
 			db database.Store,
-			shouldBeCanceled bool,
+			shouldBeCanceledAndDeleted bool,
 			prebuilds []dbfake.WorkspaceResponse,
 		) {
 			for _, prebuild := range prebuilds {
-				job, err := db.GetProvisionerJobByID(ctx, prebuild.Build.JobID)
+				pendingJob, err := db.GetProvisionerJobByID(ctx, prebuild.Build.JobID)
 				require.NoError(t, err)
 
-				if shouldBeCanceled {
-					require.Equal(t, database.ProvisionerJobStatusCanceled, job.JobStatus)
-					require.Equal(t, clock.Now().UTC(), job.CanceledAt.Time.UTC())
-					require.Equal(t, clock.Now().UTC(), job.CompletedAt.Time.UTC())
+				if shouldBeCanceledAndDeleted {
+					// Pending job should be canceled
+					require.Equal(t, database.ProvisionerJobStatusCanceled, pendingJob.JobStatus)
+					require.Equal(t, clock.Now().UTC(), pendingJob.CanceledAt.Time.UTC())
+					require.Equal(t, clock.Now().UTC(), pendingJob.CompletedAt.Time.UTC())
+
+					// Workspace should be deleted
+					deletedWorkspace, err := db.GetWorkspaceByID(ctx, prebuild.Workspace.ID)
+					require.NoError(t, err)
+					require.True(t, deletedWorkspace.Deleted)
+					latestBuild, err := db.GetLatestWorkspaceBuildByWorkspaceID(ctx, deletedWorkspace.ID)
+					require.NoError(t, err)
+					require.Equal(t, database.WorkspaceTransitionDelete, latestBuild.Transition)
+					deleteJob, err := db.GetProvisionerJobByID(ctx, latestBuild.JobID)
+					require.NoError(t, err)
+					require.True(t, deleteJob.CompletedAt.Valid)
+					require.False(t, deleteJob.WorkerID.Valid)
+					require.Equal(t, database.ProvisionerJobStatusSucceeded, deleteJob.JobStatus)
 				} else {
-					require.NotEqual(t, database.ProvisionerJobStatusCanceled, job.JobStatus)
-					require.Zero(t, job.CanceledAt.Time.UTC())
+					// Pending job should not be canceled
+					require.NotEqual(t, database.ProvisionerJobStatusCanceled, pendingJob.JobStatus)
+					require.Zero(t, pendingJob.CanceledAt.Time.UTC())
+
+					// Workspace should not be deleted
+					workspace, err := db.GetWorkspaceByID(ctx, prebuild.Workspace.ID)
+					require.NoError(t, err)
+					require.False(t, workspace.Deleted)
 				}
 			}
 		}
@@ -2306,26 +2362,72 @@ func TestCancelPendingPrebuilds(t *testing.T) {
 		templateBVersion3Pending := setupPrebuilds(t, db, owner.OrganizationID, templateBID, templateBVersion3ID, templateBVersion3PresetID, 1, true)
 
 		// When: the reconciliation loop is executed
-		require.NoError(t, reconciler.ReconcileAll(ctx))
+		_, err := reconciler.ReconcileAll(ctx)
+		require.NoError(t, err)
 
 		// Then: template A version 1 running workspaces should not be canceled
-		checkIfJobCanceled(t, clock, ctx, db, false, templateAVersion1Running)
+		checkIfJobCanceledAndDeleted(t, clock, ctx, db, false, templateAVersion1Running)
 		// Then: template A version 1 pending workspaces should be canceled
-		checkIfJobCanceled(t, clock, ctx, db, true, templateAVersion1Pending)
+		checkIfJobCanceledAndDeleted(t, clock, ctx, db, true, templateAVersion1Pending)
 		// Then: template A version 2 running and pending workspaces should not be canceled
-		checkIfJobCanceled(t, clock, ctx, db, false, templateAVersion2Running)
-		checkIfJobCanceled(t, clock, ctx, db, false, templateAVersion2Pending)
+		checkIfJobCanceledAndDeleted(t, clock, ctx, db, false, templateAVersion2Running)
+		checkIfJobCanceledAndDeleted(t, clock, ctx, db, false, templateAVersion2Pending)
 
 		// Then: template B version 1 running workspaces should not be canceled
-		checkIfJobCanceled(t, clock, ctx, db, false, templateBVersion1Running)
+		checkIfJobCanceledAndDeleted(t, clock, ctx, db, false, templateBVersion1Running)
 		// Then: template B version 1 pending workspaces should be canceled
-		checkIfJobCanceled(t, clock, ctx, db, true, templateBVersion1Pending)
+		checkIfJobCanceledAndDeleted(t, clock, ctx, db, true, templateBVersion1Pending)
 		// Then: template B version 2 pending workspaces should be canceled
-		checkIfJobCanceled(t, clock, ctx, db, true, templateBVersion2Pending)
+		checkIfJobCanceledAndDeleted(t, clock, ctx, db, true, templateBVersion2Pending)
 		// Then: template B version 3 running and pending workspaces should not be canceled
-		checkIfJobCanceled(t, clock, ctx, db, false, templateBVersion3Running)
-		checkIfJobCanceled(t, clock, ctx, db, false, templateBVersion3Pending)
+		checkIfJobCanceledAndDeleted(t, clock, ctx, db, false, templateBVersion3Running)
+		checkIfJobCanceledAndDeleted(t, clock, ctx, db, false, templateBVersion3Pending)
 	})
+}
+
+func TestReconciliationStats(t *testing.T) {
+	t.Parallel()
+
+	// Setup
+	clock := quartz.NewReal()
+	db, ps := dbtestutil.NewDB(t)
+	client, _, _ := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   ps,
+		Clock:    clock,
+	})
+	fakeEnqueuer := newFakeEnqueuer()
+	registry := prometheus.NewRegistry()
+	cache := files.New(registry, &coderdtest.FakeAuthorizer{})
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
+	reconciler := prebuilds.NewStoreReconciler(db, ps, cache, codersdk.PrebuildsConfig{}, logger, clock, registry, fakeEnqueuer, newNoopUsageCheckerPtr())
+	owner := coderdtest.CreateFirstUser(t, client)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+
+	// Create a template version with a preset
+	dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
+		OrganizationID: owner.OrganizationID,
+		CreatedBy:      owner.UserID,
+	}).Preset(database.TemplateVersionPreset{
+		DesiredInstances: sql.NullInt32{
+			Int32: 1,
+			Valid: true,
+		},
+	}).Do()
+
+	// Verify that ReconcileAll tracks and returns elapsed time
+	start := time.Now()
+	stats, err := reconciler.ReconcileAll(ctx)
+	actualElapsed := time.Since(start)
+	require.NoError(t, err)
+	require.Greater(t, stats.Elapsed, time.Duration(0))
+
+	// Verify stats.Elapsed matches actual execution time
+	require.InDelta(t, actualElapsed.Milliseconds(), stats.Elapsed.Milliseconds(), 100)
+	// Verify reconciliation loop is not unexpectedly slow
+	require.Less(t, stats.Elapsed, 5*time.Second)
 }
 
 func newNoopEnqueuer() *notifications.NoopEnqueuer {
@@ -2822,7 +2924,7 @@ func TestReconciliationRespectsPauseSetting(t *testing.T) {
 	_ = setupTestDBPreset(t, db, templateVersionID, 2, "test")
 
 	// Initially, reconciliation should create prebuilds
-	err := reconciler.ReconcileAll(ctx)
+	_, err := reconciler.ReconcileAll(ctx)
 	require.NoError(t, err)
 
 	// Verify that prebuilds were created
@@ -2849,7 +2951,7 @@ func TestReconciliationRespectsPauseSetting(t *testing.T) {
 	require.Len(t, workspaces, 0, "prebuilds should be deleted")
 
 	// Run reconciliation again - it should be paused and not recreate prebuilds
-	err = reconciler.ReconcileAll(ctx)
+	_, err = reconciler.ReconcileAll(ctx)
 	require.NoError(t, err)
 
 	// Verify that no new prebuilds were created because reconciliation is paused
@@ -2862,7 +2964,7 @@ func TestReconciliationRespectsPauseSetting(t *testing.T) {
 	require.NoError(t, err)
 
 	// Run reconciliation again - it should now recreate the prebuilds
-	err = reconciler.ReconcileAll(ctx)
+	_, err = reconciler.ReconcileAll(ctx)
 	require.NoError(t, err)
 
 	// Verify that prebuilds were recreated

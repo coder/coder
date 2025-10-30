@@ -85,7 +85,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/experimental/aibridge/interceptions": {
+        "/aibridge/interceptions": {
             "get": {
                 "security": [
                     {
@@ -14316,11 +14316,9 @@ const docTemplate = `{
                 "web-push",
                 "oauth2",
                 "mcp-server-http",
-                "workspace-sharing",
-                "aibridge"
+                "workspace-sharing"
             ],
             "x-enum-comments": {
-                "ExperimentAIBridge": "Enables AI Bridge functionality.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
@@ -14338,8 +14336,7 @@ const docTemplate = `{
                 "ExperimentWebPush",
                 "ExperimentOAuth2",
                 "ExperimentMCPServerHTTP",
-                "ExperimentWorkspaceSharing",
-                "ExperimentAIBridge"
+                "ExperimentWorkspaceSharing"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {
@@ -15437,6 +15434,9 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                },
+                "revocation_endpoint": {
+                    "type": "string"
                 },
                 "scopes_supported": {
                     "type": "array",
@@ -19714,6 +19714,14 @@ const docTemplate = `{
                 "owner_name": {
                     "description": "OwnerName is the username of the owner of the workspace.",
                     "type": "string"
+                },
+                "task_id": {
+                    "description": "TaskID, if set, indicates that the workspace is relevant to the given codersdk.Task.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/uuid.NullUUID"
+                        }
+                    ]
                 },
                 "template_active_version_id": {
                     "type": "string",

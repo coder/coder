@@ -636,8 +636,8 @@ TAILNETTEST_MOCKS := \
 	tailnet/tailnettest/subscriptionmock.go
 
 AIBRIDGED_MOCKS := \
-	enterprise/x/aibridged/aibridgedmock/clientmock.go \
-	enterprise/x/aibridged/aibridgedmock/poolmock.go
+	enterprise/aibridged/aibridgedmock/clientmock.go \
+	enterprise/aibridged/aibridgedmock/poolmock.go
 
 GEN_FILES := \
 	tailnet/proto/tailnet.pb.go \
@@ -645,7 +645,7 @@ GEN_FILES := \
 	provisionersdk/proto/provisioner.pb.go \
 	provisionerd/proto/provisionerd.pb.go \
 	vpn/vpn.pb.go \
-	enterprise/x/aibridged/proto/aibridged.pb.go \
+	enterprise/aibridged/proto/aibridged.pb.go \
 	$(DB_GEN_FILES) \
 	$(SITE_GEN_FILES) \
 	coderd/rbac/object_gen.go \
@@ -697,7 +697,7 @@ gen/mark-fresh:
 		provisionersdk/proto/provisioner.pb.go \
 		provisionerd/proto/provisionerd.pb.go \
 		vpn/vpn.pb.go \
-		enterprise/x/aibridged/proto/aibridged.pb.go \
+		enterprise/aibridged/proto/aibridged.pb.go \
 		coderd/database/dump.sql \
 		$(DB_GEN_FILES) \
 		site/src/api/typesGenerated.ts \
@@ -768,8 +768,8 @@ codersdk/workspacesdk/agentconnmock/agentconnmock.go: codersdk/workspacesdk/agen
 	go generate ./codersdk/workspacesdk/agentconnmock/
 	touch "$@"
 
-$(AIBRIDGED_MOCKS): enterprise/x/aibridged/client.go enterprise/x/aibridged/pool.go
-	go generate ./enterprise/x/aibridged/aibridgedmock/
+$(AIBRIDGED_MOCKS): enterprise/aibridged/client.go enterprise/aibridged/pool.go
+	go generate ./enterprise/aibridged/aibridgedmock/
 	touch "$@"
 
 agent/agentcontainers/dcspec/dcspec_gen.go: \
@@ -822,13 +822,13 @@ vpn/vpn.pb.go: vpn/vpn.proto
 		--go_opt=paths=source_relative \
 		./vpn/vpn.proto
 
-enterprise/x/aibridged/proto/aibridged.pb.go: enterprise/x/aibridged/proto/aibridged.proto
+enterprise/aibridged/proto/aibridged.pb.go: enterprise/aibridged/proto/aibridged.proto
 	protoc \
 		--go_out=. \
 		--go_opt=paths=source_relative \
 		--go-drpc_out=. \
 		--go-drpc_opt=paths=source_relative \
-		./enterprise/x/aibridged/proto/aibridged.proto
+		./enterprise/aibridged/proto/aibridged.proto
 
 site/src/api/typesGenerated.ts: site/node_modules/.installed $(wildcard scripts/apitypings/*) $(shell find ./codersdk $(FIND_EXCLUSIONS) -type f -name '*.go')
 	# -C sets the directory for the go run command

@@ -2,7 +2,6 @@ package cli_test
 
 import (
 	"bytes"
-	"context"
 	"database/sql"
 	"encoding/json"
 	"io"
@@ -19,10 +18,7 @@ import (
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
-	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty/ptytest"
@@ -43,76 +39,22 @@ func makeAITask(t *testing.T, db database.Store, orgID, adminID, ownerID uuid.UU
 			},
 		}).Do()
 
-	ws := database.WorkspaceTable{
+	build := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OrganizationID: orgID,
 		OwnerID:        ownerID,
 		TemplateID:     tv.Template.ID,
-	}
-	build := dbfake.WorkspaceBuild(t, db, ws).
+	}).
 		Seed(database.WorkspaceBuild{
 			TemplateVersionID: tv.TemplateVersion.ID,
 			Transition:        transition,
-		}).WithAgent().Do()
-	dbgen.WorkspaceBuildParameters(t, db, []database.WorkspaceBuildParameter{
-		{
-			WorkspaceBuildID: build.Build.ID,
-			Name:             codersdk.AITaskPromptParameterName,
-			Value:            prompt,
-		},
-	})
-	agents, err := db.GetWorkspaceAgentsByWorkspaceAndBuildNumber(
-		dbauthz.AsSystemRestricted(context.Background()),
-		database.GetWorkspaceAgentsByWorkspaceAndBuildNumberParams{
-			WorkspaceID: build.Workspace.ID,
-			BuildNumber: build.Build.BuildNumber,
-		},
-	)
-	require.NoError(t, err)
-	require.NotEmpty(t, agents)
-	agentID := agents[0].ID
+		}).
+		WithAgent().
+		WithTask(database.TaskTable{
+			Prompt: prompt,
+		}, nil).
+		Do()
 
-	// Create a workspace app and set it as the sidebar app.
-	app := dbgen.WorkspaceApp(t, db, database.WorkspaceApp{
-		AgentID:     agentID,
-		Slug:        "task-sidebar",
-		DisplayName: "Task Sidebar",
-		External:    false,
-	})
-
-	// Update build flags to reference the sidebar app and HasAITask=true.
-	err = db.UpdateWorkspaceBuildFlagsByID(
-		dbauthz.AsSystemRestricted(context.Background()),
-		database.UpdateWorkspaceBuildFlagsByIDParams{
-			ID:               build.Build.ID,
-			HasAITask:        sql.NullBool{Bool: true, Valid: true},
-			HasExternalAgent: sql.NullBool{Bool: false, Valid: false},
-			SidebarAppID:     uuid.NullUUID{UUID: app.ID, Valid: true},
-			UpdatedAt:        build.Build.UpdatedAt,
-		},
-	)
-	require.NoError(t, err)
-
-	// Create a task record in the tasks table for the new data model.
-	task := dbgen.Task(t, db, database.TaskTable{
-		OrganizationID:     orgID,
-		OwnerID:            ownerID,
-		Name:               build.Workspace.Name,
-		WorkspaceID:        uuid.NullUUID{UUID: build.Workspace.ID, Valid: true},
-		TemplateVersionID:  tv.TemplateVersion.ID,
-		TemplateParameters: []byte("{}"),
-		Prompt:             prompt,
-		CreatedAt:          dbtime.Now(),
-	})
-
-	// Link the task to the workspace app.
-	dbgen.TaskWorkspaceApp(t, db, database.TaskWorkspaceApp{
-		TaskID:               task.ID,
-		WorkspaceBuildNumber: build.Build.BuildNumber,
-		WorkspaceAgentID:     uuid.NullUUID{UUID: agentID, Valid: true},
-		WorkspaceAppID:       uuid.NullUUID{UUID: app.ID, Valid: true},
-	})
-
-	return task
+	return build.Task
 }
 
 func TestExpTaskList(t *testing.T) {

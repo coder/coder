@@ -250,7 +250,9 @@ func (a *agent) editFile(ctx context.Context, path string, edits []workspacesdk.
 		transforms[i] = replace.String(edit.Search, edit.Replace)
 	}
 
-	tmpfile, err := afero.TempFile(a.filesystem, "", filepath.Base(path))
+	// Create an adjacent file to ensure it will be on the same device and can be
+	// moved atomically.
+	tmpfile, err := afero.TempFile(a.filesystem, filepath.Dir(path), filepath.Base(path))
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}

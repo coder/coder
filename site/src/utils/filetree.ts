@@ -20,7 +20,8 @@ export const createFile = (
 		throw new Error(pathError);
 	}
 
-	return set(fileTree, path.split("/"), value);
+	const updatedFileTree = structuredClone(fileTree);
+	return set(updatedFileTree, path.split("/"), value);
 };
 
 export const validatePath = (
@@ -43,7 +44,8 @@ export const updateFile = (
 	content: FileTree | string,
 	fileTree: FileTree,
 ): FileTree => {
-	return set(fileTree, path.split("/"), content);
+	const updatedFileTree = structuredClone(fileTree);
+	return set(updatedFileTree, path.split("/"), content);
 };
 
 export const existsFile = (path: string, fileTree: FileTree) => {
@@ -51,7 +53,7 @@ export const existsFile = (path: string, fileTree: FileTree) => {
 };
 
 export const removeFile = (path: string, fileTree: FileTree) => {
-	const updatedFileTree = { ...fileTree };
+	const updatedFileTree = structuredClone(fileTree);
 	unset(updatedFileTree, path.split("/"));
 	return updatedFileTree;
 };

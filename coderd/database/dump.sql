@@ -1828,6 +1828,15 @@ CREATE TABLE tasks (
     deleted_at timestamp with time zone
 );
 
+CREATE VIEW visible_users AS
+ SELECT users.id,
+    users.username,
+    users.name,
+    users.avatar_url
+   FROM users;
+
+COMMENT ON VIEW visible_users IS 'Visible fields of users are allowed to be joined with other tables for including context of other resources.';
+
 CREATE TABLE workspace_agents (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -1978,8 +1987,16 @@ CREATE VIEW tasks_with_status AS
         END AS status,
     task_app.workspace_build_number,
     task_app.workspace_agent_id,
-    task_app.workspace_app_id
-   FROM ((((tasks
+    task_app.workspace_app_id,
+    task_owner.owner_username,
+    task_owner.owner_name,
+    task_owner.owner_avatar_url
+   FROM (((((tasks
+     CROSS JOIN LATERAL ( SELECT vu.username AS owner_username,
+            vu.name AS owner_name,
+            vu.avatar_url AS owner_avatar_url
+           FROM visible_users vu
+          WHERE (vu.id = tasks.owner_id)) task_owner)
      LEFT JOIN LATERAL ( SELECT task_app_1.workspace_build_number,
             task_app_1.workspace_agent_id,
             task_app_1.workspace_app_id
@@ -2209,15 +2226,6 @@ CREATE TABLE template_versions (
 COMMENT ON COLUMN template_versions.external_auth_providers IS 'IDs of External auth providers for a specific template version';
 
 COMMENT ON COLUMN template_versions.message IS 'Message describing the changes in this version of the template, similar to a Git commit message. Like a commit message, this should be a short, high-level description of the changes in this version of the template. This message is immutable and should not be updated after the fact.';
-
-CREATE VIEW visible_users AS
- SELECT users.id,
-    users.username,
-    users.name,
-    users.avatar_url
-   FROM users;
-
-COMMENT ON VIEW visible_users IS 'Visible fields of users are allowed to be joined with other tables for including context of other resources.';
 
 CREATE VIEW template_version_with_user AS
  SELECT template_versions.id,
@@ -2914,11 +2922,13 @@ CREATE VIEW workspaces_expanded AS
     templates.name AS template_name,
     templates.display_name AS template_display_name,
     templates.icon AS template_icon,
-    templates.description AS template_description
-   FROM (((workspaces
+    templates.description AS template_description,
+    tasks.id AS task_id
+   FROM ((((workspaces
      JOIN visible_users ON ((workspaces.owner_id = visible_users.id)))
      JOIN organizations ON ((workspaces.organization_id = organizations.id)))
-     JOIN templates ON ((workspaces.template_id = templates.id)));
+     JOIN templates ON ((workspaces.template_id = templates.id)))
+     LEFT JOIN tasks ON ((workspaces.id = tasks.workspace_id)));
 
 COMMENT ON VIEW workspaces_expanded IS 'Joins in the display name information such as username, avatar, and organization name.';
 

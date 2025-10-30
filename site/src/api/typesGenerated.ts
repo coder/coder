@@ -108,22 +108,16 @@ export interface AIConfig {
  * AITaskPromptParameterName is the name of the parameter used to pass prompts
  * to AI tasks.
  *
- * Experimental: This value is experimental and may change in the future.
+ * Deprecated: This constant is deprecated and maintained only for backwards
+ * compatibility with older templates. Task prompts are now stored directly
+ * in the tasks.prompt database column. New code should access prompts via
+ * the Task.InitialPrompt field returned from task endpoints.
+ *
+ * This constant will be removed in a future major version. Templates should
+ * not rely on this parameter name, as the backend will continue to create it
+ * automatically for compatibility but reads from tasks.prompt.
  */
 export const AITaskPromptParameterName = "AI Prompt";
-
-// From codersdk/aitasks.go
-/**
- * AITasksPromptsResponse represents the response from the AITaskPrompts method.
- *
- * Experimental: This method is experimental and may change in the future.
- */
-export interface AITasksPromptsResponse {
-	/**
-	 * Prompts is a map of workspace build IDs to prompts.
-	 */
-	readonly prompts: Record<string, string>;
-}
 
 // From codersdk/allowlist.go
 /**
@@ -1894,7 +1888,6 @@ export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
 
 // From codersdk/deployment.go
 export type Experiment =
-	| "aibridge"
 	| "auto-fill-parameters"
 	| "example"
 	| "mcp-server-http"
@@ -1905,7 +1898,6 @@ export type Experiment =
 	| "workspace-usage";
 
 export const Experiments: Experiment[] = [
-	"aibridge",
 	"auto-fill-parameters",
 	"example",
 	"mcp-server-http",
@@ -2921,6 +2913,7 @@ export interface OAuth2AuthorizationServerMetadata {
 	readonly authorization_endpoint: string;
 	readonly token_endpoint: string;
 	readonly registration_endpoint?: string;
+	readonly revocation_endpoint?: string;
 	readonly response_types_supported: readonly string[];
 	readonly grant_types_supported: readonly string[];
 	readonly code_challenge_methods_supported: readonly string[];
@@ -5877,6 +5870,10 @@ export interface Workspace {
 	 * and IsPrebuild returns false.
 	 */
 	readonly is_prebuild: boolean;
+	/**
+	 * TaskID, if set, indicates that the workspace is relevant to the given codersdk.Task.
+	 */
+	readonly task_id?: string;
 }
 
 // From codersdk/workspaces.go

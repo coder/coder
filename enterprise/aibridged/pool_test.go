@@ -13,8 +13,8 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/aibridge/mcp"
 	"github.com/coder/aibridge/mcpmock"
-	"github.com/coder/coder/v2/enterprise/x/aibridged"
-	mock "github.com/coder/coder/v2/enterprise/x/aibridged/aibridgedmock"
+	"github.com/coder/coder/v2/enterprise/aibridged"
+	mock "github.com/coder/coder/v2/enterprise/aibridged/aibridgedmock"
 )
 
 // TestPool validates the published behavior of [aibridged.CachedBridgePool].

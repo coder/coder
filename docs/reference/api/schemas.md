@@ -4059,7 +4059,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `oauth2`               |
 | `mcp-server-http`      |
 | `workspace-sharing`    |
-| `aibridge`             |
 
 ## codersdk.ExternalAPIKeyScopes
 
@@ -5323,6 +5322,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "response_types_supported": [
     "string"
   ],
+  "revocation_endpoint": "string",
   "scopes_supported": [
     "string"
   ],
@@ -5343,6 +5343,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `issuer`                                | string          | false    |              |             |
 | `registration_endpoint`                 | string          | false    |              |             |
 | `response_types_supported`              | array of string | false    |              |             |
+| `revocation_endpoint`                   | string          | false    |              |             |
 | `scopes_supported`                      | array of string | false    |              |             |
 | `token_endpoint`                        | string          | false    |              |             |
 | `token_endpoint_auth_methods_supported` | array of string | false    |              |             |
@@ -10185,6 +10186,10 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "owner_avatar_url": "string",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
+  "task_id": {
+    "uuid": "string",
+    "valid": true
+  },
   "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",
@@ -10223,6 +10228,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `owner_avatar_url`                          | string                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                             |
 | `owner_id`                                  | string                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                             |
 | `owner_name`                                | string                                                     | false    |              | Owner name is the username of the owner of the workspace.                                                                                                                                                                                                                                                                                   |
+| `task_id`                                   | [uuid.NullUUID](#uuidnulluuid)                             | false    |              | Task ID if set, indicates that the workspace is relevant to the given codersdk.Task.                                                                                                                                                                                                                                                        |
 | `template_active_version_id`                | string                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                             |
 | `template_allow_user_cancel_workspace_jobs` | boolean                                                    | false    |              |                                                                                                                                                                                                                                                                                                                                             |
 | `template_display_name`                     | string                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                             |
@@ -12179,6 +12185,10 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "owner_avatar_url": "string",
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
       "owner_name": "string",
+      "task_id": {
+        "uuid": "string",
+        "valid": true
+      },
       "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
       "template_allow_user_cancel_workspace_jobs": true,
       "template_display_name": "string",

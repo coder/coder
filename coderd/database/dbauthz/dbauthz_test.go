@@ -646,10 +646,13 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 			PresetID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
 			Now:      dbtime.Now(),
 		}
-		jobIDs := []uuid.UUID{uuid.New(), uuid.New()}
+		canceledJobs := []database.UpdatePrebuildProvisionerJobWithCancelRow{
+			{ID: uuid.New(), WorkspaceID: uuid.New(), TemplateID: uuid.New(), TemplateVersionPresetID: uuid.NullUUID{UUID: uuid.New(), Valid: true}},
+			{ID: uuid.New(), WorkspaceID: uuid.New(), TemplateID: uuid.New(), TemplateVersionPresetID: uuid.NullUUID{UUID: uuid.New(), Valid: true}},
+		}
 
-		dbm.EXPECT().UpdatePrebuildProvisionerJobWithCancel(gomock.Any(), arg).Return(jobIDs, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourcePrebuiltWorkspace, policy.ActionUpdate).Returns(jobIDs)
+		dbm.EXPECT().UpdatePrebuildProvisionerJobWithCancel(gomock.Any(), arg).Return(canceledJobs, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourcePrebuiltWorkspace, policy.ActionUpdate).Returns(canceledJobs)
 	}))
 	s.Run("GetProvisionerJobsByIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		org := testutil.Fake(s.T(), faker, database.Organization{})
@@ -3755,6 +3758,14 @@ func (s *MethodTestSuite) TestPrebuilds() {
 	s.Run("GetPrebuildMetrics", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().GetPrebuildMetrics(gomock.Any()).Return([]database.GetPrebuildMetricsRow{}, nil).AnyTimes()
 		check.Args().Asserts(rbac.ResourceWorkspace.All(), policy.ActionRead)
+	}))
+	s.Run("GetOrganizationsWithPrebuildStatus", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := database.GetOrganizationsWithPrebuildStatusParams{
+			UserID:    uuid.New(),
+			GroupName: "test",
+		}
+		dbm.EXPECT().GetOrganizationsWithPrebuildStatus(gomock.Any(), arg).Return([]database.GetOrganizationsWithPrebuildStatusRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceOrganization.All(), policy.ActionRead)
 	}))
 	s.Run("GetPrebuildsSettings", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().GetPrebuildsSettings(gomock.Any()).Return("{}", nil).AnyTimes()
