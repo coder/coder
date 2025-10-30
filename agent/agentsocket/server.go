@@ -20,12 +20,6 @@ import (
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 )
 
-// Status constants for dependency tracking
-const (
-	StatusStarted  = "started"
-	StatusComplete = "completed"
-)
-
 // Server provides access to the DRPCAgentSocketService via a Unix domain socket.
 type Server struct {
 	logger     slog.Logger

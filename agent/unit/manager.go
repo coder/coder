@@ -21,6 +21,12 @@ var ErrDependenciesNotSatisfied = xerrors.New("unit dependencies not satisfied")
 // ErrSameStatusAlreadySet is returned when attempting to set the same status as the current status.
 var ErrSameStatusAlreadySet = xerrors.New("same status already set")
 
+// Status constants for dependency tracking
+const (
+	StatusStarted  = "started"
+	StatusComplete = "completed"
+)
+
 // dependencyVertex represents a vertex in the dependency graph that is associated with a consumer.
 type dependencyVertex[ConsumerID comparable] struct {
 	ID ConsumerID

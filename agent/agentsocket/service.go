@@ -67,7 +67,7 @@ func (s *DRPCAgentSocketService) SyncStart(_ context.Context, req *proto.SyncSta
 		}, nil
 	}
 
-	if err := s.unitManager.UpdateStatus(req.Unit, StatusStarted); err != nil {
+	if err := s.unitManager.UpdateStatus(req.Unit, unit.StatusStarted); err != nil {
 		return &proto.SyncStartResponse{
 			Success: false,
 			Message: "Failed to update status: " + err.Error(),
@@ -113,7 +113,7 @@ func (s *DRPCAgentSocketService) SyncWant(_ context.Context, req *proto.SyncWant
 		}
 	}
 
-	if err := s.unitManager.AddDependency(req.Unit, req.DependsOn, StatusComplete); err != nil {
+	if err := s.unitManager.AddDependency(req.Unit, req.DependsOn, unit.StatusComplete); err != nil {
 		return &proto.SyncWantResponse{
 			Success: false,
 			Message: "failed to add dependency: " + err.Error(),
@@ -141,7 +141,7 @@ func (s *DRPCAgentSocketService) SyncComplete(_ context.Context, req *proto.Sync
 		}, nil
 	}
 
-	if err := s.unitManager.UpdateStatus(req.Unit, StatusComplete); err != nil {
+	if err := s.unitManager.UpdateStatus(req.Unit, unit.StatusComplete); err != nil {
 		return &proto.SyncCompleteResponse{
 			Success: false,
 			Message: "failed to update status: " + err.Error(),
