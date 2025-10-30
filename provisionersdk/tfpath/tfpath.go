@@ -176,7 +176,9 @@ func (l Layout) Cleanup(ctx context.Context, logger slog.Logger, fs afero.Fs) {
 		return
 	}
 
+	// Returning an error at this point cannot do any good. The caller cannot resolve
+	// this. There is a routine cleanup task that will remove old work directories
+	// when this fails.
 	logger.Error(ctx, "failed to clean up work directory after multiple attempts",
 		slog.F("path", path), slog.Error(err))
-	return
 }
