@@ -56,6 +56,8 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 		(workspace.latest_build.status === "failed" ||
 			workspace.latest_build.status === "canceled");
 
+	const hasTask = !!workspace.task_id;
+
 	return (
 		<ConfirmDialog
 			type="delete"
@@ -109,8 +111,24 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 								"data-testid": "delete-dialog-name-confirmation",
 							}}
 						/>
+						{hasTask && (
+							<div css={styles.warnContainer}>
+								<div css={{ flexDirection: "column" }}>
+									<p className="info">This workspace is related to a task</p>
+									<span css={{ fontSize: 12, marginTop: 4, display: "block" }}>
+										Deleting this workspace will also delete{" "}
+										<Link
+											href={`/tasks/${workspace.owner_name}/${workspace.task_id}`}
+										>
+											this task
+										</Link>
+										.
+									</span>
+								</div>
+							</div>
+						)}
 						{canOrphan && (
-							<div css={styles.orphanContainer}>
+							<div css={styles.warnContainer}>
 								<div css={{ flexDirection: "column" }}>
 									<Checkbox
 										id="orphan_resources"
@@ -178,7 +196,7 @@ const styles = {
 			color: theme.palette.text.primary,
 		},
 	}),
-	orphanContainer: (theme) => ({
+	warnContainer: (theme) => ({
 		marginTop: 24,
 		display: "flex",
 		backgroundColor: theme.roles.danger.background,
