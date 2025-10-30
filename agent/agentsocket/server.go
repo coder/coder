@@ -21,6 +21,7 @@ import (
 )
 
 // Server provides access to the DRPCAgentSocketService via a Unix domain socket.
+// Do not invoke Server{} directly. Use NewServer() instead.
 type Server struct {
 	logger     slog.Logger
 	path       string
@@ -33,27 +34,21 @@ type Server struct {
 	service    *DRPCAgentSocketService
 }
 
-type Config struct {
-	Path   string
-	Logger slog.Logger
-}
-
-// NewServer creates a new agent socket server
-func NewServer(config Config) *Server {
+func NewServer(path string, logger slog.Logger) (*Server, error) {
+	logger = logger.Named("agentsocket")
 	server := &Server{
-		logger: config.Logger.Named("agentsocket"),
-		path:   config.Path,
-	}
-
-	server.service = &DRPCAgentSocketService{
-		logger:      server.logger,
-		unitManager: unit.NewManager[string, string](),
+		logger: logger,
+		path:   path,
+		service: &DRPCAgentSocketService{
+			logger:      logger,
+			unitManager: unit.NewManager[string, string](),
+		},
 	}
 
 	mux := drpcmux.New()
 	err := proto.DRPCRegisterAgentSocket(mux, server.service)
 	if err != nil {
-		panic(fmt.Sprintf("failed to register drpc service: %v", err))
+		return nil, fmt.Errorf("failed to register drpc service: %w", err)
 	}
 
 	server.drpcServer = drpcserver.NewWithOptions(mux, drpcserver.Options{
@@ -63,11 +58,11 @@ func NewServer(config Config) *Server {
 				errors.Is(err, context.DeadlineExceeded) {
 				return
 			}
-			server.logger.Debug(context.Background(), "drpc server error", slog.Error(err))
+			logger.Debug(context.Background(), "drpc server error", slog.Error(err))
 		},
 	})
 
-	return server
+	return server, nil
 }
 
 var ErrServerAlreadyStarted = xerrors.New("server already started")
@@ -137,12 +132,6 @@ func (s *Server) Stop() error {
 	s.logger.Info(s.ctx, "agent socket server stopped")
 
 	return nil
-}
-
-func (s *Server) GetPath() string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.path
 }
 
 func (s *Server) acceptConnections() {
