@@ -27,6 +27,10 @@ import (
 	"github.com/coder/coder/v2/enterprise/aibridged/proto"
 )
 
+const (
+	MetaKeyUserAgent = "user-agent"
+)
+
 var (
 	ErrExpiredOrInvalidOAuthToken = xerrors.New("expired or invalid OAuth2 token")
 	ErrNoMCPConfigFound           = xerrors.New("no MCP config found")
@@ -142,6 +146,15 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 			slog.F("started_at", in.StartedAt.AsTime()),
 			slog.F("metadata", metadata),
 		)
+	}
+
+	if in.UserAgent != "" {
+		md, err := anypb.New(structpb.NewStringValue(in.UserAgent))
+		if err != nil {
+			s.logger.Warn(ctx, "failed to convert user agent to proto", slog.Error(err))
+			return nil, xerrors.Errorf("invalid user agent")
+		}
+		metadata[MetaKeyUserAgent] = md
 	}
 
 	out, err := json.Marshal(metadata)
