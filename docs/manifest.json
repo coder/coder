@@ -396,11 +396,6 @@
 									"title": "Up to 3,000 Users",
 									"description": "Enterprise-scale architecture recommendations for Coder deployments that support up to 3,000 users",
 									"path": "./admin/infrastructure/validated-architectures/3k-users.md"
-								},
-								{
-									"title": "Up to 10,000 Users",
-									"description": "Enterprise-scale architecture recommendations for Coder deployments that support up to 10,000 users",
-									"path": "./admin/infrastructure/validated-architectures/10k-users.md"
 								}
 							]
 						},
