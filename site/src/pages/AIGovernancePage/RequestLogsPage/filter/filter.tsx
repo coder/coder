@@ -6,6 +6,7 @@ import {
 	SelectFilter,
 	type SelectFilterOption,
 } from "components/Filter/SelectFilter";
+import type { FC } from "react";
 
 const AIBRIDGE_PROVIDERS: SelectFilterOption[] = [
 	{
@@ -42,7 +43,7 @@ interface ProviderFilterProps {
 	menu: ProviderFilterMenu;
 }
 
-export const ProviderFilter = ({ menu }: ProviderFilterProps) => {
+export const ProviderFilter: FC<ProviderFilterProps> = ({ menu }) => {
 	return (
 		<SelectFilter
 			label={"Select provider"}
