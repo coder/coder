@@ -320,7 +320,7 @@ export class TarWriter {
 			uid: 1000,
 			gid: 1000,
 			mode: fileType === TarFileTypeCodes.File ? 0o664 : 0o775,
-			mtime: Math.floor(Date.now() / 1000),
+			mtime: ~~(Date.now() / 1000),
 			user: "tarballjs",
 			group: "tarballjs",
 			...opts,
@@ -347,7 +347,7 @@ function getArrayBuffer(file: string | ArrayBuffer | Uint8Array | Blob) {
 		return file;
 	}
 	if (ArrayBuffer.isView(file)) {
-		return file.buffer;
+		return new Uint8Array(file).buffer;
 	}
 	return file.arrayBuffer();
 }
