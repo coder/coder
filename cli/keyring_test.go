@@ -294,31 +294,16 @@ func TestUseKeyringUnsupportedOS(t *testing.T) {
 
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
-		pty := ptytest.New(t)
 
 		// Try to login with --use-keyring on an unsupported OS
 		inv, _ := clitest.New(t,
 			"login",
-			"--force-tty",
 			"--use-keyring",
-			"--no-open",
 			client.URL.String(),
 		)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
 
-		doneChan := make(chan struct{})
-		var loginErr error
-		go func() {
-			defer close(doneChan)
-			loginErr = inv.Run()
-		}()
-
-		// Provide the token when prompted
-		pty.ExpectMatch("Paste your token here:")
-		pty.WriteLine(client.SessionToken())
-
-		<-doneChan
+		// The error should occur immediately, before any prompts
+		loginErr := inv.Run()
 
 		// Verify we got an error about unsupported OS
 		require.Error(t, loginErr)

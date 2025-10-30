@@ -160,6 +160,7 @@ func (r *RootCmd) login() *serpent.Command {
 		Middleware: serpent.RequireRangeArgs(0, 1),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
+
 			rawURL := ""
 			var urlSource string
 
@@ -202,6 +203,15 @@ func (r *RootCmd) login() *serpent.Command {
 			client, err := r.createUnauthenticatedClient(ctx, serverURL, inv)
 			if err != nil {
 				return err
+			}
+
+			// Check keyring availability before prompting the user for a token to fail fast.
+			if r.useKeyring {
+				backend := r.ensureTokenBackend()
+				_, err := backend.Read(client.URL)
+				if err != nil && xerrors.Is(err, sessionstore.ErrNotImplemented) {
+					return errKeyringNotSupported
+				}
 			}
 
 			hasFirstUser, err := client.HasFirstUser(ctx)
