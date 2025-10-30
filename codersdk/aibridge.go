@@ -17,6 +17,7 @@ type AIBridgeInterception struct {
 	Initiator   MinimalUser          `json:"initiator"`
 	Provider    string               `json:"provider"`
 	Model       string               `json:"model"`
+	Client      *string              `json:"client"`
 	Metadata    map[string]any       `json:"metadata"`
 	StartedAt   time.Time            `json:"started_at" format:"date-time"`
 	EndedAt     *time.Time           `json:"ended_at" format:"date-time"`
