@@ -208,7 +208,7 @@ func startSocketServerWithDependencyTracker(t *testing.T, path string) *api.Serv
 	)
 
 	// Register sync handlers
-	tracker := unit.NewDependencyTracker[string, string]()
+	tracker := unit.NewManager[string, string]()
 	server.SetDependencyTracker(tracker)
 
 	// Start server

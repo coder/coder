@@ -30,7 +30,7 @@ const (
 func TestDependencyTracker_Register(t *testing.T) {
 	t.Parallel()
 
-	tracker := unit.NewDependencyTracker[testStatus, testConsumerID]()
+	tracker := unit.NewManager[testStatus, testConsumerID]()
 
 	t.Run("RegisterNewConsumer", func(t *testing.T) {
 		t.Parallel()
@@ -47,7 +47,7 @@ func TestDependencyTracker_Register(t *testing.T) {
 	t.Run("RegisterDuplicateConsumer", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewDependencyTracker[testStatus, testConsumerID]()
+		tracker := unit.NewManager[testStatus, testConsumerID]()
 		err := tracker.Register(consumerA)
 		require.NoError(t, err)
 
@@ -59,7 +59,7 @@ func TestDependencyTracker_Register(t *testing.T) {
 	t.Run("RegisterMultipleConsumers", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewDependencyTracker[testStatus, testConsumerID]()
+		tracker := unit.NewManager[testStatus, testConsumerID]()
 
 		consumers := []testConsumerID{consumerA, consumerB, consumerC}
 		for _, consumer := range consumers {
@@ -82,7 +82,7 @@ func TestDependencyTracker_AddDependency(t *testing.T) {
 	t.Run("AddDependencyBetweenRegisteredConsumers", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewDependencyTracker[testStatus, testConsumerID]()
+		tracker := unit.NewManager[testStatus, testConsumerID]()
 		err := tracker.Register(consumerA)
 		require.NoError(t, err)
 		err = tracker.Register(consumerB)
@@ -106,7 +106,7 @@ func TestDependencyTracker_AddDependency(t *testing.T) {
 	t.Run("AddDependencyWithUnregisteredConsumer", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewDependencyTracker[testStatus, testConsumerID]()
+		tracker := unit.NewManager[testStatus, testConsumerID]()
 		err := tracker.Register(consumerA)
 		require.NoError(t, err)
 
@@ -119,7 +119,7 @@ func TestDependencyTracker_AddDependency(t *testing.T) {
 	t.Run("AddDependencyFromUnregisteredConsumer", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewDependencyTracker[testStatus, testConsumerID]()
+		tracker := unit.NewManager[testStatus, testConsumerID]()
 		err := tracker.Register(consumerB)
 		require.NoError(t, err)
 
@@ -136,7 +136,7 @@ func TestDependencyTracker_UpdateStatus(t *testing.T) {
 	t.Run("UpdateStatusTriggersReadinessRecalculation", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewDependencyTracker[testStatus, testConsumerID]()
+		tracker := unit.NewManager[testStatus, testConsumerID]()
 		err := tracker.Register(consumerA)
 		require.NoError(t, err)
 		err = tracker.Register(consumerB)
@@ -163,7 +163,7 @@ func TestDependencyTracker_UpdateStatus(t *testing.T) {
 	t.Run("UpdateStatusWithUnregisteredConsumer", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewDependencyTracker[testStatus, testConsumerID]()
+		tracker := unit.NewManager[testStatus, testConsumerID]()
 
 		err := tracker.UpdateStatus(consumerA, statusRunning)
 		require.Error(t, err)
@@ -173,7 +173,7 @@ func TestDependencyTracker_UpdateStatus(t *testing.T) {
 	t.Run("LinearChainDependencies", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewDependencyTracker[testStatus, testConsumerID]()
+		tracker := unit.NewManager[testStatus, testConsumerID]()
 
 		// Register all consumers
 		consumers := []testConsumerID{consumerA, consumerB, consumerC}
@@ -229,7 +229,7 @@ func TestDependencyTracker_GetUnmetDependencies(t *testing.T) {
 	t.Run("GetUnmetDependenciesForConsumerWithNoDependencies", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewDependencyTracker[testStatus, testConsumerID]()
+		tracker := unit.NewManager[testStatus, testConsumerID]()
 		err := tracker.Register(consumerA)
 		require.NoError(t, err)
 
@@ -241,7 +241,7 @@ func TestDependencyTracker_GetUnmetDependencies(t *testing.T) {
 	t.Run("GetUnmetDependenciesForConsumerWithUnsatisfiedDependencies", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewDependencyTracker[testStatus, testConsumerID]()
+		tracker := unit.NewManager[testStatus, testConsumerID]()
 		err := tracker.Register(consumerA)
 		require.NoError(t, err)
 		err = tracker.Register(consumerB)
@@ -264,7 +264,7 @@ func TestDependencyTracker_GetUnmetDependencies(t *testing.T) {
 	t.Run("GetUnmetDependenciesForConsumerWithSatisfiedDependencies", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewDependencyTracker[testStatus, testConsumerID]()
+		tracker := unit.NewManager[testStatus, testConsumerID]()
 		err := tracker.Register(consumerA)
 		require.NoError(t, err)
 		err = tracker.Register(consumerB)
@@ -286,7 +286,7 @@ func TestDependencyTracker_GetUnmetDependencies(t *testing.T) {
 	t.Run("GetUnmetDependenciesForUnregisteredConsumer", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewDependencyTracker[testStatus, testConsumerID]()
+		tracker := unit.NewManager[testStatus, testConsumerID]()
 
 		unmet, err := tracker.GetUnmetDependencies(consumerA)
 		require.Error(t, err)
@@ -301,7 +301,7 @@ func TestDependencyTracker_ConcurrentOperations(t *testing.T) {
 	t.Run("ConcurrentStatusUpdates", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewDependencyTracker[testStatus, testConsumerID]()
+		tracker := unit.NewManager[testStatus, testConsumerID]()
 
 		// Register consumers
 		consumers := []testConsumerID{consumerA, consumerB, consumerC, consumerD}
@@ -369,7 +369,7 @@ func TestDependencyTracker_ConcurrentOperations(t *testing.T) {
 	t.Run("ConcurrentReadinessChecks", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewDependencyTracker[testStatus, testConsumerID]()
+		tracker := unit.NewManager[testStatus, testConsumerID]()
 
 		// Register consumers
 		err := tracker.Register(consumerA)
@@ -419,7 +419,7 @@ func TestDependencyTracker_MultipleDependencies(t *testing.T) {
 	t.Run("ConsumerWithMultipleDependencies", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewDependencyTracker[testStatus, testConsumerID]()
+		tracker := unit.NewManager[testStatus, testConsumerID]()
 
 		// Register all consumers
 		consumers := []testConsumerID{consumerA, consumerB, consumerC, consumerD}
@@ -459,7 +459,7 @@ func TestDependencyTracker_MultipleDependencies(t *testing.T) {
 	t.Run("ComplexDependencyChain", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewDependencyTracker[testStatus, testConsumerID]()
+		tracker := unit.NewManager[testStatus, testConsumerID]()
 
 		// Register all consumers
 		consumers := []testConsumerID{consumerA, consumerB, consumerC, consumerD}
@@ -534,7 +534,7 @@ func TestDependencyTracker_MultipleDependencies(t *testing.T) {
 	t.Run("DifferentStatusTypes", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewDependencyTracker[testStatus, testConsumerID]()
+		tracker := unit.NewManager[testStatus, testConsumerID]()
 
 		// Register consumers
 		err := tracker.Register(consumerA)
@@ -574,7 +574,7 @@ func TestDependencyTracker_ErrorCases(t *testing.T) {
 	t.Run("UpdateStatusWithUnregisteredConsumer", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewDependencyTracker[testStatus, testConsumerID]()
+		tracker := unit.NewManager[testStatus, testConsumerID]()
 
 		err := tracker.UpdateStatus(consumerA, statusRunning)
 		require.Error(t, err)
@@ -584,7 +584,7 @@ func TestDependencyTracker_ErrorCases(t *testing.T) {
 	t.Run("IsReadyWithUnregisteredConsumer", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewDependencyTracker[testStatus, testConsumerID]()
+		tracker := unit.NewManager[testStatus, testConsumerID]()
 
 		ready, err := tracker.IsReady(consumerA)
 		require.Error(t, err)
@@ -595,7 +595,7 @@ func TestDependencyTracker_ErrorCases(t *testing.T) {
 	t.Run("GetUnmetDependenciesWithUnregisteredConsumer", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewDependencyTracker[testStatus, testConsumerID]()
+		tracker := unit.NewManager[testStatus, testConsumerID]()
 
 		unmet, err := tracker.GetUnmetDependencies(consumerA)
 		require.Error(t, err)
@@ -606,7 +606,7 @@ func TestDependencyTracker_ErrorCases(t *testing.T) {
 	t.Run("AddDependencyWithUnregisteredConsumers", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewDependencyTracker[testStatus, testConsumerID]()
+		tracker := unit.NewManager[testStatus, testConsumerID]()
 
 		// Try to add dependency with unregistered consumers
 		err := tracker.AddDependency(consumerA, consumerB, statusRunning)
@@ -617,7 +617,7 @@ func TestDependencyTracker_ErrorCases(t *testing.T) {
 	t.Run("CyclicDependencyDetection", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewDependencyTracker[testStatus, testConsumerID]()
+		tracker := unit.NewManager[testStatus, testConsumerID]()
 
 		// Register consumers
 		err := tracker.Register(consumerA)
@@ -642,7 +642,7 @@ func TestDependencyTracker_ToDOT(t *testing.T) {
 	t.Run("ExportSimpleGraph", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewDependencyTracker[testStatus, testConsumerID]()
+		tracker := unit.NewManager[testStatus, testConsumerID]()
 
 		// Register consumers
 		err := tracker.Register(consumerA)
@@ -663,7 +663,7 @@ func TestDependencyTracker_ToDOT(t *testing.T) {
 	t.Run("ExportComplexGraph", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewDependencyTracker[testStatus, testConsumerID]()
+		tracker := unit.NewManager[testStatus, testConsumerID]()
 
 		// Register all consumers
 		consumers := []testConsumerID{consumerA, consumerB, consumerC, consumerD}

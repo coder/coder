@@ -16,7 +16,7 @@ import (
 // DRPCAgentSocketService implements the proto.DRPCAgentSocketServer interface.
 type DRPCAgentSocketService struct {
 	mu          sync.RWMutex
-	unitManager *unit.DependencyTracker[string, string]
+	unitManager *unit.Manager[string, string]
 	logger      slog.Logger
 }
 

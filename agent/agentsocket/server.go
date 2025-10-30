@@ -41,10 +41,9 @@ type Server struct {
 }
 
 type Config struct {
-	Path              string
-	Logger            slog.Logger
-	AuthMiddleware    AuthMiddleware
-	DependencyTracker *unit.DependencyTracker[string, string]
+	Path           string
+	Logger         slog.Logger
+	AuthMiddleware AuthMiddleware
 }
 
 // NewServer creates a new agent socket server
@@ -61,7 +60,7 @@ func NewServer(config Config) *Server {
 
 	server.service = &DRPCAgentSocketService{
 		logger:      server.logger,
-		unitManager: config.DependencyTracker,
+		unitManager: unit.NewManager[string, string](),
 	}
 
 	mux := drpcmux.New()

@@ -35,10 +35,10 @@ type Dependency[StatusType, ConsumerID comparable] struct {
 	IsSatisfied    bool
 }
 
-// DependencyTracker provides reactive dependency tracking over a Graph.
+// Manager provides reactive dependency tracking over a Graph.
 // It manages consumer registration, dependency relationships, and status updates
 // with automatic recalculation of readiness when dependencies are satisfied.
-type DependencyTracker[StatusType, ConsumerID comparable] struct {
+type Manager[StatusType, ConsumerID comparable] struct {
 	mu sync.RWMutex
 
 	// The underlying graph that stores dependency relationships
@@ -57,9 +57,9 @@ type DependencyTracker[StatusType, ConsumerID comparable] struct {
 	consumerVertices map[ConsumerID]*dependencyVertex[ConsumerID]
 }
 
-// NewDependencyTracker creates a new DependencyTracker instance.
-func NewDependencyTracker[StatusType, ConsumerID comparable]() *DependencyTracker[StatusType, ConsumerID] {
-	return &DependencyTracker[StatusType, ConsumerID]{
+// NewManager creates a new Manager instance.
+func NewManager[StatusType, ConsumerID comparable]() *Manager[StatusType, ConsumerID] {
+	return &Manager[StatusType, ConsumerID]{
 		graph:               &Graph[StatusType, *dependencyVertex[ConsumerID]]{},
 		consumerStatus:      make(map[ConsumerID]StatusType),
 		consumerReadiness:   make(map[ConsumerID]bool),
@@ -69,7 +69,7 @@ func NewDependencyTracker[StatusType, ConsumerID comparable]() *DependencyTracke
 }
 
 // Register registers a new consumer as a vertex in the dependency graph.
-func (dt *DependencyTracker[StatusType, ConsumerID]) Register(id ConsumerID) error {
+func (dt *Manager[StatusType, ConsumerID]) Register(id ConsumerID) error {
 	dt.mu.Lock()
 	defer dt.mu.Unlock()
 
@@ -88,7 +88,7 @@ func (dt *DependencyTracker[StatusType, ConsumerID]) Register(id ConsumerID) err
 
 // AddDependency adds a dependency relationship between consumers.
 // The consumer depends on the dependsOn consumer reaching the requiredStatus.
-func (dt *DependencyTracker[StatusType, ConsumerID]) AddDependency(consumer ConsumerID, dependsOn ConsumerID, requiredStatus StatusType) error {
+func (dt *Manager[StatusType, ConsumerID]) AddDependency(consumer ConsumerID, dependsOn ConsumerID, requiredStatus StatusType) error {
 	dt.mu.Lock()
 	defer dt.mu.Unlock()
 
@@ -117,7 +117,7 @@ func (dt *DependencyTracker[StatusType, ConsumerID]) AddDependency(consumer Cons
 }
 
 // UpdateStatus updates a consumer's status and recalculates readiness for affected dependents.
-func (dt *DependencyTracker[StatusType, ConsumerID]) UpdateStatus(consumer ConsumerID, newStatus StatusType) error {
+func (dt *Manager[StatusType, ConsumerID]) UpdateStatus(consumer ConsumerID, newStatus StatusType) error {
 	dt.mu.Lock()
 	defer dt.mu.Unlock()
 
@@ -144,7 +144,7 @@ func (dt *DependencyTracker[StatusType, ConsumerID]) UpdateStatus(consumer Consu
 }
 
 // IsReady checks if all dependencies for a consumer are satisfied.
-func (dt *DependencyTracker[StatusType, ConsumerID]) IsReady(consumer ConsumerID) (bool, error) {
+func (dt *Manager[StatusType, ConsumerID]) IsReady(consumer ConsumerID) (bool, error) {
 	dt.mu.RLock()
 	defer dt.mu.RUnlock()
 
@@ -156,7 +156,7 @@ func (dt *DependencyTracker[StatusType, ConsumerID]) IsReady(consumer ConsumerID
 }
 
 // GetUnmetDependencies returns a list of unsatisfied dependencies for a consumer.
-func (dt *DependencyTracker[StatusType, ConsumerID]) GetUnmetDependencies(consumer ConsumerID) ([]Dependency[StatusType, ConsumerID], error) {
+func (dt *Manager[StatusType, ConsumerID]) GetUnmetDependencies(consumer ConsumerID) ([]Dependency[StatusType, ConsumerID], error) {
 	dt.mu.RLock()
 	defer dt.mu.RUnlock()
 
@@ -202,7 +202,7 @@ func (dt *DependencyTracker[StatusType, ConsumerID]) GetUnmetDependencies(consum
 
 // recalculateReadinessUnsafe recalculates the readiness state for a consumer.
 // This method assumes the caller holds the write lock.
-func (dt *DependencyTracker[StatusType, ConsumerID]) recalculateReadinessUnsafe(consumer ConsumerID) {
+func (dt *Manager[StatusType, ConsumerID]) recalculateReadinessUnsafe(consumer ConsumerID) {
 	consumerVertex := dt.consumerVertices[consumer]
 	forwardEdges := dt.graph.GetForwardAdjacentVertices(consumerVertex)
 
@@ -229,12 +229,12 @@ func (dt *DependencyTracker[StatusType, ConsumerID]) recalculateReadinessUnsafe(
 
 // GetGraph returns the underlying graph for visualization and debugging.
 // This should be used carefully as it exposes the internal graph structure.
-func (dt *DependencyTracker[StatusType, ConsumerID]) GetGraph() *Graph[StatusType, *dependencyVertex[ConsumerID]] {
+func (dt *Manager[StatusType, ConsumerID]) GetGraph() *Graph[StatusType, *dependencyVertex[ConsumerID]] {
 	return dt.graph
 }
 
 // GetStatus returns the current status of a consumer.
-func (dt *DependencyTracker[StatusType, ConsumerID]) GetStatus(consumer ConsumerID) (StatusType, error) {
+func (dt *Manager[StatusType, ConsumerID]) GetStatus(consumer ConsumerID) (StatusType, error) {
 	dt.mu.RLock()
 	defer dt.mu.RUnlock()
 
@@ -253,7 +253,7 @@ func (dt *DependencyTracker[StatusType, ConsumerID]) GetStatus(consumer Consumer
 }
 
 // GetAllDependencies returns all dependencies for a consumer, both satisfied and unsatisfied.
-func (dt *DependencyTracker[StatusType, ConsumerID]) GetAllDependencies(consumer ConsumerID) ([]Dependency[StatusType, ConsumerID], error) {
+func (dt *Manager[StatusType, ConsumerID]) GetAllDependencies(consumer ConsumerID) ([]Dependency[StatusType, ConsumerID], error) {
 	dt.mu.RLock()
 	defer dt.mu.RUnlock()
 
@@ -296,6 +296,6 @@ func (dt *DependencyTracker[StatusType, ConsumerID]) GetAllDependencies(consumer
 }
 
 // ExportDOT exports the dependency graph to DOT format for visualization.
-func (dt *DependencyTracker[StatusType, ConsumerID]) ExportDOT(name string) (string, error) {
+func (dt *Manager[StatusType, ConsumerID]) ExportDOT(name string) (string, error) {
 	return dt.graph.ToDOT(name)
 }

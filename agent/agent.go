@@ -194,7 +194,6 @@ func New(options Options) Agent {
 		devcontainers:       options.Devcontainers,
 		containerAPIOptions: options.DevcontainerAPIOptions,
 		socketPath:          options.SocketPath,
-		dependencyTracker:   unit.NewDependencyTracker[string, string](),
 	}
 	// Initially, we have a closed channel, reflecting the fact that we are not initially connected.
 	// Each time we connect we replace the channel (while holding the closeMutex) with a new one
@@ -277,9 +276,9 @@ type agent struct {
 	containerAPIOptions []agentcontainers.Option
 	containerAPI        *agentcontainers.API
 
-	socketPath        string
-	socketServer      *agentsocket.Server
-	dependencyTracker *unit.DependencyTracker[string, string]
+	socketPath   string
+	socketServer *agentsocket.Server
+	unitManager  *unit.Manager[string, string]
 }
 
 func (a *agent) TailnetConn() *tailnet.Conn {
@@ -361,13 +360,13 @@ func (a *agent) init() {
 	)
 
 	// Initialize socket server for CLI communication
-	a.initSocketServer(a.dependencyTracker)
+	a.initSocketServer()
 
 	go a.runLoop()
 }
 
 // initSocketServer initializes the socket server for CLI communication
-func (a *agent) initSocketServer(dependencyTracker *unit.DependencyTracker[string, string]) {
+func (a *agent) initSocketServer() {
 	socketPath := a.getSocketPath()
 	if socketPath == "" {
 		a.logger.Debug(a.hardCtx, "socket server disabled (no path configured)")
@@ -375,9 +374,8 @@ func (a *agent) initSocketServer(dependencyTracker *unit.DependencyTracker[strin
 	}
 
 	server := agentsocket.NewServer(agentsocket.Config{
-		Path:              socketPath,
-		Logger:            a.logger.Named("socket"),
-		DependencyTracker: a.dependencyTracker,
+		Path:   socketPath,
+		Logger: a.logger.Named("socket"),
 	})
 
 	err := server.Start()

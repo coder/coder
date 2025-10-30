@@ -22,9 +22,8 @@ func TestDRPCAgentSocketService(t *testing.T) {
 		socketPath := filepath.Join(t.TempDir(), "test.sock")
 
 		server := agentsocket.NewServer(agentsocket.Config{
-			Path:              socketPath,
-			Logger:            slog.Make().Leveled(slog.LevelDebug),
-			DependencyTracker: unit.NewDependencyTracker[string, string](),
+			Path:   socketPath,
+			Logger: slog.Make().Leveled(slog.LevelDebug),
 		})
 		require.NoError(t, server.Start())
 		defer server.Stop()
@@ -48,9 +47,8 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			socketPath := filepath.Join(t.TempDir(), "test.sock")
 
 			server := agentsocket.NewServer(agentsocket.Config{
-				Path:              socketPath,
-				Logger:            slog.Make().Leveled(slog.LevelDebug),
-				DependencyTracker: unit.NewDependencyTracker[string, string](),
+				Path:   socketPath,
+				Logger: slog.Make().Leveled(slog.LevelDebug),
 			})
 			require.NoError(t, server.Start())
 			defer server.Stop()
@@ -75,9 +73,8 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			socketPath := filepath.Join(t.TempDir(), "test.sock")
 
 			server := agentsocket.NewServer(agentsocket.Config{
-				Path:              socketPath,
-				Logger:            slog.Make().Leveled(slog.LevelDebug),
-				DependencyTracker: unit.NewDependencyTracker[string, string](),
+				Path:   socketPath,
+				Logger: slog.Make().Leveled(slog.LevelDebug),
 			})
 			require.NoError(t, server.Start())
 			defer server.Stop()
@@ -115,9 +112,8 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			socketPath := filepath.Join(t.TempDir(), "test.sock")
 
 			server := agentsocket.NewServer(agentsocket.Config{
-				Path:              socketPath,
-				Logger:            slog.Make().Leveled(slog.LevelDebug),
-				DependencyTracker: unit.NewDependencyTracker[string, string](),
+				Path:   socketPath,
+				Logger: slog.Make().Leveled(slog.LevelDebug),
 			})
 			require.NoError(t, server.Start())
 			defer server.Stop()
@@ -159,9 +155,8 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			socketPath := filepath.Join(t.TempDir(), "test.sock")
 
 			server := agentsocket.NewServer(agentsocket.Config{
-				Path:              socketPath,
-				Logger:            slog.Make().Leveled(slog.LevelDebug),
-				DependencyTracker: unit.NewDependencyTracker[string, string](),
+				Path:   socketPath,
+				Logger: slog.Make().Leveled(slog.LevelDebug),
 			})
 			require.NoError(t, server.Start())
 			defer server.Stop()
@@ -193,9 +188,8 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			socketPath := filepath.Join(t.TempDir(), "test.sock")
 
 			server := agentsocket.NewServer(agentsocket.Config{
-				Path:              socketPath,
-				Logger:            slog.Make().Leveled(slog.LevelDebug),
-				DependencyTracker: unit.NewDependencyTracker[string, string](),
+				Path:   socketPath,
+				Logger: slog.Make().Leveled(slog.LevelDebug),
 			})
 			require.NoError(t, server.Start())
 			defer server.Stop()
@@ -222,9 +216,8 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			socketPath := filepath.Join(t.TempDir(), "test.sock")
 
 			server := agentsocket.NewServer(agentsocket.Config{
-				Path:              socketPath,
-				Logger:            slog.Make().Leveled(slog.LevelDebug),
-				DependencyTracker: unit.NewDependencyTracker[string, string](),
+				Path:   socketPath,
+				Logger: slog.Make().Leveled(slog.LevelDebug),
 			})
 			require.NoError(t, server.Start())
 			defer server.Stop()
@@ -262,9 +255,8 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			socketPath := filepath.Join(t.TempDir(), "test.sock")
 
 			server := agentsocket.NewServer(agentsocket.Config{
-				Path:              socketPath,
-				Logger:            slog.Make().Leveled(slog.LevelDebug),
-				DependencyTracker: unit.NewDependencyTracker[string, string](),
+				Path:   socketPath,
+				Logger: slog.Make().Leveled(slog.LevelDebug),
 			})
 			require.NoError(t, server.Start())
 			defer server.Stop()
