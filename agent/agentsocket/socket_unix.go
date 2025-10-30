@@ -11,8 +11,8 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// CreateSocket creates a Unix domain socket listener
-func CreateSocket(path string) (net.Listener, error) {
+// createSocket creates a Unix domain socket listener
+func createSocket(path string) (net.Listener, error) {
 	if !isSocketAvailable(path) {
 		return nil, xerrors.Errorf("socket path %s is not available", path)
 	}
@@ -39,8 +39,8 @@ func CreateSocket(path string) (net.Listener, error) {
 	return listener, nil
 }
 
-// GetDefaultSocketPath returns the default socket path for Unix-like systems
-func GetDefaultSocketPath() (string, error) {
+// getDefaultSocketPath returns the default socket path for Unix-like systems
+func getDefaultSocketPath() (string, error) {
 	// Try XDG_RUNTIME_DIR first
 	if runtimeDir := os.Getenv("XDG_RUNTIME_DIR"); runtimeDir != "" {
 		return filepath.Join(runtimeDir, "coder-agent.sock"), nil
@@ -52,7 +52,7 @@ func GetDefaultSocketPath() (string, error) {
 }
 
 // CleanupSocket removes the socket file
-func CleanupSocket(path string) error {
+func cleanupSocket(path string) error {
 	return os.Remove(path)
 }
 

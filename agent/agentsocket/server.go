@@ -81,13 +81,13 @@ func (s *Server) Start() error {
 
 	if s.path == "" {
 		var err error
-		s.path, err = GetDefaultSocketPath()
+		s.path, err = getDefaultSocketPath()
 		if err != nil {
 			return xerrors.Errorf("get default socket path: %w", err)
 		}
 	}
 
-	listener, err := CreateSocket(s.path)
+	listener, err := createSocket(s.path)
 	if err != nil {
 		return xerrors.Errorf("create socket: %w", err)
 	}
@@ -124,7 +124,7 @@ func (s *Server) Stop() error {
 	// Wait for all connections to finish
 	s.wg.Wait()
 
-	if err := CleanupSocket(s.path); err != nil {
+	if err := cleanupSocket(s.path); err != nil {
 		s.logger.Warn(s.ctx, "error cleaning up socket file", slog.Error(err))
 	}
 
