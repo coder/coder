@@ -13,7 +13,7 @@ import {
 	ChevronDownIcon,
 	ChevronRightIcon,
 } from "lucide-react";
-import { type FC, useState } from "react";
+import { type FC, Fragment, useState } from "react";
 import { cn } from "utils/cn";
 
 type RequestLogsRowProps = {
@@ -150,7 +150,9 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 										className="bg-surface-secondary rounded-md p-4"
 										data-chromatic="ignore"
 									>
-										{interception.user_prompts.map((prompt) => prompt.prompt)}
+										{interception.user_prompts.map((prompt) => (
+											<Fragment key={prompt.id}>{prompt.prompt}</Fragment>
+										))}
 									</div>
 								</div>
 							)}
