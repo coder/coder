@@ -1,4 +1,5 @@
 import {
+	MockDeletedWorkspace,
 	MockFailedWorkspace,
 	MockStartingWorkspace,
 	MockStoppedWorkspace,
@@ -166,6 +167,15 @@ export const TerminatedBuildWithStatus: Story = {
 			...MockStoppedWorkspace,
 			latest_app_status: MockWorkspaceAppStatus,
 		});
+	},
+};
+
+export const DeletedWorkspace: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getTask").mockResolvedValue(MockTask);
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockDeletedWorkspace,
+		);
 	},
 };
 
