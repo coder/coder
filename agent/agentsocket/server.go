@@ -28,34 +28,27 @@ const (
 
 // Server provides access to the DRPCAgentSocketService via a Unix domain socket.
 type Server struct {
-	logger         slog.Logger
-	path           string
-	listener       net.Listener
-	authMiddleware AuthMiddleware
-	mu             sync.RWMutex
-	ctx            context.Context
-	cancel         context.CancelFunc
-	wg             sync.WaitGroup
-	drpcServer     *drpcserver.Server
-	service        *DRPCAgentSocketService
+	logger     slog.Logger
+	path       string
+	listener   net.Listener
+	mu         sync.RWMutex
+	ctx        context.Context
+	cancel     context.CancelFunc
+	wg         sync.WaitGroup
+	drpcServer *drpcserver.Server
+	service    *DRPCAgentSocketService
 }
 
 type Config struct {
-	Path           string
-	Logger         slog.Logger
-	AuthMiddleware AuthMiddleware
+	Path   string
+	Logger slog.Logger
 }
 
 // NewServer creates a new agent socket server
 func NewServer(config Config) *Server {
 	server := &Server{
-		logger:         config.Logger.Named("agentsocket"),
-		path:           config.Path,
-		authMiddleware: config.AuthMiddleware,
-	}
-
-	if server.authMiddleware == nil {
-		server.authMiddleware = &NoAuthMiddleware{}
+		logger: config.Logger.Named("agentsocket"),
+		path:   config.Path,
 	}
 
 	server.service = &DRPCAgentSocketService{
@@ -188,30 +181,23 @@ func (s *Server) acceptConnections() {
 func (s *Server) handleConnection(conn net.Conn) {
 	defer conn.Close()
 
-	// Authenticate connection first to get context
-	ctx, err := s.authMiddleware.Authenticate(s.ctx, conn)
-	if err != nil {
-		s.logger.Warn(s.ctx, "authentication failed", slog.Error(err))
-		return
-	}
-
 	if err := conn.SetDeadline(time.Now().Add(30 * time.Second)); err != nil {
-		s.logger.Warn(ctx, "failed to set connection deadline", slog.Error(err))
+		s.logger.Warn(s.ctx, "failed to set connection deadline", slog.Error(err))
 	}
 
-	s.logger.Debug(ctx, "new connection accepted", slog.F("remote_addr", conn.RemoteAddr()))
+	s.logger.Debug(s.ctx, "new connection accepted", slog.F("remote_addr", conn.RemoteAddr()))
 
 	config := yamux.DefaultConfig()
 	config.Logger = nil
 	session, err := yamux.Server(conn, config)
 	if err != nil {
-		s.logger.Warn(ctx, "failed to create yamux session", slog.Error(err))
+		s.logger.Warn(s.ctx, "failed to create yamux session", slog.Error(err))
 		return
 	}
 	defer session.Close()
 
-	err = s.drpcServer.Serve(ctx, session)
+	err = s.drpcServer.Serve(s.ctx, session)
 	if err != nil {
-		s.logger.Debug(ctx, "drpc server finished", slog.Error(err))
+		s.logger.Debug(s.ctx, "drpc server finished", slog.Error(err))
 	}
 }
