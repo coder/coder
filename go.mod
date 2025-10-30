@@ -480,6 +480,7 @@ require (
 	github.com/coder/aisdk-go v0.0.9
 	github.com/coder/boundary v1.0.1-0.20250925154134-55a44f2a7945
 	github.com/coder/preview v1.0.4
+	github.com/danieljoos/wincred v1.2.3
 	github.com/dgraph-io/ristretto/v2 v2.3.0
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/go-git/go-git/v5 v5.16.2
