@@ -4,14 +4,13 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
 
-	"github.com/coder/coder/v2/agent/agentsocket/api"
+	"github.com/coder/coder/v2/agent/agentsocket"
 	"github.com/coder/coder/v2/agent/unit"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
@@ -36,10 +35,10 @@ func TestSocketClient_SyncWait(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("SyncWait_UnitNotRegistered", func(t *testing.T) {
-		// Test sync wait on unregistered unit - should return error
-		err := client.SyncWait(ctx, "nonexistent-unit")
+		// Test sync ready on unregistered unit - should return error
+		err := client.SyncReady(ctx, "nonexistent-unit")
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "sync wait failed: Failed to check readiness")
+		assert.Contains(t, err.Error(), "sync ready failed: Failed to check readiness")
 	})
 
 	t.Run("SyncWait_UnitWithUnsatisfiedDependencies", func(t *testing.T) {
@@ -51,8 +50,8 @@ func TestSocketClient_SyncWait(t *testing.T) {
 		err = client.SyncWant(ctx, "test-unit", "dependency-unit")
 		require.NoError(t, err)
 
-		// Sync wait should return error because dependency is not satisfied
-		err = client.SyncWait(ctx, "test-unit")
+		// Sync ready should return error because dependency is not satisfied
+		err = client.SyncReady(ctx, "test-unit")
 		require.Error(t, err)
 		assert.ErrorIs(t, err, unit.ErrDependenciesNotSatisfied)
 	})
@@ -65,7 +64,7 @@ func TestSocketClient_SyncWait(t *testing.T) {
 		require.NoError(t, err)
 
 		// Now sync wait should succeed
-		err = client.SyncWait(ctx, "test-unit")
+		err = client.SyncReady(ctx, "test-unit")
 		require.NoError(t, err)
 	})
 }
@@ -169,50 +168,30 @@ func TestSocketClient_ErrorHandling(t *testing.T) {
 }
 
 // startSocketServer starts a real socket server for testing
-func startSocketServer(t *testing.T, path string) *api.Server {
-	// Create server
-	server := api.NewServer(api.Config{
-		Path:   path,
-		Logger: slog.Make().Leveled(slog.LevelDebug),
-	})
+func startSocketServer(t *testing.T, path string) *agentsocket.Server {
+	t.Helper()
 
-	// Set agent info with test data
-	server.SetAgentInfo(
-		"test-agent",
-		"1.0.0",
-		"ready",
-		time.Now().Add(-time.Hour),
-	)
+	// Create server
+	server, err := agentsocket.NewServer(path, slog.Make().Leveled(slog.LevelDebug))
+	require.NoError(t, err)
 
 	// Start server
-	err := server.Start()
+	err = server.Start()
 	require.NoError(t, err)
 
 	return server
 }
 
 // startSocketServerWithDependencyTracker starts a socket server with sync handlers for testing
-func startSocketServerWithDependencyTracker(t *testing.T, path string) *api.Server {
+func startSocketServerWithDependencyTracker(t *testing.T, path string) *agentsocket.Server {
+	t.Helper()
+
 	// Create server
-	server := api.NewServer(api.Config{
-		Path:   path,
-		Logger: slog.Make().Leveled(slog.LevelDebug),
-	})
-
-	// Set agent info with test data
-	server.SetAgentInfo(
-		"test-agent",
-		"1.0.0",
-		"ready",
-		time.Now().Add(-time.Hour),
-	)
-
-	// Register sync handlers
-	tracker := unit.NewManager[string, string]()
-	server.SetDependencyTracker(tracker)
+	server, err := agentsocket.NewServer(path, slog.Make().Leveled(slog.LevelDebug))
+	require.NoError(t, err)
 
 	// Start server
-	err := server.Start()
+	err = server.Start()
 	require.NoError(t, err)
 
 	return server
