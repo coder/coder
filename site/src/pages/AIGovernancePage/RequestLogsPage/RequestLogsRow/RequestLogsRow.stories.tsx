@@ -4,7 +4,7 @@ import { Table, TableBody } from "components/Table/Table";
 import { RequestLogsRow } from "./RequestLogsRow";
 
 const meta: Meta<typeof RequestLogsRow> = {
-	title: "pages/AIGovernancePage/RequestLogsPageView/RequestLogsRow",
+	title: "pages/AIGovernancePage/RequestLogsRow",
 	component: RequestLogsRow,
 	decorators: [
 		(Story) => (
