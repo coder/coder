@@ -56,9 +56,10 @@ func TestPool(t *testing.T) {
 
 	// ...and it will return it when acquired again.
 	instB, err := pool.Acquire(t.Context(), aibridged.Request{
-		SessionKey:  "key",
+		SessionKey:  "different key",
 		InitiatorID: id,
 		APIKeyID:    apiKeyID1.String(),
+		UserAgent:   "some user-agent",
 	}, clientFn, newMockMCPFactory(mcpProxy))
 	require.NoError(t, err, "acquire pool instance")
 	require.Same(t, inst, instB)
