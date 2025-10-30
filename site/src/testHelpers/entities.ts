@@ -3105,6 +3105,7 @@ export const MockPermissions: Permissions = {
 	editAnySettings: true,
 	viewAnyIdpSyncSettings: true,
 	viewAnyMembers: true,
+	viewAnyAIBridgeInterception: true,
 };
 
 export const MockNoPermissions: Permissions = {
@@ -3133,6 +3134,7 @@ export const MockNoPermissions: Permissions = {
 	editAnySettings: false,
 	viewAnyIdpSyncSettings: false,
 	viewAnyMembers: false,
+	viewAnyAIBridgeInterception: true,
 };
 
 export const MockOrganizationPermissions: OrganizationPermissions = {
