@@ -38,7 +38,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 	return (
 		<>
 			<TableRow
-				className={"select-none cursor-pointer hover:bg-surface-secondary"}
+				className="select-none cursor-pointer hover:bg-surface-secondary"
 				onClick={() => setIsOpen(!isOpen)}
 			>
 				<TableCell>
@@ -147,7 +147,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 								<div className="flex flex-col gap-2">
 									<div>Prompts</div>
 									<div
-										className={"bg-surface-secondary rounded-md p-4"}
+										className="bg-surface-secondary rounded-md p-4"
 										data-chromatic="ignore"
 									>
 										{interception.user_prompts.map((prompt) => prompt.prompt)}
@@ -159,7 +159,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 								<div className="flex flex-col gap-2">
 									<div>Tool Usages</div>
 									<div
-										className={"bg-surface-secondary rounded-md p-4"}
+										className="bg-surface-secondary rounded-md p-4"
 										data-chromatic="ignore"
 									>
 										{interception.tool_usages.map((toolUsage) => {
