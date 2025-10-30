@@ -12303,6 +12303,9 @@ const docTemplate = `{
                 "api_key_id": {
                     "type": "string"
                 },
+                "client": {
+                    "type": "string"
+                },
                 "ended_at": {
                     "type": "string",
                     "format": "date-time"

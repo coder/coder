@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/url"
 	"slices"
 	"sync"
@@ -48,6 +49,7 @@ var (
 
 const (
 	InterceptionLogMarker = "interception log"
+	MetadataUserAgentKey  = "aib-request-user-agent"
 )
 
 var _ aibridged.DRPCServer = &Server{}
@@ -131,6 +133,13 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 
 	metadata := metadataToMap(in.GetMetadata())
 
+	if in.UserAgent != "" {
+		if _, ok := metadata[MetadataUserAgentKey]; ok {
+			s.logger.Warn(ctx, fmt.Sprintf("interception metadata contains user agent key, will be overwritten"))
+		}
+		metadata[MetadataUserAgentKey] = in.UserAgent
+	}
+
 	if s.structuredLogging {
 		s.logger.Info(ctx, InterceptionLogMarker,
 			slog.F("record_type", "interception_start"),
@@ -139,6 +148,7 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 			slog.F("api_key_id", in.ApiKeyId),
 			slog.F("provider", in.Provider),
 			slog.F("model", in.Model),
+			slog.F("client", in.Client),
 			slog.F("started_at", in.StartedAt.AsTime()),
 			slog.F("metadata", metadata),
 		)
@@ -152,6 +162,7 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 	_, err = s.store.InsertAIBridgeInterception(ctx, database.InsertAIBridgeInterceptionParams{
 		ID:          intcID,
 		APIKeyID:    sql.NullString{String: in.ApiKeyId, Valid: true},
+		Client:      sql.NullString{String: in.Client, Valid: in.Client != ""},
 		InitiatorID: initID,
 		Provider:    in.Provider,
 		Model:       in.Model,
