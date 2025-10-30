@@ -1,7 +1,12 @@
 import { useTheme } from "@emotion/react";
-import Tooltip from "@mui/material/Tooltip";
 import type { HealthcheckReport } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { GlobeIcon, HashIcon } from "lucide-react";
 import type { FC } from "react";
 import { useOutletContext } from "react-router";
@@ -105,33 +110,41 @@ const WorkspaceProxyPage: FC = () => {
 								</div>
 
 								<div css={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-									{region.wildcard_hostname && (
-										<Tooltip title="Wildcard Hostname">
-											<Pill icon={<GlobeIcon />}>
-												{region.wildcard_hostname}
-											</Pill>
-										</Tooltip>
-									)}
-									{region.version && (
-										<Tooltip title="Version">
-											<Pill icon={<HashIcon className="size-icon-sm" />}>
-												{region.version}
-											</Pill>
-										</Tooltip>
-									)}
-									{region.derp_enabled && (
-										<BooleanPill value={region.derp_enabled}>
-											DERP Enabled
-										</BooleanPill>
-									)}
-									{region.derp_only && (
-										<BooleanPill value={region.derp_only}>
-											DERP Only
-										</BooleanPill>
-									)}
-									{region.deleted && (
-										<BooleanPill value={region.deleted}>Deleted</BooleanPill>
-									)}
+									<TooltipProvider delayDuration={100}>
+										{region.wildcard_hostname && (
+											<Tooltip>
+												<TooltipTrigger>
+													<Pill icon={<GlobeIcon />}>
+														{region.wildcard_hostname}
+													</Pill>
+												</TooltipTrigger>
+												<TooltipContent>Wildcard Hostname</TooltipContent>
+											</Tooltip>
+										)}
+										{region.version && (
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<Pill icon={<HashIcon className="size-icon-sm" />}>
+														{region.version}
+													</Pill>
+												</TooltipTrigger>
+												<TooltipContent>Version</TooltipContent>
+											</Tooltip>
+										)}
+										{region.derp_enabled && (
+											<BooleanPill value={region.derp_enabled}>
+												DERP Enabled
+											</BooleanPill>
+										)}
+										{region.derp_only && (
+											<BooleanPill value={region.derp_only}>
+												DERP Only
+											</BooleanPill>
+										)}
+										{region.deleted && (
+											<BooleanPill value={region.deleted}>Deleted</BooleanPill>
+										)}
+									</TooltipProvider>
 								</div>
 							</header>
 

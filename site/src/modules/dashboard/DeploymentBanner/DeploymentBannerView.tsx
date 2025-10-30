@@ -1,6 +1,5 @@
 import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Link from "@mui/material/Link";
-import Tooltip from "@mui/material/Tooltip";
 import type {
 	DeploymentStats,
 	HealthcheckReport,
@@ -13,6 +12,12 @@ import { RocketIcon } from "components/Icons/RocketIcon";
 import { TerminalIcon } from "components/Icons/TerminalIcon";
 import { VSCodeIcon } from "components/Icons/VSCodeIcon";
 import { Stack } from "components/Stack/Stack";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import dayjs from "dayjs";
 import {
 	AppWindowIcon,
@@ -124,7 +129,8 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 				whiteSpace: "nowrap",
 			}}
 		>
-			<Tooltip
+			{/* <Tooltip
+				// TODO: Clean this up
 				classes={{
 					tooltip:
 						"ml-3 mb-1 w-[400px] p-4 text-sm text-content-primary bg-surface-secondary border border-solid border-border pointer-events-none",
@@ -161,7 +167,43 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 						<RocketIcon />
 					</div>
 				)}
-			</Tooltip>
+			</Tooltip> */}
+
+			<TooltipProvider delayDuration={100}>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						{healthErrors.length > 0 ? (
+							<Link
+								component={RouterLink}
+								to="/health"
+								css={[styles.statusBadge, styles.unhealthy]}
+							>
+								<CircleAlertIcon className="size-icon-sm" />
+							</Link>
+						) : (
+							<div css={styles.statusBadge}>
+								<RocketIcon />
+							</div>
+						)}
+					</TooltipTrigger>
+					<TooltipContent>
+						{healthErrors.length > 0 ? (
+							<>
+								<HelpTooltipTitle>
+									We have detected problems with your Coder deployment.
+								</HelpTooltipTitle>
+								<Stack spacing={1}>
+									{healthErrors.map((error) => (
+										<HealthIssue key={error}>{error}</HealthIssue>
+									))}
+								</Stack>
+							</>
+						) : (
+							"Status of your Coder deployment. Only visible for admins!"
+						)}
+					</TooltipContent>
+				</Tooltip>
+			</TooltipProvider>
 
 			<div css={styles.group}>
 				<div css={styles.category}>Workspaces</div>
@@ -194,37 +236,59 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 			</div>
 
 			<div css={styles.group}>
-				<Tooltip title={`Activity in the last ~${aggregatedMinutes} minutes`}>
-					<div css={styles.category}>Transmission</div>
-				</Tooltip>
+				<TooltipProvider delayDuration={100}>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<div css={styles.category}>Transmission</div>
+						</TooltipTrigger>
+						<TooltipContent>
+							Activity in the last ~{aggregatedMinutes} minutes
+						</TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
 
 				<div css={styles.values}>
-					<Tooltip title="Data sent to workspaces">
-						<div css={styles.value}>
-							<CloudDownloadIcon className="size-icon-xs" />
-							{stats ? prettyBytes(stats.workspaces.rx_bytes) : "-"}
-						</div>
-					</Tooltip>
+					<TooltipProvider delayDuration={100}>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<div css={styles.value}>
+									<CloudDownloadIcon className="size-icon-xs" />
+									{stats ? prettyBytes(stats.workspaces.rx_bytes) : "-"}
+								</div>
+							</TooltipTrigger>
+							<TooltipContent>Data sent to workspaces</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
 					<ValueSeparator />
-					<Tooltip title="Data sent from workspaces">
-						<div css={styles.value}>
-							<CloudUploadIcon className="size-icon-xs" />
-							{stats ? prettyBytes(stats.workspaces.tx_bytes) : "-"}
-						</div>
-					</Tooltip>
+					<TooltipProvider delayDuration={100}>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<div css={styles.value}>
+									<CloudUploadIcon className="size-icon-xs" />
+									{stats ? prettyBytes(stats.workspaces.tx_bytes) : "-"}
+								</div>
+							</TooltipTrigger>
+							<TooltipContent>Data sent from workspaces</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
 					<ValueSeparator />
-					<Tooltip
-						title={
-							displayLatency < 0
-								? "No recent workspace connections have been made"
-								: "The average latency of user connections to workspaces"
-						}
-					>
-						<div css={styles.value}>
-							<GaugeIcon className="size-icon-xs" />
-							{displayLatency > 0 ? `${displayLatency?.toFixed(2)} ms` : "-"}
-						</div>
-					</Tooltip>
+					<TooltipProvider delayDuration={100}>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<div css={styles.value}>
+									<GaugeIcon className="size-icon-xs" />
+									{displayLatency > 0
+										? `${displayLatency?.toFixed(2)} ms`
+										: "-"}
+								</div>
+							</TooltipTrigger>
+							<TooltipContent>
+								{displayLatency < 0
+									? "No recent workspace connections have been made"
+									: "The average latency of user connections to workspaces"}
+							</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
 				</div>
 			</div>
 
@@ -232,53 +296,75 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 				<div css={styles.category}>Active Connections</div>
 
 				<div css={styles.values}>
-					<Tooltip title="VS Code Editors with the Coder Remote Extension">
-						<div css={styles.value}>
-							<VSCodeIcon
-								css={css`
+					<TooltipProvider delayDuration={100}>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<div css={styles.value}>
+									<VSCodeIcon
+										css={css`
 									& * {
 										fill: currentColor;
 									}
 								`}
-							/>
-							{typeof stats?.session_count.vscode === "undefined"
-								? "-"
-								: stats?.session_count.vscode}
-						</div>
-					</Tooltip>
+									/>
+									{typeof stats?.session_count.vscode === "undefined"
+										? "-"
+										: stats?.session_count.vscode}
+								</div>
+							</TooltipTrigger>
+							<TooltipContent>
+								VS Code Editors with the Coder Remote Extension
+							</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
 					<ValueSeparator />
-					<Tooltip title="JetBrains Editors">
-						<div css={styles.value}>
-							<JetBrainsIcon
-								css={css`
+					<TooltipProvider delayDuration={100}>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<div css={styles.value}>
+									<JetBrainsIcon
+										css={css`
 									& * {
 										fill: currentColor;
 									}
 								`}
-							/>
-							{typeof stats?.session_count.jetbrains === "undefined"
-								? "-"
-								: stats?.session_count.jetbrains}
-						</div>
-					</Tooltip>
+									/>
+									{typeof stats?.session_count.jetbrains === "undefined"
+										? "-"
+										: stats?.session_count.jetbrains}
+								</div>
+							</TooltipTrigger>
+							<TooltipContent>JetBrains Editors</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
 					<ValueSeparator />
-					<Tooltip title="SSH Sessions">
-						<div css={styles.value}>
-							<TerminalIcon />
-							{typeof stats?.session_count.ssh === "undefined"
-								? "-"
-								: stats?.session_count.ssh}
-						</div>
-					</Tooltip>
+					<TooltipProvider delayDuration={100}>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<div css={styles.value}>
+									<TerminalIcon />
+									{typeof stats?.session_count.ssh === "undefined"
+										? "-"
+										: stats?.session_count.ssh}
+								</div>
+							</TooltipTrigger>
+							<TooltipContent>SSH Sessions</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
 					<ValueSeparator />
-					<Tooltip title="Web Terminal Sessions">
-						<div css={styles.value}>
-							<AppWindowIcon className="size-icon-xs" />
-							{typeof stats?.session_count.reconnecting_pty === "undefined"
-								? "-"
-								: stats?.session_count.reconnecting_pty}
-						</div>
-					</Tooltip>
+					<TooltipProvider delayDuration={100}>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<div css={styles.value}>
+									<AppWindowIcon className="size-icon-xs" />
+									{typeof stats?.session_count.reconnecting_pty === "undefined"
+										? "-"
+										: stats?.session_count.reconnecting_pty}
+								</div>
+							</TooltipTrigger>
+							<TooltipContent>Web Terminal Sessions</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
 				</div>
 			</div>
 
@@ -291,18 +377,28 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 					gap: 16,
 				}}
 			>
-				<Tooltip title="The last time stats were aggregated. Workspaces report statistics periodically, so it may take a bit for these to update!">
-					<div css={styles.value}>
-						<GitCompareArrowsIcon className="size-icon-xs" />
-						{lastAggregated}
-					</div>
-				</Tooltip>
+				<TooltipProvider delayDuration={100}>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<div css={styles.value}>
+								<GitCompareArrowsIcon className="size-icon-xs" />
+								{lastAggregated}
+							</div>
+						</TooltipTrigger>
+						<TooltipContent className="max-w-xs">
+							The last time stats were aggregated. Workspaces report statistics
+							periodically, so it may take a bit for these to update!
+						</TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
 
-				<Tooltip title="A countdown until stats are fetched again. Click to refresh!">
-					<Button
-						css={[
-							styles.value,
-							css`
+				<TooltipProvider delayDuration={100}>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								css={[
+									styles.value,
+									css`
 								margin: 0;
 								padding: 0 8px;
 								height: unset;
@@ -317,18 +413,23 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 									margin-right: 4px;
 								}
 							`,
-						]}
-						onClick={() => {
-							if (fetchStats) {
-								fetchStats();
-							}
-						}}
-						variant="subtle"
-					>
-						<RotateCwIcon />
-						{timeUntilRefresh}s
-					</Button>
-				</Tooltip>
+								]}
+								onClick={() => {
+									if (fetchStats) {
+										fetchStats();
+									}
+								}}
+								variant="subtle"
+							>
+								<RotateCwIcon />
+								{timeUntilRefresh}s
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>
+							A countdown until stats are fetched again. Click to refresh!
+						</TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
 			</div>
 		</div>
 	);
@@ -352,17 +453,22 @@ const WorkspaceBuildValue: FC<WorkspaceBuildValueProps> = ({
 	}
 
 	return (
-		<Tooltip title={`${statusText} Workspaces`}>
-			<Link
-				component={RouterLink}
-				to={`/workspaces?filter=${encodeURIComponent(`status:${status}`)}`}
-			>
-				<div css={styles.value}>
-					{icon}
-					{typeof count === "undefined" ? "-" : count}
-				</div>
-			</Link>
-		</Tooltip>
+		<TooltipProvider delayDuration={100}>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<Link
+						component={RouterLink}
+						to={`/workspaces?filter=${encodeURIComponent(`status:${status}`)}`}
+					>
+						<div css={styles.value}>
+							{icon}
+							{typeof count === "undefined" ? "-" : count}
+						</div>
+					</Link>
+				</TooltipTrigger>
+				<TooltipContent>{`${statusText} Workspaces`}</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
 	);
 };
 

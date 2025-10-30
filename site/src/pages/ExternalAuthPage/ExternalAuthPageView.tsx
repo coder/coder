@@ -1,15 +1,20 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Link from "@mui/material/Link";
-import Tooltip from "@mui/material/Tooltip";
+import { TooltipProvider } from "@radix-ui/react-tooltip";
 import type { ApiErrorResponse } from "api/errors";
 import type { ExternalAuth, ExternalAuthDevice } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { Avatar } from "components/Avatar/Avatar";
 import { GitDeviceAuth } from "components/GitDeviceAuth/GitDeviceAuth";
 import { SignInLayout } from "components/SignInLayout/SignInLayout";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { Welcome } from "components/Welcome/Welcome";
 import { ExternalLinkIcon, RotateCwIcon } from "lucide-react";
-import type { FC, ReactNode } from "react";
+import { type FC, Fragment, type ReactNode } from "react";
 
 interface ExternalAuthPageViewProps {
 	externalAuth: ExternalAuth;
@@ -82,18 +87,25 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 							return;
 						}
 						return (
-							<Tooltip key={install.id} title={install.account.login}>
-								<Link
-									href={install.account.profile_url}
-									target="_blank"
-									rel="noreferrer"
-								>
-									<Avatar
-										src={install.account.avatar_url}
-										fallback={install.account.login}
-									/>
-								</Link>
-							</Tooltip>
+							<Fragment key={install.id}>
+								<TooltipProvider delayDuration={100}>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<Link
+												href={install.account.profile_url}
+												target="_blank"
+												rel="noreferrer"
+											>
+												<Avatar
+													src={install.account.avatar_url}
+													fallback={install.account.login}
+												/>
+											</Link>
+										</TooltipTrigger>
+										<TooltipContent>{install.account.login}</TooltipContent>
+									</Tooltip>
+								</TooltipProvider>
+							</Fragment>
 						);
 					})}
 					&nbsp;

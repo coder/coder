@@ -1,12 +1,17 @@
 import type { CSSObject, Interpolation, Theme } from "@emotion/react";
 import Link from "@mui/material/Link";
-import Tooltip from "@mui/material/Tooltip";
 import type { ConnectionLog } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { Stack } from "components/Stack/Stack";
 import { StatusPill } from "components/StatusPill/StatusPill";
 import { TableCell } from "components/Table/Table";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { InfoIcon, NetworkIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
@@ -87,52 +92,71 @@ export const ConnectionLogRow: FC<ConnectionLogRowProps> = ({
 										label={isWeb ? "HTTP Status Code" : "SSH Exit Code"}
 									/>
 								)}
-								<Tooltip
-									title={
-										<div css={styles.connectionLogInfoTooltip}>
-											{connectionLog.ip && (
-												<div>
-													<h4 css={styles.connectionLogInfoheader}>IP:</h4>
-													<div>{connectionLog.ip}</div>
-												</div>
-											)}
-											{userAgent?.os.name && (
-												<div>
-													<h4 css={styles.connectionLogInfoheader}>OS:</h4>
-													<div>{userAgent.os.name}</div>
-												</div>
-											)}
-											{userAgent?.browser.name && (
-												<div>
-													<h4 css={styles.connectionLogInfoheader}>Browser:</h4>
+								<TooltipProvider delayDuration={100}>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<InfoIcon
+												css={(theme) => ({
+													color: theme.palette.info.light,
+												})}
+											/>
+										</TooltipTrigger>
+										<TooltipContent>
+											<div css={styles.connectionLogInfoTooltip}>
+												{connectionLog.ip && (
 													<div>
-														{userAgent.browser.name} {userAgent.browser.version}
+														<h4 css={styles.connectionLogInfoheader}>IP:</h4>
+														<div>{connectionLog.ip}</div>
 													</div>
-												</div>
-											)}
-											{connectionLog.organization && (
-												<div>
-													<h4 css={styles.connectionLogInfoheader}>
-														Organization:
-													</h4>
-													<Link
-														component={RouterLink}
-														to={`/organizations/${connectionLog.organization.name}`}
-													>
-														{connectionLog.organization.display_name ||
-															connectionLog.organization.name}
-													</Link>
-												</div>
-											)}
-											{connectionLog.ssh_info?.disconnect_reason && (
-												<div>
-													<h4 css={styles.connectionLogInfoheader}>
-														Close Reason:
-													</h4>
-													<div>{connectionLog.ssh_info?.disconnect_reason}</div>
-												</div>
-											)}
-										</div>
+												)}
+												{userAgent?.os.name && (
+													<div>
+														<h4 css={styles.connectionLogInfoheader}>OS:</h4>
+														<div>{userAgent.os.name}</div>
+													</div>
+												)}
+												{userAgent?.browser.name && (
+													<div>
+														<h4 css={styles.connectionLogInfoheader}>
+															Browser:
+														</h4>
+														<div>
+															{userAgent.browser.name}{" "}
+															{userAgent.browser.version}
+														</div>
+													</div>
+												)}
+												{connectionLog.organization && (
+													<div>
+														<h4 css={styles.connectionLogInfoheader}>
+															Organization:
+														</h4>
+														<Link
+															component={RouterLink}
+															to={`/organizations/${connectionLog.organization.name}`}
+														>
+															{connectionLog.organization.display_name ||
+																connectionLog.organization.name}
+														</Link>
+													</div>
+												)}
+												{connectionLog.ssh_info?.disconnect_reason && (
+													<div>
+														<h4 css={styles.connectionLogInfoheader}>
+															Close Reason:
+														</h4>
+														<div>
+															{connectionLog.ssh_info?.disconnect_reason}
+														</div>
+													</div>
+												)}
+											</div>
+										</TooltipContent>
+									</Tooltip>
+								</TooltipProvider>
+								{/* <Tooltip
+									title={
+
 									}
 								>
 									<InfoIcon
@@ -140,7 +164,7 @@ export const ConnectionLogRow: FC<ConnectionLogRowProps> = ({
 											color: theme.palette.info.light,
 										})}
 									/>
-								</Tooltip>
+								</Tooltip> */}
 							</Stack>
 						</Stack>
 					</Stack>

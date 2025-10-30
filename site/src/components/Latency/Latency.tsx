@@ -1,7 +1,12 @@
 import { useTheme } from "@emotion/react";
 import CircularProgress from "@mui/material/CircularProgress";
-import Tooltip from "@mui/material/Tooltip";
+import { TooltipProvider } from "@radix-ui/react-tooltip";
 import { Abbr } from "components/Abbr/Abbr";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { CircleHelpIcon } from "lucide-react";
 import type { FC } from "react";
 import { cn } from "utils/cn";
@@ -26,23 +31,35 @@ export const Latency: FC<LatencyProps> = ({
 
 	if (isLoading) {
 		return (
-			<Tooltip title="Loading latency..." className={className}>
-				<CircularProgress
-					className={cn("!size-icon-xs", iconClassName)}
-					style={{ color }}
-				/>
-			</Tooltip>
+			<TooltipProvider delayDuration={100}>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<div className="!size-icon-xs">
+							<CircularProgress
+								className={cn("!size-icon-xs", iconClassName)}
+								style={{ color }}
+							/>
+						</div>
+					</TooltipTrigger>
+					<TooltipContent>Loading latency...</TooltipContent>
+				</Tooltip>
+			</TooltipProvider>
 		);
 	}
 
 	if (!latency) {
 		return (
-			<Tooltip title="Latency not available" className={className}>
-				<CircleHelpIcon
-					className={cn("!size-icon-sm", iconClassName)}
-					style={{ color }}
-				/>
-			</Tooltip>
+			<TooltipProvider delayDuration={100}>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<CircleHelpIcon
+							className={cn("!size-icon-sm", iconClassName)}
+							style={{ color }}
+						/>
+					</TooltipTrigger>
+					<TooltipContent>Latency not available</TooltipContent>
+				</Tooltip>
+			</TooltipProvider>
 		);
 	}
 

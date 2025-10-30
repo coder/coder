@@ -1,6 +1,11 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import Tooltip from "@mui/material/Tooltip";
 import { Stack } from "components/Stack/Stack";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import {
 	type FC,
 	forwardRef,
@@ -69,17 +74,31 @@ export const NotHealthyBadge: FC = () => {
 
 export const NotRegisteredBadge: FC = () => {
 	return (
-		<Tooltip title="Workspace Proxy has never come online and needs to be started.">
-			<span css={[styles.badge, styles.warnBadge]}>Never seen</span>
-		</Tooltip>
+		<TooltipProvider delayDuration={100}>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<span css={[styles.badge, styles.warnBadge]}>Never seen</span>
+				</TooltipTrigger>
+				<TooltipContent>
+					Workspace Proxy has never come online and needs to be started.
+				</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
 	);
 };
 
 export const NotReachableBadge: FC = () => {
 	return (
-		<Tooltip title="Workspace Proxy not responding to http(s) requests.">
-			<span css={[styles.badge, styles.warnBadge]}>Not reachable</span>
-		</Tooltip>
+		<TooltipProvider delayDuration={100}>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<span css={[styles.badge, styles.warnBadge]}>Not reachable</span>
+				</TooltipTrigger>
+				<TooltipContent>
+					Workspace Proxy not responding to http(s) requests.
+				</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
 	);
 };
 

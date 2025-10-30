@@ -1,6 +1,11 @@
-import Tooltip from "@mui/material/Tooltip";
 import type { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import { TopbarButton } from "components/FullPageLayout/Topbar";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import {
 	BanIcon,
 	CircleStopIcon,
@@ -30,30 +35,33 @@ export const UpdateButton: FC<ActionButtonProps> = ({
 	requireActiveVersion,
 }) => {
 	return (
-		<Tooltip
-			title={
-				requireActiveVersion
-					? "This template requires automatic updates on workspace startup. Contact your administrator if you want to preserve the template version."
-					: isRunning
-						? "Stop workspace and restart it with the latest template version."
-						: "Start workspace with the latest template version."
-			}
-		>
-			<TopbarButton
-				data-testid="workspace-update-button"
-				disabled={loading}
-				onClick={() => handleAction()}
-			>
-				{requireActiveVersion ? <PlayIcon /> : <CloudIcon />}
-				{loading ? (
-					<>Updating&hellip;</>
-				) : isRunning ? (
-					<>Update and restart&hellip;</>
-				) : (
-					<>Update and start&hellip;</>
-				)}
-			</TopbarButton>
-		</Tooltip>
+		<TooltipProvider delayDuration={100}>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<TopbarButton
+						data-testid="workspace-update-button"
+						disabled={loading}
+						onClick={() => handleAction()}
+					>
+						{requireActiveVersion ? <PlayIcon /> : <CloudIcon />}
+						{loading ? (
+							<>Updating&hellip;</>
+						) : isRunning ? (
+							<>Update and restart&hellip;</>
+						) : (
+							<>Update and start&hellip;</>
+						)}
+					</TopbarButton>
+				</TooltipTrigger>
+				<TooltipContent>
+					{requireActiveVersion
+						? "This template requires automatic updates on workspace startup. Contact your administrator if you want to preserve the template version."
+						: isRunning
+							? "Stop workspace and restart it with the latest template version."
+							: "Start workspace with the latest template version."}
+				</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
 	);
 };
 
@@ -88,7 +96,14 @@ export const StartButton: FC<ActionButtonPropsWithWorkspace> = ({
 	);
 
 	if (tooltipText) {
-		mainButton = <Tooltip title={tooltipText}>{mainButton}</Tooltip>;
+		mainButton = (
+			<TooltipProvider delayDuration={100}>
+				<Tooltip>
+					<TooltipTrigger asChild>{mainButton}</TooltipTrigger>
+					<TooltipContent>{tooltipText}</TooltipContent>
+				</Tooltip>
+			</TooltipProvider>
+		);
 	}
 
 	return (

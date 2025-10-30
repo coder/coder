@@ -1,7 +1,6 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import IconButton from "@mui/material/IconButton";
 import Link, { type LinkProps } from "@mui/material/Link";
-import Tooltip from "@mui/material/Tooltip";
 import { visuallyHidden } from "@mui/utils";
 import { getErrorMessage } from "api/errors";
 import {
@@ -11,6 +10,12 @@ import {
 import type { Template, Workspace } from "api/typesGenerated";
 import { TopbarData, TopbarIcon } from "components/FullPageLayout/Topbar";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import dayjs, { type Dayjs } from "dayjs";
 import { useTime } from "hooks/useTime";
 import { ClockIcon, MinusIcon, PlusIcon } from "lucide-react";
@@ -45,20 +50,25 @@ const WorkspaceScheduleContainer: FC<WorkspaceScheduleContainerProps> = ({
 
 	return (
 		<TopbarData>
-			<Tooltip title="Schedule">
-				{onClickIcon ? (
-					<button
-						type="button"
-						data-testid="schedule-icon-button"
-						onClick={onClickIcon}
-						css={styles.scheduleIconButton}
-					>
-						{icon}
-					</button>
-				) : (
-					icon
-				)}
-			</Tooltip>
+			<TooltipProvider delayDuration={100}>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						{onClickIcon ? (
+							<button
+								type="button"
+								data-testid="schedule-icon-button"
+								onClick={onClickIcon}
+								css={styles.scheduleIconButton}
+							>
+								{icon}
+							</button>
+						) : (
+							icon
+						)}
+					</TooltipTrigger>
+					<TooltipContent>Schedule</TooltipContent>
+				</Tooltip>
+			</TooltipProvider>
 			{children}
 		</TopbarData>
 	);
@@ -200,39 +210,54 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 
 	const controls = canUpdateSchedule && canEditDeadline(workspace) && (
 		<div css={styles.scheduleControls}>
-			<Tooltip title="Subtract 1 hour from deadline">
-				<IconButton
-					disabled={!deadlineMinusEnabled}
-					size="small"
-					css={styles.scheduleButton}
-					onClick={() => {
-						handleDeadlineChange(deadline.subtract(1, "h"));
-					}}
-				>
-					<MinusIcon className="size-icon-xs" />
-					<span style={visuallyHidden}>Subtract 1 hour</span>
-				</IconButton>
-			</Tooltip>
-			<Tooltip title="Add 1 hour to deadline">
-				<IconButton
-					disabled={!deadlinePlusEnabled}
-					size="small"
-					css={styles.scheduleButton}
-					onClick={() => {
-						handleDeadlineChange(deadline.add(1, "h"));
-					}}
-				>
-					<PlusIcon className="size-icon-xs" />
-					<span style={visuallyHidden}>Add 1 hour</span>
-				</IconButton>
-			</Tooltip>
+			<TooltipProvider delayDuration={100}>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<IconButton
+							disabled={!deadlineMinusEnabled}
+							size="small"
+							css={styles.scheduleButton}
+							onClick={() => {
+								handleDeadlineChange(deadline.subtract(1, "h"));
+							}}
+						>
+							<MinusIcon className="size-icon-xs" />
+							<span style={visuallyHidden}>Subtract 1 hour</span>
+						</IconButton>
+					</TooltipTrigger>
+					<TooltipContent>Subtract 1 hour from deadline</TooltipContent>
+				</Tooltip>
+			</TooltipProvider>
+			<TooltipProvider delayDuration={100}>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<IconButton
+							disabled={!deadlinePlusEnabled}
+							size="small"
+							css={styles.scheduleButton}
+							onClick={() => {
+								handleDeadlineChange(deadline.add(1, "h"));
+							}}
+						>
+							<PlusIcon className="size-icon-xs" />
+							<span style={visuallyHidden}>Add 1 hour</span>
+						</IconButton>
+					</TooltipTrigger>
+					<TooltipContent>Add 1 hour to deadline</TooltipContent>
+				</Tooltip>
+			</TooltipProvider>
 		</div>
 	);
 
 	if (tooltip) {
 		return (
 			<WorkspaceScheduleContainer onClickIcon={onClickScheduleIcon}>
-				<Tooltip title={tooltip}>{display}</Tooltip>
+				<TooltipProvider delayDuration={100}>
+					<Tooltip>
+						<TooltipTrigger asChild>{display}</TooltipTrigger>
+						<TooltipContent>{tooltip}</TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
 				{controls}
 			</WorkspaceScheduleContainer>
 		);

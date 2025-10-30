@@ -1,5 +1,4 @@
 import Checkbox from "@mui/material/Checkbox";
-import Tooltip from "@mui/material/Tooltip";
 import type { SlimRole } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { CollapsibleSummary } from "components/CollapsibleSummary/CollapsibleSummary";
@@ -16,6 +15,12 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "components/Popover/Popover";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { UserIcon } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
 
@@ -129,68 +134,76 @@ const EnabledEditRolesButton: FC<EditRolesButtonProps> = ({
 	}, [selectedRoleNames]);
 
 	return (
-		<Popover>
-			<PopoverTrigger asChild>
-				<Tooltip title="Edit user roles">
-					<Button
-						variant="subtle"
-						aria-label="Edit user roles"
-						size="icon"
-						className="text-content-secondary hover:text-content-primary"
-					>
-						<EditSquare />
-					</Button>
+		<TooltipProvider delayDuration={100}>
+			<Popover>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<PopoverTrigger asChild>
+							<Button
+								variant="subtle"
+								aria-label="Edit user roles"
+								size="icon"
+								className="text-content-secondary hover:text-content-primary"
+							>
+								<EditSquare />
+							</Button>
+						</PopoverTrigger>
+					</TooltipTrigger>
+					<TooltipContent>Edit user roles</TooltipContent>
 				</Tooltip>
-			</PopoverTrigger>
 
-			<PopoverContent
-				align="start"
-				className="w-96 bg-surface-secondary border-surface-quaternary"
-			>
-				<fieldset
-					className="border-0 m-0 p-0 disabled:opacity-50"
-					disabled={isLoading}
-					title="Available roles"
+				<PopoverContent
+					align="start"
+					className="w-96 bg-surface-secondary border-surface-quaternary"
 				>
-					<div className="flex flex-col gap-4 p-6 w-96">
-						{filteredRoles.map((role) => (
-							<Option
-								key={role.name}
-								onChange={handleChange}
-								isChecked={selectedRoleNames.has(role.name)}
-								value={role.name}
-								name={role.display_name || role.name}
-								description={roleDescriptions[role.name] ?? ""}
-							/>
-						))}
-						{advancedRoles.length > 0 && (
-							<CollapsibleSummary label="advanced" defaultOpen={isAdvancedOpen}>
-								{advancedRoles.map((role) => (
-									<Option
-										key={role.name}
-										onChange={handleChange}
-										isChecked={selectedRoleNames.has(role.name)}
-										value={role.name}
-										name={role.display_name || role.name}
-										description={roleDescriptions[role.name] ?? ""}
-									/>
-								))}
-							</CollapsibleSummary>
-						)}
-					</div>
-				</fieldset>
-				<div className="p-6 border-t-1 border-solid border-border text-sm">
-					<div className="flex gap-4">
-						<UserIcon />
-						<div className="flex flex-col">
-							<strong>Member</strong>
-							<span className="text-xs text-content-secondary">
-								{roleDescriptions.member}
-							</span>
+					<fieldset
+						className="border-0 m-0 p-0 disabled:opacity-50"
+						disabled={isLoading}
+						title="Available roles"
+					>
+						<div className="flex flex-col gap-4 p-6 w-96">
+							{filteredRoles.map((role) => (
+								<Option
+									key={role.name}
+									onChange={handleChange}
+									isChecked={selectedRoleNames.has(role.name)}
+									value={role.name}
+									name={role.display_name || role.name}
+									description={roleDescriptions[role.name] ?? ""}
+								/>
+							))}
+							{advancedRoles.length > 0 && (
+								<CollapsibleSummary
+									label="advanced"
+									defaultOpen={isAdvancedOpen}
+								>
+									{advancedRoles.map((role) => (
+										<Option
+											key={role.name}
+											onChange={handleChange}
+											isChecked={selectedRoleNames.has(role.name)}
+											value={role.name}
+											name={role.display_name || role.name}
+											description={roleDescriptions[role.name] ?? ""}
+										/>
+									))}
+								</CollapsibleSummary>
+							)}
+						</div>
+					</fieldset>
+					<div className="p-6 border-t-1 border-solid border-border text-sm">
+						<div className="flex gap-4">
+							<UserIcon />
+							<div className="flex flex-col">
+								<strong>Member</strong>
+								<span className="text-xs text-content-secondary">
+									{roleDescriptions.member}
+								</span>
+							</div>
 						</div>
 					</div>
-				</div>
-			</PopoverContent>
-		</Popover>
+				</PopoverContent>
+			</Popover>
+		</TooltipProvider>
 	);
 };

@@ -1,7 +1,6 @@
 import type { CSSObject, Interpolation, Theme } from "@emotion/react";
 import Collapse from "@mui/material/Collapse";
 import Link from "@mui/material/Link";
-import Tooltip from "@mui/material/Tooltip";
 import type { AuditLog, BuildReason } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
@@ -9,6 +8,12 @@ import { Stack } from "components/Stack/Stack";
 import { StatusPill } from "components/StatusPill/StatusPill";
 import { TableCell } from "components/Table/Table";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { InfoIcon, NetworkIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Link as RouterLink } from "react-router";
@@ -126,69 +131,76 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 									<StatusPill isHttpCode={true} code={auditLog.status_code} />
 
 									{/* With multi-org, there is not enough space so show
-                      everything in a tooltip. */}
+										everything in a tooltip. */}
 									{showOrgDetails ? (
-										<Tooltip
-											title={
-												<div css={styles.auditLogInfoTooltip}>
-													{auditLog.ip && (
-														<div>
-															<h4 css={styles.auditLogInfoHeader}>IP:</h4>
-															<div>{auditLog.ip}</div>
-														</div>
-													)}
-													{userAgent?.os.name && (
-														<div>
-															<h4 css={styles.auditLogInfoHeader}>OS:</h4>
-															<div>{userAgent.os.name}</div>
-														</div>
-													)}
-													{userAgent?.browser.name && (
-														<div>
-															<h4 css={styles.auditLogInfoHeader}>Browser:</h4>
+										<TooltipProvider delayDuration={100}>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<InfoIcon
+														css={(theme) => ({
+															color: theme.palette.info.light,
+														})}
+													/>
+												</TooltipTrigger>
+												<TooltipContent>
+													<div css={styles.auditLogInfoTooltip}>
+														{auditLog.ip && (
 															<div>
-																{userAgent.browser.name}{" "}
-																{userAgent.browser.version}
+																<h4 css={styles.auditLogInfoHeader}>IP:</h4>
+																<div>{auditLog.ip}</div>
 															</div>
-														</div>
-													)}
-													{auditLog.organization && (
-														<div>
-															<h4 css={styles.auditLogInfoHeader}>
-																Organization:
-															</h4>
-															<Link
-																component={RouterLink}
-																to={`/organizations/${auditLog.organization.name}`}
-															>
-																{auditLog.organization.display_name ||
-																	auditLog.organization.name}
-															</Link>
-														</div>
-													)}
-													{auditLog.additional_fields?.build_reason &&
-														auditLog.action === "start" && (
+														)}
+														{userAgent?.os.name && (
 															<div>
-																<h4 css={styles.auditLogInfoHeader}>Reason:</h4>
+																<h4 css={styles.auditLogInfoHeader}>OS:</h4>
+																<div>{userAgent.os.name}</div>
+															</div>
+														)}
+														{userAgent?.browser.name && (
+															<div>
+																<h4 css={styles.auditLogInfoHeader}>
+																	Browser:
+																</h4>
 																<div>
-																	{
-																		buildReasonLabels[
-																			auditLog.additional_fields
-																				.build_reason as BuildReason
-																		]
-																	}
+																	{userAgent.browser.name}{" "}
+																	{userAgent.browser.version}
 																</div>
 															</div>
 														)}
-												</div>
-											}
-										>
-											<InfoIcon
-												css={(theme) => ({
-													color: theme.palette.info.light,
-												})}
-											/>
-										</Tooltip>
+														{auditLog.organization && (
+															<div>
+																<h4 css={styles.auditLogInfoHeader}>
+																	Organization:
+																</h4>
+																<Link
+																	component={RouterLink}
+																	to={`/organizations/${auditLog.organization.name}`}
+																>
+																	{auditLog.organization.display_name ||
+																		auditLog.organization.name}
+																</Link>
+															</div>
+														)}
+														{auditLog.additional_fields?.build_reason &&
+															auditLog.action === "start" && (
+																<div>
+																	<h4 css={styles.auditLogInfoHeader}>
+																		Reason:
+																	</h4>
+																	<div>
+																		{
+																			buildReasonLabels[
+																				auditLog.additional_fields
+																					.build_reason as BuildReason
+																			]
+																		}
+																	</div>
+																</div>
+															)}
+													</div>
+												</TooltipContent>
+											</Tooltip>
+										</TooltipProvider>
 									) : (
 										<Stack direction="row" spacing={1} alignItems="baseline">
 											{auditLog.ip && (

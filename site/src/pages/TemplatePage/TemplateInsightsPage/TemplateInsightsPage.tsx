@@ -1,7 +1,6 @@
 import { useTheme } from "@emotion/react";
 import LinearProgress from "@mui/material/LinearProgress";
 import Link from "@mui/material/Link";
-import Tooltip from "@mui/material/Tooltip";
 import { entitlements } from "api/queries/entitlements";
 import {
 	insightsTemplate,
@@ -33,6 +32,12 @@ import {
 } from "components/HelpTooltip/HelpTooltip";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import {
 	CircleCheck as CircleCheckIcon,
@@ -495,25 +500,29 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 											{usage.display_name}
 										</div>
 									</div>
-									<Tooltip
-										title={`${Math.floor(percentage)}%`}
-										placement="top"
-										arrow
-									>
-										<LinearProgress
-											value={percentage}
-											variant="determinate"
-											css={{
-												width: "100%",
-												height: 8,
-												backgroundColor: theme.palette.divider,
-												"& .MuiLinearProgress-bar": {
-													backgroundColor: usageColors[i],
-													borderRadius: 999,
-												},
-											}}
-										/>
-									</Tooltip>
+									<TooltipProvider delayDuration={100}>
+										{/* TODO: Add `arrow` prop to the tooltip */}
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<LinearProgress
+													value={percentage}
+													variant="determinate"
+													css={{
+														width: "100%",
+														height: 8,
+														backgroundColor: theme.palette.divider,
+														"& .MuiLinearProgress-bar": {
+															backgroundColor: usageColors[i],
+															borderRadius: 999,
+														},
+													}}
+												/>
+											</TooltipTrigger>
+											<TooltipContent side={"top"}>
+												{`${Math.floor(percentage)}%`}
+											</TooltipContent>
+										</Tooltip>
+									</TooltipProvider>
 									<Stack
 										spacing={0}
 										css={{
@@ -612,12 +621,16 @@ const TemplateParametersUsagePanel: FC<TemplateParametersUsagePanelProps> = ({
 										}}
 									>
 										<div>Value</div>
-										<Tooltip
-											title="The number of workspaces using this value"
-											placement="top"
-										>
-											<div>Count</div>
-										</Tooltip>
+										<TooltipProvider>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<div>Count</div>
+												</TooltipTrigger>
+												<TooltipContent side="top">
+													The number of workspaces using this value
+												</TooltipContent>
+											</Tooltip>
+										</TooltipProvider>
 									</ParameterUsageRow>
 									{[...parameter.values]
 										.sort((a, b) => b.count - a.count)

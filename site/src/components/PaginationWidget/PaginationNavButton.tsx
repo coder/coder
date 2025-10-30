@@ -1,5 +1,10 @@
-import Tooltip from "@mui/material/Tooltip";
 import { Button } from "components/Button/Button";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import {
 	type ButtonHTMLAttributes,
 	type ReactNode,
@@ -52,22 +57,27 @@ function PaginationNavButtonCore({
 	}, [showDisabledMessage, disabledMessageTimeout]);
 
 	return (
-		<Tooltip title={disabledMessage} open={showDisabledMessage}>
-			{/*
-			 * Going more out of the way to avoid attaching the disabled prop directly
-			 * to avoid unwanted side effects of using the prop:
-			 * - Not being focusable/keyboard-navigable
-			 * - Not being able to call functions in response to invalid actions
-			 *   (mostly for giving direct UI feedback to those actions)
-			 */}
-			<Button
-				variant="outline"
-				size="icon"
-				disabled={disabled}
-				onClick={onClick}
-				{...delegatedProps}
-			/>
-		</Tooltip>
+		<TooltipProvider delayDuration={100}>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					{/*
+					 * Going more out of the way to avoid attaching the disabled prop directly
+					 * to avoid unwanted side effects of using the prop:
+					 * - Not being focusable/keyboard-navigable
+					 * - Not being able to call functions in response to invalid actions
+					 *   (mostly for giving direct UI feedback to those actions)
+					 */}
+					<Button
+						variant="outline"
+						size="icon"
+						disabled={disabled}
+						onClick={onClick}
+						{...delegatedProps}
+					/>
+				</TooltipTrigger>
+				<TooltipContent>{disabledMessage}</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
 	);
 }
 
