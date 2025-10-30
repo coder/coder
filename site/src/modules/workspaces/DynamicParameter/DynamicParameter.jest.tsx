@@ -67,10 +67,10 @@ const mockRequiredParameter = createMockParameter({
 });
 
 describe("DynamicParameter", () => {
-	const mockOnChange = vi.fn();
+	const mockOnChange = jest.fn();
 
 	beforeEach(() => {
-		vi.clearAllMocks();
+		jest.clearAllMocks();
 	});
 
 	describe("Input Parameter", () => {
