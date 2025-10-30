@@ -1537,21 +1537,13 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 
 // findUserAdmins fetches all users with user admin permission including owners.
 func findUserAdmins(ctx context.Context, store database.Store) ([]database.GetUsersRow, error) {
-	// Notice: we can't scrape the user information in parallel as pq
-	// fails with: unexpected describe rows response: 'D'
-	owners, err := store.GetUsers(ctx, database.GetUsersParams{
-		RbacRole: []string{codersdk.RoleOwner},
+	userAdmins, err := store.GetUsers(ctx, database.GetUsersParams{
+		RbacRole: []string{codersdk.RoleOwner, codersdk.RoleUserAdmin},
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("get owners: %w", err)
 	}
-	userAdmins, err := store.GetUsers(ctx, database.GetUsersParams{
-		RbacRole: []string{codersdk.RoleUserAdmin},
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("get user admins: %w", err)
-	}
-	return append(owners, userAdmins...), nil
+	return userAdmins, nil
 }
 
 func convertUsers(users []database.User, organizationIDsByUserID map[uuid.UUID][]uuid.UUID) []codersdk.User {

@@ -1130,19 +1130,11 @@ func (api *API) convertTemplate(
 
 // findTemplateAdmins fetches all users with template admin permission including owners.
 func findTemplateAdmins(ctx context.Context, store database.Store) ([]database.GetUsersRow, error) {
-	// Notice: we can't scrape the user information in parallel as pq
-	// fails with: unexpected describe rows response: 'D'
-	owners, err := store.GetUsers(ctx, database.GetUsersParams{
-		RbacRole: []string{codersdk.RoleOwner},
+	templateAdmins, err := store.GetUsers(ctx, database.GetUsersParams{
+		RbacRole: []string{codersdk.RoleTemplateAdmin, codersdk.RoleOwner},
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("get owners: %w", err)
 	}
-	templateAdmins, err := store.GetUsers(ctx, database.GetUsersParams{
-		RbacRole: []string{codersdk.RoleTemplateAdmin},
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("get template admins: %w", err)
-	}
-	return append(owners, templateAdmins...), nil
+	return templateAdmins, nil
 }
