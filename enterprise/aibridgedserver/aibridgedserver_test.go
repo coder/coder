@@ -392,44 +392,11 @@ func TestRecordInterception(t *testing.T) {
 				},
 			},
 			{
-				name: "valid interception no api key set",
-				request: &proto.RecordInterceptionRequest{
-					Id:          uuid.NewString(),
-					InitiatorId: uuid.NewString(),
-					Provider:    "anthropic",
-					Model:       "claude-4-opus",
-					Metadata:    metadataProto,
-					StartedAt:   timestamppb.Now(),
-				},
-				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
-					interceptionID, err := uuid.Parse(req.GetId())
-					assert.NoError(t, err, "parse interception UUID")
-					initiatorID, err := uuid.Parse(req.GetInitiatorId())
-					assert.NoError(t, err, "parse interception initiator UUID")
-
-					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), database.InsertAIBridgeInterceptionParams{
-						ID:          interceptionID,
-						APIKeyID:    sql.NullString{String: "", Valid: false},
-						InitiatorID: initiatorID,
-						Provider:    req.GetProvider(),
-						Model:       req.GetModel(),
-						Metadata:    json.RawMessage(metadataJSON),
-						StartedAt:   req.StartedAt.AsTime().UTC(),
-					}).Return(database.AIBridgeInterception{
-						ID:          interceptionID,
-						APIKeyID:    sql.NullString{String: "", Valid: false},
-						InitiatorID: initiatorID,
-						Provider:    req.GetProvider(),
-						Model:       req.GetModel(),
-						StartedAt:   req.StartedAt.AsTime().UTC(),
-					}, nil)
-				},
-			},
-			{
 				name: "invalid interception ID",
 				request: &proto.RecordInterceptionRequest{
 					Id:          "not-a-uuid",
 					InitiatorId: uuid.NewString(),
+					ApiKeyId:    uuid.NewString(),
 					Provider:    "anthropic",
 					Model:       "claude-4-opus",
 					StartedAt:   timestamppb.Now(),
@@ -440,6 +407,7 @@ func TestRecordInterception(t *testing.T) {
 				name: "invalid initiator ID",
 				request: &proto.RecordInterceptionRequest{
 					Id:          uuid.NewString(),
+					ApiKeyId:    uuid.NewString(),
 					InitiatorId: "not-a-uuid",
 					Provider:    "anthropic",
 					Model:       "claude-4-opus",
@@ -448,9 +416,22 @@ func TestRecordInterception(t *testing.T) {
 				expectedErr: "invalid initiator ID",
 			},
 			{
+				name: "invalid interception no api key set",
+				request: &proto.RecordInterceptionRequest{
+					Id:          uuid.NewString(),
+					InitiatorId: uuid.NewString(),
+					Provider:    "anthropic",
+					Model:       "claude-4-opus",
+					Metadata:    metadataProto,
+					StartedAt:   timestamppb.Now(),
+				},
+				expectedErr: "empty API key ID",
+			},
+			{
 				name: "database error",
 				request: &proto.RecordInterceptionRequest{
 					Id:          uuid.NewString(),
+					ApiKeyId:    uuid.NewString(),
 					InitiatorId: uuid.NewString(),
 					Provider:    "anthropic",
 					Model:       "claude-4-opus",

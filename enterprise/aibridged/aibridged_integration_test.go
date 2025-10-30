@@ -232,6 +232,8 @@ func TestIntegration(t *testing.T) {
 	require.Equal(t, "gpt-4.1", intc0.Model)
 	require.True(t, intc0.EndedAt.Valid)
 	require.WithinDuration(t, dbtime.Now(), intc0.EndedAt.Time, 10*time.Second)
+	require.WithinDuration(t, dbtime.Now(), intc0.StartedAt, 10*time.Second)
+	require.True(t, intc0.StartedAt.Before(intc0.EndedAt.Time))
 
 	prompts, err := db.GetAIBridgeUserPromptsByInterceptionID(ctx, interceptions[0].ID)
 	require.NoError(t, err)
