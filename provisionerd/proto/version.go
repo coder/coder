@@ -60,6 +60,9 @@ import "github.com/coder/coder/v2/apiversion"
 //
 // API v1.12:
 //   - Added new field `template_version_id` to `provisioner.Metadata`
+//   - Added new field `terraform_workspace_reuse` to `provisioner.Job.TemplateImport`
+//   - Added new field `terraform_workspace_reuse` to `provisioner.Job.WorkspaceBuild`
+//   - Added fields `template_version_id`, `template_id`, and `terraform_workspace_reuse` to `provisioner.Config`
 const (
 	CurrentMajor = 1
 	CurrentMinor = 12

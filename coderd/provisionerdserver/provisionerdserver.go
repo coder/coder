@@ -775,7 +775,8 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 
 		protoJob.Type = &proto.AcquiredJob_TemplateImport_{
 			TemplateImport: &proto.AcquiredJob_TemplateImport{
-				UserVariableValues: convertVariableValues(userVariableValues),
+				UserVariableValues:      convertVariableValues(userVariableValues),
+				TerraformWorkspaceReuse: false, // TODO: Toggle based on experiment
 				Metadata: &sdkproto.Metadata{
 					CoderUrl: s.AccessURL.String(),
 					// There is no owner for a template import, but we can assume
