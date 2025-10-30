@@ -376,6 +376,7 @@ message Config {
   string provisioner_log_level = 3;
   string template_id = 4;
   string template_version_id = 5;
+  bool terraform_workspace_reuse = 6; // Whether to reuse existing terraform workspaces if they exist.
 }
 
 // ParseRequest consumes source-code to produce inputs.
