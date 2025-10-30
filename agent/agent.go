@@ -45,7 +45,6 @@ import (
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/proto/resourcesmonitor"
 	"github.com/coder/coder/v2/agent/reconnectingpty"
-	"github.com/coder/coder/v2/agent/unit"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/gitauth"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -278,7 +277,6 @@ type agent struct {
 
 	socketPath   string
 	socketServer *agentsocket.Server
-	unitManager  *unit.Manager[string, string]
 }
 
 func (a *agent) TailnetConn() *tailnet.Conn {
@@ -367,14 +365,13 @@ func (a *agent) init() {
 
 // initSocketServer initializes the socket server for CLI communication
 func (a *agent) initSocketServer() {
-	socketPath := a.getSocketPath()
-	if socketPath == "" {
+	if a.socketPath == "" {
 		a.logger.Debug(a.hardCtx, "socket server disabled (no path configured)")
 		return
 	}
 
 	server := agentsocket.NewServer(agentsocket.Config{
-		Path:   socketPath,
+		Path:   a.socketPath,
 		Logger: a.logger.Named("socket"),
 	})
 
@@ -385,12 +382,7 @@ func (a *agent) initSocketServer() {
 	}
 
 	a.socketServer = server
-	a.logger.Info(a.hardCtx, "socket server started", slog.F("path", socketPath))
-}
-
-// getSocketPath returns the socket path from options or environment
-func (*agent) getSocketPath() string {
-	return "/tmp/coder.sock"
+	a.logger.Info(a.hardCtx, "socket server started", slog.F("path", a.socketPath))
 }
 
 // runLoop attempts to start the agent in a retry loop.
