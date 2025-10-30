@@ -114,21 +114,19 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 	if err != nil {
 		return nil, xerrors.Errorf("invalid initiator ID %q: %w", in.GetInitiatorId(), err)
 	}
+	if in.ApiKeyId == "" {
+		return nil, xerrors.Errorf("empty API key ID")
+	}
 
-	params := database.InsertAIBridgeInterceptionParams{
+	_, err = s.store.InsertAIBridgeInterception(ctx, database.InsertAIBridgeInterceptionParams{
 		ID:          intcID,
-		APIKeyID:    sql.NullString{Valid: false},
+		APIKeyID:    sql.NullString{String: in.ApiKeyId, Valid: true},
 		InitiatorID: initID,
 		Provider:    in.Provider,
 		Model:       in.Model,
 		Metadata:    marshalMetadata(ctx, s.logger, in.GetMetadata()),
 		StartedAt:   in.StartedAt.AsTime(),
-	}
-	if in.ApiKeyId != "" {
-		params.APIKeyID = sql.NullString{String: in.ApiKeyId, Valid: true}
-	}
-
-	_, err = s.store.InsertAIBridgeInterception(ctx, params)
+	})
 	if err != nil {
 		return nil, xerrors.Errorf("start interception: %w", err)
 	}
