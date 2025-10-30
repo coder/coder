@@ -27,10 +27,9 @@
 		"storybook": "STORYBOOK=true storybook dev -p 6006",
 		"storybook:build": "storybook build",
 		"storybook:ci": "storybook build --test",
-		"test": "jest",
-		"test:ci": "jest --selectProjects test --silent",
-		"test:coverage": "jest --selectProjects test --collectCoverage",
-		"test:watch": "jest --selectProjects test --watch",
+		"test": "vitest run && jest",
+		"test:ci": "vitest run && jest --silent",
+		"test:watch": "jest --watch",
 		"stats": "STATS=true pnpm build && npx http-server ./stats -p 8081 -c-1",
 		"update-emojis": "cp -rf ./node_modules/emoji-datasource-apple/img/apple/64/* ./static/emojis"
 	},
