@@ -6002,6 +6002,44 @@ const docTemplate = `{
                 }
             }
         },
+        "/templates/{template}/prebuilds/invalidate": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Invalidate all prebuilt workspaces for a template",
+                "operationId": "invalidate-template-prebuilds",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template ID",
+                        "name": "template",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.InvalidatePrebuildsResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/templates/{template}/versions": {
             "get": {
                 "security": [
@@ -14879,6 +14917,42 @@ const docTemplate = `{
                 "InsightsReportIntervalDay",
                 "InsightsReportIntervalWeek"
             ]
+        },
+        "codersdk.InvalidatePrebuildsResponse": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "description": "Count is the number of presets that were invalidated.",
+                    "type": "integer"
+                },
+                "failed": {
+                    "description": "Failed is the list of presets that failed to invalidate with error messages.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.InvalidatedPrebuildError"
+                    }
+                },
+                "invalidated": {
+                    "description": "Invalidated is the list of preset names that were invalidated.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "codersdk.InvalidatedPrebuildError": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "description": "Error is the error message.",
+                    "type": "string"
+                },
+                "workspace_name": {
+                    "description": "WorkspaceName is the name of the preset that failed to invalidate.",
+                    "type": "string"
+                }
+            }
         },
         "codersdk.IssueReconnectingPTYSignedTokenRequest": {
             "type": "object",

@@ -162,6 +162,8 @@
             "schema_version": 1,
             "values": {
               "default": false,
+              "description": null,
+              "icon": null,
               "id": "My First Project",
               "name": "My First Project",
               "parameters": {
