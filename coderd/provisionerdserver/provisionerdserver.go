@@ -2006,10 +2006,12 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			}
 		}
 
-		var taskAppID uuid.NullUUID
-		var taskAgentID uuid.NullUUID
-		var hasAITask bool
-		var warnUnknownTaskAppID bool
+		var (
+			hasAITask    bool
+			unknownAppID string
+			taskAppID    uuid.NullUUID
+			taskAgentID  uuid.NullUUID
+		)
 		if tasks := jobType.WorkspaceBuild.GetAiTasks(); len(tasks) > 0 {
 			hasAITask = true
 			task := tasks[0]
@@ -2026,59 +2028,28 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			}
 
 			if !slices.Contains(appIDs, appID) {
-				warnUnknownTaskAppID = true
-			}
-
-			id, err := uuid.Parse(appID)
-			if err != nil {
-				return xerrors.Errorf("parse app id: %w", err)
-			}
-
-			taskAppID = uuid.NullUUID{UUID: id, Valid: true}
-
-			agentID, ok := agentIDByAppID[appID]
-			taskAgentID = uuid.NullUUID{UUID: agentID, Valid: ok}
-		}
-
-		// This is a hacky workaround for the issue with tasks 'disappearing' on stop:
-		// reuse has_ai_task and sidebar_app_id from the previous build.
-		// This workaround should be removed as soon as possible.
-		if workspaceBuild.Transition == database.WorkspaceTransitionStop && workspaceBuild.BuildNumber > 1 {
-			if prevBuild, err := s.Database.GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx, database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams{
-				WorkspaceID: workspaceBuild.WorkspaceID,
-				BuildNumber: workspaceBuild.BuildNumber - 1,
-			}); err == nil {
-				hasAITask = prevBuild.HasAITask.Bool
-				taskAppID = prevBuild.AITaskSidebarAppID
-				warnUnknownTaskAppID = false
-				s.Logger.Debug(ctx, "task workaround: reused has_ai_task and app_id from previous build to keep track of task",
-					slog.F("job_id", job.ID.String()),
-					slog.F("build_number", prevBuild.BuildNumber),
-					slog.F("workspace_id", workspace.ID),
-					slog.F("workspace_build_id", workspaceBuild.ID),
-					slog.F("transition", string(workspaceBuild.Transition)),
-					slog.F("sidebar_app_id", taskAppID.UUID),
-					slog.F("has_ai_task", hasAITask),
-				)
+				unknownAppID = appID
 			} else {
-				s.Logger.Error(ctx, "task workaround: tracking via has_ai_task and app_id from previous build failed",
-					slog.Error(err),
-					slog.F("job_id", job.ID.String()),
-					slog.F("workspace_id", workspace.ID),
-					slog.F("workspace_build_id", workspaceBuild.ID),
-					slog.F("transition", string(workspaceBuild.Transition)),
-				)
+				// Only parse for valid app and agent to avoid fk violation.
+				id, err := uuid.Parse(appID)
+				if err != nil {
+					return xerrors.Errorf("parse app id: %w", err)
+				}
+				taskAppID = uuid.NullUUID{UUID: id, Valid: true}
+
+				agentID, ok := agentIDByAppID[appID]
+				taskAgentID = uuid.NullUUID{UUID: agentID, Valid: ok}
 			}
 		}
 
-		if warnUnknownTaskAppID {
+		if unknownAppID != "" && workspaceBuild.Transition == database.WorkspaceTransitionStart {
 			// Ref: https://github.com/coder/coder/issues/18776
 			// This can happen for a number of reasons:
 			// 1. Misconfigured template
 			// 2. Count=0 on the agent due to stop transition, meaning the associated coder_app was not inserted.
 			// Failing the build at this point is not ideal, so log a warning instead.
 			s.Logger.Warn(ctx, "unknown ai_task_app_id",
-				slog.F("ai_task_app_id", taskAppID.UUID.String()),
+				slog.F("ai_task_app_id", unknownAppID),
 				slog.F("job_id", job.ID.String()),
 				slog.F("workspace_id", workspace.ID),
 				slog.F("workspace_build_id", workspaceBuild.ID),
@@ -2105,9 +2076,6 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 					slog.F("transition", string(workspaceBuild.Transition)),
 				)
 			}
-			// Important: reset hasAITask and sidebarAppID so that we don't run into a fk constraint violation.
-			hasAITask = false
-			taskAppID = uuid.NullUUID{}
 		}
 
 		if hasAITask && workspaceBuild.Transition == database.WorkspaceTransitionStart {
@@ -2121,14 +2089,6 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 				if err != nil {
 					return xerrors.Errorf("insert %q event: %w", event.EventType(), err)
 				}
-			}
-		}
-
-		hasExternalAgent := false
-		for _, resource := range jobType.WorkspaceBuild.Resources {
-			if resource.Type == "coder_external_agent" {
-				hasExternalAgent = true
-				break
 			}
 		}
 
@@ -2153,20 +2113,21 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			return xerrors.Errorf("get task by workspace id: %w", err)
 		}
 
-		// Regardless of whether there is an AI task or not, update the field to indicate one way or the other since it
-		// always defaults to nil. ONLY if has_ai_task=true MUST ai_task_sidebar_app_id be set.
+		_, hasExternalAgent := slice.Find(jobType.WorkspaceBuild.Resources, func(resource *sdkproto.Resource) bool {
+			return resource.Type == "coder_external_agent"
+		})
 		if err := db.UpdateWorkspaceBuildFlagsByID(ctx, database.UpdateWorkspaceBuildFlagsByIDParams{
 			ID: workspaceBuild.ID,
 			HasAITask: sql.NullBool{
 				Bool:  hasAITask,
 				Valid: true,
 			},
+			SidebarAppID: taskAppID, // SidebarAppID is not required, but kept for API backwards compatibility.
 			HasExternalAgent: sql.NullBool{
 				Bool:  hasExternalAgent,
 				Valid: true,
 			},
-			SidebarAppID: taskAppID,
-			UpdatedAt:    now,
+			UpdatedAt: now,
 		}); err != nil {
 			return xerrors.Errorf("update workspace build ai tasks and external agent flag: %w", err)
 		}
