@@ -2913,6 +2913,7 @@ export interface OAuth2AuthorizationServerMetadata {
 	readonly authorization_endpoint: string;
 	readonly token_endpoint: string;
 	readonly registration_endpoint?: string;
+	readonly revocation_endpoint?: string;
 	readonly response_types_supported: readonly string[];
 	readonly grant_types_supported: readonly string[];
 	readonly code_challenge_methods_supported: readonly string[];
@@ -6393,10 +6394,9 @@ export interface WorkspaceBuild {
 	readonly template_version_preset_id: string | null;
 	readonly has_ai_task?: boolean;
 	/**
-	 * Deprecated: This field has been replaced with `TaskAppID`
+	 * Deprecated: This field has been replaced with `Task.WorkspaceAppID`
 	 */
 	readonly ai_task_sidebar_app_id?: string;
-	readonly task_app_id?: string;
 	readonly has_external_agent?: boolean;
 }
 

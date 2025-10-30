@@ -204,17 +204,9 @@ jobs:
 
       # Needed for helm chart linting
       - name: Install helm
-        # uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
-        # with:
-          # version: v3.9.2
-        # The below is taken from https://helm.sh/docs/intro/install/#from-apt-debianubuntu
-        run: |
-          set -euo pipefail
-          sudo apt-get install curl gpg apt-transport-https --yes
-          curl -fsSL https://packages.buildkite.com/helm-linux/helm-debian/gpgkey | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
-          echo "deb [signed-by=/usr/share/keyrings/helm.gpg] https://packages.buildkite.com/helm-linux/helm-debian/any/ any main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
-          sudo apt-get update
-          sudo apt-get install helm
+        uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+        with:
+          version: v3.9.2
 
       - name: make lint
         run: |

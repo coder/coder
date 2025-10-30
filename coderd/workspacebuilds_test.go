@@ -1840,6 +1840,68 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, codersdk.BuildReasonDashboard, build.Reason)
 	})
+	t.Run("DeletedWorkspace", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: a workspace that has already been deleted
+		var (
+			ctx             = testutil.Context(t, testutil.WaitShort)
+			logger          = slogtest.Make(t, &slogtest.Options{}).Leveled(slog.LevelError)
+			adminClient, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
+				Logger: &logger,
+			})
+			admin                         = coderdtest.CreateFirstUser(t, adminClient)
+			workspaceOwnerClient, member1 = coderdtest.CreateAnotherUser(t, adminClient, admin.OrganizationID)
+			otherMemberClient, _          = coderdtest.CreateAnotherUser(t, adminClient, admin.OrganizationID)
+			ws                            = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{OwnerID: member1.ID, OrganizationID: admin.OrganizationID}).
+							Seed(database.WorkspaceBuild{Transition: database.WorkspaceTransitionDelete}).
+							Do()
+		)
+
+		// This needs to be done separately as provisionerd handles marking the workspace as deleted
+		// and we're skipping provisionerd here for speed.
+		require.NoError(t, db.UpdateWorkspaceDeletedByID(dbauthz.AsProvisionerd(ctx), database.UpdateWorkspaceDeletedByIDParams{
+			ID:      ws.Workspace.ID,
+			Deleted: true,
+		}))
+
+		// Assert test invariant: Workspace should be deleted
+		dbWs, err := db.GetWorkspaceByID(dbauthz.AsProvisionerd(ctx), ws.Workspace.ID)
+		require.NoError(t, err)
+		require.True(t, dbWs.Deleted, "workspace should be deleted")
+
+		for _, tc := range []struct {
+			user         *codersdk.Client
+			tr           codersdk.WorkspaceTransition
+			expectStatus int
+		}{
+			// You should not be allowed to mess with a workspace you don't own, regardless of its deleted state.
+			{otherMemberClient, codersdk.WorkspaceTransitionStart, http.StatusNotFound},
+			{otherMemberClient, codersdk.WorkspaceTransitionStop, http.StatusNotFound},
+			{otherMemberClient, codersdk.WorkspaceTransitionDelete, http.StatusNotFound},
+			// Starting or stopping a workspace is not allowed when it is deleted.
+			{workspaceOwnerClient, codersdk.WorkspaceTransitionStart, http.StatusConflict},
+			{workspaceOwnerClient, codersdk.WorkspaceTransitionStop, http.StatusConflict},
+			// We allow a delete just in case a retry is required. In most cases, this will be a no-op.
+			// Note: this is the last test case because it will change the state of the workspace.
+			{workspaceOwnerClient, codersdk.WorkspaceTransitionDelete, http.StatusOK},
+		} {
+			// When: we create a workspace build with the given transition
+			_, err = tc.user.CreateWorkspaceBuild(ctx, ws.Workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+				Transition: tc.tr,
+			})
+
+			// Then: we allow ONLY a delete build for a deleted workspace.
+			if tc.expectStatus < http.StatusBadRequest {
+				require.NoError(t, err, "creating a %s build for a deleted workspace should not error", tc.tr)
+			} else {
+				var apiError *codersdk.Error
+				require.Error(t, err, "creating a %s build for a deleted workspace should return an error", tc.tr)
+				require.ErrorAs(t, err, &apiError)
+				require.Equal(t, tc.expectStatus, apiError.StatusCode())
+			}
+		}
+	})
 }
 
 func TestWorkspaceBuildTimings(t *testing.T) {

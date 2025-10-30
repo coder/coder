@@ -269,7 +269,12 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 							</label>
 							<Select
 								name="templateID"
-								onValueChange={(value) => setSelectedTemplateId(value)}
+								onValueChange={(value) => {
+									setSelectedTemplateId(value);
+									if (value !== selectedTemplateId) {
+										setSelectedPresetId(undefined);
+									}
+								}}
 								defaultValue={templates[0].id}
 								required
 							>

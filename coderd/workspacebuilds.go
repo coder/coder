@@ -335,6 +335,15 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// We want to allow a delete build for a deleted workspace, but not a start or stop build.
+	if workspace.Deleted && createBuild.Transition != codersdk.WorkspaceTransitionDelete {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: fmt.Sprintf("Cannot %s a deleted workspace!", createBuild.Transition),
+			Detail:  "This workspace has been deleted and cannot be modified.",
+		})
+		return
+	}
+
 	apiBuild, err := api.postWorkspaceBuildsInternal(
 		ctx,
 		apiKey,
@@ -1219,7 +1228,6 @@ func (api *API) convertWorkspaceBuild(
 		TemplateVersionPresetID: presetID,
 		HasAITask:               hasAITask,
 		AITaskSidebarAppID:      taskAppID,
-		TaskAppID:               taskAppID,
 		HasExternalAgent:        hasExternalAgent,
 	}, nil
 }
