@@ -156,12 +156,13 @@ func TestTasks(t *testing.T) {
 		t.Parallel()
 
 		var (
-			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-			ctx        = testutil.Context(t, testutil.WaitLong)
-			user       = coderdtest.CreateFirstUser(t, client)
-			template   = createAITemplate(t, client, user)
-			wantPrompt = "review my code"
-			exp        = codersdk.NewExperimentalClient(client)
+			client, db     = coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			ctx            = testutil.Context(t, testutil.WaitLong)
+			user           = coderdtest.CreateFirstUser(t, client)
+			anotherUser, _ = coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+			template       = createAITemplate(t, client, user)
+			wantPrompt     = "review my code"
+			exp            = codersdk.NewExperimentalClient(client)
 		)
 
 		task, err := exp.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
@@ -210,6 +211,13 @@ func TestTasks(t *testing.T) {
 		assert.Equal(t, agentID, updated.WorkspaceAgentID.UUID, "workspace agent id should match")
 		assert.Equal(t, taskAppID, updated.WorkspaceAppID.UUID, "workspace app id should match")
 		assert.NotEmpty(t, updated.WorkspaceStatus, "task status should not be empty")
+
+		// Another member user should not be able to fetch the task
+		_, err = codersdk.NewExperimentalClient(anotherUser).TaskByID(ctx, task.ID)
+		require.Error(t, err, "fetching task should fail for another member user")
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 
 		// Stop the workspace
 		coderdtest.MustTransitionWorkspace(t, client, task.WorkspaceID.UUID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
