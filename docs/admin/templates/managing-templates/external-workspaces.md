@@ -20,7 +20,7 @@ External workspaces offer flexibility and control in complex environments:
 
 - **Incremental adoption of Coder**
 
-  Integrate with existing infrastructure gradually without needing to migrate everything at once. This is particularly useful when gradually migrating worklods to Coder without refactoring current infrastructure.
+  Integrate with existing infrastructure gradually without needing to migrate everything at once. This is particularly useful when gradually migrating workloads to Coder without refactoring current infrastructure.
 
 - **Flexibility**
 
