@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/provisionersdk/tfpath"
+	"github.com/coder/coder/v2/provisionersdk/x"
 
 	protobuf "google.golang.org/protobuf/proto"
 
@@ -77,7 +78,6 @@ func (p *protoServer) Session(stream proto.DRPCProvisioner_SessionStream) error 
 			return xerrors.Errorf("unable to clean inactive versions %q: %w", s.Files.WorkDirectory(), err)
 		}
 	}
-
 
 	// Extract the template source archive into the work directory.
 	err = s.Files.ExtractArchive(s.Context(), s.Logger, afero.NewOsFs(), s.Config)
@@ -214,7 +214,7 @@ func (s *Session) handleRequests() error {
 
 type Session struct {
 	Logger slog.Logger
-	Files  tfpath.Layout
+	Files  tfpath.LayoutInterface
 	Config *proto.Config
 
 	server   Server
