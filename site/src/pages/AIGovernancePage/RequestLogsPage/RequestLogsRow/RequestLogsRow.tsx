@@ -49,9 +49,9 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 						])}
 					>
 						{isOpen ? (
-							<ChevronDownIcon size={16} />
+							<ChevronDownIcon className="size-icon-xs" />
 						) : (
-							<ChevronRightIcon size={16} />
+							<ChevronRightIcon className="size-icon-xs" />
 						)}
 						<span className="sr-only">({isOpen ? "Hide" : "Show more"})</span>
 						{new Date(interception.started_at).toLocaleString()}
@@ -73,7 +73,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 							<Tooltip>
 								<TooltipTrigger asChild>
 									<div className="flex items-center gap-1">
-										<ArrowDownIcon size={16} />
+										<ArrowDownIcon className="size-icon-xs" />
 										<div>{inputTokens}</div>
 									</div>
 								</TooltipTrigger>
@@ -84,7 +84,7 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 							<Tooltip>
 								<TooltipTrigger asChild>
 									<div className="flex items-center gap-1">
-										<ArrowUpIcon size={16} />
+										<ArrowUpIcon className="size-icon-xs" />
 										<div>{outputTokens}</div>
 									</div>
 								</TooltipTrigger>
