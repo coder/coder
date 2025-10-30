@@ -12,9 +12,9 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 1,
           "values": {
-            "arch": "arm64",
+            "arch": "amd64",
             "id": "764f8b0b-d931-4356-b1a8-446fa95fbeb0",
-            "os": "darwin"
+            "os": "linux"
           },
           "sensitive_values": {}
         },
@@ -27,11 +27,11 @@
           "schema_version": 1,
           "values": {
             "access_port": 443,
-            "access_url": "https://mydeployment.coder.com",
+            "access_url": "https://dev.coder.com/",
             "id": "b6713709-6736-4d2f-b3da-7b5b242df5f4",
             "is_prebuild": false,
             "is_prebuild_claim": false,
-            "name": "default",
+            "name": "sebenza-nonix",
             "prebuild_count": 0,
             "start_count": 1,
             "template_id": "",
@@ -63,9 +63,7 @@
           },
           "sensitive_values": {
             "groups": [],
-            "oidc_access_token": true,
             "rbac_roles": [],
-            "session_token": true,
             "ssh_private_key": true
           }
         },
