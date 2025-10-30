@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/cli/clilog"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
+	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
@@ -48,6 +49,7 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 		preSharedKey   string
 		provisionerKey string
 		verbose        bool
+		experiments    []string
 
 		prometheusEnable  bool
 		prometheusAddress string
@@ -186,6 +188,7 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 						Listener:      terraformServer,
 						Logger:        logger.Named("terraform"),
 						WorkDirectory: tempDir,
+						Experiments:   coderd.ReadExperiments(logger, experiments),
 					},
 					CachePath: cacheDir,
 				})
@@ -377,6 +380,14 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 			Description: "The bind address to serve prometheus metrics.",
 			Value:       serpent.StringOf(&prometheusAddress),
 			Default:     "127.0.0.1:2112",
+		},
+		{
+			Name:        "Experiments",
+			Description: "Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '*' to opt-in to all available experiments.",
+			Flag:        "experiments",
+			Env:         "CODER_EXPERIMENTS",
+			Value:       serpent.StringArrayOf(&experiments),
+			YAML:        "experiments",
 		},
 	}
 	orgContext.AttachOptions(cmd)

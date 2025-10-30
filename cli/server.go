@@ -1476,6 +1476,7 @@ func newProvisionerDaemon(
 						Listener:      terraformServer,
 						Logger:        provisionerLogger,
 						WorkDirectory: workDir,
+						Experiments:   coderAPI.Experiments,
 					},
 					CachePath: tfDir,
 					Tracer:    tracer,

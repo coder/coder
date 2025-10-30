@@ -26,6 +26,7 @@ import (
 	"storj.io/drpc"
 
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 
@@ -4251,6 +4252,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		notifEnq,
 		&op,
 		provisionerdserver.NewMetrics(logger),
+		coderd.ReadExperiments(logger, ov.deploymentValues.Experiments),
 	)
 	require.NoError(t, err)
 	return srv, db, ps, daemon

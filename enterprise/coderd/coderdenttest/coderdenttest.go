@@ -414,6 +414,7 @@ func newExternalProvisionerDaemon(t testing.TB, client *codersdk.Client, org uui
 				ServeOptions: &provisionersdk.ServeOptions{
 					Listener:      provisionerSrv,
 					WorkDirectory: t.TempDir(),
+					Experiments:   codersdk.Experiments{},
 				},
 			}))
 		}()
