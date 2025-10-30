@@ -461,67 +461,56 @@ func (api *API) enqueueAITaskStateNotification(
 		return
 	}
 
-	workspaceBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+	if !workspace.TaskID.Valid {
+		api.Logger.Warn(ctx, "workspace has no task ID")
+		return
+	}
+
+	task, err := api.Database.GetTaskByID(ctx, workspace.TaskID.UUID)
 	if err != nil {
-		api.Logger.Warn(ctx, "failed to get workspace build", slog.Error(err))
+		api.Logger.Warn(ctx, "failed to get task", slog.Error(err))
 		return
 	}
 
 	// Confirm Workspace Agent App is an AI Task
-	if workspaceBuild.HasAITask.Valid && workspaceBuild.HasAITask.Bool &&
-		workspaceBuild.AITaskSidebarAppID.Valid && workspaceBuild.AITaskSidebarAppID.UUID == appID {
-		// Skip if the latest persisted state equals the new state (no new transition)
-		if len(latestAppStatus) > 0 && latestAppStatus[0].State == database.WorkspaceAppStatusState(newAppStatus) {
-			return
-		}
+	if !task.WorkspaceAppID.Valid || task.WorkspaceAppID.UUID != appID {
+		api.Logger.Warn(ctx, "workspace agent app is not an AI task")
+		return
+	}
 
-		// Skip the initial "Working" notification when task first starts.
-		// This is obvious to the user since they just created the task.
-		// We still notify on first "Idle" status and all subsequent transitions.
-		if len(latestAppStatus) == 0 && newAppStatus == codersdk.WorkspaceAppStatusStateWorking {
-			return
-		}
+	// Skip if the latest persisted state equals the new state (no new transition)
+	if len(latestAppStatus) > 0 && latestAppStatus[0].State == database.WorkspaceAppStatusState(newAppStatus) {
+		return
+	}
 
-		// Use the task prompt as the "task" label, fallback to workspace name
-		parameters, err := api.Database.GetWorkspaceBuildParameters(ctx, workspaceBuild.ID)
-		if err != nil {
-			api.Logger.Warn(ctx, "failed to get workspace build parameters", slog.Error(err))
-			return
-		}
-		taskName := workspace.Name
-		for _, param := range parameters {
-			if param.Name == codersdk.AITaskPromptParameterName {
-				taskName = param.Value
-			}
-		}
+	// Skip the initial "Working" notification when task first starts.
+	// This is obvious to the user since they just created the task.
+	// We still notify on first "Idle" status and all subsequent transitions.
+	if len(latestAppStatus) == 0 && newAppStatus == codersdk.WorkspaceAppStatusStateWorking {
+		return
+	}
 
-		// As task prompt may be particularly long, truncate it to 160 characters for notifications.
-		if len(taskName) > 160 {
-			taskName = strutil.Truncate(taskName, 160, strutil.TruncateWithEllipsis, strutil.TruncateWithFullWords)
-		}
-
-		if _, err := api.NotificationsEnqueuer.EnqueueWithData(
-			// nolint:gocritic // Need notifier actor to enqueue notifications
-			dbauthz.AsNotifier(ctx),
-			workspace.OwnerID,
-			notificationTemplate,
-			map[string]string{
-				"task":      taskName,
-				"workspace": workspace.Name,
-			},
-			map[string]any{
-				// Use a 1-minute bucketed timestamp to bypass per-day dedupe,
-				// allowing identical content to resend within the same day
-				// (but not more than once every 10s).
-				"dedupe_bypass_ts": api.Clock.Now().UTC().Truncate(time.Minute),
-			},
-			"api-workspace-agent-app-status",
-			// Associate this notification with related entities
-			workspace.ID, workspace.OwnerID, workspace.OrganizationID, appID,
-		); err != nil {
-			api.Logger.Warn(ctx, "failed to notify of task state", slog.Error(err))
-			return
-		}
+	if _, err := api.NotificationsEnqueuer.EnqueueWithData(
+		// nolint:gocritic // Need notifier actor to enqueue notifications
+		dbauthz.AsNotifier(ctx),
+		workspace.OwnerID,
+		notificationTemplate,
+		map[string]string{
+			"task":      task.Name,
+			"workspace": workspace.Name,
+		},
+		map[string]any{
+			// Use a 1-minute bucketed timestamp to bypass per-day dedupe,
+			// allowing identical content to resend within the same day
+			// (but not more than once every 10s).
+			"dedupe_bypass_ts": api.Clock.Now().UTC().Truncate(time.Minute),
+		},
+		"api-workspace-agent-app-status",
+		// Associate this notification with related entities
+		workspace.ID, workspace.OwnerID, workspace.OrganizationID, appID,
+	); err != nil {
+		api.Logger.Warn(ctx, "failed to notify of task state", slog.Error(err))
+		return
 	}
 }
 

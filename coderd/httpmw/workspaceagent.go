@@ -118,6 +118,7 @@ func ExtractWorkspaceAgentAndLatestBuild(opts ExtractWorkspaceAgentAndLatestBuil
 					OwnerID:       row.WorkspaceTable.OwnerID,
 					TemplateID:    row.WorkspaceTable.TemplateID,
 					VersionID:     row.WorkspaceBuild.TemplateVersionID,
+					TaskID:        row.TaskID,
 					BlockUserData: row.WorkspaceAgent.APIKeyScope == database.AgentKeyScopeEnumNoUserData,
 				}),
 			)

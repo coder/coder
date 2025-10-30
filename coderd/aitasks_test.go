@@ -2,15 +2,12 @@ package coderd_test
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
-	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -1285,31 +1282,31 @@ func TestTasksNotification(t *testing.T) {
 			// Given: a workspace build with an agent containing an App
 			workspaceAgentAppID := uuid.New()
 			workspaceBuildID := uuid.New()
-			workspaceBuildSeed := database.WorkspaceBuild{
-				ID: workspaceBuildID,
-			}
-			if tc.isAITask {
-				workspaceBuildSeed = database.WorkspaceBuild{
-					ID: workspaceBuildID,
-					// AI Task configuration
-					HasAITask:          sql.NullBool{Bool: true, Valid: true},
-					AITaskSidebarAppID: uuid.NullUUID{UUID: workspaceAgentAppID, Valid: true},
-				}
-			}
-			workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			workspaceBuilder := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 				OrganizationID: ownerUser.OrganizationID,
 				OwnerID:        memberUser.ID,
-			}).Seed(workspaceBuildSeed).Params(database.WorkspaceBuildParameter{
-				WorkspaceBuildID: workspaceBuildID,
-				Name:             codersdk.AITaskPromptParameterName,
-				Value:            tc.taskPrompt,
-			}).WithAgent(func(agent []*proto.Agent) []*proto.Agent {
-				agent[0].Apps = []*proto.App{{
-					Id:   workspaceAgentAppID.String(),
-					Slug: "ccw",
-				}}
-				return agent
-			}).Do()
+			}).Seed(database.WorkspaceBuild{
+				ID: workspaceBuildID,
+			})
+			if tc.isAITask {
+				workspaceBuilder = workspaceBuilder.
+					WithTask(database.TaskTable{
+						Prompt: tc.taskPrompt,
+					}, &proto.App{
+						Id:   workspaceAgentAppID.String(),
+						Slug: "ccw",
+					})
+			} else {
+				workspaceBuilder = workspaceBuilder.
+					WithAgent(func(agent []*proto.Agent) []*proto.Agent {
+						agent[0].Apps = []*proto.App{{
+							Id:   workspaceAgentAppID.String(),
+							Slug: "ccw",
+						}}
+						return agent
+					})
+			}
+			workspaceBuild := workspaceBuilder.Do()
 
 			// Given: the workspace agent app has previous statuses
 			agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(workspaceBuild.AgentToken))
@@ -1350,13 +1347,7 @@ func TestTasksNotification(t *testing.T) {
 				require.Len(t, sent, 1)
 				require.Equal(t, memberUser.ID, sent[0].UserID)
 				require.Len(t, sent[0].Labels, 2)
-				// NOTE: len(string) is the number of bytes in the string, not the number of runes.
-				require.LessOrEqual(t, utf8.RuneCountInString(sent[0].Labels["task"]), 160)
-				if len(tc.taskPrompt) > 160 {
-					require.Contains(t, tc.taskPrompt, strings.TrimSuffix(sent[0].Labels["task"], "…"))
-				} else {
-					require.Equal(t, tc.taskPrompt, sent[0].Labels["task"])
-				}
+				require.Equal(t, workspaceBuild.Task.Name, sent[0].Labels["task"])
 				require.Equal(t, workspace.Name, sent[0].Labels["workspace"])
 			} else {
 				// Then: No notification is sent
