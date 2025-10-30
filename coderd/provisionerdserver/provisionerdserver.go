@@ -2278,6 +2278,14 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		if err != nil {
 			return xerrors.Errorf("update workspace deleted: %w", err)
 		}
+		if workspace.TaskID.Valid {
+			if _, err := db.DeleteTask(ctx, database.DeleteTaskParams{
+				ID:        workspace.TaskID.UUID,
+				DeletedAt: dbtime.Now(),
+			}); err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return xerrors.Errorf("delete task related to workspace: %w", err)
+			}
+		}
 
 		return nil
 	}, nil)
