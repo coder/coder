@@ -41,7 +41,7 @@ type executor struct {
 	// cachePath and files must not be used by multiple processes at once.
 	cachePath     string
 	cliConfigPath string
-	files         tfpath.Layout
+	files         tfpath.LayoutInterface
 	// used to capture execution times at various stages
 	timings *timingAggregator
 }

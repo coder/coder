@@ -19,6 +19,19 @@ import (
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
+type LayoutInterface interface {
+	WorkDirectory() string
+	StateFilePath() string
+	PlanFilePath() string
+	TerraformLockFile() string
+	ReadmeFilePath() string
+	TerraformMetadataDir() string
+	ModulesDirectory() string
+	ModulesFilePath() string
+	ExtractArchive(ctx context.Context, logger slog.Logger, fs afero.Fs, cfg *proto.Config) error
+	Cleanup(ctx context.Context, logger slog.Logger, fs afero.Fs)
+}
+
 const (
 	// ReadmeFile is the location we look for to extract documentation from template versions.
 	ReadmeFile = "README.md"

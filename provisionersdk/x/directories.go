@@ -18,7 +18,10 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/provisionersdk/tfpath"
 )
+
+var _ tfpath.LayoutInterface = (*TerraformDirectory)(nil)
 
 func SessionDir(parentDir, sessID string, config *proto.Config) TerraformDirectory {
 	if config.TemplateId == "" || config.TemplateId == uuid.Nil.String() ||
@@ -57,16 +60,16 @@ const (
 	sessionDirPrefix = "Session"
 )
 
-func (td TerraformDirectory) Cleanup(ctx context.Context, logger slog.Logger) {
+func (td TerraformDirectory) Cleanup(ctx context.Context, logger slog.Logger, fs afero.Fs) {
 	var err error
-	path := td.workDirectory
+	path := td.WorkDirectory()
 	if !td.ephemeral {
 		// Non-ephemeral directories only clean up the session subdirectory.
 		// Leaving in place the wider work directory for reuse.
 		path = td.StateSessionDirectory()
 	}
 	for attempt := 0; attempt < 5; attempt++ {
-		err := os.RemoveAll(path)
+		err := fs.RemoveAll(path)
 		if err != nil {
 			// On Windows, open files cannot be removed.
 			// When the provisioner daemon is shutting down,
@@ -116,20 +119,24 @@ func (td TerraformDirectory) ReadmeFilePath() string {
 	return filepath.Join(td.WorkDirectory(), ReadmeFile)
 }
 
+func (td TerraformDirectory) TerraformMetadataDir() string {
+	return filepath.Join(td.WorkDirectory(), ".terraform")
+}
+
 func (td TerraformDirectory) ModulesDirectory() string {
-	return filepath.Join(td.WorkDirectory(), ".terraform", "modules")
+	return filepath.Join(td.TerraformMetadataDir(), "modules")
 }
 
 func (td TerraformDirectory) ModulesFilePath() string {
 	return filepath.Join(td.ModulesDirectory(), "modules.json")
 }
 
-func (td TerraformDirectory) ExtractArchive(ctx context.Context, logger slog.Logger, cfg *proto.Config) error {
+func (td TerraformDirectory) ExtractArchive(ctx context.Context, logger slog.Logger, fs afero.Fs, cfg *proto.Config) error {
 	logger.Info(ctx, "unpacking template source archive",
 		slog.F("size_bytes", len(cfg.TemplateSourceArchive)),
 	)
 
-	err := os.MkdirAll(td.WorkDirectory(), 0o700)
+	err := fs.MkdirAll(td.WorkDirectory(), 0o700)
 	if err != nil {
 		return xerrors.Errorf("create work directory %q: %w", td.WorkDirectory(), err)
 	}
@@ -175,7 +182,7 @@ func (td TerraformDirectory) ExtractArchive(ctx context.Context, logger slog.Log
 		}
 		switch header.Typeflag {
 		case tar.TypeDir:
-			err = os.MkdirAll(headerPath, mode)
+			err = fs.MkdirAll(headerPath, mode)
 			if err != nil {
 				return xerrors.Errorf("mkdir %q: %w", headerPath, err)
 			}
@@ -186,7 +193,7 @@ func (td TerraformDirectory) ExtractArchive(ctx context.Context, logger slog.Log
 			// TODO: If we are overwriting an existing file, that means we are reusing
 			//  the terraform directory. In that case, we should check the file content
 			//  matches what already exists on disk.
-			file, err := os.OpenFile(headerPath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, mode)
+			file, err := fs.OpenFile(headerPath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, mode)
 			if err != nil {
 				return xerrors.Errorf("create file %q (mode %s): %w", headerPath, mode, err)
 			}
