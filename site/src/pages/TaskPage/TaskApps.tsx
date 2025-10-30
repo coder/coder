@@ -1,4 +1,4 @@
-import type { Workspace } from "api/typesGenerated";
+import type { Task, Workspace } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
 	DropdownMenu,
@@ -24,18 +24,17 @@ import { docs } from "utils/docs";
 import { TaskAppIFrame, TaskIframe } from "./TaskAppIframe";
 
 type TaskAppsProps = {
+	task: Task;
 	workspace: Workspace;
 };
 
 const TERMINAL_TAB_ID = "terminal";
 
-export const TaskApps: FC<TaskAppsProps> = ({ workspace }) => {
+export const TaskApps: FC<TaskAppsProps> = ({ task, workspace }) => {
 	const apps = getAllAppsWithAgent(workspace).filter(
 		// The Chat UI app will be displayed in the sidebar, so we don't want to
 		// show it as a web app.
-		(app) =>
-			app.id !== workspace.latest_build.task_app_id &&
-			app.health !== "disabled",
+		(app) => app.id !== task.workspace_app_id && app.health !== "disabled",
 	);
 	const [embeddedApps, externalApps] = splitEmbeddedAndExternalApps(apps);
 	const [activeAppId, setActiveAppId] = useState(embeddedApps.at(0)?.id);
@@ -43,8 +42,8 @@ export const TaskApps: FC<TaskAppsProps> = ({ workspace }) => {
 		embeddedApps.length > 0 || externalApps.length > 0;
 	const taskAgent = apps.at(0)?.agent;
 	const terminalHref = getTerminalHref({
-		username: workspace.owner_name,
-		workspace: workspace.name,
+		username: task.owner_name,
+		workspace: task.workspace_name,
 		agent: taskAgent?.name,
 	});
 	const isTerminalActive = activeAppId === TERMINAL_TAB_ID;
