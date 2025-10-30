@@ -27,7 +27,6 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentAIBridge)}
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
@@ -37,10 +36,10 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 				Features: license.Features{},
 			},
 		})
-		experimentalClient := codersdk.NewExperimentalClient(client)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		_, err := experimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{})
+		//nolint:gocritic // Owner role is irrelevant here.
+		_, err := client.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{})
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
@@ -50,7 +49,6 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 	t.Run("EmptyDB", func(t *testing.T) {
 		t.Parallel()
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentAIBridge)}
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
@@ -61,9 +59,9 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 				},
 			},
 		})
-		experimentalClient := codersdk.NewExperimentalClient(client)
 		ctx := testutil.Context(t, testutil.WaitLong)
-		res, err := experimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{})
+		//nolint:gocritic // Owner role is irrelevant here.
+		res, err := client.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{})
 		require.NoError(t, err)
 		require.Empty(t, res.Results)
 	})
@@ -71,7 +69,6 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentAIBridge)}
 		client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
@@ -82,7 +79,6 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 				},
 			},
 		})
-		experimentalClient := codersdk.NewExperimentalClient(client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		user1, err := client.User(ctx, codersdk.Me)
@@ -143,7 +139,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		i1SDK := db2sdk.AIBridgeInterception(i1, user1Visible, []database.AIBridgeTokenUsage{i1tok2, i1tok1}, []database.AIBridgeUserPrompt{i1up2, i1up1}, []database.AIBridgeToolUsage{i1tool2, i1tool1})
 		i2SDK := db2sdk.AIBridgeInterception(i2, user2Visible, nil, nil, nil)
 
-		res, err := experimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{})
+		res, err := client.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{})
 		require.NoError(t, err)
 		require.Len(t, res.Results, 2)
 		require.Equal(t, i2SDK.ID, res.Results[0].ID)
@@ -183,7 +179,6 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentAIBridge)}
 		client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
@@ -194,7 +189,6 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 				},
 			},
 		})
-		experimentalClient := codersdk.NewExperimentalClient(client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		allInterceptionIDs := make([]uuid.UUID, 0, 20)
@@ -225,7 +219,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		}
 
 		// Try to fetch with an invalid limit.
-		res, err := experimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{
+		res, err := client.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{
 			Pagination: codersdk.Pagination{
 				Limit: 1001,
 			},
@@ -236,7 +230,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		require.Empty(t, res.Results)
 
 		// Try to fetch with both after_id and offset pagination.
-		res, err = experimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{
+		res, err = client.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{
 			Pagination: codersdk.Pagination{
 				AfterID: allInterceptionIDs[0],
 				Offset:  1,
@@ -269,7 +263,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 						} else {
 							pagination.Offset = len(interceptionIDs)
 						}
-						res, err := experimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{
+						res, err := client.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{
 							Pagination: pagination,
 						})
 						require.NoError(t, err)
@@ -299,7 +293,6 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 	t.Run("Authorized", func(t *testing.T) {
 		t.Parallel()
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentAIBridge)}
 		adminClient, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
@@ -310,11 +303,9 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 				},
 			},
 		})
-		adminExperimentalClient := codersdk.NewExperimentalClient(adminClient)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		secondUserClient, secondUser := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
-		secondUserExperimentalClient := codersdk.NewExperimentalClient(secondUserClient)
 
 		now := dbtime.Now()
 		i1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
@@ -327,7 +318,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		}, &now)
 
 		// Admin can see all interceptions.
-		res, err := adminExperimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{})
+		res, err := adminClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{})
 		require.NoError(t, err)
 		require.EqualValues(t, 2, res.Count)
 		require.Len(t, res.Results, 2)
@@ -335,7 +326,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		require.Equal(t, i2.ID, res.Results[1].ID)
 
 		// Second user can only see their own interceptions.
-		res, err = secondUserExperimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{})
+		res, err = secondUserClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{})
 		require.NoError(t, err)
 		require.EqualValues(t, 1, res.Count)
 		require.Len(t, res.Results, 1)
@@ -345,7 +336,6 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 	t.Run("Filter", func(t *testing.T) {
 		t.Parallel()
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentAIBridge)}
 		client, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
@@ -356,7 +346,6 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 				},
 			},
 		})
-		experimentalClient := codersdk.NewExperimentalClient(client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		user1, err := client.User(ctx, codersdk.Me)
@@ -506,7 +495,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				ctx := testutil.Context(t, testutil.WaitLong)
-				res, err := experimentalClient.AIBridgeListInterceptions(ctx, tc.filter)
+				res, err := client.AIBridgeListInterceptions(ctx, tc.filter)
 				require.NoError(t, err)
 				require.EqualValues(t, len(tc.want), res.Count)
 				// We just compare UUID strings for the sake of this test.
@@ -526,7 +515,6 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 	t.Run("FilterErrors", func(t *testing.T) {
 		t.Parallel()
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentAIBridge)}
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
@@ -537,7 +525,6 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 				},
 			},
 		})
-		experimentalClient := codersdk.NewExperimentalClient(client)
 
 		// No need to insert any test data, we're just testing the filter
 		// errors.
@@ -594,7 +581,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				ctx := testutil.Context(t, testutil.WaitLong)
-				res, err := experimentalClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{
+				res, err := client.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{
 					FilterQuery: tc.q,
 				})
 				var sdkErr *codersdk.Error

@@ -1894,7 +1894,6 @@ export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
 
 // From codersdk/deployment.go
 export type Experiment =
-	| "aibridge"
 	| "auto-fill-parameters"
 	| "example"
 	| "mcp-server-http"
@@ -1905,7 +1904,6 @@ export type Experiment =
 	| "workspace-usage";
 
 export const Experiments: Experiment[] = [
-	"aibridge",
 	"auto-fill-parameters",
 	"example",
 	"mcp-server-http",
@@ -5877,6 +5875,10 @@ export interface Workspace {
 	 * and IsPrebuild returns false.
 	 */
 	readonly is_prebuild: boolean;
+	/**
+	 * TaskID, if set, indicates that the workspace is relevant to the given codersdk.Task.
+	 */
+	readonly task_id?: string;
 }
 
 // From codersdk/workspaces.go

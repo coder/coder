@@ -3241,14 +3241,13 @@ Write out the current server config as YAML to stdout.`,
 		// AIBridge Options
 		{
 			Name:        "AIBridge Enabled",
-			Description: fmt.Sprintf("Whether to start an in-memory aibridged instance (%q experiment must be enabled, too).", ExperimentAIBridge),
+			Description: "Whether to start an in-memory aibridged instance.",
 			Flag:        "aibridge-enabled",
 			Env:         "CODER_AIBRIDGE_ENABLED",
 			Value:       &c.AI.BridgeConfig.Enabled,
 			Default:     "false",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "enabled",
-			Hidden:      true,
 		},
 		{
 			Name:        "AIBridge OpenAI Base URL",
@@ -3259,7 +3258,6 @@ Write out the current server config as YAML to stdout.`,
 			Default:     "https://api.openai.com/v1/",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "openai_base_url",
-			Hidden:      true,
 		},
 		{
 			Name:        "AIBridge OpenAI Key",
@@ -3270,7 +3268,6 @@ Write out the current server config as YAML to stdout.`,
 			Default:     "",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "openai_key",
-			Hidden:      true,
 		},
 		{
 			Name:        "AIBridge Anthropic Base URL",
@@ -3281,7 +3278,6 @@ Write out the current server config as YAML to stdout.`,
 			Default:     "https://api.anthropic.com/",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "anthropic_base_url",
-			Hidden:      true,
 		},
 		{
 			Name:        "AIBridge Anthropic Key",
@@ -3292,7 +3288,6 @@ Write out the current server config as YAML to stdout.`,
 			Default:     "",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "anthropic_key",
-			Hidden:      true,
 		},
 		{
 			Name:        "AIBridge Bedrock Region",
@@ -3303,7 +3298,6 @@ Write out the current server config as YAML to stdout.`,
 			Default:     "",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "bedrock_region",
-			Hidden:      true,
 		},
 		{
 			Name:        "AIBridge Bedrock Access Key",
@@ -3314,7 +3308,6 @@ Write out the current server config as YAML to stdout.`,
 			Default:     "",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "bedrock_access_key",
-			Hidden:      true,
 		},
 		{
 			Name:        "AIBridge Bedrock Access Key Secret",
@@ -3325,7 +3318,6 @@ Write out the current server config as YAML to stdout.`,
 			Default:     "",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "bedrock_access_key_secret",
-			Hidden:      true,
 		},
 		{
 			Name:        "AIBridge Bedrock Model",
@@ -3336,7 +3328,6 @@ Write out the current server config as YAML to stdout.`,
 			Default:     "global.anthropic.claude-sonnet-4-5-20250929-v1:0", // See https://docs.claude.com/en/api/claude-on-amazon-bedrock#accessing-bedrock.
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "bedrock_model",
-			Hidden:      true,
 		},
 		{
 			Name:        "AIBridge Bedrock Small Fast Model",
@@ -3347,7 +3338,6 @@ Write out the current server config as YAML to stdout.`,
 			Default:     "global.anthropic.claude-haiku-4-5-20251001-v1:0", // See https://docs.claude.com/en/api/claude-on-amazon-bedrock#accessing-bedrock.
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "bedrock_small_fast_model",
-			Hidden:      true,
 		},
 		{
 			Name: "Enable Authorization Recordings",
@@ -3645,7 +3635,6 @@ const (
 	ExperimentOAuth2             Experiment = "oauth2"               // Enables OAuth2 provider functionality.
 	ExperimentMCPServerHTTP      Experiment = "mcp-server-http"      // Enables the MCP HTTP server functionality.
 	ExperimentWorkspaceSharing   Experiment = "workspace-sharing"    // Enables updating workspace ACLs for sharing with users and groups.
-	ExperimentAIBridge           Experiment = "aibridge"             // Enables AI Bridge functionality.
 )
 
 func (e Experiment) DisplayName() string {
@@ -3666,8 +3655,6 @@ func (e Experiment) DisplayName() string {
 		return "MCP HTTP Server Functionality"
 	case ExperimentWorkspaceSharing:
 		return "Workspace Sharing"
-	case ExperimentAIBridge:
-		return "AI Bridge"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "web-push" -> "Web Push", "mcp-server-http" -> "Mcp Server Http"
@@ -3686,7 +3673,6 @@ var ExperimentsKnown = Experiments{
 	ExperimentOAuth2,
 	ExperimentMCPServerHTTP,
 	ExperimentWorkspaceSharing,
-	ExperimentAIBridge,
 }
 
 // ExperimentsSafe should include all experiments that are safe for

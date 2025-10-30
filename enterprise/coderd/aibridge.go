@@ -36,7 +36,7 @@ const (
 // @Param after_id query string false "Cursor pagination after ID (cannot be used with offset)"
 // @Param offset query int false "Offset pagination (cannot be used with after_id)"
 // @Success 200 {object} codersdk.AIBridgeListInterceptionsResponse
-// @Router /api/experimental/aibridge/interceptions [get]
+// @Router /aibridge/interceptions [get]
 func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)

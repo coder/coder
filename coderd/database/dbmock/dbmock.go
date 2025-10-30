@@ -6555,10 +6555,10 @@ func (mr *MockStoreMockRecorder) UpdateOrganizationDeletedByID(ctx, arg any) *go
 }
 
 // UpdatePrebuildProvisionerJobWithCancel mocks base method.
-func (m *MockStore) UpdatePrebuildProvisionerJobWithCancel(ctx context.Context, arg database.UpdatePrebuildProvisionerJobWithCancelParams) ([]uuid.UUID, error) {
+func (m *MockStore) UpdatePrebuildProvisionerJobWithCancel(ctx context.Context, arg database.UpdatePrebuildProvisionerJobWithCancelParams) ([]database.UpdatePrebuildProvisionerJobWithCancelRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdatePrebuildProvisionerJobWithCancel", ctx, arg)
-	ret0, _ := ret[0].([]uuid.UUID)
+	ret0, _ := ret[0].([]database.UpdatePrebuildProvisionerJobWithCancelRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

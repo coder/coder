@@ -27,7 +27,6 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentAIBridge)}
 		client, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
@@ -55,7 +54,6 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		}, nil)
 
 		args := []string{
-			"exp",
 			"aibridge",
 			"interceptions",
 			"list",
@@ -78,7 +76,6 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentAIBridge)}
 		client, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
@@ -137,7 +134,6 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		}, nil)
 
 		args := []string{
-			"exp",
 			"aibridge",
 			"interceptions",
 			"list",
@@ -164,7 +160,6 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentAIBridge)}
 		client, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
@@ -192,7 +187,6 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		}, nil)
 
 		args := []string{
-			"exp",
 			"aibridge",
 			"interceptions",
 			"list",

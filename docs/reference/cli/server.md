@@ -1647,3 +1647,108 @@ How often to reconcile workspace prebuilds state.
 | Default     | <code>false</code>                |
 
 Hide AI tasks from the dashboard.
+
+### --aibridge-enabled
+
+|             |                                      |
+|-------------|--------------------------------------|
+| Type        | <code>bool</code>                    |
+| Environment | <code>$CODER_AIBRIDGE_ENABLED</code> |
+| YAML        | <code>aibridge.enabled</code>        |
+| Default     | <code>false</code>                   |
+
+Whether to start an in-memory aibridged instance.
+
+### --aibridge-openai-base-url
+
+|             |                                              |
+|-------------|----------------------------------------------|
+| Type        | <code>string</code>                          |
+| Environment | <code>$CODER_AIBRIDGE_OPENAI_BASE_URL</code> |
+| YAML        | <code>aibridge.openai_base_url</code>        |
+| Default     | <code>https://api.openai.com/v1/</code>      |
+
+The base URL of the OpenAI API.
+
+### --aibridge-openai-key
+
+|             |                                         |
+|-------------|-----------------------------------------|
+| Type        | <code>string</code>                     |
+| Environment | <code>$CODER_AIBRIDGE_OPENAI_KEY</code> |
+| YAML        | <code>aibridge.openai_key</code>        |
+
+The key to authenticate against the OpenAI API.
+
+### --aibridge-anthropic-base-url
+
+|             |                                                 |
+|-------------|-------------------------------------------------|
+| Type        | <code>string</code>                             |
+| Environment | <code>$CODER_AIBRIDGE_ANTHROPIC_BASE_URL</code> |
+| YAML        | <code>aibridge.anthropic_base_url</code>        |
+| Default     | <code>https://api.anthropic.com/</code>         |
+
+The base URL of the Anthropic API.
+
+### --aibridge-anthropic-key
+
+|             |                                            |
+|-------------|--------------------------------------------|
+| Type        | <code>string</code>                        |
+| Environment | <code>$CODER_AIBRIDGE_ANTHROPIC_KEY</code> |
+| YAML        | <code>aibridge.anthropic_key</code>        |
+
+The key to authenticate against the Anthropic API.
+
+### --aibridge-bedrock-region
+
+|             |                                             |
+|-------------|---------------------------------------------|
+| Type        | <code>string</code>                         |
+| Environment | <code>$CODER_AIBRIDGE_BEDROCK_REGION</code> |
+| YAML        | <code>aibridge.bedrock_region</code>        |
+
+The AWS Bedrock API region.
+
+### --aibridge-bedrock-access-key
+
+|             |                                                 |
+|-------------|-------------------------------------------------|
+| Type        | <code>string</code>                             |
+| Environment | <code>$CODER_AIBRIDGE_BEDROCK_ACCESS_KEY</code> |
+| YAML        | <code>aibridge.bedrock_access_key</code>        |
+
+The access key to authenticate against the AWS Bedrock API.
+
+### --aibridge-bedrock-access-key-secret
+
+|             |                                                        |
+|-------------|--------------------------------------------------------|
+| Type        | <code>string</code>                                    |
+| Environment | <code>$CODER_AIBRIDGE_BEDROCK_ACCESS_KEY_SECRET</code> |
+| YAML        | <code>aibridge.bedrock_access_key_secret</code>        |
+
+The access key secret to use with the access key to authenticate against the AWS Bedrock API.
+
+### --aibridge-bedrock-model
+
+|             |                                                               |
+|-------------|---------------------------------------------------------------|
+| Type        | <code>string</code>                                           |
+| Environment | <code>$CODER_AIBRIDGE_BEDROCK_MODEL</code>                    |
+| YAML        | <code>aibridge.bedrock_model</code>                           |
+| Default     | <code>global.anthropic.claude-sonnet-4-5-20250929-v1:0</code> |
+
+The model to use when making requests to the AWS Bedrock API.
+
+### --aibridge-bedrock-small-fastmodel
+
+|             |                                                              |
+|-------------|--------------------------------------------------------------|
+| Type        | <code>string</code>                                          |
+| Environment | <code>$CODER_AIBRIDGE_BEDROCK_SMALL_FAST_MODEL</code>        |
+| YAML        | <code>aibridge.bedrock_small_fast_model</code>               |
+| Default     | <code>global.anthropic.claude-haiku-4-5-20251001-v1:0</code> |
+
+The small fast model to use when making requests to the AWS Bedrock API. Claude Code uses Haiku-class models to perform background tasks. See https://docs.claude.com/en/docs/claude-code/settings#environment-variables.

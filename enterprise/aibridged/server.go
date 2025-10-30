@@ -1,6 +1,6 @@
 package aibridged
 
-import "github.com/coder/coder/v2/enterprise/x/aibridged/proto"
+import "github.com/coder/coder/v2/enterprise/aibridged/proto"
 
 type DRPCServer interface {
 	proto.DRPCRecorderServer
