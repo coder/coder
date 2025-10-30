@@ -26,10 +26,17 @@ const (
 	sessionDirPrefix = "Session"
 )
 
-func Session(parent, sessionID string) Layout {
-	return Layout(filepath.Join(parent, sessionDirPrefix+sessionID))
+// Session creates a directory structure layout for terraform execution. The
+// SessionID is a unique value for creating an ephemeral working directory inside
+// the parentDirPath. All helper functions will return paths for various
+// terraform asserts inside this working directory.
+func Session(parentDirPath, sessionID string) Layout {
+	return Layout(filepath.Join(parentDirPath, sessionDirPrefix+sessionID))
 }
 
+// Layout is the terraform execution working directory structure.
+// It also contains some methods for common file operations within that layout.
+// Such as "Cleanup" and "ExtractArchive".
 // TODO: Maybe we should include the afero.FS here as well, then all operations
 // would be on the same FS?
 type Layout string
