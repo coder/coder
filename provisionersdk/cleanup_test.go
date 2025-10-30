@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/tfpath"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -47,9 +46,12 @@ func TestStaleSessions(t *testing.T) {
 		addSessionFolder(t, fs, second, now.Add(-8*24*time.Hour))
 		third := tfpath.Session(workDirectory, uuid.NewString())
 		addSessionFolder(t, fs, third, now.Add(-9*24*time.Hour))
+		// tfDir is a fake session that will clean up the others
+		tfDir := tfpath.Session(workDirectory, uuid.NewString())
 
 		// when
-		provisionersdk.CleanStaleSessions(ctx, workDirectory, fs, now, logger)
+		err := tfDir.CleanStaleSessions(ctx, logger, fs, now)
+		require.NoError(t, err)
 
 		// then
 		entries, err := afero.ReadDir(fs, workDirectory)
@@ -70,9 +72,11 @@ func TestStaleSessions(t *testing.T) {
 		addSessionFolder(t, fs, first, now.Add(-7*24*time.Hour))
 		second := tfpath.Session(workDirectory, uuid.NewString())
 		addSessionFolder(t, fs, second, now.Add(-6*24*time.Hour))
+		tfDir := tfpath.Session(workDirectory, uuid.NewString())
 
 		// when
-		provisionersdk.CleanStaleSessions(ctx, workDirectory, fs, now, logger)
+		err := tfDir.CleanStaleSessions(ctx, logger, fs, now)
+		require.NoError(t, err)
 
 		// then
 		entries, err := afero.ReadDir(fs, workDirectory)
@@ -94,9 +98,11 @@ func TestStaleSessions(t *testing.T) {
 		addSessionFolder(t, fs, first, now.Add(-6*24*time.Hour))
 		second := tfpath.Session(workDirectory, uuid.NewString())
 		addSessionFolder(t, fs, second, now.Add(-5*24*time.Hour))
+		tfDir := tfpath.Session(workDirectory, uuid.NewString())
 
 		// when
-		provisionersdk.CleanStaleSessions(ctx, workDirectory, fs, now, logger)
+		err := tfDir.CleanStaleSessions(ctx, logger, fs, now)
+		require.NoError(t, err)
 
 		// then
 		entries, err := afero.ReadDir(fs, workDirectory)

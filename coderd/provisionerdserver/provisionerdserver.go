@@ -699,16 +699,19 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			}
 		}
 
+		activeVersion := template.ActiveVersionID == templateVersion.ID
 		protoJob.Type = &proto.AcquiredJob_WorkspaceBuild_{
 			WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
-				WorkspaceBuildId:           workspaceBuild.ID.String(),
-				WorkspaceName:              workspace.Name,
-				State:                      workspaceBuild.ProvisionerState,
-				RichParameterValues:        convertRichParameterValues(workspaceBuildParameters),
-				PreviousParameterValues:    convertRichParameterValues(lastWorkspaceBuildParameters),
-				VariableValues:             asVariableValues(templateVariables),
-				ExternalAuthProviders:      externalAuthProviders,
-				ExpReuseTerraformWorkspace: ptr.Ref(false), // TODO: Toggle based on experiment
+				WorkspaceBuildId:        workspaceBuild.ID.String(),
+				WorkspaceName:           workspace.Name,
+				State:                   workspaceBuild.ProvisionerState,
+				RichParameterValues:     convertRichParameterValues(workspaceBuildParameters),
+				PreviousParameterValues: convertRichParameterValues(lastWorkspaceBuildParameters),
+				VariableValues:          asVariableValues(templateVariables),
+				ExternalAuthProviders:   externalAuthProviders,
+				// If active and experiment is enabled, allow workspace reuse existing TF
+				// workspaces (directories) for a faster startup.
+				ExpReuseTerraformWorkspace: ptr.Ref(activeVersion && s.Experiments.Enabled(codersdk.ExperimentTerraformWorkspace)),
 				Metadata: &sdkproto.Metadata{
 					CoderUrl:                      s.AccessURL.String(),
 					WorkspaceTransition:           transition,
@@ -722,6 +725,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					WorkspaceOwnerId:              owner.ID.String(),
 					TemplateId:                    template.ID.String(),
 					TemplateName:                  template.Name,
+					TemplateVersionId:             templateVersion.ID.String(),
 					TemplateVersion:               templateVersion.Name,
 					WorkspaceOwnerSessionToken:    sessionToken,
 					WorkspaceOwnerSshPublicKey:    ownerSSHPublicKey,
