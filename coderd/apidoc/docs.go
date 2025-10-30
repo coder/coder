@@ -20527,7 +20527,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "ai_task_sidebar_app_id": {
-                    "description": "Deprecated: This field has been replaced with ` + "`" + `TaskAppID` + "`" + `",
+                    "description": "Deprecated: This field has been replaced with ` + "`" + `Task.WorkspaceAppID` + "`" + `",
                     "type": "string",
                     "format": "uuid"
                 },
@@ -20608,10 +20608,6 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.WorkspaceStatus"
                         }
                     ]
-                },
-                "task_app_id": {
-                    "type": "string",
-                    "format": "uuid"
                 },
                 "template_version_id": {
                     "type": "string",

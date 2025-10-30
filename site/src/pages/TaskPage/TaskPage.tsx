@@ -149,7 +149,7 @@ const TaskPage = () => {
 		content = <TaskStartingAgent agent={agent} />;
 	} else {
 		const chatApp = getAllAppsWithAgent(workspace).find(
-			(app) => app.id === workspace.latest_build.task_app_id,
+			(app) => app.id === task.workspace_app_id,
 		);
 		content = (
 			<PanelGroup autoSaveId="task" direction="horizontal">
@@ -174,7 +174,7 @@ const TaskPage = () => {
 					<div className="w-1 bg-border h-full hover:bg-border-hover transition-all relative" />
 				</PanelResizeHandle>
 				<Panel className="[&>*]:h-full">
-					<TaskApps workspace={workspace} />
+					<TaskApps task={task} workspace={workspace} />
 				</Panel>
 			</PanelGroup>
 		);
