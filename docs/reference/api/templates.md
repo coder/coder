@@ -1262,6 +1262,52 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/daus \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Invalidate all prebuilt workspaces for a template
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/templates/{template}/prebuilds/invalidate \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /templates/{template}/prebuilds/invalidate`
+
+### Parameters
+
+| Name       | In   | Type         | Required | Description |
+|------------|------|--------------|----------|-------------|
+| `template` | path | string(uuid) | true     | Template ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "count": 0,
+  "failed": [
+    {
+      "error": "string",
+      "workspace_name": "string"
+    }
+  ],
+  "invalidated": [
+    "string"
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                 |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.InvalidatePrebuildsResponse](schemas.md#codersdkinvalidateprebuildsresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## List template versions by template ID
 
 ### Code samples
