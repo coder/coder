@@ -133,9 +133,9 @@ func (c *SocketClient) SyncComplete(ctx context.Context, unit string) error {
 	return nil
 }
 
-// SyncWait waits for a unit's dependencies to be satisfied
-func (c *SocketClient) SyncWait(ctx context.Context, unitName string) error {
-	resp, err := c.client.SyncWait(ctx, &proto.SyncWaitRequest{
+// SyncReady requests whether a unit is ready to be started. That is, all dependencies are satisfied.
+func (c *SocketClient) SyncReady(ctx context.Context, unitName string) error {
+	resp, err := c.client.SyncReady(ctx, &proto.SyncReadyRequest{
 		Unit: unitName,
 	})
 	if err != nil {
@@ -147,7 +147,7 @@ func (c *SocketClient) SyncWait(ctx context.Context, unitName string) error {
 		if resp.Message == unit.ErrDependenciesNotSatisfied.Error() {
 			return unit.ErrDependenciesNotSatisfied
 		}
-		return xerrors.Errorf("sync wait failed: %s", resp.Message)
+		return xerrors.Errorf("sync ready failed: %s", resp.Message)
 	}
 
 	return nil

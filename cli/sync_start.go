@@ -53,7 +53,7 @@ func (r *RootCmd) syncStart() *serpent.Command {
 			defer client.Close()
 
 			// Check if dependencies are satisfied first
-			err = client.SyncWait(ctx, unitName)
+			err = client.SyncReady(ctx, unitName)
 			if err != nil {
 				// Check if it's a "not ready" error (expected if dependencies exist)
 				if xerrors.Is(err, unit.ErrDependenciesNotSatisfied) {
@@ -74,7 +74,7 @@ func (r *RootCmd) syncStart() *serpent.Command {
 							return ctx.Err()
 						case <-ticker.C:
 							// Check if dependencies are satisfied
-							err := client.SyncWait(ctx, unitName)
+							err := client.SyncReady(ctx, unitName)
 							if err == nil {
 								// Dependencies are satisfied
 								fmt.Printf("Dependencies satisfied, marking unit '%s' as started\n", unitName)

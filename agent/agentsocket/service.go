@@ -13,7 +13,8 @@ import (
 	"github.com/coder/coder/v2/agent/unit"
 )
 
-// DRPCAgentSocketService implements the proto.DRPCAgentSocketServer interface.
+var _ proto.DRPCAgentSocketServer = (*DRPCAgentSocketService)(nil)
+
 type DRPCAgentSocketService struct {
 	mu          sync.RWMutex
 	unitManager *unit.Manager[string, string]
@@ -153,16 +154,16 @@ func (s *DRPCAgentSocketService) SyncComplete(_ context.Context, req *proto.Sync
 	}, nil
 }
 
-func (s *DRPCAgentSocketService) SyncWait(_ context.Context, req *proto.SyncWaitRequest) (*proto.SyncWaitResponse, error) {
+func (s *DRPCAgentSocketService) SyncReady(_ context.Context, req *proto.SyncReadyRequest) (*proto.SyncReadyResponse, error) {
 	if s.unitManager == nil {
-		return &proto.SyncWaitResponse{
+		return &proto.SyncReadyResponse{
 			Success: false,
 			Message: "unit manager not available",
 		}, nil
 	}
 
 	if req.Unit == "" {
-		return &proto.SyncWaitResponse{
+		return &proto.SyncReadyResponse{
 			Success: false,
 			Message: "unit name is required",
 		}, nil
@@ -170,20 +171,20 @@ func (s *DRPCAgentSocketService) SyncWait(_ context.Context, req *proto.SyncWait
 
 	isReady, err := s.unitManager.IsReady(req.Unit)
 	if err != nil {
-		return &proto.SyncWaitResponse{
+		return &proto.SyncReadyResponse{
 			Success: false,
 			Message: "failed to check readiness: " + err.Error(),
 		}, nil
 	}
 
 	if !isReady {
-		return &proto.SyncWaitResponse{
+		return &proto.SyncReadyResponse{
 			Success: false,
 			Message: unit.ErrDependenciesNotSatisfied.Error(),
 		}, nil
 	}
 
-	return &proto.SyncWaitResponse{
+	return &proto.SyncReadyResponse{
 		Success: true,
 		Message: "unit " + req.Unit + " dependencies are satisfied",
 	}, nil

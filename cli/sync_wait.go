@@ -65,7 +65,7 @@ func (r *RootCmd) syncWait() *serpent.Command {
 					return ctx.Err()
 				case <-ticker.C:
 					// Check if dependencies are satisfied
-					err := client.SyncWait(ctx, unitName)
+					err := client.SyncReady(ctx, unitName)
 					if err == nil {
 						// Dependencies are satisfied
 						fmt.Printf("Dependencies for unit '%s' are now satisfied\n", unitName)
