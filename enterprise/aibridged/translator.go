@@ -31,6 +31,7 @@ func (t *recorderTranslation) RecordInterception(ctx context.Context, req *aibri
 		InitiatorId: req.InitiatorID,
 		Provider:    req.Provider,
 		Model:       req.Model,
+		UserAgent:   req.UserAgent,
 		Metadata:    marshalForProto(req.Metadata),
 		StartedAt:   timestamppb.New(req.StartedAt),
 	})

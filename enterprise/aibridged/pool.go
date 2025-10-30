@@ -129,7 +129,10 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn Cl
 			return nil, xerrors.Errorf("acquire client: %w", err)
 		}
 
-		return &recorderTranslation{apiKeyID: req.APIKeyID, client: client}, nil
+		return &recorderTranslation{
+			apiKeyID: req.APIKeyID,
+			client:   client,
+		}, nil
 	})
 
 	// Slow path.

@@ -43,6 +43,7 @@ message RecordInterceptionRequest {
   map<string, google.protobuf.Any> metadata = 5;
   google.protobuf.Timestamp started_at = 6;
   string api_key_id = 7;
+  string user_agent = 8;
 }
 
 message RecordInterceptionResponse {}
