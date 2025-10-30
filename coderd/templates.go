@@ -1146,3 +1146,54 @@ func findTemplateAdmins(ctx context.Context, store database.Store) ([]database.G
 	}
 	return append(owners, templateAdmins...), nil
 }
+
+// @Summary Invalidate all prebuilt workspaces for a template
+// @ID invalidate-template-prebuilds
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Templates
+// @Param template path string true "Template ID" format(uuid)
+// @Success 200 {object} codersdk.InvalidatePrebuildsResponse
+// @Router /templates/{template}/prebuilds/invalidate [post]
+func (api *API) postInvalidateTemplatePrebuilds(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	template := httpmw.TemplateParam(r)
+
+	// Authorization: user must be able to update the template
+	if !api.Authorize(r, policy.ActionUpdate, template) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	// Update last_invalidated_at for all presets of the active template version
+	invalidatedPresets, err := api.Database.UpdatePresetsLastInvalidatedAt(ctx, database.UpdatePresetsLastInvalidatedAtParams{
+		TemplateID:        template.ID,
+		LastInvalidatedAt: dbtime.Now(),
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to invalidate prebuilds.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	api.Logger.Info(ctx, "invalidated prebuilds",
+		slog.F("template_id", template.ID),
+		slog.F("template_name", template.Name),
+		slog.F("preset_count", len(invalidatedPresets)),
+	)
+
+	// Build list of preset names
+	var presetNames []string
+	for _, preset := range invalidatedPresets {
+		presetNames = append(presetNames, preset.Name)
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.InvalidatePrebuildsResponse{
+		Count:       len(invalidatedPresets),
+		Invalidated: presetNames,
+		Failed:      []codersdk.InvalidatedPrebuildError{},
+	})
+}
