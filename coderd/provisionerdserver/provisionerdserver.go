@@ -698,6 +698,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			}
 		}
 
+		activeVersion := template.ActiveVersionID == templateVersion.ID
 		protoJob.Type = &proto.AcquiredJob_WorkspaceBuild_{
 			WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
 				WorkspaceBuildId:        workspaceBuild.ID.String(),
@@ -707,7 +708,9 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 				PreviousParameterValues: convertRichParameterValues(lastWorkspaceBuildParameters),
 				VariableValues:          asVariableValues(templateVariables),
 				ExternalAuthProviders:   externalAuthProviders,
-				TerraformWorkspaceReuse: false, // TODO: Toggle based on experiment
+				// If active and experiment is enabled, allow workspace reuse existing TF
+				// workspaces (directories) for a faster startup.
+				TerraformWorkspaceReuse: activeVersion && s.Experiments.Enabled(codersdk.ExperimentTerraformWorkspace),
 				Metadata: &sdkproto.Metadata{
 					CoderUrl:                      s.AccessURL.String(),
 					WorkspaceTransition:           transition,
@@ -721,6 +724,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					WorkspaceOwnerId:              owner.ID.String(),
 					TemplateId:                    template.ID.String(),
 					TemplateName:                  template.Name,
+					TemplateVersionId:             templateVersion.ID.String(),
 					TemplateVersion:               templateVersion.Name,
 					WorkspaceOwnerSessionToken:    sessionToken,
 					WorkspaceOwnerSshPublicKey:    ownerSSHPublicKey,
