@@ -22,7 +22,7 @@ export const AIGovernanceHelpTooltip: FC = () => {
 					organization.
 				</HelpTooltipText>
 				<HelpTooltipLinksGroup>
-					<HelpTooltipLink href={docs("/docs/ai-coder/ai-bridge")}>
+					<HelpTooltipLink href={docs("/ai-coder/ai-bridge")}>
 						What we track
 					</HelpTooltipLink>
 				</HelpTooltipLinksGroup>
