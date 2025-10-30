@@ -357,16 +357,16 @@ func (a *agent) init() {
 		},
 	)
 
-	// Initialize socket server for CLI communication
 	a.initSocketServer()
 
 	go a.runLoop()
 }
 
-// initSocketServer initializes the socket server for CLI communication
+// initSocketServer initializes server that allows direct communication with a workspace agent
+// using IPC.
 func (a *agent) initSocketServer() {
 	if a.socketPath == "" {
-		a.logger.Debug(a.hardCtx, "socket server disabled (no path configured)")
+		a.logger.Info(a.hardCtx, "socket server disabled (no path configured)")
 		return
 	}
 
@@ -382,7 +382,7 @@ func (a *agent) initSocketServer() {
 	}
 
 	a.socketServer = server
-	a.logger.Info(a.hardCtx, "socket server started", slog.F("path", a.socketPath))
+	a.logger.Debug(a.hardCtx, "socket server started", slog.F("path", a.socketPath))
 }
 
 // runLoop attempts to start the agent in a retry loop.
