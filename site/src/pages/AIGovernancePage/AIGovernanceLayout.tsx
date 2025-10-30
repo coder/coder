@@ -8,11 +8,6 @@ import type { FC, PropsWithChildren } from "react";
 import { Outlet } from "react-router";
 import { AIGovernanceHelpTooltip } from "./AIGovernanceHelpTooltip";
 
-const Language = {
-	title: "AI Governance",
-	subtitle: "Manage usage for your organization.",
-};
-
 const AIGovernanceLayout: FC<PropsWithChildren> = ({
 	children = <Outlet />,
 }) => {
@@ -21,11 +16,13 @@ const AIGovernanceLayout: FC<PropsWithChildren> = ({
 			<PageHeader>
 				<PageHeaderTitle>
 					<div className="flex items-center gap-2">
-						<span>{Language.title}</span>
+						<span>AI Governance</span>
 						<AIGovernanceHelpTooltip />
 					</div>
 				</PageHeaderTitle>
-				<PageHeaderSubtitle>{Language.subtitle}</PageHeaderSubtitle>
+				<PageHeaderSubtitle>
+					Manage usage for your organization.
+				</PageHeaderSubtitle>
 			</PageHeader>
 			{children}
 		</Margins>
