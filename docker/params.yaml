@@ -1,2 +1,0 @@
-docker_arch: "arm64"
-docker_host: "unix:///Users/mtojek/.docker/run/docker.sock"
