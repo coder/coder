@@ -45,6 +45,7 @@ import (
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/proto/resourcesmonitor"
 	"github.com/coder/coder/v2/agent/reconnectingpty"
+	"github.com/coder/coder/v2/agent/unit"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/gitauth"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -193,6 +194,7 @@ func New(options Options) Agent {
 		devcontainers:       options.Devcontainers,
 		containerAPIOptions: options.DevcontainerAPIOptions,
 		socketPath:          options.SocketPath,
+		dependencyTracker:   unit.NewDependencyTracker[string, string](),
 	}
 	// Initially, we have a closed channel, reflecting the fact that we are not initially connected.
 	// Each time we connect we replace the channel (while holding the closeMutex) with a new one
@@ -275,9 +277,9 @@ type agent struct {
 	containerAPIOptions []agentcontainers.Option
 	containerAPI        *agentcontainers.API
 
-	// Socket server for CLI communication
-	socketPath   string
-	socketServer *agentsocket.Server
+	socketPath        string
+	socketServer      *agentsocket.Server
+	dependencyTracker *unit.DependencyTracker[string, string]
 }
 
 func (a *agent) TailnetConn() *tailnet.Conn {
@@ -359,38 +361,27 @@ func (a *agent) init() {
 	)
 
 	// Initialize socket server for CLI communication
-	a.initSocketServer()
+	a.initSocketServer(a.dependencyTracker)
 
 	go a.runLoop()
 }
 
 // initSocketServer initializes the socket server for CLI communication
-func (a *agent) initSocketServer() {
-	// Get socket path from options or environment
+func (a *agent) initSocketServer(dependencyTracker *unit.DependencyTracker[string, string]) {
 	socketPath := a.getSocketPath()
 	if socketPath == "" {
 		a.logger.Debug(a.hardCtx, "socket server disabled (no path configured)")
 		return
 	}
 
-	// Create socket server
 	server := agentsocket.NewServer(agentsocket.Config{
-		Path:   socketPath,
-		Logger: a.logger.Named("socket"),
+		Path:              socketPath,
+		Logger:            a.logger.Named("socket"),
+		DependencyTracker: a.dependencyTracker,
 	})
 
-	// Register default handlers
-	handlerCtx := agentsocket.CreateHandlerContext(
-		"", // Agent ID will be set when manifest is available
-		buildinfo.Version(),
-		"starting",
-		time.Now(),
-		a.logger,
-	)
-	agentsocket.RegisterDefaultHandlers(server, handlerCtx)
-
-	// Start the server
-	if err := server.Start(); err != nil {
+	err := server.Start()
+	if err != nil {
 		a.logger.Warn(a.hardCtx, "failed to start socket server", slog.Error(err))
 		return
 	}
@@ -1971,6 +1962,13 @@ func (a *agent) Close() error {
 			lifecycleState = codersdk.WorkspaceAgentLifecycleShutdownError
 		}
 	}
+
+	if a.socketServer != nil {
+		if err := a.socketServer.Stop(); err != nil {
+			a.logger.Error(a.hardCtx, "socket server close", slog.Error(err))
+		}
+	}
+
 	a.setLifecycle(lifecycleState)
 
 	err = a.scriptRunner.Close()
@@ -1980,13 +1978,6 @@ func (a *agent) Close() error {
 
 	if err := a.containerAPI.Close(); err != nil {
 		a.logger.Error(a.hardCtx, "container API close", slog.Error(err))
-	}
-
-	// Close socket server
-	if a.socketServer != nil {
-		if err := a.socketServer.Stop(); err != nil {
-			a.logger.Error(a.hardCtx, "socket server close", slog.Error(err))
-		}
 	}
 
 	// Wait for the graceful shutdown to complete, but don't wait forever so

@@ -13,10 +13,9 @@ import (
 type testStatus string
 
 const (
-	statusInitialized testStatus = "initialized"
-	statusStarted     testStatus = "started"
-	statusRunning     testStatus = "running"
-	statusCompleted   testStatus = "completed"
+	statusStarted   testStatus = "started"
+	statusRunning   testStatus = "running"
+	statusCompleted testStatus = "completed"
 )
 
 type testConsumerID string

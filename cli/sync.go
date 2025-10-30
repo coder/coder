@@ -14,6 +14,11 @@ func (r *RootCmd) syncCommand() *serpent.Command {
 		},
 		Children: []*serpent.Command{
 			r.syncPing(),
+			r.syncStart(),
+			r.syncWant(),
+			r.syncComplete(),
+			r.syncWait(),
+			r.syncStatus(),
 		},
 	}
 	return cmd

@@ -16,32 +16,24 @@ import (
 
 // createSocket creates a Unix domain socket listener on Windows
 // Falls back to named pipe if Unix sockets are not supported
-func createSocket(ctx context.Context, path string, logger slog.Logger) (net.Listener, error) {
-	logger.Debug(ctx, "SOCKET_DEBUG: Creating socket on Windows", slog.F("path", path))
-
+func CreateSocket(path string) (net.Listener, error) {
 	// Try Unix domain socket first (Windows 10 build 17063+)
-	logger.Debug(ctx, "SOCKET_DEBUG: Attempting Unix domain socket on Windows", slog.F("path", path))
 	listener, err := net.Listen("unix", path)
 	if err == nil {
-		logger.Info(ctx, "SOCKET_DEBUG: Unix domain socket created successfully on Windows", slog.F("path", path))
 		return listener, nil
 	}
-	logger.Debug(ctx, "SOCKET_DEBUG: Unix domain socket failed, falling back to named pipe", slog.Error(err), slog.F("path", path))
 
 	// Fall back to named pipe
 	pipePath := `\\.\pipe\coder-agent`
-	logger.Debug(ctx, "SOCKET_DEBUG: Creating named pipe", slog.F("pipe_path", pipePath))
 	listener, err = net.Listen("tcp", pipePath)
 	if err != nil {
-		logger.Error(ctx, "SOCKET_DEBUG: Failed to create named pipe", slog.Error(err), slog.F("pipe_path", pipePath))
 		return nil, err
 	}
-	logger.Info(ctx, "SOCKET_DEBUG: Named pipe created successfully", slog.F("pipe_path", pipePath))
 	return listener, nil
 }
 
 // getDefaultSocketPath returns the default socket path for Windows
-func getDefaultSocketPath() (string, error) {
+func GetDefaultSocketPath() (string, error) {
 	// Try to use a temporary directory
 	tempDir := os.TempDir()
 	if tempDir == "" {
@@ -60,35 +52,35 @@ func getDefaultSocketPath() (string, error) {
 }
 
 // cleanupSocket removes the socket file
-func cleanupSocket(path string) error {
+func CleanupSocket(path string) error {
 	return os.Remove(path)
 }
 
 // isSocketAvailable checks if a socket path is available for use
-func isSocketAvailable(path string, logger slog.Logger) bool {
-	logger.Debug(context.Background(), "SOCKET_DEBUG: Checking socket availability on Windows", slog.F("path", path))
+func IsSocketAvailable(path string, logger slog.Logger) bool {
+	logger.Debug(context.Background(), "Checking socket availability on Windows", slog.F("path", path))
 
 	// Check if file exists
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		logger.Debug(context.Background(), "SOCKET_DEBUG: Socket file does not exist, path is available", slog.F("path", path))
+		logger.Debug(context.Background(), "Socket file does not exist, path is available", slog.F("path", path))
 		return true
 	}
-	logger.Debug(context.Background(), "SOCKET_DEBUG: Socket file exists, checking if it's listening", slog.F("path", path))
+	logger.Debug(context.Background(), "Socket file exists, checking if it's listening", slog.F("path", path))
 
 	// Try to connect to see if it's actually listening
 	conn, err := net.Dial("unix", path)
 	if err != nil {
 		// If we can't connect, the socket is not in use
-		logger.Debug(context.Background(), "SOCKET_DEBUG: Cannot connect to socket, path is available", slog.F("path", path), slog.Error(err))
+		logger.Debug(context.Background(), "Cannot connect to socket, path is available", slog.F("path", path), slog.Error(err))
 		return true
 	}
 	_ = conn.Close()
-	logger.Debug(context.Background(), "SOCKET_DEBUG: Socket is listening, path is not available", slog.F("path", path))
+	logger.Debug(context.Background(), "Socket is listening, path is not available", slog.F("path", path))
 	return false
 }
 
 // getSocketInfo returns information about the socket file
-func getSocketInfo(path string) (*SocketInfo, error) {
+func GetSocketInfo(path string) (*SocketInfo, error) {
 	stat, err := os.Stat(path)
 	if err != nil {
 		return nil, err

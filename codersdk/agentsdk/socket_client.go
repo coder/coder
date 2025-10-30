@@ -2,7 +2,6 @@ package agentsdk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net"
 	"os"
@@ -10,11 +9,19 @@ import (
 	"time"
 
 	"golang.org/x/xerrors"
+
+	"github.com/hashicorp/yamux"
+	"storj.io/drpc"
+
+	"github.com/coder/coder/v2/agent/agentsocket/proto"
+	"github.com/coder/coder/v2/agent/unit"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 )
 
 // SocketClient provides a client for communicating with the agent socket
 type SocketClient struct {
-	conn net.Conn
+	client proto.DRPCAgentSocketClient
+	conn   drpc.Conn
 }
 
 // SocketConfig holds configuration for the socket client
@@ -38,8 +45,24 @@ func NewSocketClient(config SocketConfig) (*SocketClient, error) {
 		return nil, xerrors.Errorf("connect to socket: %w", err)
 	}
 
+	// Create yamux session for multiplexing
+	configYamux := yamux.DefaultConfig()
+	configYamux.Logger = nil // Disable yamux logging
+	session, err := yamux.Client(conn, configYamux)
+	if err != nil {
+		conn.Close()
+		return nil, xerrors.Errorf("create yamux client: %w", err)
+	}
+
+	// Create drpc connection using the multiplexed connection
+	drpcConn := drpcsdk.MultiplexedConn(session)
+
+	// Create drpc client
+	client := proto.NewDRPCAgentSocketClient(drpcConn)
+
 	return &SocketClient{
-		conn: conn,
+		client: client,
+		conn:   drpcConn,
 	}, nil
 }
 
@@ -50,128 +73,120 @@ func (c *SocketClient) Close() error {
 
 // Ping sends a ping request to the agent
 func (c *SocketClient) Ping(ctx context.Context) (*PingResponse, error) {
-	req := &Request{
-		Version: "1.0",
-		Method:  "ping",
-		ID:      generateRequestID(),
-	}
-
-	resp, err := c.sendRequest(ctx, req)
+	resp, err := c.client.Ping(ctx, &proto.PingRequest{})
 	if err != nil {
 		return nil, err
 	}
 
-	if resp.Error != nil {
-		return nil, xerrors.Errorf("ping error: %s", resp.Error.Message)
-	}
-
-	var pingResp PingResponse
-	if err := json.Unmarshal(resp.Result, &pingResp); err != nil {
-		return nil, xerrors.Errorf("unmarshal ping response: %w", err)
-	}
-
-	return &pingResp, nil
+	return &PingResponse{
+		Message:   resp.Message,
+		Timestamp: resp.Timestamp.AsTime(),
+	}, nil
 }
 
-// Health sends a health check request to the agent
-func (c *SocketClient) Health(ctx context.Context) (*HealthResponse, error) {
-	req := &Request{
-		Version: "1.0",
-		Method:  "health",
-		ID:      generateRequestID(),
+// SyncStart starts a unit in the dependency graph
+func (c *SocketClient) SyncStart(ctx context.Context, unit string) error {
+	resp, err := c.client.SyncStart(ctx, &proto.SyncStartRequest{
+		Unit: unit,
+	})
+	if err != nil {
+		return err
 	}
 
-	resp, err := c.sendRequest(ctx, req)
+	if !resp.Success {
+		return xerrors.Errorf("sync start failed: %s", resp.Message)
+	}
+
+	return nil
+}
+
+// SyncWant declares a dependency between units
+func (c *SocketClient) SyncWant(ctx context.Context, unit, dependsOn string) error {
+	resp, err := c.client.SyncWant(ctx, &proto.SyncWantRequest{
+		Unit:      unit,
+		DependsOn: dependsOn,
+	})
+	if err != nil {
+		return err
+	}
+
+	if !resp.Success {
+		return xerrors.Errorf("sync want failed: %s", resp.Message)
+	}
+
+	return nil
+}
+
+// SyncComplete marks a unit as complete in the dependency graph
+func (c *SocketClient) SyncComplete(ctx context.Context, unit string) error {
+	resp, err := c.client.SyncComplete(ctx, &proto.SyncCompleteRequest{
+		Unit: unit,
+	})
+	if err != nil {
+		return err
+	}
+
+	if !resp.Success {
+		return xerrors.Errorf("sync complete failed: %s", resp.Message)
+	}
+
+	return nil
+}
+
+// SyncWait waits for a unit's dependencies to be satisfied
+func (c *SocketClient) SyncWait(ctx context.Context, unitName string) error {
+	resp, err := c.client.SyncWait(ctx, &proto.SyncWaitRequest{
+		Unit: unitName,
+	})
+	if err != nil {
+		return err
+	}
+
+	if !resp.Success {
+		// Check if this is a dependencies not satisfied error
+		if resp.Message == unit.ErrDependenciesNotSatisfied.Error() {
+			return unit.ErrDependenciesNotSatisfied
+		}
+		return xerrors.Errorf("sync wait failed: %s", resp.Message)
+	}
+
+	return nil
+}
+
+// SyncStatus gets the status of a unit and its dependencies
+func (c *SocketClient) SyncStatus(ctx context.Context, unit string, recursive bool) (*SyncStatusResponse, error) {
+	resp, err := c.client.SyncStatus(ctx, &proto.SyncStatusRequest{
+		Unit:      unit,
+		Recursive: recursive,
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	if resp.Error != nil {
-		return nil, xerrors.Errorf("health error: %s", resp.Error.Message)
+	if !resp.Success {
+		return nil, xerrors.Errorf("sync status failed: %s", resp.Message)
 	}
 
-	var healthResp HealthResponse
-	if err := json.Unmarshal(resp.Result, &healthResp); err != nil {
-		return nil, xerrors.Errorf("unmarshal health response: %w", err)
+	// Convert dependencies
+	var dependencies []DependencyInfo
+	for _, dep := range resp.Dependencies {
+		dependencies = append(dependencies, DependencyInfo{
+			DependsOn:      dep.DependsOn,
+			RequiredStatus: dep.RequiredStatus,
+			CurrentStatus:  dep.CurrentStatus,
+			IsSatisfied:    dep.IsSatisfied,
+		})
 	}
 
-	return &healthResp, nil
-}
-
-// AgentInfo sends an agent info request
-func (c *SocketClient) AgentInfo(ctx context.Context) (*AgentInfo, error) {
-	req := &Request{
-		Version: "1.0",
-		Method:  "agent.info",
-		ID:      generateRequestID(),
-	}
-
-	resp, err := c.sendRequest(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.Error != nil {
-		return nil, xerrors.Errorf("agent info error: %s", resp.Error.Message)
-	}
-
-	var agentInfo AgentInfo
-	if err := json.Unmarshal(resp.Result, &agentInfo); err != nil {
-		return nil, xerrors.Errorf("unmarshal agent info response: %w", err)
-	}
-
-	return &agentInfo, nil
-}
-
-// ListMethods lists available methods
-func (c *SocketClient) ListMethods(ctx context.Context) ([]string, error) {
-	req := &Request{
-		Version: "1.0",
-		Method:  "methods.list",
-		ID:      generateRequestID(),
-	}
-
-	resp, err := c.sendRequest(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.Error != nil {
-		return nil, xerrors.Errorf("list methods error: %s", resp.Error.Message)
-	}
-
-	var methods []string
-	if err := json.Unmarshal(resp.Result, &methods); err != nil {
-		return nil, xerrors.Errorf("unmarshal methods response: %w", err)
-	}
-
-	return methods, nil
-}
-
-// sendRequest sends a request and returns the response
-func (c *SocketClient) sendRequest(_ context.Context, req *Request) (*Response, error) {
-	// Set write deadline
-	if err := c.conn.SetWriteDeadline(time.Now().Add(30 * time.Second)); err != nil {
-		return nil, xerrors.Errorf("set write deadline: %w", err)
-	}
-
-	// Send request
-	if err := json.NewEncoder(c.conn).Encode(req); err != nil {
-		return nil, xerrors.Errorf("send request: %w", err)
-	}
-
-	// Set read deadline
-	if err := c.conn.SetReadDeadline(time.Now().Add(30 * time.Second)); err != nil {
-		return nil, xerrors.Errorf("set read deadline: %w", err)
-	}
-
-	// Read response
-	var resp Response
-	if err := json.NewDecoder(c.conn).Decode(&resp); err != nil {
-		return nil, xerrors.Errorf("read response: %w", err)
-	}
-
-	return &resp, nil
+	return &SyncStatusResponse{
+		Success:      resp.Success,
+		Message:      resp.Message,
+		Unit:         resp.Unit,
+		Status:       resp.Status,
+		IsReady:      resp.IsReady,
+		Dependencies: dependencies,
+		DOT:          resp.Dot,
+	}, nil
 }
 
 // discoverSocketPath discovers the agent socket path
@@ -203,52 +218,39 @@ func discoverSocketPath() (string, error) {
 	return "", xerrors.New("agent socket not found")
 }
 
-// generateRequestID generates a unique request ID
-func generateRequestID() string {
-	return fmt.Sprintf("%d", time.Now().UnixNano())
-}
-
-// Request represents a socket request
-type Request struct {
-	Version string          `json:"version"`
-	Method  string          `json:"method"`
-	ID      string          `json:"id,omitempty"`
-	Params  json.RawMessage `json:"params,omitempty"`
-}
-
-// Response represents a socket response
-type Response struct {
-	Version string          `json:"version"`
-	ID      string          `json:"id,omitempty"`
-	Result  json.RawMessage `json:"result,omitempty"`
-	Error   *Error          `json:"error,omitempty"`
-}
-
-// Error represents a socket error
-type Error struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-	Data    any    `json:"data,omitempty"`
-}
-
-// PingResponse represents a ping response
+// Response types for backward compatibility
 type PingResponse struct {
 	Message   string    `json:"message"`
 	Timestamp time.Time `json:"timestamp"`
 }
 
-// HealthResponse represents a health check response
 type HealthResponse struct {
 	Status    string    `json:"status"`
 	Timestamp time.Time `json:"timestamp"`
 	Uptime    string    `json:"uptime"`
 }
 
-// AgentInfo represents agent information
 type AgentInfo struct {
 	ID        string    `json:"id"`
 	Version   string    `json:"version"`
 	Status    string    `json:"status"`
 	StartedAt time.Time `json:"started_at"`
 	Uptime    string    `json:"uptime"`
+}
+
+type SyncStatusResponse struct {
+	Success      bool             `json:"success"`
+	Message      string           `json:"message"`
+	Unit         string           `json:"unit"`
+	Status       string           `json:"status"`
+	IsReady      bool             `json:"is_ready"`
+	Dependencies []DependencyInfo `json:"dependencies"`
+	DOT          string           `json:"dot,omitempty"`
+}
+
+type DependencyInfo struct {
+	DependsOn      string `json:"depends_on"`
+	RequiredStatus string `json:"required_status"`
+	CurrentStatus  string `json:"current_status"`
+	IsSatisfied    bool   `json:"is_satisfied"`
 }

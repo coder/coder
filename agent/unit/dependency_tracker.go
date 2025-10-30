@@ -9,8 +9,17 @@ import (
 // ErrConsumerNotFound is returned when a consumer ID is not registered.
 var ErrConsumerNotFound = xerrors.New("consumer not found")
 
+// ErrConsumerAlreadyRegistered is returned when a consumer ID is already registered.
+var ErrConsumerAlreadyRegistered = xerrors.New("consumer already registered")
+
 // ErrCannotUpdateOtherConsumer is returned when attempting to update another consumer's status.
 var ErrCannotUpdateOtherConsumer = xerrors.New("cannot update other consumer's status")
+
+// ErrDependenciesNotSatisfied is returned when a consumer's dependencies are not satisfied.
+var ErrDependenciesNotSatisfied = xerrors.New("unit dependencies not satisfied")
+
+// ErrSameStatusAlreadySet is returned when attempting to set the same status as the current status.
+var ErrSameStatusAlreadySet = xerrors.New("same status already set")
 
 // dependencyVertex represents a vertex in the dependency graph that is associated with a consumer.
 type dependencyVertex[ConsumerID comparable] struct {
@@ -65,7 +74,7 @@ func (dt *DependencyTracker[StatusType, ConsumerID]) Register(id ConsumerID) err
 	defer dt.mu.Unlock()
 
 	if dt.registeredConsumers[id] {
-		return xerrors.Errorf("consumer %v is already registered", id)
+		return ErrConsumerAlreadyRegistered
 	}
 
 	// Create and store the vertex for this consumer
@@ -117,6 +126,9 @@ func (dt *DependencyTracker[StatusType, ConsumerID]) UpdateStatus(consumer Consu
 	}
 
 	// Update the consumer's status
+	if dt.consumerStatus[consumer] == newStatus {
+		return ErrSameStatusAlreadySet
+	}
 	dt.consumerStatus[consumer] = newStatus
 
 	// Get all consumers that depend on this one (reverse adjacent vertices)
@@ -219,6 +231,68 @@ func (dt *DependencyTracker[StatusType, ConsumerID]) recalculateReadinessUnsafe(
 // This should be used carefully as it exposes the internal graph structure.
 func (dt *DependencyTracker[StatusType, ConsumerID]) GetGraph() *Graph[StatusType, *dependencyVertex[ConsumerID]] {
 	return dt.graph
+}
+
+// GetStatus returns the current status of a consumer.
+func (dt *DependencyTracker[StatusType, ConsumerID]) GetStatus(consumer ConsumerID) (StatusType, error) {
+	dt.mu.RLock()
+	defer dt.mu.RUnlock()
+
+	if !dt.registeredConsumers[consumer] {
+		var zeroStatus StatusType
+		return zeroStatus, ErrConsumerNotFound
+	}
+
+	status, exists := dt.consumerStatus[consumer]
+	if !exists {
+		var zeroStatus StatusType
+		return zeroStatus, nil
+	}
+
+	return status, nil
+}
+
+// GetAllDependencies returns all dependencies for a consumer, both satisfied and unsatisfied.
+func (dt *DependencyTracker[StatusType, ConsumerID]) GetAllDependencies(consumer ConsumerID) ([]Dependency[StatusType, ConsumerID], error) {
+	dt.mu.RLock()
+	defer dt.mu.RUnlock()
+
+	if !dt.registeredConsumers[consumer] {
+		return nil, ErrConsumerNotFound
+	}
+
+	consumerVertex := dt.consumerVertices[consumer]
+	forwardEdges := dt.graph.GetForwardAdjacentVertices(consumerVertex)
+
+	var allDependencies []Dependency[StatusType, ConsumerID]
+
+	for _, edge := range forwardEdges {
+		dependsOnConsumer := edge.To.ID
+		requiredStatus := edge.Edge
+		currentStatus, exists := dt.consumerStatus[dependsOnConsumer]
+		if !exists {
+			// If the dependency consumer has no status, it's not satisfied
+			var zeroStatus StatusType
+			allDependencies = append(allDependencies, Dependency[StatusType, ConsumerID]{
+				Consumer:       consumer,
+				DependsOn:      dependsOnConsumer,
+				RequiredStatus: requiredStatus,
+				CurrentStatus:  zeroStatus, // Zero value
+				IsSatisfied:    false,
+			})
+		} else {
+			isSatisfied := currentStatus == requiredStatus
+			allDependencies = append(allDependencies, Dependency[StatusType, ConsumerID]{
+				Consumer:       consumer,
+				DependsOn:      dependsOnConsumer,
+				RequiredStatus: requiredStatus,
+				CurrentStatus:  currentStatus,
+				IsSatisfied:    isSatisfied,
+			})
+		}
+	}
+
+	return allDependencies, nil
 }
 
 // ExportDOT exports the dependency graph to DOT format for visualization.

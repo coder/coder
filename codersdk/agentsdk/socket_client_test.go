@@ -11,11 +11,12 @@ import (
 
 	"cdr.dev/slog"
 
-	"github.com/coder/coder/v2/agent/agentsocket"
+	"github.com/coder/coder/v2/agent/agentsocket/api"
+	"github.com/coder/coder/v2/agent/unit"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
 
-func TestSocketClient_Integration(t *testing.T) {
+func TestSocketClient_SyncWait(t *testing.T) {
 	// Create temporary socket path
 	tmpDir := t.TempDir()
 	socketPath := filepath.Join(tmpDir, "test.sock")
@@ -23,44 +24,126 @@ func TestSocketClient_Integration(t *testing.T) {
 	// Set environment variable for socket discovery
 	t.Setenv("CODER_AGENT_SOCKET_PATH", socketPath)
 
-	// Start a real socket server
-	server := startSocketServer(t, socketPath)
-	defer server.Stop()
+	// Start a real socket server with dependency tracker
+	server := startSocketServerWithDependencyTracker(t, socketPath)
+	t.Cleanup(func() { server.Stop() })
 
 	// Create client
 	client, err := agentsdk.NewSocketClient(agentsdk.SocketConfig{})
 	require.NoError(t, err)
-	defer client.Close()
+	t.Cleanup(func() { client.Close() })
 
-	// Test ping
 	ctx := context.Background()
-	pingResp, err := client.Ping(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, "pong", pingResp.Message)
-	assert.False(t, pingResp.Timestamp.IsZero())
 
-	// Test health
-	healthResp, err := client.Health(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, "ready", healthResp.Status)
-	assert.NotEmpty(t, healthResp.Uptime)
+	t.Run("SyncWait_UnitNotRegistered", func(t *testing.T) {
+		// Test sync wait on unregistered unit - should return error
+		err := client.SyncWait(ctx, "nonexistent-unit")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "sync wait failed: Failed to check readiness")
+	})
 
-	// Test agent info
-	agentInfo, err := client.AgentInfo(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, "test-agent", agentInfo.ID)
-	assert.Equal(t, "1.0.0", agentInfo.Version)
-	assert.Equal(t, "ready", agentInfo.Status)
+	t.Run("SyncWait_UnitWithUnsatisfiedDependencies", func(t *testing.T) {
+		// Register a unit with dependencies
+		err := client.SyncStart(ctx, "test-unit")
+		require.NoError(t, err)
 
-	// Test list methods
-	methods, err := client.ListMethods(ctx)
+		// Add a dependency that's not satisfied
+		err = client.SyncWant(ctx, "test-unit", "dependency-unit")
+		require.NoError(t, err)
+
+		// Sync wait should return error because dependency is not satisfied
+		err = client.SyncWait(ctx, "test-unit")
+		require.Error(t, err)
+		assert.ErrorIs(t, err, unit.ErrDependenciesNotSatisfied)
+	})
+
+	t.Run("SyncWait_UnitWithSatisfiedDependencies", func(t *testing.T) {
+		// Register dependency unit and mark it as complete
+		err := client.SyncStart(ctx, "dependency-unit")
+		require.NoError(t, err)
+		err = client.SyncComplete(ctx, "dependency-unit")
+		require.NoError(t, err)
+
+		// Now sync wait should succeed
+		err = client.SyncWait(ctx, "test-unit")
+		require.NoError(t, err)
+	})
+}
+
+func TestSocketClient_SyncStart(t *testing.T) {
+	// Create temporary socket path
+	tmpDir := t.TempDir()
+	socketPath := filepath.Join(tmpDir, "test.sock")
+
+	// Set environment variable for socket discovery
+	t.Setenv("CODER_AGENT_SOCKET_PATH", socketPath)
+
+	// Start a real socket server with dependency tracker
+	server := startSocketServerWithDependencyTracker(t, socketPath)
+	t.Cleanup(func() { server.Stop() })
+
+	// Create client
+	client, err := agentsdk.NewSocketClient(agentsdk.SocketConfig{})
 	require.NoError(t, err)
-	assert.Contains(t, methods, "ping")
-	assert.Contains(t, methods, "health")
-	assert.Contains(t, methods, "agent.info")
+	t.Cleanup(func() { client.Close() })
+
+	ctx := context.Background()
+
+	t.Run("SyncStart_UnitWithUnsatisfiedDependencies", func(t *testing.T) {
+		// Register a unit with dependencies
+		err := client.SyncStart(ctx, "test-unit-start")
+		require.NoError(t, err)
+
+		// Add a dependency that's not satisfied
+		err = client.SyncWant(ctx, "test-unit-start", "dependency-unit-start")
+		require.NoError(t, err)
+
+		// Sync start should succeed (it registers the unit)
+		err = client.SyncStart(ctx, "test-unit-start")
+		require.NoError(t, err)
+	})
+
+	t.Run("SyncStart_UnitWithSatisfiedDependencies", func(t *testing.T) {
+		// Register dependency unit and mark it as complete
+		err := client.SyncStart(ctx, "dependency-unit-start")
+		require.NoError(t, err)
+		err = client.SyncComplete(ctx, "dependency-unit-start")
+		require.NoError(t, err)
+
+		// Now sync start should succeed
+		err = client.SyncStart(ctx, "test-unit-start")
+		require.NoError(t, err)
+	})
+
+	t.Run("SyncStart_InfiniteLoopScenario", func(t *testing.T) {
+		// This test simulates the scenario where sync start gets stuck in a loop
+		// First, register a unit with dependencies
+		err := client.SyncStart(ctx, "infinite-test-unit")
+		require.NoError(t, err)
+
+		// Add a dependency
+		err = client.SyncWant(ctx, "infinite-test-unit", "infinite-dependency-unit")
+		require.NoError(t, err)
+
+		// Register and complete the dependency
+		err = client.SyncStart(ctx, "infinite-dependency-unit")
+		require.NoError(t, err)
+		err = client.SyncComplete(ctx, "infinite-dependency-unit")
+		require.NoError(t, err)
+
+		// Now sync start should succeed without infinite loop
+		err = client.SyncStart(ctx, "infinite-test-unit")
+		require.NoError(t, err)
+
+		// Verify the unit is marked as started
+		status, err := client.SyncStatus(ctx, "infinite-test-unit", false)
+		require.NoError(t, err)
+		assert.Equal(t, "started", status.Status)
+	})
 }
 
 func TestSocketClient_Discovery(t *testing.T) {
+	t.Parallel()
 	// Test with explicit path
 	tmpDir := t.TempDir()
 	socketPath := filepath.Join(tmpDir, "test.sock")
@@ -78,6 +161,7 @@ func TestSocketClient_Discovery(t *testing.T) {
 }
 
 func TestSocketClient_ErrorHandling(t *testing.T) {
+	t.Parallel()
 	// Test with non-existent socket
 	client, err := agentsdk.NewSocketClient(agentsdk.SocketConfig{Path: "/nonexistent/socket"})
 	assert.Error(t, err)
@@ -85,22 +169,47 @@ func TestSocketClient_ErrorHandling(t *testing.T) {
 }
 
 // startSocketServer starts a real socket server for testing
-func startSocketServer(t *testing.T, path string) *agentsocket.Server {
+func startSocketServer(t *testing.T, path string) *api.Server {
 	// Create server
-	server := agentsocket.NewServer(agentsocket.Config{
+	server := api.NewServer(api.Config{
 		Path:   path,
 		Logger: slog.Make().Leveled(slog.LevelDebug),
 	})
 
-	// Register default handlers with test data
-	handlerCtx := agentsocket.CreateHandlerContext(
+	// Set agent info with test data
+	server.SetAgentInfo(
 		"test-agent",
 		"1.0.0",
 		"ready",
 		time.Now().Add(-time.Hour),
-		slog.Make(),
 	)
-	agentsocket.RegisterDefaultHandlers(server, handlerCtx)
+
+	// Start server
+	err := server.Start()
+	require.NoError(t, err)
+
+	return server
+}
+
+// startSocketServerWithDependencyTracker starts a socket server with sync handlers for testing
+func startSocketServerWithDependencyTracker(t *testing.T, path string) *api.Server {
+	// Create server
+	server := api.NewServer(api.Config{
+		Path:   path,
+		Logger: slog.Make().Leveled(slog.LevelDebug),
+	})
+
+	// Set agent info with test data
+	server.SetAgentInfo(
+		"test-agent",
+		"1.0.0",
+		"ready",
+		time.Now().Add(-time.Hour),
+	)
+
+	// Register sync handlers
+	tracker := unit.NewDependencyTracker[string, string]()
+	server.SetDependencyTracker(tracker)
 
 	// Start server
 	err := server.Start()
