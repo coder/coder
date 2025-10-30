@@ -517,7 +517,7 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 		TemplateSourceArchive:   r.job.GetTemplateSourceArchive(),
 		TemplateId:              r.job.GetTemplateImport().Metadata.TemplateId,
 		TemplateVersionId:       r.job.GetTemplateImport().Metadata.TemplateVersionId,
-		TerraformWorkspaceReuse: r.job.GetTemplateImport().TerraformWorkspaceReuse,
+		TerraformWorkspaceReuse: false,
 	})
 	if failedJob != nil {
 		return nil, failedJob
