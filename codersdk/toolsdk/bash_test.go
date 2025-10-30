@@ -472,7 +472,7 @@ func sentinelCommand(time int64, filePath string) string {
 	// The extra sleep 1 is so the echo has a chance to flush (to test closed
 	// pipes), otherwise the command can exit before it crashes.
 	return fmt.Sprintf(
-		`trap "echo exited && echo exited >> %s" EXIT ; echo started && echo started > %s && sleep %d && echo slept && sleep 1 && echo done && echo done >> %s`,
+		`trap "echo exited | tee -a %s" EXIT ; echo started | tee %s && sleep %d && echo slept && sleep 1 && echo done | tee -a %s`,
 		filePath, filePath, time, filePath,
 	)
 }
