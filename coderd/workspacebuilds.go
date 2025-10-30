@@ -1228,7 +1228,6 @@ func (api *API) convertWorkspaceBuild(
 		TemplateVersionPresetID: presetID,
 		HasAITask:               hasAITask,
 		AITaskSidebarAppID:      taskAppID,
-		TaskAppID:               taskAppID,
 		HasExternalAgent:        hasExternalAgent,
 	}, nil
 }
