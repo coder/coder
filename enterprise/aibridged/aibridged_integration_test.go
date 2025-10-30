@@ -3,6 +3,7 @@ package aibridged_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -208,10 +209,13 @@ func TestIntegration(t *testing.T) {
     }
   ]
 }`))
+	userAgent := "userAgent123"
 	require.NoError(t, err, "make request to test server")
 	req.Header.Add("Authorization", "Bearer "+apiKey.Key)
 	req.Header.Add("Accept", "application/json")
+	req.Header.Add("User-Agent", userAgent)
 
+	require.Equal(t, userAgent, req.UserAgent())
 	// When: aibridged handles the request.
 	rec := httptest.NewRecorder()
 	srv.ServeHTTP(rec, req)
@@ -233,6 +237,13 @@ func TestIntegration(t *testing.T) {
 	require.True(t, intc0.EndedAt.Valid)
 	require.True(t, intc0.StartedAt.Before(intc0.EndedAt.Time))
 	require.Less(t, intc0.EndedAt.Time.Sub(intc0.StartedAt), 5*time.Second)
+
+	require.True(t, intc0.Metadata.Valid)
+	meta := map[string]any{}
+	err = json.Unmarshal(intc0.Metadata.RawMessage, &meta)
+	require.NoError(t, err)
+	require.Contains(t, meta, "user-agent")
+	require.Equal(t, userAgent, meta["user-agent"])
 
 	prompts, err := db.GetAIBridgeUserPromptsByInterceptionID(ctx, interceptions[0].ID)
 	require.NoError(t, err)

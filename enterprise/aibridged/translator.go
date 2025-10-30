@@ -16,15 +16,27 @@ import (
 	"github.com/coder/aibridge"
 )
 
+const (
+	MetaKeyUserAgent = "user-agent"
+)
+
 var _ aibridge.Recorder = &recorderTranslation{}
 
 // recorderTranslation satisfies the aibridge.Recorder interface and translates calls into dRPC calls to aibridgedserver.
 type recorderTranslation struct {
-	apiKeyID string
-	client   proto.DRPCRecorderClient
+	apiKeyID  string
+	client    proto.DRPCRecorderClient
+	userAgent string
 }
 
 func (t *recorderTranslation) RecordInterception(ctx context.Context, req *aibridge.InterceptionRecord) error {
+	if t.userAgent != "" {
+		if req.Metadata == nil {
+			req.Metadata = map[string]any{}
+		}
+		req.Metadata[MetaKeyUserAgent] = t.userAgent
+	}
+
 	_, err := t.client.RecordInterception(ctx, &proto.RecordInterceptionRequest{
 		Id:          req.ID,
 		ApiKeyId:    t.apiKeyID,

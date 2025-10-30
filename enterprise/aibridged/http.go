@@ -67,9 +67,10 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	handler, err := s.GetRequestHandler(ctx, Request{
-		SessionKey:  key,
 		APIKeyID:    resp.ApiKeyId,
 		InitiatorID: id,
+		SessionKey:  key,
+		UserAgent:   r.UserAgent(),
 	})
 	if err != nil {
 		logger.Warn(ctx, "failed to acquire request handler", slog.Error(err))
