@@ -166,6 +166,7 @@
 		"jest-location-mock": "2.0.0",
 		"jest-websocket-mock": "2.5.0",
 		"jest_workaround": "0.1.14",
+		"jsdom": "27.0.1",
 		"knip": "5.64.1",
 		"msw": "2.4.8",
 		"postcss": "8.5.6",
