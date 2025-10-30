@@ -56,6 +56,21 @@ Test procedure:
 After, we examine the latency in the initial connection and update, as well as Coderd and Database metrics to look for
 issues.
 
+### Coder Desktop
+
+1650 connections simulating Coder Desktop clients that have connected to Coder
+and are observing workspace updates.
+
+Test procedure:
+
+1. Create one user account per client.
+1. Connect all clients to the Coder Desktop dRPC endpoint.
+1. Have 150 clients each create 10 workspaces, and 1500 clients each create 1 workspace.
+1. Wait until every client receives all workspace updates.
+
+After, we examine the latency in workspace updates, as well as Coderd and Database metrics to look for
+issues.
+
 ### API Request Traffic
 
 To be determined.
