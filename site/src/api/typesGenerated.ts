@@ -6394,10 +6394,9 @@ export interface WorkspaceBuild {
 	readonly template_version_preset_id: string | null;
 	readonly has_ai_task?: boolean;
 	/**
-	 * Deprecated: This field has been replaced with `TaskAppID`
+	 * Deprecated: This field has been replaced with `Task.WorkspaceAppID`
 	 */
 	readonly ai_task_sidebar_app_id?: string;
-	readonly task_app_id?: string;
 	readonly has_external_agent?: boolean;
 }
 
