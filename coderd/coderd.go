@@ -1214,7 +1214,6 @@ func New(options *Options) *API {
 				r.Get("/", api.template)
 				r.Delete("/", api.deleteTemplate)
 				r.Patch("/", api.patchTemplateMeta)
-				r.Post("/prebuilds/invalidate", api.postInvalidateTemplatePrebuilds)
 				r.Route("/versions", func(r chi.Router) {
 					r.Post("/archive", api.postArchiveTemplateVersions)
 					r.Get("/", api.templateVersionsByTemplate)

@@ -448,15 +448,18 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			)
 			r.Get("/", api.provisionerDaemonServe)
 		})
-		r.Route("/templates/{template}/acl", func(r chi.Router) {
-			r.Use(
-				api.templateRBACEnabledMW,
-				apiKeyMiddleware,
-				httpmw.ExtractTemplateParam(api.Database),
-			)
-			r.Get("/available", api.templateAvailablePermissions)
-			r.Get("/", api.templateACL)
-			r.Patch("/", api.patchTemplateACL)
+		r.Route("/templates/{template}", func(r chi.Router) {
+			r.Route("/acl", func(r chi.Router) {
+				r.Use(
+					api.templateRBACEnabledMW,
+					apiKeyMiddleware,
+					httpmw.ExtractTemplateParam(api.Database),
+				)
+				r.Get("/available", api.templateAvailablePermissions)
+				r.Get("/", api.templateACL)
+				r.Patch("/", api.patchTemplateACL)
+			})
+			r.Post("/prebuilds/invalidate", api.postInvalidateTemplatePrebuilds)
 		})
 		r.Route("/groups", func(r chi.Router) {
 			r.Use(
