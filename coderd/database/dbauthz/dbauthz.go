@@ -201,6 +201,23 @@ func ActorFromContext(ctx context.Context) (rbac.Subject, bool) {
 	return a, ok
 }
 
+type workspaceRBACContextKey struct{}
+
+// WithWorkspaceRBAC attaches a workspace RBAC object to the context.
+// RBAC fields on this RBAC object should not be used.
+//
+// This is primarily used by the workspace agent RPC handler to cache workspace
+// authorization data for the duration of an agent connection.
+func WithWorkspaceRBAC(ctx context.Context, rbacObj rbac.Object) context.Context {
+	return context.WithValue(ctx, workspaceRBACContextKey{}, rbacObj)
+}
+
+// WorkspaceRBACFromContext attempts to retrieve the workspace RBAC object from context.
+func WorkspaceRBACFromContext(ctx context.Context) (rbac.Object, bool) {
+	obj, ok := ctx.Value(workspaceRBACContextKey{}).(rbac.Object)
+	return obj, ok
+}
+
 var (
 	subjectProvisionerd = rbac.Subject{
 		Type:         rbac.SubjectTypeProvisionerd,
@@ -5507,6 +5524,30 @@ func (q *querier) UpdateWorkspaceAgentLogOverflowByID(ctx context.Context, arg d
 }
 
 func (q *querier) UpdateWorkspaceAgentMetadata(ctx context.Context, arg database.UpdateWorkspaceAgentMetadataParams) error {
+	// Fast path: Check if we have an RBAC object in context.
+	// This is set by the workspace agent RPC handler to avoid the expensive
+	// GetWorkspaceByAgentID query for every metadata update.
+	//
+	// NOTE: The cached RBAC object is refreshed every 5 minutes. After a prebuild
+	// claim, there may be up to a 5-minute window where this uses stale owner_id.
+	if rbacObj, ok := WorkspaceRBACFromContext(ctx); ok {
+		// Verify the RBAC object is valid (has required fields).
+		if rbacObj.Owner != "" && rbacObj.OrgID != "" && rbacObj.Owner != uuid.Nil.String() && rbacObj.OrgID != uuid.Nil.String() {
+			act, ok := ActorFromContext(ctx)
+			if !ok {
+				return ErrNoActor
+			}
+			err := q.auth.Authorize(ctx, act, policy.ActionUpdate, rbacObj)
+			if err == nil {
+				return q.db.UpdateWorkspaceAgentMetadata(ctx, arg)
+			}
+			q.log.Debug(ctx, "fast path authorization failed, using slow path",
+				slog.F("agent_id", arg.WorkspaceAgentID))
+		}
+	}
+
+	// Slow path: Fallback to fetching the workspace for authorization if the RBAC object is not present (or is invalid)
+	// in the request context.
 	workspace, err := q.db.GetWorkspaceByAgentID(ctx, arg.WorkspaceAgentID)
 	if err != nil {
 		return err

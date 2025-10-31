@@ -17,7 +17,7 @@ import (
 
 type StatsAPI struct {
 	AgentFn                   func(context.Context) (database.WorkspaceAgent, error)
-	WorkspaceFn               func() (database.Workspace, error)
+	WorkspaceFn               func() database.Workspace
 	Database                  database.Store
 	Log                       slog.Logger
 	StatsReporter             *workspacestats.Reporter
@@ -48,10 +48,7 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 		return nil, err
 	}
 	// Construct workspace from cached fields to avoid DB query
-	workspace, err := a.WorkspaceFn()
-	if err != nil {
-		return nil, err
-	}
+	workspace:= a.WorkspaceFn()
 
 	a.Log.Debug(ctx, "read stats report",
 		slog.F("interval", a.AgentStatsRefreshInterval),

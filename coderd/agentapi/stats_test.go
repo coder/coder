@@ -111,8 +111,8 @@ func TestUpdateStates(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			WorkspaceFn: func() (database.Workspace, error) {
-				return workspace, nil
+			WorkspaceFn: func() database.Workspace {
+				return workspace
 			},
 			Database: dbM,
 			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
@@ -223,8 +223,8 @@ func TestUpdateStates(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			WorkspaceFn: func() (database.Workspace, error) {
-				return workspace, nil
+			WorkspaceFn: func() database.Workspace {
+				return workspace
 			},
 			Database: dbM,
 			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
@@ -260,8 +260,8 @@ func TestUpdateStates(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			WorkspaceFn: func() (database.Workspace, error) {
-				return workspace, nil
+			WorkspaceFn: func() database.Workspace {
+				return workspace
 			},
 			Database: dbM,
 			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
@@ -340,8 +340,8 @@ func TestUpdateStates(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			WorkspaceFn: func() (database.Workspace, error) {
-				return workspace, nil
+			WorkspaceFn: func() database.Workspace {
+				return workspace
 			},
 			Database: dbM,
 			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
@@ -454,8 +454,8 @@ func TestUpdateStates(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			WorkspaceFn: func() (database.Workspace, error) {
-				return workspace, nil
+			WorkspaceFn: func() database.Workspace {
+				return workspace
 			},
 			Database: dbM,
 			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
