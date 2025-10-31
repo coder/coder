@@ -1,8 +1,9 @@
 import * as path from "node:path";
 import react from "@vitejs/plugin-react";
 import { visualizer } from "rollup-plugin-visualizer";
-import { defineConfig, type PluginOption } from "vite";
+import type { PluginOption } from "vite";
 import checker from "vite-plugin-checker";
+import { defineConfig } from "vitest/config";
 
 const plugins: PluginOption[] = [
 	react(),
@@ -120,6 +121,7 @@ export default defineConfig({
 	},
 	resolve: {
 		alias: {
+			App: path.resolve(__dirname, "./src/App"),
 			api: path.resolve(__dirname, "./src/api"),
 			components: path.resolve(__dirname, "./src/components"),
 			contexts: path.resolve(__dirname, "./src/contexts"),
@@ -130,5 +132,12 @@ export default defineConfig({
 			theme: path.resolve(__dirname, "./src/theme"),
 			utils: path.resolve(__dirname, "./src/utils"),
 		},
+	},
+	test: {
+		include: ["src/**/*.test.?(m)ts?(x)"],
+		globals: true,
+		environment: "jsdom",
+		setupFiles: ["@testing-library/jest-dom/vitest"],
+		silent: "passed-only",
 	},
 });
