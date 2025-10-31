@@ -1373,9 +1373,6 @@ func wrapTransportWithVersionMismatchCheck(rt http.RoundTripper, inv *serpent.In
 				case runtime.GOOS != "windows" && serverInfo.DashboardURL != "" && semver.Compare(semver.MajorMinor(serverVersion), "v2.19") >= 0:
 					upgradeMessage = fmt.Sprintf("download %s with: 'curl -fsSL %s/install.sh | sh'", serverVersion, serverInfo.DashboardURL)
 				}
-				if runtime.GOOS == "windows" {
-					upgradeMessage = ""
-				}
 			}
 			fmtWarningText := "version mismatch: client %s, server %s\n%s"
 			fmtWarn := pretty.Sprint(cliui.DefaultStyles.Warn, fmtWarningText)
