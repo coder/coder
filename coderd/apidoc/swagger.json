@@ -5317,7 +5317,7 @@
 					}
 				],
 				"produces": ["application/json"],
-				"tags": ["Templates"],
+				"tags": ["Enterprise"],
 				"summary": "Invalidate prebuilt workspaces for template",
 				"operationId": "invalidate-prebuilt-workspaces-for-template",
 				"parameters": [

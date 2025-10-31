@@ -6013,7 +6013,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Templates"
+                    "Enterprise"
                 ],
                 "summary": "Invalidate prebuilt workspaces for template",
                 "operationId": "invalidate-prebuilt-workspaces-for-template",
