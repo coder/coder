@@ -142,6 +142,16 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 				triggerTimes[id] = make(chan time.Time, 1)
 			}
 
+			smtpHTTPTransport := &http.Transport{
+				MaxConnsPerHost:     512,
+				MaxIdleConnsPerHost: 512,
+				MaxIdleConns:        2048,
+				IdleConnTimeout:     60 * time.Second,
+			}
+			smtpHTTPClient := &http.Client{
+				Transport: smtpHTTPTransport,
+			}
+
 			configs := make([]notifications.Config, 0, userCount)
 			for range templateAdminCount {
 				config := notifications.Config{
@@ -157,6 +167,7 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 					Metrics:                  metrics,
 					SMTPApiURL:               smtpAPIURL,
 					SMTPRequestTimeout:       smtpRequestTimeout,
+					SMTPHttpClient:           smtpHTTPClient,
 				}
 				if err := config.Validate(); err != nil {
 					return xerrors.Errorf("validate config: %w", err)
