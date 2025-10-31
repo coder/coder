@@ -1498,12 +1498,12 @@ func TestManagedAgentLimitDefault(t *testing.T) {
 	})
 
 	// "Premium" licenses should receive a default managed agent limit of:
-	// soft = 0
+	// soft = 1000
 	// hard = 1000
 	t.Run("Premium", func(t *testing.T) {
 		t.Parallel()
 
-		const userLimit = 100
+		const userLimit = 33
 		const softLimit = 1000
 		const hardLimit = 1000
 		lic := database.License{
