@@ -19,7 +19,9 @@ export const CliInstallPageView: FC<CliInstallPageViewProps> = ({ origin }) => {
 				<>
 					<p css={styles.instructions}>
 						Copy the command below and{" "}
-						<strong css={{ display: "block" }}>paste it in your terminal.</strong>
+						<strong css={{ display: "block" }}>
+							paste it in your terminal.
+						</strong>
 					</p>
 
 					<CodeExample
