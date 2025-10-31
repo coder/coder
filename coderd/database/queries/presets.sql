@@ -116,4 +116,4 @@ FROM
 WHERE
 	t.id = @template_id
 	AND tvp.template_version_id = t.active_version_id
-RETURNING tvp.name, tvp.display_name;
+RETURNING tvp.name;

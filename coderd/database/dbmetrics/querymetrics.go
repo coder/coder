@@ -3063,7 +3063,7 @@ func (m queryMetricsStore) UpdatePresetPrebuildStatus(ctx context.Context, arg d
 	return r0
 }
 
-func (m queryMetricsStore) UpdatePresetsLastInvalidatedAt(ctx context.Context, arg database.UpdatePresetsLastInvalidatedAtParams) ([]database.UpdatePresetsLastInvalidatedAtRow, error) {
+func (m queryMetricsStore) UpdatePresetsLastInvalidatedAt(ctx context.Context, arg database.UpdatePresetsLastInvalidatedAtParams) ([]string, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdatePresetsLastInvalidatedAt(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdatePresetsLastInvalidatedAt").Observe(time.Since(start).Seconds())
