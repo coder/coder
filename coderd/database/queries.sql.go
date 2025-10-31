@@ -9269,7 +9269,7 @@ RETURNING t.id, t.created_at, updated_at, organization_id, deleted, t.name, prov
 
 type UpdatePresetsLastInvalidatedAtParams struct {
 	LastInvalidatedAt sql.NullTime `db:"last_invalidated_at" json:"last_invalidated_at"`
-	ID                uuid.UUID    `db:"id" json:"id"`
+	TemplateID        uuid.UUID    `db:"template_id" json:"template_id"`
 }
 
 type UpdatePresetsLastInvalidatedAtRow struct {
@@ -9318,7 +9318,7 @@ type UpdatePresetsLastInvalidatedAtRow struct {
 }
 
 func (q *sqlQuerier) UpdatePresetsLastInvalidatedAt(ctx context.Context, arg UpdatePresetsLastInvalidatedAtParams) ([]UpdatePresetsLastInvalidatedAtRow, error) {
-	rows, err := q.db.QueryContext(ctx, updatePresetsLastInvalidatedAt, arg.LastInvalidatedAt, arg.ID)
+	rows, err := q.db.QueryContext(ctx, updatePresetsLastInvalidatedAt, arg.LastInvalidatedAt, arg.TemplateID)
 	if err != nil {
 		return nil, err
 	}
