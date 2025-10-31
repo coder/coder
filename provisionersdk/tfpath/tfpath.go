@@ -19,11 +19,28 @@ import (
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
+type LayoutInterface interface {
+	WorkDirectory() string
+	StateFilePath() string
+	PlanFilePath() string
+	TerraformLockFile() string
+	ReadmeFilePath() string
+	TerraformMetadataDir() string
+	ModulesDirectory() string
+	ModulesFilePath() string
+	ExtractArchive(ctx context.Context, logger slog.Logger, fs afero.Fs, cfg *proto.Config) error
+	Cleanup(ctx context.Context, logger slog.Logger, fs afero.Fs)
+	CleanStaleSessions(ctx context.Context, logger slog.Logger, fs afero.Fs, now time.Time) error
+}
+
+var _ LayoutInterface = (*Layout)(nil)
+
 const (
 	// ReadmeFile is the location we look for to extract documentation from template versions.
 	ReadmeFile = "README.md"
 
-	sessionDirPrefix = "Session"
+	sessionDirPrefix      = "Session"
+	staleSessionRetention = 7 * 24 * time.Hour
 )
 
 // Session creates a directory structure layout for terraform execution. The
@@ -32,6 +49,10 @@ const (
 // terraform asserts inside this working directory.
 func Session(parentDirPath, sessionID string) Layout {
 	return Layout(filepath.Join(parentDirPath, sessionDirPrefix+sessionID))
+}
+
+func FromWorkingDirectory(workDir string) Layout {
+	return Layout(workDir)
 }
 
 // Layout is the terraform execution working directory structure.
@@ -188,4 +209,41 @@ func (l Layout) Cleanup(ctx context.Context, logger slog.Logger, fs afero.Fs) {
 	// when this fails.
 	logger.Error(ctx, "failed to clean up work directory after multiple attempts",
 		slog.F("path", path), slog.Error(err))
+}
+
+// CleanStaleSessions browses the work directory searching for stale session
+// directories. Coder provisioner is supposed to remove them once after finishing the provisioning,
+// but there is a risk of keeping them in case of a failure.
+func (l Layout) CleanStaleSessions(ctx context.Context, logger slog.Logger, fs afero.Fs, now time.Time) error {
+	parent := filepath.Dir(l.WorkDirectory())
+	entries, err := afero.ReadDir(fs, filepath.Dir(l.WorkDirectory()))
+	if err != nil {
+		return xerrors.Errorf("can't read %q directory", parent)
+	}
+
+	for _, fi := range entries {
+		dirName := fi.Name()
+
+		if fi.IsDir() && isValidSessionDir(dirName) {
+			sessionDirPath := filepath.Join(parent, dirName)
+
+			modTime := fi.ModTime() // fallback to modTime if modTime is not available (afero)
+
+			if modTime.Add(staleSessionRetention).After(now) {
+				continue
+			}
+
+			logger.Info(ctx, "remove stale session directory", slog.F("session_path", sessionDirPath))
+			err = fs.RemoveAll(sessionDirPath)
+			if err != nil {
+				return xerrors.Errorf("can't remove %q directory: %w", sessionDirPath, err)
+			}
+		}
+	}
+	return nil
+}
+
+func isValidSessionDir(dirName string) bool {
+	match, err := filepath.Match(sessionDirPrefix+"*", dirName)
+	return err == nil && match
 }

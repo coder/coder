@@ -58,7 +58,7 @@ func parseModulesFile(filePath string) ([]*proto.Module, error) {
 // getModules returns the modules from the modules file if it exists.
 // It returns nil if the file does not exist.
 // Modules become available after terraform init.
-func getModules(files tfpath.Layout) ([]*proto.Module, error) {
+func getModules(files tfpath.LayoutInterface) ([]*proto.Module, error) {
 	filePath := files.ModulesFilePath()
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		return nil, nil
