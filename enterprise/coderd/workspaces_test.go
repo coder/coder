@@ -7,8 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -3390,51 +3388,19 @@ func workspaceTagsTerraform(t *testing.T, tc testWorkspaceTagsTerraformCase, dyn
 	}
 }
 
-// downloadProviders is a test helper that creates a temporary file and writes a
-// terraform CLI config file with a provider_installation stanza for coder/coder
-// using dev_overrides. It also fetches the latest provider release from GitHub
-// and extracts the binary to the temporary dir. It is the responsibility of the
-// caller to set TF_CLI_CONFIG_FILE.
+// downloadProviders is a test helper that caches Terraform providers and returns
+// the path to a Terraform CLI config file that uses the cached providers.
+// This uses the shared testutil caching infrastructure to avoid re-downloading
+// providers on every test run. It is the responsibility of the caller to set
+// TF_CLI_CONFIG_FILE.
 func downloadProviders(t *testing.T, providersTf string) string {
 	t.Helper()
-	// We firstly write a Terraform CLI config file to a temporary directory:
-	var (
-		tempDir         = t.TempDir()
-		cacheDir        = filepath.Join(tempDir, ".cache")
-		providersTfPath = filepath.Join(tempDir, "providers.tf")
-		cliConfigPath   = filepath.Join(tempDir, "local.tfrc")
-	)
 
-	// Write files to disk
-	require.NoError(t, os.MkdirAll(cacheDir, os.ModePerm|os.ModeDir))
-	require.NoError(t, os.WriteFile(providersTfPath, []byte(providersTf), os.ModePerm)) // nolint:gosec
-	cliConfigTemplate := `
-	provider_installation {
-		filesystem_mirror {
-			path = %q
-			include = ["*/*/*"]
-		}
-		direct {
-			exclude = ["*/*/*"]
-		}
-	}`
-	err := os.WriteFile(cliConfigPath, []byte(fmt.Sprintf(cliConfigTemplate, cacheDir)), os.ModePerm) // nolint:gosec
-	require.NoError(t, err, "failed to write %s", cliConfigPath)
+	cacheRootDir := filepath.Join(testutil.PersistentCacheDir(t), "terraform_workspace_tags_test")
+	templateFiles := map[string]string{"providers.tf": providersTf}
+	testName := "TestWorkspaceTagsTerraform"
 
-	ctx := testutil.Context(t, testutil.WaitLong)
-
-	// Run terraform providers mirror to mirror required providers to cacheDir
-	cmd := exec.CommandContext(ctx, "terraform", "providers", "mirror", cacheDir)
-	cmd.Env = os.Environ() // without this terraform may complain about path
-	cmd.Env = append(cmd.Env, "TF_CLI_CONFIG_FILE="+cliConfigPath)
-	cmd.Dir = tempDir
-	out, err := cmd.CombinedOutput()
-	if !assert.NoError(t, err) {
-		t.Log("failed to download providers:")
-		t.Log(string(out))
-		t.FailNow()
-	}
-
+	cliConfigPath := testutil.CacheProviders(t, cacheRootDir, testName, templateFiles)
 	t.Logf("Set TF_CLI_CONFIG_FILE=%s", cliConfigPath)
 	return cliConfigPath
 }
