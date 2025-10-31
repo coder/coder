@@ -50,9 +50,7 @@ export const ProviderFilter: FC<ProviderFilterProps> = ({ menu }) => {
 			placeholder={"All providers"}
 			emptyText="No providers found"
 			options={menu.searchOptions}
-			onSelect={(option: SelectFilterOption | undefined): void =>
-				menu.selectOption(option)
-			}
+			onSelect={(option) => menu.selectOption(option)}
 			selectedOption={menu.selectedOption ?? undefined}
 		/>
 	);
