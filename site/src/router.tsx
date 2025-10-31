@@ -334,6 +334,12 @@ const ProvisionerJobsPage = lazy(
 );
 const TasksPage = lazy(() => import("./pages/TasksPage/TasksPage"));
 const TaskPage = lazy(() => import("./pages/TaskPage/TaskPage"));
+const AIGovernanceLayout = lazy(
+	() => import("./pages/AIGovernancePage/AIGovernanceLayout"),
+);
+const AIGovernanceRequestLogsPage = lazy(
+	() => import("./pages/AIGovernancePage/RequestLogsPage/RequestLogsPage"),
+);
 
 const RoutesWithSuspense = () => {
 	return (
@@ -555,6 +561,14 @@ export const router = createBrowserRouter(
 							<Route path="schedule" element={<WorkspaceSchedulePage />} />
 							<Route path="sharing" element={<WorkspaceSharingPage />} />
 						</Route>
+					</Route>
+
+					<Route path="/aigovernance" element={<AIGovernanceLayout />}>
+						<Route index element={<Navigate to="request-logs" replace />} />
+						<Route
+							path="request-logs"
+							element={<AIGovernanceRequestLogsPage />}
+						/>
 					</Route>
 
 					<Route path="/health" element={<HealthLayout />}>

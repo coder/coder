@@ -18,6 +18,7 @@ interface DeploymentDropdownProps {
 	canViewAuditLog: boolean;
 	canViewConnectionLog: boolean;
 	canViewHealth: boolean;
+	canViewAIGovernance: boolean;
 }
 
 export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
@@ -26,6 +27,7 @@ export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
 	canViewAuditLog,
 	canViewConnectionLog,
 	canViewHealth,
+	canViewAIGovernance,
 }) => {
 	if (
 		!canViewAuditLog &&
@@ -56,6 +58,7 @@ export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
 					canViewAuditLog={canViewAuditLog}
 					canViewConnectionLog={canViewConnectionLog}
 					canViewHealth={canViewHealth}
+					canViewAIGovernance={canViewAIGovernance}
 				/>
 			</PopoverContent>
 		</Popover>
@@ -68,6 +71,7 @@ const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
 	canViewAuditLog,
 	canViewHealth,
 	canViewConnectionLog,
+	canViewAIGovernance,
 }) => {
 	return (
 		<nav>
@@ -108,6 +112,17 @@ const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
 						css={styles.menuItem}
 					>
 						Connection Logs
+					</MenuItem>
+				</PopoverClose>
+			)}
+			{canViewAIGovernance && (
+				<PopoverClose asChild>
+					<MenuItem
+						component={NavLink}
+						to="/aigovernance"
+						css={styles.menuItem}
+					>
+						AI Governance
 					</MenuItem>
 				</PopoverClose>
 			)}
