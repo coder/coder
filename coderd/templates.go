@@ -1150,7 +1150,6 @@ func findTemplateAdmins(ctx context.Context, store database.Store) ([]database.G
 // @Summary Invalidate prebuilt workspaces for template
 // @ID invalidate-prebuilt-workspaces-for-template
 // @Security CoderSessionToken
-// @Accept json
 // @Produce json
 // @Tags Templates
 // @Param template path string true "Template ID" format(uuid)
