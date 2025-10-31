@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -19,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -299,15 +301,27 @@ func TestBatchUpdateMetadata(t *testing.T) {
 	})
 
 	// Test RBAC fast path with valid RBAC object - should NOT call GetWorkspaceByAgentID
+	// This test verifies that when a valid RBAC object is present in context, the dbauthz layer
+	// uses the fast path and skips the GetWorkspaceByAgentID database call.
 	t.Run("RBACFastPath_ValidObject", func(t *testing.T) {
 		t.Parallel()
 
 		var (
-			dbM   = dbmock.NewMockStore(gomock.NewController(t))
-			pub   = &fakePublisher{}
-			now   = dbtime.Now()
-			agent = database.WorkspaceAgent{ID: uuid.New()}
+			ctrl = gomock.NewController(t)
+			dbM  = dbmock.NewMockStore(ctrl)
+			pub  = &fakePublisher{}
+			now  = dbtime.Now()
+			// Set up consistent IDs that represent a valid workspace->agent relationship
+			workspaceID = uuid.MustParse("12345678-1234-1234-1234-123456789012")
+			ownerID     = uuid.MustParse("87654321-4321-4321-4321-210987654321")
+			orgID       = uuid.MustParse("11111111-1111-1111-1111-111111111111")
+			agentID     = uuid.MustParse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
 		)
+
+		agent := database.WorkspaceAgent{
+			ID: agentID,
+			// In a real scenario, this agent would belong to a resource in the workspace above
+		}
 
 		req := &agentproto.BatchUpdateMetadataRequest{
 			Metadata: []*agentproto.Metadata{
@@ -331,24 +345,33 @@ func TestBatchUpdateMetadata(t *testing.T) {
 			CollectedAt:      []time.Time{now},
 		}).Return(nil)
 
-		// Track whether RBACContextFn was called
-		rbacContextCalled := false
+		// DO NOT expect GetWorkspaceByAgentID - the fast path should skip this call
+		// If GetWorkspaceByAgentID is called, the test will fail with "unexpected call"
+
+		// dbauthz will call Wrappers() to check for wrapped databases
+		dbM.EXPECT().Wrappers().Return([]string{}).AnyTimes()
+
+		// Set up dbauthz to test the actual authorization layer
+		auth := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+		accessControlStore := &atomic.Pointer[dbauthz.AccessControlStore]{}
+		var acs dbauthz.AccessControlStore = dbauthz.AGPLTemplateAccessControlStore{}
+		accessControlStore.Store(&acs)
 
 		api := &agentapi.MetadataAPI{
 			AgentFn: func(_ context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
 			RBACContextFn: func(ctx context.Context) context.Context {
-				rbacContextCalled = true
-				// Attach valid RBAC object with required fields
-				workspaceTable := database.WorkspaceTable{
-					ID:             uuid.New(),
-					OwnerID:        uuid.New(),
-					OrganizationID: uuid.New(),
+				// Create a valid RBAC object with proper workspace ID, owner ID, and org ID
+				// These IDs match the workspace/owner/org that this agent belongs to
+				workspace := database.WorkspaceTable{
+					ID:             workspaceID,
+					OwnerID:        ownerID,
+					OrganizationID: orgID,
 				}
-				return dbauthz.WithWorkspaceRBAC(ctx, workspaceTable.RBACObject())
+				return dbauthz.WithWorkspaceRBAC(ctx, workspace.RBACObject())
 			},
-			Database: dbM,
+			Database: dbauthz.New(dbM, auth, testutil.Logger(t), accessControlStore),
 			Pubsub:   pub,
 			Log:      testutil.Logger(t),
 			TimeNowFn: func() time.Time {
@@ -356,23 +379,32 @@ func TestBatchUpdateMetadata(t *testing.T) {
 			},
 		}
 
-		resp, err := api.BatchUpdateMetadata(context.Background(), req)
+		// Create context with system actor so authorization passes
+		ctx := dbauthz.AsSystemRestricted(context.Background())
+		resp, err := api.BatchUpdateMetadata(ctx, req)
 		require.NoError(t, err)
 		require.NotNil(t, resp)
-		// Verify RBACContextFn was called
-		require.True(t, rbacContextCalled, "RBACContextFn should have been called")
 	})
-
-	// Test that RBACContextFn is called even with invalid RBAC object
-	t.Run("RBACContext_AlwaysCalled", func(t *testing.T) {
+	// Test RBAC slow path - invalid RBAC object should fall back to GetWorkspaceByAgentID
+	// This test verifies that when the RBAC object has invalid IDs (nil UUIDs), the dbauthz layer
+	// falls back to the slow path and calls GetWorkspaceByAgentID.
+	t.Run("RBACSlowPath_InvalidObject", func(t *testing.T) {
 		t.Parallel()
 
 		var (
-			dbM   = dbmock.NewMockStore(gomock.NewController(t))
-			pub   = &fakePublisher{}
-			now   = dbtime.Now()
-			agent = database.WorkspaceAgent{ID: uuid.New()}
+			ctrl        = gomock.NewController(t)
+			dbM         = dbmock.NewMockStore(ctrl)
+			pub         = &fakePublisher{}
+			now         = dbtime.Now()
+			workspaceID = uuid.MustParse("12345678-1234-1234-1234-123456789012")
+			ownerID     = uuid.MustParse("87654321-4321-4321-4321-210987654321")
+			orgID       = uuid.MustParse("11111111-1111-1111-1111-111111111111")
+			agentID     = uuid.MustParse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
 		)
+
+		agent := database.WorkspaceAgent{
+			ID: agentID,
+		}
 
 		req := &agentproto.BatchUpdateMetadataRequest{
 			Metadata: []*agentproto.Metadata{
@@ -387,7 +419,14 @@ func TestBatchUpdateMetadata(t *testing.T) {
 			},
 		}
 
-		// Expect UpdateWorkspaceAgentMetadata to be called
+		// EXPECT GetWorkspaceByAgentID to be called because the RBAC fast path validation fails
+		dbM.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agentID).Return(database.Workspace{
+			ID:             workspaceID,
+			OwnerID:        ownerID,
+			OrganizationID: orgID,
+		}, nil)
+
+		// Expect UpdateWorkspaceAgentMetadata to be called after authorization
 		dbM.EXPECT().UpdateWorkspaceAgentMetadata(gomock.Any(), database.UpdateWorkspaceAgentMetadataParams{
 			WorkspaceAgentID: agent.ID,
 			Key:              []string{"test_key"},
@@ -396,19 +435,30 @@ func TestBatchUpdateMetadata(t *testing.T) {
 			CollectedAt:      []time.Time{now},
 		}).Return(nil)
 
-		// Track whether RBACContextFn was called
-		rbacContextCalled := false
+		// dbauthz will call Wrappers() to check for wrapped databases
+		dbM.EXPECT().Wrappers().Return([]string{}).AnyTimes()
+
+		// Set up dbauthz to test the actual authorization layer
+		auth := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+		accessControlStore := &atomic.Pointer[dbauthz.AccessControlStore]{}
+		var acs dbauthz.AccessControlStore = dbauthz.AGPLTemplateAccessControlStore{}
+		accessControlStore.Store(&acs)
 
 		api := &agentapi.MetadataAPI{
 			AgentFn: func(_ context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
 			RBACContextFn: func(ctx context.Context) context.Context {
-				rbacContextCalled = true
-				// Don't attach RBAC object
-				return ctx
+				// Create an invalid RBAC object with nil UUIDs for owner/org
+				// This will fail dbauthz fast path validation and trigger GetWorkspaceByAgentID
+				workspace := database.WorkspaceTable{
+					ID:             uuid.MustParse("cccccccc-cccc-cccc-cccc-cccccccccccc"),
+					OwnerID:        uuid.Nil, // Invalid: fails dbauthz fast path validation
+					OrganizationID: uuid.Nil, // Invalid: fails dbauthz fast path validation
+				}
+				return dbauthz.WithWorkspaceRBAC(ctx, workspace.RBACObject())
 			},
-			Database: dbM,
+			Database: dbauthz.New(dbM, auth, testutil.Logger(t), accessControlStore),
 			Pubsub:   pub,
 			Log:      testutil.Logger(t),
 			TimeNowFn: func() time.Time {
@@ -416,10 +466,92 @@ func TestBatchUpdateMetadata(t *testing.T) {
 			},
 		}
 
-		resp, err := api.BatchUpdateMetadata(context.Background(), req)
+		// Create context with system actor so authorization passes
+		ctx := dbauthz.AsSystemRestricted(context.Background())
+		resp, err := api.BatchUpdateMetadata(ctx, req)
 		require.NoError(t, err)
 		require.NotNil(t, resp)
-		// Verify RBACContextFn was called even though it doesn't attach RBAC
-		require.True(t, rbacContextCalled, "RBACContextFn should have been called")
+	})
+	// Test RBAC slow path - no RBAC object in context
+	// This test verifies that when no RBAC object is present in context, the dbauthz layer
+	// falls back to the slow path and calls GetWorkspaceByAgentID.
+	t.Run("RBACSlowPath_NoObject", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctrl        = gomock.NewController(t)
+			dbM         = dbmock.NewMockStore(ctrl)
+			pub         = &fakePublisher{}
+			now         = dbtime.Now()
+			workspaceID = uuid.MustParse("12345678-1234-1234-1234-123456789012")
+			ownerID     = uuid.MustParse("87654321-4321-4321-4321-210987654321")
+			orgID       = uuid.MustParse("11111111-1111-1111-1111-111111111111")
+			agentID     = uuid.MustParse("dddddddd-dddd-dddd-dddd-dddddddddddd")
+		)
+
+		agent := database.WorkspaceAgent{
+			ID: agentID,
+		}
+
+		req := &agentproto.BatchUpdateMetadataRequest{
+			Metadata: []*agentproto.Metadata{
+				{
+					Key: "test_key",
+					Result: &agentproto.WorkspaceAgentMetadata_Result{
+						CollectedAt: timestamppb.New(now.Add(-time.Second)),
+						Age:         1,
+						Value:       "test_value",
+					},
+				},
+			},
+		}
+
+		// EXPECT GetWorkspaceByAgentID to be called because no RBAC object is in context
+		dbM.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agentID).Return(database.Workspace{
+			ID:             workspaceID,
+			OwnerID:        ownerID,
+			OrganizationID: orgID,
+		}, nil)
+
+		// Expect UpdateWorkspaceAgentMetadata to be called after authorization
+		dbM.EXPECT().UpdateWorkspaceAgentMetadata(gomock.Any(), database.UpdateWorkspaceAgentMetadataParams{
+			WorkspaceAgentID: agent.ID,
+			Key:              []string{"test_key"},
+			Value:            []string{"test_value"},
+			Error:            []string{""},
+			CollectedAt:      []time.Time{now},
+		}).Return(nil)
+
+		// dbauthz will call Wrappers() to check for wrapped databases
+		dbM.EXPECT().Wrappers().Return([]string{}).AnyTimes()
+
+		// Set up dbauthz to test the actual authorization layer
+		auth := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+		accessControlStore := &atomic.Pointer[dbauthz.AccessControlStore]{}
+		var acs dbauthz.AccessControlStore = dbauthz.AGPLTemplateAccessControlStore{}
+		accessControlStore.Store(&acs)
+
+		api := &agentapi.MetadataAPI{
+			AgentFn: func(_ context.Context) (database.WorkspaceAgent, error) {
+				return agent, nil
+			},
+			RBACContextFn: func(ctx context.Context) context.Context {
+				// Don't attach any RBAC object - return context as-is
+				// This should trigger the slow path since no cached RBAC object exists
+				return ctx
+			},
+			Database: dbauthz.New(dbM, auth, testutil.Logger(t), accessControlStore),
+			Pubsub:   pub,
+			Log:      testutil.Logger(t),
+			TimeNowFn: func() time.Time {
+				return now
+			},
+		}
+
+		// Create context with system actor so authorization passes
+		ctx := dbauthz.AsSystemRestricted(context.Background())
+		resp, err := api.BatchUpdateMetadata(ctx, req)
+		require.NoError(t, err)
+		require.NotNil(t, resp)
 	})
 }
