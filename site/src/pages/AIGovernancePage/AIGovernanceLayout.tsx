@@ -8,9 +8,7 @@ import type { FC, PropsWithChildren } from "react";
 import { Outlet } from "react-router";
 import { AIGovernanceHelpTooltip } from "./AIGovernanceHelpTooltip";
 
-const AIGovernanceLayout: FC<PropsWithChildren> = ({
-	children = <Outlet />,
-}) => {
+const AIGovernanceLayout: FC<PropsWithChildren> = () => {
 	return (
 		<Margins className="pb-12">
 			<PageHeader>
@@ -24,7 +22,7 @@ const AIGovernanceLayout: FC<PropsWithChildren> = ({
 					Manage usage for your organization.
 				</PageHeaderSubtitle>
 			</PageHeader>
-			{children}
+			<Outlet />
 		</Margins>
 	);
 };
