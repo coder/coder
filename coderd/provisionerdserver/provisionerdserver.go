@@ -710,7 +710,9 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 				ExternalAuthProviders:   externalAuthProviders,
 				// If active and experiment is enabled, allow workspace reuse existing TF
 				// workspaces (directories) for a faster startup.
-				TerraformWorkspaceReuse: activeVersion && s.Experiments.Enabled(codersdk.ExperimentTerraformWorkspace),
+				TerraformWorkspaceReuse: s.Experiments.Enabled(codersdk.ExperimentTerraformWorkspace) && // Experiment required
+					template.UseTerraformWorkspaceCache && // Template setting
+					activeVersion, // Only for active versions
 				Metadata: &sdkproto.Metadata{
 					CoderUrl:                      s.AccessURL.String(),
 					WorkspaceTransition:           transition,
