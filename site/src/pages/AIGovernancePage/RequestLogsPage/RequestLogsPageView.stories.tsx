@@ -50,11 +50,7 @@ export const Loaded: Story = {
 		filterProps: {
 			...defaultFilterProps,
 		},
-		interceptionsQuery: {
-			...mockSuccessResult,
-			totalRecords: interceptions.length,
-			data: { interceptions, total: interceptions.length },
-		} as UsePaginatedQueryResult,
+		interceptionsQuery: mockSuccessResult,
 	},
 };
 
@@ -65,11 +61,7 @@ export const Empty: Story = {
 		filterProps: {
 			...defaultFilterProps,
 		},
-		interceptionsQuery: {
-			...mockSuccessResult,
-			totalRecords: 0,
-			data: { interceptions: [], total: 0 },
-		} as UsePaginatedQueryResult,
+		interceptionsQuery: mockSuccessResult,
 	},
 };
 
@@ -81,8 +73,6 @@ export const Loading: Story = {
 		filterProps: {
 			...defaultFilterProps,
 		},
-		interceptionsQuery: {
-			...mockInitialRenderResult,
-		} as UsePaginatedQueryResult,
+		interceptionsQuery: mockInitialRenderResult,
 	},
 };
