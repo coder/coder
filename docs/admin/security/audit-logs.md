@@ -154,9 +154,9 @@ and in accordance with your compliance requirements.
 ### Maintenance Procedures for the Audit Logs Table
 
 > [!NOTE]
-> `VACUUM FULL` acquires an exclusive lock on the table, blocking all reads and writes. 
+> `VACUUM FULL` acquires an exclusive lock on the table, blocking all reads and writes.
 
-You may choose to run a `VACUUM` or `VACUUM FULL` operation on the audit logs table to reclaim disk space. If you choose to run the `FULL` operation, consider the following when doing so: 
+You may choose to run a `VACUUM` or `VACUUM FULL` operation on the audit logs table to reclaim disk space. If you choose to run the `FULL` operation, consider the following when doing so:
 
 - **Run during a planned mainteance window** to ensure ample time for the operation to complete and minimize impact to users
 - **Scale down coderd** to zero replicas to prevent connection errors while the table is locked:
