@@ -15,19 +15,11 @@ export const CliInstallPageView: FC<CliInstallPageViewProps> = ({ origin }) => {
 		<div css={styles.container}>
 			<Welcome>Install the Coder CLI</Welcome>
 
-			{isWindows ? (
-				<p css={styles.instructions}>
-					This installer is for macOS and Linux. On Windows, please use the MSI
-					installer or winget. See{" "}
-					<RouterLink to="/docs/install/cli">docs</RouterLink>.
-				</p>
-			) : (
+			{!isWindows && (
 				<>
 					<p css={styles.instructions}>
 						Copy the command below and{" "}
-						<strong css={{ display: "block" }}>
-							paste it in your terminal.
-						</strong>
+						<strong css={{ display: "block" }}>paste it in your terminal.</strong>
 					</p>
 
 					<CodeExample

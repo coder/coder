@@ -1323,7 +1323,7 @@ func defaultUpgradeMessage(version string) string {
 	// to the GitHub release page to download the latest installer.
 	version = strings.TrimPrefix(version, "v")
 	if runtime.GOOS == "windows" {
-		return fmt.Sprintf("download the server version from: https://github.com/coder/coder/releases/v%s", version)
+		return ""
 	}
 	return fmt.Sprintf("download the server version with: 'curl -L https://coder.com/install.sh | sh -s -- --version %s'", version)
 }
@@ -1372,6 +1372,9 @@ func wrapTransportWithVersionMismatchCheck(rt http.RoundTripper, inv *serpent.In
 				// The site-local `install.sh` was introduced in v2.19.0. Skip curl instruction on Windows.
 				case runtime.GOOS != "windows" && serverInfo.DashboardURL != "" && semver.Compare(semver.MajorMinor(serverVersion), "v2.19") >= 0:
 					upgradeMessage = fmt.Sprintf("download %s with: 'curl -fsSL %s/install.sh | sh'", serverVersion, serverInfo.DashboardURL)
+				}
+				if runtime.GOOS == "windows" {
+					upgradeMessage = ""
 				}
 			}
 			fmtWarningText := "version mismatch: client %s, server %s\n%s"
