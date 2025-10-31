@@ -107,9 +107,13 @@ WHERE
 	AND t.deprecated = '';
 
 -- name: UpdatePresetsLastInvalidatedAt :many
-UPDATE template_version_presets
-SET last_invalidated_at = $1
-WHERE template_version_id = (
-	SELECT active_version_id FROM templates WHERE id = $2
-)
+UPDATE
+	template_version_presets tvp
+SET
+	last_invalidated_at = $1
+FROM
+	templates t
+WHERE
+	t.id = $2
+	AND tvp.template_version_id = t.active_version_id
 RETURNING *;
