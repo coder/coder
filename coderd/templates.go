@@ -1186,6 +1186,6 @@ func (api *API) postInvalidateTemplatePrebuilds(rw http.ResponseWriter, r *http.
 	)
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.InvalidatePrebuildsResponse{
-		InvalidatedPresets: []codersdk.InvalidatedPreset{},
+		InvalidatedPresets: invalidatedPresets,
 	})
 }
