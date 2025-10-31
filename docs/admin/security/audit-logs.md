@@ -160,15 +160,19 @@ You may choose to run a `VACUUM` or `VACUUM FULL` operation on the audit logs ta
 
 - **Run during a planned mainteance window** to ensure ample time for the operation to complete and minimize impact to users
 - **Scale down coderd** to zero replicas to prevent connection errors while the table is locked:
+
   ```bash
   kubectl scale deployment coder --replicas=0 -n coder
   ```
+
 - **Terminate lingering connections** before running the `VACUUM` operation to ensure it starts immediately
+
   ```sql
   SELECT pg_terminate_backend(pg_stat_activity.pid)
   FROM pg_stat_activity
   WHERE pg_stat_activity.datname = 'coder' AND pid <> pg_backend_pid();
   ```
+
 - **Only coderd needs to scale down** - external provisioner daemons, workspace proxies, and workspace agents don't connect to the database directly
 
 After the vacuum completes, scale coderd back up:
