@@ -285,7 +285,8 @@ WHERE
 SELECT
 	sqlc.embed(workspaces),
 	sqlc.embed(workspace_agents),
-	sqlc.embed(workspace_build_with_user)
+	sqlc.embed(workspace_build_with_user),
+	tasks.id AS task_id
 FROM
 	workspace_agents
 JOIN
@@ -300,6 +301,10 @@ JOIN
 	workspaces
 ON
 	workspace_build_with_user.workspace_id = workspaces.id
+LEFT JOIN
+	tasks
+ON
+	tasks.workspace_id = workspaces.id
 WHERE
 	-- This should only match 1 agent, so 1 returned row or 0.
 	workspace_agents.auth_token = @auth_token::uuid
