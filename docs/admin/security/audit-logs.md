@@ -151,6 +151,31 @@ Should you wish to purge these records, it is safe to do so. This can only be do
 directly against the `audit_logs` table in the database. We advise users to only purge old records (>1yr)
 and in accordance with your compliance requirements.
 
+### Maintenance Procedures for the Audit Logs Table
+
+> [!NOTE]
+> `VACUUM FULL` acquires an exclusive lock on the table, blocking all reads and writes. 
+
+You may choose to run a `VACUUM` or `VACUUM FULL` operation on the audit logs table to reclaim disk space. If you choose to run the `FULL` operation, consider the following when doing so: 
+
+- **Run during a planned mainteance window** to ensure ample time for the operation to complete and minimize impact to users
+- **Scale down coderd** to zero replicas to prevent connection errors while the table is locked:
+  ```bash
+  kubectl scale deployment coder --replicas=0 -n coder
+  ```
+- **Terminate lingering connections** before running the `VACUUM` operation to ensure it starts immediately
+  ```sql
+  SELECT pg_terminate_backend(pg_stat_activity.pid)
+  FROM pg_stat_activity
+  WHERE pg_stat_activity.datname = 'coder' AND pid <> pg_backend_pid();
+  ```
+- **Only coderd needs to scale down** - external provisioner daemons, workspace proxies, and workspace agents don't connect to the database directly
+
+After the vacuum completes, scale coderd back up:
+```bash
+kubectl scale deployment coder --replicas= -n coder
+```
+
 ### Backup/Archive
 
 Consider exporting or archiving these records before deletion:
