@@ -1369,8 +1369,8 @@ func wrapTransportWithVersionMismatchCheck(rt http.RoundTripper, inv *serpent.In
 				switch {
 				case serverInfo.UpgradeMessage != "":
 					upgradeMessage = serverInfo.UpgradeMessage
-				// The site-local `install.sh` was introduced in v2.19.0
-				case serverInfo.DashboardURL != "" && semver.Compare(semver.MajorMinor(serverVersion), "v2.19") >= 0:
+				// The site-local `install.sh` was introduced in v2.19.0. Skip curl instruction on Windows.
+				case runtime.GOOS != "windows" && serverInfo.DashboardURL != "" && semver.Compare(semver.MajorMinor(serverVersion), "v2.19") >= 0:
 					upgradeMessage = fmt.Sprintf("download %s with: 'curl -fsSL %s/install.sh | sh'", serverVersion, serverInfo.DashboardURL)
 				}
 			}
