@@ -449,12 +449,12 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Get("/", api.provisionerDaemonServe)
 		})
 		r.Route("/templates/{template}", func(r chi.Router) {
+			r.Use(
+				api.templateRBACEnabledMW,
+				apiKeyMiddleware,
+				httpmw.ExtractTemplateParam(api.Database),
+			)
 			r.Route("/acl", func(r chi.Router) {
-				r.Use(
-					api.templateRBACEnabledMW,
-					apiKeyMiddleware,
-					httpmw.ExtractTemplateParam(api.Database),
-				)
 				r.Get("/available", api.templateAvailablePermissions)
 				r.Get("/", api.templateACL)
 				r.Patch("/", api.patchTemplateACL)
