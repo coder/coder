@@ -176,6 +176,7 @@ You may choose to run a `VACUUM` or `VACUUM FULL` operation on the audit logs ta
 - **Only coderd needs to scale down** - external provisioner daemons, workspace proxies, and workspace agents don't connect to the database directly
 
 After the vacuum completes, scale coderd back up:
+
 ```bash
 kubectl scale deployment coder --replicas= -n coder
 ```
