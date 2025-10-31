@@ -230,7 +230,7 @@ jobs:
         shell: bash
 
   gen:
-    timeout-minutes: 8
+    timeout-minutes: 20
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     if: ${{ !cancelled() }}
     steps:
@@ -271,6 +271,7 @@ jobs:
           popd
 
       - name: make gen
+        timeout-minutes: 8
         run: |
           # Remove golden files to detect discrepancy in generated files.
           make clean/golden-files
@@ -288,7 +289,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.offlinedocs-only == 'false' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
-    timeout-minutes: 7
+    timeout-minutes: 20
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
@@ -315,6 +316,7 @@ jobs:
         run: go install mvdan.cc/sh/v3/cmd/shfmt@v3.7.0
 
       - name: make fmt
+        timeout-minutes: 7
         run: |
           PATH="${PATH}:$(go env GOPATH)/bin" \
             make --output-sync -j -B fmt
