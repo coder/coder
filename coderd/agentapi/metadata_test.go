@@ -15,6 +15,7 @@ import (
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
@@ -83,6 +84,14 @@ func TestBatchUpdateMetadata(t *testing.T) {
 		api := &agentapi.MetadataAPI{
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
+			},
+			RBACContextFn: func(ctx context.Context) context.Context {
+				workspace := database.Workspace{
+					ID:             uuid.New(),
+					OwnerID:        uuid.New(),
+					OrganizationID: uuid.New(),
+				}
+				return dbauthz.WithWorkspaceRBAC(ctx, workspace.RBACObject())
 			},
 			Database: dbM,
 			Pubsub:   pub,
@@ -169,6 +178,14 @@ func TestBatchUpdateMetadata(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
+			RBACContextFn: func(ctx context.Context) context.Context {
+				workspace := database.Workspace{
+					ID:             uuid.New(),
+					OwnerID:        uuid.New(),
+					OrganizationID: uuid.New(),
+				}
+				return dbauthz.WithWorkspaceRBAC(ctx, workspace.RBACObject())
+			},
 			Database: dbM,
 			Pubsub:   pub,
 			Log:      testutil.Logger(t),
@@ -238,6 +255,14 @@ func TestBatchUpdateMetadata(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
+			RBACContextFn: func(ctx context.Context) context.Context {
+				workspace := database.Workspace{
+					ID:             uuid.New(),
+					OwnerID:        uuid.New(),
+					OrganizationID: uuid.New(),
+				}
+				return dbauthz.WithWorkspaceRBAC(ctx, workspace.RBACObject())
+			},
 			Database: dbM,
 			Pubsub:   pub,
 			Log:      testutil.Logger(t),
@@ -271,5 +296,130 @@ func TestBatchUpdateMetadata(t *testing.T) {
 			// No key 4.
 			Keys: []string{req.Metadata[0].Key, req.Metadata[1].Key, req.Metadata[2].Key},
 		}, gotEvent)
+	})
+
+	// Test RBAC fast path with valid RBAC object - should NOT call GetWorkspaceByAgentID
+	t.Run("RBACFastPath_ValidObject", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			dbM   = dbmock.NewMockStore(gomock.NewController(t))
+			pub   = &fakePublisher{}
+			now   = dbtime.Now()
+			agent = database.WorkspaceAgent{ID: uuid.New()}
+		)
+
+		req := &agentproto.BatchUpdateMetadataRequest{
+			Metadata: []*agentproto.Metadata{
+				{
+					Key: "test_key",
+					Result: &agentproto.WorkspaceAgentMetadata_Result{
+						CollectedAt: timestamppb.New(now.Add(-time.Second)),
+						Age:         1,
+						Value:       "test_value",
+					},
+				},
+			},
+		}
+
+		// Expect UpdateWorkspaceAgentMetadata to be called
+		dbM.EXPECT().UpdateWorkspaceAgentMetadata(gomock.Any(), database.UpdateWorkspaceAgentMetadataParams{
+			WorkspaceAgentID: agent.ID,
+			Key:              []string{"test_key"},
+			Value:            []string{"test_value"},
+			Error:            []string{""},
+			CollectedAt:      []time.Time{now},
+		}).Return(nil)
+
+		// Track whether RBACContextFn was called
+		rbacContextCalled := false
+
+		api := &agentapi.MetadataAPI{
+			AgentFn: func(_ context.Context) (database.WorkspaceAgent, error) {
+				return agent, nil
+			},
+			RBACContextFn: func(ctx context.Context) context.Context {
+				rbacContextCalled = true
+				// Attach valid RBAC object with required fields
+				workspaceTable := database.WorkspaceTable{
+					ID:             uuid.New(),
+					OwnerID:        uuid.New(),
+					OrganizationID: uuid.New(),
+				}
+				return dbauthz.WithWorkspaceRBAC(ctx, workspaceTable.RBACObject())
+			},
+			Database: dbM,
+			Pubsub:   pub,
+			Log:      testutil.Logger(t),
+			TimeNowFn: func() time.Time {
+				return now
+			},
+		}
+
+		resp, err := api.BatchUpdateMetadata(context.Background(), req)
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		// Verify RBACContextFn was called
+		require.True(t, rbacContextCalled, "RBACContextFn should have been called")
+	})
+
+	// Test that RBACContextFn is called even with invalid RBAC object
+	t.Run("RBACContext_AlwaysCalled", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			dbM   = dbmock.NewMockStore(gomock.NewController(t))
+			pub   = &fakePublisher{}
+			now   = dbtime.Now()
+			agent = database.WorkspaceAgent{ID: uuid.New()}
+		)
+
+		req := &agentproto.BatchUpdateMetadataRequest{
+			Metadata: []*agentproto.Metadata{
+				{
+					Key: "test_key",
+					Result: &agentproto.WorkspaceAgentMetadata_Result{
+						CollectedAt: timestamppb.New(now.Add(-time.Second)),
+						Age:         1,
+						Value:       "test_value",
+					},
+				},
+			},
+		}
+
+		// Expect UpdateWorkspaceAgentMetadata to be called
+		dbM.EXPECT().UpdateWorkspaceAgentMetadata(gomock.Any(), database.UpdateWorkspaceAgentMetadataParams{
+			WorkspaceAgentID: agent.ID,
+			Key:              []string{"test_key"},
+			Value:            []string{"test_value"},
+			Error:            []string{""},
+			CollectedAt:      []time.Time{now},
+		}).Return(nil)
+
+		// Track whether RBACContextFn was called
+		rbacContextCalled := false
+
+		api := &agentapi.MetadataAPI{
+			AgentFn: func(_ context.Context) (database.WorkspaceAgent, error) {
+				return agent, nil
+			},
+			RBACContextFn: func(ctx context.Context) context.Context {
+				rbacContextCalled = true
+				// Don't attach RBAC object
+				return ctx
+			},
+			Database: dbM,
+			Pubsub:   pub,
+			Log:      testutil.Logger(t),
+			TimeNowFn: func() time.Time {
+				return now
+			},
+		}
+
+		resp, err := api.BatchUpdateMetadata(context.Background(), req)
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		// Verify RBACContextFn was called even though it doesn't attach RBAC
+		require.True(t, rbacContextCalled, "RBACContextFn should have been called")
 	})
 }

@@ -2,6 +2,7 @@ package agentapi
 
 import (
 	"context"
+	"database/sql"
 	"io"
 	"net"
 	"net/url"
@@ -21,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/notifications"
@@ -35,6 +37,33 @@ import (
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/quartz"
 )
+
+// CachedWorkspaceFields contains workspace data that is safe to cache for the
+// duration of an agent connection. These fields are used to reduce database calls
+// in high-frequency operations like stats reporting and metadata updates.
+//
+// IMPORTANT: ACL fields (GroupACL, UserACL) are NOT cached because they can be
+// modified in the database and we must use fresh data for authorization checks.
+//
+// Prebuild Safety: When a prebuild is claimed, the owner_id changes in the database
+// but the agent connection persists. We handle this by periodically refreshing
+// the cached fields (every 5 minutes) to pick up changes like prebuild claims.
+type CachedWorkspaceFields struct {
+	// Identity fields
+	ID             uuid.UUID
+	OwnerID        uuid.UUID
+	OrganizationID uuid.UUID
+	TemplateID     uuid.UUID
+
+	// Display fields for logging/metrics
+	Name          string
+	OwnerUsername string
+	TemplateName  string
+
+	// Lifecycle fields needed for stats reporting
+	AutostartSchedule sql.NullString
+	DormantAt         sql.NullTime
+}
 
 // API implements the DRPC agent API interface from agent/proto. This struct is
 // instantiated once per agent connection and kept alive for the duration of the
@@ -54,7 +83,7 @@ type API struct {
 	*SubAgentAPI
 	*tailnet.DRPCService
 
-	cachedWorkspace database.Workspace
+	cachedWorkspaceFields CachedWorkspaceFields
 
 	mu sync.Mutex
 }
@@ -100,9 +129,25 @@ func New(opts Options, workspace database.Workspace) *API {
 	}
 
 	api := &API{
-		opts:            opts,
-		cachedWorkspace: workspace,
-		mu:              sync.Mutex{},
+		opts: opts,
+		cachedWorkspaceFields: CachedWorkspaceFields{
+			ID:             workspace.ID,
+			OwnerID:        workspace.OwnerID,
+			OrganizationID: workspace.OrganizationID,
+			TemplateID:     workspace.TemplateID,
+			Name:           workspace.Name,
+			OwnerUsername:  workspace.OwnerUsername,
+			TemplateName:   workspace.TemplateName,
+			AutostartSchedule: sql.NullString{
+				String: workspace.AutostartSchedule.String,
+				Valid:  workspace.AutostartSchedule.Valid,
+			},
+			DormantAt: sql.NullTime{
+				Time:  workspace.DormantAt.Time,
+				Valid: workspace.DormantAt.Valid,
+			},
+		},
+		mu: sync.Mutex{},
 	}
 
 	api.ManifestAPI = &ManifestAPI{
@@ -166,10 +211,11 @@ func New(opts Options, workspace database.Workspace) *API {
 	}
 
 	api.MetadataAPI = &MetadataAPI{
-		AgentFn:  api.agent,
-		Database: opts.Database,
-		Pubsub:   opts.Pubsub,
-		Log:      opts.Log,
+		AgentFn:       api.agent,
+		RBACContextFn: api.rbacContext,
+		Database:      opts.Database,
+		Pubsub:        opts.Pubsub,
+		Log:           opts.Log,
 	}
 
 	api.LogsAPI = &LogsAPI{
@@ -208,6 +254,10 @@ func New(opts Options, workspace database.Workspace) *API {
 		Clock:          opts.Clock,
 		Database:       opts.Database,
 	}
+
+	// Start background cache refresh loop to handle workspace changes
+	// like prebuild claims where owner_id and other fields change.
+	go api.startCacheRefreshLoop(opts.Ctx)
 
 	return api
 }
@@ -259,7 +309,73 @@ func (a *API) agent(ctx context.Context) (database.WorkspaceAgent, error) {
 }
 
 func (a *API) workspace() (database.Workspace, error) {
-	return a.cachedWorkspace, nil
+	// Return cached workspace data - no database query needed!
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	return database.Workspace{
+		ID:                a.cachedWorkspaceFields.ID,
+		OwnerID:           a.cachedWorkspaceFields.OwnerID,
+		OrganizationID:    a.cachedWorkspaceFields.OrganizationID,
+		TemplateID:        a.cachedWorkspaceFields.TemplateID,
+		Name:              a.cachedWorkspaceFields.Name,
+		OwnerUsername:     a.cachedWorkspaceFields.OwnerUsername,
+		TemplateName:      a.cachedWorkspaceFields.TemplateName,
+		AutostartSchedule: a.cachedWorkspaceFields.AutostartSchedule,
+		DormantAt:         a.cachedWorkspaceFields.DormantAt,
+	}, nil
+}
+
+func (a *API) rbacContext(ctx context.Context) context.Context {
+	// Create WorkspaceTable from cached fields (ACLs are zero values)
+	workspace := database.Workspace{
+		ID:             a.cachedWorkspaceFields.ID,
+		OwnerID:        a.cachedWorkspaceFields.OwnerID,
+		OrganizationID: a.cachedWorkspaceFields.OrganizationID,
+		DormantAt:      a.cachedWorkspaceFields.DormantAt,
+	}
+	return dbauthz.WithWorkspaceRBAC(ctx, workspace.RBACObject())
+}
+
+// refreshCachedWorkspace periodically updates the cached workspace fields.
+// This ensures that changes like prebuild claims (which modify owner_id, name, etc.)
+// are eventually reflected in the cache without requiring agent reconnection.
+func (a *API) refreshCachedWorkspace(ctx context.Context) {
+	ws, err := a.opts.Database.GetWorkspaceByID(ctx, a.cachedWorkspaceFields.ID)
+	if err != nil {
+		a.opts.Log.Warn(ctx, "failed to refresh cached workspace fields", slog.Error(err))
+		return
+	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	// Update fields that can change during workspace lifecycle (e.g., prebuild claim)
+	a.cachedWorkspaceFields.OwnerID = ws.OwnerID
+	a.cachedWorkspaceFields.Name = ws.Name
+	a.cachedWorkspaceFields.OwnerUsername = ws.OwnerUsername
+	a.cachedWorkspaceFields.AutostartSchedule = ws.AutostartSchedule
+	a.cachedWorkspaceFields.DormantAt = ws.DormantAt
+
+	a.opts.Log.Debug(ctx, "refreshed cached workspace fields",
+		slog.F("workspace_id", ws.ID),
+		slog.F("owner_id", ws.OwnerID),
+		slog.F("name", ws.Name))
+}
+
+// startCacheRefreshLoop runs a background goroutine that periodically refreshes
+// the cached workspace fields. This is primarily needed to handle prebuild claims
+// where the owner_id and other fields change while the agent connection persists.
+func (a *API) startCacheRefreshLoop(ctx context.Context) {
+	// Refresh every 5 minutes. This provides a reasonable balance between:
+	// - Keeping cache fresh for prebuild claims and other workspace updates
+	// - Minimizing unnecessary database queries
+	_ = a.opts.Clock.TickerFunc(ctx, 5*time.Minute, func() error {
+		a.refreshCachedWorkspace(ctx)
+		return nil
+	}, "cache_refresh")
+
+	<-ctx.Done()
 }
 
 func (a *API) publishWorkspaceUpdate(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {

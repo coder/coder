@@ -201,6 +201,38 @@ func ActorFromContext(ctx context.Context) (rbac.Subject, bool) {
 	return a, ok
 }
 
+type workspaceRBACContextKey struct{}
+
+// WithWorkspaceRBAC attaches a workspace RBAC object to the context.
+// The RBAC object should have ACL fields nullified for safety.
+//
+// This is primarily used by the workspace agent RPC handler to cache workspace
+// authorization data for the duration of an agent connection.
+//
+// IMPORTANT: The RBAC object stored here has ACL fields (GroupACL, UserACL) set to empty
+// because ACLs can be modified in the database and must not be cached for the lifetime
+// of an agent connection.
+//
+// NOTE: The cached RBAC object is refreshed every 5 minutes via a background goroutine
+// in agentapi. This means after a prebuild claim, there may be a window of up to 5 minutes
+// where authorization uses stale owner_id. This is acceptable because:
+// 1. Prebuild claims are infrequent events
+// 2. The authorization will use correct data after the next refresh
+// 3. A pubsub-based immediate update mechanism can be added in the future
+func WithWorkspaceRBAC(ctx context.Context, rbacObj rbac.Object) context.Context {
+	return context.WithValue(ctx, workspaceRBACContextKey{}, rbacObj)
+}
+
+// WorkspaceRBACFromContext retrieves the workspace RBAC object from context.
+// Returns the object and true if present, or an empty object and false if not found.
+//
+// This is used by UpdateWorkspaceAgentMetadata to perform authorization checks without
+// additional database queries when the workspace RBAC object has been cached.
+func WorkspaceRBACFromContext(ctx context.Context) (rbac.Object, bool) {
+	obj, ok := ctx.Value(workspaceRBACContextKey{}).(rbac.Object)
+	return obj, ok
+}
+
 var (
 	subjectProvisionerd = rbac.Subject{
 		Type:         rbac.SubjectTypeProvisionerd,
@@ -5507,6 +5539,30 @@ func (q *querier) UpdateWorkspaceAgentLogOverflowByID(ctx context.Context, arg d
 }
 
 func (q *querier) UpdateWorkspaceAgentMetadata(ctx context.Context, arg database.UpdateWorkspaceAgentMetadataParams) error {
+	// Fast path: Check if we have a sanitized RBAC object in context.
+	// This is set by the workspace agent RPC handler to avoid the expensive
+	// GetWorkspaceByAgentID query for every metadata update.
+	//
+	// NOTE: The cached RBAC object is refreshed every 5 minutes. After a prebuild
+	// claim, there may be up to a 5-minute window where this uses stale owner_id.
+	if rbacObj, ok := WorkspaceRBACFromContext(ctx); ok {
+		// Verify the RBAC object is valid (has required fields)
+		if rbacObj.Owner != "" && rbacObj.OrgID != "" && rbacObj.Owner != "00000000-0000-0000-0000-000000000000" && rbacObj.OrgID != "00000000-0000-0000-0000-000000000000" {
+			// Use the cached RBAC object for authorization
+			act, ok := ActorFromContext(ctx)
+			if !ok {
+				return ErrNoActor
+			}
+			err := q.auth.Authorize(ctx, act, policy.ActionUpdate, rbacObj)
+			if err != nil {
+				return logNotAuthorizedError(ctx, q.log, err)
+			}
+			return q.db.UpdateWorkspaceAgentMetadata(ctx, arg)
+		}
+	}
+
+	// Slow path: Fetch workspace for authorization (used for non-agent callers
+	// or when context doesn't have the RBAC object)
 	workspace, err := q.db.GetWorkspaceByAgentID(ctx, arg.WorkspaceAgentID)
 	if err != nil {
 		return err
