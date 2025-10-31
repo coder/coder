@@ -1262,7 +1262,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/daus \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Invalidate all prebuilt workspaces for a template
+## Invalidate prebuilt workspaces for template
 
 ### Code samples
 

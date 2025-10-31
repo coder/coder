@@ -6018,8 +6018,8 @@ const docTemplate = `{
                 "tags": [
                     "Templates"
                 ],
-                "summary": "Invalidate all prebuilt workspaces for a template",
-                "operationId": "invalidate-template-prebuilds",
+                "summary": "Invalidate prebuilt workspaces for template",
+                "operationId": "invalidate-prebuilt-workspaces-for-template",
                 "parameters": [
                     {
                         "type": "string",
