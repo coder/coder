@@ -1185,15 +1185,7 @@ func (api *API) postInvalidateTemplatePrebuilds(rw http.ResponseWriter, r *http.
 		slog.F("preset_count", len(invalidatedPresets)),
 	)
 
-	// Build list of preset names
-	var presetNames []string
-	for _, preset := range invalidatedPresets {
-		presetNames = append(presetNames, preset.Name)
-	}
-
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.InvalidatePrebuildsResponse{
-		Count:       len(invalidatedPresets),
-		Invalidated: presetNames,
-		Failed:      []codersdk.InvalidatedPrebuildError{},
+		InvalidatedPresets: []codersdk.InvalidatedPreset{},
 	})
 }
