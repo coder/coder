@@ -462,7 +462,7 @@ func (api *API) enqueueAITaskStateNotification(
 	}
 
 	if !workspace.TaskID.Valid {
-		api.Logger.Warn(ctx, "workspace has no task ID")
+		// Workspace has no task ID, do nothing.
 		return
 	}
 
@@ -472,9 +472,8 @@ func (api *API) enqueueAITaskStateNotification(
 		return
 	}
 
-	// Confirm Workspace Agent App is an AI Task
 	if !task.WorkspaceAppID.Valid || task.WorkspaceAppID.UUID != appID {
-		api.Logger.Warn(ctx, "workspace agent app is not an AI task")
+		// Non-task app, do nothing.
 		return
 	}
 
