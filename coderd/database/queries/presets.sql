@@ -110,10 +110,10 @@ WHERE
 UPDATE
 	template_version_presets tvp
 SET
-	last_invalidated_at = $1
+	last_invalidated_at = @last_invalidated_at
 FROM
 	templates t
 WHERE
-	t.id = $2
+	t.id = @template_id
 	AND tvp.template_version_id = t.active_version_id
 RETURNING *;
