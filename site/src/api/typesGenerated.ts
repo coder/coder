@@ -2478,37 +2478,8 @@ export const InsightsReportIntervals: InsightsReportInterval[] = [
 ];
 
 // From codersdk/templates.go
-/**
- * InvalidatePrebuildsResponse contains the result of invalidating prebuilt workspaces.
- */
 export interface InvalidatePrebuildsResponse {
-	/**
-	 * Count is the number of presets that were invalidated.
-	 */
-	readonly count: number;
-	/**
-	 * Invalidated is the list of preset names that were invalidated.
-	 */
-	readonly invalidated: readonly string[];
-	/**
-	 * Failed is the list of presets that failed to invalidate with error messages.
-	 */
-	readonly failed?: readonly InvalidatedPrebuildError[];
-}
-
-// From codersdk/templates.go
-/**
- * InvalidatedPrebuildError represents a failed preset invalidation.
- */
-export interface InvalidatedPrebuildError {
-	/**
-	 * WorkspaceName is the name of the preset that failed to invalidate.
-	 */
-	readonly workspace_name: string;
-	/**
-	 * Error is the error message.
-	 */
-	readonly error: string;
+	readonly invalidated_presets: readonly string[];
 }
 
 // From codersdk/workspaceagents.go

@@ -1287,14 +1287,7 @@ curl -X POST http://coder-server:8080/api/v2/templates/{template}/prebuilds/inva
 
 ```json
 {
-  "count": 0,
-  "failed": [
-    {
-      "error": "string",
-      "workspace_name": "string"
-    }
-  ],
-  "invalidated": [
+  "invalidated_presets": [
     "string"
   ]
 }

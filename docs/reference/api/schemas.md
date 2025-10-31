@@ -4710,14 +4710,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ```json
 {
-  "count": 0,
-  "failed": [
-    {
-      "error": "string",
-      "workspace_name": "string"
-    }
-  ],
-  "invalidated": [
+  "invalidated_presets": [
     "string"
   ]
 }
@@ -4725,27 +4718,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ### Properties
 
-| Name          | Type                                                                            | Required | Restrictions | Description                                                                  |
-|---------------|---------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------|
-| `count`       | integer                                                                         | false    |              | Count is the number of presets that were invalidated.                        |
-| `failed`      | array of [codersdk.InvalidatedPrebuildError](#codersdkinvalidatedprebuilderror) | false    |              | Failed is the list of presets that failed to invalidate with error messages. |
-| `invalidated` | array of string                                                                 | false    |              | Invalidated is the list of preset names that were invalidated.               |
-
-## codersdk.InvalidatedPrebuildError
-
-```json
-{
-  "error": "string",
-  "workspace_name": "string"
-}
-```
-
-### Properties
-
-| Name             | Type   | Required | Restrictions | Description                                                         |
-|------------------|--------|----------|--------------|---------------------------------------------------------------------|
-| `error`          | string | false    |              | Error is the error message.                                         |
-| `workspace_name` | string | false    |              | Workspace name is the name of the preset that failed to invalidate. |
+| Name                  | Type            | Required | Restrictions | Description |
+|-----------------------|-----------------|----------|--------------|-------------|
+| `invalidated_presets` | array of string | false    |              |             |
 
 ## codersdk.IssueReconnectingPTYSignedTokenRequest
 
