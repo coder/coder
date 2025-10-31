@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"net/http"
 
-	"cdr.dev/slog"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
