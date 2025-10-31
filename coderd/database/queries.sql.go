@@ -9255,43 +9255,119 @@ func (q *sqlQuerier) UpdatePresetPrebuildStatus(ctx context.Context, arg UpdateP
 }
 
 const updatePresetsLastInvalidatedAt = `-- name: UpdatePresetsLastInvalidatedAt :many
-UPDATE template_version_presets
-SET last_invalidated_at = $1
-WHERE template_version_id IN (
-	SELECT id FROM template_versions WHERE template_id = $2
-)
-AND template_version_id = (
-	SELECT active_version_id FROM templates WHERE id = $2
-)
-RETURNING id, template_version_id, name, created_at, desired_instances, invalidate_after_secs, prebuild_status, scheduling_timezone, is_default, description, icon, last_invalidated_at
+UPDATE
+	template_version_presets tvp
+SET
+	last_invalidated_at = $1
+FROM
+	templates t
+WHERE
+	t.id = $2
+	AND tvp.template_version_id = t.active_version_id
+RETURNING t.id, t.created_at, updated_at, organization_id, deleted, t.name, provisioner, active_version_id, t.description, default_ttl, created_by, t.icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, tvp.id, template_version_id, tvp.name, tvp.created_at, desired_instances, invalidate_after_secs, prebuild_status, scheduling_timezone, is_default, tvp.description, tvp.icon, last_invalidated_at
 `
 
 type UpdatePresetsLastInvalidatedAtParams struct {
-	LastInvalidatedAt sql.NullTime  `db:"last_invalidated_at" json:"last_invalidated_at"`
-	TemplateID        uuid.NullUUID `db:"template_id" json:"template_id"`
+	LastInvalidatedAt sql.NullTime `db:"last_invalidated_at" json:"last_invalidated_at"`
+	ID                uuid.UUID    `db:"id" json:"id"`
 }
 
-func (q *sqlQuerier) UpdatePresetsLastInvalidatedAt(ctx context.Context, arg UpdatePresetsLastInvalidatedAtParams) ([]TemplateVersionPreset, error) {
-	rows, err := q.db.QueryContext(ctx, updatePresetsLastInvalidatedAt, arg.LastInvalidatedAt, arg.TemplateID)
+type UpdatePresetsLastInvalidatedAtRow struct {
+	ID                            uuid.UUID       `db:"id" json:"id"`
+	CreatedAt                     time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt                     time.Time       `db:"updated_at" json:"updated_at"`
+	OrganizationID                uuid.UUID       `db:"organization_id" json:"organization_id"`
+	Deleted                       bool            `db:"deleted" json:"deleted"`
+	Name                          string          `db:"name" json:"name"`
+	Provisioner                   ProvisionerType `db:"provisioner" json:"provisioner"`
+	ActiveVersionID               uuid.UUID       `db:"active_version_id" json:"active_version_id"`
+	Description                   string          `db:"description" json:"description"`
+	DefaultTTL                    int64           `db:"default_ttl" json:"default_ttl"`
+	CreatedBy                     uuid.UUID       `db:"created_by" json:"created_by"`
+	Icon                          string          `db:"icon" json:"icon"`
+	UserACL                       TemplateACL     `db:"user_acl" json:"user_acl"`
+	GroupACL                      TemplateACL     `db:"group_acl" json:"group_acl"`
+	DisplayName                   string          `db:"display_name" json:"display_name"`
+	AllowUserCancelWorkspaceJobs  bool            `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
+	AllowUserAutostart            bool            `db:"allow_user_autostart" json:"allow_user_autostart"`
+	AllowUserAutostop             bool            `db:"allow_user_autostop" json:"allow_user_autostop"`
+	FailureTTL                    int64           `db:"failure_ttl" json:"failure_ttl"`
+	TimeTilDormant                int64           `db:"time_til_dormant" json:"time_til_dormant"`
+	TimeTilDormantAutoDelete      int64           `db:"time_til_dormant_autodelete" json:"time_til_dormant_autodelete"`
+	AutostopRequirementDaysOfWeek int16           `db:"autostop_requirement_days_of_week" json:"autostop_requirement_days_of_week"`
+	AutostopRequirementWeeks      int64           `db:"autostop_requirement_weeks" json:"autostop_requirement_weeks"`
+	AutostartBlockDaysOfWeek      int16           `db:"autostart_block_days_of_week" json:"autostart_block_days_of_week"`
+	RequireActiveVersion          bool            `db:"require_active_version" json:"require_active_version"`
+	Deprecated                    string          `db:"deprecated" json:"deprecated"`
+	ActivityBump                  int64           `db:"activity_bump" json:"activity_bump"`
+	MaxPortSharingLevel           AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
+	UseClassicParameterFlow       bool            `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
+	CorsBehavior                  CorsBehavior    `db:"cors_behavior" json:"cors_behavior"`
+	ID_2                          uuid.UUID       `db:"id_2" json:"id_2"`
+	TemplateVersionID             uuid.UUID       `db:"template_version_id" json:"template_version_id"`
+	Name_2                        string          `db:"name_2" json:"name_2"`
+	CreatedAt_2                   time.Time       `db:"created_at_2" json:"created_at_2"`
+	DesiredInstances              sql.NullInt32   `db:"desired_instances" json:"desired_instances"`
+	InvalidateAfterSecs           sql.NullInt32   `db:"invalidate_after_secs" json:"invalidate_after_secs"`
+	PrebuildStatus                PrebuildStatus  `db:"prebuild_status" json:"prebuild_status"`
+	SchedulingTimezone            string          `db:"scheduling_timezone" json:"scheduling_timezone"`
+	IsDefault                     bool            `db:"is_default" json:"is_default"`
+	Description_2                 string          `db:"description_2" json:"description_2"`
+	Icon_2                        string          `db:"icon_2" json:"icon_2"`
+	LastInvalidatedAt             sql.NullTime    `db:"last_invalidated_at" json:"last_invalidated_at"`
+}
+
+func (q *sqlQuerier) UpdatePresetsLastInvalidatedAt(ctx context.Context, arg UpdatePresetsLastInvalidatedAtParams) ([]UpdatePresetsLastInvalidatedAtRow, error) {
+	rows, err := q.db.QueryContext(ctx, updatePresetsLastInvalidatedAt, arg.LastInvalidatedAt, arg.ID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []TemplateVersionPreset
+	var items []UpdatePresetsLastInvalidatedAtRow
 	for rows.Next() {
-		var i TemplateVersionPreset
+		var i UpdatePresetsLastInvalidatedAtRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.TemplateVersionID,
-			&i.Name,
 			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.OrganizationID,
+			&i.Deleted,
+			&i.Name,
+			&i.Provisioner,
+			&i.ActiveVersionID,
+			&i.Description,
+			&i.DefaultTTL,
+			&i.CreatedBy,
+			&i.Icon,
+			&i.UserACL,
+			&i.GroupACL,
+			&i.DisplayName,
+			&i.AllowUserCancelWorkspaceJobs,
+			&i.AllowUserAutostart,
+			&i.AllowUserAutostop,
+			&i.FailureTTL,
+			&i.TimeTilDormant,
+			&i.TimeTilDormantAutoDelete,
+			&i.AutostopRequirementDaysOfWeek,
+			&i.AutostopRequirementWeeks,
+			&i.AutostartBlockDaysOfWeek,
+			&i.RequireActiveVersion,
+			&i.Deprecated,
+			&i.ActivityBump,
+			&i.MaxPortSharingLevel,
+			&i.UseClassicParameterFlow,
+			&i.CorsBehavior,
+			&i.ID_2,
+			&i.TemplateVersionID,
+			&i.Name_2,
+			&i.CreatedAt_2,
 			&i.DesiredInstances,
 			&i.InvalidateAfterSecs,
 			&i.PrebuildStatus,
 			&i.SchedulingTimezone,
 			&i.IsDefault,
-			&i.Description,
-			&i.Icon,
+			&i.Description_2,
+			&i.Icon_2,
 			&i.LastInvalidatedAt,
 		); err != nil {
 			return nil, err

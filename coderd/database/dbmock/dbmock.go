@@ -6584,10 +6584,10 @@ func (mr *MockStoreMockRecorder) UpdatePresetPrebuildStatus(ctx, arg any) *gomoc
 }
 
 // UpdatePresetsLastInvalidatedAt mocks base method.
-func (m *MockStore) UpdatePresetsLastInvalidatedAt(ctx context.Context, arg database.UpdatePresetsLastInvalidatedAtParams) ([]database.TemplateVersionPreset, error) {
+func (m *MockStore) UpdatePresetsLastInvalidatedAt(ctx context.Context, arg database.UpdatePresetsLastInvalidatedAtParams) ([]database.UpdatePresetsLastInvalidatedAtRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdatePresetsLastInvalidatedAt", ctx, arg)
-	ret0, _ := ret[0].([]database.TemplateVersionPreset)
+	ret0, _ := ret[0].([]database.UpdatePresetsLastInvalidatedAtRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

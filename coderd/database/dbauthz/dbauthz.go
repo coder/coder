@@ -4968,7 +4968,7 @@ func (q *querier) UpdatePresetPrebuildStatus(ctx context.Context, arg database.U
 	return q.db.UpdatePresetPrebuildStatus(ctx, arg)
 }
 
-func (q *querier) UpdatePresetsLastInvalidatedAt(ctx context.Context, arg database.UpdatePresetsLastInvalidatedAtParams) ([]database.TemplateVersionPreset, error) {
+func (q *querier) UpdatePresetsLastInvalidatedAt(ctx context.Context, arg database.UpdatePresetsLastInvalidatedAtParams) ([]database.UpdatePresetsLastInvalidatedAtRow, error) {
 	// Fetch template to check authorization
 	template, err := q.db.GetTemplateByID(ctx, arg.TemplateID.UUID)
 	if err != nil {
