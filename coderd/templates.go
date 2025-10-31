@@ -1147,8 +1147,8 @@ func findTemplateAdmins(ctx context.Context, store database.Store) ([]database.G
 	return append(owners, templateAdmins...), nil
 }
 
-// @Summary Invalidate all prebuilt workspaces for a template
-// @ID invalidate-template-prebuilds
+// @Summary Invalidate prebuilt workspaces for template
+// @ID invalidate-prebuilt-workspaces-for-template
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
