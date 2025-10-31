@@ -5316,7 +5316,6 @@
 						"CoderSessionToken": []
 					}
 				],
-				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Templates"],
 				"summary": "Invalidate prebuilt workspaces for template",
