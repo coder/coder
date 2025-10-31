@@ -509,12 +509,7 @@ func (c *Client) StarterTemplates(ctx context.Context) ([]TemplateExample, error
 }
 
 type InvalidatePrebuildsResponse struct {
-	InvalidatedPresets []InvalidatedPreset `json:"invalidated_presets"`
-}
-
-type InvalidatedPreset struct {
-	Name        string `json:"preset_name"`
-	DisplayName string `json:"display_name,omitempty"`
+	InvalidatedPresets []string `json:"invalidated_presets"`
 }
 
 // InvalidateTemplatePrebuilds invalidates all prebuilt workspaces for the
