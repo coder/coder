@@ -32,6 +32,7 @@ func TestRFC6750BearerTokenAuthentication(t *testing.T) {
 	// Create an OAuth2 provider app token (which should work with bearer token authentication)
 	key, token := dbgen.APIKey(t, db, database.APIKey{
 		UserID:    user.ID,
+		CreatedAt: dbtime.Now(),
 		ExpiresAt: dbtime.Now().Add(testutil.WaitLong),
 	})
 
@@ -115,6 +116,7 @@ func TestRFC6750BearerTokenAuthentication(t *testing.T) {
 		// Create an expired token
 		_, expiredToken := dbgen.APIKey(t, db, database.APIKey{
 			UserID:    user.ID,
+			CreatedAt: dbtime.Now().Add(-2 * testutil.WaitShort),
 			ExpiresAt: dbtime.Now().Add(-testutil.WaitShort), // Expired
 		})
 
