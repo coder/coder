@@ -8,7 +8,6 @@ import {
 	HelpTooltipTitle,
 	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
-import { Stack } from "components/Stack/Stack";
 import { RotateCcwIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { agentVersionStatus } from "../../utils/workspace";
@@ -46,25 +45,25 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
 				</span>
 			</HelpTooltipTrigger>
 			<HelpTooltipContent>
-				<Stack spacing={1}>
+				<div className="flex flex-col gap-2">
 					<div>
 						<HelpTooltipTitle>{title}</HelpTooltipTitle>
 						<HelpTooltipText>{text}</HelpTooltipText>
 					</div>
 
-					<Stack spacing={0.5}>
+					<div className="flex flex-col gap-1">
 						<span className="font-semibold text-content-primary">
 							Agent version
 						</span>
 						<span>{agent.version}</span>
-					</Stack>
+					</div>
 
-					<Stack spacing={0.5}>
+					<div className="flex flex-col gap-1">
 						<span className="font-semibold text-content-primary">
 							Server version
 						</span>
 						<span>{serverVersion}</span>
-					</Stack>
+					</div>
 
 					<HelpTooltipLinksGroup>
 						<HelpTooltipAction
@@ -78,7 +77,7 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
 							Update workspace
 						</HelpTooltipAction>
 					</HelpTooltipLinksGroup>
-				</Stack>
+				</div>
 			</HelpTooltipContent>
 		</HelpTooltip>
 	);

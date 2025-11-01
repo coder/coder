@@ -10,7 +10,6 @@ import {
 	HelpTooltipText,
 	HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
-import { Stack } from "components/Stack/Stack";
 import { TooltipTrigger } from "components/Tooltip/Tooltip";
 import { RotateCcwIcon } from "lucide-react";
 import type { FC } from "react";
@@ -45,7 +44,7 @@ export const SubAgentOutdatedTooltip: FC<SubAgentOutdatedTooltipProps> = ({
 				</span>
 			</TooltipTrigger>
 			<HelpTooltipContent>
-				<Stack spacing={1}>
+				<div className="flex flex-col gap-2">
 					<div>
 						<HelpTooltipTitle>{title}</HelpTooltipTitle>
 						<HelpTooltipText>{text}</HelpTooltipText>
@@ -60,7 +59,7 @@ export const SubAgentOutdatedTooltip: FC<SubAgentOutdatedTooltipProps> = ({
 							Rebuild Dev Container
 						</HelpTooltipAction>
 					</HelpTooltipLinksGroup>
-				</Stack>
+				</div>
 			</HelpTooltipContent>
 		</HelpTooltip>
 	);
