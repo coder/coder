@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"database/sql"
 	"io"
 	"net/http"
 	"testing"
@@ -101,7 +102,9 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 
 		// Insert a bunch of test data.
 		now := dbtime.Now()
+		i1ApiKey := sql.NullString{String: "some-api-key", Valid: true}
 		i1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			APIKeyID:    i1ApiKey,
 			InitiatorID: user1.ID,
 			StartedAt:   now.Add(-time.Hour),
 		}, nil)
@@ -145,6 +148,9 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		require.Len(t, res.Results, 2)
 		require.Equal(t, i2SDK.ID, res.Results[0].ID)
 		require.Equal(t, i1SDK.ID, res.Results[1].ID)
+
+		require.Equal(t, &i1ApiKey.String, i1SDK.APIKeyID)
+		require.Nil(t, i2SDK.APIKeyID)
 
 		// Normalize timestamps in the response so we can compare the whole
 		// thing easily.

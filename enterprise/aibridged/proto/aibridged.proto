@@ -42,6 +42,7 @@ message RecordInterceptionRequest {
   string model = 4;
   map<string, google.protobuf.Any> metadata = 5;
   google.protobuf.Timestamp started_at = 6;
+  string api_key_id = 7;
 }
 
 message RecordInterceptionResponse {}
@@ -119,4 +120,5 @@ message IsAuthorizedRequest {
 
 message IsAuthorizedResponse {
   string owner_id = 1;
+  string api_key_id = 2;
 }
