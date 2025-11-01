@@ -45,7 +45,7 @@
 		"@fontsource/fira-code": "5.2.7",
 		"@fontsource/ibm-plex-mono": "5.2.7",
 		"@fontsource/jetbrains-mono": "5.2.8",
-		"@fontsource/source-code-pro": "5.2.5",
+		"@fontsource/source-code-pro": "5.2.7",
 		"@monaco-editor/react": "4.7.0",
 		"@mui/material": "5.18.0",
 		"@mui/system": "5.18.0",
