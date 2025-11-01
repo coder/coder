@@ -5,7 +5,6 @@ import (
 	"io"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -16,11 +15,12 @@ import (
 
 // mockReader implements io.Reader with controllable behavior for testing
 type mockReader struct {
-	mu       sync.Mutex
-	data     []byte
-	pos      int
-	err      error
-	readFunc func([]byte) (int, error)
+	mu        sync.Mutex
+	data      []byte
+	pos       int
+	err       error
+	readFunc  func([]byte) (int, error)
+	closeFunc func() error
 }
 
 func newMockReader(data string) *mockReader {
@@ -29,11 +29,12 @@ func newMockReader(data string) *mockReader {
 
 func (mr *mockReader) Read(p []byte) (int, error) {
 	mr.mu.Lock()
-	defer mr.mu.Unlock()
-
 	if mr.readFunc != nil {
-		return mr.readFunc(p)
+		readFn := mr.readFunc
+		mr.mu.Unlock()
+		return readFn(p)
 	}
+	defer mr.mu.Unlock()
 
 	if mr.err != nil {
 		return 0, mr.err
@@ -46,6 +47,16 @@ func (mr *mockReader) Read(p []byte) (int, error) {
 	n := copy(p, mr.data[mr.pos:])
 	mr.pos += n
 	return n, nil
+}
+
+func (mr *mockReader) Close() error {
+	mr.mu.Lock()
+	closeFn := mr.closeFunc
+	mr.mu.Unlock()
+	if closeFn != nil {
+		return closeFn()
+	}
+	return nil
 }
 
 func (mr *mockReader) setError(err error) {
@@ -455,6 +466,7 @@ func TestBackedReader_CloseWhileBlockedOnUnderlyingReader(t *testing.T) {
 	// Create a reader that blocks on Read calls but can be unblocked
 	readStarted := make(chan struct{}, 1)
 	readUnblocked := make(chan struct{})
+	var closeOnce sync.Once
 	blockingReader := &mockReader{
 		readFunc: func(p []byte) (int, error) {
 			select {
@@ -464,6 +476,12 @@ func TestBackedReader_CloseWhileBlockedOnUnderlyingReader(t *testing.T) {
 			<-readUnblocked // Block until signaled
 			// After unblocking, return an error to simulate connection failure
 			return 0, xerrors.New("connection interrupted")
+		},
+		closeFunc: func() error {
+			closeOnce.Do(func() {
+				close(readUnblocked)
+			})
+			return nil
 		},
 	}
 
@@ -504,27 +522,17 @@ func TestBackedReader_CloseWhileBlockedOnUnderlyingReader(t *testing.T) {
 		}
 	}, testutil.WaitShort, testutil.IntervalMedium)
 
-	// Start Close() in a goroutine since it will block until the underlying read completes
+	// Calling Close should terminate the reader immediately and return without waiting
 	closeDone := make(chan error, 1)
 	go func() {
 		closeDone <- br.Close()
 	}()
 
-	// Verify Close() is also blocked waiting for the underlying read
-	select {
-	case <-closeDone:
-		t.Fatal("Close should be blocked until underlying read completes")
-	case <-time.After(10 * time.Millisecond):
-		// Good, Close is blocked
-	}
-
-	// Unblock the underlying reader, which will cause both the read and close to complete
-	close(readUnblocked)
-
-	// Wait for both the read and close to complete
-	testutil.TryReceive(ctx, t, readDone)
 	closeErr := testutil.RequireReceive(ctx, t, closeDone)
 	require.NoError(t, closeErr)
+
+	// Wait for the blocked read to finish after the close tears it down
+	testutil.TryReceive(ctx, t, readDone)
 
 	// The read should return EOF because Close() was called while it was blocked,
 	// even though the underlying reader returned an error
