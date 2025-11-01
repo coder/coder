@@ -68,6 +68,7 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	handler, err := s.GetRequestHandler(ctx, Request{
 		SessionKey:  key,
+		APIKeyID:    resp.ApiKeyId,
 		InitiatorID: id,
 	})
 	if err != nil {

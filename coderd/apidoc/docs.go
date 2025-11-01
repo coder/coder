@@ -11708,6 +11708,9 @@ const docTemplate = `{
         "codersdk.AIBridgeInterception": {
             "type": "object",
             "properties": {
+                "api_key_id": {
+                    "type": "string"
+                },
                 "ended_at": {
                     "type": "string",
                     "format": "date-time"

@@ -805,6 +805,7 @@ func (q *sqlQuerier) ListAuthorizedAIBridgeInterceptions(ctx context.Context, ar
 			&i.AIBridgeInterception.StartedAt,
 			&i.AIBridgeInterception.Metadata,
 			&i.AIBridgeInterception.EndedAt,
+			&i.AIBridgeInterception.APIKeyID,
 			&i.VisibleUser.ID,
 			&i.VisibleUser.Username,
 			&i.VisibleUser.Name,
