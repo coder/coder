@@ -282,8 +282,8 @@ importers:
         specifier: 4.1.0
         version: 4.1.0(storybook@9.1.2(@testing-library/dom@10.4.0)(msw@2.4.8(typescript@5.6.3))(prettier@3.4.1)(vite@7.1.11(@types/node@20.17.16)(jiti@1.21.7)(yaml@2.7.0)))
       '@octokit/types':
-        specifier: 12.3.0
-        version: 12.3.0
+        specifier: 12.6.0
+        version: 12.6.0
       '@playwright/test':
         specifier: 1.50.1
         version: 1.50.1
@@ -1161,8 +1161,8 @@ packages:
     peerDependencies:
       eslint: ^6.0.0 || ^7.0.0 || >=8.0.0
 
-  '@eslint-community/regexpp@4.12.1':
-    resolution: {integrity: sha512-CCZCDJuduB9OUkFkY2IgppNZMi2lBQgD2qzwXkEia16cge2pijY/aXi96CJMquDMn3nJdlPV1A5KrJEXwfLNzQ==, tarball: https://registry.npmjs.org/@eslint-community/regexpp/-/regexpp-4.12.1.tgz}
+  '@eslint-community/regexpp@4.12.2':
+    resolution: {integrity: sha512-EriSTlt5OC9/7SXkRSCAhfSxxoSUgBm33OH+IkwbdpgoqsSsUg7y3uh+IICI/Qg4BBWr3U2i39RpmycbxMq4ew==, tarball: https://registry.npmjs.org/@eslint-community/regexpp/-/regexpp-4.12.2.tgz}
     engines: {node: ^12.0.0 || ^14.0.0 || >=16.0.0}
 
   '@eslint/eslintrc@2.1.4':
@@ -1536,11 +1536,11 @@ packages:
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==, tarball: https://registry.npmjs.org/@nodelib/fs.walk/-/fs.walk-1.2.8.tgz}
     engines: {node: '>= 8'}
 
-  '@octokit/openapi-types@19.0.2':
-    resolution: {integrity: sha512-8li32fUDUeml/ACRp/njCWTsk5t17cfTM1jp9n08pBrqs5cDFJubtjsSnuz56r5Tad6jdEPJld7LxNp9dNcyjQ==, tarball: https://registry.npmjs.org/@octokit/openapi-types/-/openapi-types-19.0.2.tgz}
+  '@octokit/openapi-types@20.0.0':
+    resolution: {integrity: sha512-EtqRBEjp1dL/15V7WiX5LJMIxxkdiGJnabzYx5Apx4FkQIFgAfKumXeYAqqJCj1s+BMX4cPFIFC4OLCR6stlnA==, tarball: https://registry.npmjs.org/@octokit/openapi-types/-/openapi-types-20.0.0.tgz}
 
-  '@octokit/types@12.3.0':
-    resolution: {integrity: sha512-nJ8X2HRr234q3w/FcovDlA+ttUU4m1eJAourvfUUtwAWeqL8AsyRqfnLvVnYn3NFbUnsmzQCzLNdFerPwdmcDQ==, tarball: https://registry.npmjs.org/@octokit/types/-/types-12.3.0.tgz}
+  '@octokit/types@12.6.0':
+    resolution: {integrity: sha512-1rhSOfRa6H9w4YwK0yrf5faDaDTb+yLyBUKOCV4xtCDB5VmIPqd/v9yr9o6SAzOAlRxMiRiCic6JVM1/kunVkw==, tarball: https://registry.npmjs.org/@octokit/types/-/types-12.6.0.tgz}
 
   '@open-draft/deferred-promise@2.2.0':
     resolution: {integrity: sha512-CecwLWx3rhxVQF6V4bAgPS5t+So2sTbPgAzafKkVizyi7tlwpcFpdFqq+wqF2OwNBmqFuu6tOyouTuxgpMfzmA==, tarball: https://registry.npmjs.org/@open-draft/deferred-promise/-/deferred-promise-2.2.0.tgz}
@@ -7479,7 +7479,7 @@ snapshots:
       eslint-visitor-keys: 3.4.3
     optional: true
 
-  '@eslint-community/regexpp@4.12.1':
+  '@eslint-community/regexpp@4.12.2':
     optional: true
 
   '@eslint/eslintrc@2.1.4':
@@ -8008,11 +8008,11 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.19.1
 
-  '@octokit/openapi-types@19.0.2': {}
+  '@octokit/openapi-types@20.0.0': {}
 
-  '@octokit/types@12.3.0':
+  '@octokit/types@12.6.0':
     dependencies:
-      '@octokit/openapi-types': 19.0.2
+      '@octokit/openapi-types': 20.0.0
 
   '@open-draft/deferred-promise@2.2.0': {}
 
@@ -10452,7 +10452,7 @@ snapshots:
   eslint@8.52.0:
     dependencies:
       '@eslint-community/eslint-utils': 4.9.0(eslint@8.52.0)
-      '@eslint-community/regexpp': 4.12.1
+      '@eslint-community/regexpp': 4.12.2
       '@eslint/eslintrc': 2.1.4
       '@eslint/js': 8.52.0
       '@humanwhocodes/config-array': 0.11.14
