@@ -124,7 +124,7 @@
 	"devDependencies": {
 		"@biomejs/biome": "2.2.4",
 		"@chromatic-com/storybook": "4.1.0",
-		"@octokit/types": "12.3.0",
+		"@octokit/types": "12.6.0",
 		"@playwright/test": "1.50.1",
 		"@storybook/addon-docs": "9.1.2",
 		"@storybook/addon-links": "9.1.2",
