@@ -520,8 +520,8 @@ func TestEntitlements(t *testing.T) {
 	t.Run("Premium", func(t *testing.T) {
 		t.Parallel()
 		const userLimit = 1
-		const expectedAgentSoftLimit = 800 * userLimit
-		const expectedAgentHardLimit = 1000 * userLimit
+		const expectedAgentSoftLimit = 1000
+		const expectedAgentHardLimit = 1000
 
 		db, _ := dbtestutil.NewDB(t)
 		licenseOptions := coderdenttest.LicenseOptions{
@@ -530,9 +530,7 @@ func TestEntitlements(t *testing.T) {
 			ExpiresAt:  dbtime.Now().Add(time.Hour * 24 * 2),
 			FeatureSet: codersdk.FeatureSetPremium,
 			Features: license.Features{
-				// Temporary: allows the default value for the
-				//            managed_agent_limit feature to be used.
-				codersdk.FeatureUserLimit: 1,
+				codersdk.FeatureUserLimit: userLimit,
 			},
 		}
 		_, err := db.InsertLicense(context.Background(), database.InsertLicenseParams{
@@ -557,11 +555,15 @@ func TestEntitlements(t *testing.T) {
 				require.Equal(t, codersdk.EntitlementEntitled, agentEntitlement.Entitlement)
 				require.EqualValues(t, expectedAgentSoftLimit, *agentEntitlement.SoftLimit)
 				require.EqualValues(t, expectedAgentHardLimit, *agentEntitlement.Limit)
+
 				// This might be shocking, but there's a sound reason for this.
 				// See license.go for more details.
-				require.Equal(t, time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC), agentEntitlement.UsagePeriod.IssuedAt)
-				require.WithinDuration(t, licenseOptions.NotBefore, agentEntitlement.UsagePeriod.Start, time.Second)
-				require.WithinDuration(t, licenseOptions.ExpiresAt, agentEntitlement.UsagePeriod.End, time.Second)
+				agentUsagePeriodIssuedAt := time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC)
+				agentUsagePeriodStart := agentUsagePeriodIssuedAt
+				agentUsagePeriodEnd := agentUsagePeriodStart.AddDate(100, 0, 0)
+				require.Equal(t, agentUsagePeriodIssuedAt, agentEntitlement.UsagePeriod.IssuedAt)
+				require.WithinDuration(t, agentUsagePeriodStart, agentEntitlement.UsagePeriod.Start, time.Second)
+				require.WithinDuration(t, agentUsagePeriodEnd, agentEntitlement.UsagePeriod.End, time.Second)
 				continue
 			}
 
@@ -1496,14 +1498,14 @@ func TestManagedAgentLimitDefault(t *testing.T) {
 	})
 
 	// "Premium" licenses should receive a default managed agent limit of:
-	// soft = 800 * user_limit
-	// hard = 1000 * user_limit
+	// soft = 1000
+	// hard = 1000
 	t.Run("Premium", func(t *testing.T) {
 		t.Parallel()
 
-		const userLimit = 100
-		const softLimit = 800 * userLimit
-		const hardLimit = 1000 * userLimit
+		const userLimit = 33
+		const softLimit = 1000
+		const hardLimit = 1000
 		lic := database.License{
 			ID:         1,
 			UploadedAt: time.Now(),
