@@ -20,8 +20,8 @@ import { TaskPrompt } from "./TaskPrompt";
 
 const MockNewTaskData: Task = {
 	...MockTask,
-	current_state: {
-		...MockTask.current_state,
+	latest_workspace_app_status: {
+		...MockTask.latest_workspace_app_status,
 		message: "Task created successfully!",
 	},
 };

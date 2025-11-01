@@ -2008,8 +2008,9 @@ type GetTaskStatusArgs struct {
 }
 
 type GetTaskStatusResponse struct {
-	Status codersdk.TaskStatus      `json:"status"`
-	State  *codersdk.TaskStateEntry `json:"state"`
+	Status    codersdk.TaskStatus          `json:"status"`
+	AppStatus *codersdk.WorkspaceAppStatus `json:"app_status"`
+	State     *codersdk.TaskStateEntry     `json:"state"`
 }
 
 var GetTaskStatus = Tool[GetTaskStatusArgs, GetTaskStatusResponse]{
@@ -2040,8 +2041,9 @@ var GetTaskStatus = Tool[GetTaskStatusArgs, GetTaskStatusResponse]{
 		}
 
 		return GetTaskStatusResponse{
-			Status: task.Status,
-			State:  task.CurrentState,
+			Status:    task.Status,
+			AppStatus: task.AppStatus,
+			State:     task.CurrentState,
 		}, nil
 	},
 }

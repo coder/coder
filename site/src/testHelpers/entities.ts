@@ -5013,6 +5013,7 @@ export const MockTask = {
 	workspace_app_id: MockWorkspaceApp.id,
 	initial_prompt: "Perform some task",
 	status: "active",
+	latest_workspace_app_status: MockWorkspaceAppStatus,
 	current_state: {
 		timestamp: "2022-05-17T17:39:01.382927298Z",
 		state: "idle",
@@ -5036,6 +5037,9 @@ export const MockTasks = [
 		name: "fix-avatar-size",
 		current_state: {
 			...MockTask.current_state,
+		},
+		latest_workspace_app_status: {
+			...MockTask.latest_workspace_app_status,
 			message: "Avatar size fixed!",
 			state: "complete",
 		},
@@ -5046,6 +5050,9 @@ export const MockTasks = [
 		name: "fix-accessibility-issues",
 		current_state: {
 			...MockTask.current_state,
+		},
+		latest_workspace_app_status: {
+			...MockTask.latest_workspace_app_status,
 			message: "Accessibility issues fixed!",
 			state: "complete",
 		},

@@ -45,7 +45,7 @@ const TasksPage: FC = () => {
 		refetchInterval: 10_000,
 	});
 	const idleTasks = tasksQuery.data?.filter(
-		(task) => task.current_state?.state === "idle",
+		(task) => task.latest_workspace_app_status?.state === "idle",
 	);
 	const displayedTasks =
 		tab.value === "waiting-for-input" ? idleTasks : tasksQuery.data;

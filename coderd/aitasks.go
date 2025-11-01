@@ -290,9 +290,11 @@ func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) cod
 	// latest build is a 'start' transition. This ensures that you don't show a
 	// stale app status from a previous build. For stop transitions, there is
 	// still value in showing the latest app status.
+	var latestAppStatus *codersdk.WorkspaceAppStatus
 	var currentState *codersdk.TaskStateEntry
 	if ws.LatestAppStatus != nil {
 		if ws.LatestBuild.Transition != codersdk.WorkspaceTransitionStart || ws.LatestAppStatus.CreatedAt.After(ws.LatestBuild.CreatedAt) {
+			latestAppStatus = ws.LatestAppStatus
 			currentState = &codersdk.TaskStateEntry{
 				Timestamp: ws.LatestAppStatus.CreatedAt,
 				State:     codersdk.TaskState(ws.LatestAppStatus.State),
@@ -324,6 +326,7 @@ func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) cod
 		WorkspaceAppID:          dbTask.WorkspaceAppID,
 		InitialPrompt:           dbTask.Prompt,
 		Status:                  codersdk.TaskStatus(dbTask.Status),
+		AppStatus:               latestAppStatus,
 		CurrentState:            currentState,
 		CreatedAt:               dbTask.CreatedAt,
 		UpdatedAt:               ws.UpdatedAt,

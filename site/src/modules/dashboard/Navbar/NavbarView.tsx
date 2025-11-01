@@ -211,7 +211,8 @@ const TasksNavItem: FC<TasksNavItemProps> = ({ user }) => {
 		refetchOnWindowFocus: true,
 		initialData: [],
 		select: (data) =>
-			data.filter((task) => task.current_state?.state === "idle").length,
+			data.filter((task) => task.latest_workspace_app_status?.state === "idle")
+				.length,
 	});
 
 	if (!canSeeTasks) {

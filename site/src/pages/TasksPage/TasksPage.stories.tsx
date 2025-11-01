@@ -7,6 +7,7 @@ import {
 import { withAuthProvider, withProxyProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
+import type { WorkspaceAppStatus } from "api/typesGenerated";
 import { MockUsers } from "pages/UsersPage/storybookData/users";
 import { expect, spyOn, userEvent, within } from "storybook/test";
 import TasksPage from "./TasksPage";
@@ -114,6 +115,9 @@ export const LoadedTasksWaitingForInputTab: Story = {
 				...firstTask,
 				current_state: {
 					...firstTask.current_state,
+				},
+				latest_workspace_app_status: {
+					...(firstTask.latest_workspace_app_status as WorkspaceAppStatus),
 					state: "idle",
 				},
 			},

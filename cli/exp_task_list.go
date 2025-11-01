@@ -16,20 +16,29 @@ import (
 type taskListRow struct {
 	Task codersdk.Task `table:"t,recursive_inline"`
 
+	OwnerAndName    string `table:"name,default_sort"`
 	StateChangedAgo string `table:"state changed"`
+	Healthy         bool   `json:"-" table:"healthy"`
 }
 
 func taskListRowFromTask(now time.Time, t codersdk.Task) taskListRow {
-	var stateAgo string
-	if t.CurrentState != nil {
-		stateAgo = now.UTC().Sub(t.CurrentState.Timestamp).Truncate(time.Second).String() + " ago"
+	tsr := taskListRow{
+		Task:            t,
+		OwnerAndName:    fmt.Sprintf("%s/%s", t.OwnerName, t.Name),
+		StateChangedAgo: now.UTC().Sub(t.UpdatedAt).Truncate(time.Second).String() + " ago",
+		Healthy: t.WorkspaceAgentHealth != nil &&
+			t.WorkspaceAgentHealth.Healthy &&
+			t.WorkspaceAgentLifecycle != nil &&
+			!t.WorkspaceAgentLifecycle.Starting() &&
+			!t.WorkspaceAgentLifecycle.ShuttingDown(),
+	}
+	if t.AppStatus != nil {
+		tsr.StateChangedAgo = now.UTC().Sub(t.AppStatus.CreatedAt).Truncate(time.Second).String() + " ago"
+	} else if t.CurrentState != nil {
+		tsr.StateChangedAgo = now.UTC().Sub(t.CurrentState.Timestamp).Truncate(time.Second).String() + " ago"
 	}
 
-	return taskListRow{
-		Task: t,
-
-		StateChangedAgo: stateAgo,
-	}
+	return tsr
 }
 
 func (r *RootCmd) taskList() *serpent.Command {
