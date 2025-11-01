@@ -299,9 +299,9 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) (stats prebuilds.Rec
 
 	logger.Debug(ctx, "starting reconciliation")
 
-	err = c.WithReconciliationLock(ctx, logger, func(ctx context.Context, _ database.Store) error {
+	err = c.WithReconciliationLock(ctx, logger, func(ctx context.Context, tx database.Store) error {
 		// Check if prebuilds reconciliation is paused
-		settingsJSON, err := c.store.GetPrebuildsSettings(ctx)
+		settingsJSON, err := tx.GetPrebuildsSettings(ctx)
 		if err != nil {
 			return xerrors.Errorf("get prebuilds settings: %w", err)
 		}
@@ -322,13 +322,13 @@ func (c *StoreReconciler) ReconcileAll(ctx context.Context) (stats prebuilds.Rec
 			return nil
 		}
 
-		membershipReconciler := NewStoreMembershipReconciler(c.store, c.clock, logger)
+		membershipReconciler := NewStoreMembershipReconciler(tx, c.clock, logger)
 		err = membershipReconciler.ReconcileAll(ctx, database.PrebuildsSystemUserID, PrebuiltWorkspacesGroupName)
 		if err != nil {
 			return xerrors.Errorf("reconcile prebuild membership: %w", err)
 		}
 
-		snapshot, err := c.SnapshotState(ctx, c.store)
+		snapshot, err := c.SnapshotState(ctx, tx)
 		if err != nil {
 			return xerrors.Errorf("determine current snapshot: %w", err)
 		}
@@ -585,7 +585,7 @@ func (c *StoreReconciler) WithReconciliationLock(
 		return fn(ctx, db)
 	}, &database.TxOptions{
 		Isolation:    sql.LevelRepeatableRead,
-		ReadOnly:     true,
+		ReadOnly:     false,
 		TxIdentifier: "prebuilds",
 	})
 }
