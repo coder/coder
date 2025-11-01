@@ -173,7 +173,7 @@
 		"postcss": "8.5.6",
 		"protobufjs": "7.4.0",
 		"rollup-plugin-visualizer": "5.14.0",
-		"rxjs": "7.8.1",
+		"rxjs": "7.8.2",
 		"ssh2": "1.17.0",
 		"storybook": "9.1.2",
 		"storybook-addon-remix-react-router": "5.0.0",
