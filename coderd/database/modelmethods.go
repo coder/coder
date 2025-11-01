@@ -247,6 +247,37 @@ func (s APIKeyScopes) Name() rbac.RoleIdentifier {
 	return rbac.RoleIdentifier{Name: "scopes[" + strings.Join(names, "+") + "]"}
 }
 
+// collectCompositeDefaults returns the merged default allow list entries from
+// all composite scopes in the list. Non-composite scopes (built-in and
+// low-level) do not contribute defaults. The result is a union of all defaults
+// from composite scopes, normalized and deduplicated.
+func (s APIKeyScopes) collectCompositeDefaults() ([]rbac.AllowListElement, error) {
+	if len(s) == 0 {
+		return []rbac.AllowListElement{}, nil
+	}
+
+	// Collect default allow lists from all composite scopes.
+	var allDefaults [][]rbac.AllowListElement
+	for _, scope := range s {
+		defaults, ok := rbac.CompositeDefaultAllowList(scope.ToRBAC())
+		if ok && len(defaults) > 0 {
+			allDefaults = append(allDefaults, defaults)
+		}
+	}
+
+	if len(allDefaults) == 0 {
+		return []rbac.AllowListElement{}, nil
+	}
+
+	// Union all defaults into a single list.
+	merged, err := rbac.UnionAllowLists(allDefaults...)
+	if err != nil {
+		return nil, xerrors.Errorf("merge composite defaults: %w", err)
+	}
+
+	return merged, nil
+}
+
 // APIKeyScopeSet merges expanded scopes with the API key's DB allow_list. If
 // the DB allow_list is a wildcard or empty, the merged scope's allow list is
 // unchanged. Otherwise, the DB allow_list overrides the merged AllowIDList to
@@ -266,6 +297,22 @@ func (s APIKeyScopeSet) Expand() (rbac.Scope, error) {
 		return rbac.Scope{}, err
 	}
 	merged.AllowIDList = rbac.IntersectAllowLists(merged.AllowIDList, s.AllowList)
+
+	// Apply composite defaults for missing resource types. This allows
+	// composite scopes like coder:workspaces.create to automatically include
+	// required resource types (e.g., templates) even if the user didn't
+	// explicitly specify them in the allow list.
+	defaults, err := s.Scopes.collectCompositeDefaults()
+	if err != nil {
+		return rbac.Scope{}, err
+	}
+	if len(defaults) > 0 {
+		merged.AllowIDList, err = rbac.MergeDefaultsForMissingTypes(merged.AllowIDList, defaults)
+		if err != nil {
+			return rbac.Scope{}, xerrors.Errorf("apply composite defaults: %w", err)
+		}
+	}
+
 	return merged, nil
 }
 

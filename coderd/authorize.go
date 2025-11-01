@@ -84,6 +84,7 @@ func (h *HTTPAuthorizer) Authorize(r *http.Request, action policy.Action, object
 			slog.F("route", r.URL.Path),
 			slog.F("action", action),
 			slog.F("object", object),
+			slog.F("allow_list", roles.SafeAllowList()),
 		)
 
 		return false
