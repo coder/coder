@@ -158,8 +158,8 @@ importers:
         specifier: 4.9.0
         version: 4.9.0
       cronstrue:
-        specifier: 2.50.0
-        version: 2.50.0
+        specifier: 2.59.0
+        version: 2.59.0
       dayjs:
         specifier: 1.11.18
         version: 1.11.18
@@ -3410,8 +3410,8 @@ packages:
     resolution: {integrity: sha512-p0SaNjrHOnQeR8/VnfGbmg9te2kfyYSQ7Sc/j/6DtPL3JQvKxmjO9TSjNFpujqV3vEYYBvNNvXSxzyksBWAx1Q==, tarball: https://registry.npmjs.org/cron-parser/-/cron-parser-4.9.0.tgz}
     engines: {node: '>=12.0.0'}
 
-  cronstrue@2.50.0:
-    resolution: {integrity: sha512-ULYhWIonJzlScCCQrPUG5uMXzXxSixty4djud9SS37DoNxDdkeRocxzHuAo4ImRBUK+mAuU5X9TSwEDccnnuPg==, tarball: https://registry.npmjs.org/cronstrue/-/cronstrue-2.50.0.tgz}
+  cronstrue@2.59.0:
+    resolution: {integrity: sha512-YKGmAy84hKH+hHIIER07VCAHf9u0Ldelx1uU6EBxsRPDXIA1m5fsKmJfyC3xBhw6cVC/1i83VdbL4PvepTrt8A==, tarball: https://registry.npmjs.org/cronstrue/-/cronstrue-2.59.0.tgz}
     hasBin: true
 
   cross-spawn@7.0.6:
@@ -9580,7 +9580,7 @@ snapshots:
     dependencies:
       luxon: 3.3.0
 
-  cronstrue@2.50.0: {}
+  cronstrue@2.59.0: {}
 
   cross-spawn@7.0.6:
     dependencies:
