@@ -50,8 +50,13 @@ The workspace parameter supports various formats:
 The timeout_ms parameter specifies the command timeout in milliseconds (defaults to 60000ms, maximum of 300000ms).
 If the command times out, all output captured up to that point is returned with a cancellation message.
 
-For background commands (background: true), output is captured until the timeout is reached, then the command
-continues running in the background. The captured output is returned as the result.
+For background commands (background: true), output is captured until the timeout
+is reached, then the command continues running in the background. The initially
+captured output is returned in the result. Make sure to examine the output along
+with the exit code to determine if the command started successfully. An exit
+code of 124 means the timeout was reached and is expected for background
+commands. Consider a lower timeout of a few seconds, enough to get some output
+to validate that the command started successfully.
 
 For file operations (list, write, edit), always prefer the dedicated file tools.
 Do not use bash commands (ls, cat, echo, heredoc, etc.) to list, write, or read
@@ -129,10 +134,18 @@ Examples:
 		}
 		command := args.Command
 		if args.Background {
-			// For background commands, use nohup directly to ensure they survive SSH session
-			// termination. This captures output normally but allows the process to continue
-			// running even after the SSH connection closes.
-			command = fmt.Sprintf("nohup %s </dev/null 2>&1", args.Command)
+			// For background commands, use nohup to ensure they survive SSH session
+			// termination.  To capture output, write to a file instead of stdout
+			// because commands may crash when the pipes close.  Lastly, wrap with
+			// `$SHELL -c` because the command may include shellisms like cd, &&,
+			// etc. that nohup cannot handle.
+			programName := strings.SplitN(args.Command, " ", 2)[0]
+			escapedCommand := strings.ReplaceAll(args.Command, "'", "'\"'\"'")
+			command = fmt.Sprintf(
+				`tmp="$(mktemp --suffix=%q)" ; echo "$tmp" ; nohup </dev/null >>"$tmp" 2>&1 "${SHELL:-sh}" -c '%s'`,
+				"-"+programName,
+				escapedCommand,
+			)
 		}
 
 		// Create context with command timeout (replace the broader MCP timeout)
@@ -143,15 +156,35 @@ Examples:
 		output, err := executeCommandWithTimeout(commandCtx, session, command)
 		outputStr := strings.TrimSpace(string(output))
 
+		// For background commands, get the real output from the temp file.
+		if args.Background {
+			tmpfile := outputStr
+			reader, _, rerr := conn.ReadFile(ctx, tmpfile, 0, maxFileLimit)
+			if rerr != nil {
+				outputStr = fmt.Sprintf("Failed to read command output: %s", rerr)
+			} else {
+				defer reader.Close()
+				bs, rerr := io.ReadAll(reader)
+				if rerr != nil {
+					outputStr = fmt.Sprintf("Failed to read command output: %s", rerr)
+				} else {
+					outputStr = strings.TrimSpace(string(bs))
+				}
+			}
+		}
+
 		// Handle command execution results
 		if err != nil {
 			// Check if the command timed out
 			if errors.Is(context.Cause(commandCtx), context.DeadlineExceeded) {
+				msg := "Command canceled due to timeout"
 				if args.Background {
-					outputStr += "\nCommand continues running in background"
-				} else {
-					outputStr += "\nCommand canceled due to timeout"
+					msg = "Command continues running in background"
 				}
+				if outputStr != "" {
+					outputStr += "\n"
+				}
+				outputStr += msg
 				return WorkspaceBashResult{
 					Output:   outputStr,
 					ExitCode: 124,
@@ -363,9 +396,10 @@ func executeCommandWithTimeout(ctx context.Context, session *gossh.Session, comm
 		// Command completed normally
 		return safeWriter.Bytes(), err
 	case <-ctx.Done():
-		// Context was canceled (timeout or other cancellation)
-		// Close the session to stop the command, but handle errors gracefully
-		closeErr := session.Close()
+		// Context was canceled (timeout or other cancellation).  The SSH server
+		// will *not* terminate commands spawned without a tty, so send a signal
+		// then close the SSH session.
+		closeErr := errors.Join(session.Signal(gossh.SIGTERM), session.Close())
 
 		// Give a brief moment to collect any remaining output and for goroutines to finish
 		timer := time.NewTimer(100 * time.Millisecond)
