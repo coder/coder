@@ -433,6 +433,11 @@
 									"path": "./admin/users/oidc-auth/google.md"
 								},
 								{
+									"title": "Microsoft",
+									"description": "Configure Microsoft Entra ID as an OIDC provider",
+									"path": "./admin/users/oidc-auth/microsoft.md"
+								},
+								{
 									"title": "Configure OIDC refresh tokens",
 									"description": "How to configure OIDC refresh tokens",
 									"path": "./admin/users/oidc-auth/refresh-tokens.md"
