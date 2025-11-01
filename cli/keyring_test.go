@@ -282,9 +282,9 @@ func TestUseKeyringUnsupportedOS(t *testing.T) {
 	// a helpful error message.
 	t.Parallel()
 
-	// Skip on Windows since the keyring is actually supported.
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping unsupported OS test on Windows where keyring is supported")
+	// Only run this on an unsupported OS.
+	if runtime.GOOS == "windows" || runtime.GOOS == "darwin" {
+		t.Skipf("Skipping unsupported OS test on %s where keyring is supported", runtime.GOOS)
 	}
 
 	const expMessage = "keyring storage is not supported on this operating system; remove the --use-keyring flag"
