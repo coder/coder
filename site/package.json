@@ -109,7 +109,7 @@
 		"recharts": "2.15.0",
 		"remark-gfm": "4.0.1",
 		"resize-observer-polyfill": "1.5.1",
-		"semver": "7.7.2",
+		"semver": "7.7.3",
 		"tailwind-merge": "2.6.0",
 		"tailwindcss-animate": "1.0.7",
 		"tzdata": "1.0.46",
@@ -191,7 +191,7 @@
 	],
 	"resolutions": {
 		"optionator": "0.9.3",
-		"semver": "7.7.2"
+		"semver": "7.7.3"
 	},
 	"engines": {
 		"pnpm": ">=10.0.0 <11.0.0",
