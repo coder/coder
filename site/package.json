@@ -101,7 +101,7 @@
 		"react-markdown": "9.1.0",
 		"react-query": "npm:@tanstack/react-query@5.77.0",
 		"react-resizable-panels": "3.0.6",
-		"react-router": "7.8.0",
+		"react-router": "7.9.5",
 		"react-syntax-highlighter": "15.6.1",
 		"react-textarea-autosize": "8.5.9",
 		"react-virtualized-auto-sizer": "1.0.26",
