@@ -50,8 +50,8 @@ importers:
         specifier: 5.2.8
         version: 5.2.8
       '@fontsource/source-code-pro':
-        specifier: 5.2.5
-        version: 5.2.5
+        specifier: 5.2.7
+        version: 5.2.7
       '@monaco-editor/react':
         specifier: 4.7.0
         version: 4.7.0(monaco-editor@0.53.0)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
@@ -1204,8 +1204,8 @@ packages:
   '@fontsource/jetbrains-mono@5.2.8':
     resolution: {integrity: sha512-6w8/SG4kqvIMu7xd7wt6x3idn1Qux3p9N62s6G3rfldOUYHpWcc2FKrqf+Vo44jRvqWj2oAtTHrZXEP23oSKwQ==, tarball: https://registry.npmjs.org/@fontsource/jetbrains-mono/-/jetbrains-mono-5.2.8.tgz}
 
-  '@fontsource/source-code-pro@5.2.5':
-    resolution: {integrity: sha512-1k7b9IdhVSdK/rJ8CkqqGFZ01C3NaXNynPZqKaTetODog/GPJiMYd6E8z+LTwSUTIX8dm2QZORDC+Uh91cjXSg==, tarball: https://registry.npmjs.org/@fontsource/source-code-pro/-/source-code-pro-5.2.5.tgz}
+  '@fontsource/source-code-pro@5.2.7':
+    resolution: {integrity: sha512-7papq9TH94KT+S5VSY8cU7tFmwuGkIe3qxXRMscuAXH6AjMU+KJI75f28FzgBVDrlMfA0jjlTV4/x5+H5o/5EQ==, tarball: https://registry.npmjs.org/@fontsource/source-code-pro/-/source-code-pro-5.2.7.tgz}
 
   '@humanwhocodes/config-array@0.11.14':
     resolution: {integrity: sha512-3T8LkOmg45BV5FICb15QQMsyUSWrQ8AygVfC7ZG32zOalnqrilm018ZVCw0eapXux8FtA33q8PSRSstjee3jSg==, tarball: https://registry.npmjs.org/@humanwhocodes/config-array/-/config-array-0.11.14.tgz}
@@ -7254,7 +7254,7 @@ snapshots:
 
   '@fontsource/jetbrains-mono@5.2.8': {}
 
-  '@fontsource/source-code-pro@5.2.5': {}
+  '@fontsource/source-code-pro@5.2.7': {}
 
   '@humanwhocodes/config-array@0.11.14':
     dependencies:
