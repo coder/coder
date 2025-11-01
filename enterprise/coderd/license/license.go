@@ -340,7 +340,7 @@ func LicensesEntitlements(
 				})
 
 				// Temporary: If the license doesn't have a managed agent limit,
-				//            we add a default of 800 managed agents per user.
+				//            we add a default flat limit per deployment.
 				//            This only applies to "Premium" licenses.
 				if claims.FeatureSet == codersdk.FeatureSetPremium {
 					var (
@@ -350,8 +350,8 @@ func LicensesEntitlements(
 						// trump this default entitlement, even if they are set to a
 						// smaller value.
 						issueTime             = time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC)
-						defaultSoftAgentLimit = 800 * featureValue
-						defaultHardAgentLimit = 1000 * featureValue
+						defaultSoftAgentLimit = int64(800)
+						defaultHardAgentLimit = int64(1000)
 					)
 					entitlements.AddFeature(codersdk.FeatureManagedAgentLimit, codersdk.Feature{
 						Enabled:     true,
