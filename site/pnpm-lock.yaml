@@ -260,8 +260,8 @@ importers:
         specifier: npm:@leeoniya/ufuzzy@1.0.10
         version: '@leeoniya/ufuzzy@1.0.10'
       undici:
-        specifier: 6.21.3
-        version: 6.21.3
+        specifier: 6.22.0
+        version: 6.22.0
       unique-names-generator:
         specifier: 4.7.1
         version: 4.7.1
@@ -1161,8 +1161,8 @@ packages:
     peerDependencies:
       eslint: ^6.0.0 || ^7.0.0 || >=8.0.0
 
-  '@eslint-community/regexpp@4.12.1':
-    resolution: {integrity: sha512-CCZCDJuduB9OUkFkY2IgppNZMi2lBQgD2qzwXkEia16cge2pijY/aXi96CJMquDMn3nJdlPV1A5KrJEXwfLNzQ==, tarball: https://registry.npmjs.org/@eslint-community/regexpp/-/regexpp-4.12.1.tgz}
+  '@eslint-community/regexpp@4.12.2':
+    resolution: {integrity: sha512-EriSTlt5OC9/7SXkRSCAhfSxxoSUgBm33OH+IkwbdpgoqsSsUg7y3uh+IICI/Qg4BBWr3U2i39RpmycbxMq4ew==, tarball: https://registry.npmjs.org/@eslint-community/regexpp/-/regexpp-4.12.2.tgz}
     engines: {node: ^12.0.0 || ^14.0.0 || >=16.0.0}
 
   '@eslint/eslintrc@2.1.4':
@@ -6413,8 +6413,8 @@ packages:
   undici-types@6.21.0:
     resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==, tarball: https://registry.npmjs.org/undici-types/-/undici-types-6.21.0.tgz}
 
-  undici@6.21.3:
-    resolution: {integrity: sha512-gBLkYIlEnSp8pFbT64yFgGE6UIB9tAkhukC23PmMDCe5Nd+cRqKxSjw5y54MK2AZMgZfJWMaNE4nYUHgi1XEOw==, tarball: https://registry.npmjs.org/undici/-/undici-6.21.3.tgz}
+  undici@6.22.0:
+    resolution: {integrity: sha512-hU/10obOIu62MGYjdskASR3CUAiYaFTtC9Pa6vHyf//mAipSvSQg6od2CnJswq7fvzNS3zJhxoRkgNVaHurWKw==, tarball: https://registry.npmjs.org/undici/-/undici-6.22.0.tgz}
     engines: {node: '>=18.17'}
 
   unicorn-magic@0.1.0:
@@ -7479,7 +7479,7 @@ snapshots:
       eslint-visitor-keys: 3.4.3
     optional: true
 
-  '@eslint-community/regexpp@4.12.1':
+  '@eslint-community/regexpp@4.12.2':
     optional: true
 
   '@eslint/eslintrc@2.1.4':
@@ -10452,7 +10452,7 @@ snapshots:
   eslint@8.52.0:
     dependencies:
       '@eslint-community/eslint-utils': 4.9.0(eslint@8.52.0)
-      '@eslint-community/regexpp': 4.12.1
+      '@eslint-community/regexpp': 4.12.2
       '@eslint/eslintrc': 2.1.4
       '@eslint/js': 8.52.0
       '@humanwhocodes/config-array': 0.11.14
@@ -13452,7 +13452,7 @@ snapshots:
 
   undici-types@6.21.0: {}
 
-  undici@6.21.3: {}
+  undici@6.22.0: {}
 
   unicorn-magic@0.1.0: {}
 
