@@ -4706,6 +4706,22 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `day`  |
 | `week` |
 
+## codersdk.InvalidatePrebuildsResponse
+
+```json
+{
+  "invalidated_presets": [
+    "string"
+  ]
+}
+```
+
+### Properties
+
+| Name                  | Type            | Required | Restrictions | Description |
+|-----------------------|-----------------|----------|--------------|-------------|
+| `invalidated_presets` | array of string | false    |              |             |
+
 ## codersdk.IssueReconnectingPTYSignedTokenRequest
 
 ```json

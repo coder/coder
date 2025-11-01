@@ -2590,6 +2590,7 @@ func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, 
 			IsDefault:           protoPreset.GetDefault(),
 			Description:         protoPreset.Description,
 			Icon:                protoPreset.Icon,
+			LastInvalidatedAt:   sql.NullTime{},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert preset: %w", err)

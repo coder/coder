@@ -606,6 +606,7 @@ func (t TemplateVersionBuilder) Do() TemplateVersionResponse {
 			IsDefault:           false,
 			Description:         preset.Description,
 			Icon:                preset.Icon,
+			LastInvalidatedAt:   preset.LastInvalidatedAt,
 		})
 		t.logger.Debug(context.Background(), "added preset",
 			slog.F("preset_id", prst.ID),

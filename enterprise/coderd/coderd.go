@@ -458,6 +458,13 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Get("/", api.templateACL)
 			r.Patch("/", api.patchTemplateACL)
 		})
+		r.Route("/templates/{template}/prebuilds", func(r chi.Router) {
+			r.Use(
+				httpmw.ExtractTemplateParam(api.Database),
+			)
+			r.Post("/invalidate", api.postInvalidateTemplatePrebuilds)
+		})
+
 		r.Route("/groups", func(r chi.Router) {
 			r.Use(
 				api.templateRBACEnabledMW,

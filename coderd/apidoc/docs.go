@@ -6002,6 +6002,41 @@ const docTemplate = `{
                 }
             }
         },
+        "/templates/{template}/prebuilds/invalidate": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Invalidate prebuilt workspaces for template",
+                "operationId": "invalidate-prebuilt-workspaces-for-template",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template ID",
+                        "name": "template",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.InvalidatePrebuildsResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/templates/{template}/versions": {
             "get": {
                 "security": [
@@ -14879,6 +14914,17 @@ const docTemplate = `{
                 "InsightsReportIntervalDay",
                 "InsightsReportIntervalWeek"
             ]
+        },
+        "codersdk.InvalidatePrebuildsResponse": {
+            "type": "object",
+            "properties": {
+                "invalidated_presets": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
         },
         "codersdk.IssueReconnectingPTYSignedTokenRequest": {
             "type": "object",

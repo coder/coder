@@ -507,3 +507,28 @@ func (c *Client) StarterTemplates(ctx context.Context) ([]TemplateExample, error
 	var templateExamples []TemplateExample
 	return templateExamples, json.NewDecoder(res.Body).Decode(&templateExamples)
 }
+
+type InvalidatePrebuildsResponse struct {
+	InvalidatedPresets []string `json:"invalidated_presets"`
+}
+
+// InvalidateTemplatePrebuilds invalidates all prebuilt workspaces for the
+// template's active version by setting last_invalidated_at timestamp.
+// The reconciler will then mark these prebuilds as expired and create new ones.
+func (c *Client) InvalidateTemplatePrebuilds(ctx context.Context, template uuid.UUID) (InvalidatePrebuildsResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost,
+		fmt.Sprintf("/api/v2/templates/%s/prebuilds/invalidate", template),
+		nil,
+	)
+	if err != nil {
+		return InvalidatePrebuildsResponse{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return InvalidatePrebuildsResponse{}, ReadBodyAsError(res)
+	}
+
+	var response InvalidatePrebuildsResponse
+	return response, json.NewDecoder(res.Body).Decode(&response)
+}
