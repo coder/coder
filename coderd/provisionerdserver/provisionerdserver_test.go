@@ -2965,8 +2965,8 @@ func TestCompleteJob(t *testing.T) {
 					},
 					isTask:           true,
 					expectTaskStatus: database.TaskStatusInitializing,
-					expectHasAiTask:  true,
-					expectUsageEvent: true, // We no longer reset hasAITask if the app doesn't exist.
+					expectHasAiTask:  false,
+					expectUsageEvent: false,
 				},
 				{
 					name:       "has_ai_task is set to true, but transition is not start",

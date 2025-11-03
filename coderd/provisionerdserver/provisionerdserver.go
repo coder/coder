@@ -2029,6 +2029,7 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 
 			if !slices.Contains(appIDs, appID) {
 				unknownAppID = appID
+				hasAITask = false
 			} else {
 				// Only parse for valid app and agent to avoid fk violation.
 				id, err := uuid.Parse(appID)
