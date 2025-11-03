@@ -818,7 +818,7 @@ locals {
 module "claude-code" {
   count               = data.coder_ai_task_prompt.me.enabled ? data.coder_workspace.me.start_count : 0
   source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = "3.4.4"
+  version             = "4.0.0"
   agent_id            = coder_agent.dev.id
   workdir             = local.repo_dir
   claude_code_version = "latest"
