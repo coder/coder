@@ -154,7 +154,7 @@ and in accordance with your compliance requirements.
 ### Maintenance Procedures for the Audit Logs Table
 
 > [!NOTE]
-> `VACUUM FULL` acquires an exclusive lock on the table, blocking all reads and writes.
+> `VACUUM FULL` acquires an exclusive lock on the table, blocking all reads and writes. For more information, see the [PostgreSQL VACUUM documentation](https://www.postgresql.org/docs/current/sql-vacuum.html).
 
 You may choose to run a `VACUUM` or `VACUUM FULL` operation on the audit logs table to reclaim disk space. If you choose to run the `FULL` operation, consider the following when doing so:
 
