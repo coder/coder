@@ -56,8 +56,13 @@ export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 	}, [themeQuery]);
 
 	// We might not be logged in yet, or the `theme_preference` could be an empty string.
+	// First check if metadata has the preference, then query data, then default to dark
 	const themePreference =
-		appearanceSettingsQuery.data?.theme_preference || DEFAULT_THEME;
+		appearanceSettingsQuery.data?.theme_preference ||
+		(metadata.userAppearance.available
+			? metadata.userAppearance.value?.theme_preference
+			: undefined) ||
+		DEFAULT_THEME;
 	// The janky casting here is find because of the much more type safe fallback
 	// We need to support `themePreference` being wrong anyway because the database
 	// value could be anything, like an empty string.
