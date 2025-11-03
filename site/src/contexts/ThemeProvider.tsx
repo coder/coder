@@ -56,8 +56,11 @@ export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 	}, [themeQuery]);
 
 	// We might not be logged in yet, or the `theme_preference` could be an empty string.
+	// Use embedded metadata directly if available to ensure theme is applied immediately on login
 	const themePreference =
-		appearanceSettingsQuery.data?.theme_preference || DEFAULT_THEME;
+		metadata.userAppearance.value?.theme_preference ||
+		appearanceSettingsQuery.data?.theme_preference ||
+		DEFAULT_THEME;
 	// The janky casting here is find because of the much more type safe fallback
 	// We need to support `themePreference` being wrong anyway because the database
 	// value could be anything, like an empty string.
