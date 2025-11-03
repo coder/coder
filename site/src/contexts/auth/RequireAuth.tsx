@@ -69,18 +69,9 @@ export const RequireAuth: FC<RequireAuthProps> = ({
 	}
 
 	if (isSignedOut) {
-		// const isHomePage = location.pathname === "/";
-		// const navigateTo = isHomePage
-		// 	? "/login"
-		// 	: embedRedirect(`${location.pathname}${location.search}`);
-		// return (
-		// 	<Navigate to={navigateTo} state={{ isRedirect: !isHomePage }} replace />
-		// );
 		return <RedirectToLandingPage />;
 	}
 
-	// Authenticated pages have access to some contexts for knowing enabled experiments
-	// and where to route workspace connections.
 	return (
 		<DashboardProvider>
 			<ProxyProvider>
