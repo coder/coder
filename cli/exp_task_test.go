@@ -53,7 +53,18 @@ func Test_Tasks(t *testing.T) {
 		taskName     = strings.ReplaceAll(testutil.GetRandomName(t), "_", "-")
 	)
 
-	//nolint:paralleltest // The sub-tests of this test must be run sequentially.
+	// The below test cases are not real "sub-tests" as they depend on each other sequentially.
+	runTest := func(name string, cmdArgs []string, assertFn func(string, *codersdk.Client)) {
+		var stdout strings.Builder
+		inv, root := clitest.New(t, cmdArgs...)
+		inv.Stdout = &stdout
+		clitest.SetupConfig(t, userClient, root)
+		require.NoError(t, inv.WithContext(ctx).Run(), name)
+		if assertFn != nil {
+			assertFn(stdout.String(), userClient)
+		}
+	}
+
 	for _, tc := range []struct {
 		name     string
 		cmdArgs  []string
@@ -135,16 +146,7 @@ func Test_Tasks(t *testing.T) {
 			},
 		},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			var stdout strings.Builder
-			inv, root := clitest.New(t, tc.cmdArgs...)
-			inv.Stdout = &stdout
-			clitest.SetupConfig(t, userClient, root)
-			require.NoError(t, inv.WithContext(ctx).Run())
-			if tc.assertFn != nil {
-				tc.assertFn(stdout.String(), userClient)
-			}
-		})
+		runTest(tc.name, tc.cmdArgs, tc.assertFn)
 	}
 }
 
