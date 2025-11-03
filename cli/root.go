@@ -1361,14 +1361,37 @@ func SlimUnsupported(w io.Writer, cmd string) {
 	os.Exit(1)
 }
 
-func defaultUpgradeMessage(version string) string {
-	// Our installation script doesn't work on Windows, so instead we direct the user
-	// to the GitHub release page to download the latest installer.
-	version = strings.TrimPrefix(version, "v")
-	if runtime.GOOS == "windows" {
-		return fmt.Sprintf("download the server version from: https://github.com/coder/coder/releases/v%s", version)
+// defaultUpgradeMessage builds an appropriate upgrade message for the platform.
+// Precedence:
+//  1. If a custom upgrade message is provided by the server, use it.
+//  2. If the server provides a dashboard URL (v2.19+) and the platform is not Windows,
+//     recommend the site-local install.sh.
+//  3. On Windows, point to the tagged GitHub release page where binaries are published.
+//  4. Otherwise, recommend the global install.sh with explicit version.
+func defaultUpgradeMessage(version, dashboardURL, customUpgradeMessage string) string {
+	if customUpgradeMessage != "" {
+		return customUpgradeMessage
 	}
-	return fmt.Sprintf("download the server version with: 'curl -L https://coder.com/install.sh | sh -s -- --version %s'", version)
+
+	// Ensure canonical semver for comparisons and display
+	canonical := semver.Canonical(version)
+	trimmed := strings.TrimPrefix(canonical, "v")
+
+	// The site-local `install.sh` was introduced in v2.19.0.
+	if dashboardURL != "" && semver.Compare(semver.MajorMinor(canonical), "v2.19") >= 0 {
+		// The site-local install.sh is only valid for macOS and Linux.
+		if runtime.GOOS != "windows" {
+			return fmt.Sprintf("download %s with: 'curl -fsSL %s/install.sh | sh'", canonical, dashboardURL)
+		}
+		// Fall through to Windows-specific suggestion below.
+	}
+
+	if runtime.GOOS == "windows" {
+		// Link directly to the release page; Windows binaries are published there.
+		return fmt.Sprintf("download the server version from: https://github.com/coder/coder/releases/v%s", trimmed)
+	}
+
+	return fmt.Sprintf("download the server version with: 'curl -L https://coder.com/install.sh | sh -s -- --version %s'", trimmed)
 }
 
 // wrapTransportWithEntitlementsCheck adds a middleware to the HTTP transport
@@ -1407,19 +1430,19 @@ func wrapTransportWithVersionMismatchCheck(rt http.RoundTripper, inv *serpent.In
 			if buildinfo.VersionsMatch(clientVersion, serverVersion) {
 				return
 			}
-			upgradeMessage := defaultUpgradeMessage(semver.Canonical(serverVersion))
+			var dashboardURL, customUpgradeMessage string
 			if serverInfo, err := getBuildInfo(inv.Context()); err == nil {
-				switch {
-				case serverInfo.UpgradeMessage != "":
-					upgradeMessage = serverInfo.UpgradeMessage
-				// The site-local `install.sh` was introduced in v2.19.0
-				case serverInfo.DashboardURL != "" && semver.Compare(semver.MajorMinor(serverVersion), "v2.19") >= 0:
-					upgradeMessage = fmt.Sprintf("download %s with: 'curl -fsSL %s/install.sh | sh'", serverVersion, serverInfo.DashboardURL)
-				}
+				dashboardURL = serverInfo.DashboardURL
+				customUpgradeMessage = serverInfo.UpgradeMessage
 			}
-			fmtWarningText := "version mismatch: client %s, server %s\n%s"
-			fmtWarn := pretty.Sprint(cliui.DefaultStyles.Warn, fmtWarningText)
-			warning := fmt.Sprintf(fmtWarn, clientVersion, serverVersion, upgradeMessage)
+			upgradeMessage := defaultUpgradeMessage(serverVersion, dashboardURL, customUpgradeMessage)
+			warning := pretty.Sprintf(
+				cliui.DefaultStyles.Warn,
+				"version mismatch: client %s, server %s\n%s",
+				clientVersion,
+				serverVersion,
+				upgradeMessage,
+			)
 
 			_, _ = fmt.Fprintln(inv.Stderr, warning)
 		})
