@@ -184,7 +184,7 @@ func TestTaskParam(t *testing.T) {
 		require.Equal(t, http.StatusOK, res.StatusCode)
 	})
 
-	t.Run("FoundByWorkspaceName", func(t *testing.T) {
+	t.Run("NotFoundByWorkspaceName", func(t *testing.T) {
 		t.Parallel()
 		rtr := makeRouter()
 		r := makeRequest(user.ID, token)
@@ -194,7 +194,7 @@ func TestTaskParam(t *testing.T) {
 
 		res := rw.Result()
 		defer res.Body.Close()
-		require.Equal(t, http.StatusOK, res.StatusCode)
+		require.Equal(t, http.StatusNotFound, res.StatusCode)
 	})
 
 	t.Run("CaseInsensitiveTaskName", func(t *testing.T) {
@@ -227,20 +227,6 @@ func TestTaskParam(t *testing.T) {
 		require.Equal(t, http.StatusOK, res.StatusCode)
 		// Verify we got the correct task
 		require.Equal(t, "found-by-uuid", taskFoundByUUID.Name)
-	})
-
-	t.Run("TaskNameNotFoundFallsBackToWorkspace", func(t *testing.T) {
-		t.Parallel()
-		rtr := makeRouter()
-		r := makeRequest(user.ID, token)
-		// Look up by workspace name (which is not a task name) - should fallback
-		chi.RouteContext(r.Context()).URLParams.Add("task", "shared-name")
-		rw := httptest.NewRecorder()
-		rtr.ServeHTTP(rw, r)
-
-		res := rw.Result()
-		defer res.Body.Close()
-		require.Equal(t, http.StatusOK, res.StatusCode)
 	})
 
 	t.Run("NotFoundWhenNoMatch", func(t *testing.T) {
