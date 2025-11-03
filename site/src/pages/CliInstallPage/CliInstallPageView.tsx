@@ -9,28 +9,20 @@ type CliInstallPageViewProps = {
 };
 
 export const CliInstallPageView: FC<CliInstallPageViewProps> = ({ origin }) => {
-	const isWindows =
-		typeof navigator !== "undefined" && /windows/i.test(navigator.userAgent);
 	return (
 		<div css={styles.container}>
 			<Welcome>Install the Coder CLI</Welcome>
 
-			{!isWindows && (
-				<>
-					<p css={styles.instructions}>
-						Copy the command below and{" "}
-						<strong css={{ display: "block" }}>
-							paste it in your terminal.
-						</strong>
-					</p>
+			<p css={styles.instructions}>
+				Copy the command below and{" "}
+				<strong css={{ display: "block" }}>paste it in your terminal.</strong>
+			</p>
 
-					<CodeExample
-						css={{ maxWidth: "100%" }}
-						code={`curl -fsSL ${origin}/install.sh | sh`}
-						secret={false}
-					/>
-				</>
-			)}
+			<CodeExample
+				css={{ maxWidth: "100%" }}
+				code={`curl -fsSL ${origin}/install.sh | sh`}
+				secret={false}
+			/>
 
 			<div css={{ paddingTop: 16 }}>
 				<RouterLink to="/workspaces" css={styles.backLink}>
@@ -84,14 +76,5 @@ const styles = {
 		fontSize: 12,
 		color: theme.palette.text.secondary,
 		marginTop: 24,
-	}),
-
-	windowsInstructions: (theme) => ({
-		fontSize: 14,
-		color: theme.palette.text.secondary,
-		paddingTop: 16,
-		paddingBottom: 8,
-		textAlign: "center",
-		lineHeight: 1.4,
 	}),
 } satisfies Record<string, Interpolation<Theme>>;
