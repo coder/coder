@@ -125,7 +125,7 @@ jobs:
           egress-policy: audit
 
       - name: Delete PR Cleanup workflow runs
-        uses: Mattraks/delete-workflow-runs@ab482449ba468316e9a8801e092d0405715c5e6d # v2.1.0
+        uses: Mattraks/delete-workflow-runs@86d29a75093353c4c509a876c176234037c2025b # v2.1.0
         with:
           token: ${{ github.token }}
           repository: ${{ github.repository }}
@@ -134,7 +134,7 @@ jobs:
           delete_workflow_pattern: pr-cleanup.yaml
 
       - name: Delete PR Deploy workflow skipped runs
-        uses: Mattraks/delete-workflow-runs@ab482449ba468316e9a8801e092d0405715c5e6d # v2.1.0
+        uses: Mattraks/delete-workflow-runs@86d29a75093353c4c509a876c176234037c2025b # v2.1.0
         with:
           token: ${{ github.token }}
           repository: ${{ github.repository }}
