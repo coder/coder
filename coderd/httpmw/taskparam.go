@@ -58,14 +58,14 @@ func ExtractTaskParam(db database.Store) func(http.Handler) http.Handler {
 
 			task, err := fetchTaskWithFallback(ctx, db, taskParam, ownerID)
 			if err != nil {
-				if !httpapi.Is404Error(err) {
-					httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-						Message: "Internal error fetching task.",
-						Detail:  err.Error(),
-					})
+				if httpapi.Is404Error(err) {
+					httpapi.ResourceNotFound(rw)
 					return
 				}
-				httpapi.ResourceNotFound(rw)
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Internal error fetching task.",
+					Detail:  err.Error(),
+				})
 				return
 			}
 
