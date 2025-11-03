@@ -2759,7 +2759,7 @@ function getConfiguredAxiosInstance(): AxiosInstance {
 		}
 	} else {
 		// Do not write error logs if we are in a FE unit test.
-		if (process.env.JEST_WORKER_ID === undefined) {
+		if (!process.env.JEST_WORKER_ID && !process.env.VITEST) {
 			console.error("CSRF token not found");
 		}
 	}

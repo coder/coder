@@ -507,10 +507,6 @@ export const MockAssignableSiteRoles = [
 	assignableRole(MockWorkspaceCreationBanRole, true),
 ];
 
-export const MockMemberPermissions = {
-	viewAuditLog: false,
-};
-
 export const MockUserOwner: TypesGen.User = {
 	id: "test-user",
 	username: "TestUser",
