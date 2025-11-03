@@ -1127,7 +1127,9 @@ CREATE TABLE api_keys (
     token_name text DEFAULT ''::text NOT NULL,
     scopes api_key_scope[] NOT NULL,
     allow_list text[] NOT NULL,
-    CONSTRAINT api_keys_allow_list_not_empty CHECK ((array_length(allow_list, 1) > 0))
+    CONSTRAINT api_keys_allow_list_not_empty CHECK ((array_length(allow_list, 1) > 0)),
+    CONSTRAINT api_keys_expires_at_after_created CHECK ((expires_at >= created_at)),
+    CONSTRAINT api_keys_lifetime_seconds_positive CHECK ((lifetime_seconds > 0))
 );
 
 COMMENT ON COLUMN api_keys.hashed_secret IS 'hashed_secret contains a SHA256 hash of the key secret. This is considered a secret and MUST NOT be returned from the API as it is used for API key encryption in app proxying code.';
