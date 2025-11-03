@@ -6,7 +6,7 @@ AI Bridge runs inside the Coder control plane, requiring no separate compute to 
 
 1. A **premium** licensed Coder deployment
 1. Feature must be [enabled](#activation) using the server flag
-1. One or more [provider](#configure-providers) API key(s) must be configured
+1. One or more [providers](#configure-providers) API key(s) must be configured
 
 ## Activation
 
@@ -18,9 +18,11 @@ CODER_AIBRIDGE_ENABLED=true coder server
 coder server --aibridge-enabled=true
 ```
 
-## Configure providers
+## Configure Providers
 
 AI Bridge proxies requests to upstream LLM APIs. Configure at least one provider before exposing AI Bridge to end users.
+
+<div class="tabs">
 
 ### OpenAI
 
@@ -40,7 +42,7 @@ Set the following when routing Anthropic-compatible traffic through AI Bridge:
 
 The default base URL (`https://api.anthropic.com/`) targets Anthropic's public API. Override it for Anthropic-compatible brokers.
 
-#### Amazon Bedrock
+### Amazon Bedrock
 
 Set the following when routing Amazon Bedrock traffic through AI Bridge:
 
@@ -53,6 +55,8 @@ Set the following when routing Amazon Bedrock traffic through AI Bridge:
 ### Additional providers and Model Proxies
 
 AI Bridge can relay traffic to other OpenAI- or Anthropic-compatible services or model proxies like LiteLLM by pointing the base URL variables above at the provider you operate. Share feedback or follow along in the [`aibridge`](https://github.com/coder/aibridge) issue tracker as we expand support for additional providers.
+
+</div>
 
 > [!NOTE]
 > See the [Supported APIs](./reference.md#supported-apis) section below for precise endpoint coverage and interception behavior.

@@ -73,7 +73,7 @@ The configuration is the same: point the tool to the AI Bridge [base URL](#base-
 
 Users can generate a long-lived API key from the Coder UI or CLI. Follow the instructions at [Sessions and API tokens](../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself) to create one.
 
-## Tested clients
+## Tested Clients
 
 The table below shows tested AI clients and their compatibility with AI Bridge. Click each client name for vendor-specific configuration instructions. Report issues or share compatibility updates in the [aibridge](https://github.com/coder/aibridge) issue tracker.
 
@@ -97,7 +97,7 @@ The table below shows tested AI clients and their compatibility with AI Bridge. 
 
 Legend: ✅ works, ⚠️ limited support, ❌ not supported, ❓ not yet verified, — not applicable.
 
-### Compatibility overview
+### Compatibility Overview
 
 Most AI coding assistants can use AI Bridge, provided they support custom base URLs. Client-specific requirements vary:
 
