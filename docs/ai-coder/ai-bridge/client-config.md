@@ -2,7 +2,7 @@
 
 Once AI Bridge is enabled on the server, your users need to configure their AI coding tools to use it. This section explains how users should configure their clients to connect to AI Bridge.
 
-### Base URLs
+## Base URLs
 
 The exact configuration method varies by client — some use environment variables, others use configuration files or UI settings:
 
@@ -11,28 +11,32 @@ The exact configuration method varies by client — some use environment variabl
 
 Replace `coder.example.com` with your actual Coder deployment URL.
 
-### Authentication
+## Authentication
 
 Instead of distributing provider-specific API keys (OpenAI/Anthropic keys) to users, they authenticate to AI Bridge using their **Coder session token** or **API key**:
 
 - **OpenAI clients**: Users set `OPENAI_API_KEY` to their Coder session token or API key
 - **Anthropic clients**: Users set `ANTHROPIC_API_KEY` to their Coder session token or API key
 
-#### Coder Templates Pre-configuration
+## Configuring In-Workspace Tools
 
-Template admins can pre-configure authentication in templates using [`data.coder_workspace_owner.me.session_token`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_owner#session_token-1) to automatically configure the workspace owner's credentials.
+Template admins can pre-configure workspaces to route all AI tool requests through AI Bridge, providing a seamless and secure experience for users. This can be done for both Coder Tasks and other AI tools running in the workspace.
 
-Here is an example of how to pre-configure a Coder template to install Claude Code and configure it for AI Bridge using the session token in a template:
+### Using Coder Tasks
+
+[Coder Tasks](../tasks.md) provides a framework for using agents like Claude Code to complete background development operations. To route those agents through AI Bridge, you can pre-configure a Coder Tasks template to install Claude Code and configure it for AI Bridge using the session token:
 
 ```hcl
 data "coder_workspace_owner" "me" {}
+
+data "coder_workspace" "me" {}
 
 resource "coder_agent" "dev" {
   arch = "amd64"
   os   = "linux"
   dir  = local.repo_dir
   env = {
-    ANTHROPIC_BASE_URL : "https://dev.coder.com/api/v2/aibridge/anthropic",
+    ANTHROPIC_BASE_URL : "${data.coder_workspace.me.url}/api/v2/aibridge/anthropic",
     ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token
   }
   ... # other agent configuration
@@ -42,24 +46,34 @@ resource "coder_agent" "dev" {
 module "claude-code" {
   count               = local.has_ai_prompt ? data.coder_workspace.me.start_count : 0
   source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = ">= 3.2.0"
+  version             = ">= 3.4.0"
   agent_id            = coder_agent.dev.id
   workdir             = "/home/coder/project"
-  order               = 999
-  claude_api_key      = data.coder_workspace_owner.me.session_token # To Enable AI Bridge integration
+  claude_api_key      = data.coder_workspace_owner.me.session_token # Use the Coder session token to authenticate with AI Bridge
   ai_prompt           = data.coder_parameter.ai_prompt.value
   ... # other claude-code configuration
 }
-
 ```
 
-The same approach can be applied to pre-configure additional AI coding assistants by updating the base URL and API key settings.
+This setup keeps agent execution within Coder while applying the same auditing and MCP policies as IDE clients.
 
-#### Generic API key generation
+### Other IDEs and Tools
 
-Users can generate a Coder API key using either the CLI or the web UI. Follow the instructions at [Sessions and API tokens](../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself) to generate a Coder API key.
+AI assistants running inside a Coder workspace, such as IDE extensions, can be configured to use AI Bridge.
 
-### Tested clients
+While users can manually configure these tools with a long-lived API key, template admins can provide a more seamless experience by pre-configuring them. Similar to the Coder Tasks example, admins can use Terraform data sources like `data.coder_workspace_owner.me.session_token` to automatically inject the user's session token and the AI Bridge base URL into the workspace environment.
+
+This is the fastest way to bring existing agents like Roo Code, Cursor, or Claude Code into compliance without adopting Coder Tasks.
+
+## External and Desktop Clients
+
+You can also configure AI tools running outside of a Coder workspace, such as local IDE extensions or desktop applications, to connect to AI Bridge.
+
+The configuration is the same: point the tool to the AI Bridge [base URL](#base-urls) and use a Coder API key for authentication.
+
+Users can generate a long-lived API key from the Coder UI or CLI. Follow the instructions at [Sessions and API tokens](../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself) to create one.
+
+## Tested clients
 
 The table below shows tested AI clients and their compatibility with AI Bridge. Click each client name for vendor-specific configuration instructions. Report issues or share compatibility updates in the [aibridge](https://github.com/coder/aibridge) issue tracker.
 
@@ -67,7 +81,7 @@ The table below shows tested AI clients and their compatibility with AI Bridge. 
 |-------------------------------------------------------------------------------------------------------------------------------------------|----------------|-------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | [Claude Code](https://docs.claude.com/en/docs/claude-code/settings#environment-variables)                                                 | N/A            | ✅                 | Works out of the box and can be preconfigured in templates.                                                                                                                      |
 | Claude Code (VS Code)                                                                                                                     | N/A            | ✅                 | May require signing in once; afterwards respects workspace environment variables.                                                                                                |
-| [Cursor](https://cursor.com/docs/settings/api-keys)                                                                                       | ⚠️             | ❌                 | Only non reasoning models like `gpt-4.1` are available when using a custom endpoint. Requests still transit Cursor's cloud. There is no central admin setting to configure this. |
+| [Cursor](https://cursor.com/docs/settings/api-keys)                                                                                       | ⚠️             | ❌                 | Only non-reasoning models like `gpt-4.1` are available when using a custom endpoint. Requests still transit Cursor's cloud. There is no central admin setting to configure this. |
 | [Roo Code](https://docs.roocode.com/features/api-configuration-profiles#creating-and-managing-profiles)                                   | ✅              | ✅                 | Use the **OpenAI Compatible** provider with the legacy format to avoid `/v1/responses`.                                                                                          |
 | [Codex CLI](https://github.com/openai/codex/blob/main/docs/config.md#model_providers)                                                     | ✅              | N/A               | `gpt-5-codex` support is [in progress](https://github.com/coder/aibridge/issues/16).                                                                                             |
 | [GitHub Copilot (VS Code)](https://docs.github.com/en/copilot/configuring-github-copilot/configuring-network-settings-for-github-copilot) | ✅              | ❌                 | Requires the pre-release extension. Anthropic endpoints are not supported.                                                                                                       |
@@ -83,12 +97,9 @@ The table below shows tested AI clients and their compatibility with AI Bridge. 
 
 Legend: ✅ works, ⚠️ limited support, ❌ not supported, ❓ not yet verified, — not applicable.
 
-> [!NOTE]
-> Click the respective client title to view the vendor-specific instructions for configuring the client.
+### Compatibility overview
 
-#### Compatibility overview
-
-Most AI coding assistants that support custom base URLs can work with AI Bridge. Client-specific requirements vary:
+Most AI coding assistants can use AI Bridge, provided they support custom base URLs. Client-specific requirements vary:
 
 - Some clients require specific URL formats (for example, removing the `/v1` suffix).
 - Some clients proxy requests through their own servers, which limits compatibility.

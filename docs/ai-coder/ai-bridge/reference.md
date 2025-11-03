@@ -5,7 +5,7 @@
 `coderd` runs an in-memory instance of `aibridged`, whose logic is mostly contained in https://github.com/coder/aibridge. In future releases we will support running external instances for higher throughput and complete memory isolation from `coderd`.
 
 <details>
-<summary>See a diagram of how Bridge interception works</summary>
+<summary>See a diagram of how AI Bridge interception works</summary>
 
 ```mermaid
 
@@ -60,20 +60,15 @@ sequenceDiagram
     deactivate Client
 ```
 
-![AI Bridge implementation details](../../images/aibridge/aibridge-implementation-details.png)
-
 </details>
 
-## Known Issues / Limitations
-
-- GPT-5 Codex currently does not work with Bridge due to missing `v1/responses` endpoint: https://github.com/coder/aibridge/issues/16
-- Claude Code web searches do not report correctly: https://github.com/coder/aibridge/issues/11
+![AI Bridge implementation details](../../images/aibridge/aibridge-implementation-details.png)
 
 ## Supported APIs
 
 API support is broken down into two categories:
 
-- **Intercepted**: requests are intercepted, audited, and augmented - full Bridge functionality
+- **Intercepted**: requests are intercepted, audited, and augmented - full AI Bridge functionality
 - **Passthrough**: requests are proxied directly to the upstream, no auditing or augmentation takes place
 
 Where relevant, both streaming and non-streaming requests are supported.
@@ -101,4 +96,4 @@ Where relevant, both streaming and non-streaming requests are supported.
 
 ## Troubleshooting
 
-To report a bug, file a feature request, or view a list of known issues, please visit our [GitHub repository for Bridge](https://github.com/coder/aibridge). If you encounter issues with Bridge during early access, please reach out to us via [Discord](https://discord.gg/coder).
+To report a bug, file a feature request, or view a list of known issues, please visit our [GitHub repository for AI Bridge](https://github.com/coder/aibridge). If you encounter issues with AI Bridge during early access, please reach out to us via [Discord](https://discord.gg/coder).

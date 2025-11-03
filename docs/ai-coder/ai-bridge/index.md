@@ -2,11 +2,11 @@
 
 ![AI bridge diagram](../../images/aibridge/aibridge_diagram.png)
 
-Bridge is a smart proxy for AI. It acts as a man-in-the-middle between your users' coding agents / IDEs
+AI Bridge is a smart proxy for AI. It acts as a man-in-the-middle between your users' coding agents / IDEs
 and providers like OpenAI and Anthropic. By intercepting all the AI traffic between these clients and
-the upstream APIs, Bridge can record user prompts, token usage, and tool invocations.
+the upstream APIs, AI Bridge can record user prompts, token usage, and tool invocations.
 
-Bridge solves 3 key problems:
+AI Bridge solves 3 key problems:
 
 1. **Centralized authn/z management**: no more issuing & managing API tokens for OpenAI/Anthropic usage.
    Users use their Coder session or API tokens to authenticate with `coderd` (Coder control plane), and
@@ -28,4 +28,9 @@ If you are an administrator or devops leader looking to:
 - Investigate opportunities for AI automation
 - Uncover the high-leverage use cases from experienced engineers
 
-We advise trying Bridge as self-hosted proxy to monitor LLM usage agnostically across AI powered IDEs like Cursor and headless agents like Claude Code.
+We advise trying AI Bridge as self-hosted proxy to monitor LLM usage agnostically across AI powered IDEs like Cursor and headless agents like Claude Code.
+
+## Known Issues / Limitations
+
+- GPT-5 Codex currently does not work with AI Bridge due to missing `v1/responses` endpoint: https://github.com/coder/aibridge/issues/16
+- Claude Code web searches do not report correctly: https://github.com/coder/aibridge/issues/11
