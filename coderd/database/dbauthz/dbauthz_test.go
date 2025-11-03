@@ -2380,6 +2380,7 @@ func (s *MethodTestSuite) TestTasks() {
 		dbm.EXPECT().GetTaskByOwnerIDAndName(gomock.Any(), database.GetTaskByOwnerIDAndNameParams{
 			OwnerID: task.OwnerID,
 			Name:    task.Name,
+			Deleted: false,
 		}).Return(task, nil).AnyTimes()
 		check.Args(database.GetTaskByOwnerIDAndNameParams{
 			OwnerID: task.OwnerID,

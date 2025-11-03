@@ -13093,40 +13093,62 @@ func (q *sqlQuerier) GetTaskByID(ctx context.Context, id uuid.UUID) (Task, error
 	return i, err
 }
 
-const getTaskByOwnerIDAndName = `-- name: GetTaskByOwnerIDAndName :one
-SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, status, workspace_build_number, workspace_agent_id, workspace_app_id, owner_username, owner_name, owner_avatar_url FROM tasks_with_status 
-WHERE owner_id = $1::uuid 
-  AND LOWER(name) = LOWER($2::text)
+const getTaskByOwnerIDAndName = `-- name: GetTaskByOwnerIDAndName :many
+SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, status, workspace_build_number, workspace_agent_id, workspace_app_id, owner_username, owner_name, owner_avatar_url FROM tasks_with_status
+WHERE
+	owner_id = $1::uuid
+	AND CASE WHEN $2
+		THEN deleted_at IS NOT NULL
+		ELSE deleted_at IS NULL
+	END
+	AND LOWER(name) = LOWER($3::text)
 `
 
 type GetTaskByOwnerIDAndNameParams struct {
-	OwnerID uuid.UUID `db:"owner_id" json:"owner_id"`
-	Name    string    `db:"name" json:"name"`
+	OwnerID uuid.UUID   `db:"owner_id" json:"owner_id"`
+	Deleted interface{} `db:"deleted" json:"deleted"`
+	Name    string      `db:"name" json:"name"`
 }
 
-func (q *sqlQuerier) GetTaskByOwnerIDAndName(ctx context.Context, arg GetTaskByOwnerIDAndNameParams) (Task, error) {
-	row := q.db.QueryRowContext(ctx, getTaskByOwnerIDAndName, arg.OwnerID, arg.Name)
-	var i Task
-	err := row.Scan(
-		&i.ID,
-		&i.OrganizationID,
-		&i.OwnerID,
-		&i.Name,
-		&i.WorkspaceID,
-		&i.TemplateVersionID,
-		&i.TemplateParameters,
-		&i.Prompt,
-		&i.CreatedAt,
-		&i.DeletedAt,
-		&i.Status,
-		&i.WorkspaceBuildNumber,
-		&i.WorkspaceAgentID,
-		&i.WorkspaceAppID,
-		&i.OwnerUsername,
-		&i.OwnerName,
-		&i.OwnerAvatarUrl,
-	)
-	return i, err
+func (q *sqlQuerier) GetTaskByOwnerIDAndName(ctx context.Context, arg GetTaskByOwnerIDAndNameParams) ([]Task, error) {
+	rows, err := q.db.QueryContext(ctx, getTaskByOwnerIDAndName, arg.OwnerID, arg.Deleted, arg.Name)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Task
+	for rows.Next() {
+		var i Task
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.OwnerID,
+			&i.Name,
+			&i.WorkspaceID,
+			&i.TemplateVersionID,
+			&i.TemplateParameters,
+			&i.Prompt,
+			&i.CreatedAt,
+			&i.DeletedAt,
+			&i.Status,
+			&i.WorkspaceBuildNumber,
+			&i.WorkspaceAgentID,
+			&i.WorkspaceAppID,
+			&i.OwnerUsername,
+			&i.OwnerName,
+			&i.OwnerAvatarUrl,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getTaskByWorkspaceID = `-- name: GetTaskByWorkspaceID :one

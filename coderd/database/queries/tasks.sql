@@ -41,10 +41,15 @@ SELECT * FROM tasks_with_status WHERE id = @id::uuid;
 -- name: GetTaskByWorkspaceID :one
 SELECT * FROM tasks_with_status WHERE workspace_id = @workspace_id::uuid;
 
--- name: GetTaskByOwnerIDAndName :one
-SELECT * FROM tasks_with_status 
-WHERE owner_id = @owner_id::uuid 
-  AND LOWER(name) = LOWER(@name::text);
+-- name: GetTaskByOwnerIDAndName :many
+SELECT * FROM tasks_with_status
+WHERE
+	owner_id = @owner_id::uuid
+	AND CASE WHEN @deleted
+		THEN deleted_at IS NOT NULL
+		ELSE deleted_at IS NULL
+	END
+	AND LOWER(name) = LOWER(@name::text);
 
 -- name: ListTasks :many
 SELECT * FROM tasks_with_status tws
