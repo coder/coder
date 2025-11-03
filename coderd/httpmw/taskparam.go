@@ -101,13 +101,9 @@ func fetchTaskWithFallback(ctx context.Context, db database.Store, taskParam str
 	task, err := db.GetTaskByOwnerIDAndName(ctx, database.GetTaskByOwnerIDAndNameParams{
 		OwnerID: ownerID,
 		Name:    taskParam,
-		Deleted: false,
 	})
 	if err != nil {
 		return database.Task{}, xerrors.Errorf("fetch task by name: %w", err)
 	}
-	if len(task) == 0 {
-		return database.Task{}, sql.ErrNoRows
-	}
-	return task[0], nil
+	return task, nil
 }

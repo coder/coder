@@ -3238,10 +3238,10 @@ func (mr *MockStoreMockRecorder) GetTaskByID(ctx, id any) *gomock.Call {
 }
 
 // GetTaskByOwnerIDAndName mocks base method.
-func (m *MockStore) GetTaskByOwnerIDAndName(ctx context.Context, arg database.GetTaskByOwnerIDAndNameParams) ([]database.Task, error) {
+func (m *MockStore) GetTaskByOwnerIDAndName(ctx context.Context, arg database.GetTaskByOwnerIDAndNameParams) (database.Task, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetTaskByOwnerIDAndName", ctx, arg)
-	ret0, _ := ret[0].([]database.Task)
+	ret0, _ := ret[0].(database.Task)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
