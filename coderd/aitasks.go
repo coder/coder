@@ -143,7 +143,7 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 
 	if !templateVersion.HasAITask.Valid || !templateVersion.HasAITask.Bool {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf(`Template does not have required parameter %q`, codersdk.AITaskPromptParameterName),
+			Message: `Template does not have a valid "coder_ai_task" resource.`,
 		})
 		return
 	}
