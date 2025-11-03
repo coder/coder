@@ -136,7 +136,7 @@ We support two release channels: mainline and stable - read the
     helm install coder coder-v2/coder \
         --namespace coder \
         --values values.yaml \
-        --version 2.27.1
+        --version 2.27.3
     ```
 
   - **OCI Registry**
@@ -147,7 +147,7 @@ We support two release channels: mainline and stable - read the
     helm install coder oci://ghcr.io/coder/chart/coder \
         --namespace coder \
         --values values.yaml \
-        --version 2.27.2
+        --version 2.27.3
     ```
 
 - **Stable** Coder release:

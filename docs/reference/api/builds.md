@@ -222,7 +222,6 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
     }
   ],
   "status": "pending",
-  "task_app_id": "ca438251-3e16-4fae-b9ab-dd3c237c3735",
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "template_version_name": "string",
   "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
@@ -464,7 +463,6 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
     }
   ],
   "status": "pending",
-  "task_app_id": "ca438251-3e16-4fae-b9ab-dd3c237c3735",
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "template_version_name": "string",
   "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
@@ -1197,7 +1195,6 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
     }
   ],
   "status": "pending",
-  "task_app_id": "ca438251-3e16-4fae-b9ab-dd3c237c3735",
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "template_version_name": "string",
   "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
@@ -1512,7 +1509,6 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
       }
     ],
     "status": "pending",
-    "task_app_id": "ca438251-3e16-4fae-b9ab-dd3c237c3735",
     "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
     "template_version_name": "string",
     "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
@@ -1540,7 +1536,7 @@ Status Code **200**
 | Name                             | Type                                                                                                   | Required | Restrictions | Description                                                                                                                                                                                                                                    |
 |----------------------------------|--------------------------------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `[array item]`                   | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
-| `» ai_task_sidebar_app_id`       | string(uuid)                                                                                           | false    |              | Deprecated: This field has been replaced with `TaskAppID`                                                                                                                                                                                      |
+| `» ai_task_sidebar_app_id`       | string(uuid)                                                                                           | false    |              | Deprecated: This field has been replaced with `Task.WorkspaceAppID`                                                                                                                                                                            |
 | `» build_number`                 | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `» created_at`                   | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `» daily_cost`                   | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
@@ -1691,7 +1687,6 @@ Status Code **200**
 | `»» type`                        | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» workspace_transition`        | [codersdk.WorkspaceTransition](schemas.md#codersdkworkspacetransition)                                 | false    |              |                                                                                                                                                                                                                                                |
 | `» status`                       | [codersdk.WorkspaceStatus](schemas.md#codersdkworkspacestatus)                                         | false    |              |                                                                                                                                                                                                                                                |
-| `» task_app_id`                  | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `» template_version_id`          | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `» template_version_name`        | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `» template_version_preset_id`   | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
@@ -2013,7 +2008,6 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
     }
   ],
   "status": "pending",
-  "task_app_id": "ca438251-3e16-4fae-b9ab-dd3c237c3735",
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "template_version_name": "string",
   "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",

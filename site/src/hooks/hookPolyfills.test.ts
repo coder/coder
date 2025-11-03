@@ -15,7 +15,7 @@ describe(useEffectEvent.name, () => {
 	}
 
 	it("Should maintain a stable reference across all renders", () => {
-		const callback = jest.fn();
+		const callback = vi.fn();
 		const { result, rerender } = renderEffectEvent(callback);
 
 		const firstResult = result.current;
@@ -28,8 +28,8 @@ describe(useEffectEvent.name, () => {
 	});
 
 	it("Should always call the most recent callback passed in", () => {
-		const mockCallback1 = jest.fn();
-		const mockCallback2 = jest.fn();
+		const mockCallback1 = vi.fn();
+		const mockCallback2 = vi.fn();
 
 		const { result, rerender } = renderEffectEvent(mockCallback1);
 		rerender({ callback: mockCallback2 });

@@ -3,6 +3,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net/http"
@@ -29,12 +30,13 @@ import (
 
 func (r *RootCmd) scaletestNotifications() *serpent.Command {
 	var (
-		userCount           int64
-		ownerUserPercentage float64
-		notificationTimeout time.Duration
-		dialTimeout         time.Duration
-		noCleanup           bool
-		smtpAPIURL          string
+		userCount               int64
+		templateAdminPercentage float64
+		notificationTimeout     time.Duration
+		smtpRequestTimeout      time.Duration
+		dialTimeout             time.Duration
+		noCleanup               bool
+		smtpAPIURL              string
 
 		tracingFlags = &scaletestTracingFlags{}
 
@@ -77,24 +79,24 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 				return xerrors.Errorf("--user-count must be greater than 0")
 			}
 
-			if ownerUserPercentage < 0 || ownerUserPercentage > 100 {
-				return xerrors.Errorf("--owner-user-percentage must be between 0 and 100")
+			if templateAdminPercentage < 0 || templateAdminPercentage > 100 {
+				return xerrors.Errorf("--template-admin-percentage must be between 0 and 100")
 			}
 
 			if smtpAPIURL != "" && !strings.HasPrefix(smtpAPIURL, "http://") && !strings.HasPrefix(smtpAPIURL, "https://") {
 				return xerrors.Errorf("--smtp-api-url must start with http:// or https://")
 			}
 
-			ownerUserCount := int64(float64(userCount) * ownerUserPercentage / 100)
-			if ownerUserCount == 0 && ownerUserPercentage > 0 {
-				ownerUserCount = 1
+			templateAdminCount := int64(float64(userCount) * templateAdminPercentage / 100)
+			if templateAdminCount == 0 && templateAdminPercentage > 0 {
+				templateAdminCount = 1
 			}
-			regularUserCount := userCount - ownerUserCount
+			regularUserCount := userCount - templateAdminCount
 
 			_, _ = fmt.Fprintf(inv.Stderr, "Distribution plan:\n")
 			_, _ = fmt.Fprintf(inv.Stderr, "  Total users: %d\n", userCount)
-			_, _ = fmt.Fprintf(inv.Stderr, "  Owner users: %d (%.1f%%)\n", ownerUserCount, ownerUserPercentage)
-			_, _ = fmt.Fprintf(inv.Stderr, "  Regular users: %d (%.1f%%)\n", regularUserCount, 100.0-ownerUserPercentage)
+			_, _ = fmt.Fprintf(inv.Stderr, "  Template admins: %d (%.1f%%)\n", templateAdminCount, templateAdminPercentage)
+			_, _ = fmt.Fprintf(inv.Stderr, "  Regular users: %d (%.1f%%)\n", regularUserCount, 100.0-templateAdminPercentage)
 
 			outputs, err := output.parse()
 			if err != nil {
@@ -127,13 +129,12 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 			_, _ = fmt.Fprintln(inv.Stderr, "Creating users...")
 
 			dialBarrier := &sync.WaitGroup{}
-			ownerWatchBarrier := &sync.WaitGroup{}
+			templateAdminWatchBarrier := &sync.WaitGroup{}
 			dialBarrier.Add(int(userCount))
-			ownerWatchBarrier.Add(int(ownerUserCount))
+			templateAdminWatchBarrier.Add(int(templateAdminCount))
 
 			expectedNotificationIDs := map[uuid.UUID]struct{}{
-				notificationsLib.TemplateUserAccountCreated: {},
-				notificationsLib.TemplateUserAccountDeleted: {},
+				notificationsLib.TemplateTemplateDeleted: {},
 			}
 
 			triggerTimes := make(map[uuid.UUID]chan time.Time, len(expectedNotificationIDs))
@@ -142,19 +143,20 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 			}
 
 			configs := make([]notifications.Config, 0, userCount)
-			for range ownerUserCount {
+			for range templateAdminCount {
 				config := notifications.Config{
 					User: createusers.Config{
 						OrganizationID: me.OrganizationIDs[0],
 					},
-					Roles:                    []string{codersdk.RoleOwner},
+					Roles:                    []string{codersdk.RoleTemplateAdmin},
 					NotificationTimeout:      notificationTimeout,
 					DialTimeout:              dialTimeout,
 					DialBarrier:              dialBarrier,
-					ReceivingWatchBarrier:    ownerWatchBarrier,
+					ReceivingWatchBarrier:    templateAdminWatchBarrier,
 					ExpectedNotificationsIDs: expectedNotificationIDs,
 					Metrics:                  metrics,
 					SMTPApiURL:               smtpAPIURL,
+					SMTPRequestTimeout:       smtpRequestTimeout,
 				}
 				if err := config.Validate(); err != nil {
 					return xerrors.Errorf("validate config: %w", err)
@@ -170,9 +172,8 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 					NotificationTimeout:   notificationTimeout,
 					DialTimeout:           dialTimeout,
 					DialBarrier:           dialBarrier,
-					ReceivingWatchBarrier: ownerWatchBarrier,
+					ReceivingWatchBarrier: templateAdminWatchBarrier,
 					Metrics:               metrics,
-					SMTPApiURL:            smtpAPIURL,
 				}
 				if err := config.Validate(); err != nil {
 					return xerrors.Errorf("validate config: %w", err)
@@ -180,7 +181,7 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 				configs = append(configs, config)
 			}
 
-			go triggerUserNotifications(
+			go triggerNotifications(
 				ctx,
 				logger,
 				client,
@@ -261,23 +262,30 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 			Required:      true,
 		},
 		{
-			Flag:        "owner-user-percentage",
-			Env:         "CODER_SCALETEST_NOTIFICATION_OWNER_USER_PERCENTAGE",
+			Flag:        "template-admin-percentage",
+			Env:         "CODER_SCALETEST_NOTIFICATION_TEMPLATE_ADMIN_PERCENTAGE",
 			Default:     "20.0",
-			Description: "Percentage of users to assign Owner role to (0-100).",
-			Value:       serpent.Float64Of(&ownerUserPercentage),
+			Description: "Percentage of users to assign Template Admin role to (0-100).",
+			Value:       serpent.Float64Of(&templateAdminPercentage),
 		},
 		{
 			Flag:        "notification-timeout",
 			Env:         "CODER_SCALETEST_NOTIFICATION_TIMEOUT",
-			Default:     "5m",
+			Default:     "10m",
 			Description: "How long to wait for notifications after triggering.",
 			Value:       serpent.DurationOf(&notificationTimeout),
 		},
 		{
+			Flag:        "smtp-request-timeout",
+			Env:         "CODER_SCALETEST_SMTP_REQUEST_TIMEOUT",
+			Default:     "5m",
+			Description: "Timeout for SMTP requests.",
+			Value:       serpent.DurationOf(&smtpRequestTimeout),
+		},
+		{
 			Flag:        "dial-timeout",
 			Env:         "CODER_SCALETEST_DIAL_TIMEOUT",
-			Default:     "2m",
+			Default:     "10m",
 			Description: "Timeout for dialing the notification websocket endpoint.",
 			Value:       serpent.DurationOf(&dialTimeout),
 		},
@@ -379,9 +387,9 @@ func computeNotificationLatencies(
 	return nil
 }
 
-// triggerUserNotifications waits for all test users to connect,
-// then creates and deletes a test user to trigger notification events for testing.
-func triggerUserNotifications(
+// triggerNotifications waits for all test users to connect,
+// then creates and deletes a test template to trigger notification events for testing.
+func triggerNotifications(
 	ctx context.Context,
 	logger slog.Logger,
 	client *codersdk.Client,
@@ -414,34 +422,49 @@ func triggerUserNotifications(
 		return
 	}
 
-	const (
-		triggerUsername = "scaletest-trigger-user"
-		triggerEmail    = "scaletest-trigger@example.com"
-	)
+	logger.Info(ctx, "creating test template to test notifications")
 
-	logger.Info(ctx, "creating test user to test notifications",
-		slog.F("username", triggerUsername),
-		slog.F("email", triggerEmail),
-		slog.F("org_id", orgID))
+	// Upload empty template file.
+	file, err := client.Upload(ctx, codersdk.ContentTypeTar, bytes.NewReader([]byte{}))
+	if err != nil {
+		logger.Error(ctx, "upload test template", slog.Error(err))
+		return
+	}
+	logger.Info(ctx, "test template uploaded", slog.F("file_id", file.ID))
 
-	testUser, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
-		OrganizationIDs: []uuid.UUID{orgID},
-		Username:        triggerUsername,
-		Email:           triggerEmail,
-		Password:        "test-password-123",
+	// Create template version.
+	version, err := client.CreateTemplateVersion(ctx, orgID, codersdk.CreateTemplateVersionRequest{
+		StorageMethod: codersdk.ProvisionerStorageMethodFile,
+		FileID:        file.ID,
+		Provisioner:   codersdk.ProvisionerTypeEcho,
 	})
 	if err != nil {
-		logger.Error(ctx, "create test user", slog.Error(err))
+		logger.Error(ctx, "create test template version", slog.Error(err))
 		return
 	}
-	expectedNotifications[notificationsLib.TemplateUserAccountCreated] <- time.Now()
+	logger.Info(ctx, "test template version created", slog.F("template_version_id", version.ID))
 
-	err = client.DeleteUser(ctx, testUser.ID)
+	// Create template.
+	testTemplate, err := client.CreateTemplate(ctx, orgID, codersdk.CreateTemplateRequest{
+		Name:        "scaletest-test-template",
+		Description: "scaletest-test-template",
+		VersionID:   version.ID,
+	})
 	if err != nil {
-		logger.Error(ctx, "delete test user", slog.Error(err))
+		logger.Error(ctx, "create test template", slog.Error(err))
 		return
 	}
-	expectedNotifications[notificationsLib.TemplateUserAccountDeleted] <- time.Now()
-	close(expectedNotifications[notificationsLib.TemplateUserAccountCreated])
-	close(expectedNotifications[notificationsLib.TemplateUserAccountDeleted])
+	logger.Info(ctx, "test template created", slog.F("template_id", testTemplate.ID))
+
+	// Delete template to trigger notification.
+	err = client.DeleteTemplate(ctx, testTemplate.ID)
+	if err != nil {
+		logger.Error(ctx, "delete test template", slog.Error(err))
+		return
+	}
+	logger.Info(ctx, "test template deleted", slog.F("template_id", testTemplate.ID))
+
+	// Record expected notification.
+	expectedNotifications[notificationsLib.TemplateTemplateDeleted] <- time.Now()
+	close(expectedNotifications[notificationsLib.TemplateTemplateDeleted])
 }
