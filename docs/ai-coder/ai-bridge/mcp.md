@@ -49,7 +49,7 @@ Bridge marks automatically injected tools with a prefix `bmcp_` ("bridged MCP").
 
 ## Using AI Bridge with Coder Tasks
 
-[Coder Tasks](../../workspaces/tasks.md) provides a chat-first interface for terminal agents such as Claude Code CLI or Codex. To route those agents through Bridge:
+[Coder Tasks](../../workspaces/tasks.md) provides a framework for using agents like Claude Code to complete background development operations. To route those agents through Bridge:
 
 - Enable Bridge at the control plane and configure the upstream provider keys.
 - Inject the AI Bridge base URLs and API keys into the Task environment (for example by setting `OPENAI_BASE_URL` and `OPENAI_API_KEY`).

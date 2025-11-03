@@ -61,7 +61,7 @@ Users can generate a Coder API key using either the CLI or the web UI. Follow th
 
 ### Tested clients
 
-The combinations below reflect what we have exercised so far. Use the upstream links for vendor-specific steps to point each client at Bridge. Share additional findings in the [`aibridge`](https://github.com/coder/aibridge) issue tracker so we can keep this table current.
+The table below shows tested AI clients and their compatibility with AI Bridge. Click each client name for vendor-specific configuration instructions. Report issues or share compatibility updates in the [aibridge](https://github.com/coder/aibridge) issue tracker.
 
 | Client                                                                                                                                    | OpenAI support | Anthropic support | Notes                                                                                                                                                                            |
 |-------------------------------------------------------------------------------------------------------------------------------------------|----------------|-------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|

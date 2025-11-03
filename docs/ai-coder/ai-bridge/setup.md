@@ -6,7 +6,7 @@ Bridge runs inside the Coder control plane, requiring no separate compute to dep
 
 1. A **premium** licensed Coder deployment
 1. Feature must be [enabled](#activation) using the server flag
-1. One or more [provider](#configure-providers) API keys must be configured
+1. One or more [provider](#configure-providers) API key(s) must be configured
 
 ### Activation
 
@@ -52,7 +52,7 @@ Set the following when routing Amazon Bedrock traffic through Bridge:
 
 #### Additional providers and Model Proxies
 
-Bridge can relay traffic to other OpenAI- or Anthropic-compatible services or model proxies like LiteLLM by pointing the base URL variables above at the provider you operate. Share feedback or follow along in the [`aibridge`](https://github.com/coder/aibridge) issue tracker as support for these providers stabilizes.
+Bridge can relay traffic to other OpenAI- or Anthropic-compatible services or model proxies like LiteLLM by pointing the base URL variables above at the provider you operate. Share feedback or follow along in the [`aibridge`](https://github.com/coder/aibridge) issue tracker as we expand support for additional providers.
 
 > [!NOTE]
 > See the [Supported APIs](../reference#supported-apis) section below for precise endpoint coverage and interception behavior.
