@@ -4091,6 +4091,7 @@ func TestServer_ExpirePrebuildsSessionToken(t *testing.T) {
 	job, err := fs.waitForJob()
 	require.NoError(t, err)
 	require.NotNil(t, job)
+	require.NotNil(t, job.Type, "acquired job type was nil?!")
 	workspaceBuildJob := job.Type.(*proto.AcquiredJob_WorkspaceBuild_).WorkspaceBuild
 	require.NotNil(t, workspaceBuildJob.Metadata)
 
