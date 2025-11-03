@@ -922,9 +922,36 @@
 				{
 					"title": "AI Bridge",
 					"description": "Centralized LLM and MCP proxy for platform teams",
-					"path": "./ai-coder/ai-bridge.md",
+					"path": "./ai-coder/ai-bridge/index.md",
 					"icon_path": "./images/icons/api.svg",
-					"state": ["premium", "early access"]
+					"state": ["premium", "early access"],
+					"children": [
+						{
+							"title": "Setup",
+							"description": "How to set up and configure AI Bridge.",
+							"path": "./ai-coder/ai-bridge/setup.md"
+						},
+						{
+							"title": "Client Configuration",
+							"description": "How to configure your AI coding tools to use AI Bridge.",
+							"path": "./ai-coder/ai-bridge/client-config.md"
+						},
+						{
+							"title": "MCP",
+							"description": "How to use AI Bridge with MCP.",
+							"path": "./ai-coder/ai-bridge/mcp.md"
+						},
+						{
+							"title": "Monitoring",
+							"description": "How to monitor AI Bridge.",
+							"path": "./ai-coder/ai-bridge/monitoring.md"
+						},
+						{
+							"title": "Reference",
+							"description": "Technical reference for AI Bridge.",
+							"path": "./ai-coder/ai-bridge/reference.md"
+						}
+					]
 				},
 				{
 					"title": "Tasks CLI",
