@@ -871,7 +871,7 @@ func TestTools(t *testing.T) {
 					TemplateVersionID: r.TemplateVersion.ID.String(),
 					Input:             "do yet another barrel roll",
 				},
-				error: "Template does not have required parameter \"AI Prompt\"",
+				error: "Template does not have a valid \"coder_ai_task\" resource.",
 			},
 			{
 				name: "WithPreset",
@@ -880,7 +880,7 @@ func TestTools(t *testing.T) {
 					TemplateVersionPresetID: presetID.String(),
 					Input:                   "not enough barrel rolls",
 				},
-				error: "Template does not have required parameter \"AI Prompt\"",
+				error: "Template does not have a valid \"coder_ai_task\" resource.",
 			},
 		}
 
