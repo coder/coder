@@ -385,12 +385,12 @@ module "vscode-web" {
 module "jetbrains" {
   count         = contains(jsondecode(data.coder_parameter.ide_choices.value), "jetbrains") ? data.coder_workspace.me.start_count : 0
   source        = "dev.registry.coder.com/coder/jetbrains/coder"
-  version       = "1.1.0"
+  version       = "1.1.1"
   agent_id      = coder_agent.dev.id
   agent_name    = "dev"
   folder        = local.repo_dir
   major_version = "latest"
-  tooltip       = "You need to [Install Coder Desktop](https://coder.com/docs/user-guides/desktop#install-coder-desktop) to use this button."
+  tooltip       = "You need to [install JetBrains Toolbox](https://coder.com/docs/user-guides/workspace-access/jetbrains/toolbox) to use this app."
 }
 
 module "filebrowser" {
@@ -826,7 +826,7 @@ locals {
 module "claude-code" {
   count               = local.has_ai_prompt ? data.coder_workspace.me.start_count : 0
   source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = "3.3.2"
+  version             = "3.4.4"
   agent_id            = coder_agent.dev.id
   workdir             = local.repo_dir
   claude_code_version = "latest"

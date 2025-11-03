@@ -2864,11 +2864,12 @@ func TestCompleteJob(t *testing.T) {
 				input            *proto.CompletedJob_WorkspaceBuild
 				isTask           bool
 				expectTaskStatus database.TaskStatus
+				expectAppID      uuid.NullUUID
 				expectHasAiTask  bool
 				expectUsageEvent bool
 			}
 
-			sidebarAppID := uuid.NewString()
+			sidebarAppID := uuid.New()
 			for _, tc := range []testcase{
 				{
 					name:       "has_ai_task is false by default",
@@ -2886,9 +2887,42 @@ func TestCompleteJob(t *testing.T) {
 					input: &proto.CompletedJob_WorkspaceBuild{
 						AiTasks: []*sdkproto.AITask{
 							{
+								Id:    uuid.NewString(),
+								AppId: sidebarAppID.String(),
+							},
+						},
+						Resources: []*sdkproto.Resource{
+							{
+								Agents: []*sdkproto.Agent{
+									{
+										Id:   uuid.NewString(),
+										Name: "a",
+										Apps: []*sdkproto.App{
+											{
+												Id:   sidebarAppID.String(),
+												Slug: "test-app",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					isTask:           true,
+					expectTaskStatus: database.TaskStatusInitializing,
+					expectAppID:      uuid.NullUUID{UUID: sidebarAppID, Valid: true},
+					expectHasAiTask:  true,
+					expectUsageEvent: true,
+				},
+				{
+					name:       "has_ai_task is set to true, with sidebar app id",
+					transition: database.WorkspaceTransitionStart,
+					input: &proto.CompletedJob_WorkspaceBuild{
+						AiTasks: []*sdkproto.AITask{
+							{
 								Id: uuid.NewString(),
 								SidebarApp: &sdkproto.AITaskSidebarApp{
-									Id: sidebarAppID,
+									Id: sidebarAppID.String(),
 								},
 							},
 						},
@@ -2900,7 +2934,7 @@ func TestCompleteJob(t *testing.T) {
 										Name: "a",
 										Apps: []*sdkproto.App{
 											{
-												Id:   sidebarAppID,
+												Id:   sidebarAppID.String(),
 												Slug: "test-app",
 											},
 										},
@@ -2911,6 +2945,7 @@ func TestCompleteJob(t *testing.T) {
 					},
 					isTask:           true,
 					expectTaskStatus: database.TaskStatusInitializing,
+					expectAppID:      uuid.NullUUID{UUID: sidebarAppID, Valid: true},
 					expectHasAiTask:  true,
 					expectUsageEvent: true,
 				},
@@ -2922,10 +2957,9 @@ func TestCompleteJob(t *testing.T) {
 						AiTasks: []*sdkproto.AITask{
 							{
 								Id: uuid.NewString(),
-								SidebarApp: &sdkproto.AITaskSidebarApp{
-									// Non-existing app ID would previously trigger a FK violation.
-									Id: uuid.NewString(),
-								},
+								// Non-existing app ID would previously trigger a FK violation.
+								// Now it should just be ignored.
+								AppId: sidebarAppID.String(),
 							},
 						},
 					},
@@ -2940,10 +2974,8 @@ func TestCompleteJob(t *testing.T) {
 					input: &proto.CompletedJob_WorkspaceBuild{
 						AiTasks: []*sdkproto.AITask{
 							{
-								Id: uuid.NewString(),
-								SidebarApp: &sdkproto.AITaskSidebarApp{
-									Id: sidebarAppID,
-								},
+								Id:    uuid.NewString(),
+								AppId: sidebarAppID.String(),
 							},
 						},
 						Resources: []*sdkproto.Resource{
@@ -2954,7 +2986,7 @@ func TestCompleteJob(t *testing.T) {
 										Name: "a",
 										Apps: []*sdkproto.App{
 											{
-												Id:   sidebarAppID,
+												Id:   sidebarAppID.String(),
 												Slug: "test-app",
 											},
 										},
@@ -2965,6 +2997,7 @@ func TestCompleteJob(t *testing.T) {
 					},
 					isTask:           true,
 					expectTaskStatus: database.TaskStatusPaused,
+					expectAppID:      uuid.NullUUID{UUID: sidebarAppID, Valid: true},
 					expectHasAiTask:  true,
 					expectUsageEvent: false,
 				},
@@ -2978,7 +3011,7 @@ func TestCompleteJob(t *testing.T) {
 					},
 					isTask:           true,
 					expectTaskStatus: database.TaskStatusPaused,
-					expectHasAiTask:  true,
+					expectHasAiTask:  false, // We no longer inherit this from the previous build.
 					expectUsageEvent: false,
 				},
 			} {
@@ -3092,15 +3125,16 @@ func TestCompleteJob(t *testing.T) {
 					require.True(t, build.HasAITask.Valid) // We ALWAYS expect a value to be set, therefore not nil, i.e. valid = true.
 					require.Equal(t, tc.expectHasAiTask, build.HasAITask.Bool)
 
+					task, err := db.GetTaskByID(ctx, genTask.ID)
 					if tc.isTask {
-						task, err := db.GetTaskByID(ctx, genTask.ID)
 						require.NoError(t, err)
 						require.Equal(t, tc.expectTaskStatus, task.Status)
+					} else {
+						require.Error(t, err)
 					}
 
-					if tc.expectHasAiTask && build.Transition != database.WorkspaceTransitionStop {
-						require.Equal(t, sidebarAppID, build.AITaskSidebarAppID.UUID.String())
-					}
+					require.Equal(t, tc.expectAppID, task.WorkspaceAppID)
+					require.Equal(t, tc.expectAppID, build.AITaskSidebarAppID)
 
 					if tc.expectUsageEvent {
 						// Check that a usage event was collected.
@@ -4091,6 +4125,7 @@ func TestServer_ExpirePrebuildsSessionToken(t *testing.T) {
 	job, err := fs.waitForJob()
 	require.NoError(t, err)
 	require.NotNil(t, job)
+	require.NotNil(t, job.Type, "acquired job type was nil?!")
 	workspaceBuildJob := job.Type.(*proto.AcquiredJob_WorkspaceBuild_).WorkspaceBuild
 	require.NotNil(t, workspaceBuildJob.Metadata)
 
