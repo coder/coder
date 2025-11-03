@@ -8,7 +8,7 @@ RUN sed -i 's|http://deb.debian.org/debian|http://mirrors.edge.kernel.org/debian
 RUN apt-get update && apt-get install -y libssl-dev openssl pkg-config build-essential
 RUN cargo install jj-cli typos-cli watchexec-cli
 
-FROM ubuntu:jammy@sha256:4e0171b9275e12d375863f2b3ae9ce00a4c53ddda176bd55868df97ac6f21a6e AS go
+FROM ubuntu:jammy@sha256:09506232a8004baa32c47d68f1e5c307d648fdd59f5e7eaa42aaf87914100db3 AS go
 
 # Install Go manually, so that we can control the version
 ARG GO_VERSION=1.24.6
@@ -102,7 +102,7 @@ RUN curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/d
 	unzip protoc.zip && \
 	rm protoc.zip
 
-FROM ubuntu:jammy@sha256:4e0171b9275e12d375863f2b3ae9ce00a4c53ddda176bd55868df97ac6f21a6e
+FROM ubuntu:jammy@sha256:09506232a8004baa32c47d68f1e5c307d648fdd59f5e7eaa42aaf87914100db3
 
 SHELL ["/bin/bash", "-c"]
 
