@@ -159,7 +159,7 @@ and in accordance with your compliance requirements.
 You may choose to run a `VACUUM` or `VACUUM FULL` operation on the audit logs table to reclaim disk space. If you choose to run the `FULL` operation, consider the following when doing so:
 
 - **Run during a planned mainteance window** to ensure ample time for the operation to complete and minimize impact to users
-- **Scale down coderd** to zero replicas to prevent connection errors while the table is locked:
+- **Stop all running instances of `coderd`** to prevent connection errors while the table is locked. The actual steps for this will depend on your particular deployment setup. For example, if your `coderd` deployment is running on Kubernetes:
 
   ```bash
   kubectl scale deployment coder --replicas=0 -n coder
