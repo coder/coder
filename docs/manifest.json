@@ -901,6 +901,12 @@
 							"state": ["beta"]
 						},
 						{
+							"title": "Tasks Migration Guide",
+							"description": "Changes to Coder Tasks made in v2.28",
+							"path": "./ai-coder/tasks-migration.md",
+							"state": ["beta"]
+						},
+						{
 							"title": "Security \u0026 Boundaries",
 							"description": "Learn about security and boundaries when running AI coding agents in Coder",
 							"path": "./ai-coder/security.md"

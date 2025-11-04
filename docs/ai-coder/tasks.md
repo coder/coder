@@ -39,7 +39,7 @@ Try prompts such as:
 - "document the project structure"
 - "change the primary color theme to purple"
 
-To import the template and begin configuring it, follow the [documentation in the Coder Registry](https://registry.coder.com/templates/coder-labs/tasks-docker)
+To import the template and begin configuring it, import the example [Run Coder Tasks on Docker](https://github.com/coder/coder/tree/main/examples/templates/tasks-docker) template.
 
 ### Option 2&rpar; Create or Duplicate Your Own Template
 
@@ -50,7 +50,7 @@ terraform {
   required_providers {
     coder = {
       source = "coder/coder"
-      version = ">= 2.12"
+      version = ">= 2.13"
     }
   }
 }
@@ -64,6 +64,8 @@ data "coder_parameter" "setup_script" {
   mutable      = false
   default      = ""
 }
+
+data "coder_task" "me" {}
 
 # The Claude Code module does the automatic task reporting
 # Other agent modules: https://registry.coder.com/modules?search=agent
@@ -81,7 +83,7 @@ module "claude-code" {
   claude_code_version = "1.0.82" # Pin to a specific version
   agentapi_version    = "v0.6.1"
 
-  ai_prompt = coder_task.task.prompt
+  ai_prompt = data.coder_task.me.prompt
   model     = "sonnet"
 
   # Optional: run your pre-flight script
@@ -117,64 +119,11 @@ Because Tasks run unpredictable AI agents, often for background tasks, we recomm
 
 Alternatively, follow our guide for [custom agents](./custom-agents.md).
 
-## Migrating Task Templates for Coder version 2.28.0
-
-Prior to Coder version 2.28.0, the definition of a Coder task was different to the above. It required the following to be defined in the template:
-
-1. A Coder parameter specifically named `"AI Prompt"`,
-2. A `coder_workspace_app` that runs the `coder/agentapi` binary,
-3. A `coder_ai_task` resource in the template that sets `sidebar_app.id`. This was generally defined in Coder modules specific to AI Tasks.
-
-Note that 2 and 3 were generally handled by the `coder/agentapi` Terraform module.
-
-The pre-2.28.0 definition will be supported until the release of 2.29.0. You will need to update your Tasks-enabled templates to continue using Tasks after this release.
-
-You can view an [example here](https://github.com/coder/coder/pull/20426). Alternatively, follow the steps below:
-
-1. Update the Coder Terraform provider to at least version 2.12.0:
-
-```diff
-terraform {
-  required_providers {
-    coder = {
-      source = "coder/coder"
--      version = "x.y.z"
-+      version = ">= 2.12"
-    }
-  }
-}
-```
-
-1. Define a `coder_ai_task` resource in your template:
-
-```diff
-+resource "coder_ai_task" "task" {}
-```
-
-1. Update the version of the respective AI agent module (e.g. `claude-code`) to at least 4.0.0 and provide the prompt from `coder_ai_task.prompt` instead of the "AI Prompt" parameter:
-
-```diff
-module "claude-code" {
-  source              = "registry.coder.com/coder/claude-code/coder"
--  version             = "4.0.0"
-+  version             = "4.0.0"
-    ...
--  ai_prompt           = data.coder_parameter.ai_prompt.value
-+  ai_prompt           = coder_ai_task.task.prompt
-}
-```
-
-1. Add the `coder_ai_task` resource and set `app_id` to the `task_app_id` output of the module:
-
-```diff
-resource "coder_ai_task" "task" {
-+ app_id = module.claude-code.task_app_id
-}
-```
+> [!IMPORTANT] Upgrading from Coder v2.27 or earlier? See the [Tasks Migration Guide](./tasks-migration.md) for breaking changes in v2.28.0.
 
 ## Customizing the Task UI
 
-The Task UI displays all workspace apps declared in a Task template. You can customize the app shown in the sidebar using the `sidebar_app.id` field on the `coder_ai_task` resource.
+The Task UI displays all workspace apps declared in a Task template. You can customize the app shown in the sidebar using the `app_id` field on the `coder_ai_task` resource.
 
 If a workspace app has the special `"preview"` slug, a navbar will appear above it. This is intended for templates that let users preview a web app they’re working on.
 
