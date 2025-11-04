@@ -928,7 +928,7 @@
 					"children": [
 						{
 							"title": "Setup",
-							"description": "How to set up and configure AI Bridge.",
+							"description": "How to set up and configure AI Bridge",
 							"path": "./ai-coder/ai-bridge/setup.md"
 						},
 						{
