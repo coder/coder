@@ -933,7 +933,7 @@
 						},
 						{
 							"title": "Client Configuration",
-							"description": "How to configure your AI coding tools to use AI Bridge.",
+							"description": "How to configure your AI coding tools to use AI Bridge",
 							"path": "./ai-coder/ai-bridge/client-config.md"
 						},
 						{
