@@ -23,11 +23,12 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
+import { useClickableTableRow } from "hooks";
 import { RotateCcwIcon, TrashIcon } from "lucide-react";
 import { TaskDeleteDialog } from "modules/tasks/TaskDeleteDialog/TaskDeleteDialog";
 import { TaskStatus } from "modules/tasks/TaskStatus/TaskStatus";
 import { type FC, type ReactNode, useState } from "react";
-import { Link as RouterLink } from "react-router";
+import { useNavigate } from "react-router";
 import { relativeTime } from "utils/time";
 
 type TasksTableProps = {
@@ -116,24 +117,22 @@ type TaskRowProps = { task: Task };
 const TaskRow: FC<TaskRowProps> = ({ task }) => {
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 	const templateDisplayName = task.template_display_name ?? task.template_name;
+	const navigate = useNavigate();
+
+	const taskPageLink = `/tasks/${task.owner_name}/${task.id}`;
+	const clickableProps = useClickableTableRow({
+		onClick: () => navigate(taskPageLink),
+	});
 
 	return (
 		<>
-			<TableRow className="relative" hover>
+			<TableRow {...clickableProps}>
 				<TableCell>
 					<AvatarData
 						title={
-							<>
-								<span className="block max-w-[520px] overflow-hidden text-ellipsis whitespace-nowrap">
-									{task.initial_prompt}
-								</span>
-								<RouterLink
-									to={`/tasks/${task.owner_name}/${task.id}`}
-									className="absolute inset-0"
-								>
-									<span className="sr-only">Access task</span>
-								</RouterLink>
-							</>
+							<span className="block max-w-[520px] overflow-hidden text-ellipsis whitespace-nowrap">
+								{task.initial_prompt}
+							</span>
 						}
 						subtitle={templateDisplayName}
 						avatar={
@@ -171,8 +170,10 @@ const TaskRow: FC<TaskRowProps> = ({ task }) => {
 								<Button
 									size="icon"
 									variant="outline"
-									className="relative z-50"
-									onClick={() => setIsDeleteDialogOpen(true)}
+									onClick={(e) => {
+										e.stopPropagation();
+										setIsDeleteDialogOpen(true);
+									}}
 								>
 									<span className="sr-only">Delete task</span>
 									<TrashIcon />
