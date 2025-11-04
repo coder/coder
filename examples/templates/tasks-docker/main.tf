@@ -14,12 +14,11 @@ terraform {
 # However, you can reference our Kubernetes/VM
 # example templates and adapt the Claude Code module
 #
-# see: https://registry.coder.com/templates
+# See: https://registry.coder.com/templates
 provider "docker" {}
 
-# A Coder Task resource stores the prompt sent to the task
-# and enables us to store the coder_workspace_app associated
-# with the task.
+# A `coder_ai_task` resource enables Tasks and associates
+# the task with the coder_app that will act as an AI agent.
 resource "coder_ai_task" "task" {
   count  = data.coder_workspace.me.start_count
   app_id = module.claude-code[count.index].task_app_id
