@@ -943,7 +943,7 @@
 						},
 						{
 							"title": "Monitoring",
-							"description": "How to monitor AI Bridge.",
+							"description": "How to monitor AI Bridge",
 							"path": "./ai-coder/ai-bridge/monitoring.md"
 						},
 						{
