@@ -24,7 +24,12 @@ type RequireAuthProps = Readonly<{
 
 const RedirectToLandingPage = () => {
 	useEffect(() => {
-		window.location.href = process.env.REDIRECT_PATH;
+		if (
+			import.meta.env.VITE_REDIRECT_PATH &&
+			typeof import.meta.env.VITE_REDIRECT_PATH === "string"
+		) {
+			window.location.href = import.meta.env.VITE_REDIRECT_PATH;
+		}
 	}, []);
 	return <Loader fullscreen />;
 };
