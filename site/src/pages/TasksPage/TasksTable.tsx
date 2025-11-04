@@ -120,7 +120,8 @@ const TaskRow: FC<TaskRowProps> = ({ task }) => {
 	const navigate = useNavigate();
 
 	const taskPageLink = `/tasks/${task.owner_name}/${task.id}`;
-	const clickableRowProps = useClickableTableRow({
+	// Discard role, breaks Chromatic.
+	const { role, ...clickableRowProps } = useClickableTableRow({
 		onClick: () => navigate(taskPageLink),
 	});
 
