@@ -69,7 +69,7 @@ data "coder_parameter" "setup_script" {
   default      = ""
 }
 
-data "coder_ai_task_prompt" "me" {}
+data "coder_task" "me" {}
 
 resource "coder_ai_task" "task" {
   app_id = module.claude-code.task_app_id
@@ -91,7 +91,7 @@ module "claude-code" {
   claude_code_version = "1.0.82" # Pin to a specific version
   agentapi_version    = "v0.6.1"
 
-  ai_prompt = data.coder_parameter.ai_prompt.value
+  ai_prompt = data.coder_task.me.prompt
   model     = "sonnet"
 
   # Optional: run your pre-flight script
@@ -141,10 +141,12 @@ Read more about [custom agents here](https://coder.com/docs/ai-coder/custom-agen
 
 Coder recommends using pre-existing agent modules when making a Task Template. Making a Task Template boils down to:
 
-1. Identify the existing agent you want access to in our [Registry](https://registry.coder.com/modules)
-1. Add the agent's module to your existing template
-1. Define the module's required inputs
-1. Define the `coder_ai_task` resource.
+1. Identify the existing agent you want access to in our [Registry](https://registry.coder.com/modules).
+1. Add the agent's module to your existing template.
+1. Define the `coder_ai_task` resource and `coder_task` data source.
+1. Wire in the module's inputs and outputs:
+    - Pass the prompt from the `coder_task` data source into the module.
+    - Pass the module's `task_app_id` output into the `coder_ai_task` resource.
 
 and you're all set to go! If you want to build your own custom agent, read up on our [Custom Agents](https://coder.com/docs/ai-coder/custom-agents) documentation.
 

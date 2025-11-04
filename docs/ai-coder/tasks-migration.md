@@ -60,7 +60,8 @@ resource "coder_ai_task" "task" {
 
 ## Coder Tasks format pre-2.28
 
-Below is a minimal illustrative example of a Coder Tasks template pre-2.28.0:
+Below is a minimal illustrative example of a Coder Tasks template pre-2.28.0.
+**Note that this is NOT a full template.**
 
 ```hcl
 terraform {
@@ -108,7 +109,7 @@ resource "coder_ai_task" "task" {
 }
 ```
 
-## Tasks format post-2.28
+## Tasks format from 2.28 onwards
 
 In v2.28 and above, the following changes were made:
 
@@ -116,7 +117,7 @@ In v2.28 and above, the following changes were made:
 - Modules no longer define the `coder_ai_task` resource. These must be defined explicitly in the template.
 - The `sidebar_app` field of the `coder_ai_task` resource is now deprecated. In its place, use `app_id`.
 
-Example:
+Example (**not** a full template):
 
 ```hcl
 terraform {
