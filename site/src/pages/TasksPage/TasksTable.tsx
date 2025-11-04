@@ -120,13 +120,17 @@ const TaskRow: FC<TaskRowProps> = ({ task }) => {
 	const navigate = useNavigate();
 
 	const taskPageLink = `/tasks/${task.owner_name}/${task.id}`;
-	const { role, hover, ...clickableProps } = useClickableTableRow({
+	const clickableRowProps = useClickableTableRow({
 		onClick: () => navigate(taskPageLink),
 	});
 
 	return (
 		<>
-			<TableRow {...clickableProps}>
+			<TableRow
+				key={task.id}
+				data-testid={`task-${task.id}`}
+				{...clickableRowProps}
+			>
 				<TableCell>
 					<AvatarData
 						title={
