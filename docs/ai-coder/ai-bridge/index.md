@@ -30,7 +30,3 @@ If you are an administrator or devops leader looking to:
 
 We advise trying AI Bridge as self-hosted proxy to monitor LLM usage agnostically across AI powered IDEs like Cursor and headless agents like Claude Code.
 
-## Known Issues
-
-- GPT-5 Codex currently does not work with AI Bridge due to missing `v1/responses` endpoint: https://github.com/coder/aibridge/issues/16
-- Claude Code web searches do not report correctly: https://github.com/coder/aibridge/issues/11
