@@ -212,10 +212,20 @@ func TestTasks(t *testing.T) {
 		assert.Equal(t, taskAppID, updated.WorkspaceAppID.UUID, "workspace app id should match")
 		assert.NotEmpty(t, updated.WorkspaceStatus, "task status should not be empty")
 
+		// Fetch the task by name and verify the same result
+		byName, err := exp.TaskByOwnerAndName(ctx, codersdk.Me, task.Name)
+		require.NoError(t, err)
+		require.Equal(t, byName, updated)
+
 		// Another member user should not be able to fetch the task
 		_, err = codersdk.NewExperimentalClient(anotherUser).TaskByID(ctx, task.ID)
-		require.Error(t, err, "fetching task should fail for another member user")
+		require.Error(t, err, "fetching task should fail by ID for another member user")
 		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+		// Also test by name
+		_, err = codersdk.NewExperimentalClient(anotherUser).TaskByOwnerAndName(ctx, task.OwnerName, task.Name)
+		require.Error(t, err, "fetching task should fail by name for another member user")
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 
@@ -662,7 +672,7 @@ func TestTasks(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 
 		// Fetch the task by ID via experimental API and verify fields.
-		task, err = exp.TaskByID(ctx, task.ID)
+		task, err = exp.TaskByIdentifier(ctx, task.ID.String())
 		require.NoError(t, err)
 		require.NotZero(t, task.WorkspaceBuildNumber)
 		require.True(t, task.WorkspaceAgentID.Valid)
