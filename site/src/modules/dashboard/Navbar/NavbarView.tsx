@@ -48,7 +48,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
   const LogoHEaaNDark = "/favicons/heaan-dark.svg";
   const LogoHEaaNLight = "/favicons/heaan-light.svg";
 
-	const landingURL = "https://heaan.io";
+	const landingURL = "https://heaan.click";
 
 	return (
 		<div className="border-0 border-b border-solid h-[72px] flex items-center leading-none px-6">
