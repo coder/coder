@@ -218,13 +218,14 @@ func TestTasks(t *testing.T) {
 		require.Equal(t, byName, updated)
 
 		// Another member user should not be able to fetch the task
-		_, err = codersdk.NewExperimentalClient(anotherUser).TaskByID(ctx, task.ID)
+		otherClient := codersdk.NewExperimentalClient(anotherUser)
+		_, err = otherClient.TaskByID(ctx, task.ID)
 		require.Error(t, err, "fetching task should fail by ID for another member user")
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 		// Also test by name
-		_, err = codersdk.NewExperimentalClient(anotherUser).TaskByOwnerAndName(ctx, task.OwnerName, task.Name)
+		_, err = otherClient.TaskByOwnerAndName(ctx, task.OwnerName, task.Name)
 		require.Error(t, err, "fetching task should fail by name for another member user")
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
