@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = ">= 2.12.0"
+      version = ">= 2.13.0"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -37,7 +37,6 @@ locals {
   repo_base_dir  = data.coder_parameter.repo_base_dir.value == "~" ? "/home/coder" : replace(data.coder_parameter.repo_base_dir.value, "/^~\\//", "/home/coder/")
   repo_dir       = replace(try(module.git-clone[0].repo_dir, ""), "/^~\\//", "/home/coder/")
   container_name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
-  has_ai_prompt  = data.coder_parameter.ai_prompt.value != ""
 }
 
 data "coder_workspace_preset" "cpt" {
@@ -218,14 +217,6 @@ data "coder_parameter" "devcontainer_autostart" {
   mutable     = true
 }
 
-data "coder_parameter" "ai_prompt" {
-  type        = "string"
-  name        = "AI Prompt"
-  default     = ""
-  description = "Prompt for Claude Code"
-  mutable     = true // Workaround for issue with claiming a prebuild from a preset that does not include this parameter.
-}
-
 provider "docker" {
   host = lookup(local.docker_host, data.coder_parameter.region.value)
 }
@@ -238,6 +229,7 @@ data "coder_external_auth" "github" {
 
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
+data "coder_task" "me" {}
 data "coder_workspace_tags" "tags" {
   tags = {
     "cluster" : "dogfood-v2"
@@ -790,7 +782,7 @@ resource "coder_metadata" "container_info" {
   }
   item {
     key   = "ai_task"
-    value = local.has_ai_prompt ? "yes" : "no"
+    value = data.coder_task.me.enabled ? "yes" : "no"
   }
 }
 
@@ -824,9 +816,9 @@ locals {
 }
 
 module "claude-code" {
-  count               = local.has_ai_prompt ? data.coder_workspace.me.start_count : 0
+  count               = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
   source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = "3.4.4"
+  version             = "4.0.0"
   agent_id            = coder_agent.dev.id
   workdir             = local.repo_dir
   claude_code_version = "latest"
@@ -835,15 +827,20 @@ module "claude-code" {
   agentapi_version    = "latest"
 
   system_prompt       = local.claude_system_prompt
-  ai_prompt           = data.coder_parameter.ai_prompt.value
+  ai_prompt           = data.coder_task.me.prompt
   post_install_script = <<-EOT
     claude mcp add playwright npx -- @playwright/mcp@latest --headless --isolated --no-sandbox
     claude mcp add desktop-commander npx -- @wonderwhy-er/desktop-commander@latest
   EOT
 }
 
+resource "coder_ai_task" "task" {
+  count  = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
+  app_id = module.claude-code[count.index].task_app_id
+}
+
 resource "coder_app" "develop_sh" {
-  count        = local.has_ai_prompt ? data.coder_workspace.me.start_count : 0
+  count        = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
   agent_id     = coder_agent.dev.id
   slug         = "develop-sh"
   display_name = "develop.sh"
@@ -856,7 +853,7 @@ resource "coder_app" "develop_sh" {
 }
 
 resource "coder_script" "develop_sh" {
-  count              = local.has_ai_prompt ? data.coder_workspace.me.start_count : 0
+  count              = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
   display_name       = "develop.sh"
   agent_id           = coder_agent.dev.id
   run_on_start       = true
@@ -879,7 +876,7 @@ resource "coder_script" "develop_sh" {
 }
 
 resource "coder_app" "preview" {
-  count        = local.has_ai_prompt ? data.coder_workspace.me.start_count : 0
+  count        = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
   agent_id     = coder_agent.dev.id
   slug         = "preview"
   display_name = "Preview"
