@@ -56,19 +56,14 @@ func TestExpTaskDelete(t *testing.T) {
 				taskID := uuid.MustParse(id1)
 				return func(w http.ResponseWriter, r *http.Request) {
 					switch {
-					case r.Method == http.MethodGet && r.URL.Path == "/api/experimental/tasks" && r.URL.Query().Get("q") == "owner:\"me\"":
+					case r.Method == http.MethodGet && r.URL.Path == "/api/experimental/tasks/me/exists":
 						c.nameResolves.Add(1)
-						httpapi.Write(r.Context(), w, http.StatusOK, struct {
-							Tasks []codersdk.Task `json:"tasks"`
-							Count int             `json:"count"`
-						}{
-							Tasks: []codersdk.Task{{
+						httpapi.Write(r.Context(), w, http.StatusOK,
+							codersdk.Task{
 								ID:        taskID,
 								Name:      "exists",
 								OwnerName: "me",
-							}},
-							Count: 1,
-						})
+							})
 					case r.Method == http.MethodDelete && r.URL.Path == "/api/experimental/tasks/me/"+id1:
 						c.deleteCalls.Add(1)
 						w.WriteHeader(http.StatusAccepted)
@@ -107,27 +102,21 @@ func TestExpTaskDelete(t *testing.T) {
 			name: "Multiple_YesFlag",
 			args: []string{"--yes", "first", id4},
 			buildHandler: func(c *testCounters) http.HandlerFunc {
-				firstID := uuid.MustParse(id3)
 				return func(w http.ResponseWriter, r *http.Request) {
 					switch {
-					case r.Method == http.MethodGet && r.URL.Path == "/api/experimental/tasks" && r.URL.Query().Get("q") == "owner:\"me\"":
+					case r.Method == http.MethodGet && r.URL.Path == "/api/experimental/tasks/me/first":
 						c.nameResolves.Add(1)
-						httpapi.Write(r.Context(), w, http.StatusOK, struct {
-							Tasks []codersdk.Task `json:"tasks"`
-							Count int             `json:"count"`
-						}{
-							Tasks: []codersdk.Task{{
-								ID:        firstID,
-								Name:      "first",
-								OwnerName: "me",
-							}},
-							Count: 1,
+						httpapi.Write(r.Context(), w, http.StatusOK, codersdk.Task{
+							ID:        uuid.MustParse(id3),
+							Name:      "first",
+							OwnerName: "me",
 						})
 					case r.Method == http.MethodGet && r.URL.Path == "/api/experimental/tasks/me/"+id4:
+						c.nameResolves.Add(1)
 						httpapi.Write(r.Context(), w, http.StatusOK, codersdk.Task{
 							ID:        uuid.MustParse(id4),
 							OwnerName: "me",
-							Name:      "uuid-task-2",
+							Name:      "uuid-task-4",
 						})
 					case r.Method == http.MethodDelete && r.URL.Path == "/api/experimental/tasks/me/"+id3:
 						c.deleteCalls.Add(1)
@@ -141,7 +130,7 @@ func TestExpTaskDelete(t *testing.T) {
 				}
 			},
 			wantDeleteCalls:    2,
-			wantNameResolves:   1,
+			wantNameResolves:   2,
 			wantDeletedMessage: 2,
 		},
 		{
@@ -174,20 +163,14 @@ func TestExpTaskDelete(t *testing.T) {
 				taskID := uuid.MustParse(id5)
 				return func(w http.ResponseWriter, r *http.Request) {
 					switch {
-					case r.Method == http.MethodGet && r.URL.Path == "/api/experimental/tasks" && r.URL.Query().Get("q") == "owner:\"me\"":
+					case r.Method == http.MethodGet && r.URL.Path == "/api/experimental/tasks/me/bad":
 						c.nameResolves.Add(1)
-						httpapi.Write(r.Context(), w, http.StatusOK, struct {
-							Tasks []codersdk.Task `json:"tasks"`
-							Count int             `json:"count"`
-						}{
-							Tasks: []codersdk.Task{{
-								ID:        taskID,
-								Name:      "bad",
-								OwnerName: "me",
-							}},
-							Count: 1,
+						httpapi.Write(r.Context(), w, http.StatusOK, codersdk.Task{
+							ID:        taskID,
+							Name:      "bad",
+							OwnerName: "me",
 						})
-					case r.Method == http.MethodDelete && r.URL.Path == "/api/experimental/tasks/me/"+id5:
+					case r.Method == http.MethodDelete && r.URL.Path == "/api/experimental/tasks/me/bad":
 						httpapi.InternalServerError(w, xerrors.New("boom"))
 					default:
 						httpapi.InternalServerError(w, xerrors.New("unwanted path: "+r.Method+" "+r.URL.Path))
