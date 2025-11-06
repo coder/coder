@@ -2375,6 +2375,17 @@ func (s *MethodTestSuite) TestTasks() {
 		dbm.EXPECT().GetTaskByID(gomock.Any(), task.ID).Return(task, nil).AnyTimes()
 		check.Args(task.ID).Asserts(task, policy.ActionRead).Returns(task)
 	}))
+	s.Run("GetTaskByOwnerIDAndName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		task := testutil.Fake(s.T(), faker, database.Task{})
+		dbm.EXPECT().GetTaskByOwnerIDAndName(gomock.Any(), database.GetTaskByOwnerIDAndNameParams{
+			OwnerID: task.OwnerID,
+			Name:    task.Name,
+		}).Return(task, nil).AnyTimes()
+		check.Args(database.GetTaskByOwnerIDAndNameParams{
+			OwnerID: task.OwnerID,
+			Name:    task.Name,
+		}).Asserts(task, policy.ActionRead).Returns(task)
+	}))
 	s.Run("DeleteTask", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		task := testutil.Fake(s.T(), faker, database.Task{})
 		arg := database.DeleteTaskParams{
