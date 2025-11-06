@@ -189,7 +189,6 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 			Bool:  true,
 			Valid: true,
 		}
-		b.seed.AITaskSidebarAppID = uuid.NullUUID{UUID: b.taskAppID, Valid: true}
 	}
 
 	resp := WorkspaceResponse{
