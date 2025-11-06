@@ -2,7 +2,7 @@ terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
-      version = ">= 2.12.0"
+      version = ">= 2.13.0"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -827,7 +827,7 @@ module "claude-code" {
   agentapi_version    = "latest"
 
   system_prompt       = local.claude_system_prompt
-  ai_prompt           = data.coder_task.me.value
+  ai_prompt           = data.coder_task.me.prompt
   post_install_script = <<-EOT
     claude mcp add playwright npx -- @playwright/mcp@latest --headless --isolated --no-sandbox
     claude mcp add desktop-commander npx -- @wonderwhy-er/desktop-commander@latest
