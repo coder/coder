@@ -352,6 +352,15 @@ module "personalize" {
   agent_id = coder_agent.dev.id
 }
 
+module "cmux" {
+  count    = data.coder_workspace.me.start_count
+  source   = "registry.coder.com/coder/cmux/coder"
+  version  = "1.0.0"
+  icon = "/icon/cmux.svg"
+  agent_id = coder_agent.dev.id
+  subdomain = true
+}
+
 module "code-server" {
   count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "code-server") ? data.coder_workspace.me.start_count : 0
   source                  = "dev.registry.coder.com/coder/code-server/coder"
