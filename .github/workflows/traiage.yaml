@@ -166,7 +166,6 @@ jobs:
 
       - name: Create Coder Task
         id: create_task
-        # TODO: remove manual vendoring when repo is public
         uses: ./.github/actions/create-task-action
         with:
           coder-url: ${{ secrets.TRAIAGE_CODER_URL }}
