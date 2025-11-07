@@ -9971,7 +9971,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
   },
   "latest_build": {
-    "ai_task_sidebar_app_id": "852ddafb-2cb9-4cbf-8a8c-075389fb3d3d",
     "build_number": 0,
     "created_at": "2019-08-24T14:15:22Z",
     "daily_cost": 0,
@@ -11145,7 +11144,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "ai_task_sidebar_app_id": "852ddafb-2cb9-4cbf-8a8c-075389fb3d3d",
   "build_number": 0,
   "created_at": "2019-08-24T14:15:22Z",
   "daily_cost": 0,
@@ -11357,7 +11355,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 | Name                         | Type                                                              | Required | Restrictions | Description                                                         |
 |------------------------------|-------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------|
-| `ai_task_sidebar_app_id`     | string                                                            | false    |              | Deprecated: This field has been replaced with `Task.WorkspaceAppID` |
 | `build_number`               | integer                                                           | false    |              |                                                                     |
 | `created_at`                 | string                                                            | false    |              |                                                                     |
 | `daily_cost`                 | integer                                                           | false    |              |                                                                     |
@@ -11984,7 +11981,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
       },
       "latest_build": {
-        "ai_task_sidebar_app_id": "852ddafb-2cb9-4cbf-8a8c-075389fb3d3d",
         "build_number": 0,
         "created_at": "2019-08-24T14:15:22Z",
         "daily_cost": 0,

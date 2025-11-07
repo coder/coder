@@ -2161,7 +2161,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 		})
 		res := testutil.Fake(s.T(), faker, database.WorkspaceResource{JobID: b.JobID})
 		agt := testutil.Fake(s.T(), faker, database.WorkspaceAgent{ResourceID: res.ID})
-		app := testutil.Fake(s.T(), faker, database.WorkspaceApp{AgentID: agt.ID})
+		_ = testutil.Fake(s.T(), faker, database.WorkspaceApp{AgentID: agt.ID})
 
 		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), w.ID).Return(w, nil).AnyTimes()
 		dbm.EXPECT().GetWorkspaceBuildByID(gomock.Any(), b.ID).Return(b, nil).AnyTimes()
@@ -2170,7 +2170,6 @@ func (s *MethodTestSuite) TestWorkspace() {
 			ID:               b.ID,
 			HasAITask:        sql.NullBool{Bool: true, Valid: true},
 			HasExternalAgent: sql.NullBool{Bool: true, Valid: true},
-			SidebarAppID:     uuid.NullUUID{UUID: app.ID, Valid: true},
 			UpdatedAt:        b.UpdatedAt,
 		}).Asserts(w, policy.ActionUpdate)
 	}))

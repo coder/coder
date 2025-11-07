@@ -2123,7 +2123,6 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 				Bool:  hasAITask,
 				Valid: true,
 			},
-			SidebarAppID: taskAppID, // SidebarAppID is not required, but kept for API backwards compatibility.
 			HasExternalAgent: sql.NullBool{
 				Bool:  hasExternalAgent,
 				Valid: true,
