@@ -4732,12 +4732,11 @@ func TestWorkspaceFilterHasAITask(t *testing.T) {
 		agnt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res.ID})
 		taskApp := dbgen.WorkspaceApp(t, db, database.WorkspaceApp{AgentID: agnt.ID})
 		build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-			WorkspaceID:        ws.ID,
-			TemplateVersionID:  version.ID,
-			InitiatorID:        user.UserID,
-			JobID:              job.ID,
-			BuildNumber:        1,
-			AITaskSidebarAppID: uuid.NullUUID{UUID: taskApp.ID, Valid: createTask},
+			WorkspaceID:       ws.ID,
+			TemplateVersionID: version.ID,
+			InitiatorID:       user.UserID,
+			JobID:             job.ID,
+			BuildNumber:       1,
 		})
 
 		if createTask {

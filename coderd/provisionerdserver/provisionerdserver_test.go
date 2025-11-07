@@ -3134,7 +3134,6 @@ func TestCompleteJob(t *testing.T) {
 					}
 
 					require.Equal(t, tc.expectAppID, task.WorkspaceAppID)
-					require.Equal(t, tc.expectAppID, build.AITaskSidebarAppID)
 
 					if tc.expectUsageEvent {
 						// Check that a usage event was collected.
@@ -4448,19 +4447,18 @@ func seedPreviousWorkspaceStartWithAITask(ctx context.Context, t testing.TB, db 
 	agt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
 		ResourceID: res.ID,
 	})
-	wa := dbgen.WorkspaceApp(t, db, database.WorkspaceApp{
+	_ = dbgen.WorkspaceApp(t, db, database.WorkspaceApp{
 		AgentID: agt.ID,
 	})
 	_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-		BuildNumber:        1,
-		HasAITask:          sql.NullBool{Valid: true, Bool: true},
-		AITaskSidebarAppID: uuid.NullUUID{Valid: true, UUID: wa.ID},
-		ID:                 w.ID,
-		InitiatorID:        w.OwnerID,
-		JobID:              prevJob.ID,
-		TemplateVersionID:  tvs[0].ID,
-		Transition:         database.WorkspaceTransitionStart,
-		WorkspaceID:        w.ID,
+		BuildNumber:       1,
+		HasAITask:         sql.NullBool{Valid: true, Bool: true},
+		ID:                w.ID,
+		InitiatorID:       w.OwnerID,
+		JobID:             prevJob.ID,
+		TemplateVersionID: tvs[0].ID,
+		Transition:        database.WorkspaceTransitionStart,
+		WorkspaceID:       w.ID,
 	})
 	return nil
 }

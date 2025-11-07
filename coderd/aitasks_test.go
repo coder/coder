@@ -156,12 +156,13 @@ func TestTasks(t *testing.T) {
 		t.Parallel()
 
 		var (
-			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-			ctx        = testutil.Context(t, testutil.WaitLong)
-			user       = coderdtest.CreateFirstUser(t, client)
-			template   = createAITemplate(t, client, user)
-			wantPrompt = "review my code"
-			exp        = codersdk.NewExperimentalClient(client)
+			client, db     = coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			ctx            = testutil.Context(t, testutil.WaitLong)
+			user           = coderdtest.CreateFirstUser(t, client)
+			anotherUser, _ = coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+			template       = createAITemplate(t, client, user)
+			wantPrompt     = "review my code"
+			exp            = codersdk.NewExperimentalClient(client)
 		)
 
 		task, err := exp.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
@@ -210,6 +211,24 @@ func TestTasks(t *testing.T) {
 		assert.Equal(t, agentID, updated.WorkspaceAgentID.UUID, "workspace agent id should match")
 		assert.Equal(t, taskAppID, updated.WorkspaceAppID.UUID, "workspace app id should match")
 		assert.NotEmpty(t, updated.WorkspaceStatus, "task status should not be empty")
+
+		// Fetch the task by name and verify the same result
+		byName, err := exp.TaskByOwnerAndName(ctx, codersdk.Me, task.Name)
+		require.NoError(t, err)
+		require.Equal(t, byName, updated)
+
+		// Another member user should not be able to fetch the task
+		otherClient := codersdk.NewExperimentalClient(anotherUser)
+		_, err = otherClient.TaskByID(ctx, task.ID)
+		require.Error(t, err, "fetching task should fail by ID for another member user")
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+		// Also test by name
+		_, err = otherClient.TaskByOwnerAndName(ctx, task.OwnerName, task.Name)
+		require.Error(t, err, "fetching task should fail by name for another member user")
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 
 		// Stop the workspace
 		coderdtest.MustTransitionWorkspace(t, client, task.WorkspaceID.UUID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
@@ -654,7 +673,7 @@ func TestTasks(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 
 		// Fetch the task by ID via experimental API and verify fields.
-		task, err = exp.TaskByID(ctx, task.ID)
+		task, err = exp.TaskByIdentifier(ctx, task.ID.String())
 		require.NoError(t, err)
 		require.NotZero(t, task.WorkspaceBuildNumber)
 		require.True(t, task.WorkspaceAgentID.Valid)
