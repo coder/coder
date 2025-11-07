@@ -86,6 +86,7 @@ type ExtractAPIKeyConfig struct {
 	OAuth2Configs               *OAuth2Configs
 	RedirectToLogin             bool
 	DisableSessionExpiryRefresh bool
+	SecureAuthCookie            bool
 
 	// Optional governs whether the API key is optional. Use this if you want to
 	// allow unauthenticated requests.
@@ -200,10 +201,30 @@ func APIKeyFromRequest(ctx context.Context, db database.Store, sessionTokenFunc 
 // nolint:revive
 func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyConfig) (*database.APIKey, *rbac.Subject, bool) {
 	ctx := r.Context()
+
+	clearSessionCookie := func() {
+		cookie, err := r.Cookie(codersdk.SessionTokenCookie)
+		if err == nil && cookie != nil {
+			http.SetCookie(rw, &http.Cookie{
+				Name:     codersdk.SessionTokenCookie,
+				Value:    "",
+				Path:     "/",
+				HttpOnly: true,
+				SameSite: http.SameSiteLaxMode,
+				Secure:   cfg.SecureAuthCookie,
+				MaxAge:   -1,
+			})
+		}
+	}
+
 	// Write wraps writing a response to redirect if the handler
 	// specified it should. This redirect is used for user-facing pages
 	// like workspace applications.
 	write := func(code int, response codersdk.Response) (*database.APIKey, *rbac.Subject, bool) {
+		if code == http.StatusUnauthorized {
+			clearSessionCookie()
+		}
+
 		if cfg.RedirectToLogin {
 			RedirectToLogin(rw, r, nil, response.Message)
 			return nil, nil, false

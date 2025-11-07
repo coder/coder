@@ -21,6 +21,19 @@ type RequireAuthProps = Readonly<{
  * props at all. But to make testing easier, you can call this component with
  * specific providers to mock them out.
  */
+
+const RedirectToLandingPage = () => {
+	useEffect(() => {
+		if (
+			import.meta.env.VITE_REDIRECT_PATH &&
+			typeof import.meta.env.VITE_REDIRECT_PATH === "string"
+		) {
+			window.location.href = import.meta.env.VITE_REDIRECT_PATH;
+		}
+	}, []);
+	return <Loader fullscreen />;
+};
+
 export const RequireAuth: FC<RequireAuthProps> = ({
 	DashboardProvider = ProductionDashboardProvider,
 	ProxyProvider = ProductionProxyProvider,
@@ -61,18 +74,9 @@ export const RequireAuth: FC<RequireAuthProps> = ({
 	}
 
 	if (isSignedOut) {
-		const isHomePage = location.pathname === "/";
-		const navigateTo = isHomePage
-			? "/login"
-			: embedRedirect(`${location.pathname}${location.search}`);
-
-		return (
-			<Navigate to={navigateTo} state={{ isRedirect: !isHomePage }} replace />
-		);
+		return <RedirectToLandingPage />;
 	}
 
-	// Authenticated pages have access to some contexts for knowing enabled experiments
-	// and where to route workspace connections.
 	return (
 		<DashboardProvider>
 			<ProxyProvider>

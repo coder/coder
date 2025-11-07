@@ -737,6 +737,7 @@ func New(options *Options) *API {
 		OAuth2Configs:                 oauthConfigs,
 		RedirectToLogin:               false,
 		DisableSessionExpiryRefresh:   options.DeploymentValues.Sessions.DisableExpiryRefresh.Value(),
+		SecureAuthCookie:              options.DeploymentValues.SecureAuthCookie.Value(),
 		Optional:                      false,
 		SessionTokenFunc:              nil, // Default behavior
 		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
@@ -747,6 +748,7 @@ func New(options *Options) *API {
 		OAuth2Configs:                 oauthConfigs,
 		RedirectToLogin:               true,
 		DisableSessionExpiryRefresh:   options.DeploymentValues.Sessions.DisableExpiryRefresh.Value(),
+		SecureAuthCookie:              options.DeploymentValues.SecureAuthCookie.Value(),
 		Optional:                      false,
 		SessionTokenFunc:              nil, // Default behavior
 		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
@@ -757,6 +759,7 @@ func New(options *Options) *API {
 		OAuth2Configs:                 oauthConfigs,
 		RedirectToLogin:               false,
 		DisableSessionExpiryRefresh:   options.DeploymentValues.Sessions.DisableExpiryRefresh.Value(),
+		SecureAuthCookie:              options.DeploymentValues.SecureAuthCookie.Value(),
 		Optional:                      true,
 		SessionTokenFunc:              nil, // Default behavior
 		PostAuthAdditionalHeadersFunc: options.PostAuthAdditionalHeadersFunc,
