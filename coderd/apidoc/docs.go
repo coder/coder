@@ -20529,11 +20529,6 @@ const docTemplate = `{
         "codersdk.WorkspaceBuild": {
             "type": "object",
             "properties": {
-                "ai_task_sidebar_app_id": {
-                    "description": "Deprecated: This field has been replaced with ` + "`" + `Task.WorkspaceAppID` + "`" + `",
-                    "type": "string",
-                    "format": "uuid"
-                },
                 "build_number": {
                     "type": "integer"
                 },
