@@ -18,7 +18,7 @@ AI Bridge solves 3 key problems:
 
 ## When to use AI Bridge
 
-As the library of LLMs and their associated tools grow, administrators are pressured to provide auditing, measure adoption, provide tools through MCP, and track token spend. Disparate SAAS platforms provide _some_ of these for _some_ tools, but there is no centralized, secure solution for these challenges.
+As LLM adoption grows, administrators need centralized auditing, monitoring, and token management. AI Bridge enables organizations to manage AI tooling access for thousands of engineers from a single control plane.
 
 If you are an administrator or devops leader looking to:
 
