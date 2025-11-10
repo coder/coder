@@ -322,9 +322,10 @@ their needs.
 
 ![Template with options in the preset dropdown](../../../images/admin/templates/extend-templates/template-preset-dropdown.png)
 
-Use `coder_workspace_preset` to define the preset parameters.
-After you save the template file, the presets will be available for all new
-workspace deployments.
+Use the
+[`coder_workspace_preset`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_preset)
+data source to define the preset parameters. After you save the template file,
+the presets will be available for all new workspace deployments.
 
 ### Optional preset fields
 
@@ -337,6 +338,9 @@ workspace presets with optional `description` and `icon` fields:
 - **icon**: A visual icon displayed alongside the preset name in the UI. Use
   emoji icons with the format `/emojis/{code}.png` (e.g.,
   `/emojis/1f1fa-1f1f8.png` for the US flag emoji 🇺🇸).
+
+For a complete list of all available fields, see the
+[Terraform provider documentation](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_preset#schema).
 
 <details><summary>Expand for an example</summary>
 
