@@ -26,7 +26,7 @@ AI Bridge proxies requests to upstream LLM APIs. Configure at least one provider
 
 ### OpenAI
 
-Set the following when routing OpenAI-compatible traffic through AI Bridge:
+Set the following when routing [OpenAI-compatible](https://coder.com/docs/reference/cli/server#--aibridge-openai-key) traffic through AI Bridge:
 
 - `CODER_AIBRIDGE_OPENAI_KEY` or `--aibridge-openai-key`
 - `CODER_AIBRIDGE_OPENAI_BASE_URL` or `--aibridge-openai-base-url`
@@ -35,7 +35,7 @@ The default base URL (`https://api.openai.com/v1/`) works for the native OpenAI 
 
 ### Anthropic
 
-Set the following when routing Anthropic-compatible traffic through AI Bridge:
+Set the following when routing [Anthropic-compatible](https://coder.com/docs/reference/cli/server#--aibridge-anthropic-key) traffic through AI Bridge:
 
 - `CODER_AIBRIDGE_ANTHROPIC_KEY` or `--aibridge-anthropic-key`
 - `CODER_AIBRIDGE_ANTHROPIC_BASE_URL` or `--aibridge-anthropic-base-url`
@@ -44,7 +44,7 @@ The default base URL (`https://api.anthropic.com/`) targets Anthropic's public A
 
 ### Amazon Bedrock
 
-Set the following when routing Amazon Bedrock traffic through AI Bridge:
+Set the following when routing [Amazon Bedrock](https://coder.com/docs/reference/cli/server#--aibridge-bedrock-region) traffic through AI Bridge:
 
 - `CODER_AIBRIDGE_BEDROCK_REGION` or `--aibridge-bedrock-region`
 - `CODER_AIBRIDGE_BEDROCK_ACCESS_KEY` or `--aibridge-bedrock-access-key`
