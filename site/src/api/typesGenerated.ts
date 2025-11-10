@@ -36,6 +36,7 @@ export interface AIBridgeConfig {
 // From codersdk/aibridge.go
 export interface AIBridgeInterception {
 	readonly id: string;
+	readonly api_key_id: string | null;
 	readonly initiator: MinimalUser;
 	readonly provider: string;
 	readonly model: string;

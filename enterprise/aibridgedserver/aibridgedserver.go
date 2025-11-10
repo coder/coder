@@ -114,9 +114,13 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 	if err != nil {
 		return nil, xerrors.Errorf("invalid initiator ID %q: %w", in.GetInitiatorId(), err)
 	}
+	if in.ApiKeyId == "" {
+		return nil, xerrors.Errorf("empty API key ID")
+	}
 
 	_, err = s.store.InsertAIBridgeInterception(ctx, database.InsertAIBridgeInterceptionParams{
 		ID:          intcID,
+		APIKeyID:    sql.NullString{String: in.ApiKeyId, Valid: true},
 		InitiatorID: initID,
 		Provider:    in.Provider,
 		Model:       in.Model,
@@ -398,7 +402,8 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 	}
 
 	return &proto.IsAuthorizedResponse{
-		OwnerId: key.UserID.String(),
+		OwnerId:  key.UserID.String(),
+		ApiKeyId: key.ID,
 	}, nil
 }
 

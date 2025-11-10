@@ -974,6 +974,9 @@ func AIBridgeInterception(interception database.AIBridgeInterception, initiator 
 		UserPrompts: sdkUserPrompts,
 		ToolUsages:  sdkToolUsages,
 	}
+	if interception.APIKeyID.Valid {
+		intc.APIKeyID = &interception.APIKeyID.String
+	}
 	if interception.EndedAt.Valid {
 		intc.EndedAt = &interception.EndedAt.Time
 	}
