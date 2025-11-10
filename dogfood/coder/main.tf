@@ -833,14 +833,8 @@ locals {
     -- Tool Selection --
     - playwright: previewing your changes after you made them
       to confirm it worked as expected
-    -	desktop-commander - use only for commands that keep running
-      (servers, dev watchers, GUI apps).
     -	Built-in tools - use for everything else:
       (file operations, git commands, builds & installs, one-off shell commands)
-
-    Remember this decision rule:
-    - Stays running? → desktop-commander
-    - Finishes immediately? → built-in tools
 
     -- Context --
     There is an existing application in the current directory.
@@ -865,7 +859,6 @@ module "claude-code" {
   ai_prompt           = data.coder_task.me.prompt
   post_install_script = <<-EOT
     claude mcp add playwright npx -- @playwright/mcp@latest --headless --isolated --no-sandbox
-    claude mcp add desktop-commander npx -- @wonderwhy-er/desktop-commander@latest
   EOT
 }
 
