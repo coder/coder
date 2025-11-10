@@ -28,4 +28,12 @@ If you are an administrator or devops leader looking to:
 - Investigate opportunities for AI automation
 - Uncover high-leverage use cases last
 
-These represent ideal scenarios for deploying AI Bridge as a centralized monitoring layer across your organization's AI toolchain.
+AI Bridge is best suited for organizations facing these centralized management and observability challenges. 
+
+## Next steps
+
+- [Set up AI Bridge](./setup.md) on your Coder deployment
+- [Configure AI clients](./client-config.md) to use AI Bridge
+- [Configure MCP servers](./mcp.md) for tool access
+- [Monitor usage and metrics](./monitoring.md)
+- [Reference documentation](./reference.md)
