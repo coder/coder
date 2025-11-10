@@ -107,4 +107,4 @@ Most AI coding assistants can use AI Bridge, provided they support custom base U
 - Some clients proxy requests through their own servers, which limits compatibility.
 - Some clients do not support custom base URLs.
 
-See the [tested clients](#tested-clients) table above for the combinations we have verified and any known issues.
+See the table in the [compatibility](#compatibility) section above for the combinations we have verified and any known issues.

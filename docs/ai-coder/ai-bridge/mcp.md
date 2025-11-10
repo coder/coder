@@ -42,7 +42,7 @@ In the above example, if you prompted your AI model with "list your available gi
 
 > Certainly! Here are the GitHub-related tools that I have available:
 >
-> ```
+> ```text
 > 1. bmcp_github_update_gist
 > 2. bmcp_github_list_gists
 > ```
