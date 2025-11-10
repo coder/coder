@@ -1,6 +1,6 @@
 # Client Configuration
 
-Once AI Bridge is enabled on the server, your users need to configure their AI coding tools to use it. This section explains how users should configure their clients to connect to AI Bridge.
+Once AI Bridge is setup on your deployment, the AI coding tools used by your users will need to be configured to route requests via AI Bridge.
 
 ## Base URLs
 
