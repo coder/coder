@@ -89,9 +89,7 @@ type WorkspaceBuild struct {
 	MatchedProvisioners     *MatchedProvisioners `json:"matched_provisioners,omitempty"`
 	TemplateVersionPresetID *uuid.UUID           `json:"template_version_preset_id" format:"uuid"`
 	HasAITask               *bool                `json:"has_ai_task,omitempty"`
-	// Deprecated: This field has been replaced with `Task.WorkspaceAppID`
-	AITaskSidebarAppID *uuid.UUID `json:"ai_task_sidebar_app_id,omitempty" format:"uuid"`
-	HasExternalAgent   *bool      `json:"has_external_agent,omitempty"`
+	HasExternalAgent        *bool                `json:"has_external_agent,omitempty"`
 }
 
 // WorkspaceResource describes resources used to create a workspace, for instance:

@@ -198,7 +198,6 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"initiator_by_name":          ActionIgnore,
 		"template_version_preset_id": ActionIgnore, // Never changes.
 		"has_ai_task":                ActionIgnore, // Never changes.
-		"ai_task_sidebar_app_id":     ActionIgnore, // Never changes.
 		"has_external_agent":         ActionIgnore, // Never changes.
 	},
 	&database.AuditableGroup{}: {

@@ -36,6 +36,7 @@ export interface AIBridgeConfig {
 // From codersdk/aibridge.go
 export interface AIBridgeInterception {
 	readonly id: string;
+	readonly api_key_id: string | null;
 	readonly initiator: MinimalUser;
 	readonly provider: string;
 	readonly model: string;
@@ -6393,10 +6394,6 @@ export interface WorkspaceBuild {
 	readonly matched_provisioners?: MatchedProvisioners;
 	readonly template_version_preset_id: string | null;
 	readonly has_ai_task?: boolean;
-	/**
-	 * Deprecated: This field has been replaced with `Task.WorkspaceAppID`
-	 */
-	readonly ai_task_sidebar_app_id?: string;
 	readonly has_external_agent?: boolean;
 }
 

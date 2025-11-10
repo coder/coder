@@ -30,7 +30,7 @@ jobs:
       - name: Setup Node
         uses: ./.github/actions/setup-node
 
-      - uses: tj-actions/changed-files@0ff001de0805038ff3f118de4875002200057732 # v45.0.7
+      - uses: tj-actions/changed-files@70069877f29101175ed2b055d210fe8b1d54d7d7 # v45.0.7
         id: changed-files
         with:
           files: |

@@ -3614,6 +3614,7 @@ type AIBridgeInterception struct {
 	StartedAt   time.Time             `db:"started_at" json:"started_at"`
 	Metadata    pqtype.NullRawMessage `db:"metadata" json:"metadata"`
 	EndedAt     sql.NullTime          `db:"ended_at" json:"ended_at"`
+	APIKeyID    sql.NullString        `db:"api_key_id" json:"api_key_id"`
 }
 
 // Audit log of tokens used by intercepted requests in AI Bridge
@@ -4939,7 +4940,6 @@ type WorkspaceBuild struct {
 	MaxDeadline             time.Time           `db:"max_deadline" json:"max_deadline"`
 	TemplateVersionPresetID uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
 	HasAITask               sql.NullBool        `db:"has_ai_task" json:"has_ai_task"`
-	AITaskSidebarAppID      uuid.NullUUID       `db:"ai_task_sidebar_app_id" json:"ai_task_sidebar_app_id"`
 	HasExternalAgent        sql.NullBool        `db:"has_external_agent" json:"has_external_agent"`
 	InitiatorByAvatarUrl    string              `db:"initiator_by_avatar_url" json:"initiator_by_avatar_url"`
 	InitiatorByUsername     string              `db:"initiator_by_username" json:"initiator_by_username"`
@@ -4971,7 +4971,6 @@ type WorkspaceBuildTable struct {
 	MaxDeadline             time.Time           `db:"max_deadline" json:"max_deadline"`
 	TemplateVersionPresetID uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
 	HasAITask               sql.NullBool        `db:"has_ai_task" json:"has_ai_task"`
-	AITaskSidebarAppID      uuid.NullUUID       `db:"ai_task_sidebar_app_id" json:"ai_task_sidebar_app_id"`
 	HasExternalAgent        sql.NullBool        `db:"has_external_agent" json:"has_external_agent"`
 }
 
