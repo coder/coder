@@ -24,7 +24,7 @@ Template admins can pre-configure workspaces to route all AI tool requests throu
 
 ### Using Coder Tasks
 
-[Coder Tasks](../tasks.md) provides a framework for using agents like Claude Code to complete background development operations. To route those agents through AI Bridge, you can pre-configure a Coder Tasks template to install Claude Code and configure it for AI Bridge using the session token:
+Agents like Claude Code can be configured to route through AI Bridge in any template by pre-configuring the agent with the session token. [Coder Tasks](../tasks.md) is particularly useful for this pattern, providing a framework for agents to complete background development operations autonomously. To route agents through AI Bridge in a Coder Tasks template, pre-configure it to install Claude Code and configure it with the session token:
 
 ```hcl
 data "coder_workspace_owner" "me" {}
@@ -54,8 +54,6 @@ module "claude-code" {
   ... # other claude-code configuration
 }
 ```
-
-This setup keeps agent execution within Coder while applying the same auditing and MCP policies as IDE clients.
 
 ### Other IDEs and Tools
 
