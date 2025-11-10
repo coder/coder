@@ -28,7 +28,7 @@ If you are an administrator or devops leader looking to:
 - Investigate opportunities for AI automation
 - Uncover high-leverage use cases last
 
-AI Bridge is best suited for organizations facing these centralized management and observability challenges. 
+AI Bridge is best suited for organizations facing these centralized management and observability challenges.
 
 ## Next steps
 
