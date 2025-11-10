@@ -302,6 +302,35 @@ func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) cod
 		}
 	}
 
+	// When the task is initializing and there's no app status yet, provide a
+	// default current_state with an appropriate message.
+	if currentState == nil && codersdk.TaskStatus(dbTask.Status) == codersdk.TaskStatusInitializing {
+		message := "Initializing workspace"
+
+		switch {
+		case ws.LatestBuild.Status == codersdk.WorkspaceStatusPending:
+			message = "Workspace build is pending"
+		case ws.LatestBuild.Status == codersdk.WorkspaceStatusStarting:
+			message = "Starting workspace"
+		case taskAgentLifecycle != nil:
+			switch *taskAgentLifecycle {
+			case codersdk.WorkspaceAgentLifecycleCreated:
+				message = "Agent is connecting"
+			case codersdk.WorkspaceAgentLifecycleStarting:
+				message = "Agent is starting"
+			default:
+				message = "Initializing workspace agent"
+			}
+		}
+
+		currentState = &codersdk.TaskStateEntry{
+			Timestamp: ws.LatestBuild.CreatedAt,
+			State:     codersdk.TaskStateWorking,
+			Message:   message,
+			URI:       "",
+		}
+	}
+
 	return codersdk.Task{
 		ID:                      dbTask.ID,
 		OrganizationID:          dbTask.OrganizationID,
