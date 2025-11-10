@@ -1056,7 +1056,8 @@ CREATE TABLE aibridge_interceptions (
     model text NOT NULL,
     started_at timestamp with time zone NOT NULL,
     metadata jsonb,
-    ended_at timestamp with time zone
+    ended_at timestamp with time zone,
+    api_key_id text
 );
 
 COMMENT ON TABLE aibridge_interceptions IS 'Audit log of requests intercepted by AI Bridge';
