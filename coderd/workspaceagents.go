@@ -428,7 +428,7 @@ func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Req
 	})
 
 	// Notify on state change to Working/Idle for AI tasks
-	api.enqueueAITaskStateNotification(ctx, app.ID, latestAppStatus, req.State, workspace)
+	api.enqueueAITaskStateNotification(ctx, app.ID, latestAppStatus, req.State, workspace, workspaceAgent)
 
 	httpapi.Write(ctx, rw, http.StatusOK, nil)
 }
@@ -437,13 +437,15 @@ func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Req
 // transitions to Working or Idle.
 // No-op if:
 //   - the workspace agent app isn't configured as an AI task,
-//   - the new state equals the latest persisted state.
+//   - the new state equals the latest persisted state,
+//   - the workspace agent is not ready (still starting up).
 func (api *API) enqueueAITaskStateNotification(
 	ctx context.Context,
 	appID uuid.UUID,
 	latestAppStatus []database.WorkspaceAppStatus,
 	newAppStatus codersdk.WorkspaceAppStatusState,
 	workspace database.Workspace,
+	agent database.WorkspaceAgent,
 ) {
 	// Select notification template based on the new state
 	var notificationTemplate uuid.UUID
@@ -463,6 +465,18 @@ func (api *API) enqueueAITaskStateNotification(
 
 	if !workspace.TaskID.Valid {
 		// Workspace has no task ID, do nothing.
+		return
+	}
+
+	// Only send notifications if the agent is ready. This prevents spammy
+	// notifications during agent startup when the screen state might be
+	// fluctuating as startup scripts execute and apps initialize.
+	if agent.LifecycleState != database.WorkspaceAgentLifecycleStateReady {
+		api.Logger.Debug(ctx, "skipping AI task notification because agent is not ready",
+			slog.F("agent_id", agent.ID),
+			slog.F("lifecycle_state", agent.LifecycleState),
+			slog.F("new_app_status", newAppStatus),
+		)
 		return
 	}
 
