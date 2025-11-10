@@ -66,11 +66,13 @@ func NewWithCommand(
 		Named("cli")
 	i := &serpent.Invocation{
 		Command: cmd,
-		Args:    append([]string{"--global-config", string(configDir)}, args...),
-		Stdin:   io.LimitReader(nil, 0),
-		Stdout:  (&logWriter{prefix: "stdout", log: logger}),
-		Stderr:  (&logWriter{prefix: "stderr", log: logger}),
-		Logger:  logger,
+		// Keyring usage is disabled here because many existing tests expect the session token
+		// to be stored on disk.
+		Args:   append([]string{"--global-config", string(configDir), "--use-keyring=false"}, args...),
+		Stdin:  io.LimitReader(nil, 0),
+		Stdout: (&logWriter{prefix: "stdout", log: logger}),
+		Stderr: (&logWriter{prefix: "stderr", log: logger}),
+		Logger: logger,
 	}
 	t.Logf("invoking command: %s %s", cmd.Name(), strings.Join(i.Args, " "))
 
