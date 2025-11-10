@@ -1,6 +1,3 @@
-import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
-import Link from "@mui/material/Link";
-import Tooltip from "@mui/material/Tooltip";
 import type {
 	DeploymentStats,
 	HealthcheckReport,
@@ -12,7 +9,13 @@ import { JetBrainsIcon } from "components/Icons/JetBrainsIcon";
 import { RocketIcon } from "components/Icons/RocketIcon";
 import { TerminalIcon } from "components/Icons/TerminalIcon";
 import { VSCodeIcon } from "components/Icons/VSCodeIcon";
-import { Stack } from "components/Stack/Stack";
+import { Link } from "components/Link/Link";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import dayjs from "dayjs";
 import {
 	AppWindowIcon,
@@ -33,11 +36,7 @@ import {
 	useState,
 } from "react";
 import { Link as RouterLink } from "react-router";
-import { MONOSPACE_FONT_FAMILY } from "theme/constants";
-import colors from "theme/tailwindColors";
 import { getDisplayWorkspaceStatus } from "utils/workspace";
-
-const bannerHeight = 36;
 
 interface DeploymentBannerViewProps {
 	health?: HealthcheckReport;
@@ -50,8 +49,6 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 	stats,
 	fetchStats,
 }) => {
-	const theme = useTheme();
-
 	const aggregatedMinutes = useMemo(() => {
 		if (!stats) {
 			return;
@@ -105,67 +102,60 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 
 	return (
 		<div
-			className="w-full"
-			css={{
-				position: "sticky",
-				lineHeight: 1,
-				height: bannerHeight,
-				bottom: 0,
-				zIndex: 1,
-				paddingRight: 16,
-				backgroundColor: theme.palette.background.paper,
-				display: "flex",
-				alignItems: "center",
-				fontFamily: MONOSPACE_FONT_FAMILY,
-				fontSize: 12,
-				gap: 32,
-				borderTop: `1px solid ${theme.palette.divider}`,
-				overflowX: "auto",
-				whiteSpace: "nowrap",
-			}}
+			className="sticky bottom-0 z-[1] flex h-9 w-full items-center gap-8
+		 		overflow-x-auto whitespace-nowrap border-0 border-t border-solid border-border
+				bg-surface-primary pr-4 font-mono text-xs leading-none"
 		>
-			<Tooltip
-				classes={{
-					tooltip:
-						"ml-3 mb-1 w-[400px] p-4 text-sm text-content-primary bg-surface-secondary border border-solid border-border pointer-events-none",
-				}}
-				title={
-					healthErrors.length > 0 ? (
-						<>
-							<HelpTooltipTitle>
-								We have detected problems with your Coder deployment.
-							</HelpTooltipTitle>
-							<Stack spacing={1}>
-								{healthErrors.map((error) => (
-									<HealthIssue key={error}>{error}</HealthIssue>
-								))}
-							</Stack>
-						</>
-					) : (
-						"Status of your Coder deployment. Only visible for admins!"
-					)
-				}
-				open={process.env.STORYBOOK === "true" ? true : undefined}
-				css={{ marginRight: -16 }}
-			>
-				{healthErrors.length > 0 ? (
-					<Link
-						component={RouterLink}
-						to="/health"
-						css={[styles.statusBadge, styles.unhealthy]}
+			<TooltipProvider delayDuration={100}>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						{healthErrors.length > 0 ? (
+							<Link
+								asChild
+								className="flex p-3 bg-content-destructive"
+								showExternalIcon={false}
+							>
+								<RouterLink
+									to="/health"
+									data-testid="deployment-health-trigger"
+								>
+									<CircleAlertIcon className="text-content-primary" />
+								</RouterLink>
+							</Link>
+						) : (
+							<div
+								className="flex h-full items-center justify-center pl-3"
+								data-testid="deployment-health-trigger"
+							>
+								<RocketIcon className="size-icon-sm" />
+							</div>
+						)}
+					</TooltipTrigger>
+					<TooltipContent
+						className="ml-3 mb-1 p-4 text-sm text-content-primary
+							border border-solid border-border pointer-events-none"
 					>
-						<CircleAlertIcon className="size-icon-sm" />
-					</Link>
-				) : (
-					<div css={styles.statusBadge}>
-						<RocketIcon />
-					</div>
-				)}
-			</Tooltip>
+						{healthErrors.length > 0 ? (
+							<>
+								<HelpTooltipTitle>
+									We have detected problems with your Coder deployment.
+								</HelpTooltipTitle>
+								<div className="flex flex-col gap-1">
+									{healthErrors.map((error) => (
+										<HealthIssue key={error}>{error}</HealthIssue>
+									))}
+								</div>
+							</>
+						) : (
+							"Status of your Coder deployment. Only visible for admins!"
+						)}
+					</TooltipContent>
+				</Tooltip>
+			</TooltipProvider>
 
-			<div css={styles.group}>
-				<div css={styles.category}>Workspaces</div>
-				<div css={styles.values}>
+			<div className="flex items-center">
+				<div className="mr-4 text-content-primary">Workspaces</div>
+				<div className="flex gap-2 text-content-secondary">
 					<WorkspaceBuildValue
 						status="pending"
 						count={stats?.workspaces.pending}
@@ -193,142 +183,170 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 				</div>
 			</div>
 
-			<div css={styles.group}>
-				<Tooltip title={`Activity in the last ~${aggregatedMinutes} minutes`}>
-					<div css={styles.category}>Transmission</div>
-				</Tooltip>
-
-				<div css={styles.values}>
-					<Tooltip title="Data sent to workspaces">
-						<div css={styles.value}>
-							<CloudDownloadIcon className="size-icon-xs" />
-							{stats ? prettyBytes(stats.workspaces.rx_bytes) : "-"}
-						</div>
+			<div className="flex items-center">
+				<TooltipProvider delayDuration={100}>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<div className="mr-4 text-content-primary">Transmission</div>
+						</TooltipTrigger>
+						<TooltipContent>
+							{`Activity in the last ~${aggregatedMinutes} minutes`}
+						</TooltipContent>
 					</Tooltip>
+				</TooltipProvider>
+				<div className="flex gap-2 text-content-secondary">
+					<TooltipProvider delayDuration={100}>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<div className="flex items-center gap-1">
+									<CloudDownloadIcon className="size-icon-xs" />
+									{stats ? prettyBytes(stats.workspaces.rx_bytes) : "-"}
+								</div>
+							</TooltipTrigger>
+							<TooltipContent>Data sent to workspaces</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
 					<ValueSeparator />
-					<Tooltip title="Data sent from workspaces">
-						<div css={styles.value}>
-							<CloudUploadIcon className="size-icon-xs" />
-							{stats ? prettyBytes(stats.workspaces.tx_bytes) : "-"}
-						</div>
-					</Tooltip>
+					<TooltipProvider delayDuration={100}>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<div className="flex items-center gap-1">
+									<CloudUploadIcon className="size-icon-xs" />
+									{stats ? prettyBytes(stats.workspaces.tx_bytes) : "-"}
+								</div>
+							</TooltipTrigger>
+							<TooltipContent>Data sent from workspaces</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
 					<ValueSeparator />
-					<Tooltip
-						title={
-							displayLatency < 0
-								? "No recent workspace connections have been made"
-								: "The average latency of user connections to workspaces"
-						}
-					>
-						<div css={styles.value}>
-							<GaugeIcon className="size-icon-xs" />
-							{displayLatency > 0 ? `${displayLatency?.toFixed(2)} ms` : "-"}
-						</div>
-					</Tooltip>
+					<TooltipProvider delayDuration={100}>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<div className="flex items-center gap-1">
+									<GaugeIcon className="size-icon-xs" />
+									{displayLatency > 0
+										? `${displayLatency?.toFixed(2)} ms`
+										: "-"}
+								</div>
+							</TooltipTrigger>
+							<TooltipContent>
+								{displayLatency < 0
+									? "No recent workspace connections have been made"
+									: "The average latency of user connections to workspaces"}
+							</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
 				</div>
 			</div>
 
-			<div css={styles.group}>
-				<div css={styles.category}>Active Connections</div>
+			<div className="flex items-center">
+				<div className="mr-4 text-content-primary">Active Connections</div>
 
-				<div css={styles.values}>
-					<Tooltip title="VS Code Editors with the Coder Remote Extension">
-						<div css={styles.value}>
-							<VSCodeIcon
-								css={css`
-									& * {
-										fill: currentColor;
-									}
-								`}
-							/>
-							{typeof stats?.session_count.vscode === "undefined"
-								? "-"
-								: stats?.session_count.vscode}
-						</div>
-					</Tooltip>
+				<div className="flex gap-2 text-content-secondary">
+					<TooltipProvider delayDuration={100}>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<div className="flex items-center gap-1">
+									<VSCodeIcon className="size-icon-xs [&_*]:fill-current" />
+									{typeof stats?.session_count.vscode === "undefined"
+										? "-"
+										: stats?.session_count.vscode}
+								</div>
+							</TooltipTrigger>
+							<TooltipContent>
+								VS Code Editors with the Coder Remote Extension
+							</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
 					<ValueSeparator />
-					<Tooltip title="JetBrains Editors">
-						<div css={styles.value}>
-							<JetBrainsIcon
-								css={css`
-									& * {
-										fill: currentColor;
-									}
-								`}
-							/>
-							{typeof stats?.session_count.jetbrains === "undefined"
-								? "-"
-								: stats?.session_count.jetbrains}
-						</div>
-					</Tooltip>
+					<TooltipProvider delayDuration={100}>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<div className="flex items-center gap-1">
+									<JetBrainsIcon className="size-icon-xs [&_*]:fill-current" />
+									{typeof stats?.session_count.jetbrains === "undefined"
+										? "-"
+										: stats?.session_count.jetbrains}
+								</div>
+							</TooltipTrigger>
+							<TooltipContent>JetBrains Editors</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
 					<ValueSeparator />
-					<Tooltip title="SSH Sessions">
-						<div css={styles.value}>
-							<TerminalIcon />
-							{typeof stats?.session_count.ssh === "undefined"
-								? "-"
-								: stats?.session_count.ssh}
-						</div>
-					</Tooltip>
+					<TooltipProvider delayDuration={100}>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<div className="flex items-center gap-1">
+									<TerminalIcon className="size-icon-xs" />
+									{typeof stats?.session_count.ssh === "undefined"
+										? "-"
+										: stats?.session_count.ssh}
+								</div>
+							</TooltipTrigger>
+							<TooltipContent>SSH Sessions</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
 					<ValueSeparator />
-					<Tooltip title="Web Terminal Sessions">
-						<div css={styles.value}>
-							<AppWindowIcon className="size-icon-xs" />
-							{typeof stats?.session_count.reconnecting_pty === "undefined"
-								? "-"
-								: stats?.session_count.reconnecting_pty}
-						</div>
-					</Tooltip>
+					<TooltipProvider delayDuration={100}>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<div className="flex items-center gap-1">
+									<AppWindowIcon className="size-icon-xs" />
+									{typeof stats?.session_count.reconnecting_pty === "undefined"
+										? "-"
+										: stats?.session_count.reconnecting_pty}
+								</div>
+							</TooltipTrigger>
+							<TooltipContent>Web Terminal Sessions</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
 				</div>
 			</div>
 
-			<div
-				css={{
-					color: theme.palette.text.primary,
-					marginLeft: "auto",
-					display: "flex",
-					alignItems: "center",
-					gap: 16,
-				}}
-			>
-				<Tooltip title="The last time stats were aggregated. Workspaces report statistics periodically, so it may take a bit for these to update!">
-					<div css={styles.value}>
-						<GitCompareArrowsIcon className="size-icon-xs" />
-						{lastAggregated}
-					</div>
-				</Tooltip>
+			<div className="ml-auto flex mr-3 items-center gap-8 text-content-primary">
+				<TooltipProvider delayDuration={100}>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<div className="flex items-center gap-1">
+								<GitCompareArrowsIcon className="size-icon-xs" />
+								{lastAggregated}
+							</div>
+						</TooltipTrigger>
+						<TooltipContent
+							className="max-w-xs"
+							collisionPadding={{ right: 20 }}
+						>
+							The last time stats were aggregated. Workspaces report statistics
+							periodically, so it may take a bit for these to update!
+						</TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
 
-				<Tooltip title="A countdown until stats are fetched again. Click to refresh!">
-					<Button
-						css={[
-							styles.value,
-							css`
-								margin: 0;
-								padding: 0 8px;
-								height: unset;
-								min-height: unset;
-								font-size: unset;
-								color: unset;
-								border: 0;
-								min-width: unset;
-								font-family: inherit;
-
-								& svg {
-									margin-right: 4px;
-								}
-							`,
-						]}
-						onClick={() => {
-							if (fetchStats) {
-								fetchStats();
-							}
-						}}
-						variant="subtle"
-					>
-						<RotateCwIcon />
-						{timeUntilRefresh}s
-					</Button>
-				</Tooltip>
+				<TooltipProvider delayDuration={100}>
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								className="font-mono [&_svg]:mr-1"
+								onClick={() => {
+									if (fetchStats) {
+										fetchStats();
+									}
+								}}
+								variant="subtle"
+								size="icon"
+							>
+								<RotateCwIcon />
+								{timeUntilRefresh}s
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent
+							className="max-w-xs"
+							collisionPadding={{ right: 20 }}
+						>
+							A countdown until stats are fetched again. Click to refresh!
+						</TooltipContent>
+					</Tooltip>
+				</TooltipProvider>
 			</div>
 		</div>
 	);
@@ -352,35 +370,36 @@ const WorkspaceBuildValue: FC<WorkspaceBuildValueProps> = ({
 	}
 
 	return (
-		<Tooltip title={`${statusText} Workspaces`}>
-			<Link
-				component={RouterLink}
-				to={`/workspaces?filter=${encodeURIComponent(`status:${status}`)}`}
-			>
-				<div css={styles.value}>
-					{icon}
-					{typeof count === "undefined" ? "-" : count}
-				</div>
-			</Link>
-		</Tooltip>
+		<TooltipProvider delayDuration={100}>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<Link asChild showExternalIcon={false}>
+						<RouterLink
+							to={`/workspaces?filter=${encodeURIComponent(`status:${status}`)}`}
+						>
+							<div className="flex items-center gap-1 text-xs">
+								{icon}
+								{typeof count === "undefined" ? "-" : count}
+							</div>
+						</RouterLink>
+					</Link>
+				</TooltipTrigger>
+				<TooltipContent>{`${statusText} Workspaces`}</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
 	);
 };
 
 const ValueSeparator: FC = () => {
-	return <div css={styles.separator}>/</div>;
+	return <div className="text-content-disabled self-center">/</div>;
 };
 
 const HealthIssue: FC<PropsWithChildren> = ({ children }) => {
-	const theme = useTheme();
-
 	return (
-		<Stack direction="row" spacing={1} alignItems="center">
-			<CircleAlertIcon
-				className="size-icon-sm"
-				css={{ color: theme.roles.error.outline }}
-			/>
+		<div className="flex items-center gap-1">
+			<CircleAlertIcon className="size-icon-sm text-border-destructive" />
 			{children}
-		</Stack>
+		</div>
 	);
 };
 
@@ -409,48 +428,3 @@ const getHealthErrors = (health: HealthcheckReport) => {
 
 	return warnings;
 };
-
-const styles = {
-	statusBadge: (theme) => css`
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		padding: 0 12px;
-		height: 100%;
-		color: ${theme.experimental.l1.text};
-
-		& svg {
-			width: 16px;
-			height: 16px;
-		}
-	`,
-	unhealthy: {
-		backgroundColor: colors.red[700],
-	},
-	group: css`
-		display: flex;
-		align-items: center;
-	`,
-	category: (theme) => ({
-		marginRight: 16,
-		color: theme.palette.text.primary,
-	}),
-	values: (theme) => ({
-		display: "flex",
-		gap: 8,
-		color: theme.palette.text.secondary,
-	}),
-	value: css`
-		display: flex;
-		align-items: center;
-		gap: 4px;
-
-		& svg {
-			width: 12px;
-			height: 12px;
-		}
-	`,
-	separator: (theme) => ({
-		color: theme.palette.text.disabled,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

@@ -35,12 +35,9 @@ func Test_TimezoneIANA(t *testing.T) {
 			// This test can be flaky on some Windows runners :(
 			t.Skip("This test is flaky under Windows.")
 		}
-		oldEnv, found := os.LookupEnv("TZ")
+		_, found := os.LookupEnv("TZ")
 		if found {
 			require.NoError(t, os.Unsetenv("TZ"))
-			t.Cleanup(func() {
-				_ = os.Setenv("TZ", oldEnv)
-			})
 		}
 
 		zone, err := tz.TimezoneIANA()

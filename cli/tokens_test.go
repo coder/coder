@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -46,6 +49,18 @@ func TestTokens(t *testing.T) {
 	require.NotEmpty(t, res)
 	id := res[:10]
 
+	allowWorkspaceID := uuid.New()
+	allowSpec := fmt.Sprintf("workspace:%s", allowWorkspaceID.String())
+	inv, root = clitest.New(t, "tokens", "create", "--name", "scoped-token", "--scope", string(codersdk.APIKeyScopeWorkspaceRead), "--allow", allowSpec)
+	clitest.SetupConfig(t, client, root)
+	buf = new(bytes.Buffer)
+	inv.Stdout = buf
+	err = inv.WithContext(ctx).Run()
+	require.NoError(t, err)
+	res = buf.String()
+	require.NotEmpty(t, res)
+	scopedTokenID := res[:10]
+
 	// Test creating a token for second user from first user's (admin) session
 	inv, root = clitest.New(t, "tokens", "create", "--name", "token-two", "--user", secondUser.ID.String())
 	clitest.SetupConfig(t, client, root)
@@ -67,7 +82,7 @@ func TestTokens(t *testing.T) {
 	require.NoError(t, err)
 	res = buf.String()
 	require.NotEmpty(t, res)
-	// Result should only contain the token created for the admin user
+	// Result should only contain the tokens created for the admin user
 	require.Contains(t, res, "ID")
 	require.Contains(t, res, "EXPIRES AT")
 	require.Contains(t, res, "CREATED AT")
@@ -75,6 +90,16 @@ func TestTokens(t *testing.T) {
 	require.Contains(t, res, id)
 	// Result should not contain the token created for the second user
 	require.NotContains(t, res, secondTokenID)
+
+	inv, root = clitest.New(t, "tokens", "view", "scoped-token")
+	clitest.SetupConfig(t, client, root)
+	buf = new(bytes.Buffer)
+	inv.Stdout = buf
+	err = inv.WithContext(ctx).Run()
+	require.NoError(t, err)
+	res = buf.String()
+	require.Contains(t, res, string(codersdk.APIKeyScopeWorkspaceRead))
+	require.Contains(t, res, allowSpec)
 
 	// Test listing tokens from the second user's session
 	inv, root = clitest.New(t, "tokens", "ls")
@@ -101,6 +126,14 @@ func TestTokens(t *testing.T) {
 	// User (non-admin) should not be able to create a token for another user
 	require.Error(t, err)
 
+	inv, root = clitest.New(t, "tokens", "create", "--name", "invalid-allow", "--allow", "badvalue")
+	clitest.SetupConfig(t, client, root)
+	buf = new(bytes.Buffer)
+	inv.Stdout = buf
+	err = inv.WithContext(ctx).Run()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "invalid allow_list entry")
+
 	inv, root = clitest.New(t, "tokens", "ls", "--output=json")
 	clitest.SetupConfig(t, client, root)
 	buf = new(bytes.Buffer)
@@ -110,8 +143,17 @@ func TestTokens(t *testing.T) {
 
 	var tokens []codersdk.APIKey
 	require.NoError(t, json.Unmarshal(buf.Bytes(), &tokens))
-	require.Len(t, tokens, 1)
-	require.Equal(t, id, tokens[0].ID)
+	require.Len(t, tokens, 2)
+	tokenByName := make(map[string]codersdk.APIKey, len(tokens))
+	for _, tk := range tokens {
+		tokenByName[tk.TokenName] = tk
+	}
+	require.Contains(t, tokenByName, "token-one")
+	require.Contains(t, tokenByName, "scoped-token")
+	scopedToken := tokenByName["scoped-token"]
+	require.Contains(t, scopedToken.Scopes, codersdk.APIKeyScopeWorkspaceRead)
+	require.Len(t, scopedToken.AllowList, 1)
+	require.Equal(t, allowSpec, scopedToken.AllowList[0].String())
 
 	// Delete by name
 	inv, root = clitest.New(t, "tokens", "rm", "token-one")
@@ -126,6 +168,17 @@ func TestTokens(t *testing.T) {
 
 	// Delete by ID
 	inv, root = clitest.New(t, "tokens", "rm", secondTokenID)
+	clitest.SetupConfig(t, client, root)
+	buf = new(bytes.Buffer)
+	inv.Stdout = buf
+	err = inv.WithContext(ctx).Run()
+	require.NoError(t, err)
+	res = buf.String()
+	require.NotEmpty(t, res)
+	require.Contains(t, res, "deleted")
+
+	// Delete scoped token by ID
+	inv, root = clitest.New(t, "tokens", "rm", scopedTokenID)
 	clitest.SetupConfig(t, client, root)
 	buf = new(bytes.Buffer)
 	inv.Stdout = buf

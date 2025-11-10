@@ -1,4 +1,5 @@
 import { getErrorDetail, getErrorMessage } from "api/errors";
+import type { Task } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
@@ -22,17 +23,16 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
+import { useClickableTableRow } from "hooks";
 import { RotateCcwIcon, TrashIcon } from "lucide-react";
 import { TaskDeleteDialog } from "modules/tasks/TaskDeleteDialog/TaskDeleteDialog";
-import type { Task } from "modules/tasks/tasks";
-import { WorkspaceAppStatus } from "modules/workspaces/WorkspaceAppStatus/WorkspaceAppStatus";
-import { WorkspaceStatus } from "modules/workspaces/WorkspaceStatus/WorkspaceStatus";
+import { TaskStatus } from "modules/tasks/TaskStatus/TaskStatus";
 import { type FC, type ReactNode, useState } from "react";
-import { Link as RouterLink } from "react-router";
+import { useNavigate } from "react-router";
 import { relativeTime } from "utils/time";
 
 type TasksTableProps = {
-	tasks: Task[] | undefined;
+	tasks: readonly Task[] | undefined;
 	error: unknown;
 	onRetry: () => void;
 };
@@ -47,7 +47,7 @@ export const TasksTable: FC<TasksTableProps> = ({ tasks, error, onRetry }) => {
 	} else if (tasks.length === 0) {
 		body = <TasksEmpty />;
 	} else {
-		body = tasks.map((task) => <TaskRow key={task.workspace.id} task={task} />);
+		body = tasks.map((task) => <TaskRow key={task.id} task={task} />);
 	}
 
 	return (
@@ -55,8 +55,7 @@ export const TasksTable: FC<TasksTableProps> = ({ tasks, error, onRetry }) => {
 			<TableHeader>
 				<TableRow>
 					<TableHead>Task</TableHead>
-					<TableHead>Agent status</TableHead>
-					<TableHead>Workspace status</TableHead>
+					<TableHead>Status</TableHead>
 					<TableHead>Created by</TableHead>
 					<TableHead />
 				</TableRow>
@@ -74,7 +73,7 @@ type TasksErrorBodyProps = {
 const TasksErrorBody: FC<TasksErrorBodyProps> = ({ error, onRetry }) => {
 	return (
 		<TableRow>
-			<TableCell colSpan={4} className="text-center">
+			<TableCell colSpan={999} className="text-center">
 				<div className="rounded-lg w-full min-h-80 flex items-center justify-center">
 					<div className="flex flex-col items-center">
 						<h3 className="m-0 font-medium text-content-primary text-base">
@@ -97,7 +96,7 @@ const TasksErrorBody: FC<TasksErrorBodyProps> = ({ error, onRetry }) => {
 const TasksEmpty: FC = () => {
 	return (
 		<TableRow>
-			<TableCell colSpan={4} className="text-center">
+			<TableCell colSpan={999} className="text-center">
 				<div className="w-full min-h-80 p-4 flex items-center justify-center">
 					<div className="flex flex-col items-center">
 						<h3 className="m-0 font-medium text-content-primary text-base">
@@ -117,56 +116,56 @@ type TaskRowProps = { task: Task };
 
 const TaskRow: FC<TaskRowProps> = ({ task }) => {
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-	const templateDisplayName =
-		task.workspace.template_display_name ?? task.workspace.template_name;
+	const templateDisplayName = task.template_display_name ?? task.template_name;
+	const navigate = useNavigate();
+
+	const taskPageLink = `/tasks/${task.owner_name}/${task.id}`;
+	// Discard role, breaks Chromatic.
+	const { role, ...clickableRowProps } = useClickableTableRow({
+		onClick: () => navigate(taskPageLink),
+	});
 
 	return (
 		<>
-			<TableRow key={task.workspace.id} className="relative" hover>
+			<TableRow
+				key={task.id}
+				data-testid={`task-${task.id}`}
+				{...clickableRowProps}
+			>
 				<TableCell>
 					<AvatarData
 						title={
-							<>
-								<span className="block max-w-[520px] overflow-hidden text-ellipsis whitespace-nowrap">
-									{task.prompt}
-								</span>
-								<RouterLink
-									to={`/tasks/${task.workspace.owner_name}/${task.workspace.name}`}
-									className="absolute inset-0"
-								>
-									<span className="sr-only">Access task</span>
-								</RouterLink>
-							</>
+							<span className="block max-w-[520px] overflow-hidden text-ellipsis whitespace-nowrap">
+								{task.initial_prompt}
+							</span>
 						}
 						subtitle={templateDisplayName}
 						avatar={
 							<Avatar
 								size="lg"
 								variant="icon"
-								src={task.workspace.template_icon}
+								src={task.template_icon}
 								fallback={templateDisplayName}
 							/>
 						}
 					/>
 				</TableCell>
 				<TableCell>
-					<WorkspaceAppStatus
-						disabled={task.workspace.latest_build.status !== "running"}
-						status={task.workspace.latest_app_status}
+					<TaskStatus
+						status={task.status}
+						stateMessage={task.current_state?.message || "No message available"}
 					/>
 				</TableCell>
-				<TableCell>
-					<WorkspaceStatus workspace={task.workspace} />
-				</TableCell>
+
 				<TableCell>
 					<AvatarData
-						title={task.workspace.owner_name}
+						title={task.owner_name}
 						subtitle={
 							<span className="block first-letter:uppercase">
-								{relativeTime(new Date(task.workspace.created_at))}
+								{relativeTime(new Date(task.created_at))}
 							</span>
 						}
-						src={task.workspace.owner_avatar_url}
+						src={task.owner_avatar_url}
 					/>
 				</TableCell>
 				<TableCell className="text-right">
@@ -176,8 +175,10 @@ const TaskRow: FC<TaskRowProps> = ({ task }) => {
 								<Button
 									size="icon"
 									variant="outline"
-									className="relative z-50"
-									onClick={() => setIsDeleteDialogOpen(true)}
+									onClick={(e) => {
+										e.stopPropagation();
+										setIsDeleteDialogOpen(true);
+									}}
 								>
 									<span className="sr-only">Delete task</span>
 									<TrashIcon />
@@ -211,10 +212,12 @@ const TasksSkeleton: FC = () => {
 					<Skeleton className="w-[100px] h-6" />
 				</TableCell>
 				<TableCell>
-					<Skeleton className="w-[100px] h-6" />
+					<AvatarDataSkeleton />
 				</TableCell>
 				<TableCell>
-					<AvatarDataSkeleton />
+					<div className="flex justify-end items-center">
+						<Skeleton className="size-8" />
+					</div>
 				</TableCell>
 			</TableRowSkeleton>
 		</TableLoaderSkeleton>

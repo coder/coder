@@ -14,9 +14,9 @@ import (
 
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
-	"github.com/coder/coder/v2/enterprise/x/aibridged"
-	aibridgedproto "github.com/coder/coder/v2/enterprise/x/aibridged/proto"
-	"github.com/coder/coder/v2/enterprise/x/aibridgedserver"
+	"github.com/coder/coder/v2/enterprise/aibridged"
+	aibridgedproto "github.com/coder/coder/v2/enterprise/aibridged/proto"
+	"github.com/coder/coder/v2/enterprise/aibridgedserver"
 )
 
 // RegisterInMemoryAIBridgedHTTPHandler mounts [aibridged.Server]'s HTTP router onto

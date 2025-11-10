@@ -1,6 +1,6 @@
 import {
 	MockPrimaryWorkspaceProxy,
-	MockTasks,
+	MockTask,
 	MockUserOwner,
 	MockWorkspace,
 	MockWorkspaceAgent,
@@ -9,16 +9,20 @@ import {
 } from "testHelpers/entities";
 import { withAuthProvider, withProxyProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { WorkspaceApp } from "api/typesGenerated";
+import type { Task, Workspace, WorkspaceApp } from "api/typesGenerated";
 import { getPreferredProxy } from "contexts/ProxyContext";
 import kebabCase from "lodash/kebabCase";
-import type { Task } from "modules/tasks/tasks";
 import { TaskApps } from "./TaskApps";
 
 const mockExternalApp: WorkspaceApp = {
 	...MockWorkspaceApp,
 	external: true,
 	health: "healthy",
+};
+
+const mockTask: Task = {
+	...MockTask,
+	workspace_app_id: null,
 };
 
 const meta: Meta<typeof TaskApps> = {
@@ -35,25 +39,29 @@ type Story = StoryObj<typeof TaskApps>;
 
 export const NoEmbeddedApps: Story = {
 	args: {
-		task: mockTask([]),
+		task: mockTask,
+		workspace: mockWorkspaceWithApps([]),
 	},
 };
 
 export const WithExternalAppsOnly: Story = {
 	args: {
-		task: mockTask([mockExternalApp]),
+		task: mockTask,
+		workspace: mockWorkspaceWithApps([mockExternalApp]),
 	},
 };
 
 export const WithEmbeddedApps: Story = {
 	args: {
-		task: mockTask([mockEmbeddedApp()]),
+		task: mockTask,
+		workspace: mockWorkspaceWithApps([mockEmbeddedApp()]),
 	},
 };
 
 export const WithMixedApps: Story = {
 	args: {
-		task: mockTask([mockEmbeddedApp(), mockExternalApp]),
+		task: mockTask,
+		workspace: mockWorkspaceWithApps([mockEmbeddedApp(), mockExternalApp]),
 	},
 };
 
@@ -71,7 +79,8 @@ export const WithWildcardWarning: Story = {
 		user: MockUserOwner,
 	},
 	args: {
-		task: mockTask([
+		task: mockTask,
+		workspace: mockWorkspaceWithApps([
 			{
 				...mockEmbeddedApp(),
 				subdomain: true,
@@ -82,7 +91,8 @@ export const WithWildcardWarning: Story = {
 
 export const WithManyEmbeddedApps: Story = {
 	args: {
-		task: mockTask([
+		task: mockTask,
+		workspace: mockWorkspaceWithApps([
 			mockEmbeddedApp("Code Server"),
 			mockEmbeddedApp("Jupyter Notebook"),
 			mockEmbeddedApp("Web Terminal"),
@@ -108,25 +118,22 @@ function mockEmbeddedApp(name = MockWorkspaceApp.display_name): WorkspaceApp {
 	};
 }
 
-function mockTask(apps: WorkspaceApp[]): Task {
+function mockWorkspaceWithApps(apps: WorkspaceApp[]): Workspace {
 	return {
-		...MockTasks[0],
-		workspace: {
-			...MockWorkspace,
-			latest_build: {
-				...MockWorkspace.latest_build,
-				resources: [
-					{
-						...MockWorkspace.latest_build.resources[0],
-						agents: [
-							{
-								...MockWorkspaceAgent,
-								apps,
-							},
-						],
-					},
-				],
-			},
+		...MockWorkspace,
+		latest_build: {
+			...MockWorkspace.latest_build,
+			resources: [
+				{
+					...MockWorkspace.latest_build.resources[0],
+					agents: [
+						{
+							...MockWorkspaceAgent,
+							apps,
+						},
+					],
+				},
+			],
 		},
 	};
 }

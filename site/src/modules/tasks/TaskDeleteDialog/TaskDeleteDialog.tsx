@@ -1,10 +1,10 @@
 import { API } from "api/api";
 import { getErrorDetail, getErrorMessage } from "api/errors";
+import type { Task } from "api/typesGenerated";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import type { FC } from "react";
 import { QueryClient, useMutation } from "react-query";
-import type { Task } from "../tasks";
 
 type TaskDeleteDialogProps = {
 	open: boolean;
@@ -20,8 +20,7 @@ export const TaskDeleteDialog: FC<TaskDeleteDialogProps> = ({
 }) => {
 	const queryClient = new QueryClient();
 	const deleteTaskMutation = useMutation({
-		mutationFn: () =>
-			API.experimental.deleteTask(task.workspace.owner_name, task.workspace.id),
+		mutationFn: () => API.experimental.deleteTask(task.owner_name, task.id),
 		onSuccess: async () => {
 			await queryClient.invalidateQueries({ queryKey: ["tasks"] });
 		},

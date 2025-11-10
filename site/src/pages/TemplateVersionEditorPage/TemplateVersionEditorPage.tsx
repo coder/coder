@@ -104,12 +104,10 @@ const TemplateVersionEditorPage: FC = () => {
 	};
 
 	const navigateToVersion = (version: TemplateVersion) => {
-		return navigate(
-			`${getLink(linkToTemplate(organizationName, templateName))}/versions/${
-				version.name
-			}/edit`,
-			{ replace: true },
-		);
+		const url = `${getLink(linkToTemplate(organizationName, templateName))}/versions/${
+			version.name
+		}/edit?${searchParams.toString()}`;
+		return navigate(url, { replace: true });
 	};
 
 	const onBuildEnds = (newVersion: TemplateVersion) => {

@@ -23,9 +23,6 @@ templates.
   and API examples.
 - [bpmct/coder-templates](https://github.com/bpmct/coder-templates) -
   Kubernetes, OpenStack, podman, Docker, VM, AWS, Google Cloud, Azure templates.
-- [kozmiknano/vscode-server-template](https://github.com/KozmikNano/vscode-server-template) -
-  Run the full VS Code server within docker! (Built-in settings sync and
-  Microsoft Marketplace enabled)
 - [atnomoverflow/coder-template](https://github.com/atnomoverflow/coder-template) -
   Kubernetes template that install VS code server Rstudio jupyter and also set
   ssh access to gitlab (Works also on self managed gitlab).

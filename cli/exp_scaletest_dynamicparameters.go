@@ -4,16 +4,20 @@ package cli
 
 import (
 	"fmt"
+	"net/http"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+	"github.com/coder/serpent"
 
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/scaletest/dynamicparameters"
 	"github.com/coder/coder/v2/scaletest/harness"
-	"github.com/coder/serpent"
 )
 
 const (
@@ -21,8 +25,15 @@ const (
 )
 
 func (r *RootCmd) scaletestDynamicParameters() *serpent.Command {
-	var templateName string
-	var numEvals int64
+	var (
+		templateName    string
+		provisionerTags []string
+		numEvals        int64
+		tracingFlags    = &scaletestTracingFlags{}
+		prometheusFlags = &scaletestPrometheusFlags{}
+		// This test requires unlimited concurrency
+		timeoutStrategy = &timeoutFlags{}
+	)
 	orgContext := NewOrganizationContext()
 	output := &scaletestOutputFlags{}
 
@@ -46,20 +57,63 @@ func (r *RootCmd) scaletestDynamicParameters() *serpent.Command {
 				return xerrors.Errorf("template cannot be empty")
 			}
 
+			tags, err := ParseProvisionerTags(provisionerTags)
+			if err != nil {
+				return err
+			}
+
 			org, err := orgContext.Selected(inv, client)
 			if err != nil {
 				return err
 			}
 
+			_, err = requireAdmin(ctx, client)
+			if err != nil {
+				return err
+			}
+
+			client.HTTPClient = &http.Client{
+				Transport: &codersdk.HeaderTransport{
+					Transport: http.DefaultTransport,
+					Header: map[string][]string{
+						codersdk.BypassRatelimitHeader: {"true"},
+					},
+				},
+			}
+
+			reg := prometheus.NewRegistry()
+			metrics := dynamicparameters.NewMetrics(reg, "concurrent_evaluations")
+
 			logger := slog.Make(sloghuman.Sink(inv.Stdout)).Leveled(slog.LevelDebug)
-			partitions, err := dynamicparameters.SetupPartitions(ctx, client, org.ID, templateName, numEvals, logger)
+			prometheusSrvClose := ServeHandler(ctx, logger, promhttp.HandlerFor(reg, promhttp.HandlerOpts{}), prometheusFlags.Address, "prometheus")
+			defer prometheusSrvClose()
+
+			tracerProvider, closeTracing, tracingEnabled, err := tracingFlags.provider(ctx)
+			if err != nil {
+				return xerrors.Errorf("create tracer provider: %w", err)
+			}
+			defer func() {
+				// Allow time for traces to flush even if command context is
+				// canceled. This is a no-op if tracing is not enabled.
+				_, _ = fmt.Fprintln(inv.Stderr, "\nUploading traces...")
+				if err := closeTracing(ctx); err != nil {
+					_, _ = fmt.Fprintf(inv.Stderr, "\nError uploading traces: %+v\n", err)
+				}
+				// Wait for prometheus metrics to be scraped
+				_, _ = fmt.Fprintf(inv.Stderr, "Waiting %s for prometheus metrics to be scraped\n", prometheusFlags.Wait)
+				<-time.After(prometheusFlags.Wait)
+			}()
+			tracer := tracerProvider.Tracer(scaletestTracerName)
+
+			partitions, err := dynamicparameters.SetupPartitions(ctx, client, org.ID, templateName, tags, numEvals, logger)
 			if err != nil {
 				return xerrors.Errorf("setup dynamic parameters partitions: %w", err)
 			}
 
-			th := harness.NewTestHarness(harness.ConcurrentExecutionStrategy{}, harness.ConcurrentExecutionStrategy{})
-			reg := prometheus.NewRegistry()
-			metrics := dynamicparameters.NewMetrics(reg, "concurrent_evaluations")
+			th := harness.NewTestHarness(
+				timeoutStrategy.wrapStrategy(harness.ConcurrentExecutionStrategy{}),
+				// there is no cleanup since it's just a connection that we sever.
+				nil)
 
 			for i, part := range partitions {
 				for j := range part.ConcurrentEvaluations {
@@ -68,12 +122,21 @@ func (r *RootCmd) scaletestDynamicParameters() *serpent.Command {
 						Metrics:           metrics,
 						MetricLabelValues: []string{fmt.Sprintf("%d", part.ConcurrentEvaluations)},
 					}
-					runner := dynamicparameters.NewRunner(client, cfg)
+					var runner harness.Runnable = dynamicparameters.NewRunner(client, cfg)
+					if tracingEnabled {
+						runner = &runnableTraceWrapper{
+							tracer:   tracer,
+							spanName: fmt.Sprintf("%s/%d/%d", dynamicParametersTestName, i, j),
+							runner:   runner,
+						}
+					}
 					th.AddRun(dynamicParametersTestName, fmt.Sprintf("%d/%d", j, i), runner)
 				}
 			}
 
-			err = th.Run(ctx)
+			testCtx, testCancel := timeoutStrategy.toContext(ctx)
+			defer testCancel()
+			err = th.Run(testCtx)
 			if err != nil {
 				return xerrors.Errorf("run test harness: %w", err)
 			}
@@ -103,8 +166,16 @@ func (r *RootCmd) scaletestDynamicParameters() *serpent.Command {
 			Default:     "100",
 			Value:       serpent.Int64Of(&numEvals),
 		},
+		{
+			Flag:        "provisioner-tag",
+			Description: "Specify a set of tags to target provisioner daemons.",
+			Value:       serpent.StringArrayOf(&provisionerTags),
+		},
 	}
 	orgContext.AttachOptions(cmd)
 	output.attach(&cmd.Options)
+	tracingFlags.attach(&cmd.Options)
+	prometheusFlags.attach(&cmd.Options)
+	timeoutStrategy.attach(&cmd.Options)
 	return cmd
 }

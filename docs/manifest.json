@@ -210,6 +210,11 @@
 							"path": "./user-guides/workspace-access/vscode.md"
 						},
 						{
+							"title": "Web Terminal",
+							"description": "Use the browser-based terminal to access your workspace",
+							"path": "./user-guides/workspace-access/web-terminal.md"
+						},
+						{
 							"title": "JetBrains IDEs",
 							"description": "Use JetBrains IDEs with Coder",
 							"path": "./user-guides/workspace-access/jetbrains/index.md",
@@ -426,6 +431,11 @@
 									"title": "Google",
 									"description": "Configure Google as an OIDC provider",
 									"path": "./admin/users/oidc-auth/google.md"
+								},
+								{
+									"title": "Microsoft",
+									"description": "Configure Microsoft Entra ID as an OIDC provider",
+									"path": "./admin/users/oidc-auth/microsoft.md"
 								},
 								{
 									"title": "Configure OIDC refresh tokens",
@@ -912,7 +922,7 @@
 					"title": "Agent Boundaries",
 					"description": "Understanding Agent Boundaries in Coder Tasks",
 					"path": "./ai-coder/agent-boundary.md",
-					"state": ["beta"]
+					"state": ["early access"]
 				},
 				{
 					"title": "AI Bridge",
@@ -1170,6 +1180,21 @@
 					"path": "./reference/cli/index.md",
 					"icon_path": "./images/icons/terminal.svg",
 					"children": [
+						{
+							"title": "aibridge",
+							"description": "Manage AIBridge.",
+							"path": "reference/cli/aibridge.md"
+						},
+						{
+							"title": "aibridge interceptions",
+							"description": "Manage AIBridge interceptions.",
+							"path": "reference/cli/aibridge_interceptions.md"
+						},
+						{
+							"title": "aibridge interceptions list",
+							"description": "List AIBridge interceptions as JSON.",
+							"path": "reference/cli/aibridge_interceptions_list.md"
+						},
 						{
 							"title": "autoupdate",
 							"description": "Toggle auto-update policy for a workspace",
@@ -1787,6 +1812,11 @@
 							"title": "tokens remove",
 							"description": "Delete a token",
 							"path": "reference/cli/tokens_remove.md"
+						},
+						{
+							"title": "tokens view",
+							"description": "Display detailed information about a token",
+							"path": "reference/cli/tokens_view.md"
 						},
 						{
 							"title": "unfavorite",

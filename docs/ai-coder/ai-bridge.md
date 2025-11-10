@@ -1,8 +1,5 @@
 # AI Bridge
 
-> [!NOTE]
-> AI Bridge is currently an _experimental_ feature.
-
 ![AI bridge diagram](../images/aibridge/aibridge_diagram.png)
 
 Bridge is a smart proxy for AI. It acts as a man-in-the-middle between your users' coding agents / IDEs
@@ -45,16 +42,13 @@ Bridge runs inside the Coder control plane, requiring no separate compute to dep
 
 ### Activation
 
-To enable this feature, activate the `aibridge` experiment using an environment variable or a CLI flag.
-Additionally, you will need to enable Bridge explicitly:
+You will need to enable AI Bridge explicitly:
 
 ```sh
-CODER_EXPERIMENTS="aibridge" CODER_AIBRIDGE_ENABLED=true coder server
+CODER_AIBRIDGE_ENABLED=true coder server
 # or
-coder server --experiments=aibridge --aibridge-enabled=true
+coder server --aibridge-enabled=true
 ```
-
-_If you have other experiments enabled, separate them by commas._
 
 ### Providers
 
@@ -81,6 +75,44 @@ Bridge is compatible with _[Google Vertex AI](https://cloud.google.com/vertex-ai
 > [!NOTE]
 > See [Supported APIs](#supported-apis) section below for a comprehensive list.
 
+## Client Configuration
+
+Once AI Bridge is enabled on the server, your users need to configure their AI coding tools to use it. This section explains how users should configure their clients to connect to AI Bridge.
+
+### Setting Base URLs
+
+The exact configuration method varies by client — some use environment variables, others use configuration files or UI settings:
+
+- **OpenAI-compatible clients**: Set the base URL (commonly via the `OPENAI_BASE_URL` environment variable) to `https://coder.example.com/api/v2/aibridge/openai/v1`
+- **Anthropic-compatible clients**: Set the base URL (commonly via the `ANTHROPIC_BASE_URL` environment variable) to `https://coder.example.com/api/v2/aibridge/anthropic`
+
+Replace `coder.example.com` with your actual Coder deployment URL.
+
+### Authentication
+
+Instead of distributing provider-specific API keys (OpenAI/Anthropic keys) to users, they authenticate to AI Bridge using their **Coder session token** or **API key**:
+
+- **OpenAI clients**: Users set `OPENAI_API_KEY` to their Coder session token or API key
+- **Anthropic clients**: Users set `ANTHROPIC_API_KEY` to their Coder session token or API key
+
+Users can generate a Coder API key using:
+
+```sh
+coder tokens create
+```
+
+Template admins can pre-configure authentication in templates using [`data.coder_workspace_owner.me.session_token`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_owner#session_token-1) to automatically configure the workspace owner's credentials.
+
+#### Compatibility Notes
+
+Most AI coding assistants that support custom base URLs can work with AI Bridge. However, client-specific configuration requirements vary:
+
+- Some clients require specific URL formats (e.g. try removing the `/v1` suffix)
+- Some clients may proxy requests through their own servers, limiting compatibility (e.g. Cursor)
+- Some clients may not support custom base URLs at all (e.g. Copilot CLI, Sourcegraph Amp)
+
+Consult your specific AI client's documentation for details on configuring custom API endpoints.
+
 ## Collected Data
 
 Bridge collects:
@@ -95,7 +127,7 @@ All of these records are associated to an "interception" record, which maps 1:1 
 
 These logs can be used to determine usage patterns, track costs, and evaluate tooling adoption.
 
-This data is currently accessible through the API and CLI (experimental), which we advise administrators export to their observability platform of choice. We've configured a Grafana dashboard to display Claude Code usage internally which can be imported as a starting point for your tooling adoption metrics.
+This data is currently accessible through the API and CLI, which we advise administrators export to their observability platform of choice. We've configured a Grafana dashboard to display Claude Code usage internally which can be imported as a starting point for your tooling adoption metrics.
 
 ![User Leaderboard](../images/aibridge/grafana_user_leaderboard.png)
 

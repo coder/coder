@@ -54,10 +54,19 @@ func newPty(opt ...Option) (*ptyWindows, error) {
 		return nil, err
 	}
 
-	consoleSize := uintptr(80) + (uintptr(80) << 16)
+	// Default dimensions
+	width, height := 80, 80
 	if opts.sshReq != nil {
-		consoleSize = uintptr(opts.sshReq.Window.Width) + (uintptr(opts.sshReq.Window.Height) << 16)
+		if w := opts.sshReq.Window.Width; w > 0 && w <= 65535 {
+			width = w
+		}
+		if h := opts.sshReq.Window.Height; h > 0 && h <= 65535 {
+			height = h
+		}
 	}
+
+	consoleSize := uintptr(width) + (uintptr(height) << 16)
+
 	ret, _, err := procCreatePseudoConsole.Call(
 		consoleSize,
 		uintptr(pty.inputRead.Fd()),

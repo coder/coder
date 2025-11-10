@@ -944,3 +944,199 @@ func TestSearchTemplates(t *testing.T) {
 		})
 	}
 }
+
+func TestSearchTasks(t *testing.T) {
+	t.Parallel()
+
+	userID := uuid.MustParse("10000000-0000-0000-0000-000000000001")
+	orgID := uuid.MustParse("20000000-0000-0000-0000-000000000001")
+
+	testCases := []struct {
+		Name                  string
+		Query                 string
+		ActorID               uuid.UUID
+		Expected              database.ListTasksParams
+		ExpectedErrorContains string
+		Setup                 func(t *testing.T, db database.Store)
+	}{
+		{
+			Name:     "Empty",
+			Query:    "",
+			Expected: database.ListTasksParams{},
+		},
+		{
+			Name:  "OwnerUsername",
+			Query: "owner:alice",
+			Setup: func(t *testing.T, db database.Store) {
+				dbgen.User(t, db, database.User{
+					ID:       userID,
+					Username: "alice",
+				})
+			},
+			Expected: database.ListTasksParams{
+				OwnerID: userID,
+			},
+		},
+		{
+			Name:    "OwnerMe",
+			Query:   "owner:me",
+			ActorID: userID,
+			Expected: database.ListTasksParams{
+				OwnerID: userID,
+			},
+		},
+		{
+			Name:  "OwnerUUID",
+			Query: fmt.Sprintf("owner:%s", userID),
+			Expected: database.ListTasksParams{
+				OwnerID: userID,
+			},
+		},
+		{
+			Name:  "StatusActive",
+			Query: "status:active",
+			Expected: database.ListTasksParams{
+				Status: "active",
+			},
+		},
+		{
+			Name:  "StatusPending",
+			Query: "status:pending",
+			Expected: database.ListTasksParams{
+				Status: "pending",
+			},
+		},
+		{
+			Name:  "Organization",
+			Query: "organization:acme",
+			Setup: func(t *testing.T, db database.Store) {
+				dbgen.Organization(t, db, database.Organization{
+					ID:   orgID,
+					Name: "acme",
+				})
+			},
+			Expected: database.ListTasksParams{
+				OrganizationID: orgID,
+			},
+		},
+		{
+			Name:  "OrganizationUUID",
+			Query: fmt.Sprintf("organization:%s", orgID),
+			Expected: database.ListTasksParams{
+				OrganizationID: orgID,
+			},
+		},
+		{
+			Name:  "Combined",
+			Query: "owner:alice organization:acme status:active",
+			Setup: func(t *testing.T, db database.Store) {
+				dbgen.Organization(t, db, database.Organization{
+					ID:   orgID,
+					Name: "acme",
+				})
+				dbgen.User(t, db, database.User{
+					ID:       userID,
+					Username: "alice",
+				})
+			},
+			Expected: database.ListTasksParams{
+				OwnerID:        userID,
+				OrganizationID: orgID,
+				Status:         "active",
+			},
+		},
+		{
+			Name:  "QuotedOwner",
+			Query: `owner:"alice"`,
+			Setup: func(t *testing.T, db database.Store) {
+				dbgen.User(t, db, database.User{
+					ID:       userID,
+					Username: "alice",
+				})
+			},
+			Expected: database.ListTasksParams{
+				OwnerID: userID,
+			},
+		},
+		{
+			Name:  "QuotedStatus",
+			Query: `status:"pending"`,
+			Expected: database.ListTasksParams{
+				Status: "pending",
+			},
+		},
+		{
+			Name:  "DefaultToOwner",
+			Query: "alice",
+			Setup: func(t *testing.T, db database.Store) {
+				dbgen.User(t, db, database.User{
+					ID:       userID,
+					Username: "alice",
+				})
+			},
+			Expected: database.ListTasksParams{
+				OwnerID: userID,
+			},
+		},
+		{
+			Name:                  "InvalidOwner",
+			Query:                 "owner:nonexistent",
+			ExpectedErrorContains: "does not exist",
+		},
+		{
+			Name:                  "InvalidOrganization",
+			Query:                 "organization:nonexistent",
+			ExpectedErrorContains: "does not exist",
+		},
+		{
+			Name:  "ExtraParam",
+			Query: "owner:alice invalid:param",
+			Setup: func(t *testing.T, db database.Store) {
+				dbgen.User(t, db, database.User{
+					ID:       userID,
+					Username: "alice",
+				})
+			},
+			ExpectedErrorContains: "is not a valid query param",
+		},
+		{
+			Name:                  "ExtraColon",
+			Query:                 "owner:alice:extra",
+			ExpectedErrorContains: "can only contain 1 ':'",
+		},
+		{
+			Name:                  "PrefixColon",
+			Query:                 ":owner",
+			ExpectedErrorContains: "cannot start or end with ':'",
+		},
+		{
+			Name:                  "SuffixColon",
+			Query:                 "owner:",
+			ExpectedErrorContains: "cannot start or end with ':'",
+		},
+	}
+
+	for _, c := range testCases {
+		t.Run(c.Name, func(t *testing.T) {
+			t.Parallel()
+			db, _ := dbtestutil.NewDB(t)
+
+			if c.Setup != nil {
+				c.Setup(t, db)
+			}
+
+			values, errs := searchquery.Tasks(context.Background(), db, c.Query, c.ActorID)
+			if c.ExpectedErrorContains != "" {
+				require.True(t, len(errs) > 0, "expect some errors")
+				var s strings.Builder
+				for _, err := range errs {
+					_, _ = s.WriteString(fmt.Sprintf("%s: %s\n", err.Field, err.Detail))
+				}
+				require.Contains(t, s.String(), c.ExpectedErrorContains)
+			} else {
+				require.Len(t, errs, 0, "expected no error")
+				require.Equal(t, c.Expected, values, "expected values")
+			}
+		})
+	}
+}

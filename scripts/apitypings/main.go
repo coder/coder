@@ -17,6 +17,9 @@ func main() {
 		log.Fatalf("new convert: %v", err)
 	}
 
+	// Include golang comments to typescript output.
+	gen.PreserveComments()
+
 	generateDirectories := map[string]string{
 		"github.com/coder/coder/v2/codersdk":                  "",
 		"github.com/coder/coder/v2/coderd/healthcheck/health": "Health",

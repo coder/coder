@@ -109,6 +109,51 @@ func (r *RootCmd) ssh() *serpent.Command {
 				}
 			},
 		),
+		CompletionHandler: func(inv *serpent.Invocation) []string {
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return []string{}
+			}
+
+			res, err := client.Workspaces(inv.Context(), codersdk.WorkspaceFilter{
+				Owner: codersdk.Me,
+			})
+			if err != nil {
+				return []string{}
+			}
+
+			var mu sync.Mutex
+			var completions []string
+			var wg sync.WaitGroup
+			for _, ws := range res.Workspaces {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					resources, err := client.TemplateVersionResources(inv.Context(), ws.LatestBuild.TemplateVersionID)
+					if err != nil {
+						return
+					}
+					var agents []codersdk.WorkspaceAgent
+					for _, resource := range resources {
+						agents = append(agents, resource.Agents...)
+					}
+
+					mu.Lock()
+					defer mu.Unlock()
+					if len(agents) == 1 {
+						completions = append(completions, ws.Name)
+					} else {
+						for _, agent := range agents {
+							completions = append(completions, fmt.Sprintf("%s.%s", ws.Name, agent.Name))
+						}
+					}
+				}()
+			}
+			wg.Wait()
+
+			slices.Sort(completions)
+			return completions
+		},
 		Handler: func(inv *serpent.Invocation) (retErr error) {
 			client, err := r.InitClient(inv)
 			if err != nil {
@@ -906,6 +951,8 @@ func GetWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *
 					return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, nil, xerrors.Errorf("start workspace with active template version: %w", err)
 				}
 				_, _ = fmt.Fprintln(inv.Stdout, "Unable to start the workspace with template version from last build. Your workspace has been updated to the current active template version.")
+			default:
+				return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, nil, xerrors.Errorf("start workspace with current template version: %w", err)
 			}
 		} else if err != nil {
 			return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, nil, xerrors.Errorf("start workspace with current template version: %w", err)

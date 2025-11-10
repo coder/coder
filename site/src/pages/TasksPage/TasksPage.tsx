@@ -1,5 +1,6 @@
-import { API, type TasksFilter } from "api/api";
+import { API } from "api/api";
 import { templates } from "api/queries/templates";
+import type { TasksFilter } from "api/typesGenerated";
 import { Badge } from "components/Badge/Badge";
 import { Button, type ButtonProps } from "components/Button/Button";
 import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
@@ -27,8 +28,8 @@ const TasksPage: FC = () => {
 	);
 
 	const { user, permissions } = useAuthenticated();
-	const userFilter = useSearchParamsKey({
-		key: "username",
+	const ownerFilter = useSearchParamsKey({
+		key: "owner",
 		defaultValue: user.username,
 	});
 	const tab = useSearchParamsKey({
@@ -36,24 +37,15 @@ const TasksPage: FC = () => {
 		defaultValue: "all",
 	});
 	const filter: TasksFilter = {
-		username: userFilter.value,
+		owner: ownerFilter.value,
 	};
 	const tasksQuery = useQuery({
 		queryKey: ["tasks", filter],
 		queryFn: () => API.experimental.getTasks(filter),
 		refetchInterval: 10_000,
-		// TODO: Switch to sorting by latest_status_app.created_at once it’s reliable.
-		// Currently, it doesn’t always update fast enough for a good UX, so we’re
-		// temporarily sorting by workspace.created_at instead.
-		select: (tasks) =>
-			tasks.toSorted(
-				(a, b) =>
-					new Date(b.workspace.created_at).getTime() -
-					new Date(a.workspace.created_at).getTime(),
-			),
 	});
 	const idleTasks = tasksQuery.data?.filter(
-		(task) => task.workspace.latest_app_status?.state === "idle",
+		(task) => task.current_state?.state === "idle",
 	);
 	const displayedTasks =
 		tab.value === "waiting-for-input" ? idleTasks : tasksQuery.data;
@@ -77,7 +69,7 @@ const TasksPage: FC = () => {
 						onRetry={aiTemplatesQuery.refetch}
 					/>
 					{aiTemplatesQuery.isSuccess && (
-						<section>
+						<section className="py-8">
 							{permissions.viewDeploymentConfig && (
 								<section
 									className="mt-6 flex justify-between"
@@ -105,10 +97,10 @@ const TasksPage: FC = () => {
 									</div>
 
 									<UsersCombobox
-										value={userFilter.value}
+										value={ownerFilter.value}
 										onValueChange={(username) => {
-											userFilter.setValue(
-												username === userFilter.value ? "" : username,
+											ownerFilter.setValue(
+												username === ownerFilter.value ? "" : username,
 											);
 										}}
 									/>

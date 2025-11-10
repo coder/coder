@@ -69,8 +69,10 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 	// filled in different moments.
 	const isLoading = [
 		provisionerTimings,
-		agentScriptTimings,
 		agentConnectionTimings,
+		// agentScriptTimings might be an empty array if there are no scripts to run.
+		// Only provisionerTimings and agentConnectionTimings are guaranteed to have
+		// at least one entry.
 	].some((t) => t.length === 0);
 
 	// Each agent connection timing is a stage in the timeline to make it easier

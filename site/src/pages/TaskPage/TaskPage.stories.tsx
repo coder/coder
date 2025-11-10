@@ -1,7 +1,9 @@
 import {
+	MockDeletedWorkspace,
 	MockFailedWorkspace,
 	MockStartingWorkspace,
 	MockStoppedWorkspace,
+	MockTask,
 	MockTasks,
 	MockUserOwner,
 	MockWorkspace,
@@ -21,10 +23,10 @@ import {
 } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { API } from "api/api";
-import type { Workspace, WorkspaceApp } from "api/typesGenerated";
+import type { Task, Workspace, WorkspaceApp } from "api/typesGenerated";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
-import TaskPage, { data, WorkspaceDoesNotHaveAITaskError } from "./TaskPage";
+import TaskPage from "./TaskPage";
 
 const MockClaudeCodeApp: WorkspaceApp = {
 	...MockWorkspaceApp,
@@ -71,10 +73,11 @@ const meta: Meta<typeof TaskPage> = {
 		reactRouter: reactRouterParameters({
 			location: {
 				pathParams: {
-					workspace: MockTasks[0].workspace.name,
+					username: MockTask.owner_name,
+					taskId: MockTask.id,
 				},
 			},
-			routing: { path: "/tasks/:workspace" },
+			routing: { path: "/tasks/:username/:taskId" },
 		}),
 	},
 };
@@ -82,17 +85,34 @@ const meta: Meta<typeof TaskPage> = {
 export default meta;
 type Story = StoryObj<typeof TaskPage>;
 
-export const Loading: Story = {
+export const LoadingTask: Story = {
 	beforeEach: () => {
-		spyOn(data, "fetchTask").mockImplementation(
-			() => new Promise((_res) => 1000 * 60 * 60),
+		spyOn(API.experimental, "getTask").mockImplementation(
+			() => new Promise(() => {}),
+		);
+	},
+	play: async () => {
+		await waitFor(() => {
+			expect(API.experimental.getTask).toHaveBeenCalledWith(
+				MockTask.owner_name,
+				MockTask.id,
+			);
+		});
+	},
+};
+
+export const LoadingWorkspace: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getTask").mockResolvedValue(MockTask);
+		spyOn(API, "getWorkspaceByOwnerAndName").mockImplementation(
+			() => new Promise(() => {}),
 		);
 	},
 };
 
-export const LoadingError: Story = {
+export const LoadingTaskError: Story = {
 	beforeEach: () => {
-		spyOn(data, "fetchTask").mockRejectedValue(
+		spyOn(API.experimental, "getTask").mockRejectedValue(
 			mockApiError({
 				message: "Failed to load task",
 				detail: "You don't have permission to access this resource.",
@@ -101,58 +121,75 @@ export const LoadingError: Story = {
 	},
 };
 
+export const LoadingWorkspaceError: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getTask").mockResolvedValue(MockTask);
+		spyOn(API, "getWorkspaceByOwnerAndName").mockRejectedValue(
+			mockApiError({
+				message: "Failed to load workspace",
+				detail: "You don't have permission to access this resource.",
+			}),
+		);
+	},
+};
+
 export const WaitingOnBuild: Story = {
 	beforeEach: () => {
-		spyOn(data, "fetchTask").mockResolvedValue({
-			prompt: "Create competitors page",
-			workspace: MockStartingWorkspace,
-		});
+		spyOn(API.experimental, "getTask").mockResolvedValue(MockTask);
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockStartingWorkspace,
+		);
 	},
 };
 
 export const FailedBuild: Story = {
 	beforeEach: () => {
-		spyOn(data, "fetchTask").mockResolvedValue({
-			prompt: "Create competitors page",
-			workspace: MockFailedWorkspace,
-		});
+		spyOn(API.experimental, "getTask").mockResolvedValue(MockTask);
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockFailedWorkspace,
+		);
 	},
 };
 
 export const TerminatedBuild: Story = {
 	beforeEach: () => {
-		spyOn(data, "fetchTask").mockResolvedValue({
-			prompt: "Create competitors page",
-			workspace: MockStoppedWorkspace,
-		});
+		spyOn(API.experimental, "getTask").mockResolvedValue(MockTask);
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockStoppedWorkspace,
+		);
 	},
 };
 
 export const TerminatedBuildWithStatus: Story = {
 	beforeEach: () => {
-		spyOn(data, "fetchTask").mockResolvedValue({
-			prompt: "Create competitors page",
-			workspace: {
-				...MockStoppedWorkspace,
-				latest_app_status: MockWorkspaceAppStatus,
-			},
+		spyOn(API.experimental, "getTask").mockResolvedValue(MockTask);
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue({
+			...MockStoppedWorkspace,
+			latest_app_status: MockWorkspaceAppStatus,
 		});
+	},
+};
+
+export const DeletedWorkspace: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getTask").mockResolvedValue(MockTask);
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockDeletedWorkspace,
+		);
 	},
 };
 
 export const WaitingStartupScripts: Story = {
 	beforeEach: () => {
-		spyOn(data, "fetchTask").mockResolvedValue({
-			prompt: "Create competitors page",
-			workspace: {
-				...MockWorkspace,
-				latest_build: {
-					...MockWorkspace.latest_build,
-					has_ai_task: true,
-					resources: [
-						{ ...MockWorkspaceResource, agents: [MockWorkspaceAgentStarting] },
-					],
-				},
+		spyOn(API.experimental, "getTask").mockResolvedValue(MockTask);
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue({
+			...MockWorkspace,
+			latest_build: {
+				...MockWorkspace.latest_build,
+				has_ai_task: true,
+				resources: [
+					{ ...MockWorkspaceResource, agents: [MockWorkspaceAgentStarting] },
+				],
 			},
 		});
 	},
@@ -183,114 +220,86 @@ export const WaitingStartupScripts: Story = {
 
 export const SidebarAppNotFound: Story = {
 	beforeEach: () => {
-		const workspace = mockTaskWorkspace(MockClaudeCodeApp, MockVSCodeApp);
-		spyOn(data, "fetchTask").mockResolvedValue({
-			prompt: "Create competitors page",
-			workspace: {
-				...workspace,
-				latest_build: {
-					...workspace.latest_build,
-					ai_task_sidebar_app_id: "non-existent-app-id",
-				},
-			},
+		const [task, workspace] = mockTaskWithWorkspace(
+			MockClaudeCodeApp,
+			MockVSCodeApp,
+		);
+		spyOn(API.experimental, "getTask").mockResolvedValue({
+			...task,
+			workspace_app_id: null,
 		});
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(workspace);
 	},
 };
 
 export const SidebarAppHealthDisabled: Story = {
 	beforeEach: () => {
-		spyOn(data, "fetchTask").mockResolvedValue({
-			prompt: "Create competitors page",
-			workspace: mockTaskWorkspace(
-				{
-					...MockClaudeCodeApp,
-					health: "disabled",
-				},
-				MockVSCodeApp,
-			),
-		});
+		const [task, workspace] = mockTaskWithWorkspace(
+			{ ...MockClaudeCodeApp, health: "disabled" },
+			MockVSCodeApp,
+		);
+		spyOn(API.experimental, "getTask").mockResolvedValue(task);
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(workspace);
 	},
 };
 
 export const SidebarAppInitializing: Story = {
 	beforeEach: () => {
-		spyOn(data, "fetchTask").mockResolvedValue({
-			prompt: "Create competitors page",
-			workspace: mockTaskWorkspace(
-				{
-					...MockClaudeCodeApp,
-					health: "initializing",
-				},
-				MockVSCodeApp,
-			),
-		});
+		const [task, workspace] = mockTaskWithWorkspace(
+			{ ...MockClaudeCodeApp, health: "initializing" },
+			MockVSCodeApp,
+		);
+		spyOn(API.experimental, "getTask").mockResolvedValue(task);
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(workspace);
 	},
 };
 
 export const SidebarAppHealthy: Story = {
 	beforeEach: () => {
-		spyOn(data, "fetchTask").mockResolvedValue({
-			prompt: "Create competitors page",
-			workspace: mockTaskWorkspace(
-				{
-					...MockClaudeCodeApp,
-					health: "healthy",
-				},
-				MockVSCodeApp,
-			),
-		});
+		const [task, workspace] = mockTaskWithWorkspace(
+			{ ...MockClaudeCodeApp, health: "healthy" },
+			MockVSCodeApp,
+		);
+		spyOn(API.experimental, "getTask").mockResolvedValue(task);
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(workspace);
 	},
 };
 
 export const SidebarAppUnhealthy: Story = {
 	beforeEach: () => {
-		spyOn(data, "fetchTask").mockResolvedValue({
-			prompt: "Create competitors page",
-			workspace: mockTaskWorkspace(
-				{
-					...MockClaudeCodeApp,
-					health: "unhealthy",
-				},
-				MockVSCodeApp,
-			),
-		});
+		const [task, workspace] = mockTaskWithWorkspace(
+			{ ...MockClaudeCodeApp, health: "unhealthy" },
+			MockVSCodeApp,
+		);
+		spyOn(API.experimental, "getTask").mockResolvedValue(task);
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(workspace);
 	},
 };
 
 const mainAppHealthStory = (health: WorkspaceApp["health"]) => ({
 	beforeEach: () => {
-		spyOn(data, "fetchTask").mockResolvedValue({
-			prompt: "Create competitors page",
-			workspace: mockTaskWorkspace(MockClaudeCodeApp, {
-				...MockVSCodeApp,
-				health,
-			}),
+		const [task, workspace] = mockTaskWithWorkspace(MockClaudeCodeApp, {
+			...MockVSCodeApp,
+			health,
 		});
+		spyOn(API.experimental, "getTask").mockResolvedValue(task);
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(workspace);
 	},
 });
 
 export const MainAppHealthy: Story = mainAppHealthStory("healthy");
 export const MainAppInitializing: Story = mainAppHealthStory("initializing");
 export const MainAppUnhealthy: Story = mainAppHealthStory("unhealthy");
-export const MainAppHealthUnknown: Story = mainAppHealthStory(
-	"unknown" as unknown as WorkspaceApp["health"],
-);
-
-export const BuildNoAITask: Story = {
-	beforeEach: () => {
-		spyOn(data, "fetchTask").mockImplementation(() => {
-			throw new WorkspaceDoesNotHaveAITaskError(MockWorkspace);
-		});
-	},
-};
 
 export const Active: Story = {
 	decorators: [withProxyProvider()],
 	beforeEach: () => {
-		spyOn(data, "fetchTask").mockResolvedValue({
-			prompt: "Create competitors page",
-			workspace: mockTaskWorkspace(MockClaudeCodeApp, MockVSCodeApp),
-		});
+		const [task, workspace] = mockTaskWithWorkspace(
+			MockClaudeCodeApp,
+			MockVSCodeApp,
+		);
+		spyOn(API.experimental, "getTask").mockResolvedValue(task);
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(workspace);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -308,10 +317,12 @@ export const Active: Story = {
 export const ActivePreview: Story = {
 	decorators: [withProxyProvider()],
 	beforeEach: () => {
-		spyOn(data, "fetchTask").mockResolvedValue({
-			prompt: "Create competitors page",
-			workspace: mockTaskWorkspace(MockClaudeCodeApp, MockVSCodeApp),
-		});
+		const [task, workspace] = mockTaskWithWorkspace(
+			MockClaudeCodeApp,
+			MockVSCodeApp,
+		);
+		spyOn(API.experimental, "getTask").mockResolvedValue(task);
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(workspace);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -320,9 +331,51 @@ export const ActivePreview: Story = {
 	},
 };
 
+export const WorkspaceStarting: Story = {
+	decorators: [withGlobalSnackbar],
+	beforeEach: () => {
+		spyOn(API.experimental, "getTask").mockResolvedValue(MockTask);
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockStoppedWorkspace,
+		);
+		spyOn(API, "startWorkspace").mockResolvedValue(
+			MockStartingWorkspace.latest_build,
+		);
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				pathParams: {
+					username: MockStoppedWorkspace.owner_name,
+					taskId: MockTask.id,
+				},
+			},
+			routing: {
+				path: "/tasks/:username/:taskId",
+			},
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const startButton = await canvas.findByText("Start workspace");
+		expect(startButton).toBeInTheDocument();
+
+		await userEvent.click(startButton);
+
+		await waitFor(async () => {
+			expect(API.startWorkspace).toBeCalled();
+		});
+	},
+};
+
 export const WorkspaceStartFailure: Story = {
 	decorators: [withGlobalSnackbar],
 	beforeEach: () => {
+		spyOn(API.experimental, "getTask").mockResolvedValue(MockTask);
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockStoppedWorkspace,
+		);
 		spyOn(API, "startWorkspace").mockRejectedValue(
 			new Error("Some unexpected error"),
 		);
@@ -332,33 +385,13 @@ export const WorkspaceStartFailure: Story = {
 			location: {
 				pathParams: {
 					username: MockStoppedWorkspace.owner_name,
-					workspace: MockStoppedWorkspace.name,
+					taskId: MockTask.id,
 				},
 			},
 			routing: {
-				path: "/tasks/:username/:workspace",
+				path: "/tasks/:username/:taskId",
 			},
 		}),
-		queries: [
-			{
-				key: [
-					"tasks",
-					MockStoppedWorkspace.owner_name,
-					MockStoppedWorkspace.name,
-				],
-				data: {
-					prompt: "Create competitors page",
-					workspace: MockStoppedWorkspace,
-				},
-			},
-			{
-				key: ["workspace", MockStoppedWorkspace.id, "parameters"],
-				data: {
-					templateVersionRichParameters: [],
-					buildParameters: [],
-				},
-			},
-		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -377,6 +410,10 @@ export const WorkspaceStartFailure: Story = {
 
 export const WorkspaceStartFailureWithDialog: Story = {
 	beforeEach: () => {
+		spyOn(API.experimental, "getTask").mockResolvedValue(MockTask);
+		spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(
+			MockStoppedWorkspace,
+		);
 		spyOn(API, "startWorkspace").mockRejectedValue({
 			...mockApiError({
 				message: "Bad Request",
@@ -390,33 +427,13 @@ export const WorkspaceStartFailureWithDialog: Story = {
 			location: {
 				pathParams: {
 					username: MockStoppedWorkspace.owner_name,
-					workspace: MockStoppedWorkspace.name,
+					taskId: MockTask.id,
 				},
 			},
 			routing: {
-				path: "/tasks/:username/:workspace",
+				path: "/tasks/:username/:taskId",
 			},
 		}),
-		queries: [
-			{
-				key: [
-					"tasks",
-					MockStoppedWorkspace.owner_name,
-					MockStoppedWorkspace.name,
-				],
-				data: {
-					prompt: "Create competitors page",
-					workspace: MockStoppedWorkspace,
-				},
-			},
-			{
-				key: ["workspace", MockStoppedWorkspace.id, "parameters"],
-				data: {
-					templateVersionRichParameters: [],
-					buildParameters: [],
-				},
-			},
-		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -434,51 +451,56 @@ export const WorkspaceStartFailureWithDialog: Story = {
 	},
 };
 
-function mockTaskWorkspace(
+function mockTaskWithWorkspace(
 	sidebarApp: WorkspaceApp,
 	activeApp: WorkspaceApp,
-): Workspace {
-	return {
-		...MockWorkspace,
-		latest_build: {
-			...MockWorkspace.latest_build,
-			has_ai_task: true,
-			ai_task_sidebar_app_id: sidebarApp.id,
-			resources: [
-				{
-					...MockWorkspaceResource,
-					agents: [
-						{
-							...MockWorkspaceAgentReady,
-							apps: [
-								sidebarApp,
-								activeApp,
-								{
-									...MockWorkspaceApp,
-									slug: "zed",
-									id: "zed",
-									display_name: "Zed",
-									icon: "/icon/zed.svg",
-									health: "healthy",
-								},
-								{
-									...MockWorkspaceApp,
-									slug: "preview",
-									id: "preview",
-									display_name: "Preview",
-									health: "healthy",
-								},
-								{
-									...MockWorkspaceApp,
-									slug: "disabled",
-									id: "disabled",
-									display_name: "Disabled",
-								},
-							],
-						},
-					],
-				},
-			],
+): [Task, Workspace] {
+	return [
+		{
+			...MockTask,
+			workspace_app_id: sidebarApp.id,
 		},
-	};
+		{
+			...MockWorkspace,
+			latest_build: {
+				...MockWorkspace.latest_build,
+				has_ai_task: true,
+				resources: [
+					{
+						...MockWorkspaceResource,
+						agents: [
+							{
+								...MockWorkspaceAgentReady,
+								apps: [
+									sidebarApp,
+									activeApp,
+									{
+										...MockWorkspaceApp,
+										slug: "zed",
+										id: "zed",
+										display_name: "Zed",
+										icon: "/icon/zed.svg",
+										health: "healthy",
+									},
+									{
+										...MockWorkspaceApp,
+										slug: "preview",
+										id: "preview",
+										display_name: "Preview",
+										health: "healthy",
+									},
+									{
+										...MockWorkspaceApp,
+										slug: "disabled",
+										id: "disabled",
+										display_name: "Disabled",
+									},
+								],
+							},
+						],
+					},
+				],
+			},
+		},
+	];
 }

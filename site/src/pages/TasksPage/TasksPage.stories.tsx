@@ -105,26 +105,6 @@ export const LoadedTasks: Story = {
 	},
 };
 
-export const LoadedTasksWaitingForInput: Story = {
-	beforeEach: () => {
-		const [firstTask, ...otherTasks] = MockTasks;
-		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
-		spyOn(API.experimental, "getTasks").mockResolvedValue([
-			{
-				...firstTask,
-				workspace: {
-					...firstTask.workspace,
-					latest_app_status: {
-						...firstTask.workspace.latest_app_status,
-						state: "idle",
-					},
-				},
-			},
-			...otherTasks,
-		]);
-	},
-};
-
 export const LoadedTasksWaitingForInputTab: Story = {
 	beforeEach: () => {
 		const [firstTask, ...otherTasks] = MockTasks;
@@ -132,12 +112,9 @@ export const LoadedTasksWaitingForInputTab: Story = {
 		spyOn(API.experimental, "getTasks").mockResolvedValue([
 			{
 				...firstTask,
-				workspace: {
-					...firstTask.workspace,
-					latest_app_status: {
-						...firstTask.workspace.latest_app_status,
-						state: "idle" as const,
-					},
+				current_state: {
+					...firstTask.current_state,
+					state: "idle",
 				},
 			},
 			...otherTasks,

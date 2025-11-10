@@ -26,5 +26,6 @@ ignorePatterns:
   - pattern: "claude.ai"
   - pattern: "splunk.com"
   - pattern: "stackoverflow.com/questions"
+  - pattern: "developer.hashicorp.com/terraform/language"
 aliveStatusCodes:
   - 200

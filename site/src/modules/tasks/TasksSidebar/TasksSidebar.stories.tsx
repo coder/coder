@@ -19,13 +19,14 @@ const meta: Meta<typeof TasksSidebar> = {
 		},
 		reactRouter: reactRouterParameters({
 			location: {
-				path: `/tasks/${MockTasks[0].workspace.name}`,
+				path: `/tasks/${MockTasks[0].owner_name}/${MockTasks[0].id}`,
 				pathParams: {
-					workspace: MockTasks[0].workspace.name,
+					owner_name: MockTasks[0].owner_name,
+					taskId: MockTasks[0].id,
 				},
 			},
 			routing: [
-				{ path: "/tasks/:workspace", useStoryElement: true },
+				{ path: "/tasks/:username/:taskId", useStoryElement: true },
 				{ path: "/tasks", element: <div>Tasks Index Page</div> },
 			],
 		}),

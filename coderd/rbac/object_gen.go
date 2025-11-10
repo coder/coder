@@ -286,6 +286,16 @@ var (
 		Type: "tailnet_coordinator",
 	}
 
+	// ResourceTask
+	// Valid Actions
+	//  - "ActionCreate" :: create a new task
+	//  - "ActionDelete" :: delete task
+	//  - "ActionRead" :: read task data or output to view on the UI or CLI
+	//  - "ActionUpdate" :: edit task settings or send input to an existing task
+	ResourceTask = Object{
+		Type: "task",
+	}
+
 	// ResourceTemplate
 	// Valid Actions
 	//  - "ActionCreate" :: create a template
@@ -346,6 +356,7 @@ var (
 	//  - "ActionDelete" :: delete workspace
 	//  - "ActionDeleteAgent" :: delete an existing workspace agent
 	//  - "ActionRead" :: read workspace data to view on the UI
+	//  - "ActionShare" :: share a workspace with other users or groups
 	//  - "ActionSSH" :: ssh into a given workspace
 	//  - "ActionWorkspaceStart" :: allows starting a workspace
 	//  - "ActionWorkspaceStop" :: allows stopping a workspace
@@ -378,6 +389,7 @@ var (
 	//  - "ActionDelete" :: delete workspace
 	//  - "ActionDeleteAgent" :: delete an existing workspace agent
 	//  - "ActionRead" :: read workspace data to view on the UI
+	//  - "ActionShare" :: share a workspace with other users or groups
 	//  - "ActionSSH" :: ssh into a given workspace
 	//  - "ActionWorkspaceStart" :: allows starting a workspace
 	//  - "ActionWorkspaceStop" :: allows stopping a workspace
@@ -430,6 +442,7 @@ func AllResources() []Objecter {
 		ResourceReplicas,
 		ResourceSystem,
 		ResourceTailnetCoordinator,
+		ResourceTask,
 		ResourceTemplate,
 		ResourceUsageEvent,
 		ResourceUser,
@@ -454,6 +467,7 @@ func AllActions() []policy.Action {
 		policy.ActionRead,
 		policy.ActionReadPersonal,
 		policy.ActionSSH,
+		policy.ActionShare,
 		policy.ActionUnassign,
 		policy.ActionUpdate,
 		policy.ActionUpdatePersonal,

@@ -66,11 +66,6 @@ func TestMain(m *testing.M) {
 func TestBasicNotificationRoundtrip(t *testing.T) {
 	t.Parallel()
 
-	// SETUP
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
-	}
-
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
@@ -278,11 +273,6 @@ func TestWebhookDispatch(t *testing.T) {
 func TestBackpressure(t *testing.T) {
 	t.Parallel()
 
-	// SETUP
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
-	}
-
 	store, pubsub := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitShort))
@@ -407,11 +397,6 @@ func TestBackpressure(t *testing.T) {
 func TestRetries(t *testing.T) {
 	t.Parallel()
 
-	// SETUP
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
-	}
-
 	const maxAttempts = 3
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, pubsub := dbtestutil.NewDB(t)
@@ -506,11 +491,6 @@ func TestRetries(t *testing.T) {
 // they have been processed.
 func TestExpiredLeaseIsRequeued(t *testing.T) {
 	t.Parallel()
-
-	// SETUP
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
-	}
 
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, pubsub := dbtestutil.NewDB(t)
@@ -750,10 +730,6 @@ func enumerateAllTemplates(t *testing.T) ([]string, error) {
 
 func TestNotificationTemplates_Golden(t *testing.T) {
 	t.Parallel()
-
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres; it relies on the notification templates added by migrations in the database")
-	}
 
 	const (
 		username = "bob"
@@ -1301,6 +1277,34 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				Data: map[string]any{},
 			},
 		},
+		{
+			name: "TemplateTaskCompleted",
+			id:   notifications.TemplateTaskCompleted,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"task":      "my-task",
+					"workspace": "my-workspace",
+				},
+				Data: map[string]any{},
+			},
+		},
+		{
+			name: "TemplateTaskFailed",
+			id:   notifications.TemplateTaskFailed,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"task":      "my-task",
+					"workspace": "my-workspace",
+				},
+				Data: map[string]any{},
+			},
+		},
 	}
 
 	// We must have a test case for every notification_template. This is enforced below:
@@ -1677,10 +1681,6 @@ func normalizeGoldenWebhook(content []byte) []byte {
 func TestDisabledByDefaultBeforeEnqueue(t *testing.T) {
 	t.Parallel()
 
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres; it is testing business-logic implemented in the database")
-	}
-
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, _ := dbtestutil.NewDB(t)
 	logbuf := strings.Builder{}
@@ -1703,11 +1703,6 @@ func TestDisabledByDefaultBeforeEnqueue(t *testing.T) {
 // TestDisabledBeforeEnqueue ensures that notifications cannot be enqueued once a user has disabled that notification template
 func TestDisabledBeforeEnqueue(t *testing.T) {
 	t.Parallel()
-
-	// SETUP
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres; it is testing business-logic implemented in the database")
-	}
 
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, _ := dbtestutil.NewDB(t)
@@ -1742,11 +1737,6 @@ func TestDisabledBeforeEnqueue(t *testing.T) {
 // sent, and will instead be marked as "inhibited".
 func TestDisabledAfterEnqueue(t *testing.T) {
 	t.Parallel()
-
-	// SETUP
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres; it is testing business-logic implemented in the database")
-	}
 
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, pubsub := dbtestutil.NewDB(t)
@@ -1798,11 +1788,6 @@ func TestDisabledAfterEnqueue(t *testing.T) {
 
 func TestCustomNotificationMethod(t *testing.T) {
 	t.Parallel()
-
-	// SETUP
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
-	}
 
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, pubsub := dbtestutil.NewDB(t)
@@ -1901,12 +1886,6 @@ func TestCustomNotificationMethod(t *testing.T) {
 func TestNotificationsTemplates(t *testing.T) {
 	t.Parallel()
 
-	// SETUP
-	if !dbtestutil.WillUsePostgres() {
-		// Notification system templates are only served from the database and not dbmem at this time.
-		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
-	}
-
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	api := coderdtest.New(t, createOpts(t))
 
@@ -1937,11 +1916,6 @@ func createOpts(t *testing.T) *coderdtest.Options {
 // TestNotificationDuplicates validates that identical notifications cannot be sent on the same day.
 func TestNotificationDuplicates(t *testing.T) {
 	t.Parallel()
-
-	// SETUP
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres; it is testing the dedupe hash trigger in the database")
-	}
 
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, pubsub := dbtestutil.NewDB(t)

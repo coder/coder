@@ -44,6 +44,7 @@ const (
 	// Deprecated: Workspace App connections are now included in the
 	// connection log.
 	ResourceTypeWorkspaceApp ResourceType = "workspace_app"
+	ResourceTypeTask         ResourceType = "task"
 )
 
 func (r ResourceType) FriendlyString() string {
@@ -100,6 +101,8 @@ func (r ResourceType) FriendlyString() string {
 		return "workspace agent"
 	case ResourceTypeWorkspaceApp:
 		return "workspace app"
+	case ResourceTypeTask:
+		return "task"
 	default:
 		return "unknown"
 	}

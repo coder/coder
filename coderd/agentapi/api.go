@@ -239,6 +239,10 @@ func (a *API) Serve(ctx context.Context, l net.Listener) error {
 		return xerrors.Errorf("create agent API server: %w", err)
 	}
 
+	if err := a.ResourcesMonitoringAPI.InitMonitors(ctx); err != nil {
+		return xerrors.Errorf("initialize resource monitoring: %w", err)
+	}
+
 	return server.Serve(ctx, l)
 }
 

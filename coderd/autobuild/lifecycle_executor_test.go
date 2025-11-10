@@ -776,10 +776,6 @@ func TestExecutorWorkspaceAutostopNoWaitChangedMyMind(t *testing.T) {
 }
 
 func TestExecutorAutostartMultipleOK(t *testing.T) {
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip(`This test only really works when using a "real" database, similar to a HA setup`)
-	}
-
 	t.Parallel()
 
 	var (
@@ -1258,10 +1254,6 @@ func TestNotifications(t *testing.T) {
 // For enterprise-related functionality, see enterprise/coderd/workspaces_test.go.
 func TestExecutorPrebuilds(t *testing.T) {
 	t.Parallel()
-
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("this test requires postgres")
-	}
 
 	// Prebuild workspaces should not be autostopped when the deadline is reached.
 	// After being claimed, the workspace should stop at the deadline.
@@ -1771,4 +1763,176 @@ func TestExecutorAutostartSkipsWhenNoProvisionersAvailable(t *testing.T) {
 	stats = <-statsCh
 
 	assert.Len(t, stats.Transitions, 1, "should create builds when provisioners are available")
+}
+
+func TestExecutorTaskWorkspace(t *testing.T) {
+	t.Parallel()
+
+	createTaskTemplate := func(t *testing.T, client *codersdk.Client, orgID uuid.UUID, ctx context.Context, defaultTTL time.Duration) codersdk.Template {
+		t.Helper()
+
+		taskAppID := uuid.New()
+		version := coderdtest.CreateTemplateVersion(t, client, orgID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionPlan: []*proto.Response{
+				{
+					Type: &proto.Response_Plan{
+						Plan: &proto.PlanComplete{HasAiTasks: true},
+					},
+				},
+			},
+			ProvisionApply: []*proto.Response{
+				{
+					Type: &proto.Response_Apply{
+						Apply: &proto.ApplyComplete{
+							Resources: []*proto.Resource{
+								{
+									Agents: []*proto.Agent{
+										{
+											Id:   uuid.NewString(),
+											Name: "dev",
+											Auth: &proto.Agent_Token{
+												Token: uuid.NewString(),
+											},
+											Apps: []*proto.App{
+												{
+													Id:   taskAppID.String(),
+													Slug: "task-app",
+												},
+											},
+										},
+									},
+								},
+							},
+							AiTasks: []*proto.AITask{
+								{
+									AppId: taskAppID.String(),
+								},
+							},
+						},
+					},
+				},
+			},
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, orgID, version.ID)
+
+		if defaultTTL > 0 {
+			_, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+				DefaultTTLMillis: defaultTTL.Milliseconds(),
+			})
+			require.NoError(t, err)
+		}
+
+		return template
+	}
+
+	createTaskWorkspace := func(t *testing.T, client *codersdk.Client, template codersdk.Template, ctx context.Context, input string) codersdk.Workspace {
+		t.Helper()
+
+		exp := codersdk.NewExperimentalClient(client)
+		task, err := exp.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
+			TemplateVersionID: template.ActiveVersionID,
+			Input:             input,
+		})
+		require.NoError(t, err)
+		require.True(t, task.WorkspaceID.Valid, "task should have a workspace")
+
+		workspace, err := client.Workspace(ctx, task.WorkspaceID.UUID)
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		return workspace
+	}
+
+	t.Run("Autostart", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx        = testutil.Context(t, testutil.WaitShort)
+			sched      = mustSchedule(t, "CRON_TZ=UTC 0 * * * *")
+			tickCh     = make(chan time.Time)
+			statsCh    = make(chan autobuild.Stats)
+			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
+				AutobuildTicker:          tickCh,
+				IncludeProvisionerDaemon: true,
+				AutobuildStats:           statsCh,
+			})
+			admin = coderdtest.CreateFirstUser(t, client)
+		)
+
+		// Given: A task workspace
+		template := createTaskTemplate(t, client, admin.OrganizationID, ctx, 0)
+		workspace := createTaskWorkspace(t, client, template, ctx, "test task for autostart")
+
+		// Given: The task workspace has an autostart schedule
+		err := client.UpdateWorkspaceAutostart(ctx, workspace.ID, codersdk.UpdateWorkspaceAutostartRequest{
+			Schedule: ptr.Ref(sched.String()),
+		})
+		require.NoError(t, err)
+
+		// Given: That the workspace is in a stopped state.
+		workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
+
+		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, map[string]string{})
+		require.NoError(t, err)
+
+		// When: the autobuild executor ticks after the scheduled time
+		go func() {
+			tickTime := sched.Next(workspace.LatestBuild.CreatedAt)
+			coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+			tickCh <- tickTime
+			close(tickCh)
+		}()
+
+		// Then: We expect to see a start transition
+		stats := <-statsCh
+		require.Len(t, stats.Transitions, 1, "lifecycle executor should transition the task workspace")
+		assert.Contains(t, stats.Transitions, workspace.ID, "task workspace should be in transitions")
+		assert.Equal(t, database.WorkspaceTransitionStart, stats.Transitions[workspace.ID], "should autostart the workspace")
+		require.Empty(t, stats.Errors, "should have no errors when managing task workspaces")
+	})
+
+	t.Run("Autostop", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx        = testutil.Context(t, testutil.WaitShort)
+			tickCh     = make(chan time.Time)
+			statsCh    = make(chan autobuild.Stats)
+			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
+				AutobuildTicker:          tickCh,
+				IncludeProvisionerDaemon: true,
+				AutobuildStats:           statsCh,
+			})
+			admin = coderdtest.CreateFirstUser(t, client)
+		)
+
+		// Given: A task workspace with an 8 hour deadline
+		template := createTaskTemplate(t, client, admin.OrganizationID, ctx, 8*time.Hour)
+		workspace := createTaskWorkspace(t, client, template, ctx, "test task for autostop")
+
+		// Given: The workspace is currently running
+		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
+		require.Equal(t, codersdk.WorkspaceTransitionStart, workspace.LatestBuild.Transition)
+		require.NotZero(t, workspace.LatestBuild.Deadline, "workspace should have a deadline for autostop")
+
+		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, map[string]string{})
+		require.NoError(t, err)
+
+		// When: the autobuild executor ticks after the deadline
+		go func() {
+			tickTime := workspace.LatestBuild.Deadline.Time.Add(time.Minute)
+			coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+			tickCh <- tickTime
+			close(tickCh)
+		}()
+
+		// Then: We expect to see a stop transition
+		stats := <-statsCh
+		require.Len(t, stats.Transitions, 1, "lifecycle executor should transition the task workspace")
+		assert.Contains(t, stats.Transitions, workspace.ID, "task workspace should be in transitions")
+		assert.Equal(t, database.WorkspaceTransitionStop, stats.Transitions[workspace.ID], "should autostop the workspace")
+		require.Empty(t, stats.Errors, "should have no errors when managing task workspaces")
+	})
 }

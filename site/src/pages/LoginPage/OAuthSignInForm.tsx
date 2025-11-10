@@ -1,7 +1,7 @@
-import GitHubIcon from "@mui/icons-material/GitHub";
 import { visuallyHidden } from "@mui/utils";
 import type { AuthMethods } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { KeyIcon } from "lucide-react";
 import { type FC, useId } from "react";
 import { Language } from "./Language";
@@ -33,7 +33,7 @@ export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
 							redirectTo,
 						)}`}
 					>
-						<GitHubIcon />
+						<ExternalImage src="/icon/github.svg" />
 						{Language.githubSignIn}
 					</a>
 				</Button>

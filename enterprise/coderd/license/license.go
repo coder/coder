@@ -262,6 +262,36 @@ func LicensesEntitlements(
 			claims.FeatureSet = codersdk.FeatureSetEnterprise
 		}
 
+		// Temporary: If the license doesn't have a managed agent limit, we add
+		//            a default of 1000 managed agents per deployment for a 100
+		//            year license term.
+		//            This only applies to "Premium" licenses.
+		if claims.FeatureSet == codersdk.FeatureSetPremium {
+			var (
+				// We intentionally use a fixed issue time here, before the
+				// entitlement was added to any new licenses, so any
+				// licenses with the corresponding features actually set
+				// trump this default entitlement, even if they are set to a
+				// smaller value.
+				defaultManagedAgentsIsuedAt         = time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC)
+				defaultManagedAgentsStart           = defaultManagedAgentsIsuedAt
+				defaultManagedAgentsEnd             = defaultManagedAgentsStart.AddDate(100, 0, 0)
+				defaultManagedAgentsSoftLimit int64 = 1000
+				defaultManagedAgentsHardLimit int64 = 1000
+			)
+			entitlements.AddFeature(codersdk.FeatureManagedAgentLimit, codersdk.Feature{
+				Enabled:     true,
+				Entitlement: entitlement,
+				SoftLimit:   &defaultManagedAgentsSoftLimit,
+				Limit:       &defaultManagedAgentsHardLimit,
+				UsagePeriod: &codersdk.UsagePeriod{
+					IssuedAt: defaultManagedAgentsIsuedAt,
+					Start:    defaultManagedAgentsStart,
+					End:      defaultManagedAgentsEnd,
+				},
+			})
+		}
+
 		// Add all features from the feature set defined.
 		for _, featureName := range claims.FeatureSet.Features() {
 			if _, ok := licenseForbiddenFeatures[featureName]; ok {
@@ -338,33 +368,6 @@ func LicensesEntitlements(
 					Limit:       &featureValue,
 					Actual:      &featureArguments.ActiveUserCount,
 				})
-
-				// Temporary: If the license doesn't have a managed agent limit,
-				//            we add a default of 800 managed agents per user.
-				//            This only applies to "Premium" licenses.
-				if claims.FeatureSet == codersdk.FeatureSetPremium {
-					var (
-						// We intentionally use a fixed issue time here, before the
-						// entitlement was added to any new licenses, so any
-						// licenses with the corresponding features actually set
-						// trump this default entitlement, even if they are set to a
-						// smaller value.
-						issueTime             = time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC)
-						defaultSoftAgentLimit = 800 * featureValue
-						defaultHardAgentLimit = 1000 * featureValue
-					)
-					entitlements.AddFeature(codersdk.FeatureManagedAgentLimit, codersdk.Feature{
-						Enabled:     true,
-						Entitlement: entitlement,
-						SoftLimit:   &defaultSoftAgentLimit,
-						Limit:       &defaultHardAgentLimit,
-						UsagePeriod: &codersdk.UsagePeriod{
-							IssuedAt: issueTime,
-							Start:    usagePeriodStart,
-							End:      usagePeriodEnd,
-						},
-					})
-				}
 			default:
 				if featureValue <= 0 {
 					// The feature is disabled.
@@ -490,15 +493,15 @@ func LicensesEntitlements(
 		if featureArguments.ManagedAgentCountFn != nil {
 			managedAgentCount, err = featureArguments.ManagedAgentCountFn(ctx, agentLimit.UsagePeriod.Start, agentLimit.UsagePeriod.End)
 		}
-		switch {
-		case xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded):
+		if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
 			// If the context is canceled, we want to bail the entire
 			// LicensesEntitlements call.
 			return entitlements, xerrors.Errorf("get managed agent count: %w", err)
-		case err != nil:
-			entitlements.Errors = append(entitlements.Errors,
-				fmt.Sprintf("Error getting managed agent count: %s", err.Error()))
-		default:
+		}
+		if err != nil {
+			entitlements.Errors = append(entitlements.Errors, fmt.Sprintf("Error getting managed agent count: %s", err.Error()))
+			// no return
+		} else {
 			agentLimit.Actual = &managedAgentCount
 			entitlements.AddFeature(codersdk.FeatureManagedAgentLimit, agentLimit)
 
@@ -612,6 +615,8 @@ var (
 	ErrMissingLicenseExpires = xerrors.New("license has invalid or missing license_expires claim")
 	ErrMissingExp            = xerrors.New("license has invalid or missing exp (expires at) claim")
 	ErrMultipleIssues        = xerrors.New("license has multiple issues; contact support")
+	ErrMissingAccountType    = xerrors.New("license must contain valid account type")
+	ErrMissingAccountID      = xerrors.New("license must contain valid account ID")
 )
 
 type Features map[codersdk.FeatureName]int64
@@ -696,11 +701,19 @@ func validateClaims(tok *jwt.Token) (*Claims, error) {
 		if claims.NotBefore == nil {
 			return nil, ErrMissingNotBefore
 		}
-		if claims.LicenseExpires == nil {
+
+		yearsHardLimit := time.Now().Add(5 /* years */ * 365 * 24 * time.Hour)
+		if claims.LicenseExpires == nil || claims.LicenseExpires.Time.After(yearsHardLimit) {
 			return nil, ErrMissingLicenseExpires
 		}
 		if claims.ExpiresAt == nil {
 			return nil, ErrMissingExp
+		}
+		if claims.AccountType == "" {
+			return nil, ErrMissingAccountType
+		}
+		if claims.AccountID == "" {
+			return nil, ErrMissingAccountID
 		}
 		return claims, nil
 	}

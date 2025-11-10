@@ -57,7 +57,18 @@ server.
 
 The link icons are optional, and can be set to any url or
 [builtin icon](../templates/extending-templates/icons.md#bundled-icons),
-additionally `bug`, `chat`, and `docs` are available as three special icons.
+additionally `bug`, `chat`, `docs`, and `star` are available as special icons.
+
+### Location
+
+The `location` property is optional and determines where the support link will
+be displayed:
+
+- `navbar` - displays the link as a button in the top navigation bar
+- `dropdown` - displays the link in the user dropdown menu (default)
+
+If the `location` property is not specified, the link will be displayed in the
+user dropdown menu.
 
 ### Configuration
 
@@ -77,7 +88,7 @@ coder:
         "https://codercom.slack.com/archives/C014JH42DBJ", "icon":
         "/icon/slack.svg"},
          {"name": "Hello Discord", "target": "https://discord.gg/coder", "icon":
-        "/icon/discord.svg"},
+        "/icon/discord.svg", "location": "navbar"},
          {"name": "Hello Foobar", "target": "https://foo.com/bar", "icon":
         "/emojis/1f3e1.png"}]
 ```
@@ -88,12 +99,12 @@ if running as a system service, set an environment variable
 `CODER_SUPPORT_LINKS` in `/etc/coder.d/coder.env` as follows,
 
 ```env
-CODER_SUPPORT_LINKS='[{"name": "Hello GitHub", "target": "https://github.com/coder/coder", "icon": "bug"}, {"name": "Hello Slack", "target": "https://codercom.slack.com/archives/C014JH42DBJ", "icon": "https://raw.githubusercontent.com/coder/coder/main/site/static/icon/slack.svg"}, {"name": "Hello Discord", "target": "https://discord.gg/coder", "icon": "https://raw.githubusercontent.com/coder/coder/main/site/static/icon/discord.svg"}, {"name": "Hello Foobar", "target": "https://discord.gg/coder", "icon": "/emojis/1f3e1.png"}]'
+CODER_SUPPORT_LINKS='[{"name": "Hello GitHub", "target": "https://github.com/coder/coder", "icon": "bug"}, {"name": "Hello Slack", "target": "https://codercom.slack.com/archives/C014JH42DBJ", "icon": "https://raw.githubusercontent.com/coder/coder/main/site/static/icon/slack.svg"}, {"name": "Hello Discord", "target": "https://discord.gg/coder", "icon": "https://raw.githubusercontent.com/coder/coder/main/site/static/icon/discord.svg", "location": "navbar"}, {"name": "Hello Foobar", "target": "https://discord.gg/coder", "icon": "/emojis/1f3e1.png"}]'
 ```
 
 For CLI, use,
 
 ```shell
-export CODER_SUPPORT_LINKS='[{"name": "Hello GitHub", "target": "https://github.com/coder/coder", "icon": "bug"}, {"name": "Hello Slack", "target": "https://codercom.slack.com/archives/C014JH42DBJ", "icon": "https://raw.githubusercontent.com/coder/coder/main/site/static/icon/slack.svg"}, {"name": "Hello Discord", "target": "https://discord.gg/coder", "icon": "https://raw.githubusercontent.com/coder/coder/main/site/static/icon/discord.svg"}, {"name": "Hello Foobar", "target": "https://discord.gg/coder", "icon": "/emojis/1f3e1.png"}]'
+export CODER_SUPPORT_LINKS='[{"name": "Hello GitHub", "target": "https://github.com/coder/coder", "icon": "bug"}, {"name": "Hello Slack", "target": "https://codercom.slack.com/archives/C014JH42DBJ", "icon": "https://raw.githubusercontent.com/coder/coder/main/site/static/icon/slack.svg"}, {"name": "Hello Discord", "target": "https://discord.gg/coder", "icon": "https://raw.githubusercontent.com/coder/coder/main/site/static/icon/discord.svg", "location": "navbar"}, {"name": "Hello Foobar", "target": "https://discord.gg/coder", "icon": "/emojis/1f3e1.png"}]'
 coder-server
 ```

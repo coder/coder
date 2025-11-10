@@ -133,6 +133,11 @@ const (
 	APIKeyScopeTailnetCoordinatorDelete            APIKeyScope = "tailnet_coordinator:delete"
 	APIKeyScopeTailnetCoordinatorRead              APIKeyScope = "tailnet_coordinator:read"
 	APIKeyScopeTailnetCoordinatorUpdate            APIKeyScope = "tailnet_coordinator:update"
+	APIKeyScopeTaskAll                             APIKeyScope = "task:*"
+	APIKeyScopeTaskCreate                          APIKeyScope = "task:create"
+	APIKeyScopeTaskDelete                          APIKeyScope = "task:delete"
+	APIKeyScopeTaskRead                            APIKeyScope = "task:read"
+	APIKeyScopeTaskUpdate                          APIKeyScope = "task:update"
 	APIKeyScopeTemplateAll                         APIKeyScope = "template:*"
 	APIKeyScopeTemplateCreate                      APIKeyScope = "template:create"
 	APIKeyScopeTemplateDelete                      APIKeyScope = "template:delete"
@@ -167,6 +172,7 @@ const (
 	APIKeyScopeWorkspaceDelete                     APIKeyScope = "workspace:delete"
 	APIKeyScopeWorkspaceDeleteAgent                APIKeyScope = "workspace:delete_agent"
 	APIKeyScopeWorkspaceRead                       APIKeyScope = "workspace:read"
+	APIKeyScopeWorkspaceShare                      APIKeyScope = "workspace:share"
 	APIKeyScopeWorkspaceSsh                        APIKeyScope = "workspace:ssh"
 	APIKeyScopeWorkspaceStart                      APIKeyScope = "workspace:start"
 	APIKeyScopeWorkspaceStop                       APIKeyScope = "workspace:stop"
@@ -184,6 +190,7 @@ const (
 	APIKeyScopeWorkspaceDormantDelete              APIKeyScope = "workspace_dormant:delete"
 	APIKeyScopeWorkspaceDormantDeleteAgent         APIKeyScope = "workspace_dormant:delete_agent"
 	APIKeyScopeWorkspaceDormantRead                APIKeyScope = "workspace_dormant:read"
+	APIKeyScopeWorkspaceDormantShare               APIKeyScope = "workspace_dormant:share"
 	APIKeyScopeWorkspaceDormantSsh                 APIKeyScope = "workspace_dormant:ssh"
 	APIKeyScopeWorkspaceDormantStart               APIKeyScope = "workspace_dormant:start"
 	APIKeyScopeWorkspaceDormantStop                APIKeyScope = "workspace_dormant:stop"
@@ -214,6 +221,11 @@ var PublicAPIKeyScopes = []APIKeyScope{
 	APIKeyScopeFileAll,
 	APIKeyScopeFileCreate,
 	APIKeyScopeFileRead,
+	APIKeyScopeTaskAll,
+	APIKeyScopeTaskCreate,
+	APIKeyScopeTaskDelete,
+	APIKeyScopeTaskRead,
+	APIKeyScopeTaskUpdate,
 	APIKeyScopeTemplateAll,
 	APIKeyScopeTemplateCreate,
 	APIKeyScopeTemplateDelete,

@@ -64,7 +64,7 @@ Every Coder server hosts CLI binaries for all supported platforms. You can run a
 script to download the appropriate CLI for your machine from your Coder
 deployment.
 
-![Install Coder binary from your deplyment](../images/install/install_from_deployment.png)
+![Install Coder binary from your deployment](../images/install/install_from_deployment.png)
 
 This script works within air-gapped deployments and ensures that the version of
 the CLI you have installed on your machine matches the version of the server.

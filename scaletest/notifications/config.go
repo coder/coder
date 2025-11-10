@@ -24,9 +24,8 @@ type Config struct {
 	// DialTimeout is how long to wait for websocket connection.
 	DialTimeout time.Duration `json:"dial_timeout"`
 
-	// ExpectedNotifications maps notification template IDs to channels
-	// that receive the trigger time for each notification.
-	ExpectedNotifications map[uuid.UUID]chan time.Time `json:"-"`
+	// ExpectedNotificationsIDs is the list of notification template IDs to expect.
+	ExpectedNotificationsIDs map[uuid.UUID]struct{} `json:"-"`
 
 	Metrics *Metrics `json:"-"`
 
@@ -35,6 +34,12 @@ type Config struct {
 
 	// ReceivingWatchBarrier is the barrier for receiving users. Regular users wait on this to disconnect after receiving users complete.
 	ReceivingWatchBarrier *sync.WaitGroup `json:"-"`
+
+	// SMTPApiUrl is the URL of the SMTP mock HTTP API
+	SMTPApiURL string `json:"smtp_api_url"`
+
+	// SMTPRequestTimeout is the timeout for SMTP requests.
+	SMTPRequestTimeout time.Duration `json:"smtp_request_timeout"`
 }
 
 func (c Config) Validate() error {
@@ -57,6 +62,10 @@ func (c Config) Validate() error {
 
 	if c.NotificationTimeout <= 0 {
 		return xerrors.New("notification_timeout must be greater than 0")
+	}
+
+	if c.SMTPApiURL != "" && c.SMTPRequestTimeout <= 0 {
+		return xerrors.New("smtp_request_timeout must be set if smtp_api_url is set")
 	}
 
 	if c.DialTimeout <= 0 {

@@ -1,6 +1,7 @@
 import { useTheme } from "@emotion/react";
 import visuallyHidden from "@mui/utils/visuallyHidden";
-import { API } from "api/api";
+import { richParameters } from "api/queries/templates";
+import { workspaceBuildParameters } from "api/queries/workspaceBuilds";
 import type {
 	TemplateVersionParameter,
 	Workspace,
@@ -48,12 +49,15 @@ export const BuildParametersPopover: FC<BuildParametersPopoverProps> = ({
 	onSubmit,
 }) => {
 	const [isOpen, setIsOpen] = useState(false);
-	const { data: parameters } = useQuery({
-		queryKey: ["workspace", workspace.id, "parameters"],
-		queryFn: () => API.getWorkspaceParameters(workspace),
-	});
-	const ephemeralParameters = parameters
-		? parameters.templateVersionRichParameters.filter((p) => p.ephemeral)
+	const build = workspace.latest_build;
+	const { data: templateVersionParameters } = useQuery(
+		richParameters(build.template_version_id),
+	);
+	const { data: buildParameters } = useQuery(
+		workspaceBuildParameters(build.id),
+	);
+	const ephemeralParameters = templateVersionParameters
+		? templateVersionParameters.filter((p) => p.ephemeral)
 		: undefined;
 
 	return (
@@ -75,7 +79,7 @@ export const BuildParametersPopover: FC<BuildParametersPopoverProps> = ({
 				<BuildParametersPopoverContent
 					workspace={workspace}
 					ephemeralParameters={ephemeralParameters}
-					buildParameters={parameters?.buildParameters}
+					buildParameters={buildParameters}
 					onSubmit={onSubmit}
 					setIsOpen={setIsOpen}
 				/>

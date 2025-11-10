@@ -430,24 +430,6 @@ func (m *expects) Errors(err error) *expects {
 	return m
 }
 
-// ErrorsWithPG is optional. If it is never called, it will not be asserted.
-// It will only be asserted if the test is running with a Postgres database.
-func (m *expects) ErrorsWithPG(err error) *expects {
-	if dbtestutil.WillUsePostgres() {
-		return m.Errors(err)
-	}
-	return m
-}
-
-// ErrorsWithInMemDB is optional. If it is never called, it will not be asserted.
-// It will only be asserted if the test is running with an in-memory database.
-func (m *expects) ErrorsWithInMemDB(err error) *expects {
-	if !dbtestutil.WillUsePostgres() {
-		return m.Errors(err)
-	}
-	return m
-}
-
 func (m *expects) FailSystemObjectChecks() *expects {
 	return m.WithSuccessAuthorizer(func(ctx context.Context, subject rbac.Subject, action policy.Action, obj rbac.Object) error {
 		if obj.Type == rbac.ResourceSystem.Type {

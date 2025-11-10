@@ -487,6 +487,7 @@ type DeploymentValues struct {
 	Sessions                        SessionLifetime                      `json:"session_lifetime,omitempty" typescript:",notnull"`
 	DisablePasswordAuth             serpent.Bool                         `json:"disable_password_auth,omitempty" typescript:",notnull"`
 	Support                         SupportConfig                        `json:"support,omitempty" typescript:",notnull"`
+	EnableAuthzRecording            serpent.Bool                         `json:"enable_authz_recording,omitempty" typescript:",notnull"`
 	ExternalAuthConfigs             serpent.Struct[[]ExternalAuthConfig] `json:"external_auth,omitempty" typescript:",notnull"`
 	SSHConfig                       SSHConfig                            `json:"config_ssh,omitempty" typescript:",notnull"`
 	WgtunnelHost                    serpent.String                       `json:"wgtunnel_host,omitempty" typescript:",notnull"`
@@ -984,7 +985,7 @@ func DefaultSupportLinks(docsURL string) []LinkConfig {
 		},
 		{
 			Name:   "Join the Coder Discord",
-			Target: "https://coder.com/chat?utm_source=coder&utm_medium=coder&utm_campaign=server-footer",
+			Target: "https://discord.gg/coder",
 			Icon:   "chat",
 		},
 		{
@@ -3240,14 +3241,13 @@ Write out the current server config as YAML to stdout.`,
 		// AIBridge Options
 		{
 			Name:        "AIBridge Enabled",
-			Description: fmt.Sprintf("Whether to start an in-memory aibridged instance (%q experiment must be enabled, too).", ExperimentAIBridge),
+			Description: "Whether to start an in-memory aibridged instance.",
 			Flag:        "aibridge-enabled",
 			Env:         "CODER_AIBRIDGE_ENABLED",
 			Value:       &c.AI.BridgeConfig.Enabled,
 			Default:     "false",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "enabled",
-			Hidden:      true,
 		},
 		{
 			Name:        "AIBridge OpenAI Base URL",
@@ -3258,7 +3258,6 @@ Write out the current server config as YAML to stdout.`,
 			Default:     "https://api.openai.com/v1/",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "openai_base_url",
-			Hidden:      true,
 		},
 		{
 			Name:        "AIBridge OpenAI Key",
@@ -3269,7 +3268,6 @@ Write out the current server config as YAML to stdout.`,
 			Default:     "",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "openai_key",
-			Hidden:      true,
 		},
 		{
 			Name:        "AIBridge Anthropic Base URL",
@@ -3279,19 +3277,80 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.AI.BridgeConfig.Anthropic.BaseURL,
 			Default:     "https://api.anthropic.com/",
 			Group:       &deploymentGroupAIBridge,
-			YAML:        "base_url",
-			Hidden:      true,
+			YAML:        "anthropic_base_url",
 		},
 		{
-			Name:        "AIBridge Anthropic KEY",
+			Name:        "AIBridge Anthropic Key",
 			Description: "The key to authenticate against the Anthropic API.",
 			Flag:        "aibridge-anthropic-key",
 			Env:         "CODER_AIBRIDGE_ANTHROPIC_KEY",
 			Value:       &c.AI.BridgeConfig.Anthropic.Key,
 			Default:     "",
 			Group:       &deploymentGroupAIBridge,
-			YAML:        "key",
-			Hidden:      true,
+			YAML:        "anthropic_key",
+		},
+		{
+			Name:        "AIBridge Bedrock Region",
+			Description: "The AWS Bedrock API region.",
+			Flag:        "aibridge-bedrock-region",
+			Env:         "CODER_AIBRIDGE_BEDROCK_REGION",
+			Value:       &c.AI.BridgeConfig.Bedrock.Region,
+			Default:     "",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "bedrock_region",
+		},
+		{
+			Name:        "AIBridge Bedrock Access Key",
+			Description: "The access key to authenticate against the AWS Bedrock API.",
+			Flag:        "aibridge-bedrock-access-key",
+			Env:         "CODER_AIBRIDGE_BEDROCK_ACCESS_KEY",
+			Value:       &c.AI.BridgeConfig.Bedrock.AccessKey,
+			Default:     "",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "bedrock_access_key",
+		},
+		{
+			Name:        "AIBridge Bedrock Access Key Secret",
+			Description: "The access key secret to use with the access key to authenticate against the AWS Bedrock API.",
+			Flag:        "aibridge-bedrock-access-key-secret",
+			Env:         "CODER_AIBRIDGE_BEDROCK_ACCESS_KEY_SECRET",
+			Value:       &c.AI.BridgeConfig.Bedrock.AccessKeySecret,
+			Default:     "",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "bedrock_access_key_secret",
+		},
+		{
+			Name:        "AIBridge Bedrock Model",
+			Description: "The model to use when making requests to the AWS Bedrock API.",
+			Flag:        "aibridge-bedrock-model",
+			Env:         "CODER_AIBRIDGE_BEDROCK_MODEL",
+			Value:       &c.AI.BridgeConfig.Bedrock.Model,
+			Default:     "global.anthropic.claude-sonnet-4-5-20250929-v1:0", // See https://docs.claude.com/en/api/claude-on-amazon-bedrock#accessing-bedrock.
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "bedrock_model",
+		},
+		{
+			Name:        "AIBridge Bedrock Small Fast Model",
+			Description: "The small fast model to use when making requests to the AWS Bedrock API. Claude Code uses Haiku-class models to perform background tasks. See https://docs.claude.com/en/docs/claude-code/settings#environment-variables.",
+			Flag:        "aibridge-bedrock-small-fastmodel",
+			Env:         "CODER_AIBRIDGE_BEDROCK_SMALL_FAST_MODEL",
+			Value:       &c.AI.BridgeConfig.Bedrock.SmallFastModel,
+			Default:     "global.anthropic.claude-haiku-4-5-20251001-v1:0", // See https://docs.claude.com/en/api/claude-on-amazon-bedrock#accessing-bedrock.
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "bedrock_small_fast_model",
+		},
+		{
+			Name: "Enable Authorization Recordings",
+			Description: "All api requests will have a header including all authorization calls made during the request. " +
+				"This is used for debugging purposes and only available for dev builds.",
+			Required: false,
+			Flag:     "enable-authz-recordings",
+			Env:      "CODER_ENABLE_AUTHZ_RECORDINGS",
+			Default:  "false",
+			Value:    &c.EnableAuthzRecording,
+			// Do not show this option ever. It is a developer tool only, and not to be
+			// used externally.
+			Hidden: true,
 		},
 	}
 
@@ -3302,6 +3361,7 @@ type AIBridgeConfig struct {
 	Enabled   serpent.Bool            `json:"enabled" typescript:",notnull"`
 	OpenAI    AIBridgeOpenAIConfig    `json:"openai" typescript:",notnull"`
 	Anthropic AIBridgeAnthropicConfig `json:"anthropic" typescript:",notnull"`
+	Bedrock   AIBridgeBedrockConfig   `json:"bedrock" typescript:",notnull"`
 }
 
 type AIBridgeOpenAIConfig struct {
@@ -3312,6 +3372,14 @@ type AIBridgeOpenAIConfig struct {
 type AIBridgeAnthropicConfig struct {
 	BaseURL serpent.String `json:"base_url" typescript:",notnull"`
 	Key     serpent.String `json:"key" typescript:",notnull"`
+}
+
+type AIBridgeBedrockConfig struct {
+	Region          serpent.String `json:"region" typescript:",notnull"`
+	AccessKey       serpent.String `json:"access_key" typescript:",notnull"`
+	AccessKeySecret serpent.String `json:"access_key_secret" typescript:",notnull"`
+	Model           serpent.String `json:"model" typescript:",notnull"`
+	SmallFastModel  serpent.String `json:"small_fast_model" typescript:",notnull"`
 }
 
 type AIConfig struct {
@@ -3325,7 +3393,9 @@ type SupportConfig struct {
 type LinkConfig struct {
 	Name   string `json:"name" yaml:"name"`
 	Target string `json:"target" yaml:"target"`
-	Icon   string `json:"icon" yaml:"icon" enums:"bug,chat,docs"`
+	Icon   string `json:"icon" yaml:"icon" enums:"bug,chat,docs,star"`
+
+	Location string `json:"location,omitempty" yaml:"location,omitempty" enums:"navbar,dropdown"`
 }
 
 // Validate checks cross-field constraints for deployment values.
@@ -3565,7 +3635,6 @@ const (
 	ExperimentOAuth2             Experiment = "oauth2"               // Enables OAuth2 provider functionality.
 	ExperimentMCPServerHTTP      Experiment = "mcp-server-http"      // Enables the MCP HTTP server functionality.
 	ExperimentWorkspaceSharing   Experiment = "workspace-sharing"    // Enables updating workspace ACLs for sharing with users and groups.
-	ExperimentAIBridge           Experiment = "aibridge"             // Enables AI Bridge functionality.
 )
 
 func (e Experiment) DisplayName() string {
@@ -3586,8 +3655,6 @@ func (e Experiment) DisplayName() string {
 		return "MCP HTTP Server Functionality"
 	case ExperimentWorkspaceSharing:
 		return "Workspace Sharing"
-	case ExperimentAIBridge:
-		return "AI Bridge"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "web-push" -> "Web Push", "mcp-server-http" -> "Mcp Server Http"
@@ -3606,7 +3673,6 @@ var ExperimentsKnown = Experiments{
 	ExperimentOAuth2,
 	ExperimentMCPServerHTTP,
 	ExperimentWorkspaceSharing,
-	ExperimentAIBridge,
 }
 
 // ExperimentsSafe should include all experiments that are safe for

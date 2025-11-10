@@ -334,6 +334,16 @@ func TestAcquireJob(t *testing.T) {
 					Transition:        database.WorkspaceTransitionStart,
 					Reason:            database.BuildReasonInitiator,
 				})
+				task := dbgen.Task(t, db, database.TaskTable{
+					OrganizationID:     pd.OrganizationID,
+					OwnerID:            user.ID,
+					WorkspaceID:        uuid.NullUUID{Valid: true, UUID: workspace.ID},
+					TemplateVersionID:  version.ID,
+					TemplateParameters: json.RawMessage("{}"),
+					Prompt:             "Build me a REST API",
+					CreatedAt:          dbtime.Now(),
+					DeletedAt:          sql.NullTime{},
+				})
 
 				var agent database.WorkspaceAgent
 				if prebuiltWorkspaceBuildStage == sdkproto.PrebuiltWorkspaceBuildStage_CLAIM {
@@ -446,6 +456,8 @@ func TestAcquireJob(t *testing.T) {
 					WorkspaceBuildId:              build.ID.String(),
 					WorkspaceOwnerLoginType:       string(user.LoginType),
 					WorkspaceOwnerRbacRoles:       []*sdkproto.Role{{Name: rbac.RoleOrgMember(), OrgId: pd.OrganizationID.String()}, {Name: "member", OrgId: ""}, {Name: rbac.RoleOrgAuditor(), OrgId: pd.OrganizationID.String()}},
+					TaskId:                        task.ID.String(),
+					TaskPrompt:                    task.Prompt,
 				}
 				if prebuiltWorkspaceBuildStage == sdkproto.PrebuiltWorkspaceBuildStage_CLAIM {
 					// For claimed prebuilds, we expect the prebuild state to be set to CLAIM
@@ -2850,11 +2862,14 @@ func TestCompleteJob(t *testing.T) {
 				seedFunc         func(context.Context, testing.TB, database.Store) error // If you need to insert other resources
 				transition       database.WorkspaceTransition
 				input            *proto.CompletedJob_WorkspaceBuild
+				isTask           bool
+				expectTaskStatus database.TaskStatus
+				expectAppID      uuid.NullUUID
 				expectHasAiTask  bool
 				expectUsageEvent bool
 			}
 
-			sidebarAppID := uuid.NewString()
+			sidebarAppID := uuid.New()
 			for _, tc := range []testcase{
 				{
 					name:       "has_ai_task is false by default",
@@ -2862,6 +2877,7 @@ func TestCompleteJob(t *testing.T) {
 					input:      &proto.CompletedJob_WorkspaceBuild{
 						// No AiTasks defined.
 					},
+					isTask:           false,
 					expectHasAiTask:  false,
 					expectUsageEvent: false,
 				},
@@ -2871,9 +2887,42 @@ func TestCompleteJob(t *testing.T) {
 					input: &proto.CompletedJob_WorkspaceBuild{
 						AiTasks: []*sdkproto.AITask{
 							{
+								Id:    uuid.NewString(),
+								AppId: sidebarAppID.String(),
+							},
+						},
+						Resources: []*sdkproto.Resource{
+							{
+								Agents: []*sdkproto.Agent{
+									{
+										Id:   uuid.NewString(),
+										Name: "a",
+										Apps: []*sdkproto.App{
+											{
+												Id:   sidebarAppID.String(),
+												Slug: "test-app",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					isTask:           true,
+					expectTaskStatus: database.TaskStatusInitializing,
+					expectAppID:      uuid.NullUUID{UUID: sidebarAppID, Valid: true},
+					expectHasAiTask:  true,
+					expectUsageEvent: true,
+				},
+				{
+					name:       "has_ai_task is set to true, with sidebar app id",
+					transition: database.WorkspaceTransitionStart,
+					input: &proto.CompletedJob_WorkspaceBuild{
+						AiTasks: []*sdkproto.AITask{
+							{
 								Id: uuid.NewString(),
 								SidebarApp: &sdkproto.AITaskSidebarApp{
-									Id: sidebarAppID,
+									Id: sidebarAppID.String(),
 								},
 							},
 						},
@@ -2885,7 +2934,7 @@ func TestCompleteJob(t *testing.T) {
 										Name: "a",
 										Apps: []*sdkproto.App{
 											{
-												Id:   sidebarAppID,
+												Id:   sidebarAppID.String(),
 												Slug: "test-app",
 											},
 										},
@@ -2894,6 +2943,9 @@ func TestCompleteJob(t *testing.T) {
 							},
 						},
 					},
+					isTask:           true,
+					expectTaskStatus: database.TaskStatusInitializing,
+					expectAppID:      uuid.NullUUID{UUID: sidebarAppID, Valid: true},
 					expectHasAiTask:  true,
 					expectUsageEvent: true,
 				},
@@ -2905,13 +2957,14 @@ func TestCompleteJob(t *testing.T) {
 						AiTasks: []*sdkproto.AITask{
 							{
 								Id: uuid.NewString(),
-								SidebarApp: &sdkproto.AITaskSidebarApp{
-									// Non-existing app ID would previously trigger a FK violation.
-									Id: uuid.NewString(),
-								},
+								// Non-existing app ID would previously trigger a FK violation.
+								// Now it should just be ignored.
+								AppId: sidebarAppID.String(),
 							},
 						},
 					},
+					isTask:           true,
+					expectTaskStatus: database.TaskStatusInitializing,
 					expectHasAiTask:  false,
 					expectUsageEvent: false,
 				},
@@ -2921,10 +2974,8 @@ func TestCompleteJob(t *testing.T) {
 					input: &proto.CompletedJob_WorkspaceBuild{
 						AiTasks: []*sdkproto.AITask{
 							{
-								Id: uuid.NewString(),
-								SidebarApp: &sdkproto.AITaskSidebarApp{
-									Id: sidebarAppID,
-								},
+								Id:    uuid.NewString(),
+								AppId: sidebarAppID.String(),
 							},
 						},
 						Resources: []*sdkproto.Resource{
@@ -2935,7 +2986,7 @@ func TestCompleteJob(t *testing.T) {
 										Name: "a",
 										Apps: []*sdkproto.App{
 											{
-												Id:   sidebarAppID,
+												Id:   sidebarAppID.String(),
 												Slug: "test-app",
 											},
 										},
@@ -2944,6 +2995,9 @@ func TestCompleteJob(t *testing.T) {
 							},
 						},
 					},
+					isTask:           true,
+					expectTaskStatus: database.TaskStatusPaused,
+					expectAppID:      uuid.NullUUID{UUID: sidebarAppID, Valid: true},
 					expectHasAiTask:  true,
 					expectUsageEvent: false,
 				},
@@ -2955,7 +3009,9 @@ func TestCompleteJob(t *testing.T) {
 						AiTasks:   []*sdkproto.AITask{},
 						Resources: []*sdkproto.Resource{},
 					},
-					expectHasAiTask:  true,
+					isTask:           true,
+					expectTaskStatus: database.TaskStatusPaused,
+					expectHasAiTask:  false, // We no longer inherit this from the previous build.
 					expectUsageEvent: false,
 				},
 			} {
@@ -2992,6 +3048,15 @@ func TestCompleteJob(t *testing.T) {
 						OwnerID:        user.ID,
 						OrganizationID: pd.OrganizationID,
 					})
+					var genTask database.Task
+					if tc.isTask {
+						genTask = dbgen.Task(t, db, database.TaskTable{
+							OwnerID:           user.ID,
+							OrganizationID:    pd.OrganizationID,
+							WorkspaceID:       uuid.NullUUID{UUID: workspaceTable.ID, Valid: true},
+							TemplateVersionID: version.ID,
+						})
+					}
 
 					ctx := testutil.Context(t, testutil.WaitShort)
 					if tc.seedFunc != nil {
@@ -3060,9 +3125,15 @@ func TestCompleteJob(t *testing.T) {
 					require.True(t, build.HasAITask.Valid) // We ALWAYS expect a value to be set, therefore not nil, i.e. valid = true.
 					require.Equal(t, tc.expectHasAiTask, build.HasAITask.Bool)
 
-					if tc.expectHasAiTask && build.Transition != database.WorkspaceTransitionStop {
-						require.Equal(t, sidebarAppID, build.AITaskSidebarAppID.UUID.String())
+					task, err := db.GetTaskByID(ctx, genTask.ID)
+					if tc.isTask {
+						require.NoError(t, err)
+						require.Equal(t, tc.expectTaskStatus, task.Status)
+					} else {
+						require.Error(t, err)
 					}
+
+					require.Equal(t, tc.expectAppID, task.WorkspaceAppID)
 
 					if tc.expectUsageEvent {
 						// Check that a usage event was collected.
@@ -4053,6 +4124,7 @@ func TestServer_ExpirePrebuildsSessionToken(t *testing.T) {
 	job, err := fs.waitForJob()
 	require.NoError(t, err)
 	require.NotNil(t, job)
+	require.NotNil(t, job.Type, "acquired job type was nil?!")
 	workspaceBuildJob := job.Type.(*proto.AcquiredJob_WorkspaceBuild_).WorkspaceBuild
 	require.NotNil(t, workspaceBuildJob.Metadata)
 
@@ -4375,19 +4447,18 @@ func seedPreviousWorkspaceStartWithAITask(ctx context.Context, t testing.TB, db 
 	agt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
 		ResourceID: res.ID,
 	})
-	wa := dbgen.WorkspaceApp(t, db, database.WorkspaceApp{
+	_ = dbgen.WorkspaceApp(t, db, database.WorkspaceApp{
 		AgentID: agt.ID,
 	})
 	_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-		BuildNumber:        1,
-		HasAITask:          sql.NullBool{Valid: true, Bool: true},
-		AITaskSidebarAppID: uuid.NullUUID{Valid: true, UUID: wa.ID},
-		ID:                 w.ID,
-		InitiatorID:        w.OwnerID,
-		JobID:              prevJob.ID,
-		TemplateVersionID:  tvs[0].ID,
-		Transition:         database.WorkspaceTransitionStart,
-		WorkspaceID:        w.ID,
+		BuildNumber:       1,
+		HasAITask:         sql.NullBool{Valid: true, Bool: true},
+		ID:                w.ID,
+		InitiatorID:       w.OwnerID,
+		JobID:             prevJob.ID,
+		TemplateVersionID: tvs[0].ID,
+		Transition:        database.WorkspaceTransitionStart,
+		WorkspaceID:       w.ID,
 	})
 	return nil
 }

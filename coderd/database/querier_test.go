@@ -3742,9 +3742,6 @@ func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
 
 func TestGetProvisionerJobsByIDsWithQueuePosition_MixedStatuses(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.SkipNow()
-	}
 
 	db, _ := dbtestutil.NewDB(t)
 	now := dbtime.Now()
@@ -4083,10 +4080,6 @@ func TestGroupRemovalTrigger(t *testing.T) {
 func TestGetUserStatusCounts(t *testing.T) {
 	t.Parallel()
 	t.Skip("https://github.com/coder/internal/issues/464")
-
-	if !dbtestutil.WillUsePostgres() {
-		t.SkipNow()
-	}
 
 	timezones := []string{
 		"Canada/Newfoundland",
@@ -4625,10 +4618,6 @@ func TestGetUserStatusCounts(t *testing.T) {
 func TestOrganizationDeleteTrigger(t *testing.T) {
 	t.Parallel()
 
-	if !dbtestutil.WillUsePostgres() {
-		t.SkipNow()
-	}
-
 	t.Run("WorkspaceExists", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
@@ -4942,9 +4931,6 @@ func createPrebuiltWorkspace(
 
 func TestWorkspacePrebuildsView(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.SkipNow()
-	}
 
 	now := dbtime.Now()
 	orgID := uuid.New()
@@ -5046,9 +5032,6 @@ func TestWorkspacePrebuildsView(t *testing.T) {
 
 func TestGetPresetsBackoff(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.SkipNow()
-	}
 
 	now := dbtime.Now()
 	orgID := uuid.New()
@@ -5565,9 +5548,6 @@ func TestGetPresetsBackoff(t *testing.T) {
 
 func TestGetPresetsAtFailureLimit(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.SkipNow()
-	}
 
 	now := dbtime.Now()
 	hourBefore := now.Add(-time.Hour)
@@ -5871,10 +5851,6 @@ func TestGetPresetsAtFailureLimit(t *testing.T) {
 func TestWorkspaceAgentNameUniqueTrigger(t *testing.T) {
 	t.Parallel()
 
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test makes use of a database trigger not implemented in dbmem")
-	}
-
 	createWorkspaceWithAgent := func(t *testing.T, db database.Store, org database.Organization, agentName string) (database.WorkspaceBuild, database.WorkspaceResource, database.WorkspaceAgent) {
 		t.Helper()
 
@@ -6140,10 +6116,6 @@ func requireUsersMatch(t testing.TB, expected []database.User, found []database.
 // GetRunningPrebuiltWorkspaces query.
 func TestGetRunningPrebuiltWorkspaces(t *testing.T) {
 	t.Parallel()
-
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("Test requires PostgreSQL for complex queries")
-	}
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	db, _ := dbtestutil.NewDB(t)
@@ -6653,6 +6625,652 @@ func TestGetLatestWorkspaceBuildsByWorkspaceIDs(t *testing.T) {
 	}
 }
 
+func TestTasksWithStatusView(t *testing.T) {
+	t.Parallel()
+
+	createProvisionerJob := func(t *testing.T, db database.Store, org database.Organization, user database.User, buildStatus database.ProvisionerJobStatus) database.ProvisionerJob {
+		t.Helper()
+
+		var jobParams database.ProvisionerJob
+
+		switch buildStatus {
+		case database.ProvisionerJobStatusPending:
+			jobParams = database.ProvisionerJob{
+				OrganizationID: org.ID,
+				Type:           database.ProvisionerJobTypeWorkspaceBuild,
+				InitiatorID:    user.ID,
+			}
+		case database.ProvisionerJobStatusRunning:
+			jobParams = database.ProvisionerJob{
+				OrganizationID: org.ID,
+				Type:           database.ProvisionerJobTypeWorkspaceBuild,
+				InitiatorID:    user.ID,
+				StartedAt:      sql.NullTime{Valid: true, Time: dbtime.Now()},
+			}
+		case database.ProvisionerJobStatusFailed:
+			jobParams = database.ProvisionerJob{
+				OrganizationID: org.ID,
+				Type:           database.ProvisionerJobTypeWorkspaceBuild,
+				InitiatorID:    user.ID,
+				StartedAt:      sql.NullTime{Valid: true, Time: dbtime.Now()},
+				CompletedAt:    sql.NullTime{Valid: true, Time: dbtime.Now()},
+				Error:          sql.NullString{Valid: true, String: "job failed"},
+			}
+		case database.ProvisionerJobStatusSucceeded:
+			jobParams = database.ProvisionerJob{
+				OrganizationID: org.ID,
+				Type:           database.ProvisionerJobTypeWorkspaceBuild,
+				InitiatorID:    user.ID,
+				StartedAt:      sql.NullTime{Valid: true, Time: dbtime.Now()},
+				CompletedAt:    sql.NullTime{Valid: true, Time: dbtime.Now()},
+			}
+		default:
+			t.Errorf("invalid build status: %v", buildStatus)
+		}
+
+		return dbgen.ProvisionerJob(t, db, nil, jobParams)
+	}
+
+	createTask := func(
+		ctx context.Context,
+		t *testing.T,
+		db database.Store,
+		org database.Organization,
+		user database.User,
+		buildStatus database.ProvisionerJobStatus,
+		buildTransition database.WorkspaceTransition,
+		agentState database.WorkspaceAgentLifecycleState,
+		appHealths []database.WorkspaceAppHealth,
+	) database.Task {
+		t.Helper()
+
+		template := dbgen.Template(t, db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+
+		if buildStatus == "" {
+			return dbgen.Task(t, db, database.TaskTable{
+				OrganizationID:    org.ID,
+				OwnerID:           user.ID,
+				Name:              "test-task",
+				TemplateVersionID: templateVersion.ID,
+				Prompt:            "Test prompt",
+			})
+		}
+
+		job := createProvisionerJob(t, db, org, user, buildStatus)
+
+		workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+			OrganizationID: org.ID,
+			TemplateID:     template.ID,
+			OwnerID:        user.ID,
+		})
+		workspaceID := uuid.NullUUID{Valid: true, UUID: workspace.ID}
+
+		task := dbgen.Task(t, db, database.TaskTable{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			Name:              "test-task",
+			WorkspaceID:       workspaceID,
+			TemplateVersionID: templateVersion.ID,
+			Prompt:            "Test prompt",
+		})
+
+		workspaceBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			WorkspaceID:       workspace.ID,
+			TemplateVersionID: templateVersion.ID,
+			BuildNumber:       1,
+			Transition:        buildTransition,
+			InitiatorID:       user.ID,
+			JobID:             job.ID,
+		})
+		workspaceBuildNumber := workspaceBuild.BuildNumber
+
+		_, err := db.UpsertTaskWorkspaceApp(ctx, database.UpsertTaskWorkspaceAppParams{
+			TaskID:               task.ID,
+			WorkspaceBuildNumber: workspaceBuildNumber,
+		})
+		require.NoError(t, err)
+
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: job.ID,
+		})
+
+		if agentState != "" {
+			agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+				ResourceID: resource.ID,
+			})
+			workspaceAgentID := agent.ID
+
+			_, err := db.UpsertTaskWorkspaceApp(ctx, database.UpsertTaskWorkspaceAppParams{
+				TaskID:               task.ID,
+				WorkspaceBuildNumber: workspaceBuildNumber,
+				WorkspaceAgentID:     uuid.NullUUID{UUID: workspaceAgentID, Valid: true},
+			})
+			require.NoError(t, err)
+
+			err = db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+				ID:             agent.ID,
+				LifecycleState: agentState,
+			})
+			require.NoError(t, err)
+
+			for i, health := range appHealths {
+				app := dbgen.WorkspaceApp(t, db, database.WorkspaceApp{
+					AgentID:     workspaceAgentID,
+					Slug:        fmt.Sprintf("test-app-%d", i),
+					DisplayName: fmt.Sprintf("Test App %d", i+1),
+					Health:      health,
+				})
+				if i == 0 {
+					// Assume the first app is the tasks app.
+					_, err := db.UpsertTaskWorkspaceApp(ctx, database.UpsertTaskWorkspaceAppParams{
+						TaskID:               task.ID,
+						WorkspaceBuildNumber: workspaceBuildNumber,
+						WorkspaceAgentID:     uuid.NullUUID{UUID: workspaceAgentID, Valid: true},
+						WorkspaceAppID:       uuid.NullUUID{UUID: app.ID, Valid: true},
+					})
+					require.NoError(t, err)
+				}
+			}
+		}
+
+		return task
+	}
+
+	tests := []struct {
+		name                      string
+		buildStatus               database.ProvisionerJobStatus
+		buildTransition           database.WorkspaceTransition
+		agentState                database.WorkspaceAgentLifecycleState
+		appHealths                []database.WorkspaceAppHealth
+		expectedStatus            database.TaskStatus
+		description               string
+		expectBuildNumberValid    bool
+		expectBuildNumber         int32
+		expectWorkspaceAgentValid bool
+		expectWorkspaceAppValid   bool
+	}{
+		{
+			name:                      "NoWorkspace",
+			expectedStatus:            "pending",
+			description:               "Task with no workspace assigned",
+			expectBuildNumberValid:    false,
+			expectWorkspaceAgentValid: false,
+			expectWorkspaceAppValid:   false,
+		},
+		{
+			name:                      "FailedBuild",
+			buildStatus:               database.ProvisionerJobStatusFailed,
+			buildTransition:           database.WorkspaceTransitionStart,
+			expectedStatus:            database.TaskStatusError,
+			description:               "Latest workspace build failed",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: false,
+			expectWorkspaceAppValid:   false,
+		},
+		{
+			name:                      "StoppedWorkspace",
+			buildStatus:               database.ProvisionerJobStatusSucceeded,
+			buildTransition:           database.WorkspaceTransitionStop,
+			expectedStatus:            database.TaskStatusPaused,
+			description:               "Workspace is stopped",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: false,
+			expectWorkspaceAppValid:   false,
+		},
+		{
+			name:                      "DeletedWorkspace",
+			buildStatus:               database.ProvisionerJobStatusSucceeded,
+			buildTransition:           database.WorkspaceTransitionDelete,
+			expectedStatus:            database.TaskStatusPaused,
+			description:               "Workspace is deleted",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: false,
+			expectWorkspaceAppValid:   false,
+		},
+		{
+			name:                      "PendingStart",
+			buildStatus:               database.ProvisionerJobStatusPending,
+			buildTransition:           database.WorkspaceTransitionStart,
+			expectedStatus:            database.TaskStatusInitializing,
+			description:               "Workspace build is starting (pending)",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: false,
+			expectWorkspaceAppValid:   false,
+		},
+		{
+			name:                      "RunningStart",
+			buildStatus:               database.ProvisionerJobStatusRunning,
+			buildTransition:           database.WorkspaceTransitionStart,
+			expectedStatus:            database.TaskStatusInitializing,
+			description:               "Workspace build is starting (running)",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: false,
+			expectWorkspaceAppValid:   false,
+		},
+		{
+			name:                      "StartingAgent",
+			buildStatus:               database.ProvisionerJobStatusSucceeded,
+			buildTransition:           database.WorkspaceTransitionStart,
+			agentState:                database.WorkspaceAgentLifecycleStateStarting,
+			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthInitializing},
+			expectedStatus:            database.TaskStatusInitializing,
+			description:               "Workspace is running but agent is starting",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: true,
+			expectWorkspaceAppValid:   true,
+		},
+		{
+			name:                      "CreatedAgent",
+			buildStatus:               database.ProvisionerJobStatusSucceeded,
+			buildTransition:           database.WorkspaceTransitionStart,
+			agentState:                database.WorkspaceAgentLifecycleStateCreated,
+			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthInitializing},
+			expectedStatus:            database.TaskStatusInitializing,
+			description:               "Workspace is running but agent is created",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: true,
+			expectWorkspaceAppValid:   true,
+		},
+		{
+			name:                      "ReadyAgentInitializingApp",
+			buildStatus:               database.ProvisionerJobStatusSucceeded,
+			buildTransition:           database.WorkspaceTransitionStart,
+			agentState:                database.WorkspaceAgentLifecycleStateReady,
+			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthInitializing},
+			expectedStatus:            database.TaskStatusInitializing,
+			description:               "Agent is ready but app is initializing",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: true,
+			expectWorkspaceAppValid:   true,
+		},
+		{
+			name:                      "ReadyAgentHealthyApp",
+			buildStatus:               database.ProvisionerJobStatusSucceeded,
+			buildTransition:           database.WorkspaceTransitionStart,
+			agentState:                database.WorkspaceAgentLifecycleStateReady,
+			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthHealthy},
+			expectedStatus:            database.TaskStatusActive,
+			description:               "Agent is ready and app is healthy",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: true,
+			expectWorkspaceAppValid:   true,
+		},
+		{
+			name:                      "ReadyAgentDisabledApp",
+			buildStatus:               database.ProvisionerJobStatusSucceeded,
+			buildTransition:           database.WorkspaceTransitionStart,
+			agentState:                database.WorkspaceAgentLifecycleStateReady,
+			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthDisabled},
+			expectedStatus:            database.TaskStatusActive,
+			description:               "Agent is ready and app health checking is disabled",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: true,
+			expectWorkspaceAppValid:   true,
+		},
+		{
+			name:                      "ReadyAgentUnhealthyApp",
+			buildStatus:               database.ProvisionerJobStatusSucceeded,
+			buildTransition:           database.WorkspaceTransitionStart,
+			agentState:                database.WorkspaceAgentLifecycleStateReady,
+			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthUnhealthy},
+			expectedStatus:            database.TaskStatusError,
+			description:               "Agent is ready but app is unhealthy",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: true,
+			expectWorkspaceAppValid:   true,
+		},
+		{
+			name:                      "AgentStartTimeout",
+			buildStatus:               database.ProvisionerJobStatusSucceeded,
+			buildTransition:           database.WorkspaceTransitionStart,
+			agentState:                database.WorkspaceAgentLifecycleStateStartTimeout,
+			expectedStatus:            database.TaskStatusUnknown,
+			description:               "Agent start timed out",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: true,
+			expectWorkspaceAppValid:   false,
+		},
+		{
+			name:                      "AgentStartError",
+			buildStatus:               database.ProvisionerJobStatusSucceeded,
+			buildTransition:           database.WorkspaceTransitionStart,
+			agentState:                database.WorkspaceAgentLifecycleStateStartError,
+			expectedStatus:            database.TaskStatusUnknown,
+			description:               "Agent failed to start",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: true,
+			expectWorkspaceAppValid:   false,
+		},
+		{
+			name:                      "AgentShuttingDown",
+			buildStatus:               database.ProvisionerJobStatusSucceeded,
+			buildTransition:           database.WorkspaceTransitionStart,
+			agentState:                database.WorkspaceAgentLifecycleStateShuttingDown,
+			expectedStatus:            database.TaskStatusUnknown,
+			description:               "Agent is shutting down",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: true,
+			expectWorkspaceAppValid:   false,
+		},
+		{
+			name:                      "AgentOff",
+			buildStatus:               database.ProvisionerJobStatusSucceeded,
+			buildTransition:           database.WorkspaceTransitionStart,
+			agentState:                database.WorkspaceAgentLifecycleStateOff,
+			expectedStatus:            database.TaskStatusUnknown,
+			description:               "Agent is off",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: true,
+			expectWorkspaceAppValid:   false,
+		},
+		{
+			name:                      "RunningJobReadyAgentHealthyApp",
+			buildStatus:               database.ProvisionerJobStatusRunning,
+			buildTransition:           database.WorkspaceTransitionStart,
+			agentState:                database.WorkspaceAgentLifecycleStateReady,
+			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthHealthy},
+			expectedStatus:            database.TaskStatusActive,
+			description:               "Running job with ready agent and healthy app should be active",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: true,
+			expectWorkspaceAppValid:   true,
+		},
+		{
+			name:                      "RunningJobReadyAgentInitializingApp",
+			buildStatus:               database.ProvisionerJobStatusRunning,
+			buildTransition:           database.WorkspaceTransitionStart,
+			agentState:                database.WorkspaceAgentLifecycleStateReady,
+			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthInitializing},
+			expectedStatus:            database.TaskStatusInitializing,
+			description:               "Running job with ready agent but initializing app should be initializing",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: true,
+			expectWorkspaceAppValid:   true,
+		},
+		{
+			name:                      "RunningJobReadyAgentUnhealthyApp",
+			buildStatus:               database.ProvisionerJobStatusRunning,
+			buildTransition:           database.WorkspaceTransitionStart,
+			agentState:                database.WorkspaceAgentLifecycleStateReady,
+			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthUnhealthy},
+			expectedStatus:            database.TaskStatusError,
+			description:               "Running job with ready agent but unhealthy app should be error",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: true,
+			expectWorkspaceAppValid:   true,
+		},
+		{
+			name:                      "RunningJobConnectingAgent",
+			buildStatus:               database.ProvisionerJobStatusRunning,
+			buildTransition:           database.WorkspaceTransitionStart,
+			agentState:                database.WorkspaceAgentLifecycleStateStarting,
+			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthInitializing},
+			expectedStatus:            database.TaskStatusInitializing,
+			description:               "Running job with connecting agent should be initializing",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: true,
+			expectWorkspaceAppValid:   true,
+		},
+		{
+			name:                      "RunningJobReadyAgentDisabledApp",
+			buildStatus:               database.ProvisionerJobStatusRunning,
+			buildTransition:           database.WorkspaceTransitionStart,
+			agentState:                database.WorkspaceAgentLifecycleStateReady,
+			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthDisabled},
+			expectedStatus:            database.TaskStatusActive,
+			description:               "Running job with ready agent and disabled app health checking should be active",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: true,
+			expectWorkspaceAppValid:   true,
+		},
+		{
+			name:                      "RunningJobReadyAgentHealthyTaskAppUnhealthyOtherAppIsOK",
+			buildStatus:               database.ProvisionerJobStatusRunning,
+			buildTransition:           database.WorkspaceTransitionStart,
+			agentState:                database.WorkspaceAgentLifecycleStateReady,
+			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthHealthy, database.WorkspaceAppHealthUnhealthy},
+			expectedStatus:            database.TaskStatusActive,
+			description:               "Running job with ready agent and multiple healthy apps should be active",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: true,
+			expectWorkspaceAppValid:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			db, _ := dbtestutil.NewDB(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			org := dbgen.Organization(t, db, database.Organization{})
+			user := dbgen.User(t, db, database.User{})
+
+			task := createTask(ctx, t, db, org, user, tt.buildStatus, tt.buildTransition, tt.agentState, tt.appHealths)
+
+			got, err := db.GetTaskByID(ctx, task.ID)
+			require.NoError(t, err)
+
+			require.Equal(t, tt.expectedStatus, got.Status)
+
+			require.Equal(t, tt.expectBuildNumberValid, got.WorkspaceBuildNumber.Valid)
+			if tt.expectBuildNumberValid {
+				require.Equal(t, tt.expectBuildNumber, got.WorkspaceBuildNumber.Int32)
+			}
+
+			require.Equal(t, tt.expectWorkspaceAgentValid, got.WorkspaceAgentID.Valid)
+			if tt.expectWorkspaceAgentValid {
+				require.NotEqual(t, uuid.Nil, got.WorkspaceAgentID.UUID)
+			}
+
+			require.Equal(t, tt.expectWorkspaceAppValid, got.WorkspaceAppID.Valid)
+			if tt.expectWorkspaceAppValid {
+				require.NotEqual(t, uuid.Nil, got.WorkspaceAppID.UUID)
+			}
+		})
+	}
+}
+
+func TestGetTaskByWorkspaceID(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		setupTask func(t *testing.T, db database.Store, org database.Organization, user database.User, templateVersion database.TemplateVersion, workspace database.WorkspaceTable)
+		wantErr   bool
+	}{
+		{
+			name:    "task doesn't exist",
+			wantErr: true,
+		},
+		{
+			name: "task with no workspace id",
+			setupTask: func(t *testing.T, db database.Store, org database.Organization, user database.User, templateVersion database.TemplateVersion, workspace database.WorkspaceTable) {
+				dbgen.Task(t, db, database.TaskTable{
+					OrganizationID:    org.ID,
+					OwnerID:           user.ID,
+					Name:              "test-task",
+					TemplateVersionID: templateVersion.ID,
+					Prompt:            "Test prompt",
+				})
+			},
+			wantErr: true,
+		},
+		{
+			name: "task with workspace id",
+			setupTask: func(t *testing.T, db database.Store, org database.Organization, user database.User, templateVersion database.TemplateVersion, workspace database.WorkspaceTable) {
+				workspaceID := uuid.NullUUID{Valid: true, UUID: workspace.ID}
+				dbgen.Task(t, db, database.TaskTable{
+					OrganizationID:    org.ID,
+					OwnerID:           user.ID,
+					Name:              "test-task",
+					WorkspaceID:       workspaceID,
+					TemplateVersionID: templateVersion.ID,
+					Prompt:            "Test prompt",
+				})
+			},
+			wantErr: false,
+		},
+	}
+
+	db, _ := dbtestutil.NewDB(t)
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			org := dbgen.Organization(t, db, database.Organization{})
+			user := dbgen.User(t, db, database.User{})
+			template := dbgen.Template(t, db, database.Template{
+				OrganizationID: org.ID,
+				CreatedBy:      user.ID,
+			})
+			templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+				OrganizationID: org.ID,
+				TemplateID:     uuid.NullUUID{Valid: true, UUID: template.ID},
+				CreatedBy:      user.ID,
+			})
+			workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+				OrganizationID: org.ID,
+				OwnerID:        user.ID,
+				TemplateID:     template.ID,
+			})
+
+			if tt.setupTask != nil {
+				tt.setupTask(t, db, org, user, templateVersion, workspace)
+			}
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			task, err := db.GetTaskByWorkspaceID(ctx, workspace.ID)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.False(t, task.WorkspaceBuildNumber.Valid)
+				require.False(t, task.WorkspaceAgentID.Valid)
+				require.False(t, task.WorkspaceAppID.Valid)
+			}
+		})
+	}
+}
+
+func TestTaskNameUniqueness(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	user1 := dbgen.User(t, db, database.User{})
+	user2 := dbgen.User(t, db, database.User{})
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user1.ID,
+	})
+	tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+		OrganizationID: org.ID,
+		CreatedBy:      user1.ID,
+	})
+
+	taskName := "my-task"
+
+	// Create initial task for user1.
+	task1 := dbgen.Task(t, db, database.TaskTable{
+		OrganizationID:    org.ID,
+		OwnerID:           user1.ID,
+		Name:              taskName,
+		TemplateVersionID: tv.ID,
+		Prompt:            "Test prompt",
+	})
+	require.NotEqual(t, uuid.Nil, task1.ID)
+
+	tests := []struct {
+		name     string
+		ownerID  uuid.UUID
+		taskName string
+		wantErr  bool
+	}{
+		{
+			name:     "duplicate task name same user",
+			ownerID:  user1.ID,
+			taskName: taskName,
+			wantErr:  true,
+		},
+		{
+			name:     "duplicate task name different case same user",
+			ownerID:  user1.ID,
+			taskName: "MY-TASK",
+			wantErr:  true,
+		},
+		{
+			name:     "same task name different user",
+			ownerID:  user2.ID,
+			taskName: taskName,
+			wantErr:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			taskID := uuid.New()
+			task, err := db.InsertTask(ctx, database.InsertTaskParams{
+				ID:                 taskID,
+				OrganizationID:     org.ID,
+				OwnerID:            tt.ownerID,
+				Name:               tt.taskName,
+				TemplateVersionID:  tv.ID,
+				TemplateParameters: json.RawMessage("{}"),
+				Prompt:             "Test prompt",
+				CreatedAt:          dbtime.Now(),
+			})
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.NotEqual(t, uuid.Nil, task.ID)
+				require.NotEqual(t, task1.ID, task.ID)
+				require.Equal(t, taskID, task.ID)
+			}
+		})
+	}
+}
+
 func TestUsageEventsTrigger(t *testing.T) {
 	t.Parallel()
 
@@ -6778,5 +7396,399 @@ func TestUsageEventsTrigger(t *testing.T) {
 		// We should not have any daily rows.
 		rows := getDailyRows(ctx, sqlDB)
 		require.Len(t, rows, 0)
+	})
+}
+
+func TestListTasks(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+
+	// Given: two organizations and two users, one of which is a member of both
+	org1 := dbgen.Organization(t, db, database.Organization{})
+	org2 := dbgen.Organization(t, db, database.Organization{})
+	user1 := dbgen.User(t, db, database.User{})
+	user2 := dbgen.User(t, db, database.User{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org1.ID,
+		UserID:         user1.ID,
+	})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org2.ID,
+		UserID:         user2.ID,
+	})
+
+	// Given: a template with an active version
+	tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		CreatedBy:      user1.ID,
+		OrganizationID: org1.ID,
+	})
+	tpl := dbgen.Template(t, db, database.Template{
+		CreatedBy:       user1.ID,
+		OrganizationID:  org1.ID,
+		ActiveVersionID: tv.ID,
+	})
+
+	// Helper function to create a task
+	createTask := func(orgID, ownerID uuid.UUID) database.Task {
+		ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+			OrganizationID: orgID,
+			OwnerID:        ownerID,
+			TemplateID:     tpl.ID,
+		})
+		pj := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{})
+		sidebarAppID := uuid.New()
+		wb := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			JobID:             pj.ID,
+			TemplateVersionID: tv.ID,
+			WorkspaceID:       ws.ID,
+		})
+		wr := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: pj.ID,
+		})
+		agt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: wr.ID,
+		})
+		wa := dbgen.WorkspaceApp(t, db, database.WorkspaceApp{
+			ID:      sidebarAppID,
+			AgentID: agt.ID,
+		})
+		tsk := dbgen.Task(t, db, database.TaskTable{
+			OrganizationID:    orgID,
+			OwnerID:           ownerID,
+			Prompt:            testutil.GetRandomName(t),
+			TemplateVersionID: tv.ID,
+			WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
+		})
+		_ = dbgen.TaskWorkspaceApp(t, db, database.TaskWorkspaceApp{
+			TaskID:               tsk.ID,
+			WorkspaceBuildNumber: wb.BuildNumber,
+			WorkspaceAgentID:     uuid.NullUUID{Valid: true, UUID: agt.ID},
+			WorkspaceAppID:       uuid.NullUUID{Valid: true, UUID: wa.ID},
+		})
+		t.Logf("task_id:%s owner_id:%s org_id:%s", tsk.ID, ownerID, orgID)
+		return tsk
+	}
+
+	// Given: user1 has one task, user2 has one task, user3 has two tasks (one in each org)
+	task1 := createTask(org1.ID, user1.ID)
+	task2 := createTask(org1.ID, user2.ID)
+	task3 := createTask(org2.ID, user2.ID)
+
+	// Then: run various filters and assert expected results
+	for _, tc := range []struct {
+		name      string
+		filter    database.ListTasksParams
+		expectIDs []uuid.UUID
+	}{
+		{
+			name: "no filter",
+			filter: database.ListTasksParams{
+				OwnerID:        uuid.Nil,
+				OrganizationID: uuid.Nil,
+			},
+			expectIDs: []uuid.UUID{task3.ID, task2.ID, task1.ID},
+		},
+		{
+			name: "filter by user ID",
+			filter: database.ListTasksParams{
+				OwnerID:        user1.ID,
+				OrganizationID: uuid.Nil,
+			},
+			expectIDs: []uuid.UUID{task1.ID},
+		},
+		{
+			name: "filter by organization ID",
+			filter: database.ListTasksParams{
+				OwnerID:        uuid.Nil,
+				OrganizationID: org1.ID,
+			},
+			expectIDs: []uuid.UUID{task2.ID, task1.ID},
+		},
+		{
+			name: "filter by user and organization ID",
+			filter: database.ListTasksParams{
+				OwnerID:        user2.ID,
+				OrganizationID: org2.ID,
+			},
+			expectIDs: []uuid.UUID{task3.ID},
+		},
+		{
+			name: "no results",
+			filter: database.ListTasksParams{
+				OwnerID:        user1.ID,
+				OrganizationID: org2.ID,
+			},
+			expectIDs: nil,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			tasks, err := db.ListTasks(ctx, tc.filter)
+			require.NoError(t, err)
+			require.Len(t, tasks, len(tc.expectIDs))
+
+			for idx, eid := range tc.expectIDs {
+				task := tasks[idx]
+				assert.Equal(t, eid, task.ID, "task ID mismatch at index %d", idx)
+
+				require.True(t, task.WorkspaceBuildNumber.Valid)
+				require.Greater(t, task.WorkspaceBuildNumber.Int32, int32(0))
+				require.True(t, task.WorkspaceAgentID.Valid)
+				require.NotEqual(t, uuid.Nil, task.WorkspaceAgentID.UUID)
+				require.True(t, task.WorkspaceAppID.Valid)
+				require.NotEqual(t, uuid.Nil, task.WorkspaceAppID.UUID)
+			}
+		})
+	}
+}
+
+func TestUpdateTaskWorkspaceID(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+
+	// Create organization, users, template, and template version.
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: org.ID,
+		TemplateID:     uuid.NullUUID{Valid: true, UUID: template.ID},
+		CreatedBy:      user.ID,
+	})
+
+	// Create another template for mismatch test.
+	template2 := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+
+	tests := []struct {
+		name      string
+		setupTask func(t *testing.T) database.Task
+		setupWS   func(t *testing.T) database.WorkspaceTable
+		wantErr   bool
+		wantNoRow bool
+	}{
+		{
+			name: "successful update with matching template",
+			setupTask: func(t *testing.T) database.Task {
+				return dbgen.Task(t, db, database.TaskTable{
+					OrganizationID:    org.ID,
+					OwnerID:           user.ID,
+					Name:              testutil.GetRandomName(t),
+					WorkspaceID:       uuid.NullUUID{},
+					TemplateVersionID: templateVersion.ID,
+					Prompt:            "Test prompt",
+				})
+			},
+			setupWS: func(t *testing.T) database.WorkspaceTable {
+				return dbgen.Workspace(t, db, database.WorkspaceTable{
+					OrganizationID: org.ID,
+					OwnerID:        user.ID,
+					TemplateID:     template.ID,
+				})
+			},
+			wantErr:   false,
+			wantNoRow: false,
+		},
+		{
+			name: "task already has workspace_id",
+			setupTask: func(t *testing.T) database.Task {
+				existingWS := dbgen.Workspace(t, db, database.WorkspaceTable{
+					OrganizationID: org.ID,
+					OwnerID:        user.ID,
+					TemplateID:     template.ID,
+				})
+				return dbgen.Task(t, db, database.TaskTable{
+					OrganizationID:    org.ID,
+					OwnerID:           user.ID,
+					Name:              testutil.GetRandomName(t),
+					WorkspaceID:       uuid.NullUUID{Valid: true, UUID: existingWS.ID},
+					TemplateVersionID: templateVersion.ID,
+					Prompt:            "Test prompt",
+				})
+			},
+			setupWS: func(t *testing.T) database.WorkspaceTable {
+				return dbgen.Workspace(t, db, database.WorkspaceTable{
+					OrganizationID: org.ID,
+					OwnerID:        user.ID,
+					TemplateID:     template.ID,
+				})
+			},
+			wantErr:   false,
+			wantNoRow: true, // No row should be returned because WHERE condition fails.
+		},
+		{
+			name: "template mismatch between task and workspace",
+			setupTask: func(t *testing.T) database.Task {
+				return dbgen.Task(t, db, database.TaskTable{
+					OrganizationID:    org.ID,
+					OwnerID:           user.ID,
+					Name:              testutil.GetRandomName(t),
+					WorkspaceID:       uuid.NullUUID{}, // NULL workspace_id
+					TemplateVersionID: templateVersion.ID,
+					Prompt:            "Test prompt",
+				})
+			},
+			setupWS: func(t *testing.T) database.WorkspaceTable {
+				return dbgen.Workspace(t, db, database.WorkspaceTable{
+					OrganizationID: org.ID,
+					OwnerID:        user.ID,
+					TemplateID:     template2.ID, // Different template, JOIN will fail.
+				})
+			},
+			wantErr:   false,
+			wantNoRow: true, // No row should be returned because JOIN condition fails.
+		},
+		{
+			name: "task does not exist",
+			setupTask: func(t *testing.T) database.Task {
+				return database.Task{
+					ID: uuid.New(), // Non-existent task ID.
+				}
+			},
+			setupWS: func(t *testing.T) database.WorkspaceTable {
+				return dbgen.Workspace(t, db, database.WorkspaceTable{
+					OrganizationID: org.ID,
+					OwnerID:        user.ID,
+					TemplateID:     template.ID,
+				})
+			},
+			wantErr:   false,
+			wantNoRow: true,
+		},
+		{
+			name: "workspace does not exist",
+			setupTask: func(t *testing.T) database.Task {
+				return dbgen.Task(t, db, database.TaskTable{
+					OrganizationID:    org.ID,
+					OwnerID:           user.ID,
+					Name:              testutil.GetRandomName(t),
+					WorkspaceID:       uuid.NullUUID{},
+					TemplateVersionID: templateVersion.ID,
+					Prompt:            "Test prompt",
+				})
+			},
+			setupWS: func(t *testing.T) database.WorkspaceTable {
+				return database.WorkspaceTable{
+					ID: uuid.New(), // Non-existent workspace ID.
+				}
+			},
+			wantErr:   false,
+			wantNoRow: true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			task := tt.setupTask(t)
+			workspace := tt.setupWS(t)
+
+			updatedTask, err := db.UpdateTaskWorkspaceID(ctx, database.UpdateTaskWorkspaceIDParams{
+				ID:          task.ID,
+				WorkspaceID: uuid.NullUUID{Valid: true, UUID: workspace.ID},
+			})
+
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+
+			if tt.wantNoRow {
+				require.ErrorIs(t, err, sql.ErrNoRows)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, task.ID, updatedTask.ID)
+			require.True(t, updatedTask.WorkspaceID.Valid)
+			require.Equal(t, workspace.ID, updatedTask.WorkspaceID.UUID)
+			require.Equal(t, task.OrganizationID, updatedTask.OrganizationID)
+			require.Equal(t, task.OwnerID, updatedTask.OwnerID)
+			require.Equal(t, task.Name, updatedTask.Name)
+			require.Equal(t, task.TemplateVersionID, updatedTask.TemplateVersionID)
+
+			// Verify the update persisted by fetching the task again.
+			fetchedTask, err := db.GetTaskByID(ctx, task.ID)
+			require.NoError(t, err)
+			require.True(t, fetchedTask.WorkspaceID.Valid)
+			require.Equal(t, workspace.ID, fetchedTask.WorkspaceID.UUID)
+		})
+	}
+}
+
+func TestUpdateAIBridgeInterceptionEnded(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+
+	t.Run("NonExistingInterception", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		got, err := db.UpdateAIBridgeInterceptionEnded(ctx, database.UpdateAIBridgeInterceptionEndedParams{
+			ID:      uuid.New(),
+			EndedAt: time.Now(),
+		})
+		require.ErrorContains(t, err, "no rows in result set")
+		require.EqualValues(t, database.AIBridgeInterception{}, got)
+	})
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		user := dbgen.User(t, db, database.User{})
+		interceptions := []database.AIBridgeInterception{}
+
+		for _, uid := range []uuid.UUID{{1}, {2}, {3}} {
+			insertParams := database.InsertAIBridgeInterceptionParams{
+				ID:          uid,
+				InitiatorID: user.ID,
+				Metadata:    json.RawMessage("{}"),
+			}
+
+			intc, err := db.InsertAIBridgeInterception(ctx, insertParams)
+			require.NoError(t, err)
+			require.Equal(t, uid, intc.ID)
+			require.False(t, intc.EndedAt.Valid)
+			interceptions = append(interceptions, intc)
+		}
+
+		intc0 := interceptions[0]
+		endedAt := time.Now()
+		// Mark first interception as done
+		updated, err := db.UpdateAIBridgeInterceptionEnded(ctx, database.UpdateAIBridgeInterceptionEndedParams{
+			ID:      intc0.ID,
+			EndedAt: endedAt,
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, updated.ID, intc0.ID)
+		require.True(t, updated.EndedAt.Valid)
+		require.WithinDuration(t, endedAt, updated.EndedAt.Time, 5*time.Second)
+
+		// Updating first interception again should fail
+		updated, err = db.UpdateAIBridgeInterceptionEnded(ctx, database.UpdateAIBridgeInterceptionEndedParams{
+			ID:      intc0.ID,
+			EndedAt: endedAt.Add(time.Hour),
+		})
+		require.ErrorIs(t, err, sql.ErrNoRows)
+
+		// Other interceptions should not have ended_at set
+		for _, intc := range interceptions[1:] {
+			got, err := db.GetAIBridgeInterceptionByID(ctx, intc.ID)
+			require.NoError(t, err)
+			require.False(t, got.EndedAt.Valid)
+		}
 	})
 }

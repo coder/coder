@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/google/uuid"
 )
@@ -26,6 +27,7 @@ type OAuth2ProviderApp struct {
 type OAuth2AppEndpoints struct {
 	Authorization string `json:"authorization"`
 	Token         string `json:"token"`
+	TokenRevoke   string `json:"token_revoke"`
 	// DeviceAuth is optional.
 	DeviceAuth string `json:"device_authorization"`
 }
@@ -212,6 +214,26 @@ func (e OAuth2ProviderResponseType) Valid() bool {
 	return false
 }
 
+// RevokeOAuth2Token revokes a specific OAuth2 token using RFC 7009 token revocation.
+func (c *Client) RevokeOAuth2Token(ctx context.Context, clientID uuid.UUID, token string) error {
+	form := url.Values{}
+	form.Set("token", token)
+	// Client authentication is handled via the client_id in the app middleware
+	form.Set("client_id", clientID.String())
+
+	res, err := c.Request(ctx, http.MethodPost, "/oauth2/revoke", strings.NewReader(form.Encode()), func(r *http.Request) {
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	})
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
 // RevokeOAuth2ProviderApp completely revokes an app's access for the
 // authenticated user.
 func (c *Client) RevokeOAuth2ProviderApp(ctx context.Context, appID uuid.UUID) error {
@@ -240,6 +262,7 @@ type OAuth2AuthorizationServerMetadata struct {
 	AuthorizationEndpoint             string   `json:"authorization_endpoint"`
 	TokenEndpoint                     string   `json:"token_endpoint"`
 	RegistrationEndpoint              string   `json:"registration_endpoint,omitempty"`
+	RevocationEndpoint                string   `json:"revocation_endpoint,omitempty"`
 	ResponseTypesSupported            []string `json:"response_types_supported"`
 	GrantTypesSupported               []string `json:"grant_types_supported"`
 	CodeChallengeMethodsSupported     []string `json:"code_challenge_methods_supported"`
@@ -464,6 +487,6 @@ type OAuth2ClientConfiguration struct {
 	TokenEndpointAuthMethod string          `json:"token_endpoint_auth_method"`
 	Scope                   string          `json:"scope,omitempty"`
 	Contacts                []string        `json:"contacts,omitempty"`
-	RegistrationAccessToken string          `json:"registration_access_token"`
+	RegistrationAccessToken []byte          `json:"registration_access_token"`
 	RegistrationClientURI   string          `json:"registration_client_uri"`
 }

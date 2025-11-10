@@ -85,7 +85,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/experimental/aibridge/interceptions": {
+        "/aibridge/interceptions": {
             "get": {
                 "security": [
                     {
@@ -115,8 +115,14 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Cursor pagination after ID",
+                        "description": "Cursor pagination after ID (cannot be used with offset)",
                         "name": "after_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Offset pagination (cannot be used with after_id)",
+                        "name": "offset",
                         "in": "query"
                     }
                 ],
@@ -145,31 +151,8 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query for filtering tasks",
+                        "description": "Search query for filtering tasks. Supports: owner:\u003cusername/uuid/me\u003e, organization:\u003corg-name/uuid\u003e, status:\u003cstatus\u003e",
                         "name": "q",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Return tasks after this ID for pagination",
-                        "name": "after_id",
-                        "in": "query"
-                    },
-                    {
-                        "maximum": 100,
-                        "minimum": 1,
-                        "type": "integer",
-                        "default": 25,
-                        "description": "Maximum number of tasks to return",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "minimum": 0,
-                        "type": "integer",
-                        "default": 0,
-                        "description": "Offset for pagination",
-                        "name": "offset",
                         "in": "query"
                     }
                 ],
@@ -177,7 +160,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/coderd.tasksListResponse"
+                            "$ref": "#/definitions/codersdk.TasksListResponse"
                         }
                     }
                 }
@@ -223,7 +206,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/experimental/tasks/{user}/{id}": {
+        "/api/experimental/tasks/{user}/{task}": {
             "get": {
                 "security": [
                     {
@@ -247,7 +230,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Task ID",
-                        "name": "id",
+                        "name": "task",
                         "in": "path",
                         "required": true
                     }
@@ -284,7 +267,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Task ID",
-                        "name": "id",
+                        "name": "task",
                         "in": "path",
                         "required": true
                     }
@@ -296,7 +279,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/experimental/tasks/{user}/{id}/logs": {
+        "/api/experimental/tasks/{user}/{task}/logs": {
             "get": {
                 "security": [
                     {
@@ -320,7 +303,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Task ID",
-                        "name": "id",
+                        "name": "task",
                         "in": "path",
                         "required": true
                     }
@@ -335,7 +318,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/experimental/tasks/{user}/{id}/send": {
+        "/api/experimental/tasks/{user}/{task}/send": {
             "post": {
                 "security": [
                     {
@@ -359,7 +342,7 @@ const docTemplate = `{
                         "type": "string",
                         "format": "uuid",
                         "description": "Task ID",
-                        "name": "id",
+                        "name": "task",
                         "in": "path",
                         "required": true
                     },
@@ -951,6 +934,138 @@ const docTemplate = `{
                             "$ref": "#/definitions/healthsdk.UpdateHealthSettings"
                         }
                     }
+                }
+            }
+        },
+        "/debug/metrics": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Debug"
+                ],
+                "summary": "Debug metrics",
+                "operationId": "debug-metrics",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/debug/pprof": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Debug"
+                ],
+                "summary": "Debug pprof index",
+                "operationId": "debug-pprof-index",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/debug/pprof/cmdline": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Debug"
+                ],
+                "summary": "Debug pprof cmdline",
+                "operationId": "debug-pprof-cmdline",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/debug/pprof/profile": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Debug"
+                ],
+                "summary": "Debug pprof profile",
+                "operationId": "debug-pprof-profile",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/debug/pprof/symbol": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Debug"
+                ],
+                "summary": "Debug pprof symbol",
+                "operationId": "debug-pprof-symbol",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/debug/pprof/trace": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Debug"
+                ],
+                "summary": "Debug pprof trace",
+                "operationId": "debug-pprof-trace",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
                 }
             }
         },
@@ -2940,6 +3055,45 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.OAuth2ClientRegistrationResponse"
                         }
+                    }
+                }
+            }
+        },
+        "/oauth2/revoke": {
+            "post": {
+                "consumes": [
+                    "application/x-www-form-urlencoded"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Revoke OAuth2 tokens (RFC 7009).",
+                "operationId": "oauth2-token-revocation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Client ID for authentication",
+                        "name": "client_id",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "The token to revoke",
+                        "name": "token",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Hint about token type (access_token or refresh_token)",
+                        "name": "token_type_hint",
+                        "in": "formData"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Token successfully revoked"
                     }
                 }
             }
@@ -11486,20 +11640,6 @@ const docTemplate = `{
                 }
             }
         },
-        "coderd.tasksListResponse": {
-            "type": "object",
-            "properties": {
-                "count": {
-                    "type": "integer"
-                },
-                "tasks": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.Task"
-                    }
-                }
-            }
-        },
         "codersdk.ACLAvailable": {
             "type": "object",
             "properties": {
@@ -11528,11 +11668,34 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AIBridgeBedrockConfig": {
+            "type": "object",
+            "properties": {
+                "access_key": {
+                    "type": "string"
+                },
+                "access_key_secret": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "region": {
+                    "type": "string"
+                },
+                "small_fast_model": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.AIBridgeConfig": {
             "type": "object",
             "properties": {
                 "anthropic": {
                     "$ref": "#/definitions/codersdk.AIBridgeAnthropicConfig"
+                },
+                "bedrock": {
+                    "$ref": "#/definitions/codersdk.AIBridgeBedrockConfig"
                 },
                 "enabled": {
                     "type": "boolean"
@@ -11545,13 +11708,19 @@ const docTemplate = `{
         "codersdk.AIBridgeInterception": {
             "type": "object",
             "properties": {
+                "api_key_id": {
+                    "type": "string"
+                },
+                "ended_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
                 "id": {
                     "type": "string",
                     "format": "uuid"
                 },
-                "initiator_id": {
-                    "type": "string",
-                    "format": "uuid"
+                "initiator": {
+                    "$ref": "#/definitions/codersdk.MinimalUser"
                 },
                 "metadata": {
                     "type": "object",
@@ -11590,6 +11759,9 @@ const docTemplate = `{
         "codersdk.AIBridgeListInterceptionsResponse": {
             "type": "object",
             "properties": {
+                "count": {
+                    "type": "integer"
+                },
                 "results": {
                     "type": "array",
                     "items": {
@@ -11738,6 +11910,12 @@ const docTemplate = `{
                 "user_id"
             ],
             "properties": {
+                "allow_list": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.APIAllowListTarget"
+                    }
+                },
                 "created_at": {
                     "type": "string",
                     "format": "date-time"
@@ -11932,6 +12110,11 @@ const docTemplate = `{
                 "tailnet_coordinator:delete",
                 "tailnet_coordinator:read",
                 "tailnet_coordinator:update",
+                "task:*",
+                "task:create",
+                "task:delete",
+                "task:read",
+                "task:update",
                 "template:*",
                 "template:create",
                 "template:delete",
@@ -11966,6 +12149,7 @@ const docTemplate = `{
                 "workspace:delete",
                 "workspace:delete_agent",
                 "workspace:read",
+                "workspace:share",
                 "workspace:ssh",
                 "workspace:start",
                 "workspace:stop",
@@ -11983,6 +12167,7 @@ const docTemplate = `{
                 "workspace_dormant:delete",
                 "workspace_dormant:delete_agent",
                 "workspace_dormant:read",
+                "workspace_dormant:share",
                 "workspace_dormant:ssh",
                 "workspace_dormant:start",
                 "workspace_dormant:stop",
@@ -12123,6 +12308,11 @@ const docTemplate = `{
                 "APIKeyScopeTailnetCoordinatorDelete",
                 "APIKeyScopeTailnetCoordinatorRead",
                 "APIKeyScopeTailnetCoordinatorUpdate",
+                "APIKeyScopeTaskAll",
+                "APIKeyScopeTaskCreate",
+                "APIKeyScopeTaskDelete",
+                "APIKeyScopeTaskRead",
+                "APIKeyScopeTaskUpdate",
                 "APIKeyScopeTemplateAll",
                 "APIKeyScopeTemplateCreate",
                 "APIKeyScopeTemplateDelete",
@@ -12157,6 +12347,7 @@ const docTemplate = `{
                 "APIKeyScopeWorkspaceDelete",
                 "APIKeyScopeWorkspaceDeleteAgent",
                 "APIKeyScopeWorkspaceRead",
+                "APIKeyScopeWorkspaceShare",
                 "APIKeyScopeWorkspaceSsh",
                 "APIKeyScopeWorkspaceStart",
                 "APIKeyScopeWorkspaceStop",
@@ -12174,6 +12365,7 @@ const docTemplate = `{
                 "APIKeyScopeWorkspaceDormantDelete",
                 "APIKeyScopeWorkspaceDormantDeleteAgent",
                 "APIKeyScopeWorkspaceDormantRead",
+                "APIKeyScopeWorkspaceDormantShare",
                 "APIKeyScopeWorkspaceDormantSsh",
                 "APIKeyScopeWorkspaceDormantStart",
                 "APIKeyScopeWorkspaceDormantStop",
@@ -12333,6 +12525,13 @@ const docTemplate = `{
                 "organization_id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "organization_member_permissions": {
+                    "description": "OrganizationMemberPermissions are specific for the organization in the field 'OrganizationID' above.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Permission"
+                    }
                 },
                 "organization_permissions": {
                     "description": "OrganizationPermissions are specific for the organization in the field 'OrganizationID' above.",
@@ -13557,6 +13756,13 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
+                "organization_member_permissions": {
+                    "description": "OrganizationMemberPermissions are specific to the organization the role belongs to.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Permission"
+                    }
+                },
                 "organization_permissions": {
                     "description": "OrganizationPermissions are specific to the organization the role belongs to.",
                     "type": "array",
@@ -13821,6 +14027,9 @@ const docTemplate = `{
                 },
                 "docs_url": {
                     "$ref": "#/definitions/serpent.URL"
+                },
+                "enable_authz_recording": {
+                    "type": "boolean"
                 },
                 "enable_terraform_debug_mode": {
                     "type": "boolean"
@@ -14110,11 +14319,9 @@ const docTemplate = `{
                 "web-push",
                 "oauth2",
                 "mcp-server-http",
-                "workspace-sharing",
-                "aibridge"
+                "workspace-sharing"
             ],
             "x-enum-comments": {
-                "ExperimentAIBridge": "Enables AI Bridge functionality.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
@@ -14132,8 +14339,7 @@ const docTemplate = `{
                 "ExperimentWebPush",
                 "ExperimentOAuth2",
                 "ExperimentMCPServerHTTP",
-                "ExperimentWorkspaceSharing",
-                "ExperimentAIBridge"
+                "ExperimentWorkspaceSharing"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {
@@ -14740,7 +14946,15 @@ const docTemplate = `{
                     "enum": [
                         "bug",
                         "chat",
-                        "docs"
+                        "docs",
+                        "star"
+                    ]
+                },
+                "location": {
+                    "type": "string",
+                    "enum": [
+                        "navbar",
+                        "dropdown"
                     ]
                 },
                 "name": {
@@ -14912,6 +15126,9 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
                 },
                 "username": {
                     "type": "string"
@@ -15185,6 +15402,9 @@ const docTemplate = `{
                 },
                 "token": {
                     "type": "string"
+                },
+                "token_revoke": {
+                    "type": "string"
                 }
             }
         },
@@ -15217,6 +15437,9 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                },
+                "revocation_endpoint": {
+                    "type": "string"
                 },
                 "scopes_supported": {
                     "type": "array",
@@ -15284,7 +15507,10 @@ const docTemplate = `{
                     }
                 },
                 "registration_access_token": {
-                    "type": "string"
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
                 },
                 "registration_client_uri": {
                     "type": "string"
@@ -16916,6 +17142,7 @@ const docTemplate = `{
                 "read",
                 "read_personal",
                 "ssh",
+                "share",
                 "unassign",
                 "update",
                 "update_personal",
@@ -16934,6 +17161,7 @@ const docTemplate = `{
                 "ActionRead",
                 "ActionReadPersonal",
                 "ActionSSH",
+                "ActionShare",
                 "ActionUnassign",
                 "ActionUpdate",
                 "ActionUpdatePersonal",
@@ -16977,6 +17205,7 @@ const docTemplate = `{
                 "replicas",
                 "system",
                 "tailnet_coordinator",
+                "task",
                 "template",
                 "usage_event",
                 "user",
@@ -17020,6 +17249,7 @@ const docTemplate = `{
                 "ResourceReplicas",
                 "ResourceSystem",
                 "ResourceTailnetCoordinator",
+                "ResourceTask",
                 "ResourceTemplate",
                 "ResourceUsageEvent",
                 "ResourceUser",
@@ -17235,7 +17465,8 @@ const docTemplate = `{
                 "idp_sync_settings_group",
                 "idp_sync_settings_role",
                 "workspace_agent",
-                "workspace_app"
+                "workspace_app",
+                "task"
             ],
             "x-enum-varnames": [
                 "ResourceTypeTemplate",
@@ -17262,7 +17493,8 @@ const docTemplate = `{
                 "ResourceTypeIdpSyncSettingsGroup",
                 "ResourceTypeIdpSyncSettingsRole",
                 "ResourceTypeWorkspaceAgent",
-                "ResourceTypeWorkspaceApp"
+                "ResourceTypeWorkspaceApp",
+                "ResourceTypeTask"
             ]
         },
         "codersdk.Response": {
@@ -17297,6 +17529,13 @@ const docTemplate = `{
                 "organization_id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "organization_member_permissions": {
+                    "description": "OrganizationMemberPermissions are specific for the organization in the field 'OrganizationID' above.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Permission"
+                    }
                 },
                 "organization_permissions": {
                     "description": "OrganizationPermissions are specific for the organization in the field 'OrganizationID' above.",
@@ -17542,6 +17781,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "owner_avatar_url": {
+                    "type": "string"
+                },
                 "owner_id": {
                     "type": "string",
                     "format": "uuid"
@@ -17552,19 +17794,15 @@ const docTemplate = `{
                 "status": {
                     "enum": [
                         "pending",
-                        "starting",
-                        "running",
-                        "stopping",
-                        "stopped",
-                        "failed",
-                        "canceling",
-                        "canceled",
-                        "deleting",
-                        "deleted"
+                        "initializing",
+                        "active",
+                        "paused",
+                        "unknown",
+                        "error"
                     ],
                     "allOf": [
                         {
-                            "$ref": "#/definitions/codersdk.WorkspaceStatus"
+                            "$ref": "#/definitions/codersdk.TaskStatus"
                         }
                     ]
                 },
@@ -17580,6 +17818,10 @@ const docTemplate = `{
                 },
                 "template_name": {
                     "type": "string"
+                },
+                "template_version_id": {
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "updated_at": {
                     "type": "string",
@@ -17599,11 +17841,44 @@ const docTemplate = `{
                 "workspace_agent_lifecycle": {
                     "$ref": "#/definitions/codersdk.WorkspaceAgentLifecycle"
                 },
+                "workspace_app_id": {
+                    "format": "uuid",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/uuid.NullUUID"
+                        }
+                    ]
+                },
+                "workspace_build_number": {
+                    "type": "integer"
+                },
                 "workspace_id": {
                     "format": "uuid",
                     "allOf": [
                         {
                             "$ref": "#/definitions/uuid.NullUUID"
+                        }
+                    ]
+                },
+                "workspace_name": {
+                    "type": "string"
+                },
+                "workspace_status": {
+                    "enum": [
+                        "pending",
+                        "starting",
+                        "running",
+                        "stopping",
+                        "stopped",
+                        "failed",
+                        "canceling",
+                        "canceled",
+                        "deleting",
+                        "deleted"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceStatus"
                         }
                     ]
                 }
@@ -17687,6 +17962,39 @@ const docTemplate = `{
                 },
                 "uri": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.TaskStatus": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "initializing",
+                "active",
+                "paused",
+                "unknown",
+                "error"
+            ],
+            "x-enum-varnames": [
+                "TaskStatusPending",
+                "TaskStatusInitializing",
+                "TaskStatusActive",
+                "TaskStatusPaused",
+                "TaskStatusUnknown",
+                "TaskStatusError"
+            ]
+        },
+        "codersdk.TasksListResponse": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "tasks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.Task"
+                    }
                 }
             }
         },
@@ -19410,6 +19718,14 @@ const docTemplate = `{
                     "description": "OwnerName is the username of the owner of the workspace.",
                     "type": "string"
                 },
+                "task_id": {
+                    "description": "TaskID, if set, indicates that the workspace is relevant to the given codersdk.Task.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/uuid.NullUUID"
+                        }
+                    ]
+                },
                 "template_active_version_id": {
                     "type": "string",
                     "format": "uuid"
@@ -20216,10 +20532,6 @@ const docTemplate = `{
         "codersdk.WorkspaceBuild": {
             "type": "object",
             "properties": {
-                "ai_task_sidebar_app_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
                 "build_number": {
                     "type": "integer"
                 },
@@ -20719,6 +21031,9 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
                 },
                 "role": {
                     "enum": [

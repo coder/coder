@@ -95,6 +95,10 @@ const (
 	ScopeTailnetCoordinatorDelete            ScopeName = "tailnet_coordinator:delete"
 	ScopeTailnetCoordinatorRead              ScopeName = "tailnet_coordinator:read"
 	ScopeTailnetCoordinatorUpdate            ScopeName = "tailnet_coordinator:update"
+	ScopeTaskCreate                          ScopeName = "task:create"
+	ScopeTaskDelete                          ScopeName = "task:delete"
+	ScopeTaskRead                            ScopeName = "task:read"
+	ScopeTaskUpdate                          ScopeName = "task:update"
 	ScopeTemplateCreate                      ScopeName = "template:create"
 	ScopeTemplateDelete                      ScopeName = "template:delete"
 	ScopeTemplateRead                        ScopeName = "template:read"
@@ -123,6 +127,7 @@ const (
 	ScopeWorkspaceDelete                     ScopeName = "workspace:delete"
 	ScopeWorkspaceDeleteAgent                ScopeName = "workspace:delete_agent"
 	ScopeWorkspaceRead                       ScopeName = "workspace:read"
+	ScopeWorkspaceShare                      ScopeName = "workspace:share"
 	ScopeWorkspaceSsh                        ScopeName = "workspace:ssh"
 	ScopeWorkspaceStart                      ScopeName = "workspace:start"
 	ScopeWorkspaceStop                       ScopeName = "workspace:stop"
@@ -137,6 +142,7 @@ const (
 	ScopeWorkspaceDormantDelete              ScopeName = "workspace_dormant:delete"
 	ScopeWorkspaceDormantDeleteAgent         ScopeName = "workspace_dormant:delete_agent"
 	ScopeWorkspaceDormantRead                ScopeName = "workspace_dormant:read"
+	ScopeWorkspaceDormantShare               ScopeName = "workspace_dormant:share"
 	ScopeWorkspaceDormantSsh                 ScopeName = "workspace_dormant:ssh"
 	ScopeWorkspaceDormantStart               ScopeName = "workspace_dormant:start"
 	ScopeWorkspaceDormantStop                ScopeName = "workspace_dormant:stop"
@@ -244,6 +250,10 @@ func (e ScopeName) Valid() bool {
 		ScopeTailnetCoordinatorDelete,
 		ScopeTailnetCoordinatorRead,
 		ScopeTailnetCoordinatorUpdate,
+		ScopeTaskCreate,
+		ScopeTaskDelete,
+		ScopeTaskRead,
+		ScopeTaskUpdate,
 		ScopeTemplateCreate,
 		ScopeTemplateDelete,
 		ScopeTemplateRead,
@@ -272,6 +282,7 @@ func (e ScopeName) Valid() bool {
 		ScopeWorkspaceDelete,
 		ScopeWorkspaceDeleteAgent,
 		ScopeWorkspaceRead,
+		ScopeWorkspaceShare,
 		ScopeWorkspaceSsh,
 		ScopeWorkspaceStart,
 		ScopeWorkspaceStop,
@@ -286,6 +297,7 @@ func (e ScopeName) Valid() bool {
 		ScopeWorkspaceDormantDelete,
 		ScopeWorkspaceDormantDeleteAgent,
 		ScopeWorkspaceDormantRead,
+		ScopeWorkspaceDormantShare,
 		ScopeWorkspaceDormantSsh,
 		ScopeWorkspaceDormantStart,
 		ScopeWorkspaceDormantStop,
@@ -394,6 +406,10 @@ func AllScopeNameValues() []ScopeName {
 		ScopeTailnetCoordinatorDelete,
 		ScopeTailnetCoordinatorRead,
 		ScopeTailnetCoordinatorUpdate,
+		ScopeTaskCreate,
+		ScopeTaskDelete,
+		ScopeTaskRead,
+		ScopeTaskUpdate,
 		ScopeTemplateCreate,
 		ScopeTemplateDelete,
 		ScopeTemplateRead,
@@ -422,6 +438,7 @@ func AllScopeNameValues() []ScopeName {
 		ScopeWorkspaceDelete,
 		ScopeWorkspaceDeleteAgent,
 		ScopeWorkspaceRead,
+		ScopeWorkspaceShare,
 		ScopeWorkspaceSsh,
 		ScopeWorkspaceStart,
 		ScopeWorkspaceStop,
@@ -436,6 +453,7 @@ func AllScopeNameValues() []ScopeName {
 		ScopeWorkspaceDormantDelete,
 		ScopeWorkspaceDormantDeleteAgent,
 		ScopeWorkspaceDormantRead,
+		ScopeWorkspaceDormantShare,
 		ScopeWorkspaceDormantSsh,
 		ScopeWorkspaceDormantStart,
 		ScopeWorkspaceDormantStop,

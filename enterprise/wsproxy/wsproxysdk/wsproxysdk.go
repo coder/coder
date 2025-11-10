@@ -404,15 +404,19 @@ func (l *RegisterWorkspaceProxyLoop) Start(ctx context.Context) (RegisterWorkspa
 
 // RegisterNow asks the registration loop to register immediately. A timeout of
 // 2x the attempt timeout is used to wait for the response.
-func (l *RegisterWorkspaceProxyLoop) RegisterNow() (RegisterWorkspaceProxyResponse, error) {
+func (l *RegisterWorkspaceProxyLoop) RegisterNow(ctx context.Context) (RegisterWorkspaceProxyResponse, error) {
 	// The channel is closed by the loop after sending the response.
 	respCh := make(chan RegisterWorkspaceProxyResponse, 1)
 	select {
+	case <-ctx.Done():
+		return RegisterWorkspaceProxyResponse{}, ctx.Err()
 	case <-l.done:
 		return RegisterWorkspaceProxyResponse{}, xerrors.New("proxy registration loop closed")
 	case l.runLoopNow <- respCh:
 	}
 	select {
+	case <-ctx.Done():
+		return RegisterWorkspaceProxyResponse{}, ctx.Err()
 	case <-l.done:
 		return RegisterWorkspaceProxyResponse{}, xerrors.New("proxy registration loop closed")
 	case resp := <-respCh:

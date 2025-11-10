@@ -101,6 +101,9 @@ func TestMemoryResourceMonitorDebounce(t *testing.T) {
 		Threshold: 80,
 	})
 
+	// Initialize API to fetch and cache the monitors
+	require.NoError(t, api.InitMonitors(context.Background()))
+
 	// When: The monitor is given a state that will trigger NOK
 	_, err := api.PushResourcesMonitoringUsage(context.Background(), &agentproto.PushResourcesMonitoringUsageRequest{
 		Datapoints: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint{
@@ -304,6 +307,9 @@ func TestMemoryResourceMonitor(t *testing.T) {
 				Threshold: 80,
 			})
 
+			// Initialize API to fetch and cache the monitors
+			require.NoError(t, api.InitMonitors(context.Background()))
+
 			clock.Set(collectedAt)
 			_, err := api.PushResourcesMonitoringUsage(context.Background(), &agentproto.PushResourcesMonitoringUsageRequest{
 				Datapoints: datapoints,
@@ -337,6 +343,8 @@ func TestMemoryResourceMonitorMissingData(t *testing.T) {
 			State:     database.WorkspaceAgentMonitorStateOK,
 			Threshold: 80,
 		})
+		// Initialize API to fetch and cache the monitors
+		require.NoError(t, api.InitMonitors(context.Background()))
 
 		// When: A datapoint is missing, surrounded by two NOK datapoints.
 		_, err := api.PushResourcesMonitoringUsage(context.Background(), &agentproto.PushResourcesMonitoringUsageRequest{
@@ -386,6 +394,9 @@ func TestMemoryResourceMonitorMissingData(t *testing.T) {
 			State:     database.WorkspaceAgentMonitorStateNOK,
 			Threshold: 80,
 		})
+
+		// Initialize API to fetch and cache the monitors
+		require.NoError(t, api.InitMonitors(context.Background()))
 
 		// When: A datapoint is missing, surrounded by two OK datapoints.
 		_, err := api.PushResourcesMonitoringUsage(context.Background(), &agentproto.PushResourcesMonitoringUsageRequest{
@@ -465,6 +476,9 @@ func TestVolumeResourceMonitorDebounce(t *testing.T) {
 		State:     database.WorkspaceAgentMonitorStateNOK,
 		Threshold: 80,
 	})
+
+	// Initialize API to fetch and cache the monitors
+	require.NoError(t, api.InitMonitors(context.Background()))
 
 	// When:
 	//  - First monitor is in a NOK state
@@ -742,6 +756,9 @@ func TestVolumeResourceMonitor(t *testing.T) {
 				Threshold: tt.thresholdPercent,
 			})
 
+			// Initialize API to fetch and cache the monitors
+			require.NoError(t, api.InitMonitors(context.Background()))
+
 			clock.Set(collectedAt)
 			_, err := api.PushResourcesMonitoringUsage(context.Background(), &agentproto.PushResourcesMonitoringUsageRequest{
 				Datapoints: datapoints,
@@ -779,6 +796,9 @@ func TestVolumeResourceMonitorMultiple(t *testing.T) {
 		State:     database.WorkspaceAgentMonitorStateOK,
 		Threshold: 80,
 	})
+
+	// Initialize API to fetch and cache the monitors
+	require.NoError(t, api.InitMonitors(context.Background()))
 
 	// When: both of them move to a NOK state
 	_, err := api.PushResourcesMonitoringUsage(context.Background(), &agentproto.PushResourcesMonitoringUsageRequest{
@@ -831,6 +851,9 @@ func TestVolumeResourceMonitorMissingData(t *testing.T) {
 			State:     database.WorkspaceAgentMonitorStateOK,
 			Threshold: 80,
 		})
+
+		// Initialize API to fetch and cache the monitors
+		require.NoError(t, api.InitMonitors(context.Background()))
 
 		// When: A datapoint is missing, surrounded by two NOK datapoints.
 		_, err := api.PushResourcesMonitoringUsage(context.Background(), &agentproto.PushResourcesMonitoringUsageRequest{
@@ -890,6 +913,9 @@ func TestVolumeResourceMonitorMissingData(t *testing.T) {
 			State:     database.WorkspaceAgentMonitorStateNOK,
 			Threshold: 80,
 		})
+
+		// Initialize API to fetch and cache the monitors
+		require.NoError(t, api.InitMonitors(context.Background()))
 
 		// When: A datapoint is missing, surrounded by two OK datapoints.
 		_, err := api.PushResourcesMonitoringUsage(context.Background(), &agentproto.PushResourcesMonitoringUsageRequest{

@@ -40,7 +40,7 @@ func extractAuthorizeParams(r *http.Request, callbackURL *url.URL) (authorizePar
 		clientID:            p.String(vals, "", "client_id"),
 		redirectURL:         p.RedirectURL(vals, callbackURL, "redirect_uri"),
 		responseType:        httpapi.ParseCustom(p, vals, "", "response_type", httpapi.ParseEnum[codersdk.OAuth2ProviderResponseType]),
-		scope:               p.Strings(vals, []string{}, "scope"),
+		scope:               strings.Fields(strings.TrimSpace(p.String(vals, "", "scope"))),
 		state:               p.String(vals, "", "state"),
 		resource:            p.String(vals, "", "resource"),
 		codeChallenge:       p.String(vals, "", "code_challenge"),
@@ -165,7 +165,7 @@ func ProcessAuthorize(db database.Store) http.HandlerFunc {
 				// has left) then they can just retry immediately and get a new code.
 				ExpiresAt:           dbtime.Now().Add(time.Duration(10) * time.Minute),
 				SecretPrefix:        []byte(code.Prefix),
-				HashedSecret:        []byte(code.Hashed),
+				HashedSecret:        code.Hashed,
 				AppID:               app.ID,
 				UserID:              apiKey.UserID,
 				ResourceUri:         sql.NullString{String: params.resource, Valid: params.resource != ""},

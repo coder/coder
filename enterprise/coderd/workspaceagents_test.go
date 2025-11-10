@@ -89,10 +89,6 @@ func TestBlockNonBrowser(t *testing.T) {
 func TestReinitializeAgent(t *testing.T) {
 	t.Parallel()
 
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("dbmem cannot currently claim a workspace")
-	}
-
 	if runtime.GOOS == "windows" {
 		t.Skip("test startup script is not supported on windows")
 	}

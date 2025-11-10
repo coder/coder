@@ -1958,6 +1958,7 @@ func convertTemplateVersion(version database.TemplateVersion, job codersdk.Provi
 		CreatedBy: codersdk.MinimalUser{
 			ID:        version.CreatedBy,
 			Username:  version.CreatedByUsername,
+			Name:      version.CreatedByName,
 			AvatarURL: version.CreatedByAvatarURL,
 		},
 		Archived:            version.Archived,

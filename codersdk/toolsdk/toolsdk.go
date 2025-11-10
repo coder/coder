@@ -55,6 +55,8 @@ const (
 	ToolNameDeleteTask                  = "coder_delete_task"
 	ToolNameListTasks                   = "coder_list_tasks"
 	ToolNameGetTaskStatus               = "coder_get_task_status"
+	ToolNameSendTaskInput               = "coder_send_task_input"
+	ToolNameGetTaskLogs                 = "coder_get_task_logs"
 )
 
 func NewDeps(client *codersdk.Client, opts ...func(*Deps)) (Deps, error) {
@@ -233,6 +235,8 @@ var All = []GenericTool{
 	DeleteTask.Generic(),
 	ListTasks.Generic(),
 	GetTaskStatus.Generic(),
+	SendTaskInput.Generic(),
+	GetTaskLogs.Generic(),
 }
 
 type ReportTaskArgs struct {
@@ -313,13 +317,14 @@ type GetWorkspaceArgs struct {
 var GetWorkspace = Tool[GetWorkspaceArgs, codersdk.Workspace]{
 	Tool: aisdk.Tool{
 		Name: ToolNameGetWorkspace,
-		Description: `Get a workspace by ID.
+		Description: `Get a workspace by name or ID.
 
 This returns more data than list_workspaces to reduce token usage.`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
 				"workspace_id": map[string]any{
-					"type": "string",
+					"type":        "string",
+					"description": workspaceDescription,
 				},
 			},
 			Required: []string{"workspace_id"},
@@ -328,7 +333,7 @@ This returns more data than list_workspaces to reduce token usage.`,
 	Handler: func(ctx context.Context, deps Deps, args GetWorkspaceArgs) (codersdk.Workspace, error) {
 		wsID, err := uuid.Parse(args.WorkspaceID)
 		if err != nil {
-			return codersdk.Workspace{}, xerrors.New("workspace_id must be a valid UUID")
+			return namedWorkspace(ctx, deps.coderClient, NormalizeWorkspaceInput(args.WorkspaceID))
 		}
 		return deps.coderClient.Workspace(ctx, wsID)
 	},
@@ -349,6 +354,18 @@ var CreateWorkspace = Tool[CreateWorkspaceArgs, codersdk.Workspace]{
 If a user is asking to "test a template", they are typically referring
 to creating a workspace from a template to ensure the infrastructure
 is provisioned correctly and the agent can connect to the control plane.
+
+Before creating a workspace, always confirm the template choice with the user by:
+
+	1. Listing the available templates that match their request.
+	2. Recommending the most relevant option.
+	2. Asking the user to confirm which template to use.
+
+It is important to not create a workspace without confirming the template
+choice with the user.
+
+After creating a workspace, watch the build logs and wait for the workspace to
+be ready before trying to use or connect to the workspace.
 `,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
@@ -526,8 +543,13 @@ type CreateWorkspaceBuildArgs struct {
 
 var CreateWorkspaceBuild = Tool[CreateWorkspaceBuildArgs, codersdk.WorkspaceBuild]{
 	Tool: aisdk.Tool{
-		Name:        ToolNameCreateWorkspaceBuild,
-		Description: "Create a new workspace build for an existing workspace. Use this to start, stop, or delete.",
+		Name: ToolNameCreateWorkspaceBuild,
+		Description: `Create a new workspace build for an existing workspace. Use this to start, stop, or delete.
+
+After creating a workspace build, watch the build logs and wait for the
+workspace build to complete before trying to start another build or use or
+connect to the workspace.
+`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
 				"workspace_id": map[string]any{
@@ -1411,7 +1433,7 @@ var WorkspaceLS = Tool[WorkspaceLSArgs, WorkspaceLSResponse]{
 			Properties: map[string]any{
 				"workspace": map[string]any{
 					"type":        "string",
-					"description": workspaceDescription,
+					"description": workspaceAgentDescription,
 				},
 				"path": map[string]any{
 					"type":        "string",
@@ -1468,7 +1490,7 @@ var WorkspaceReadFile = Tool[WorkspaceReadFileArgs, WorkspaceReadFileResponse]{
 			Properties: map[string]any{
 				"workspace": map[string]any{
 					"type":        "string",
-					"description": workspaceDescription,
+					"description": workspaceAgentDescription,
 				},
 				"path": map[string]any{
 					"type":        "string",
@@ -1527,13 +1549,25 @@ type WorkspaceWriteFileArgs struct {
 
 var WorkspaceWriteFile = Tool[WorkspaceWriteFileArgs, codersdk.Response]{
 	Tool: aisdk.Tool{
-		Name:        ToolNameWorkspaceWriteFile,
-		Description: `Write a file in a workspace.`,
+		Name: ToolNameWorkspaceWriteFile,
+		Description: `Write a file in a workspace.
+
+If a file write fails due to syntax errors or encoding issues, do NOT switch
+to using bash commands as a workaround. Instead:
+
+	1. Read the error message carefully to identify the issue
+	2. Fix the content encoding/syntax
+	3. Retry with this tool
+
+The content parameter expects base64-encoded bytes. Ensure your source content
+is correct before encoding it. If you encounter errors, decode and verify the
+content you are trying to write, then re-encode it properly.
+`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
 				"workspace": map[string]any{
 					"type":        "string",
-					"description": workspaceDescription,
+					"description": workspaceAgentDescription,
 				},
 				"path": map[string]any{
 					"type":        "string",
@@ -1581,7 +1615,7 @@ var WorkspaceEditFile = Tool[WorkspaceEditFileArgs, codersdk.Response]{
 			Properties: map[string]any{
 				"workspace": map[string]any{
 					"type":        "string",
-					"description": workspaceDescription,
+					"description": workspaceAgentDescription,
 				},
 				"path": map[string]any{
 					"type":        "string",
@@ -1648,7 +1682,7 @@ var WorkspaceEditFiles = Tool[WorkspaceEditFilesArgs, codersdk.Response]{
 			Properties: map[string]any{
 				"workspace": map[string]any{
 					"type":        "string",
-					"description": workspaceDescription,
+					"description": workspaceAgentDescription,
 				},
 				"files": map[string]any{
 					"type":        "array",
@@ -1722,7 +1756,7 @@ var WorkspacePortForward = Tool[WorkspacePortForwardArgs, WorkspacePortForwardRe
 			Properties: map[string]any{
 				"workspace": map[string]any{
 					"type":        "string",
-					"description": workspaceDescription,
+					"description": workspaceAgentDescription,
 				},
 				"port": map[string]any{
 					"type":        "number",
@@ -1779,7 +1813,7 @@ var WorkspaceListApps = Tool[WorkspaceListAppsArgs, WorkspaceListAppsResponse]{
 			Properties: map[string]any{
 				"workspace": map[string]any{
 					"type":        "string",
-					"description": workspaceDescription,
+					"description": workspaceAgentDescription,
 				},
 			},
 			Required: []string{"workspace"},
@@ -1905,24 +1939,12 @@ var DeleteTask = Tool[DeleteTaskArgs, codersdk.Response]{
 
 		expClient := codersdk.NewExperimentalClient(deps.coderClient)
 
-		var owner string
-		id, err := uuid.Parse(args.TaskID)
-		if err == nil {
-			task, err := expClient.TaskByID(ctx, id)
-			if err != nil {
-				return codersdk.Response{}, xerrors.Errorf("get task %q: %w", args.TaskID, err)
-			}
-			owner = task.OwnerName
-		} else {
-			ws, err := normalizedNamedWorkspace(ctx, deps.coderClient, args.TaskID)
-			if err != nil {
-				return codersdk.Response{}, xerrors.Errorf("get task workspace %q: %w", args.TaskID, err)
-			}
-			owner = ws.OwnerName
-			id = ws.ID
+		task, err := expClient.TaskByIdentifier(ctx, args.TaskID)
+		if err != nil {
+			return codersdk.Response{}, xerrors.Errorf("resolve task: %w", err)
 		}
 
-		err = expClient.DeleteTask(ctx, owner, id)
+		err = expClient.DeleteTask(ctx, task.OwnerName, task.ID)
 		if err != nil {
 			return codersdk.Response{}, xerrors.Errorf("delete task: %w", err)
 		}
@@ -1934,8 +1956,8 @@ var DeleteTask = Tool[DeleteTaskArgs, codersdk.Response]{
 }
 
 type ListTasksArgs struct {
-	Status string `json:"status"`
-	User   string `json:"user"`
+	Status codersdk.TaskStatus `json:"status"`
+	User   string              `json:"user"`
 }
 
 type ListTasksResponse struct {
@@ -1986,7 +2008,7 @@ type GetTaskStatusArgs struct {
 }
 
 type GetTaskStatusResponse struct {
-	Status codersdk.WorkspaceStatus `json:"status"`
+	Status codersdk.TaskStatus      `json:"status"`
 	State  *codersdk.TaskStateEntry `json:"state"`
 }
 
@@ -2012,18 +2034,9 @@ var GetTaskStatus = Tool[GetTaskStatusArgs, GetTaskStatusResponse]{
 
 		expClient := codersdk.NewExperimentalClient(deps.coderClient)
 
-		id, err := uuid.Parse(args.TaskID)
+		task, err := expClient.TaskByIdentifier(ctx, args.TaskID)
 		if err != nil {
-			ws, err := normalizedNamedWorkspace(ctx, deps.coderClient, args.TaskID)
-			if err != nil {
-				return GetTaskStatusResponse{}, xerrors.Errorf("get task workspace %q: %w", args.TaskID, err)
-			}
-			id = ws.ID
-		}
-
-		task, err := expClient.TaskByID(ctx, id)
-		if err != nil {
-			return GetTaskStatusResponse{}, xerrors.Errorf("get task %q: %w", args.TaskID, err)
+			return GetTaskStatusResponse{}, xerrors.Errorf("resolve task %q: %w", args.TaskID, err)
 		}
 
 		return GetTaskStatusResponse{
@@ -2033,11 +2046,97 @@ var GetTaskStatus = Tool[GetTaskStatusArgs, GetTaskStatusResponse]{
 	},
 }
 
-// normalizedNamedWorkspace normalizes the workspace name before getting the
-// workspace by name.
-func normalizedNamedWorkspace(ctx context.Context, client *codersdk.Client, name string) (codersdk.Workspace, error) {
-	// Maybe namedWorkspace should itself call NormalizeWorkspaceInput?
-	return namedWorkspace(ctx, client, NormalizeWorkspaceInput(name))
+type SendTaskInputArgs struct {
+	TaskID string `json:"task_id"`
+	Input  string `json:"input"`
+}
+
+var SendTaskInput = Tool[SendTaskInputArgs, codersdk.Response]{
+	Tool: aisdk.Tool{
+		Name:        ToolNameSendTaskInput,
+		Description: `Send input to a running task.`,
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"task_id": map[string]any{
+					"type":        "string",
+					"description": taskIDDescription("prompt"),
+				},
+				"input": map[string]any{
+					"type":        "string",
+					"description": "The input to send to the task.",
+				},
+			},
+			Required: []string{"task_id", "input"},
+		},
+	},
+	UserClientOptional: true,
+	Handler: func(ctx context.Context, deps Deps, args SendTaskInputArgs) (codersdk.Response, error) {
+		if args.TaskID == "" {
+			return codersdk.Response{}, xerrors.New("task_id is required")
+		}
+
+		if args.Input == "" {
+			return codersdk.Response{}, xerrors.New("input is required")
+		}
+
+		expClient := codersdk.NewExperimentalClient(deps.coderClient)
+
+		task, err := expClient.TaskByIdentifier(ctx, args.TaskID)
+		if err != nil {
+			return codersdk.Response{}, xerrors.Errorf("resolve task %q: %w", args.TaskID, err)
+		}
+
+		err = expClient.TaskSend(ctx, task.OwnerName, task.ID, codersdk.TaskSendRequest{
+			Input: args.Input,
+		})
+		if err != nil {
+			return codersdk.Response{}, xerrors.Errorf("send task input %q: %w", args.TaskID, err)
+		}
+
+		return codersdk.Response{
+			Message: "Input sent to task successfully.",
+		}, nil
+	},
+}
+
+type GetTaskLogsArgs struct {
+	TaskID string `json:"task_id"`
+}
+
+var GetTaskLogs = Tool[GetTaskLogsArgs, codersdk.TaskLogsResponse]{
+	Tool: aisdk.Tool{
+		Name:        ToolNameGetTaskLogs,
+		Description: `Get the logs of a task.`,
+		Schema: aisdk.Schema{
+			Properties: map[string]any{
+				"task_id": map[string]any{
+					"type":        "string",
+					"description": taskIDDescription("query"),
+				},
+			},
+			Required: []string{"task_id"},
+		},
+	},
+	UserClientOptional: true,
+	Handler: func(ctx context.Context, deps Deps, args GetTaskLogsArgs) (codersdk.TaskLogsResponse, error) {
+		if args.TaskID == "" {
+			return codersdk.TaskLogsResponse{}, xerrors.New("task_id is required")
+		}
+
+		expClient := codersdk.NewExperimentalClient(deps.coderClient)
+
+		task, err := expClient.TaskByIdentifier(ctx, args.TaskID)
+		if err != nil {
+			return codersdk.TaskLogsResponse{}, err
+		}
+
+		logs, err := expClient.TaskLogs(ctx, task.OwnerName, task.ID)
+		if err != nil {
+			return codersdk.TaskLogsResponse{}, xerrors.Errorf("get task logs %q: %w", args.TaskID, err)
+		}
+
+		return logs, nil
+	},
 }
 
 // NormalizeWorkspaceInput converts workspace name input to standard format.
@@ -2101,7 +2200,9 @@ func newAgentConn(ctx context.Context, client *codersdk.Client, workspace string
 	return conn, nil
 }
 
-const workspaceDescription = "The workspace name in the format [owner/]workspace[.agent]. If an owner is not specified, the authenticated user is used."
+const workspaceDescription = "The workspace ID or name in the format [owner/]workspace. If an owner is not specified, the authenticated user is used."
+
+const workspaceAgentDescription = "The workspace name in the format [owner/]workspace[.agent]. If an owner is not specified, the authenticated user is used."
 
 func taskIDDescription(action string) string {
 	return fmt.Sprintf("ID or workspace identifier in the format [owner/]workspace[.agent] for the task to %s. If an owner is not specified, the authenticated user is used.", action)

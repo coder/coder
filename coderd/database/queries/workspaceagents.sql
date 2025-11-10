@@ -285,7 +285,8 @@ WHERE
 SELECT
 	sqlc.embed(workspaces),
 	sqlc.embed(workspace_agents),
-	sqlc.embed(workspace_build_with_user)
+	sqlc.embed(workspace_build_with_user),
+	tasks.id AS task_id
 FROM
 	workspace_agents
 JOIN
@@ -300,6 +301,10 @@ JOIN
 	workspaces
 ON
 	workspace_build_with_user.workspace_id = workspaces.id
+LEFT JOIN
+	tasks
+ON
+	tasks.workspace_id = workspaces.id
 WHERE
 	-- This should only match 1 agent, so 1 returned row or 0.
 	workspace_agents.auth_token = @auth_token::uuid
@@ -365,3 +370,26 @@ WHERE
 	id = $1
 	AND parent_id IS NOT NULL
 	AND deleted = FALSE;
+
+-- name: GetWorkspaceAgentsForMetrics :many
+SELECT
+    w.id as workspace_id,
+    w.name as workspace_name,
+    u.username as owner_username,
+    t.name as template_name,
+    tv.name as template_version_name,
+    sqlc.embed(workspace_agents)
+FROM workspaces w
+JOIN users u ON w.owner_id = u.id
+JOIN templates t ON w.template_id = t.id
+JOIN workspace_builds wb ON w.id = wb.workspace_id
+LEFT JOIN template_versions tv ON wb.template_version_id = tv.id
+JOIN workspace_resources wr ON wb.job_id = wr.job_id
+JOIN workspace_agents ON wr.id = workspace_agents.resource_id
+WHERE w.deleted = false
+AND wb.build_number = (
+    SELECT MAX(wb2.build_number)
+    FROM workspace_builds wb2
+    WHERE wb2.workspace_id = w.id
+)
+AND workspace_agents.deleted = FALSE;

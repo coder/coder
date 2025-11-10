@@ -12,7 +12,6 @@ import (
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -35,10 +34,6 @@ func TestUpdateNotificationTemplateMethod(t *testing.T) {
 
 	t.Run("Happy path", func(t *testing.T) {
 		t.Parallel()
-
-		if !dbtestutil.WillUsePostgres() {
-			t.Skip("This test requires postgres; it relies on read from and writing to the notification_templates table")
-		}
 
 		ctx := testutil.Context(t, testutil.WaitSuperLong)
 		api, _ := coderdenttest.New(t, createOpts(t))
@@ -67,10 +62,6 @@ func TestUpdateNotificationTemplateMethod(t *testing.T) {
 	t.Run("Insufficient permissions", func(t *testing.T) {
 		t.Parallel()
 
-		if !dbtestutil.WillUsePostgres() {
-			t.Skip("This test requires postgres; it relies on read from and writing to the notification_templates table")
-		}
-
 		ctx := testutil.Context(t, testutil.WaitSuperLong)
 
 		// Given: the first user which has an "owner" role, and another user which does not.
@@ -90,10 +81,6 @@ func TestUpdateNotificationTemplateMethod(t *testing.T) {
 
 	t.Run("Invalid notification method", func(t *testing.T) {
 		t.Parallel()
-
-		if !dbtestutil.WillUsePostgres() {
-			t.Skip("This test requires postgres; it relies on read from and writing to the notification_templates table")
-		}
 
 		ctx := testutil.Context(t, testutil.WaitSuperLong)
 
@@ -119,10 +106,6 @@ func TestUpdateNotificationTemplateMethod(t *testing.T) {
 
 	t.Run("Not modified", func(t *testing.T) {
 		t.Parallel()
-
-		if !dbtestutil.WillUsePostgres() {
-			t.Skip("This test requires postgres; it relies on read from and writing to the notification_templates table")
-		}
 
 		ctx := testutil.Context(t, testutil.WaitSuperLong)
 		api, _ := coderdenttest.New(t, createOpts(t))

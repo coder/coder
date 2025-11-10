@@ -1,16 +1,13 @@
-import type { SelectTriggerProps } from "@radix-ui/react-select";
 import { API } from "api/api";
 import { getErrorDetail, getErrorMessage } from "api/errors";
-import {
-	templateVersionPresets,
-	templateVersions,
-} from "api/queries/templates";
+import { templateVersionPresets } from "api/queries/templates";
 import type {
 	Preset,
 	Task,
 	Template,
 	TemplateVersionExternalAuth,
 } from "api/typesGenerated";
+import { AITaskPromptParameterName } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
@@ -20,7 +17,6 @@ import {
 	Select,
 	SelectContent,
 	SelectItem,
-	SelectTrigger,
 	SelectValue,
 } from "components/Select/Select";
 import { Skeleton } from "components/Skeleton/Skeleton";
@@ -34,14 +30,14 @@ import {
 import { useAuthenticated } from "hooks/useAuthenticated";
 import { useExternalAuth } from "hooks/useExternalAuth";
 import { ArrowUpIcon, RedoIcon, RotateCcwIcon } from "lucide-react";
-import { AI_PROMPT_PARAMETER_NAME } from "modules/tasks/tasks";
 import { type FC, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import TextareaAutosize, {
 	type TextareaAutosizeProps,
 } from "react-textarea-autosize";
-import { cn } from "utils/cn";
 import { docs } from "utils/docs";
+import { PromptSelectTrigger } from "./PromptSelectTrigger";
+import { TemplateVersionSelect } from "./TemplateVersionSelect";
 
 type TaskPromptProps = {
 	templates: Template[] | undefined;
@@ -150,21 +146,13 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 		(t) => t.id === selectedTemplateId,
 	) as Template;
 
-	const {
-		externalAuth,
-		externalAuthError,
-		isPollingExternalAuth,
-		isLoadingExternalAuth,
-	} = useExternalAuth(selectedTemplate.active_version_id);
-
 	// Template versions
 	const [selectedVersionId, setSelectedVersionId] = useState(
 		selectedTemplate.active_version_id,
 	);
-	const versionsQuery = useQuery({
-		...templateVersions(selectedTemplate.id),
-		enabled: permissions.updateTemplates,
-	});
+	useEffect(() => {
+		setSelectedVersionId(selectedTemplate.active_version_id);
+	}, [selectedTemplate]);
 
 	// Presets
 	const { data: presets, isLoading: isLoadingPresets } = useQuery(
@@ -179,7 +167,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 
 	// Read-only prompt if defined in preset
 	const presetPrompt = selectedPreset?.Parameters?.find(
-		(param) => param.Name === AI_PROMPT_PARAMETER_NAME,
+		(param) => param.Name === AITaskPromptParameterName,
 	)?.Value;
 	const isPromptReadOnly = !!presetPrompt;
 	useEffect(() => {
@@ -189,6 +177,12 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 	}, [presetPrompt]);
 
 	// External Auth
+	const {
+		externalAuth,
+		externalAuthError,
+		isPollingExternalAuth,
+		isLoadingExternalAuth,
+	} = useExternalAuth(selectedVersionId);
 	const missedExternalAuth = externalAuth?.filter(
 		(auth) => !auth.optional && !auth.authenticated,
 	);
@@ -230,6 +224,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 			await createTaskMutation.mutateAsync({
 				prompt,
 			});
+			setPrompt("");
 		} catch (error) {
 			const message = getErrorMessage(error, "Error creating task");
 			const detail = getErrorDetail(error) ?? "Please try again";
@@ -264,20 +259,26 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 					value={prompt}
 					onChange={(e) => setPrompt(e.target.value)}
 					readOnly={isPromptReadOnly}
+					isSubmitting={createTaskMutation.isPending}
 				/>
 				<div className="flex items-center justify-between pt-2">
 					<div className="flex items-center gap-1">
 						<div>
 							<label htmlFor="templateID" className="sr-only">
-								Template
+								Select template
 							</label>
 							<Select
 								name="templateID"
-								onValueChange={(value) => setSelectedTemplateId(value)}
+								onValueChange={(value) => {
+									setSelectedTemplateId(value);
+									if (value !== selectedTemplateId) {
+										setSelectedPresetId(undefined);
+									}
+								}}
 								defaultValue={templates[0].id}
 								required
 							>
-								<PromptSelectTrigger id="templateID">
+								<PromptSelectTrigger id="templateID" tooltip="Template">
 									<SelectValue placeholder="Select a template" />
 								</PromptSelectTrigger>
 								<SelectContent>
@@ -294,30 +295,17 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 							</Select>
 						</div>
 
-						{versionsQuery.data && (
+						{permissions.updateTemplates && (
 							<div>
 								<label htmlFor="versionId" className="sr-only">
 									Template version
 								</label>
-								<Select
-									name="versionId"
-									onValueChange={(value) => setSelectedVersionId(value)}
+								<TemplateVersionSelect
+									templateId={selectedTemplateId}
+									activeVersionId={selectedTemplate.active_version_id}
 									value={selectedVersionId}
-									required
-								>
-									<PromptSelectTrigger id="versionId">
-										<SelectValue placeholder="Select a version" />
-									</PromptSelectTrigger>
-									<SelectContent>
-										{versionsQuery.data.map((version) => {
-											return (
-												<SelectItem value={version.id} key={version.id}>
-													{version.name}
-												</SelectItem>
-											);
-										})}
-									</SelectContent>
-								</Select>
+									onValueChange={setSelectedVersionId}
+								/>
 							</div>
 						)}
 
@@ -326,7 +314,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 								Preset
 							</label>
 							{isLoadingPresets ? (
-								<Skeleton className="w-[320px] h-8" />
+								<Skeleton className="w-[140px] h-8 rounded-full" />
 							) : (
 								presets &&
 								presets.length > 0 &&
@@ -337,7 +325,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 										value={selectedPresetId}
 										onValueChange={setSelectedPresetId}
 									>
-										<PromptSelectTrigger id="presetID">
+										<PromptSelectTrigger id="presetID" tooltip="Preset">
 											<SelectValue placeholder="Select a preset" />
 										</PromptSelectTrigger>
 										<SelectContent>
@@ -358,7 +346,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 					<div className="flex items-center gap-2">
 						{missedExternalAuth && (
 							<ExternalAuthButtons
-								template={selectedTemplate}
+								versionId={selectedVersionId}
 								missedExternalAuth={missedExternalAuth}
 							/>
 						)}
@@ -366,7 +354,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 						<Button
 							size="icon"
 							type="submit"
-							disabled={isMissingExternalAuth}
+							disabled={prompt.trim().length === 0 || isMissingExternalAuth}
 							className="rounded-full disabled:bg-surface-invert-primary disabled:opacity-70"
 						>
 							<Spinner
@@ -387,37 +375,20 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 	);
 };
 
-const PromptSelectTrigger: FC<SelectTriggerProps> = ({
-	className,
-	...props
-}) => {
-	return (
-		<SelectTrigger
-			{...props}
-			className={cn([
-				className,
-				`border-0 bg-surface-secondary text-sm text-content-primary gap-2 px-3
-				[&_svg]:text-inherit cursor-pointer hover:bg-surface-quaternary rounded-full
-				h-8 data-[state=open]:bg-surface-tertiary`,
-			])}
-		/>
-	);
-};
-
 type ExternalAuthButtonProps = {
-	template: Template;
+	versionId: string;
 	missedExternalAuth: TemplateVersionExternalAuth[];
 };
 
 const ExternalAuthButtons: FC<ExternalAuthButtonProps> = ({
-	template,
+	versionId,
 	missedExternalAuth,
 }) => {
 	const {
 		startPollingExternalAuth,
 		isPollingExternalAuth,
 		externalAuthPollingState,
-	} = useExternalAuth(template.active_version_id);
+	} = useExternalAuth(versionId);
 	const shouldRetry = externalAuthPollingState === "abandoned";
 
 	return missedExternalAuth.map((auth) => {
@@ -492,17 +463,35 @@ async function createTaskWithLatestTemplateVersion(
 	});
 }
 
-const PromptTextarea: FC<TextareaAutosizeProps> = (props) => {
+type PromptTextareaProps = TextareaAutosizeProps & {
+	isSubmitting?: boolean;
+};
+
+const PromptTextarea: FC<PromptTextareaProps> = ({
+	isSubmitting,
+	...props
+}) => {
 	return (
-		<TextareaAutosize
-			{...props}
-			required
-			id="prompt"
-			name="prompt"
-			placeholder="Prompt your AI agent to start a task..."
-			className={`border-0 px-3 py-2 resize-none w-full h-full bg-transparent rounded-lg
-						outline-none flex min-h-24 text-sm shadow-sm text-content-primary
-						placeholder:text-content-secondary md:text-sm ${props.readOnly ? "opacity-60 cursor-not-allowed" : ""}`}
-		/>
+		<div className="relative">
+			<TextareaAutosize
+				{...props}
+				required
+				id="prompt"
+				name="prompt"
+				placeholder="Prompt your AI agent to start a task..."
+				className={`border-0 px-3 py-2 resize-none w-full h-full bg-transparent rounded-lg
+							outline-none flex min-h-24 text-sm shadow-sm text-content-primary
+							placeholder:text-content-secondary md:text-sm ${props.readOnly || isSubmitting ? "opacity-60 cursor-not-allowed" : ""}`}
+			/>
+			{isSubmitting && (
+				<div className="absolute inset-0 pointer-events-none overflow-hidden">
+					<div
+						className={`absolute top-0 w-0.5 h-full
+						bg-green-400/90 animate-caret-scan rounded-sm
+						shadow-[-15px_0_15px_rgba(0,255,0,0.9),-30px_0_30px_rgba(0,255,0,0.7),-45px_0_45px_rgba(0,255,0,0.5),-60px_0_60px_rgba(0,255,0,0.3)]`}
+					/>
+				</div>
+			)}
+		</div>
 	);
 };

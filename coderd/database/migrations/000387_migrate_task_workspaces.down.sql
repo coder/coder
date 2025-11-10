@@ -1,0 +1,3 @@
+-- No-op: This migration is not reversible as it transforms existing data into
+-- a new schema. Rolling back would require deleting tasks and potentially
+-- losing data.

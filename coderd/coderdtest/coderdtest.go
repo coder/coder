@@ -1128,6 +1128,7 @@ type WorkspaceAgentWaiter struct {
 	workspaceID      uuid.UUID
 	agentNames       []string
 	resourcesMatcher func([]codersdk.WorkspaceResource) bool
+	ctx              context.Context
 }
 
 // NewWorkspaceAgentWaiter returns an object that waits for agents to connect when
@@ -1156,6 +1157,14 @@ func (w WorkspaceAgentWaiter) MatchResources(m func([]codersdk.WorkspaceResource
 	return w
 }
 
+// WithContext instructs the waiter to use the provided context for all operations.
+// If not specified, the waiter will create its own context with testutil.WaitLong timeout.
+func (w WorkspaceAgentWaiter) WithContext(ctx context.Context) WorkspaceAgentWaiter {
+	//nolint: revive // returns modified struct
+	w.ctx = ctx
+	return w
+}
+
 // WaitForAgentFn represents a boolean assertion to be made against each agent
 // that a given WorkspaceAgentWaited knows about. Each WaitForAgentFn should apply
 // the check to a single agent, but it should be named for plural, because `func (w WorkspaceAgentWaiter) WaitFor`
@@ -1176,6 +1185,8 @@ func AgentsNotReady(agent codersdk.WorkspaceAgent) bool {
 	return !AgentsReady(agent)
 }
 
+// WaitFor waits for the given criteria and fails the test if they are not met before the
+// waiter's context is canceled.
 func (w WorkspaceAgentWaiter) WaitFor(criteria ...WaitForAgentFn) {
 	w.t.Helper()
 
@@ -1184,11 +1195,13 @@ func (w WorkspaceAgentWaiter) WaitFor(criteria ...WaitForAgentFn) {
 		agentNamesMap[name] = struct{}{}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
+	ctx := w.ctx
+	if w.ctx == nil {
+		ctx = testutil.Context(w.t, testutil.WaitLong)
+	}
 
 	w.t.Logf("waiting for workspace agents (workspace %s)", w.workspaceID)
-	require.Eventually(w.t, func() bool {
+	testutil.Eventually(ctx, w.t, func(ctx context.Context) bool {
 		var err error
 		workspace, err := w.client.Workspace(ctx, w.workspaceID)
 		if err != nil {
@@ -1216,10 +1229,11 @@ func (w WorkspaceAgentWaiter) WaitFor(criteria ...WaitForAgentFn) {
 			}
 		}
 		return true
-	}, testutil.WaitLong, testutil.IntervalMedium)
+	}, testutil.IntervalMedium)
 }
 
-// Wait waits for the agent(s) to connect and fails the test if they do not within testutil.WaitLong
+// Wait waits for the agent(s) to connect and fails the test if they do not connect before the
+// waiter's context is canceled.
 func (w WorkspaceAgentWaiter) Wait() []codersdk.WorkspaceResource {
 	w.t.Helper()
 
@@ -1228,12 +1242,14 @@ func (w WorkspaceAgentWaiter) Wait() []codersdk.WorkspaceResource {
 		agentNamesMap[name] = struct{}{}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
+	ctx := w.ctx
+	if w.ctx == nil {
+		ctx = testutil.Context(w.t, testutil.WaitLong)
+	}
 
 	w.t.Logf("waiting for workspace agents (workspace %s)", w.workspaceID)
 	var resources []codersdk.WorkspaceResource
-	require.Eventually(w.t, func() bool {
+	testutil.Eventually(ctx, w.t, func(ctx context.Context) bool {
 		var err error
 		workspace, err := w.client.Workspace(ctx, w.workspaceID)
 		if err != nil {
@@ -1265,7 +1281,7 @@ func (w WorkspaceAgentWaiter) Wait() []codersdk.WorkspaceResource {
 			return true
 		}
 		return w.resourcesMatcher(resources)
-	}, testutil.WaitLong, testutil.IntervalMedium)
+	}, testutil.IntervalMedium)
 	w.t.Logf("got workspace agents (workspace %s)", w.workspaceID)
 	return resources
 }
@@ -1588,7 +1604,7 @@ func (nopcloser) Close() error { return nil }
 // SDKError coerces err into an SDK error.
 func SDKError(t testing.TB, err error) *codersdk.Error {
 	var cerr *codersdk.Error
-	require.True(t, errors.As(err, &cerr), "should be SDK error, got %w", err)
+	require.True(t, errors.As(err, &cerr), "should be SDK error, got %s", err)
 	return cerr
 }
 

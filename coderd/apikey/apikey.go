@@ -2,6 +2,7 @@ package apikey
 
 import (
 	"crypto/sha256"
+	"crypto/subtle"
 	"fmt"
 	"net"
 	"time"
@@ -44,12 +45,17 @@ type CreateParams struct {
 // database representation. It is the responsibility of the caller to insert it
 // into the database.
 func Generate(params CreateParams) (database.InsertAPIKeyParams, string, error) {
-	keyID, keySecret, err := generateKey()
+	// Length of an API Key ID.
+	keyID, err := cryptorand.String(10)
 	if err != nil {
-		return database.InsertAPIKeyParams{}, "", xerrors.Errorf("generate API key: %w", err)
+		return database.InsertAPIKeyParams{}, "", xerrors.Errorf("generate API key ID: %w", err)
 	}
 
-	hashed := sha256.Sum256([]byte(keySecret))
+	// Length of an API Key secret.
+	keySecret, hashedSecret, err := GenerateSecret(22)
+	if err != nil {
+		return database.InsertAPIKeyParams{}, "", xerrors.Errorf("generate API key secret: %w", err)
+	}
 
 	// Default expires at to now+lifetime, or use the configured value if not
 	// set.
@@ -120,7 +126,7 @@ func Generate(params CreateParams) (database.InsertAPIKeyParams, string, error) 
 		ExpiresAt:    params.ExpiresAt.UTC(),
 		CreatedAt:    dbtime.Now(),
 		UpdatedAt:    dbtime.Now(),
-		HashedSecret: hashed[:],
+		HashedSecret: hashedSecret,
 		LoginType:    params.LoginType,
 		Scopes:       scopes,
 		AllowList:    params.AllowList,
@@ -128,17 +134,24 @@ func Generate(params CreateParams) (database.InsertAPIKeyParams, string, error) 
 	}, token, nil
 }
 
-// generateKey a new ID and secret for an API key.
-func generateKey() (id string, secret string, err error) {
-	// Length of an API Key ID.
-	id, err = cryptorand.String(10)
+func GenerateSecret(length int) (secret string, hashed []byte, err error) {
+	secret, err = cryptorand.String(length)
 	if err != nil {
-		return "", "", err
+		return "", nil, err
 	}
-	// Length of an API Key secret.
-	secret, err = cryptorand.String(22)
-	if err != nil {
-		return "", "", err
-	}
-	return id, secret, nil
+	hash := HashSecret(secret)
+	return secret, hash, nil
+}
+
+// ValidateHash compares a secret against an expected hashed secret.
+func ValidateHash(hashedSecret []byte, secret string) bool {
+	hash := HashSecret(secret)
+	return subtle.ConstantTimeCompare(hashedSecret, hash) == 1
+}
+
+// HashSecret is the single function used to hash API key secrets.
+// Use this to ensure a consistent hashing algorithm.
+func HashSecret(secret string) []byte {
+	hash := sha256.Sum256([]byte(secret))
+	return hash[:]
 }

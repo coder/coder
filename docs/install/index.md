@@ -27,6 +27,23 @@ curl -L https://coder.com/install.sh | sh
 Refer to [GitHub releases](https://github.com/coder/coder/releases) for
 alternate installation methods (e.g. standalone binaries, system packages).
 
+> [!Warning]
+> If you're using an Apple Silicon Mac with ARM64 architecture, so M1/M2/M3/M4, you'll need to use an external PostgreSQL Database using the following commands:
+
+``` bash
+# Install PostgreSQL
+brew install postgresql@16
+
+# Start PostgreSQL
+brew services start postgresql@16
+
+# Create database
+createdb coder
+
+# Run Coder with external database
+coder server --postgres-url="postgres://$(whoami)@localhost/coder?sslmode=disable"
+```
+
 ## Windows
 
 If you plan to use the built-in PostgreSQL database, ensure that the

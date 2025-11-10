@@ -322,14 +322,4 @@ export const components = {
 			},
 		},
 	},
-
-	MuiIconButton: {
-		styleOverrides: {
-			root: {
-				"&.Mui-focusVisible": {
-					boxShadow: `0 0 0 2px ${tw.blue[400]}`,
-				},
-			},
-		},
-	},
 } satisfies ThemeOptions["components"];

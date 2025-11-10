@@ -53,8 +53,16 @@ If the command times out, all output captured up to that point is returned with 
 For background commands (background: true), output is captured until the timeout is reached, then the command
 continues running in the background. The captured output is returned as the result.
 
+For file operations (list, write, edit), always prefer the dedicated file tools.
+Do not use bash commands (ls, cat, echo, heredoc, etc.) to list, write, or read
+files when the file tools are available. The bash tool should be used for:
+
+	- Running commands and scripts
+	- Installing packages
+	- Starting services
+	- Executing programs
+
 Examples:
-- workspace: "my-workspace", command: "ls -la"
 - workspace: "john/dev-env", command: "git status", timeout_ms: 30000
 - workspace: "my-workspace", command: "npm run dev", background: true, timeout_ms: 10000
 - workspace: "my-workspace.main", command: "docker ps"`,
@@ -266,19 +274,24 @@ func getWorkspaceAgent(workspace codersdk.Workspace, agentName string) (codersdk
 	return codersdk.WorkspaceAgent{}, xerrors.Errorf("multiple agents found, please specify the agent name, available agents: %v", availableNames)
 }
 
-// namedWorkspace gets a workspace by owner/name or just name
-func namedWorkspace(ctx context.Context, client *codersdk.Client, identifier string) (codersdk.Workspace, error) {
-	// Parse owner and workspace name
+func splitNameAndOwner(identifier string) (name string, owner string) {
+	// Parse owner and name (workspace, task).
 	parts := strings.SplitN(identifier, "/", 2)
-	var owner, workspaceName string
 
 	if len(parts) == 2 {
 		owner = parts[0]
-		workspaceName = parts[1]
+		name = parts[1]
 	} else {
 		owner = "me"
-		workspaceName = identifier
+		name = identifier
 	}
+
+	return name, owner
+}
+
+// namedWorkspace gets a workspace by owner/name or just name
+func namedWorkspace(ctx context.Context, client *codersdk.Client, identifier string) (codersdk.Workspace, error) {
+	workspaceName, owner := splitNameAndOwner(identifier)
 
 	// Handle -- separator format (convert to / format)
 	if strings.Contains(identifier, "--") && !strings.Contains(identifier, "/") {

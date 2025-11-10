@@ -168,12 +168,13 @@ type SDKForDynamicParametersSetup interface {
 // partitioner is an internal struct to hold context and arguments for partition setup
 // and to provide methods for all sub-steps.
 type partitioner struct {
-	ctx          context.Context
-	client       SDKForDynamicParametersSetup
-	orgID        uuid.UUID
-	templateName string
-	numEvals     int64
-	logger       slog.Logger
+	ctx             context.Context
+	client          SDKForDynamicParametersSetup
+	orgID           uuid.UUID
+	templateName    string
+	provisionerTags map[string]string
+	numEvals        int64
+	logger          slog.Logger
 
 	// for testing
 	clock quartz.Clock
@@ -181,17 +182,19 @@ type partitioner struct {
 
 func SetupPartitions(
 	ctx context.Context, client SDKForDynamicParametersSetup,
-	orgID uuid.UUID, templateName string, numEvals int64,
+	orgID uuid.UUID, templateName string, provisionerTags map[string]string,
+	numEvals int64,
 	logger slog.Logger,
 ) ([]Partition, error) {
 	p := &partitioner{
-		ctx:          ctx,
-		client:       client,
-		orgID:        orgID,
-		templateName: templateName,
-		numEvals:     numEvals,
-		logger:       logger,
-		clock:        quartz.NewReal(),
+		ctx:             ctx,
+		client:          client,
+		orgID:           orgID,
+		templateName:    templateName,
+		provisionerTags: provisionerTags,
+		numEvals:        numEvals,
+		logger:          logger,
+		clock:           quartz.NewReal(),
 	}
 	return p.run()
 }
@@ -272,11 +275,12 @@ func (p *partitioner) createTemplateVersion(templateID uuid.UUID) (codersdk.Temp
 
 	// Create template version
 	versionReq := codersdk.CreateTemplateVersionRequest{
-		TemplateID:    templateID,
-		FileID:        uploadResp.ID,
-		Message:       "Initial version for scaletest dynamic parameters",
-		StorageMethod: codersdk.ProvisionerStorageMethodFile,
-		Provisioner:   codersdk.ProvisionerTypeTerraform,
+		TemplateID:      templateID,
+		FileID:          uploadResp.ID,
+		Message:         "Initial version for scaletest dynamic parameters",
+		StorageMethod:   codersdk.ProvisionerStorageMethodFile,
+		Provisioner:     codersdk.ProvisionerTypeTerraform,
+		ProvisionerTags: p.provisionerTags,
 	}
 	version, err := p.client.CreateTemplateVersion(p.ctx, p.orgID, versionReq)
 	if err != nil {

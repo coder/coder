@@ -85,10 +85,6 @@ func TestNestedInTx(t *testing.T) {
 func testSQLDB(t testing.TB) *sql.DB {
 	t.Helper()
 
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("this test requires postgres")
-	}
-
 	connection, err := dbtestutil.Open(t)
 	require.NoError(t, err)
 

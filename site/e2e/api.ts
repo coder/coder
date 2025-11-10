@@ -199,6 +199,7 @@ export const createCustomRole = async (
 			},
 		],
 		user_permissions: [],
+		organization_member_permissions: [],
 	});
 	return role;
 };

@@ -48,6 +48,28 @@ const (
 	timingInitOutput timingKind = "init_output"
 )
 
+// Source: https://github.com/hashicorp/terraform/blob/6b73f710f8152ef4808e4de5bdfb35314442f4a5/internal/command/views/init.go#L267-L321
+type initMessageCode string
+
+const (
+	initCopyingConfigurationMessage       initMessageCode = "copying_configuration_message"
+	initEmptyMessage                      initMessageCode = "empty_message"
+	initOutputInitEmptyMessage            initMessageCode = "output_init_empty_message"
+	initOutputInitSuccessMessage          initMessageCode = "output_init_success_message"
+	initOutputInitSuccessCloudMessage     initMessageCode = "output_init_success_cloud_message"
+	initOutputInitSuccessCLIMessage       initMessageCode = "output_init_success_cli_message"
+	initOutputInitSuccessCLICloudMessage  initMessageCode = "output_init_success_cli_cloud_message"
+	initUpgradingModulesMessage           initMessageCode = "upgrading_modules_message"
+	initInitializingTerraformCloudMessage initMessageCode = "initializing_terraform_cloud_message"
+	initInitializingModulesMessage        initMessageCode = "initializing_modules_message"
+	initInitializingBackendMessage        initMessageCode = "initializing_backend_message"
+	initInitializingStateStoreMessage     initMessageCode = "initializing_state_store_message"
+	initDefaultWorkspaceCreatedMessage    initMessageCode = "default_workspace_created_message"
+	initInitializingProviderPluginMessage initMessageCode = "initializing_provider_plugin_message"
+	initLockInfo                          initMessageCode = "lock_info"
+	initDependenciesLockChangesInfo       initMessageCode = "dependencies_lock_changes_info"
+)
+
 type timingAggregator struct {
 	stage database.ProvisionerJobTimingStage
 
@@ -57,7 +79,9 @@ type timingAggregator struct {
 }
 
 type timingSpan struct {
-	kind                       timingKind
+	kind timingKind
+	// messageCode is only present in `terraform init` timings.
+	messageCode                initMessageCode
 	start, end                 time.Time
 	stage                      database.ProvisionerJobTimingStage
 	action, provider, resource string
@@ -94,6 +118,10 @@ func (t *timingAggregator) ingest(ts time.Time, s *timingSpan) {
 	case timingApplyErrored, timingProvisionErrored, timingInitErrored, timingGraphErrored:
 		s.end = ts
 		s.state = proto.TimingState_FAILED
+	case timingInitOutput:
+		// init timings are based on the init message code.
+		t.ingestInitTiming(ts, s)
+		return
 	default:
 		// We just want start/end timings, ignore all other events.
 		return
@@ -182,7 +210,7 @@ func (l timingKind) Valid() bool {
 // if all other attributes are identical.
 func (l timingKind) Category() string {
 	switch l {
-	case timingInitStart, timingInitComplete, timingInitErrored:
+	case timingInitStart, timingInitComplete, timingInitErrored, timingInitOutput:
 		return "init"
 	case timingGraphStart, timingGraphComplete, timingGraphErrored:
 		return "graph"
@@ -201,6 +229,9 @@ func (l timingKind) Category() string {
 // The combination of resource and provider names MUST be unique across entries.
 func (e *timingSpan) hashByState(state proto.TimingState) uint64 {
 	id := fmt.Sprintf("%s:%s:%s:%s:%s", e.kind.Category(), state.String(), e.action, e.resource, e.provider)
+	if e.messageCode != "" {
+		id += ":" + string(e.messageCode)
+	}
 	return xxhash.Sum64String(id)
 }
 
@@ -226,7 +257,7 @@ func createInitTimingsEvent(event timingKind) (time.Time, *timingSpan) {
 		kind:     event,
 		action:   "initializing terraform",
 		provider: "terraform",
-		resource: "state file",
+		resource: "init",
 	}
 }
 

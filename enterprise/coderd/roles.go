@@ -311,5 +311,13 @@ func validOrganizationRoleRequest(ctx context.Context, req codersdk.CustomRoleRe
 		return false
 	}
 
+	if len(req.OrganizationMemberPermissions) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid request, not allowed to assign organization member permissions for an organization role.",
+			Detail:  "organization scoped roles may not contain organization member permissions",
+		})
+		return false
+	}
+
 	return true
 }

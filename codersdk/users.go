@@ -41,6 +41,7 @@ type UsersRequest struct {
 type MinimalUser struct {
 	ID        uuid.UUID `json:"id" validate:"required" table:"id" format:"uuid"`
 	Username  string    `json:"username" validate:"required" table:"username,default_sort"`
+	Name      string    `json:"name,omitempty" table:"name"`
 	AvatarURL string    `json:"avatar_url,omitempty" format:"uri"`
 }
 
@@ -50,7 +51,6 @@ type MinimalUser struct {
 // required by the frontend.
 type ReducedUser struct {
 	MinimalUser `table:"m,recursive_inline"`
-	Name        string    `json:"name,omitempty"`
 	Email       string    `json:"email" validate:"required" table:"email" format:"email"`
 	CreatedAt   time.Time `json:"created_at" validate:"required" table:"created at" format:"date-time"`
 	UpdatedAt   time.Time `json:"updated_at" table:"updated at" format:"date-time"`

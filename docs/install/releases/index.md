@@ -57,13 +57,13 @@ pages.
 <!-- RELEASE_CALENDAR_START -->
 | Release name                                   | Release Date       | Status           | Latest Release                                                 |
 |------------------------------------------------|--------------------|------------------|----------------------------------------------------------------|
-| [2.22](https://coder.com/changelog/coder-2-22) | May 16, 2025       | Not Supported    | [v2.22.1](https://github.com/coder/coder/releases/tag/v2.22.1) |
 | [2.23](https://coder.com/changelog/coder-2-23) | June 03, 2025      | Not Supported    | [v2.23.5](https://github.com/coder/coder/releases/tag/v2.23.5) |
 | [2.24](https://coder.com/changelog/coder-2-24) | July 01, 2025      | Not Supported    | [v2.24.4](https://github.com/coder/coder/releases/tag/v2.24.4) |
-| [2.25](https://coder.com/changelog/coder-2-25) | August 05, 2025    | Security Support | [v2.25.3](https://github.com/coder/coder/releases/tag/v2.25.3) |
-| [2.26](https://coder.com/changelog/coder-2-26) | September 03, 2025 | Stable           | [v2.26.1](https://github.com/coder/coder/releases/tag/v2.26.1) |
-| [2.27](https://coder.com/changelog/coder-2-27) | October 02, 2025   | Mainline         | [v2.27.0](https://github.com/coder/coder/releases/tag/v2.27.0) |
-| 2.28                                           |                    | Not Released     | N/A                                                            |
+| [2.25](https://coder.com/changelog/coder-2-25) | August 05, 2025    | Not Supported    | [v2.25.3](https://github.com/coder/coder/releases/tag/v2.25.3) |
+| [2.26](https://coder.com/changelog/coder-2-26) | September 03, 2025 | Security Support | [v2.26.3](https://github.com/coder/coder/releases/tag/v2.26.3) |
+| [2.27](https://coder.com/changelog/coder-2-27) | October 02, 2025   | Stable           | [v2.27.3](https://github.com/coder/coder/releases/tag/v2.27.3) |
+| [2.28](https://coder.com/changelog/coder-2-28) | November 04, 2025  | Mainline         | [v2.28.0](https://github.com/coder/coder/releases/tag/v2.28.0) |
+| 2.29                                           |                    | Not Released     | N/A                                                            |
 <!-- RELEASE_CALENDAR_END -->
 
 > [!TIP]

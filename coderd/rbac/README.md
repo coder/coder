@@ -58,22 +58,68 @@ This can be represented by the following truth table, where Y represents _positi
 - `+site.app.*.read`: allowed to perform the `read` action against all objects of type `app` in a given Coder deployment.
 - `-user.workspace.*.create`: user is not allowed to create workspaces.
 
+## Levels
+
+A user can be given (or deprived) a permission at several levels. Currently,
+those levels are:
+
+- Site-wide level
+- Organization level
+- User level
+- Organization member level
+
+The site-wide level is the most authoritative. Any permission granted or denied at the side-wide level is absolute. After checking the site-wide level, depending of if the resource is owned by an organization or not, it will check the other levels.
+
+- If the resource is owned by an organization, the next most authoritative level is the organization level. It acts like the site-wide level, but only for resources within the corresponding organization. The user can use that permission on any resource within that organization.
+  - After the organization level is the member level. This level only applies to resources that are owned by both the organization _and_ the user.
+
+- If the resource is not owned by an organization, the next level to check is the user level. This level only applies to resources owned by the user and that are not owned by any organization.
+
+```
+                 ┌──────────┐
+                 │   Site   │
+                 └─────┬────┘
+            ┌──────────┴───────────┐
+         ┌──┤   Owned by an org?   ├──┐
+         │  └──────────────────────┘  │
+      ┌──┴──┐                      ┌──┴─┐
+      │ Yes │                      │ No │
+      └──┬──┘                      └──┬─┘
+┌────────┴─────────┐            ┌─────┴────┐
+│   Organization   │            │   User   │
+└────────┬─────────┘            └──────────┘
+   ┌─────┴──────┐
+   │   Member   │
+   └────────────┘
+```
+
 ## Roles
 
 A _role_ is a set of permissions. When evaluating a role's permission to form an action, all the relevant permissions for the role are combined at each level. Permissions at a higher level override permissions at a lower level.
 
-The following table shows the per-level role evaluation.
-Y indicates that the role provides positive permissions, N indicates the role provides negative permissions, and _indicates the role does not provide positive or negative permissions. YN_ indicates that the value in the cell does not matter for the access result.
+The following tables show the per-level role evaluation. Y indicates that the role provides positive permissions, N indicates the role provides negative permissions, and _indicates the role does not provide positive or negative permissions. YN_ indicates that the value in the cell does not matter for the access result. The table varies depending on if the resource belongs to an organization or not.
 
-| Role (example)  | Site | Org  | User | Result |
-|-----------------|------|------|------|--------|
-| site-admin      | Y    | YN\_ | YN\_ | Y      |
-| no-permission   | N    | YN\_ | YN\_ | N      |
-| org-admin       | \_   | Y    | YN\_ | Y      |
-| non-org-member  | \_   | N    | YN\_ | N      |
-| user            | \_   | \_   | Y    | Y      |
-|                 | \_   | \_   | N    | N      |
-| unauthenticated | \_   | \_   | \_   | N      |
+If the resource is owned by an organization, such as a template or a workspace:
+
+| Role (example)           | Site | Org  | OrgMember | Result |
+|--------------------------|------|------|-----------|--------|
+| site-admin               | Y    | YN\_ | YN\_      | Y      |
+| negative-site-permission | N    | YN\_ | YN\_      | N      |
+| org-admin                | \_   | Y    | YN\_      | Y      |
+| non-org-member           | \_   | N    | YN\_      | N      |
+| member-owned             | \_   | \_   | Y         | Y      |
+| not-member-owned         | \_   | \_   | N         | N      |
+| unauthenticated          | \_   | \_   | \_        | N      |
+
+If the resource is not owned by an organization:
+
+| Role (example)           | Site | User | Result |
+|--------------------------|------|------|--------|
+| site-admin               | Y    | YN\_ | Y      |
+| negative-site-permission | N    | YN\_ | N      |
+| user-owned               | \_   | Y    | Y      |
+| not-user-owned           | \_   | N    | N      |
+| unauthenticated          | \_   | \_   | N      |
 
 ## Scopes
 
@@ -91,15 +137,17 @@ The use case for specifying this type of permission in a role is limited, and do
 Example of a scope for a workspace agent token, using an `allow_list` containing a single resource id.
 
 ```javascript
-    "scope": {
-      "name": "workspace_agent",
-      "display_name": "Workspace_Agent",
-      // The ID of the given workspace the agent token correlates to.
-      "allow_list": ["10d03e62-7703-4df5-a358-4f76577d4e2f"],
-      "site": [/* ... perms ... */],
-      "org": {/* ... perms ... */},
-      "user": [/* ... perms ... */]
-    }
+{
+	"scope": {
+		"name": "workspace_agent",
+		"display_name": "Workspace_Agent",
+		// The ID of the given workspace the agent token correlates to.
+		"allow_list": ["10d03e62-7703-4df5-a358-4f76577d4e2f"],
+		"site": [/* ... perms ... */],
+		"org": {/* ... perms ... */},
+		"user": [/* ... perms ... */]
+	}
+}
 ```
 
 ## OPA (Open Policy Agent)
@@ -124,31 +172,31 @@ To learn more about OPA and Rego, see https://www.openpolicyagent.org/docs.
 There are two types of evaluation in OPA:
 
 - **Full evaluation**: Produces a decision that can be enforced.
-This is the default evaluation mode, where OPA evaluates the policy using `input` data that contains all known values and returns output data with the `allow` variable.
+  This is the default evaluation mode, where OPA evaluates the policy using `input` data that contains all known values and returns output data with the `allow` variable.
 - **Partial evaluation**: Produces a new policy that can be evaluated later when the _unknowns_ become _known_.
-This is an optimization in OPA where it evaluates as much of the policy as possible without resolving expressions that depend on _unknown_ values from the `input`.
-To learn more about partial evaluation, see this [OPA blog post](https://blog.openpolicyagent.org/partial-evaluation-162750eaf422).
+  This is an optimization in OPA where it evaluates as much of the policy as possible without resolving expressions that depend on _unknown_ values from the `input`.
+  To learn more about partial evaluation, see this [OPA blog post](https://blog.openpolicyagent.org/partial-evaluation-162750eaf422).
 
 Application of Full and Partial evaluation in `rbac` package:
 
 - **Full Evaluation** is handled by the `RegoAuthorizer.Authorize()` method in [`authz.go`](authz.go).
-This method determines whether a subject (user) can perform a specific action on an object.
-It performs a full evaluation of the Rego policy, which returns the `allow` variable to decide whether access is granted (`true`) or denied (`false` or undefined).
+  This method determines whether a subject (user) can perform a specific action on an object.
+  It performs a full evaluation of the Rego policy, which returns the `allow` variable to decide whether access is granted (`true`) or denied (`false` or undefined).
 - **Partial Evaluation** is handled by the `RegoAuthorizer.Prepare()` method in [`authz.go`](authz.go).
-This method compiles OPA’s partial evaluation queries into `SQL WHERE` clauses.
-These clauses are then used to enforce authorization directly in database queries, rather than in application code.
+  This method compiles OPA’s partial evaluation queries into `SQL WHERE` clauses.
+  These clauses are then used to enforce authorization directly in database queries, rather than in application code.
 
 Authorization Patterns:
 
 - Fetch-then-authorize: an object is first retrieved from the database, and a single authorization check is performed using full evaluation via `Authorize()`.
 - Authorize-while-fetching: Partial evaluation via `Prepare()` is used to inject SQL filters directly into queries, allowing efficient authorization of many objects of the same type.
-`dbauthz` methods that enforce authorization directly in the SQL query are prefixed with `Authorized`, for example, `GetAuthorizedWorkspaces`.
+  `dbauthz` methods that enforce authorization directly in the SQL query are prefixed with `Authorized`, for example, `GetAuthorizedWorkspaces`.
 
 ## Testing
 
 - OPA Playground: https://play.openpolicyagent.org/
 - OPA CLI (`opa eval`): useful for experimenting with different inputs and understanding how the policy behaves under various conditions.
-`opa eval` returns the constraints that must be satisfied for a rule to evaluate to `true`.
+  `opa eval` returns the constraints that must be satisfied for a rule to evaluate to `true`.
   - `opa eval` requires an `input.json` file containing the input data to run the policy against.
     You can generate this file using the [gen_input.go](../../scripts/rbac-authz/gen_input.go) script.
     Note: the script currently produces a fixed input. You may need to tweak it for your specific use case.
@@ -196,12 +244,12 @@ The script [`benchmark_authz.sh`](../../scripts/rbac-authz/benchmark_authz.sh) r
 
 - To run benchmark on the current branch:
 
-    ```bash
-    benchmark_authz.sh --single
-    ```
+  ```bash
+  benchmark_authz.sh --single
+  ```
 
 - To compare benchmarks between 2 branches:
 
-    ```bash
-    benchmark_authz.sh --compare main prebuild_policy
-    ```
+  ```bash
+  benchmark_authz.sh --compare main prebuild_policy
+  ```
