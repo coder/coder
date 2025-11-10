@@ -326,16 +326,40 @@ Use `coder_workspace_preset` to define the preset parameters.
 After you save the template file, the presets will be available for all new
 workspace deployments.
 
+### Optional preset fields
+
+In addition to the required `name` and `parameters` fields, you can enhance your
+workspace presets with optional `description` and `icon` fields:
+
+- **description**: A helpful text description that provides additional context
+  about the preset. This helps users understand what the preset is for and when
+  to use it.
+- **icon**: A visual icon displayed alongside the preset name in the UI. Use
+  emoji icons with the format `/emojis/{code}.png` (e.g.,
+  `/emojis/1f1fa-1f1f8.png` for the US flag emoji 🇺🇸).
+
 <details><summary>Expand for an example</summary>
 
 ```tf
 data "coder_workspace_preset" "goland-gpu" {
   name        = "GoLand with GPU"
+  description = "Development workspace with GPU acceleration for GoLand IDE"
+  icon        = "/emojis/1f680.png"
   parameters = {
     "machine_type"  = "n1-standard-1"
     "attach_gpu"    = "true"
     "gcp_region"    = "europe-west4-c"
     "jetbrains_ide" = "GO"
+  }
+}
+
+data "coder_workspace_preset" "pittsburgh" {
+  name        = "Pittsburgh"
+  description = "Development workspace hosted in United States"
+  icon        = "/emojis/1f1fa-1f1f8.png"
+  parameters = {
+    "region"       = "us-pittsburgh"
+    "machine_type" = "n1-standard-2"
   }
 }
 
@@ -355,16 +379,23 @@ data "coder_parameter" "attach_gpu" {
 
 data "coder_parameter" "gcp_region" {
   name          = "gcp_region"
-  display_name  = "Machine Type"
+  display_name  = "GCP Region"
   type          = "string"
-  default       = "n1-standard-2"
+  default       = "us-central1-a"
 }
 
 data "coder_parameter" "jetbrains_ide" {
   name          = "jetbrains_ide"
-  display_name  = "Machine Type"
+  display_name  = "JetBrains IDE"
   type          = "string"
-  default       = "n1-standard-2"
+  default       = "IU"
+}
+
+data "coder_parameter" "region" {
+  name          = "region"
+  display_name  = "Region"
+  type          = "string"
+  default       = "us-east-1"
 }
 ```
 
