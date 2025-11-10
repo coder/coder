@@ -23,10 +23,9 @@ As the library of LLMs and their associated tools grow, administrators are press
 If you are an administrator or devops leader looking to:
 
 - Measure AI tooling adoption across teams or projects
-- Provide an LLM audit trail to security administrators
+- Establish an audit trail of prompts, issues, and tools invoked
 - Manage token spend in a central dashboard
 - Investigate opportunities for AI automation
-- Uncover the high-leverage use cases from experienced engineers
+- Uncover high-leverage use cases last
 
-We advise trying AI Bridge as self-hosted proxy to monitor LLM usage agnostically across AI powered IDEs like Cursor and headless agents like Claude Code.
-
+These represent ideal scenarios for deploying AI Bridge as a centralized monitoring layer across your organization's AI toolchain.
