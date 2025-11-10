@@ -14,7 +14,7 @@ AI Bridge solves 3 key problems:
 2. **Auditing and attribution**: all interactions with AI services, whether autonomous or human-initiated,
    will be audited and attributed back to a user.
 3. **Centralized MCP administration**: define a set of approved MCP servers and tools which your users may
-   use, and prevent users from using their own.
+   use.
 
 ## When to use AI Bridge
 
