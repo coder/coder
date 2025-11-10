@@ -21,7 +21,7 @@ CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=...
 CODER_EXTERNAL_AUTH_0_MCP_URL=https://api.githubcopilot.com/mcp/
 ```
 
-See the diagram in [Implementation Details](../reference.md#implementation-details) for more information.
+See the diagram in [Implementation Details](./reference.md#implementation-details) for more information.
 
 You can also control which tools are injected by using an allow and/or a deny regular expression on the tool names:
 
