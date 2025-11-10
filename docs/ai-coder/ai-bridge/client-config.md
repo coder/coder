@@ -4,7 +4,7 @@ Once AI Bridge is setup on your deployment, the AI coding tools used by your use
 
 ## Base URLs
 
-Most AI coding tools allow the "base URL" to be customized. In other words, when a request is made to OpenAI's API from your coding tool, the API endpoint such as [/v1/chat/completions](https://platform.openai.com/docs/api-reference/chat) will be appended to the configured base. Therefore, instead of the default base URL of "https://api.openai.com/v1" you'll need to set it to "https://coder.example.com/api/v2/aibridge/openai/v1".
+Most AI coding tools allow the "base URL" to be customized. In other words, when a request is made to OpenAI's API from your coding tool, the API endpoint such as [/v1/chat/completions](https://platform.openai.com/docs/api-reference/chat) will be appended to the configured base. Therefore, instead of the default base URL of "https://api.openai.com/v1", you'll need to set it to "https://coder.example.com/api/v2/aibridge/openai/v1".
 
 The exact configuration method varies by client — some use environment variables, others use configuration files or UI settings:
 
@@ -61,7 +61,7 @@ module "claude-code" {
 
 ### Other IDEs and Tools
 
-AI assistants running inside a Coder workspace, such as IDE extensions, can be configured to use AI Bridge.
+AI coding tools running inside a Coder workspace, such as IDE extensions, can be configured to use AI Bridge.
 
 While users can manually configure these tools with a long-lived API key, template admins can provide a more seamless experience by pre-configuring them. Similar to the Coder Tasks example, admins can use Terraform data sources like `data.coder_workspace_owner.me.session_token` to automatically inject the user's session token and the AI Bridge base URL into the workspace environment.
 
@@ -75,7 +75,7 @@ The configuration is the same: point the tool to the AI Bridge [base URL](#base-
 
 Users can generate a long-lived API key from the Coder UI or CLI. Follow the instructions at [Sessions and API tokens](../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself) to create one.
 
-## Tested Clients
+## Compatibility
 
 The table below shows tested AI clients and their compatibility with AI Bridge. Click each client name for vendor-specific configuration instructions. Report issues or share compatibility updates in the [aibridge](https://github.com/coder/aibridge) issue tracker.
 
