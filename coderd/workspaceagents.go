@@ -468,9 +468,9 @@ func (api *API) enqueueAITaskStateNotification(
 		return
 	}
 
-	// Only send notifications if the agent is ready. This prevents spammy
-	// notifications during agent startup when the screen state might be
-	// fluctuating as startup scripts execute and apps initialize.
+	// Only send notifications when the agent is ready. We want to skip
+	// any state transitions that occur whilst the workspace is starting
+	// up as it doesn't make sense to receive them.
 	if agent.LifecycleState != database.WorkspaceAgentLifecycleStateReady {
 		api.Logger.Debug(ctx, "skipping AI task notification because agent is not ready",
 			slog.F("agent_id", agent.ID),
