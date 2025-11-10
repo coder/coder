@@ -18,6 +18,8 @@ Instead of distributing provider-specific API keys (OpenAI/Anthropic keys) to us
 - **OpenAI clients**: Users set `OPENAI_API_KEY` to their Coder session token or API key
 - **Anthropic clients**: Users set `ANTHROPIC_API_KEY` to their Coder session token or API key
 
+Again, the exact environment variable or setting naming may differ from tool to tool; consult your tool's documentation.
+
 ## Configuring In-Workspace Tools
 
 Template admins can pre-configure workspaces to route all AI tool requests through AI Bridge, providing a seamless and secure experience for users. This can be done for both Coder Tasks and other AI tools running in the workspace.
