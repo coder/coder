@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -1184,6 +1185,7 @@ func TestTasksNotification(t *testing.T) {
 		isNotificationSent   bool
 		notificationTemplate uuid.UUID
 		taskPrompt           string
+		agentLifecycle       database.WorkspaceAgentLifecycleState
 	}{
 		// Should not send a notification when the agent app is not an AI task.
 		{
@@ -1231,6 +1233,7 @@ func TestTasksNotification(t *testing.T) {
 			isNotificationSent:   true,
 			notificationTemplate: notifications.TemplateTaskIdle,
 			taskPrompt:           "InitialTemplateTaskIdle",
+			agentLifecycle:       database.WorkspaceAgentLifecycleStateReady,
 		},
 		// Should send TemplateTaskWorking when the AI task transitions to 'Working' from 'Idle'.
 		{
@@ -1244,6 +1247,7 @@ func TestTasksNotification(t *testing.T) {
 			isNotificationSent:   true,
 			notificationTemplate: notifications.TemplateTaskWorking,
 			taskPrompt:           "TemplateTaskWorkingFromIdle",
+			agentLifecycle:       database.WorkspaceAgentLifecycleStateReady,
 		},
 		// Should send TemplateTaskIdle when the AI task transitions to 'Idle'.
 		{
@@ -1254,6 +1258,7 @@ func TestTasksNotification(t *testing.T) {
 			isNotificationSent:   true,
 			notificationTemplate: notifications.TemplateTaskIdle,
 			taskPrompt:           "TemplateTaskIdle",
+			agentLifecycle:       database.WorkspaceAgentLifecycleStateReady,
 		},
 		// Long task prompts should be truncated to 160 characters.
 		{
@@ -1264,6 +1269,7 @@ func TestTasksNotification(t *testing.T) {
 			isNotificationSent:   true,
 			notificationTemplate: notifications.TemplateTaskIdle,
 			taskPrompt:           "This is a very long task prompt that should be truncated to 160 characters. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+			agentLifecycle:       database.WorkspaceAgentLifecycleStateReady,
 		},
 		// Should send TemplateTaskCompleted when the AI task transitions to 'Complete'.
 		{
@@ -1274,6 +1280,7 @@ func TestTasksNotification(t *testing.T) {
 			isNotificationSent:   true,
 			notificationTemplate: notifications.TemplateTaskCompleted,
 			taskPrompt:           "TemplateTaskCompleted",
+			agentLifecycle:       database.WorkspaceAgentLifecycleStateReady,
 		},
 		// Should send TemplateTaskFailed when the AI task transitions to 'Failure'.
 		{
@@ -1284,6 +1291,7 @@ func TestTasksNotification(t *testing.T) {
 			isNotificationSent:   true,
 			notificationTemplate: notifications.TemplateTaskFailed,
 			taskPrompt:           "TemplateTaskFailed",
+			agentLifecycle:       database.WorkspaceAgentLifecycleStateReady,
 		},
 		// Should send TemplateTaskCompleted when the AI task transitions from 'Idle' to 'Complete'.
 		{
@@ -1294,6 +1302,7 @@ func TestTasksNotification(t *testing.T) {
 			isNotificationSent:   true,
 			notificationTemplate: notifications.TemplateTaskCompleted,
 			taskPrompt:           "TemplateTaskCompletedFromIdle",
+			agentLifecycle:       database.WorkspaceAgentLifecycleStateReady,
 		},
 		// Should send TemplateTaskFailed when the AI task transitions from 'Idle' to 'Failure'.
 		{
@@ -1304,6 +1313,7 @@ func TestTasksNotification(t *testing.T) {
 			isNotificationSent:   true,
 			notificationTemplate: notifications.TemplateTaskFailed,
 			taskPrompt:           "TemplateTaskFailedFromIdle",
+			agentLifecycle:       database.WorkspaceAgentLifecycleStateReady,
 		},
 		// Should NOT send notification when transitioning from 'Complete' to 'Complete' (no change).
 		{
@@ -1322,6 +1332,37 @@ func TestTasksNotification(t *testing.T) {
 			isAITask:           true,
 			isNotificationSent: false,
 			taskPrompt:         "NoNotificationFailureToFailure",
+		},
+		// Should NOT send notification when agent is in 'starting' lifecycle state (agent startup).
+		{
+			name:               "AgentStarting_NoNotification",
+			latestAppStatuses:  nil,
+			newAppStatus:       codersdk.WorkspaceAppStatusStateIdle,
+			isAITask:           true,
+			isNotificationSent: false,
+			taskPrompt:         "AgentStarting_NoNotification",
+			agentLifecycle:     database.WorkspaceAgentLifecycleStateStarting,
+		},
+		// Should NOT send notification when agent is in 'created' lifecycle state (agent not started).
+		{
+			name:               "AgentCreated_NoNotification",
+			latestAppStatuses:  []codersdk.WorkspaceAppStatusState{codersdk.WorkspaceAppStatusStateWorking},
+			newAppStatus:       codersdk.WorkspaceAppStatusStateIdle,
+			isAITask:           true,
+			isNotificationSent: false,
+			taskPrompt:         "AgentCreated_NoNotification",
+			agentLifecycle:     database.WorkspaceAgentLifecycleStateCreated,
+		},
+		// Should send notification when agent is in 'ready' lifecycle state (agent fully started).
+		{
+			name:                 "AgentReady_SendNotification",
+			latestAppStatuses:    []codersdk.WorkspaceAppStatusState{codersdk.WorkspaceAppStatusStateWorking},
+			newAppStatus:         codersdk.WorkspaceAppStatusStateIdle,
+			isAITask:             true,
+			isNotificationSent:   true,
+			notificationTemplate: notifications.TemplateTaskIdle,
+			taskPrompt:           "AgentReady_SendNotification",
+			agentLifecycle:       database.WorkspaceAgentLifecycleStateReady,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1366,6 +1407,32 @@ func TestTasksNotification(t *testing.T) {
 					})
 			}
 			workspaceBuild := workspaceBuilder.Do()
+
+			// Given: set the agent lifecycle state if specified
+			if tc.agentLifecycle != "" {
+				workspace := coderdtest.MustWorkspace(t, client, workspaceBuild.Workspace.ID)
+				agentID := workspace.LatestBuild.Resources[0].Agents[0].ID
+
+				var (
+					startedAt sql.NullTime
+					readyAt   sql.NullTime
+				)
+				if tc.agentLifecycle == database.WorkspaceAgentLifecycleStateReady {
+					startedAt = sql.NullTime{Time: dbtime.Now(), Valid: true}
+					readyAt = sql.NullTime{Time: dbtime.Now(), Valid: true}
+				} else if tc.agentLifecycle == database.WorkspaceAgentLifecycleStateStarting {
+					startedAt = sql.NullTime{Time: dbtime.Now(), Valid: true}
+				}
+
+				// nolint:gocritic // This is a system restricted operation for test setup.
+				err := db.UpdateWorkspaceAgentLifecycleStateByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+					ID:             agentID,
+					LifecycleState: tc.agentLifecycle,
+					StartedAt:      startedAt,
+					ReadyAt:        readyAt,
+				})
+				require.NoError(t, err)
+			}
 
 			// Given: the workspace agent app has previous statuses
 			agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(workspaceBuild.AgentToken))
