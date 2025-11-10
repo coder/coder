@@ -217,6 +217,24 @@ data "coder_parameter" "devcontainer_autostart" {
   mutable     = true
 }
 
+data "coder_parameter" "use_ai_bridge" {
+  type        = "bool"
+  name        = "Use AI Bridge"
+  default     = true
+  description = "If enabled, AI requests will be sent via AI Bridge."
+  mutable     = true
+}
+
+# Only used if AI Bridge is disabled.
+# dogfood/main.tf injects this value from a GH Actions secret;
+# `coderd_template.dogfood` passes the value injected by .github/workflows/dogfood.yaml in `TF_VAR_CODER_DOGFOOD_ANTHROPIC_API_KEY`.
+variable "anthropic_api_key" {
+  type        = string
+  description = "The API key used to authenticate with the Anthropic API, if AI Bridge is disabled."
+  default     = ""
+  sensitive   = true
+}
+
 provider "docker" {
   host = lookup(local.docker_host, data.coder_parameter.region.value)
 }
@@ -458,11 +476,15 @@ resource "coder_agent" "dev" {
   arch = "amd64"
   os   = "linux"
   dir  = local.repo_dir
-  env = {
-    OIDC_TOKEN : data.coder_workspace_owner.me.oidc_access_token,
-    ANTHROPIC_BASE_URL : "https://dev.coder.com/api/v2/aibridge/anthropic",
-    ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token
-  }
+  env = merge(
+    {
+      OIDC_TOKEN : data.coder_workspace_owner.me.oidc_access_token,
+    },
+    data.coder_parameter.use_ai_bridge.value ? {
+      ANTHROPIC_BASE_URL : "https://dev.coder.com/api/v2/aibridge/anthropic",
+      ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token,
+    } : {}
+  )
   startup_script_behavior = "blocking"
 
   display_apps {
@@ -836,7 +858,7 @@ module "claude-code" {
   workdir             = local.repo_dir
   claude_code_version = "latest"
   order               = 999
-  claude_api_key      = data.coder_workspace_owner.me.session_token # To Enable AI Bridge integration
+  claude_api_key      = data.coder_parameter.use_ai_bridge.value ? data.coder_workspace_owner.me.session_token : var.anthropic_api_key
   agentapi_version    = "latest"
 
   system_prompt       = local.claude_system_prompt
