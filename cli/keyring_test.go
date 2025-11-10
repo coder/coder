@@ -51,8 +51,8 @@ func (m *mockKeyring) Delete(_ *url.URL) error {
 }
 
 func TestUseKeyring(t *testing.T) {
-	// Verify that the --use-keyring flag opts into using a keyring backend for
-	// storing session tokens instead of plain text files.
+	// Verify that the --use-keyring flag default opts into using a keyring backend
+	// for storing session tokens instead of plain text files.
 	t.Parallel()
 
 	t.Run("Login", func(t *testing.T) {
@@ -65,11 +65,10 @@ func TestUseKeyring(t *testing.T) {
 		// Create a pty for interactive prompts
 		pty := ptytest.New(t)
 
-		// Create CLI invocation with --use-keyring flag
+		// Create CLI invocation which defaults to using the keyring
 		inv, cfg := clitest.New(t,
 			"login",
 			"--force-tty",
-			"--use-keyring",
 			"--no-open",
 			client.URL.String(),
 		)
@@ -119,16 +118,16 @@ func TestUseKeyring(t *testing.T) {
 		// Create a pty for interactive prompts
 		pty := ptytest.New(t)
 
-		// First, login with --use-keyring
+		// First, login with the keyring (default)
 		loginInv, cfg := clitest.New(t,
 			"login",
 			"--force-tty",
-			"--use-keyring",
 			"--no-open",
 			client.URL.String(),
 		)
 		loginInv.Stdin = pty.Input()
 		loginInv.Stdout = pty.Output()
+		loginInv.Environ.Set("CODER_USE_KEYRING", "")
 
 		// Inject the mock backend
 		var loginRoot cli.RootCmd
@@ -155,10 +154,9 @@ func TestUseKeyring(t *testing.T) {
 		require.NoError(t, err, "read credential should succeed before logout")
 		require.NotEmpty(t, cred, "credential should exist after logout")
 
-		// Now run logout with --use-keyring
+		// Now logout
 		logoutInv, _ := clitest.New(t,
 			"logout",
-			"--use-keyring",
 			"--yes",
 			"--global-config", string(cfg),
 		)
@@ -181,8 +179,12 @@ func TestUseKeyring(t *testing.T) {
 		require.ErrorIs(t, err, os.ErrNotExist, "credential should be deleted from keyring after logout")
 	})
 
-	t.Run("OmitFlag", func(t *testing.T) {
+	t.Run("DefaultFileStorage", func(t *testing.T) {
 		t.Parallel()
+
+		if runtime.GOOS != "linux" {
+			t.Skip("file storage is the default for Linux")
+		}
 
 		// Create a test server
 		client := coderdtest.New(t, nil)
@@ -191,7 +193,6 @@ func TestUseKeyring(t *testing.T) {
 		// Create a pty for interactive prompts
 		pty := ptytest.New(t)
 
-		// --use-keyring flag omitted (should use file-based storage)
 		inv, cfg := clitest.New(t,
 			"login",
 			"--force-tty",
@@ -216,7 +217,7 @@ func TestUseKeyring(t *testing.T) {
 		// Verify that session file WAS created (not using keyring)
 		sessionFile := path.Join(string(cfg), "session")
 		_, err := os.Stat(sessionFile)
-		require.NoError(t, err, "session file should exist when NOT using --use-keyring")
+		require.NoError(t, err, "session file should exist when NOT using --use-keyring on Linux")
 
 		// Read and verify the token from file
 		content, err := os.ReadFile(sessionFile)
@@ -234,7 +235,7 @@ func TestUseKeyring(t *testing.T) {
 		// Create a pty for interactive prompts
 		pty := ptytest.New(t)
 
-		// Login using CODER_USE_KEYRING environment variable instead of flag
+		// Login using CODER_USE_KEYRING environment variable set to disable keyring usage
 		inv, cfg := clitest.New(t,
 			"login",
 			"--force-tty",
@@ -243,15 +244,7 @@ func TestUseKeyring(t *testing.T) {
 		)
 		inv.Stdin = pty.Input()
 		inv.Stdout = pty.Output()
-		inv.Environ.Set("CODER_USE_KEYRING", "true")
-
-		// Inject the mock backend
-		var root cli.RootCmd
-		cmd, err := root.Command(root.AGPL())
-		require.NoError(t, err)
-		mockBackend := newMockKeyring()
-		root.WithSessionStorageBackend(mockBackend)
-		inv.Command = cmd
+		inv.Environ.Set("CODER_USE_KEYRING", "false")
 
 		doneChan := make(chan struct{})
 		go func() {
@@ -265,15 +258,15 @@ func TestUseKeyring(t *testing.T) {
 		pty.ExpectMatch("Welcome to Coder")
 		<-doneChan
 
-		// Verify that session file was NOT created (using keyring via env var)
+		// Verify that session file WAS created (not using keyring)
 		sessionFile := path.Join(string(cfg), "session")
-		_, err = os.Stat(sessionFile)
-		require.True(t, os.IsNotExist(err), "session file should not exist when using keyring via env var")
+		_, err := os.Stat(sessionFile)
+		require.NoError(t, err, "session file should exist when CODER_USE_KEYRING set to false")
 
-		// Verify credential is in mock keyring
-		cred, err := mockBackend.Read(nil)
-		require.NoError(t, err, "credential should be stored in keyring when CODER_USE_KEYRING=true")
-		require.NotEmpty(t, cred)
+		// Read and verify the token from file
+		content, err := os.ReadFile(sessionFile)
+		require.NoError(t, err, "should be able to read session file")
+		require.Equal(t, client.SessionToken(), string(content), "file should contain the session token")
 	})
 }
 
@@ -317,7 +310,7 @@ func TestUseKeyringUnsupportedOS(t *testing.T) {
 		coderdtest.CreateFirstUser(t, client)
 		pty := ptytest.New(t)
 
-		// First login without keyring to create a session
+		// First login without keyring to create a session (default behavior)
 		loginInv, cfg := clitest.New(t,
 			"login",
 			"--force-tty",

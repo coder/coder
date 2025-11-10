@@ -71,6 +71,9 @@ func NewWithCommand(
 		Stdout:  (&logWriter{prefix: "stdout", log: logger}),
 		Stderr:  (&logWriter{prefix: "stderr", log: logger}),
 		Logger:  logger,
+		Environ: []serpent.EnvVar{
+			{Name: "CODER_USE_KEYRING", Value: "false"}, // Keyring use is not parallel test friendly.
+		},
 	}
 	t.Logf("invoking command: %s %s", cmd.Name(), strings.Join(i.Args, " "))
 

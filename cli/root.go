@@ -56,7 +56,7 @@ var (
 	// anything.
 	ErrSilent = xerrors.New("silent error")
 
-	errKeyringNotSupported = xerrors.New("keyring storage is not supported on this operating system; remove the --use-keyring flag to use file-based storage")
+	errKeyringNotSupported = xerrors.New("keyring storage is not supported on this operating system; use --use-keyring=false to use file-based storage")
 )
 
 const (
@@ -483,10 +483,12 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 			Flag: varUseKeyring,
 			Env:  envUseKeyring,
 			Description: "Store and retrieve session tokens using the operating system " +
-				"keyring. Currently only supported on Windows. By default, tokens are " +
-				"stored in plain text files.",
-			Value: serpent.BoolOf(&r.useKeyring),
-			Group: globalGroup,
+				"keyring. Enabled by default. If the keyring is not supported on the " +
+				"current platform, file-based storage is used automatically. Set to " +
+				"false to force file-based storage.",
+			Default: "true",
+			Value:   serpent.BoolOf(&r.useKeyring),
+			Group:   globalGroup,
 		},
 		{
 			Flag:        "debug-http",
@@ -713,12 +715,23 @@ func (r *RootCmd) createUnauthenticatedClient(ctx context.Context, serverURL *ur
 	return client, nil
 }
 
+// isKeyringSupported returns true if the operating system supports keyring storage.
+func isKeyringSupported() bool {
+	switch runtime.GOOS {
+	case "darwin", "windows":
+		return true
+	default:
+		return false
+	}
+}
+
 // ensureTokenBackend returns the session token storage backend, creating it if necessary.
 // This must be called after flags are parsed so we can respect the value of the --use-keyring
-// flag.
+// flag. If we're configured for keyring use but the OS doesn't support keyring, fall back
+// to file storage.
 func (r *RootCmd) ensureTokenBackend() sessionstore.Backend {
 	if r.tokenBackend == nil {
-		if r.useKeyring {
+		if r.useKeyring && isKeyringSupported() {
 			r.tokenBackend = sessionstore.NewKeyring()
 		} else {
 			r.tokenBackend = sessionstore.NewFile(r.createConfig)
