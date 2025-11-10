@@ -141,7 +141,7 @@ const IconsPage: FC = () => {
 					)}
 					{searchedIcons.map((icon) => (
 						<CopyableValue key={icon.url} value={icon.url}>
-							<div className="flex flex-col gap-4 items-center max-w-full m-3">
+							<div className="flex flex-col gap-4 items-center max-w-full p-3">
 								<img
 									alt={icon.url}
 									src={icon.url}

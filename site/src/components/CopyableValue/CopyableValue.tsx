@@ -40,10 +40,10 @@ export const CopyableValue: FC<CopyableValueProps> = ({
 		<TooltipProvider delayDuration={100}>
 			<Tooltip
 				open={tooltipOpen}
-				onOpenChange={(next) => {
+				onOpenChange={(shouldBeOpen) => {
 					// Always keep the tooltip open when in focus to handle issues when onOpenChange is unexpectedly false
-					if (!next && isFocused) return;
-					setTooltipOpen(next);
+					if (!shouldBeOpen && isFocused) return;
+					setTooltipOpen(shouldBeOpen);
 				}}
 			>
 				<TooltipTrigger asChild>
