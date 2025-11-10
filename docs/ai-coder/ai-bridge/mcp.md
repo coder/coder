@@ -42,8 +42,10 @@ In the above example, if you prompted your AI model with "list your available gi
 
 > Certainly! Here are the GitHub-related tools that I have available:
 >
-> 1. `bmcp_github_update_gist`
-> 2. `bmcp_github_list_gists`
+> ```
+> 1. bmcp_github_update_gist
+> 2. bmcp_github_list_gists
+> ```
 
 AI Bridge marks automatically injected tools with a prefix `bmcp_` ("bridged MCP"). It also namespaces all tool names by the ID of their associated External Auth application (in this case `github`).
 
