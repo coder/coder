@@ -18,7 +18,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
         with:
           egress-policy: audit
 
@@ -96,7 +96,7 @@ jobs:
       contents: write
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
         with:
           egress-policy: audit
 
@@ -120,12 +120,12 @@ jobs:
       actions: write
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
         with:
           egress-policy: audit
 
       - name: Delete PR Cleanup workflow runs
-        uses: Mattraks/delete-workflow-runs@86d29a75093353c4c509a876c176234037c2025b # v2.1.0
+        uses: Mattraks/delete-workflow-runs@5bf9a1dac5c4d041c029f0a8370ddf0c5cb5aeb7 # v2.1.0
         with:
           token: ${{ github.token }}
           repository: ${{ github.repository }}
@@ -134,7 +134,7 @@ jobs:
           delete_workflow_pattern: pr-cleanup.yaml
 
       - name: Delete PR Deploy workflow skipped runs
-        uses: Mattraks/delete-workflow-runs@86d29a75093353c4c509a876c176234037c2025b # v2.1.0
+        uses: Mattraks/delete-workflow-runs@5bf9a1dac5c4d041c029f0a8370ddf0c5cb5aeb7 # v2.1.0
         with:
           token: ${{ github.token }}
           repository: ${{ github.repository }}
