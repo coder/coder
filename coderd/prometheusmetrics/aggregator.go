@@ -238,6 +238,12 @@ func NewMetricsAggregator(logger slog.Logger, registerer prometheus.Registerer, 
 	}, nil
 }
 
+// asPrometheus on MetricsAggregator delegates to annotatedMetric.asPrometheus.
+func (ma *MetricsAggregator) asPrometheus(am *annotatedMetric) (prometheus.Metric, error) {
+	return am.asPrometheus()
+}
+
+
 // labelAggregator is used to control cardinality of collected Prometheus metrics by pre-aggregating series based on given labels.
 type labelAggregator struct {
 	aggregations map[string]float64
