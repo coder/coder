@@ -26,7 +26,9 @@ Again, the exact environment variable or setting naming may differ from tool to 
 
 AI coding tools running inside a Coder workspace, such as IDE extensions, can be configured to use AI Bridge.
 
-While users can manually configure these tools with a long-lived API key, template admins can provide a more seamless experience by pre-configuring them. Similar to the Coder Tasks example, admins can use Terraform data sources like `data.coder_workspace_owner.me.session_token` to automatically inject the user's session token and the AI Bridge base URL into the workspace environment.
+While users can manually configure these tools with a long-lived API key, template admins can provide a more seamless experience by pre-configuring them. Admins can automatically inject the user's session token with `data.coder_workspace_owner.me.session_token` and the AI Bridge base URL into the workspace environment.
+
+In this example, Claude code respects these environment variables and will route all requests via AI Bridge.
 
 This is the fastest way to bring existing agents like Roo Code, Cursor, or Claude Code into compliance without adopting Coder Tasks.
 
