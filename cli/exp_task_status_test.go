@@ -36,17 +36,9 @@ func Test_TaskStatus(t *testing.T) {
 			hf: func(ctx context.Context, _ time.Time) func(w http.ResponseWriter, r *http.Request) {
 				return func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
-					case "/api/experimental/tasks":
-						if r.URL.Query().Get("q") == "owner:\"me\"" {
-							httpapi.Write(ctx, w, http.StatusOK, struct {
-								Tasks []codersdk.Task `json:"tasks"`
-								Count int             `json:"count"`
-							}{
-								Tasks: []codersdk.Task{},
-								Count: 0,
-							})
-							return
-						}
+					case "/api/experimental/tasks/me/doesnotexist":
+						httpapi.ResourceNotFound(w)
+						return
 					default:
 						t.Errorf("unexpected path: %s", r.URL.Path)
 					}
@@ -60,35 +52,7 @@ func Test_TaskStatus(t *testing.T) {
 			hf: func(ctx context.Context, now time.Time) func(w http.ResponseWriter, r *http.Request) {
 				return func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
-					case "/api/experimental/tasks":
-						if r.URL.Query().Get("q") == "owner:\"me\"" {
-							httpapi.Write(ctx, w, http.StatusOK, struct {
-								Tasks []codersdk.Task `json:"tasks"`
-								Count int             `json:"count"`
-							}{
-								Tasks: []codersdk.Task{{
-									ID:              uuid.MustParse("11111111-1111-1111-1111-111111111111"),
-									Name:            "exists",
-									OwnerName:       "me",
-									WorkspaceStatus: codersdk.WorkspaceStatusRunning,
-									CreatedAt:       now,
-									UpdatedAt:       now,
-									CurrentState: &codersdk.TaskStateEntry{
-										State:     codersdk.TaskStateWorking,
-										Timestamp: now,
-										Message:   "Thinking furiously...",
-									},
-									WorkspaceAgentHealth: &codersdk.WorkspaceAgentHealth{
-										Healthy: true,
-									},
-									WorkspaceAgentLifecycle: ptr.Ref(codersdk.WorkspaceAgentLifecycleReady),
-									Status:                  codersdk.TaskStatusActive,
-								}},
-								Count: 1,
-							})
-							return
-						}
-					case "/api/experimental/tasks/me/11111111-1111-1111-1111-111111111111":
+					case "/api/experimental/tasks/me/exists":
 						httpapi.Write(ctx, w, http.StatusOK, codersdk.Task{
 							ID:              uuid.MustParse("11111111-1111-1111-1111-111111111111"),
 							WorkspaceStatus: codersdk.WorkspaceStatusRunning,
@@ -124,30 +88,21 @@ func Test_TaskStatus(t *testing.T) {
 				var calls atomic.Int64
 				return func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
-					case "/api/experimental/tasks":
-						if r.URL.Query().Get("q") == "owner:\"me\"" {
-							// Return initial task state for --watch test
-							httpapi.Write(ctx, w, http.StatusOK, struct {
-								Tasks []codersdk.Task `json:"tasks"`
-								Count int             `json:"count"`
-							}{
-								Tasks: []codersdk.Task{{
-									ID:              uuid.MustParse("11111111-1111-1111-1111-111111111111"),
-									Name:            "exists",
-									OwnerName:       "me",
-									WorkspaceStatus: codersdk.WorkspaceStatusPending,
-									CreatedAt:       now.Add(-5 * time.Second),
-									UpdatedAt:       now.Add(-5 * time.Second),
-									WorkspaceAgentHealth: &codersdk.WorkspaceAgentHealth{
-										Healthy: true,
-									},
-									WorkspaceAgentLifecycle: ptr.Ref(codersdk.WorkspaceAgentLifecycleReady),
-									Status:                  codersdk.TaskStatusPending,
-								}},
-								Count: 1,
-							})
-							return
-						}
+					case "/api/experimental/tasks/me/exists":
+						httpapi.Write(ctx, w, http.StatusOK, codersdk.Task{
+							ID:              uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+							Name:            "exists",
+							OwnerName:       "me",
+							WorkspaceStatus: codersdk.WorkspaceStatusPending,
+							CreatedAt:       now.Add(-5 * time.Second),
+							UpdatedAt:       now.Add(-5 * time.Second),
+							WorkspaceAgentHealth: &codersdk.WorkspaceAgentHealth{
+								Healthy: true,
+							},
+							WorkspaceAgentLifecycle: ptr.Ref(codersdk.WorkspaceAgentLifecycleReady),
+							Status:                  codersdk.TaskStatusPending,
+						})
+						return
 					case "/api/experimental/tasks/me/11111111-1111-1111-1111-111111111111":
 						defer calls.Add(1)
 						switch calls.Load() {
@@ -263,40 +218,18 @@ func Test_TaskStatus(t *testing.T) {
 				ts := time.Date(2025, 8, 26, 12, 34, 56, 0, time.UTC)
 				return func(w http.ResponseWriter, r *http.Request) {
 					switch r.URL.Path {
-					case "/api/experimental/tasks":
-						if r.URL.Query().Get("q") == "owner:\"me\"" {
-							httpapi.Write(ctx, w, http.StatusOK, struct {
-								Tasks []codersdk.Task `json:"tasks"`
-								Count int             `json:"count"`
-							}{
-								Tasks: []codersdk.Task{{
-									ID:              uuid.MustParse("11111111-1111-1111-1111-111111111111"),
-									Name:            "exists",
-									OwnerName:       "me",
-									WorkspaceStatus: codersdk.WorkspaceStatusRunning,
-									CreatedAt:       ts,
-									UpdatedAt:       ts,
-									CurrentState: &codersdk.TaskStateEntry{
-										State:     codersdk.TaskStateWorking,
-										Timestamp: ts.Add(time.Second),
-										Message:   "Thinking furiously...",
-									},
-									WorkspaceAgentHealth: &codersdk.WorkspaceAgentHealth{
-										Healthy: true,
-									},
-									WorkspaceAgentLifecycle: ptr.Ref(codersdk.WorkspaceAgentLifecycleReady),
-									Status:                  codersdk.TaskStatusActive,
-								}},
-								Count: 1,
-							})
-							return
-						}
-					case "/api/experimental/tasks/me/11111111-1111-1111-1111-111111111111":
+					case "/api/experimental/tasks/me/exists":
 						httpapi.Write(ctx, w, http.StatusOK, codersdk.Task{
-							ID:              uuid.MustParse("11111111-1111-1111-1111-111111111111"),
-							WorkspaceStatus: codersdk.WorkspaceStatusRunning,
-							CreatedAt:       ts,
-							UpdatedAt:       ts,
+							ID:        uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+							Name:      "exists",
+							OwnerName: "me",
+							WorkspaceAgentHealth: &codersdk.WorkspaceAgentHealth{
+								Healthy: true,
+							},
+							WorkspaceAgentLifecycle: ptr.Ref(codersdk.WorkspaceAgentLifecycleReady),
+							WorkspaceStatus:         codersdk.WorkspaceStatusRunning,
+							CreatedAt:               ts,
+							UpdatedAt:               ts,
 							CurrentState: &codersdk.TaskStateEntry{
 								State:     codersdk.TaskStateWorking,
 								Timestamp: ts.Add(time.Second),

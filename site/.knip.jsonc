@@ -8,5 +8,8 @@
 		"@types/react-virtualized-auto-sizer",
 		"jest_workaround",
 		"ts-proto"
-	]
+	],
+	"jest": {
+		"entry": "./src/**/*.jest.{ts,tsx}"
+	}
 }

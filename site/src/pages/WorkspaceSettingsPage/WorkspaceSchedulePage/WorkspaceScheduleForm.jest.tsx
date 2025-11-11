@@ -144,17 +144,16 @@ describe("validationSchema", () => {
 		expect(validate).toThrow(Language.errorTimezone);
 	});
 
-	it.each<[string]>(timeZones.map((zone) => [zone]))(
-		"validation passes for tz=%p",
-		(zone) => {
+	it("validation passes for all timezones", () => {
+		for (const zone of timeZones) {
 			const values: WorkspaceScheduleFormValues = {
 				...valid,
 				timezone: zone,
 			};
 			const validate = () => validationSchema.validateSync(values);
 			expect(validate).not.toThrow();
-		},
-	);
+		}
+	});
 
 	it("allows a ttl of 7 days", () => {
 		const values: WorkspaceScheduleFormValues = {

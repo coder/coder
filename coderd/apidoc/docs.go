@@ -11708,6 +11708,9 @@ const docTemplate = `{
         "codersdk.AIBridgeInterception": {
             "type": "object",
             "properties": {
+                "api_key_id": {
+                    "type": "string"
+                },
                 "ended_at": {
                     "type": "string",
                     "format": "date-time"
@@ -20529,11 +20532,6 @@ const docTemplate = `{
         "codersdk.WorkspaceBuild": {
             "type": "object",
             "properties": {
-                "ai_task_sidebar_app_id": {
-                    "description": "Deprecated: This field has been replaced with ` + "`" + `Task.WorkspaceAppID` + "`" + `",
-                    "type": "string",
-                    "format": "uuid"
-                },
                 "build_number": {
                     "type": "integer"
                 },

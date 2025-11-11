@@ -239,7 +239,7 @@ advanced capabilities that Coder offers.
 ### Get Coder Tasks Running
 
 Coder Tasks is an interface that allows you to run and manage coding agents like
-Claude Code within a given Workspace. Tasks become available when the Template for a Workspace has the `coder_ai_task` resource and `coder_parameter` named `AI Prompt` defined in its source code.
+Claude Code within a given Workspace. Tasks become available when a Workspace Template has the `coder_ai_task` resource defined in its source code.
 In other words, any existing template can become a Task template by adding in that
 resource and parameter.
 

@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/aibridged"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -220,6 +221,18 @@ func TestIntegration(t *testing.T) {
 	interceptions, err := db.GetAIBridgeInterceptions(ctx)
 	require.NoError(t, err)
 	require.Len(t, interceptions, 1)
+
+	intc0 := interceptions[0]
+	keyID, _, err := httpmw.SplitAPIToken(apiKey.Key)
+	require.NoError(t, err)
+	require.Equal(t, user.ID, intc0.InitiatorID)
+	require.True(t, intc0.APIKeyID.Valid)
+	require.Equal(t, keyID, intc0.APIKeyID.String)
+	require.Equal(t, "openai", intc0.Provider)
+	require.Equal(t, "gpt-4.1", intc0.Model)
+	require.True(t, intc0.EndedAt.Valid)
+	require.True(t, intc0.StartedAt.Before(intc0.EndedAt.Time))
+	require.Less(t, intc0.EndedAt.Time.Sub(intc0.StartedAt), 5*time.Second)
 
 	prompts, err := db.GetAIBridgeUserPromptsByInterceptionID(ctx, interceptions[0].ID)
 	require.NoError(t, err)

@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -106,8 +107,9 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("ReportTask", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitShort)
 		tb, err := toolsdk.NewDeps(memberClient, toolsdk.WithTaskReporter(func(args toolsdk.ReportTaskArgs) error {
-			return agentClient.PatchAppStatus(setupCtx, agentsdk.PatchAppStatus{
+			return agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
 				AppSlug: "some-agent-app",
 				Message: args.Summary,
 				URI:     args.Link,
@@ -126,12 +128,32 @@ func TestTools(t *testing.T) {
 	t.Run("GetWorkspace", func(t *testing.T) {
 		tb, err := toolsdk.NewDeps(memberClient)
 		require.NoError(t, err)
-		result, err := testTool(t, toolsdk.GetWorkspace, tb, toolsdk.GetWorkspaceArgs{
-			WorkspaceID: r.Workspace.ID.String(),
-		})
 
-		require.NoError(t, err)
-		require.Equal(t, r.Workspace.ID, result.ID, "expected the workspace ID to match")
+		tests := []struct {
+			name      string
+			workspace string
+		}{
+			{
+				name:      "ByID",
+				workspace: r.Workspace.ID.String(),
+			},
+			{
+				name:      "ByName",
+				workspace: r.Workspace.Name,
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				result, err := testTool(t, toolsdk.GetWorkspace, tb, toolsdk.GetWorkspaceArgs{
+					WorkspaceID: tt.workspace,
+				})
+				require.NoError(t, err)
+				require.Equal(t, r.Workspace.ID, result.ID, "expected the workspace ID to match")
+			})
+		}
 	})
 
 	t.Run("ListTemplates", func(t *testing.T) {
@@ -851,7 +873,7 @@ func TestTools(t *testing.T) {
 					TemplateVersionID: r.TemplateVersion.ID.String(),
 					Input:             "do yet another barrel roll",
 				},
-				error: "Template does not have required parameter \"AI Prompt\"",
+				error: "Template does not have a valid \"coder_ai_task\" resource.",
 			},
 			{
 				name: "WithPreset",
@@ -860,7 +882,7 @@ func TestTools(t *testing.T) {
 					TemplateVersionPresetID: presetID.String(),
 					Input:                   "not enough barrel rolls",
 				},
-				error: "Template does not have required parameter \"AI Prompt\"",
+				error: "Template does not have a valid \"coder_ai_task\" resource.",
 			},
 		}
 
@@ -1373,7 +1395,17 @@ func TestTools(t *testing.T) {
 		task := ws.Task
 
 		_ = agenttest.New(t, client.URL, ws.AgentToken)
-		coderdtest.NewWorkspaceAgentWaiter(t, client, ws.Workspace.ID).Wait()
+		coderdtest.NewWorkspaceAgentWaiter(t, client, ws.Workspace.ID).
+			WaitFor(coderdtest.AgentsReady)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Ensure the app is healthy (required to send task input).
+		err = store.UpdateWorkspaceAppHealthByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAppHealthByIDParams{
+			ID:     task.WorkspaceAppID.UUID,
+			Health: database.WorkspaceAppHealthHealthy,
+		})
+		require.NoError(t, err)
 
 		tests := []struct {
 			name  string
@@ -1434,8 +1466,6 @@ func TestTools(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				t.Parallel()
-
 				tb, err := toolsdk.NewDeps(memberClient)
 				require.NoError(t, err)
 
@@ -1505,7 +1535,17 @@ func TestTools(t *testing.T) {
 		task := ws.Task
 
 		_ = agenttest.New(t, client.URL, ws.AgentToken)
-		coderdtest.NewWorkspaceAgentWaiter(t, client, ws.Workspace.ID).Wait()
+		coderdtest.NewWorkspaceAgentWaiter(t, client, ws.Workspace.ID).
+			WaitFor(coderdtest.AgentsReady)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Ensure the app is healthy (required to read task logs).
+		err = store.UpdateWorkspaceAppHealthByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAppHealthByIDParams{
+			ID:     task.WorkspaceAppID.UUID,
+			Health: database.WorkspaceAppHealthHealthy,
+		})
+		require.NoError(t, err)
 
 		tests := []struct {
 			name     string
@@ -1557,8 +1597,6 @@ func TestTools(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-				t.Parallel()
-
 				tb, err := toolsdk.NewDeps(memberClient)
 				require.NoError(t, err)
 
