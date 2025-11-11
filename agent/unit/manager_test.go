@@ -1,6 +1,7 @@
 package unit_test
 
 import (
+	"errors"
 	"sync"
 	"testing"
 
@@ -322,7 +323,7 @@ func TestDependencyTracker_ConcurrentOperations(t *testing.T) {
 		const numGoroutines = 10
 
 		// Launch goroutines that update statuses
-		errors := make([]error, numGoroutines)
+		goroutineErrors := make([]error, numGoroutines)
 		for i := 0; i < numGoroutines; i++ {
 			wg.Add(1)
 			go func(goroutineID int) {
@@ -331,21 +332,21 @@ func TestDependencyTracker_ConcurrentOperations(t *testing.T) {
 				// Update D to completed (should make C ready)
 				err := tracker.UpdateStatus(consumerD, statusCompleted)
 				if err != nil {
-					errors[goroutineID] = err
+					goroutineErrors[goroutineID] = err
 					return
 				}
 
 				// Update C to started (should make B ready)
 				err = tracker.UpdateStatus(consumerC, statusStarted)
 				if err != nil {
-					errors[goroutineID] = err
+					goroutineErrors[goroutineID] = err
 					return
 				}
 
 				// Update B to running (should make A ready)
 				err = tracker.UpdateStatus(consumerB, statusRunning)
 				if err != nil {
-					errors[goroutineID] = err
+					goroutineErrors[goroutineID] = err
 					return
 				}
 			}(i)
@@ -354,8 +355,11 @@ func TestDependencyTracker_ConcurrentOperations(t *testing.T) {
 		wg.Wait()
 
 		// Check for any errors in goroutines
-		for i, err := range errors {
-			require.NoError(t, err, "goroutine %d had error", i)
+		// ErrSameStatusAlreadySet is expected when multiple goroutines try to set the same status
+		for i, err := range goroutineErrors {
+			if err != nil && !errors.Is(err, unit.ErrSameStatusAlreadySet) {
+				require.NoError(t, err, "goroutine %d had unexpected error", i)
+			}
 		}
 
 		// All consumers should be ready after the updates
