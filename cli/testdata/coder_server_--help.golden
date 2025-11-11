@@ -109,7 +109,7 @@ AIBRIDGE OPTIONS:
       --aibridge-enabled bool, $CODER_AIBRIDGE_ENABLED (default: false)
           Whether to start an in-memory aibridged instance.
 
-      --aibridge-inject-coder-mcp-tools bool, $CODER_AIBRIDGE_INJECT_CODER_MCP (default: true)
+      --aibridge-inject-coder-mcp-tools bool, $CODER_AIBRIDGE_INJECT_CODER_MCP (default: false)
           Whether to inject Coder's MCP tools into intercepted AI Bridge
           requests (requires the "oauth2" and "mcp-server-http" experiments to
           be enabled).
