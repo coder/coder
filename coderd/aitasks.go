@@ -302,8 +302,8 @@ func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) cod
 		}
 	}
 
-	// When the task is initializing and there's no app status yet, provide a
-	// CurrentState with an appropriate message.
+	// If no valid agent state was found for the current build and the task is initializing,
+	// provide a descriptive initialization message.
 	if currentState == nil && codersdk.TaskStatus(dbTask.Status) == codersdk.TaskStatusInitializing {
 		message := "Initializing workspace"
 
