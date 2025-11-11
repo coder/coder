@@ -24,7 +24,7 @@ Again, the exact environment variable or setting naming may differ from tool to 
 
 ## Configuring In-Workspace Tools
 
-Template admins can pre-configure workspaces to route all AI tool requests through AI Bridge, providing a seamless and secure experience for users. This can be done for both Coder Tasks and other AI tools running in the workspace.
+Template admins can pre-configure workspaces to route all AI tool requests through AI Bridge, providing a seamless and secure experience for users. This can be done with either [Coder Tasks](../tasks.md) or AI agents running in the workspace.
 
 ### Using Coder Tasks
 
