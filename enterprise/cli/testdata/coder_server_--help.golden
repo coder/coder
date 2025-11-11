@@ -82,6 +82,11 @@ OPTIONS:
           check is performed once per day.
 
 AIBRIDGE OPTIONS: 
+      --aibridge-inject-coder-mcp-tools bool, $CODER_AIBRIDGE_INJECT_CODER_MCP_TOOLS (default: false)
+          Whether to inject Coder's MCP tools into intercepted AI Bridge
+          requests (requires the "oauth2" and "mcp-server-http" experiments to
+          be enabled).
+
       --aibridge-anthropic-base-url string, $CODER_AIBRIDGE_ANTHROPIC_BASE_URL (default: https://api.anthropic.com/)
           The base URL of the Anthropic API.
 
@@ -109,11 +114,6 @@ AIBRIDGE OPTIONS:
 
       --aibridge-enabled bool, $CODER_AIBRIDGE_ENABLED (default: false)
           Whether to start an in-memory aibridged instance.
-
-      --aibridge-inject-coder-mcp-tools bool, $CODER_AIBRIDGE_INJECT_CODER_MCP_TOOLS (default: false)
-          Whether to inject Coder's MCP tools into intercepted AI Bridge
-          requests (requires the "oauth2" and "mcp-server-http" experiments to
-          be enabled).
 
       --aibridge-openai-base-url string, $CODER_AIBRIDGE_OPENAI_BASE_URL (default: https://api.openai.com/v1/)
           The base URL of the OpenAI API.
