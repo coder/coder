@@ -24,7 +24,30 @@ Again, the exact environment variable or setting naming may differ from tool to 
 
 ## Configuring In-Workspace Tools
 
-Template admins can pre-configure workspaces to route all AI tool requests through AI Bridge, providing a seamless and secure experience for users. This can be done for both Coder Tasks and other AI tools running in the workspace.
+AI coding tools running inside a Coder workspace, such as IDE extensions, can be configured to use AI Bridge.
+
+While users can manually configure these tools with a long-lived API key, template admins can provide a more seamless experience by pre-configuring them. Admins can automatically inject the user's session token with `data.coder_workspace_owner.me.session_token` and the AI Bridge base URL into the workspace environment.
+
+In this example, Claude code respects these environment variables and will route all requests via AI Bridge.
+
+This is the fastest way to bring existing agents like Roo Code, Cursor, or Claude Code into compliance without adopting Coder Tasks.
+
+```hcl
+data "coder_workspace_owner" "me" {}
+
+data "coder_workspace" "me" {}
+
+resource "coder_agent" "dev" {
+  arch = "amd64"
+  os   = "linux"
+  dir  = local.repo_dir
+  env = {
+    ANTHROPIC_BASE_URL : "${data.coder_workspace.me.url}/api/v2/aibridge/anthropic",
+    ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token
+  }
+  ... # other agent configuration
+}
+```
 
 ### Using Coder Tasks
 
@@ -59,14 +82,6 @@ module "claude-code" {
 }
 ```
 
-### Other IDEs and Tools
-
-AI coding tools running inside a Coder workspace, such as IDE extensions, can be configured to use AI Bridge.
-
-While users can manually configure these tools with a long-lived API key, template admins can provide a more seamless experience by pre-configuring them. Similar to the Coder Tasks example, admins can use Terraform data sources like `data.coder_workspace_owner.me.session_token` to automatically inject the user's session token and the AI Bridge base URL into the workspace environment.
-
-This is the fastest way to bring existing agents like Roo Code, Cursor, or Claude Code into compliance without adopting Coder Tasks.
-
 ## External and Desktop Clients
 
 You can also configure AI tools running outside of a Coder workspace, such as local IDE extensions or desktop applications, to connect to AI Bridge.
@@ -79,23 +94,23 @@ Users can generate a long-lived API key from the Coder UI or CLI. Follow the ins
 
 The table below shows tested AI clients and their compatibility with AI Bridge. Click each client name for vendor-specific configuration instructions. Report issues or share compatibility updates in the [aibridge](https://github.com/coder/aibridge) issue tracker.
 
-| Client                                                                                                                                    | OpenAI support | Anthropic support | Notes                                                                                                                                                                            |
-|-------------------------------------------------------------------------------------------------------------------------------------------|----------------|-------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [Claude Code](https://docs.claude.com/en/docs/claude-code/settings#environment-variables)                                                 | N/A            | ✅                 | Works out of the box and can be preconfigured in templates.                                                                                                                      |
-| Claude Code (VS Code)                                                                                                                     | N/A            | ✅                 | May require signing in once; afterwards respects workspace environment variables.                                                                                                |
-| [Cursor](https://cursor.com/docs/settings/api-keys)                                                                                       | ⚠️             | ❌                 | Only non-reasoning models like `gpt-4.1` are available when using a custom endpoint. Requests still transit Cursor's cloud. There is no central admin setting to configure this. |
-| [Roo Code](https://docs.roocode.com/features/api-configuration-profiles#creating-and-managing-profiles)                                   | ✅              | ✅                 | Use the **OpenAI Compatible** provider with the legacy format to avoid `/v1/responses`.                                                                                          |
-| [Codex CLI](https://github.com/openai/codex/blob/main/docs/config.md#model_providers)                                                     | ✅              | N/A               | `gpt-5-codex` support is [in progress](https://github.com/coder/aibridge/issues/16).                                                                                             |
-| [GitHub Copilot (VS Code)](https://docs.github.com/en/copilot/configuring-github-copilot/configuring-network-settings-for-github-copilot) | ✅              | ❌                 | Requires the pre-release extension. Anthropic endpoints are not supported.                                                                                                       |
-| Goose                                                                                                                                     | ❓              | ❓                 |                                                                                                                                                                                  |
-| Goose Desktop                                                                                                                             | ❓              | ✅                 |                                                                                                                                                                                  |
-| WindSurf                                                                                                                                  | ❌              | —                 | No option to override the base URL.                                                                                                                                              |
-| Sourcegraph Amp                                                                                                                           | ❌              | —                 | No option to override the base URL.                                                                                                                                              |
-| Kiro                                                                                                                                      | ❌              | —                 | No option to override the base URL.                                                                                                                                              |
-| [Copilot CLI](https://github.com/github/copilot-cli/issues/104)                                                                           | ❌              | ❌                 | No support for custom base URLs and uses a `GITHUB_TOKEN` for authentication.                                                                                                    |
-| [Kilo Code](https://kilocode.ai/docs/features/api-configuration-profiles#creating-and-managing-profiles)                                  | ✅              | ✅                 | Similar to Roo Code.                                                                                                                                                             |
-| Gemini CLI                                                                                                                                | ❌              | ❌                 | Not supported yet (`GOOGLE_GEMINI_BASE_URL`).                                                                                                                                    |
-| [Amazon Q CLI](https://aws.amazon.com/q/)                                                                                                 | ❌              | ❌                 | Limited to Amazon Q subscriptions; no custom endpoint support.                                                                                                                   |
+| Client                                                                                                                              | OpenAI support | Anthropic support | Notes                                                                                                                                                                            |
+|-------------------------------------------------------------------------------------------------------------------------------------|----------------|-------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [Claude Code](https://docs.claude.com/en/docs/claude-code/settings#environment-variables)                                           | N/A            | ✅                 | Works out of the box and can be preconfigured in templates.                                                                                                                      |
+| Claude Code (VS Code)                                                                                                               | N/A            | ✅                 | May require signing in once; afterwards respects workspace environment variables.                                                                                                |
+| [Cursor](https://cursor.com/docs/settings/api-keys)                                                                                 | ⚠️             | ❌                 | Only non-reasoning models like `gpt-4.1` are available when using a custom endpoint. Requests still transit Cursor's cloud. There is no central admin setting to configure this. |
+| [Roo Code](https://docs.roocode.com/features/api-configuration-profiles#creating-and-managing-profiles)                             | ✅              | ✅                 | Use the **OpenAI Compatible** provider with the legacy format to avoid `/v1/responses`.                                                                                          |
+| [Codex CLI](https://github.com/openai/codex/blob/main/docs/config.md#model_providers)                                               | ✅              | N/A               | `gpt-5-codex` support is [in progress](https://github.com/coder/aibridge/issues/16).                                                                                             |
+| [GitHub Copilot (VS Code)](https://code.visualstudio.com/docs/copilot/customization/language-models#_use-an-openaicompatible-model) | ✅              | ❌                 | Requires the pre-release extension. Anthropic endpoints are not supported.                                                                                                       |
+| [Goose](https://block.github.io/goose/docs/getting-started/providers/#available-providers)                                          | ❓              | ❓                 |                                                                                                                                                                                  |
+| [Goose Desktop](https://block.github.io/goose/docs/getting-started/providers/#available-providers)                                  | ❓              | ✅                 |                                                                                                                                                                                  |
+| WindSurf                                                                                                                            | ❌              | —                 | No option to override the base URL.                                                                                                                                              |
+| Sourcegraph Amp                                                                                                                     | ❌              | —                 | No option to override the base URL.                                                                                                                                              |
+| Kiro                                                                                                                                | ❌              | —                 | No option to override the base URL.                                                                                                                                              |
+| [Copilot CLI](https://github.com/github/copilot-cli/issues/104)                                                                     | ❌              | ❌                 | No support for custom base URLs and uses a `GITHUB_TOKEN` for authentication.                                                                                                    |
+| [Kilo Code](https://kilocode.ai/docs/features/api-configuration-profiles#creating-and-managing-profiles)                            | ✅              | ✅                 | Similar to Roo Code.                                                                                                                                                             |
+| Gemini CLI                                                                                                                          | ❌              | ❌                 | Not supported yet.                                                                                                                                                               |
+| [Amazon Q CLI](https://aws.amazon.com/q/)                                                                                           | ❌              | ❌                 | Limited to Amazon Q subscriptions; no custom endpoint support.                                                                                                                   |
 
 Legend: ✅ works, ⚠️ limited support, ❌ not supported, ❓ not yet verified, — not applicable.
 

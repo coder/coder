@@ -11,9 +11,9 @@ AI Bridge solves 3 key problems:
 1. **Centralized authn/z management**: no more issuing & managing API tokens for OpenAI/Anthropic usage.
    Users use their Coder session or API tokens to authenticate with `coderd` (Coder control plane), and
    `coderd` securely communicates with the upstream APIs on their behalf.
-2. **Auditing and attribution**: all interactions with AI services, whether autonomous or human-initiated,
+1. **Auditing and attribution**: all interactions with AI services, whether autonomous or human-initiated,
    will be audited and attributed back to a user.
-3. **Centralized MCP administration**: define a set of approved MCP servers and tools which your users may
+1. **Centralized MCP administration**: define a set of approved MCP servers and tools which your users may
    use.
 
 ## When to use AI Bridge

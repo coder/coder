@@ -17,22 +17,22 @@ Where relevant, both streaming and non-streaming requests are supported.
 
 ### OpenAI
 
-**Intercepted**:
+#### Intercepted
 
 - [`/v1/chat/completions`](https://platform.openai.com/docs/api-reference/chat/create)
 
-**Passthrough**:
+#### Passthrough
 
 - [`/v1/models(/*)`](https://platform.openai.com/docs/api-reference/models/list)
 - [`/v1/responses`](https://platform.openai.com/docs/api-reference/responses/create) _(Interception support coming in **Beta**)_
 
 ### Anthropic
 
-**Intercepted**:
+#### Intercepted
 
 - [`/v1/messages`](https://docs.claude.com/en/api/messages)
 
-**Passthrough**:
+#### Passthrough
 
 - [`/v1/models(/*)`](https://docs.claude.com/en/api/models-list)
 
