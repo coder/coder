@@ -303,7 +303,7 @@ func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) cod
 	}
 
 	// When the task is initializing and there's no app status yet, provide a
-	// default current_state with an appropriate message.
+	// CurrentState with an appropriate message.
 	if currentState == nil && codersdk.TaskStatus(dbTask.Status) == codersdk.TaskStatusInitializing {
 		message := "Initializing workspace"
 

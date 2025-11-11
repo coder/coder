@@ -239,14 +239,18 @@ func TestTasks(t *testing.T) {
 		assert.NotNil(t, updated.CurrentState, "current state should not be nil")
 		assert.Equal(t, "all done", updated.CurrentState.Message)
 		assert.Equal(t, codersdk.TaskStateComplete, updated.CurrentState.State)
+		previousCurrentState := updated.CurrentState
 
 		// Start the workspace again
 		coderdtest.MustTransitionWorkspace(t, client, task.WorkspaceID.UUID, codersdk.WorkspaceTransitionStop, codersdk.WorkspaceTransitionStart)
 
-		// Verify that the status from the previous build is no longer present
+		// Verify that the status from the previous build has been cleared
+		// and replaced by the agent initialization status.
 		updated, err = exp.TaskByID(ctx, task.ID)
 		require.NoError(t, err)
-		assert.Nil(t, updated.CurrentState, "current state should be nil")
+		assert.NotEqual(t, previousCurrentState, updated.CurrentState)
+		assert.Equal(t, codersdk.TaskStateWorking, updated.CurrentState.State)
+		assert.Equal(t, "Agent is connecting", updated.CurrentState.Message)
 	})
 
 	t.Run("Delete", func(t *testing.T) {
