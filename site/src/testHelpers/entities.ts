@@ -5079,4 +5079,5 @@ export const MockInterception: TypesGen.AIBridgeInterception = {
 	metadata: {},
 	user_prompts: [],
 	tool_usages: [],
+	api_key_id: "5c1da48a-9eb0-440e-9c82-5bc5692a603d",
 };

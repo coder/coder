@@ -8,7 +8,6 @@ import {
 	mockInitialRenderResult,
 	mockSuccessResult,
 } from "components/PaginationWidget/PaginationContainer.mocks";
-import type { UsePaginatedQueryResult } from "hooks/usePaginatedQuery";
 import type { ComponentProps } from "react";
 import { RequestLogsPageView } from "./RequestLogsPageView";
 
