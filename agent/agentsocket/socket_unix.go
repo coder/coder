@@ -3,6 +3,7 @@
 package agentsocket
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"net"
@@ -10,7 +11,12 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/hashicorp/yamux"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog"
+	"github.com/coder/coder/v2/agent/agentsocket/proto"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 )
 
 // createSocket creates a Unix domain socket listener
@@ -80,4 +86,26 @@ func isSocketAvailable(path string) bool {
 	_ = conn.Close()
 	// Socket is in use
 	return false
+}
+
+// NewClient creates a DRPC client for the agent socket at the given path.
+func NewClient(path string, logger slog.Logger) (*Client, error) {
+	conn, err := net.Dial("unix", path)
+	if err != nil {
+		return nil, xerrors.Errorf("dial unix socket: %w", err)
+	}
+
+	config := yamux.DefaultConfig()
+	config.LogOutput = nil
+	config.Logger = slog.Stdlib(context.Background(), logger, slog.LevelInfo)
+	session, err := yamux.Client(conn, config)
+	if err != nil {
+		_ = conn.Close()
+		return nil, xerrors.Errorf("multiplex client: %w", err)
+	}
+	return &Client{
+		DRPCAgentSocketClient: proto.NewDRPCAgentSocketClient(drpcsdk.MultiplexedConn(session)),
+		conn:                  conn,
+		session:               session,
+	}, nil
 }
