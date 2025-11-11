@@ -24,7 +24,28 @@ Again, the exact environment variable or setting naming may differ from tool to 
 
 ## Configuring In-Workspace Tools
 
-Template admins can pre-configure workspaces to route all AI tool requests through AI Bridge, providing a seamless and secure experience for users. This can be done with either [Coder Tasks](../tasks.md) or AI agents running in the workspace.
+AI coding tools running inside a Coder workspace, such as IDE extensions, can be configured to use AI Bridge.
+
+While users can manually configure these tools with a long-lived API key, template admins can provide a more seamless experience by pre-configuring them. Similar to the Coder Tasks example, admins can use Terraform data sources like `data.coder_workspace_owner.me.session_token` to automatically inject the user's session token and the AI Bridge base URL into the workspace environment.
+
+This is the fastest way to bring existing agents like Roo Code, Cursor, or Claude Code into compliance without adopting Coder Tasks.
+
+```hcl
+data "coder_workspace_owner" "me" {}
+
+data "coder_workspace" "me" {}
+
+resource "coder_agent" "dev" {
+  arch = "amd64"
+  os   = "linux"
+  dir  = local.repo_dir
+  env = {
+    ANTHROPIC_BASE_URL : "${data.coder_workspace.me.url}/api/v2/aibridge/anthropic",
+    ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token
+  }
+  ... # other agent configuration
+}
+```
 
 ### Using Coder Tasks
 
@@ -58,14 +79,6 @@ module "claude-code" {
   ... # other claude-code configuration
 }
 ```
-
-### Other IDEs and Tools
-
-AI coding tools running inside a Coder workspace, such as IDE extensions, can be configured to use AI Bridge.
-
-While users can manually configure these tools with a long-lived API key, template admins can provide a more seamless experience by pre-configuring them. Similar to the Coder Tasks example, admins can use Terraform data sources like `data.coder_workspace_owner.me.session_token` to automatically inject the user's session token and the AI Bridge base URL into the workspace environment.
-
-This is the fastest way to bring existing agents like Roo Code, Cursor, or Claude Code into compliance without adopting Coder Tasks.
 
 ## External and Desktop Clients
 
