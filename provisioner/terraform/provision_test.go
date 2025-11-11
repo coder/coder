@@ -1011,7 +1011,7 @@ func TestProvision(t *testing.T) {
 	cacheRootDir := filepath.Join(testutil.PersistentCacheDir(t), "terraform_provision_test")
 	expectedCacheDirs := make(map[string]bool)
 	for _, testCase := range testCases {
-		cacheDir := testutil.GetTestCacheDir(t, cacheRootDir, testCase.Name, testCase.Files)
+		cacheDir := testutil.GetTestTFCacheDir(t, cacheRootDir, testCase.Name, testCase.Files)
 		expectedCacheDirs[cacheDir] = true
 	}
 	currentCacheDirs, err := filepath.Glob(filepath.Join(cacheRootDir, "*"))
@@ -1033,7 +1033,7 @@ func TestProvision(t *testing.T) {
 
 			cliConfigPath := ""
 			if !testCase.SkipCacheProviders {
-				cliConfigPath = testutil.CacheProviders(
+				cliConfigPath = testutil.CacheTFProviders(
 					t,
 					cacheRootDir,
 					testCase.Name,

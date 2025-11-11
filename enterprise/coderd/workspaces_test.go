@@ -3400,7 +3400,7 @@ func downloadProviders(t *testing.T, providersTf string) string {
 	templateFiles := map[string]string{"providers.tf": providersTf}
 	testName := "TestWorkspaceTagsTerraform"
 
-	cliConfigPath := testutil.CacheProviders(t, cacheRootDir, testName, templateFiles)
+	cliConfigPath := testutil.CacheTFProviders(t, cacheRootDir, testName, templateFiles)
 	t.Logf("Set TF_CLI_CONFIG_FILE=%s", cliConfigPath)
 	return cliConfigPath
 }

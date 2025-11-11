@@ -18,16 +18,16 @@ import (
 )
 
 const (
-	// TerraformConfigFileName is the name of the Terraform CLI config file.
-	TerraformConfigFileName = "terraform.rc"
-	// CacheProvidersDirName is the subdirectory name for the provider mirror.
-	CacheProvidersDirName = "providers"
-	// CacheTemplateFilesDirName is the subdirectory name for template files.
-	CacheTemplateFilesDirName = "files"
+	// terraformConfigFileName is the name of the Terraform CLI config file.
+	terraformConfigFileName = "terraform.rc"
+	// cacheProvidersDirName is the subdirectory name for the provider mirror.
+	cacheProvidersDirName = "providers"
+	// cacheTemplateFilesDirName is the subdirectory name for template files.
+	cacheTemplateFilesDirName = "files"
 )
 
-// HashTemplateFilesAndTestName generates a unique hash based on test name and template files.
-func HashTemplateFilesAndTestName(t *testing.T, testName string, templateFiles map[string]string) string {
+// hashTemplateFilesAndTestName generates a unique hash based on test name and template files.
+func hashTemplateFilesAndTestName(t *testing.T, testName string, templateFiles map[string]string) string {
 	t.Helper()
 
 	sortedFileNames := make([]string, 0, len(templateFiles))
@@ -61,13 +61,13 @@ func HashTemplateFilesAndTestName(t *testing.T, testName string, templateFiles m
 	return hex.EncodeToString(hasher.Sum(nil))
 }
 
-// WriteCliConfig writes a Terraform CLI config file (`terraform.rc`) in `dir` to enforce using the local provider mirror.
+// WriteTFCliConfig writes a Terraform CLI config file (`terraform.rc`) in `dir` to enforce using the local provider mirror.
 // This blocks network access for providers, forcing Terraform to use only what's cached in `dir`.
 // Returns the path to the generated config file.
-func WriteCliConfig(t *testing.T, dir string) string {
+func WriteTFCliConfig(t *testing.T, dir string) string {
 	t.Helper()
 
-	cliConfigPath := filepath.Join(dir, TerraformConfigFileName)
+	cliConfigPath := filepath.Join(dir, terraformConfigFileName)
 	require.NoError(t, os.MkdirAll(filepath.Dir(cliConfigPath), 0o700))
 
 	content := fmt.Sprintf(`
@@ -80,7 +80,7 @@ func WriteCliConfig(t *testing.T, dir string) string {
 				exclude = ["*/*"]
 			}
 		}
-	`, filepath.Join(dir, CacheProvidersDirName))
+	`, filepath.Join(dir, cacheProvidersDirName))
 	require.NoError(t, os.WriteFile(cliConfigPath, []byte(content), 0o600))
 	return cliConfigPath
 }
@@ -98,30 +98,30 @@ func runCmd(t *testing.T, dir string, args ...string) {
 	}
 }
 
-// GetTestCacheDir returns a unique cache directory path based on the test name and template files.
+// GetTestTFCacheDir returns a unique cache directory path based on the test name and template files.
 // Each test gets a unique cache dir based on its name and template files.
 // This ensures that tests can download providers in parallel and that they
 // will redownload providers if the template files change.
-func GetTestCacheDir(t *testing.T, rootDir string, testName string, templateFiles map[string]string) string {
+func GetTestTFCacheDir(t *testing.T, rootDir string, testName string, templateFiles map[string]string) string {
 	t.Helper()
 
-	hash := HashTemplateFilesAndTestName(t, testName, templateFiles)
+	hash := hashTemplateFilesAndTestName(t, testName, templateFiles)
 	dir := filepath.Join(rootDir, hash[:12])
 	return dir
 }
 
-// DownloadProviders ensures Terraform providers are downloaded and cached locally in a unique directory for the test.
+// DownloadTFProviders ensures Terraform providers are downloaded and cached locally in a unique directory for the test.
 // Uses `terraform init` then `mirror` to populate the cache if needed.
 // Returns the cache directory path.
-func DownloadProviders(t *testing.T, rootDir string, testName string, templateFiles map[string]string) string {
+func DownloadTFProviders(t *testing.T, rootDir string, testName string, templateFiles map[string]string) string {
 	t.Helper()
 
-	dir := GetTestCacheDir(t, rootDir, testName, templateFiles)
+	dir := GetTestTFCacheDir(t, rootDir, testName, templateFiles)
 	if _, err := os.Stat(dir); err == nil {
 		t.Logf("%s: using cached terraform providers", testName)
 		return dir
 	}
-	filesDir := filepath.Join(dir, CacheTemplateFilesDirName)
+	filesDir := filepath.Join(dir, cacheTemplateFilesDirName)
 	defer func() {
 		// The files dir will contain a copy of terraform providers generated
 		// by the terraform init command. We don't want to persist them since
@@ -132,7 +132,7 @@ func DownloadProviders(t *testing.T, rootDir string, testName string, templateFi
 		if !t.Failed() {
 			return
 		}
-		// If `DownloadProviders` function failed, clean up the cache dir.
+		// If `DownloadTFProviders` function failed, clean up the cache dir.
 		// We don't want to leave it around because it may be incomplete or corrupted.
 		if err := os.RemoveAll(dir); err != nil {
 			t.Logf("failed to remove dir %s: %s", dir, err)
@@ -147,7 +147,7 @@ func DownloadProviders(t *testing.T, rootDir string, testName string, templateFi
 		require.NoError(t, os.WriteFile(filePath, []byte(file), 0o600))
 	}
 
-	providersDir := filepath.Join(dir, CacheProvidersDirName)
+	providersDir := filepath.Join(dir, cacheProvidersDirName)
 	require.NoError(t, os.MkdirAll(providersDir, 0o700))
 
 	// We need to run init because if a test uses modules in its template,
@@ -172,14 +172,14 @@ func DownloadProviders(t *testing.T, rootDir string, testName string, templateFi
 	return dir
 }
 
-// CacheProviders caches providers locally and generates a Terraform CLI config to use *only* that cache.
+// CacheTFProviders caches providers locally and generates a Terraform CLI config to use *only* that cache.
 // This setup prevents network access for providers during `terraform init`, improving reliability
 // in subsequent test runs.
 // Returns the path to the generated CLI config file.
-func CacheProviders(t *testing.T, rootDir string, testName string, templateFiles map[string]string) string {
+func CacheTFProviders(t *testing.T, rootDir string, testName string, templateFiles map[string]string) string {
 	t.Helper()
 
-	providersParentDir := DownloadProviders(t, rootDir, testName, templateFiles)
-	cliConfigPath := WriteCliConfig(t, providersParentDir)
+	providersParentDir := DownloadTFProviders(t, rootDir, testName, templateFiles)
+	cliConfigPath := WriteTFCliConfig(t, providersParentDir)
 	return cliConfigPath
 }
