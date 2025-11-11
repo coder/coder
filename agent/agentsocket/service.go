@@ -3,7 +3,6 @@ package agentsocket
 import (
 	"context"
 	"errors"
-	"sync"
 	"time"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -16,7 +15,6 @@ import (
 var _ proto.DRPCAgentSocketServer = (*DRPCAgentSocketService)(nil)
 
 type DRPCAgentSocketService struct {
-	mu          sync.RWMutex
 	unitManager *unit.Manager[string, string]
 	logger      slog.Logger
 }
