@@ -49,19 +49,16 @@ There are two approaches to turning a Template into a Task Template:
 
 You can use a pre-existing agent module that [Coder maintains](https://registry.coder.com/modules). When using an agent module, you must define:
 
-- `coder_parameter` named _ai_prompt_: Define the AI prompt input so users can define/specify what tasks need to run
+- `coder_ai_task` resource: links a `coder_app` to a Task.
 - **Agentic Module** that defines the agent you want to use, e.g. Claude Code, Codex CLI, Gemini CLI
 
-Coder maintains various agentic modules; see [Coder Labs](https://registry.coder.com/contributors/coder-labs). These modules, in addition to defining connection information for the specific agent, reference the [AgentAPI module](https://registry.coder.com/modules/coder/agentapi) which provides connection, reporting, and agent life cycle management operations. The module also defines the `coder_ai_task` resource which allows the Task to be visible in the UI.
+Coder maintains various agentic modules; see [Coder Labs](https://registry.coder.com/contributors/coder-labs). These modules, in addition to defining connection information for the specific agent, reference the [AgentAPI module](https://registry.coder.com/modules/coder/agentapi) which provides connection, reporting, and agent life cycle management operations. The modules also output the specific `coder_app` identifier for the specific agent running inside the workspace.
 
-The following code snippet can be dropped into any existing template to modify it into a Claude-Code enabled task template. This snippet also includes space for a setup script that will prime the agent for execution.
+The following code snippet can be dropped into any existing template in Coder v2.28 or above to modify it into a Claude-Code enabled task template. This snippet also includes space for a setup script that will prime the agent for execution.
+
+> [!NOTE] This requires at least version 2.13.0 of the `coder/coder` Terraform provider.
 
 ```hcl
-data "coder_parameter" "ai_prompt" {
-    name = "AI Prompt"
-    type = "string"
-}
-
 data "coder_parameter" "setup_script" {
   name         = "setup_script"
   display_name = "Setup Script"
@@ -72,12 +69,18 @@ data "coder_parameter" "setup_script" {
   default      = ""
 }
 
+data "coder_task" "me" {}
+
+resource "coder_ai_task" "task" {
+  app_id = module.claude-code.task_app_id
+}
+
 # The Claude Code module does the automatic task reporting
 # Other agent modules: https://registry.coder.com/modules?search=agent
-# Or use a custom agent:  
+# Or use a custom agent:
 module "claude-code" {
   source   = "registry.coder.com/coder/claude-code/coder"
-  version  = "3.0.1"
+  version  = "4.0.0"
   agent_id = coder_agent.example.id
   workdir  = "/home/coder/project"
 
@@ -88,7 +91,7 @@ module "claude-code" {
   claude_code_version = "1.0.82" # Pin to a specific version
   agentapi_version    = "v0.6.1"
 
-  ai_prompt = data.coder_parameter.ai_prompt.value
+  ai_prompt = data.coder_task.me.prompt
   model     = "sonnet"
 
   # Optional: run your pre-flight script
@@ -118,19 +121,19 @@ variable "anthropic_api_key" {
 
 Let's break down this snippet:
 
-- The `module "claude-code"` sets up the Task template to use Claude Code, but Coder's Registry supports many other agent modules like [OpenAI's Codex](https://registry.coder.com/modules/coder-labs/codex) or [Gemini CLI](https://registry.coder.com/modules/coder-labs/gemini)
-- Each module defines its own specific inputs. Claude Code expects the `claude_api_key` input, but OpenAI based agents expect `OPENAI_API_KEY` for example. You'll want to check the specific module's defined variables to know what exactly needs to be defined
+- The `module "claude-code"` sets up the Task template to use Claude Code. Coder's Registry supports many other agent modules like [OpenAI's Codex](https://registry.coder.com/modules/coder-labs/codex) or [Gemini CLI](https://registry.coder.com/modules/coder-labs/gemini)
+- Each module defines its own specific inputs. Claude Code expects the `claude_api_key` input, but OpenAI based agents expect `OPENAI_API_KEY` for example. You'll want to check the specific module's defined variables to know what exactly needs to be defined. You will also generally need to pass `data.coder_task.me.prompt`
+- Each module outputs the UUID of the `coder_app` related to the AI agent. In the above example, the output is named `task_app_id`. See the relevant documentation for the module for more detailed information.
 - You can define specific scripts to run before the module is installed, `pre_install_script`, or after install, `pre_install_script`. For example, you could define a setup script that calls to AWS S3 and pulls specific files you want your agent to have access to
 
 #### Using a Custom Agent
 
 Coder allows you to define a custom agent. When doing so, you must define:
 
-- `coder_parameter` named _ai_prompt_: Define the AI prompt input so users can define/specify what tasks need to run
-- `coder_ai_task` which registers the task with the UI and allows the task to be visible
-- **AgentAPI binary** which provides runtime execution logistics for the task
+- A `coder_app` resource that uses [`coder/agentapi`](https://github.com/coder/agentapi) to run the custom agent. **AgentAPI** provides runtime execution logistics for the task.
+- A `coder_ai_task` resource which associates the `coder_app` related to the AI agent with the Task.
 
-You can find the latest [AgentAPI binary here](https://github.com/coder/agentapi/releases). You can alternatively import and use the [AgentAPI module](https://registry.coder.com/modules/coder/agentapi?tab=variables) Coder maintains, which also conveniently defines the `coder_ai_task` resource.
+You can find the latest [AgentAPI binary here](https://github.com/coder/agentapi/releases). You can alternatively import and use the [AgentAPI module](https://registry.coder.com/modules/coder/agentapi?tab=variables) Coder maintains.
 
 Read more about [custom agents here](https://coder.com/docs/ai-coder/custom-agents).
 
@@ -138,10 +141,12 @@ Read more about [custom agents here](https://coder.com/docs/ai-coder/custom-agen
 
 Coder recommends using pre-existing agent modules when making a Task Template. Making a Task Template boils down to:
 
-1. Identify the existing agent you want access to in our [Registry](https://registry.coder.com/modules)
-1. Add the agent's module to your existing template
-1. Define the module's required inputs
-1. Define the `coder_parameter`
+1. Identify the existing agent you want access to in our [Registry](https://registry.coder.com/modules).
+1. Add the agent's module to your existing template.
+1. Define the `coder_ai_task` resource and `coder_task` data source.
+1. Wire in the module's inputs and outputs:
+    - Pass the prompt from the `coder_task` data source into the module.
+    - Pass the module's `task_app_id` output into the `coder_ai_task` resource.
 
 and you're all set to go! If you want to build your own custom agent, read up on our [Custom Agents](https://coder.com/docs/ai-coder/custom-agents) documentation.
 
@@ -163,7 +168,7 @@ These design principles aren’t just technical guidelines; they're the lens thr
 
 ### Practical Considerations
 
-Tasks don't expose template parameters at runtime, other than the AI Prompt. If users need to choose different compute, region, or tooling options for example, you can define workspace presets in the template and have users select a preset when starting the Task. See workspace presets for details: ../admin/templates/extending-templates/parameters#workspace-presets.
+Tasks don't expose template parameters at runtime. If users need to choose different compute, region, or tooling options for example, you can define workspace presets in the template and have users select a preset when starting the Task. See workspace presets for details: ../admin/templates/extending-templates/parameters#workspace-presets.
 
 ### Identity, Security, and Access
 
