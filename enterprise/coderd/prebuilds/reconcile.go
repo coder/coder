@@ -788,7 +788,8 @@ func (c *StoreReconciler) provisionDelete(ctx context.Context, db database.Store
 // Since these jobs were never processed by a provisioner, no Terraform resources were created,
 // making it safe to orphan-delete the workspaces (skipping Terraform destroy).
 func (c *StoreReconciler) cancelAndOrphanDeletePendingPrebuilds(ctx context.Context, templateID uuid.UUID, templateVersionID uuid.UUID, presetID uuid.UUID) error {
-	provisionerJobs := make(map[uuid.UUID]*database.ProvisionerJob)
+	var canceledProvisionerJob *database.ProvisionerJob
+	var canceledWorkspaceID uuid.UUID
 	err := c.store.InTx(func(db database.Store) error {
 		canceledJobs, err := db.UpdatePrebuildProvisionerJobWithCancel(
 			ctx,
@@ -823,8 +824,9 @@ func (c *StoreReconciler) cancelAndOrphanDeletePendingPrebuilds(ctx context.Cont
 				c.logger.Error(ctx, "failed to orphan delete canceled prebuild",
 					slog.F("workspace_id", job.WorkspaceID.String()), slog.Error(err))
 				multiErr.Errors = append(multiErr.Errors, err)
-			} else {
-				provisionerJobs[job.WorkspaceID] = provisionerJob
+			} else if canceledProvisionerJob == nil {
+				canceledProvisionerJob = provisionerJob
+				canceledWorkspaceID = job.WorkspaceID
 			}
 		}
 
@@ -837,9 +839,12 @@ func (c *StoreReconciler) cancelAndOrphanDeletePendingPrebuilds(ctx context.Cont
 		return err
 	}
 
-	// Publish provisioner job events to notify the acquirer that new jobs were posted
-	for workspaceID, job := range provisionerJobs {
-		c.publishProvisionerJob(ctx, job, workspaceID)
+	// Job event notifications contain organization, provisioner type, and tags.
+	// Since all canceled jobs have the same values, we only send one notification
+	// for the first successfully canceled job, which is sufficient to trigger the
+	// provisioner chain that processes all remaining jobs.
+	if canceledProvisionerJob != nil {
+		c.publishProvisionerJob(ctx, canceledProvisionerJob, canceledWorkspaceID)
 	}
 
 	return nil
