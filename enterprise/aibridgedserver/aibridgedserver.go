@@ -77,7 +77,8 @@ type Server struct {
 	coderMCPConfig *proto.MCPServerConfig // may be nil if not available
 }
 
-func NewServer(lifecycleCtx context.Context, store store, logger slog.Logger, accessURL string, externalAuthConfigs []*externalauth.Config, experiments codersdk.Experiments) (*Server, error) {
+func NewServer(lifecycleCtx context.Context, store store, logger slog.Logger, accessURL string,
+	bridgeCfg codersdk.AIBridgeConfig, externalAuthConfigs []*externalauth.Config, experiments codersdk.Experiments) (*Server, error) {
 	eac := make(map[string]*externalauth.Config, len(externalAuthConfigs))
 
 	for _, cfg := range externalAuthConfigs {
@@ -88,18 +89,22 @@ func NewServer(lifecycleCtx context.Context, store store, logger slog.Logger, ac
 		eac[cfg.ID] = cfg
 	}
 
-	coderMCPConfig, err := getCoderMCPServerConfig(experiments, accessURL)
-	if err != nil {
-		logger.Warn(lifecycleCtx, "failed to retrieve coder MCP server config, Coder MCP will not be available", slog.Error(err))
-	}
-
-	return &Server{
+	srv := &Server{
 		lifecycleCtx:        lifecycleCtx,
 		store:               store,
 		logger:              logger.Named("aibridgedserver"),
 		externalAuthConfigs: eac,
-		coderMCPConfig:      coderMCPConfig,
-	}, nil
+	}
+
+	if bridgeCfg.InjectCoderMCPTools {
+		coderMCPConfig, err := getCoderMCPServerConfig(experiments, accessURL)
+		if err != nil {
+			logger.Warn(lifecycleCtx, "failed to retrieve coder MCP server config, Coder MCP will not be available", slog.Error(err))
+		}
+		srv.coderMCPConfig = coderMCPConfig
+	}
+
+	return srv, nil
 }
 
 func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterceptionRequest) (*proto.RecordInterceptionResponse, error) {

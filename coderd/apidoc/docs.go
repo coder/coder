@@ -11700,6 +11700,9 @@ const docTemplate = `{
                 "enabled": {
                     "type": "boolean"
                 },
+                "inject_coder_mcp_tools": {
+                    "type": "boolean"
+                },
                 "openai": {
                     "$ref": "#/definitions/codersdk.AIBridgeOpenAIConfig"
                 }
