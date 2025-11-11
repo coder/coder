@@ -78,7 +78,8 @@ type Server struct {
 }
 
 func NewServer(lifecycleCtx context.Context, store store, logger slog.Logger, accessURL string,
-	bridgeCfg codersdk.AIBridgeConfig, externalAuthConfigs []*externalauth.Config, experiments codersdk.Experiments) (*Server, error) {
+	bridgeCfg codersdk.AIBridgeConfig, externalAuthConfigs []*externalauth.Config, experiments codersdk.Experiments,
+) (*Server, error) {
 	eac := make(map[string]*externalauth.Config, len(externalAuthConfigs))
 
 	for _, cfg := range externalAuthConfigs {
