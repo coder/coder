@@ -145,7 +145,6 @@ func (r *RootCmd) scaletestNotifications() *serpent.Command {
 			smtpHTTPTransport := &http.Transport{
 				MaxConnsPerHost:     512,
 				MaxIdleConnsPerHost: 512,
-				MaxIdleConns:        512,
 				IdleConnTimeout:     60 * time.Second,
 			}
 			smtpHTTPClient := &http.Client{
