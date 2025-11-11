@@ -391,7 +391,7 @@ func (i *InstanceIdentitySessionTokenProvider) GetSessionToken() string {
 	defer cancel()
 	resp, err := i.TokenExchanger.exchange(ctx)
 	if err != nil {
-		i.logger.Error(ctx, "failed to exchange session token: %v", err)
+		i.logger.Error(ctx, "failed to exchange session token", slog.Error(err))
 		return ""
 	}
 	i.sessionToken = resp.SessionToken
