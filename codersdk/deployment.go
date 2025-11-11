@@ -3340,7 +3340,7 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "bedrock_small_fast_model",
 		},
 		{
-			Name:        "AIBridge Inject Coder MCP tools",
+			Name:        "AI Bridge Inject Coder MCP tools",
 			Description: "Whether to inject Coder's MCP tools into intercepted AI Bridge requests (requires the \"oauth2\" and \"mcp-server-http\" experiments to be enabled).",
 			Flag:        "aibridge-inject-coder-mcp-tools",
 			Env:         "CODER_AIBRIDGE_INJECT_CODER_MCP_TOOLS",
