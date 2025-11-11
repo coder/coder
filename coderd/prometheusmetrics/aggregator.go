@@ -50,6 +50,8 @@ type MetricsAggregator struct {
 	updateHistogram   prometheus.Histogram
 	cleanupHistogram  prometheus.Histogram
 	aggregateByLabels []string
+	// per-aggregator cache of descriptors
+	descCache map[string]*prometheus.Desc
 }
 
 type updateRequest struct {
@@ -106,42 +108,6 @@ func hashKey(req *updateRequest, m *agentproto.Stats_Metric) metricKey {
 }
 
 var _ prometheus.Collector = new(MetricsAggregator)
-
-func (am *annotatedMetric) asPrometheus() (prometheus.Metric, error) {
-	var (
-		baseLabelNames  = am.aggregateByLabels
-		baseLabelValues []string
-		extraLabels     = am.Labels
-	)
-
-	for _, label := range baseLabelNames {
-		val, err := am.getFieldByLabel(label)
-		if err != nil {
-			return nil, err
-		}
-
-		baseLabelValues = append(baseLabelValues, val)
-	}
-
-	labels := make([]string, 0, len(baseLabelNames)+len(extraLabels))
-	labelValues := make([]string, 0, len(baseLabelNames)+len(extraLabels))
-
-	labels = append(labels, baseLabelNames...)
-	labelValues = append(labelValues, baseLabelValues...)
-
-	for _, l := range extraLabels {
-		labels = append(labels, l.Name)
-		labelValues = append(labelValues, l.Value)
-	}
-
-	desc := prometheus.NewDesc(am.Name, metricHelpForAgent, labels, nil)
-	valueType, err := asPrometheusValueType(am.Type)
-	if err != nil {
-		return nil, err
-	}
-
-	return prometheus.MustNewConstMetric(desc, valueType, am.Value, labelValues...), nil
-}
 
 // getFieldByLabel returns the related field value for a given label
 func (am *annotatedMetric) getFieldByLabel(label string) (string, error) {
@@ -237,12 +203,6 @@ func NewMetricsAggregator(logger slog.Logger, registerer prometheus.Registerer, 
 		aggregateByLabels: aggregateByLabels,
 	}, nil
 }
-
-// asPrometheus on MetricsAggregator delegates to annotatedMetric.asPrometheus.
-func (ma *MetricsAggregator) asPrometheus(am *annotatedMetric) (prometheus.Metric, error) {
-	return am.asPrometheus()
-}
-
 
 // labelAggregator is used to control cardinality of collected Prometheus metrics by pre-aggregating series based on given labels.
 type labelAggregator struct {
@@ -370,7 +330,7 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 				}
 
 				for _, m := range input {
-					promMetric, err := m.asPrometheus()
+					promMetric, err := ma.asPrometheus(&m)
 					if err != nil {
 						ma.log.Error(ctx, "can't convert Prometheus value type", slog.F("name", m.Name), slog.F("type", m.Type), slog.F("value", m.Value), slog.Error(err))
 						continue
@@ -411,6 +371,81 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 // Describe function does not have any knowledge about the metrics schema,
 // so it does not emit anything.
 func (*MetricsAggregator) Describe(_ chan<- *prometheus.Desc) {
+}
+
+// cacheKeyForDesc is used to determine the cache key for a set of labels/extra labels. Used with the aggregators description cache.
+func cacheKeyForDesc(name string, baseLabelNames []string, extraLabels []*agentproto.Stats_Metric_Label) string {
+	var b strings.Builder
+	hint := len(name) + (len(baseLabelNames)+len(extraLabels))*8
+	b.Grow(hint)
+	b.WriteString(name)
+	for _, ln := range baseLabelNames {
+		b.WriteByte("|"[0])
+		b.WriteString(ln)
+	}
+	for _, l := range extraLabels {
+		b.WriteByte("|"[0])
+		b.WriteString(l.Name)
+	}
+	return b.String()
+}
+// getOrCreateDec checks if we already have a metric description in the aggregators cache for a given combination of base
+// labels and extra labels. If we do not, we create a new description and cache it.
+func (ma *MetricsAggregator) getOrCreateDesc(name string, help string, baseLabelNames []string, extraLabels []*agentproto.Stats_Metric_Label) *prometheus.Desc {
+	if ma.descCache == nil {
+		ma.descCache = make(map[string]*prometheus.Desc)
+	}
+	key := cacheKeyForDesc(name, baseLabelNames, extraLabels)
+	if d, ok := ma.descCache[key]; ok {
+		return d
+	}
+	nBase := len(baseLabelNames)
+	nExtra := len(extraLabels)
+	labels := make([]string, nBase+nExtra)
+	copy(labels, baseLabelNames)
+	for i, l := range extraLabels {
+		labels[nBase+i] = l.Name
+	}
+	d := prometheus.NewDesc(name, help, labels, nil)
+	ma.descCache[key] = d
+	return d
+}
+
+// asPrometheus returns the annotatedMetric as a prometheus.Metric, it preallocates/fills by index, uses the aggregators
+//  metric description cache, and a small stack buffer for values in order to reduce memory allocations.
+func (ma *MetricsAggregator) asPrometheus(am *annotatedMetric) (prometheus.Metric, error) {
+	baseLabelNames := am.aggregateByLabels
+	extraLabels := am.Labels
+
+	nBase := len(baseLabelNames)
+	nExtra := len(extraLabels)
+	nTotal := nBase + nExtra
+
+	var scratch [16]string
+	var labelValues []string
+	if nTotal <= len(scratch) {
+		labelValues = scratch[:nTotal]
+	} else {
+		labelValues = make([]string, nTotal)
+	}
+
+	for i, label := range baseLabelNames {
+		val, err := am.getFieldByLabel(label)
+		if err != nil {
+			return nil, err
+		}
+		labelValues[i] = val
+	}
+	for i, l := range extraLabels {
+		labelValues[nBase+i] = l.Value
+	}
+
+	desc := ma.getOrCreateDesc(am.Name, metricHelpForAgent, baseLabelNames, extraLabels)
+	valueType, err := asPrometheusValueType(am.Type)
+	if err != nil {
+		return nil, err
+	}
+	return prometheus.MustNewConstMetric(desc, valueType, am.Value, labelValues...), nil
 }
 
 var defaultAgentMetricsLabels = []string{agentmetrics.LabelUsername, agentmetrics.LabelWorkspaceName, agentmetrics.LabelAgentName, agentmetrics.LabelTemplateName}
