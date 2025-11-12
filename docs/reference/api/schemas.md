@@ -389,6 +389,7 @@
     "small_fast_model": "string"
   },
   "enabled": true,
+  "inject_coder_mcp_tools": true,
   "openai": {
     "base_url": "string",
     "key": "string"
@@ -398,12 +399,13 @@
 
 ### Properties
 
-| Name        | Type                                                                 | Required | Restrictions | Description |
-|-------------|----------------------------------------------------------------------|----------|--------------|-------------|
-| `anthropic` | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig) | false    |              |             |
-| `bedrock`   | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)     | false    |              |             |
-| `enabled`   | boolean                                                              | false    |              |             |
-| `openai`    | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              |             |
+| Name                     | Type                                                                 | Required | Restrictions | Description |
+|--------------------------|----------------------------------------------------------------------|----------|--------------|-------------|
+| `anthropic`              | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig) | false    |              |             |
+| `bedrock`                | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)     | false    |              |             |
+| `enabled`                | boolean                                                              | false    |              |             |
+| `inject_coder_mcp_tools` | boolean                                                              | false    |              |             |
+| `openai`                 | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              |             |
 
 ## codersdk.AIBridgeInterception
 
@@ -695,6 +697,7 @@
       "small_fast_model": "string"
     },
     "enabled": true,
+    "inject_coder_mcp_tools": true,
     "openai": {
       "base_url": "string",
       "key": "string"
@@ -2851,6 +2854,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "small_fast_model": "string"
         },
         "enabled": true,
+        "inject_coder_mcp_tools": true,
         "openai": {
           "base_url": "string",
           "key": "string"
@@ -3365,6 +3369,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "small_fast_model": "string"
       },
       "enabled": true,
+      "inject_coder_mcp_tools": true,
       "openai": {
         "base_url": "string",
         "key": "string"
