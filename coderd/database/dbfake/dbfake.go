@@ -622,6 +622,7 @@ func (t TemplateVersionBuilder) Do() TemplateVersionResponse {
 	}
 
 	payload, err := json.Marshal(provisionerdserver.TemplateVersionImportJob{
+		TemplateID:        t.seed.TemplateID,
 		TemplateVersionID: t.seed.ID,
 	})
 	require.NoError(t.t, err)
