@@ -33,6 +33,10 @@ type Config struct {
 	// before unpausing prebuilds.
 	SetupBarrier *sync.WaitGroup `json:"-"`
 
+	// CreationBarrier is used to ensure all prebuild creation has completed
+	// before pausing prebuilds for deletion.
+	CreationBarrier *sync.WaitGroup `json:"-"`
+
 	// DeletionBarrier is used to ensure all templates have been updated
 	// with 0 prebuilds before resuming prebuilds.
 	DeletionBarrier *sync.WaitGroup `json:"-"`
@@ -51,6 +55,10 @@ func (c Config) Validate() error {
 
 	if c.SetupBarrier == nil {
 		return xerrors.New("setup barrier must be set")
+	}
+
+	if c.CreationBarrier == nil {
+		return xerrors.New("creation barrier must be set")
 	}
 
 	if c.DeletionBarrier == nil {

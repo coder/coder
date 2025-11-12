@@ -7,16 +7,11 @@ terraform {
   }
 }
 
-locals {
-  num_presets = {{.NumPresets}}
-}
-
 resource "null_resource" "workspace" {}
 
-
 data "coder_workspace_preset" "presets" {
-  count = local.num_presets
-  name     = "preset-${count.index + 1}"
+  count = {{.NumPresets}}
+  name  = "preset-${count.index + 1}"
   prebuilds {
     instances = {{.NumPresetPrebuilds}}
   }

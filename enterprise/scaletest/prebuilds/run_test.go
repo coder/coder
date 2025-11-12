@@ -49,6 +49,8 @@ func TestRun(t *testing.T) {
 
 	setupBarrier := new(sync.WaitGroup)
 	setupBarrier.Add(numTemplates)
+	creationBarrier := new(sync.WaitGroup)
+	creationBarrier.Add(numTemplates)
 	deletionBarrier := new(sync.WaitGroup)
 	deletionBarrier.Add(numTemplates)
 
@@ -66,6 +68,7 @@ func TestRun(t *testing.T) {
 			PrebuildWorkspaceTimeout:  testutil.WaitSuperLong * 2,
 			Metrics:                   metrics,
 			SetupBarrier:              setupBarrier,
+			CreationBarrier:           creationBarrier,
 			DeletionBarrier:           deletionBarrier,
 			Clock:                     quartz.NewReal(),
 		}
@@ -88,8 +91,8 @@ func TestRun(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = eg.Wait()
-	require.NoError(t, err)
+	// Wait for all runners to reach the creation barrier (prebuilds created)
+	creationBarrier.Wait()
 
 	//nolint:gocritic // Owner user is fine here as we want to view all workspaces
 	workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
@@ -97,19 +100,11 @@ func TestRun(t *testing.T) {
 	expectedWorkspaces := numTemplates * numPresets * numPresetPrebuilds
 	require.Equal(t, workspaces.Count, expectedWorkspaces)
 
-	// Now run Cleanup which measures deletion
-	// First pause prebuilds again
+	// Pause prebuilds before deletion setup
 	err = client.PutPrebuildsSettings(ctx, codersdk.PrebuildsSettings{
 		ReconciliationPaused: true,
 	})
 	require.NoError(t, err)
-
-	cleanupEg, cleanupCtx := errgroup.WithContext(ctx)
-	for i, runner := range runners {
-		cleanupEg.Go(func() error {
-			return runner.Cleanup(cleanupCtx, strconv.Itoa(i), io.Discard)
-		})
-	}
 
 	// Wait for all runners to reach the deletion barrier (template versions updated to 0 prebuilds)
 	deletionBarrier.Wait()
@@ -120,45 +115,21 @@ func TestRun(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = cleanupEg.Wait()
+	err = eg.Wait()
 	require.NoError(t, err)
 
-	// Verify all prebuild workspaces were deleted
+	//nolint:gocritic // Owner user is fine here as we want to view all workspaces
 	workspaces, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err)
 	require.Equal(t, workspaces.Count, 0)
 
-	for _, runner := range runners {
-		metrics := runner.GetMetrics()
-
-		require.Contains(t, metrics, prebuilds.PrebuildsTotalLatencyMetric)
-		require.Contains(t, metrics, prebuilds.PrebuildJobCreationLatencyMetric)
-		require.Contains(t, metrics, prebuilds.PrebuildJobAcquiredLatencyMetric)
-
-		creationLatency, ok := metrics[prebuilds.PrebuildsTotalLatencyMetric].(int64)
-		require.True(t, ok)
-		jobCreationLatency, ok := metrics[prebuilds.PrebuildJobCreationLatencyMetric].(int64)
-		require.True(t, ok)
-		jobAcquiredLatency, ok := metrics[prebuilds.PrebuildJobAcquiredLatencyMetric].(int64)
-		require.True(t, ok)
-
-		require.Greater(t, creationLatency, int64(0))
-		require.Greater(t, jobCreationLatency, int64(0))
-		require.Greater(t, jobAcquiredLatency, int64(0))
-
-		require.Contains(t, metrics, prebuilds.PrebuildDeletionTotalLatencyMetric)
-		require.Contains(t, metrics, prebuilds.PrebuildDeletionJobCreationLatencyMetric)
-		require.Contains(t, metrics, prebuilds.PrebuildDeletionJobAcquiredLatencyMetric)
-
-		deletionLatency, ok := metrics[prebuilds.PrebuildDeletionTotalLatencyMetric].(int64)
-		require.True(t, ok)
-		deletionJobCreationLatency, ok := metrics[prebuilds.PrebuildDeletionJobCreationLatencyMetric].(int64)
-		require.True(t, ok)
-		deletionJobAcquiredLatency, ok := metrics[prebuilds.PrebuildDeletionJobAcquiredLatencyMetric].(int64)
-		require.True(t, ok)
-
-		require.Greater(t, deletionLatency, int64(0))
-		require.Greater(t, deletionJobCreationLatency, int64(0))
-		require.Greater(t, deletionJobAcquiredLatency, int64(0))
+	cleanupEg, cleanupCtx := errgroup.WithContext(ctx)
+	for i, runner := range runners {
+		cleanupEg.Go(func() error {
+			return runner.Cleanup(cleanupCtx, strconv.Itoa(i), io.Discard)
+		})
 	}
+
+	err = cleanupEg.Wait()
+	require.NoError(t, err)
 }

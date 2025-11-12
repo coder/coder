@@ -1,60 +1,72 @@
 package prebuilds
 
 import (
-	"time"
-
 	"github.com/prometheus/client_golang/prometheus"
 )
 
 type Metrics struct {
-	PrebuildJobCreationLatencySeconds prometheus.HistogramVec
-	PrebuildJobAcquiredLatencySeconds prometheus.HistogramVec
-	PrebuildTotalLatencySeconds       prometheus.HistogramVec
+	PrebuildJobsCreated   prometheus.GaugeVec
+	PrebuildJobsRunning   prometheus.GaugeVec
+	PrebuildJobsFailed    prometheus.GaugeVec
+	PrebuildJobsCompleted prometheus.GaugeVec
 
-	PrebuildDeletionJobCreationLatencySeconds prometheus.HistogramVec
-	PrebuildDeletionJobAcquiredLatencySeconds prometheus.HistogramVec
-	PrebuildDeletionTotalLatencySeconds       prometheus.HistogramVec
+	PrebuildDeletionJobsCreated   prometheus.GaugeVec
+	PrebuildDeletionJobsRunning   prometheus.GaugeVec
+	PrebuildDeletionJobsFailed    prometheus.GaugeVec
+	PrebuildDeletionJobsCompleted prometheus.GaugeVec
 
 	PrebuildErrorsTotal prometheus.CounterVec
 }
 
 func NewMetrics(reg prometheus.Registerer) *Metrics {
 	m := &Metrics{
-		PrebuildJobCreationLatencySeconds: *prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		PrebuildJobsCreated: *prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: "coderd",
 			Subsystem: "scaletest",
-			Name:      "prebuild_job_creation_latency_seconds",
-			Help:      "Time from when prebuilds are unpaused to when all the template build jobs have been created.",
+			Name:      "prebuild_jobs_created",
+			Help:      "Number of prebuild jobs that have been created.",
 		}, []string{"template_name"}),
-		PrebuildJobAcquiredLatencySeconds: *prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		PrebuildJobsRunning: *prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: "coderd",
 			Subsystem: "scaletest",
-			Name:      "prebuild_job_acquired_latency_seconds",
-			Help:      "Time from when prebuilds are unpaused to when all the prebuild jobs have been acquired by a provisioner daemon.",
+			Name:      "prebuild_jobs_running",
+			Help:      "Number of prebuild jobs that are currently running.",
 		}, []string{"template_name"}),
-		PrebuildTotalLatencySeconds: *prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		PrebuildJobsFailed: *prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: "coderd",
 			Subsystem: "scaletest",
-			Name:      "prebuild_total_latency_seconds",
-			Help:      "Time from when prebuilds are unpaused to when all the prebuild builds have finished.",
+			Name:      "prebuild_jobs_failed",
+			Help:      "Number of prebuild jobs that have failed.",
 		}, []string{"template_name"}),
-		PrebuildDeletionJobCreationLatencySeconds: *prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		PrebuildJobsCompleted: *prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: "coderd",
 			Subsystem: "scaletest",
-			Name:      "prebuild_deletion_job_creation_latency_seconds",
-			Help:      "Time from when prebuilds are resumed for deletion to when all the deletion jobs have been created.",
+			Name:      "prebuild_jobs_completed",
+			Help:      "Number of prebuild jobs that have completed successfully.",
 		}, []string{"template_name"}),
-		PrebuildDeletionJobAcquiredLatencySeconds: *prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		PrebuildDeletionJobsCreated: *prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: "coderd",
 			Subsystem: "scaletest",
-			Name:      "prebuild_deletion_job_acquired_latency_seconds",
-			Help:      "Time from when prebuilds are resumed for deletion to when all the deletion jobs have been acquired by a provisioner daemon.",
+			Name:      "prebuild_deletion_jobs_created",
+			Help:      "Number of prebuild deletion jobs that have been created.",
 		}, []string{"template_name"}),
-		PrebuildDeletionTotalLatencySeconds: *prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		PrebuildDeletionJobsRunning: *prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: "coderd",
 			Subsystem: "scaletest",
-			Name:      "prebuild_deletion_total_latency_seconds",
-			Help:      "Time from when prebuilds are resumed for deletion to when all the prebuild workspaces have been deleted.",
+			Name:      "prebuild_deletion_jobs_running",
+			Help:      "Number of prebuild deletion jobs that are currently running.",
+		}, []string{"template_name"}),
+		PrebuildDeletionJobsFailed: *prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: "coderd",
+			Subsystem: "scaletest",
+			Name:      "prebuild_deletion_jobs_failed",
+			Help:      "Number of prebuild deletion jobs that have failed.",
+		}, []string{"template_name"}),
+		PrebuildDeletionJobsCompleted: *prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: "coderd",
+			Subsystem: "scaletest",
+			Name:      "prebuild_deletion_jobs_completed",
+			Help:      "Number of prebuild deletion jobs that have completed successfully.",
 		}, []string{"template_name"}),
 		PrebuildErrorsTotal: *prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "coderd",
@@ -64,38 +76,48 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 		}, []string{"template_name", "action"}),
 	}
 
-	reg.MustRegister(m.PrebuildTotalLatencySeconds)
-	reg.MustRegister(m.PrebuildJobCreationLatencySeconds)
-	reg.MustRegister(m.PrebuildJobAcquiredLatencySeconds)
-	reg.MustRegister(m.PrebuildDeletionTotalLatencySeconds)
-	reg.MustRegister(m.PrebuildDeletionJobCreationLatencySeconds)
-	reg.MustRegister(m.PrebuildDeletionJobAcquiredLatencySeconds)
+	reg.MustRegister(m.PrebuildJobsCreated)
+	reg.MustRegister(m.PrebuildJobsRunning)
+	reg.MustRegister(m.PrebuildJobsFailed)
+	reg.MustRegister(m.PrebuildJobsCompleted)
+	reg.MustRegister(m.PrebuildDeletionJobsCreated)
+	reg.MustRegister(m.PrebuildDeletionJobsRunning)
+	reg.MustRegister(m.PrebuildDeletionJobsFailed)
+	reg.MustRegister(m.PrebuildDeletionJobsCompleted)
 	reg.MustRegister(m.PrebuildErrorsTotal)
 	return m
 }
 
-func (m *Metrics) RecordCompletion(elapsed time.Duration, templateName string) {
-	m.PrebuildTotalLatencySeconds.WithLabelValues(templateName).Observe(elapsed.Seconds())
+func (m *Metrics) SetJobsCreated(count int, templateName string) {
+	m.PrebuildJobsCreated.WithLabelValues(templateName).Set(float64(count))
 }
 
-func (m *Metrics) RecordJobCreation(elapsed time.Duration, templateName string) {
-	m.PrebuildJobCreationLatencySeconds.WithLabelValues(templateName).Observe(elapsed.Seconds())
+func (m *Metrics) SetJobsRunning(count int, templateName string) {
+	m.PrebuildJobsRunning.WithLabelValues(templateName).Set(float64(count))
 }
 
-func (m *Metrics) RecordJobAcquired(elapsed time.Duration, templateName string) {
-	m.PrebuildJobAcquiredLatencySeconds.WithLabelValues(templateName).Observe(elapsed.Seconds())
+func (m *Metrics) SetJobsFailed(count int, templateName string) {
+	m.PrebuildJobsFailed.WithLabelValues(templateName).Set(float64(count))
 }
 
-func (m *Metrics) RecordDeletionCompletion(elapsed time.Duration, templateName string) {
-	m.PrebuildDeletionTotalLatencySeconds.WithLabelValues(templateName).Observe(elapsed.Seconds())
+func (m *Metrics) SetJobsCompleted(count int, templateName string) {
+	m.PrebuildJobsCompleted.WithLabelValues(templateName).Set(float64(count))
 }
 
-func (m *Metrics) RecordDeletionJobCreation(elapsed time.Duration, templateName string) {
-	m.PrebuildDeletionJobCreationLatencySeconds.WithLabelValues(templateName).Observe(elapsed.Seconds())
+func (m *Metrics) SetDeletionJobsCreated(count int, templateName string) {
+	m.PrebuildDeletionJobsCreated.WithLabelValues(templateName).Set(float64(count))
 }
 
-func (m *Metrics) RecordDeletionJobAcquired(elapsed time.Duration, templateName string) {
-	m.PrebuildDeletionJobAcquiredLatencySeconds.WithLabelValues(templateName).Observe(elapsed.Seconds())
+func (m *Metrics) SetDeletionJobsRunning(count int, templateName string) {
+	m.PrebuildDeletionJobsRunning.WithLabelValues(templateName).Set(float64(count))
+}
+
+func (m *Metrics) SetDeletionJobsFailed(count int, templateName string) {
+	m.PrebuildDeletionJobsFailed.WithLabelValues(templateName).Set(float64(count))
+}
+
+func (m *Metrics) SetDeletionJobsCompleted(count int, templateName string) {
+	m.PrebuildDeletionJobsCompleted.WithLabelValues(templateName).Set(float64(count))
 }
 
 func (m *Metrics) AddError(templateName string, action string) {

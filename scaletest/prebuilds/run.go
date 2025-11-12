@@ -6,7 +6,6 @@ import (
 	_ "embed"
 	"html/template"
 	"io"
-	"strings"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -26,20 +25,11 @@ type Runner struct {
 	cfg    Config
 
 	template codersdk.Template
-
-	prebuildTotalLatency       time.Duration
-	prebuildJobCreationLatency time.Duration
-	prebuildJobAcquiredLatency time.Duration
-
-	prebuildDeletionTotalLatency       time.Duration
-	prebuildDeletionJobCreationLatency time.Duration
-	prebuildDeletionJobAcquiredLatency time.Duration
 }
 
 var (
-	_ harness.Runnable    = &Runner{}
-	_ harness.Cleanable   = &Runner{}
-	_ harness.Collectable = &Runner{}
+	_ harness.Runnable  = &Runner{}
+	_ harness.Cleanable = &Runner{}
 )
 
 func NewRunner(client *codersdk.Client, cfg Config) *Runner {
@@ -53,10 +43,18 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	reachedBarrier := false
+	reachedSetupBarrier := false
+	reachedCreationBarrier := false
+	reachedDeletionBarrier := false
 	defer func() {
-		if !reachedBarrier {
+		if !reachedSetupBarrier {
 			r.cfg.SetupBarrier.Done()
+		}
+		if !reachedCreationBarrier {
+			r.cfg.CreationBarrier.Done()
+		}
+		if !reachedDeletionBarrier {
+			r.cfg.DeletionBarrier.Done()
 		}
 	}()
 
@@ -87,13 +85,47 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 
 	r.template = templ
 
-	logger.Info(ctx, "waiting for all runners to reach barrier")
-	reachedBarrier = true
+	logger.Info(ctx, "waiting for all runners to reach setup barrier")
+	reachedSetupBarrier = true
 	r.cfg.SetupBarrier.Done()
 	r.cfg.SetupBarrier.Wait()
-	logger.Info(ctx, "all runners reached barrier, proceeding with prebuilds test")
+	logger.Info(ctx, "all runners reached setup barrier, proceeding with prebuild creation test")
 
 	err = r.measureCreation(ctx, logger)
+	if err != nil {
+		return err
+	}
+
+	logger.Info(ctx, "waiting for all runners to reach creation barrier")
+	reachedCreationBarrier = true
+	r.cfg.CreationBarrier.Done()
+	r.cfg.CreationBarrier.Wait()
+	logger.Info(ctx, "all runners reached creation barrier, preparing for deletion")
+
+	// Now prepare for deletion by creating an empty template version
+	// At this point, prebuilds should be paused by the caller
+	logger.Info(ctx, "creating empty template version for deletion")
+	emptyVersion, err := r.createTemplateVersion(ctx, r.template.ID, 0, 0)
+	if err != nil {
+		r.cfg.Metrics.AddError(r.template.Name, "create_empty_template_version")
+		return xerrors.Errorf("create empty template version for deletion: %w", err)
+	}
+
+	err = r.client.UpdateActiveTemplateVersion(ctx, r.template.ID, codersdk.UpdateActiveTemplateVersion{
+		ID: emptyVersion.ID,
+	})
+	if err != nil {
+		r.cfg.Metrics.AddError(r.template.Name, "update_active_template_version")
+		return xerrors.Errorf("update active template version to empty for deletion: %w", err)
+	}
+
+	logger.Info(ctx, "waiting for all runners to reach deletion barrier")
+	reachedDeletionBarrier = true
+	r.cfg.DeletionBarrier.Done()
+	r.cfg.DeletionBarrier.Wait()
+	logger.Info(ctx, "all runners reached deletion barrier, proceeding with prebuild deletion test")
+
+	err = r.measureDeletion(ctx, logger)
 	if err != nil {
 		return err
 	}
@@ -118,35 +150,29 @@ func (r *Runner) measureCreation(ctx context.Context, logger slog.Logger) error 
 			return xerrors.Errorf("list workspaces: %w", err)
 		}
 
-		acquiredCount := 0
+		createdCount := len(workspaces.Workspaces)
+		runningCount := 0
+		failedCount := 0
 		succeededCount := 0
 
 		for _, ws := range workspaces.Workspaces {
-			if ws.LatestBuild.Job.Status == codersdk.ProvisionerJobRunning ||
-				ws.LatestBuild.Job.Status == codersdk.ProvisionerJobSucceeded {
-				acquiredCount++
-			}
-			if ws.LatestBuild.Job.Status == codersdk.ProvisionerJobSucceeded {
+			switch ws.LatestBuild.Job.Status {
+			case codersdk.ProvisionerJobRunning:
+				runningCount++
+			case codersdk.ProvisionerJobFailed, codersdk.ProvisionerJobCanceled:
+				failedCount++
+			case codersdk.ProvisionerJobSucceeded:
 				succeededCount++
 			}
 		}
 
-		if r.prebuildJobCreationLatency == 0 && len(workspaces.Workspaces) >= targetNumWorkspaces {
-			// All jobs created
-			r.prebuildJobCreationLatency = time.Since(testStartTime)
-			r.cfg.Metrics.RecordJobCreation(r.prebuildJobCreationLatency, r.template.Name)
-		}
-
-		if r.prebuildJobAcquiredLatency == 0 && acquiredCount >= targetNumWorkspaces {
-			// All jobs acquired
-			r.prebuildJobAcquiredLatency = time.Since(testStartTime)
-			r.cfg.Metrics.RecordJobAcquired(r.prebuildJobAcquiredLatency, r.template.Name)
-		}
+		r.cfg.Metrics.SetJobsCreated(createdCount, r.template.Name)
+		r.cfg.Metrics.SetJobsRunning(runningCount, r.template.Name)
+		r.cfg.Metrics.SetJobsFailed(failedCount, r.template.Name)
+		r.cfg.Metrics.SetJobsCompleted(succeededCount, r.template.Name)
 
 		if succeededCount >= targetNumWorkspaces {
 			// All jobs succeeded
-			r.prebuildTotalLatency = time.Since(testStartTime)
-			r.cfg.Metrics.RecordCompletion(r.prebuildTotalLatency, r.template.Name)
 			return errTickerDone
 		}
 
@@ -179,31 +205,30 @@ func (r *Runner) measureDeletion(ctx context.Context, logger slog.Logger) error 
 			return xerrors.Errorf("list workspaces: %w", err)
 		}
 
-		currentCount := len(workspaces.Workspaces)
-		deletingCount := 0
+		createdCount := 0
+		runningCount := 0
+		failedCount := 0
 
 		for _, ws := range workspaces.Workspaces {
 			if ws.LatestBuild.Transition == codersdk.WorkspaceTransitionDelete {
-				if ws.LatestBuild.Job.Status == codersdk.ProvisionerJobRunning ||
-					ws.LatestBuild.Job.Status == codersdk.ProvisionerJobSucceeded {
-					deletingCount++
+				createdCount++
+				switch ws.LatestBuild.Job.Status {
+				case codersdk.ProvisionerJobRunning, codersdk.ProvisionerJobSucceeded:
+					runningCount++
+				case codersdk.ProvisionerJobFailed, codersdk.ProvisionerJobCanceled:
+					failedCount++
 				}
 			}
 		}
 
-		if r.prebuildDeletionJobCreationLatency == 0 && (currentCount < targetNumWorkspaces || deletingCount > 0) {
-			r.prebuildDeletionJobCreationLatency = time.Since(deletionStartTime)
-			r.cfg.Metrics.RecordDeletionJobCreation(r.prebuildDeletionJobCreationLatency, r.template.Name)
-		}
+		completedCount := targetNumWorkspaces - len(workspaces.Workspaces)
 
-		if r.prebuildDeletionJobAcquiredLatency == 0 && deletingCount > 0 {
-			r.prebuildDeletionJobAcquiredLatency = time.Since(deletionStartTime)
-			r.cfg.Metrics.RecordDeletionJobAcquired(r.prebuildDeletionJobAcquiredLatency, r.template.Name)
-		}
+		r.cfg.Metrics.SetDeletionJobsCreated(createdCount, r.template.Name)
+		r.cfg.Metrics.SetDeletionJobsRunning(runningCount, r.template.Name)
+		r.cfg.Metrics.SetDeletionJobsFailed(failedCount, r.template.Name)
+		r.cfg.Metrics.SetDeletionJobsCompleted(completedCount, r.template.Name)
 
-		if currentCount == 0 {
-			r.prebuildDeletionTotalLatency = time.Since(deletionStartTime)
-			r.cfg.Metrics.RecordDeletionCompletion(r.prebuildDeletionTotalLatency, r.template.Name)
+		if len(workspaces.Workspaces) == 0 {
 			return errTickerDone
 		}
 
@@ -275,67 +300,15 @@ func (r *Runner) Cleanup(ctx context.Context, _ string, logs io.Writer) error {
 	logs = loadtestutil.NewSyncWriter(logs)
 	logger := slog.Make(sloghuman.Sink(logs)).Leveled(slog.LevelDebug)
 
-	reachedDeletionBarrier := false
-	defer func() {
-		if !reachedDeletionBarrier {
-			r.cfg.DeletionBarrier.Done()
-		}
-	}()
-
-	version, err := r.createTemplateVersion(ctx, r.template.ID, 0, 0)
-	if err != nil {
-		r.cfg.Metrics.AddError(r.template.Name, "create_empty_template_version")
-		return xerrors.Errorf("create empty template version for deletion: %w", err)
-	}
-
-	err = r.client.UpdateActiveTemplateVersion(context.Background(), r.template.ID, codersdk.UpdateActiveTemplateVersion{
-		ID: version.ID,
-	})
-	if err != nil {
-		r.cfg.Metrics.AddError(r.template.Name, "update_active_template_version")
-		return xerrors.Errorf("update active template version to empty for deletion: %w", err)
-	}
-
-	logger.Info(ctx, "waiting for all runners to reach deletion barrier")
-	reachedDeletionBarrier = true
-	r.cfg.DeletionBarrier.Done()
-	r.cfg.DeletionBarrier.Wait()
-	logger.Info(ctx, "all runners reached deletion barrier, proceeding with prebuild deletion")
-
-	err = r.measureDeletion(ctx, logger)
-	if err != nil {
-		return err
-	}
-
 	logger.Info(ctx, "deleting template", slog.F("template_name", r.template.Name))
 
-	err = r.client.DeleteTemplate(ctx, r.template.ID)
+	err := r.client.DeleteTemplate(ctx, r.template.ID)
 	if err != nil {
 		return xerrors.Errorf("delete template: %w", err)
 	}
 
 	logger.Info(ctx, "template deleted successfully", slog.F("template_name", r.template.Name))
 	return nil
-}
-
-const (
-	PrebuildsTotalLatencyMetric              = "prebuild_total_latency_ms"
-	PrebuildJobCreationLatencyMetric         = "prebuild_job_creation_latency_ms"
-	PrebuildJobAcquiredLatencyMetric         = "prebuild_job_acquired_latency_ms"
-	PrebuildDeletionTotalLatencyMetric       = "prebuild_deletion_total_latency_ms"
-	PrebuildDeletionJobCreationLatencyMetric = "prebuild_deletion_job_creation_latency_ms"
-	PrebuildDeletionJobAcquiredLatencyMetric = "prebuild_deletion_job_acquired_latency_ms"
-)
-
-func (r *Runner) GetMetrics() map[string]any {
-	return map[string]any{
-		PrebuildsTotalLatencyMetric:              r.prebuildTotalLatency.Milliseconds(),
-		PrebuildJobCreationLatencyMetric:         r.prebuildJobCreationLatency.Milliseconds(),
-		PrebuildJobAcquiredLatencyMetric:         r.prebuildJobAcquiredLatency.Milliseconds(),
-		PrebuildDeletionTotalLatencyMetric:       r.prebuildDeletionTotalLatency.Milliseconds(),
-		PrebuildDeletionJobCreationLatencyMetric: r.prebuildDeletionJobCreationLatency.Milliseconds(),
-		PrebuildDeletionJobAcquiredLatencyMetric: r.prebuildDeletionJobAcquiredLatency.Milliseconds(),
-	}
 }
 
 //go:embed tf/main.tf.tpl
@@ -346,7 +319,7 @@ func TemplateTarData(numPresets, numPresetPrebuilds int) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	var result strings.Builder
+	result := bytes.Buffer{}
 	err = tmpl.Execute(&result, map[string]int{
 		"NumPresets":         numPresets,
 		"NumPresetPrebuilds": numPresetPrebuilds,
@@ -355,7 +328,7 @@ func TemplateTarData(numPresets, numPresetPrebuilds int) ([]byte, error) {
 		return nil, err
 	}
 	files := map[string][]byte{
-		"main.tf": []byte(result.String()),
+		"main.tf": result.Bytes(),
 	}
 	tarBytes, err := loadtestutil.CreateTarFromFiles(files)
 	if err != nil {
