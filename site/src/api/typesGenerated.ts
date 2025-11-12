@@ -5358,6 +5358,16 @@ export interface UpdateRoles {
 	readonly roles: readonly string[];
 }
 
+// From codersdk/aitasks.go
+/**
+ * UpdateTaskPromptRequest is used to update a task's prompt.
+ *
+ * Experimental: This type is experimental and may change in the future.
+ */
+export interface UpdateTaskPromptRequest {
+	readonly prompt: string;
+}
+
 // From codersdk/templates.go
 export interface UpdateTemplateACL {
 	/**

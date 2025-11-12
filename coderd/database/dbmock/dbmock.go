@@ -6725,6 +6725,21 @@ func (mr *MockStoreMockRecorder) UpdateTailnetPeerStatusByCoordinator(ctx, arg a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTailnetPeerStatusByCoordinator", reflect.TypeOf((*MockStore)(nil).UpdateTailnetPeerStatusByCoordinator), ctx, arg)
 }
 
+// UpdateTaskPrompt mocks base method.
+func (m *MockStore) UpdateTaskPrompt(ctx context.Context, arg database.UpdateTaskPromptParams) (database.TaskTable, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateTaskPrompt", ctx, arg)
+	ret0, _ := ret[0].(database.TaskTable)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateTaskPrompt indicates an expected call of UpdateTaskPrompt.
+func (mr *MockStoreMockRecorder) UpdateTaskPrompt(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTaskPrompt", reflect.TypeOf((*MockStore)(nil).UpdateTaskPrompt), ctx, arg)
+}
+
 // UpdateTaskWorkspaceID mocks base method.
 func (m *MockStore) UpdateTaskWorkspaceID(ctx context.Context, arg database.UpdateTaskWorkspaceIDParams) (database.TaskTable, error) {
 	m.ctrl.T.Helper()

@@ -352,6 +352,28 @@ func (c *ExperimentalClient) TaskSend(ctx context.Context, user string, id uuid.
 	return nil
 }
 
+// UpdateTaskPromptRequest is used to update a task's prompt.
+//
+// Experimental: This type is experimental and may change in the future.
+type UpdateTaskPromptRequest struct {
+	Prompt string `json:"prompt"`
+}
+
+// UpdateTaskPrompt updates the task's prompt.
+//
+// Experimental: This method is experimental and may change in the future.
+func (c *ExperimentalClient) UpdateTaskPrompt(ctx context.Context, user string, id uuid.UUID, req UpdateTaskPromptRequest) error {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/tasks/%s/%s/prompt", user, id.String()), req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
 // TaskLogType indicates the source of a task log entry.
 //
 // Experimental: This type is experimental and may change in the future.

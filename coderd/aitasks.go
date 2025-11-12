@@ -585,6 +585,65 @@ func (api *API) taskDelete(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusAccepted)
 }
 
+// @Summary Update AI task prompt
+// @Description: EXPERIMENTAL: this endpoint is experimental and not guaranteed to be stable.
+// @ID update-task-prompt
+// @Security CoderSessionToken
+// @Tags Experimental
+// @Param user path string true "Username, user ID, or 'me' for the authenticated user"
+// @Param task path string true "Task ID" format(uuid)
+// @Param request body codersdk.UpdateTaskPromptRequest true "Update task prompt request"
+// @Success 204
+// @Router /api/experimental/tasks/{user}/{task}/prompt [patch]
+//
+// EXPERIMENTAL: This endpoint is experimental and not guaranteed to be stable.
+// taskUpdatePrompt allows modifying a task's prompt before the agent executes it.
+func (api *API) taskUpdatePrompt(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx              = r.Context()
+		task             = httpmw.TaskParam(r)
+		auditor          = api.Auditor.Load()
+		taskResourceInfo = audit.AdditionalFields{}
+	)
+
+	aReq, commitAudit := audit.InitRequest[database.TaskTable](rw, &audit.RequestParams{
+		Audit:            *auditor,
+		Log:              api.Logger,
+		Request:          r,
+		Action:           database.AuditActionWrite,
+		AdditionalFields: taskResourceInfo,
+	})
+	defer commitAudit()
+	aReq.Old = task.TaskTable()
+
+	var req codersdk.UpdateTaskPromptRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	if req.Prompt == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Prompt is required.",
+		})
+		return
+	}
+
+	updatedTask, err := api.Database.UpdateTaskPrompt(ctx, database.UpdateTaskPromptParams{
+		ID:     task.ID,
+		Prompt: req.Prompt,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to update task prompt.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	aReq.New = updatedTask
+
+	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
+}
+
 // @Summary Send input to AI task
 // @Description: EXPERIMENTAL: this endpoint is experimental and not guaranteed to be stable.
 // @ID send-task-input
