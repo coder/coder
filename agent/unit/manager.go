@@ -181,12 +181,13 @@ func (dt *Manager[StatusType, UnitID]) GetUnmetDependencies(unit UnitID) ([]Depe
 		currentStatus, exists := dt.unitStatus[dependsOnUnit]
 		if !exists {
 			// If the dependency unit has no status, it's not satisfied
-			var zeroStatus StatusType
+			// Zero value represents StatusPending
+			var pendingStatus StatusType
 			unmetDependencies = append(unmetDependencies, Dependency[StatusType, UnitID]{
 				Unit:           unit,
 				DependsOn:      dependsOnUnit,
 				RequiredStatus: requiredStatus,
-				CurrentStatus:  zeroStatus, // Zero value
+				CurrentStatus:  pendingStatus, // StatusPending (zero value)
 				IsSatisfied:    false,
 			})
 		} else {
@@ -245,14 +246,16 @@ func (dt *Manager[StatusType, UnitID]) GetStatus(unit UnitID) (StatusType, error
 	defer dt.mu.RUnlock()
 
 	if !dt.registeredUnits[unit] {
-		var zeroStatus StatusType
-		return zeroStatus, ErrUnitNotFound
+		// Zero value represents StatusPending
+		var pendingStatus StatusType
+		return pendingStatus, ErrUnitNotFound
 	}
 
 	status, exists := dt.unitStatus[unit]
 	if !exists {
-		var zeroStatus StatusType
-		return zeroStatus, nil
+		// Zero value represents StatusPending
+		var pendingStatus StatusType
+		return pendingStatus, nil
 	}
 
 	return status, nil
@@ -278,12 +281,13 @@ func (dt *Manager[StatusType, UnitID]) GetAllDependencies(unit UnitID) ([]Depend
 		currentStatus, exists := dt.unitStatus[dependsOnUnit]
 		if !exists {
 			// If the dependency unit has no status, it's not satisfied
-			var zeroStatus StatusType
+			// Zero value represents StatusPending
+			var pendingStatus StatusType
 			allDependencies = append(allDependencies, Dependency[StatusType, UnitID]{
 				Unit:           unit,
 				DependsOn:      dependsOnUnit,
 				RequiredStatus: requiredStatus,
-				CurrentStatus:  zeroStatus, // Zero value
+				CurrentStatus:  pendingStatus, // StatusPending (zero value)
 				IsSatisfied:    false,
 			})
 		} else {

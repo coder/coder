@@ -11,14 +11,6 @@ import (
 	"github.com/coder/coder/v2/agent/unit"
 )
 
-type testStatus string
-
-const (
-	statusStarted   testStatus = "started"
-	statusRunning   testStatus = "running"
-	statusCompleted testStatus = "completed"
-)
-
 type testUnitID string
 
 const (
@@ -31,7 +23,7 @@ const (
 func TestDependencyTracker_Register(t *testing.T) {
 	t.Parallel()
 
-	tracker := unit.NewManager[testStatus, testUnitID]()
+	tracker := unit.NewManager[string, testUnitID]()
 
 	t.Run("RegisterNewUnit", func(t *testing.T) {
 		t.Parallel()
@@ -48,7 +40,7 @@ func TestDependencyTracker_Register(t *testing.T) {
 	t.Run("RegisterDuplicateUnit", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testUnitID]()
+		tracker := unit.NewManager[string, testUnitID]()
 		err := tracker.Register(unitA)
 		require.NoError(t, err)
 
@@ -60,7 +52,7 @@ func TestDependencyTracker_Register(t *testing.T) {
 	t.Run("RegisterMultipleUnits", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testUnitID]()
+		tracker := unit.NewManager[string, testUnitID]()
 
 		units := []testUnitID{unitA, unitB, unitC}
 		for _, unit := range units {
@@ -83,14 +75,14 @@ func TestDependencyTracker_AddDependency(t *testing.T) {
 	t.Run("AddDependencyBetweenRegisteredUnits", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testUnitID]()
+		tracker := unit.NewManager[string, testUnitID]()
 		err := tracker.Register(unitA)
 		require.NoError(t, err)
 		err = tracker.Register(unitB)
 		require.NoError(t, err)
 
-		// A depends on B being "running"
-		err = tracker.AddDependency(unitA, unitB, statusRunning)
+		// A depends on B being unit.StatusStarted
+		err = tracker.AddDependency(unitA, unitB, unit.StatusStarted)
 		require.NoError(t, err)
 
 		// A should no longer be ready (depends on B)
@@ -107,12 +99,12 @@ func TestDependencyTracker_AddDependency(t *testing.T) {
 	t.Run("AddDependencyWithUnregisteredUnit", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testUnitID]()
+		tracker := unit.NewManager[string, testUnitID]()
 		err := tracker.Register(unitA)
 		require.NoError(t, err)
 
 		// Try to add dependency to unregistered unit
-		err = tracker.AddDependency(unitA, unitB, statusRunning)
+		err = tracker.AddDependency(unitA, unitB, unit.StatusStarted)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not registered")
 	})
@@ -120,12 +112,12 @@ func TestDependencyTracker_AddDependency(t *testing.T) {
 	t.Run("AddDependencyFromUnregisteredUnit", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testUnitID]()
+		tracker := unit.NewManager[string, testUnitID]()
 		err := tracker.Register(unitB)
 		require.NoError(t, err)
 
 		// Try to add dependency from unregistered unit
-		err = tracker.AddDependency(unitA, unitB, statusRunning)
+		err = tracker.AddDependency(unitA, unitB, unit.StatusStarted)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not registered")
 	})
@@ -137,14 +129,14 @@ func TestDependencyTracker_UpdateStatus(t *testing.T) {
 	t.Run("UpdateStatusTriggersReadinessRecalculation", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testUnitID]()
+		tracker := unit.NewManager[string, testUnitID]()
 		err := tracker.Register(unitA)
 		require.NoError(t, err)
 		err = tracker.Register(unitB)
 		require.NoError(t, err)
 
-		// A depends on B being "running"
-		err = tracker.AddDependency(unitA, unitB, statusRunning)
+		// A depends on B being unit.StatusStarted
+		err = tracker.AddDependency(unitA, unitB, unit.StatusStarted)
 		require.NoError(t, err)
 
 		// Initially A is not ready
@@ -152,8 +144,8 @@ func TestDependencyTracker_UpdateStatus(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, ready)
 
-		// Update B to "running" - A should become ready
-		err = tracker.UpdateStatus(unitB, statusRunning)
+		// Update B to unit.StatusStarted - A should become ready
+		err = tracker.UpdateStatus(unitB, unit.StatusStarted)
 		require.NoError(t, err)
 
 		ready, err = tracker.IsReady(unitA)
@@ -164,9 +156,9 @@ func TestDependencyTracker_UpdateStatus(t *testing.T) {
 	t.Run("UpdateStatusWithUnregisteredUnit", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testUnitID]()
+		tracker := unit.NewManager[string, testUnitID]()
 
-		err := tracker.UpdateStatus(unitA, statusRunning)
+		err := tracker.UpdateStatus(unitA, unit.StatusStarted)
 		require.Error(t, err)
 		assert.Equal(t, unit.ErrUnitNotFound, err)
 	})
@@ -174,7 +166,7 @@ func TestDependencyTracker_UpdateStatus(t *testing.T) {
 	t.Run("LinearChainDependencies", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testUnitID]()
+		tracker := unit.NewManager[string, testUnitID]()
 
 		// Register all units
 		units := []testUnitID{unitA, unitB, unitC}
@@ -184,9 +176,9 @@ func TestDependencyTracker_UpdateStatus(t *testing.T) {
 		}
 
 		// Create chain: A depends on B being "started", B depends on C being "completed"
-		err := tracker.AddDependency(unitA, unitB, statusStarted)
+		err := tracker.AddDependency(unitA, unitB, unit.StatusStarted)
 		require.NoError(t, err)
-		err = tracker.AddDependency(unitB, unitC, statusCompleted)
+		err = tracker.AddDependency(unitB, unitC, unit.StatusComplete)
 		require.NoError(t, err)
 
 		// Initially only C is ready
@@ -203,7 +195,7 @@ func TestDependencyTracker_UpdateStatus(t *testing.T) {
 		assert.False(t, ready)
 
 		// Update C to "completed" - B should become ready
-		err = tracker.UpdateStatus(unitC, statusCompleted)
+		err = tracker.UpdateStatus(unitC, unit.StatusComplete)
 		require.NoError(t, err)
 
 		ready, err = tracker.IsReady(unitB)
@@ -215,7 +207,7 @@ func TestDependencyTracker_UpdateStatus(t *testing.T) {
 		assert.False(t, ready)
 
 		// Update B to "started" - A should become ready
-		err = tracker.UpdateStatus(unitB, statusStarted)
+		err = tracker.UpdateStatus(unitB, unit.StatusStarted)
 		require.NoError(t, err)
 
 		ready, err = tracker.IsReady(unitA)
@@ -230,7 +222,7 @@ func TestDependencyTracker_GetUnmetDependencies(t *testing.T) {
 	t.Run("GetUnmetDependenciesForUnitWithNoDependencies", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testUnitID]()
+		tracker := unit.NewManager[string, testUnitID]()
 		err := tracker.Register(unitA)
 		require.NoError(t, err)
 
@@ -242,14 +234,14 @@ func TestDependencyTracker_GetUnmetDependencies(t *testing.T) {
 	t.Run("GetUnmetDependenciesForUnitWithUnsatisfiedDependencies", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testUnitID]()
+		tracker := unit.NewManager[string, testUnitID]()
 		err := tracker.Register(unitA)
 		require.NoError(t, err)
 		err = tracker.Register(unitB)
 		require.NoError(t, err)
 
-		// A depends on B being "running"
-		err = tracker.AddDependency(unitA, unitB, statusRunning)
+		// A depends on B being unit.StatusStarted
+		err = tracker.AddDependency(unitA, unitB, unit.StatusStarted)
 		require.NoError(t, err)
 
 		unmet, err := tracker.GetUnmetDependencies(unitA)
@@ -258,25 +250,25 @@ func TestDependencyTracker_GetUnmetDependencies(t *testing.T) {
 
 		assert.Equal(t, unitA, unmet[0].Unit)
 		assert.Equal(t, unitB, unmet[0].DependsOn)
-		assert.Equal(t, statusRunning, unmet[0].RequiredStatus)
+		assert.Equal(t, unit.StatusStarted, unmet[0].RequiredStatus)
 		assert.False(t, unmet[0].IsSatisfied)
 	})
 
 	t.Run("GetUnmetDependenciesForUnitWithSatisfiedDependencies", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testUnitID]()
+		tracker := unit.NewManager[string, testUnitID]()
 		err := tracker.Register(unitA)
 		require.NoError(t, err)
 		err = tracker.Register(unitB)
 		require.NoError(t, err)
 
-		// A depends on B being "running"
-		err = tracker.AddDependency(unitA, unitB, statusRunning)
+		// A depends on B being unit.StatusStarted
+		err = tracker.AddDependency(unitA, unitB, unit.StatusStarted)
 		require.NoError(t, err)
 
-		// Update B to "running"
-		err = tracker.UpdateStatus(unitB, statusRunning)
+		// Update B to unit.StatusStarted
+		err = tracker.UpdateStatus(unitB, unit.StatusStarted)
 		require.NoError(t, err)
 
 		unmet, err := tracker.GetUnmetDependencies(unitA)
@@ -287,7 +279,7 @@ func TestDependencyTracker_GetUnmetDependencies(t *testing.T) {
 	t.Run("GetUnmetDependenciesForUnregisteredUnit", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testUnitID]()
+		tracker := unit.NewManager[string, testUnitID]()
 
 		unmet, err := tracker.GetUnmetDependencies(unitA)
 		require.Error(t, err)
@@ -302,7 +294,7 @@ func TestDependencyTracker_ConcurrentOperations(t *testing.T) {
 	t.Run("ConcurrentStatusUpdates", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testUnitID]()
+		tracker := unit.NewManager[string, testUnitID]()
 
 		// Register units
 		units := []testUnitID{unitA, unitB, unitC, unitD}
@@ -312,11 +304,11 @@ func TestDependencyTracker_ConcurrentOperations(t *testing.T) {
 		}
 
 		// Create dependencies: A depends on B, B depends on C, C depends on D
-		err := tracker.AddDependency(unitA, unitB, statusRunning)
+		err := tracker.AddDependency(unitA, unitB, unit.StatusStarted)
 		require.NoError(t, err)
-		err = tracker.AddDependency(unitB, unitC, statusStarted)
+		err = tracker.AddDependency(unitB, unitC, unit.StatusStarted)
 		require.NoError(t, err)
-		err = tracker.AddDependency(unitC, unitD, statusCompleted)
+		err = tracker.AddDependency(unitC, unitD, unit.StatusComplete)
 		require.NoError(t, err)
 
 		var wg sync.WaitGroup
@@ -330,21 +322,21 @@ func TestDependencyTracker_ConcurrentOperations(t *testing.T) {
 				defer wg.Done()
 
 				// Update D to completed (should make C ready)
-				err := tracker.UpdateStatus(unitD, statusCompleted)
+				err := tracker.UpdateStatus(unitD, unit.StatusComplete)
 				if err != nil {
 					goroutineErrors[goroutineID] = err
 					return
 				}
 
 				// Update C to started (should make B ready)
-				err = tracker.UpdateStatus(unitC, statusStarted)
+				err = tracker.UpdateStatus(unitC, unit.StatusStarted)
 				if err != nil {
 					goroutineErrors[goroutineID] = err
 					return
 				}
 
 				// Update B to running (should make A ready)
-				err = tracker.UpdateStatus(unitB, statusRunning)
+				err = tracker.UpdateStatus(unitB, unit.StatusStarted)
 				if err != nil {
 					goroutineErrors[goroutineID] = err
 					return
@@ -373,7 +365,7 @@ func TestDependencyTracker_ConcurrentOperations(t *testing.T) {
 	t.Run("ConcurrentReadinessChecks", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testUnitID]()
+		tracker := unit.NewManager[string, testUnitID]()
 
 		// Register units
 		err := tracker.Register(unitA)
@@ -381,8 +373,8 @@ func TestDependencyTracker_ConcurrentOperations(t *testing.T) {
 		err = tracker.Register(unitB)
 		require.NoError(t, err)
 
-		// A depends on B being "running"
-		err = tracker.AddDependency(unitA, unitB, statusRunning)
+		// A depends on B being unit.StatusStarted
+		err = tracker.AddDependency(unitA, unitB, unit.StatusStarted)
 		require.NoError(t, err)
 
 		var wg sync.WaitGroup
@@ -409,8 +401,8 @@ func TestDependencyTracker_ConcurrentOperations(t *testing.T) {
 			}(i)
 		}
 
-		// Update B to "running" in the middle of readiness checks
-		err = tracker.UpdateStatus(unitB, statusRunning)
+		// Update B to unit.StatusStarted in the middle of readiness checks
+		err = tracker.UpdateStatus(unitB, unit.StatusStarted)
 		require.NoError(t, err)
 
 		wg.Wait()
@@ -423,7 +415,7 @@ func TestDependencyTracker_MultipleDependencies(t *testing.T) {
 	t.Run("UnitWithMultipleDependencies", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testUnitID]()
+		tracker := unit.NewManager[string, testUnitID]()
 
 		// Register all units
 		units := []testUnitID{unitA, unitB, unitC, unitD}
@@ -432,10 +424,10 @@ func TestDependencyTracker_MultipleDependencies(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		// A depends on B being "running" AND C being "started"
-		err := tracker.AddDependency(unitA, unitB, statusRunning)
+		// A depends on B being unit.StatusStarted AND C being "started"
+		err := tracker.AddDependency(unitA, unitB, unit.StatusStarted)
 		require.NoError(t, err)
-		err = tracker.AddDependency(unitA, unitC, statusStarted)
+		err = tracker.AddDependency(unitA, unitC, unit.StatusStarted)
 		require.NoError(t, err)
 
 		// A should not be ready (depends on both B and C)
@@ -443,8 +435,8 @@ func TestDependencyTracker_MultipleDependencies(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, ready)
 
-		// Update B to "running" - A should still not be ready (needs C too)
-		err = tracker.UpdateStatus(unitB, statusRunning)
+		// Update B to unit.StatusStarted - A should still not be ready (needs C too)
+		err = tracker.UpdateStatus(unitB, unit.StatusStarted)
 		require.NoError(t, err)
 
 		ready, err = tracker.IsReady(unitA)
@@ -452,7 +444,7 @@ func TestDependencyTracker_MultipleDependencies(t *testing.T) {
 		assert.False(t, ready)
 
 		// Update C to "started" - A should now be ready
-		err = tracker.UpdateStatus(unitC, statusStarted)
+		err = tracker.UpdateStatus(unitC, unit.StatusStarted)
 		require.NoError(t, err)
 
 		ready, err = tracker.IsReady(unitA)
@@ -463,7 +455,7 @@ func TestDependencyTracker_MultipleDependencies(t *testing.T) {
 	t.Run("ComplexDependencyChain", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testUnitID]()
+		tracker := unit.NewManager[string, testUnitID]()
 
 		// Register all units
 		units := []testUnitID{unitA, unitB, unitC, unitD}
@@ -473,16 +465,16 @@ func TestDependencyTracker_MultipleDependencies(t *testing.T) {
 		}
 
 		// Create complex dependency graph:
-		// A depends on B being "running" AND C being "started"
+		// A depends on B being unit.StatusStarted AND C being "started"
 		// B depends on D being "completed"
 		// C depends on D being "completed"
-		err := tracker.AddDependency(unitA, unitB, statusRunning)
+		err := tracker.AddDependency(unitA, unitB, unit.StatusStarted)
 		require.NoError(t, err)
-		err = tracker.AddDependency(unitA, unitC, statusStarted)
+		err = tracker.AddDependency(unitA, unitC, unit.StatusStarted)
 		require.NoError(t, err)
-		err = tracker.AddDependency(unitB, unitD, statusCompleted)
+		err = tracker.AddDependency(unitB, unitD, unit.StatusComplete)
 		require.NoError(t, err)
-		err = tracker.AddDependency(unitC, unitD, statusCompleted)
+		err = tracker.AddDependency(unitC, unitD, unit.StatusComplete)
 		require.NoError(t, err)
 
 		// Initially only D is ready
@@ -503,7 +495,7 @@ func TestDependencyTracker_MultipleDependencies(t *testing.T) {
 		assert.False(t, ready)
 
 		// Update D to "completed" - B and C should become ready
-		err = tracker.UpdateStatus(unitD, statusCompleted)
+		err = tracker.UpdateStatus(unitD, unit.StatusComplete)
 		require.NoError(t, err)
 
 		ready, err = tracker.IsReady(unitB)
@@ -518,8 +510,8 @@ func TestDependencyTracker_MultipleDependencies(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, ready)
 
-		// Update B to "running" - A should still not be ready (needs C)
-		err = tracker.UpdateStatus(unitB, statusRunning)
+		// Update B to unit.StatusStarted - A should still not be ready (needs C)
+		err = tracker.UpdateStatus(unitB, unit.StatusStarted)
 		require.NoError(t, err)
 
 		ready, err = tracker.IsReady(unitA)
@@ -527,7 +519,7 @@ func TestDependencyTracker_MultipleDependencies(t *testing.T) {
 		assert.False(t, ready)
 
 		// Update C to "started" - A should now be ready
-		err = tracker.UpdateStatus(unitC, statusStarted)
+		err = tracker.UpdateStatus(unitC, unit.StatusStarted)
 		require.NoError(t, err)
 
 		ready, err = tracker.IsReady(unitA)
@@ -538,7 +530,7 @@ func TestDependencyTracker_MultipleDependencies(t *testing.T) {
 	t.Run("DifferentStatusTypes", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testUnitID]()
+		tracker := unit.NewManager[string, testUnitID]()
 
 		// Register units
 		err := tracker.Register(unitA)
@@ -548,14 +540,14 @@ func TestDependencyTracker_MultipleDependencies(t *testing.T) {
 		err = tracker.Register(unitC)
 		require.NoError(t, err)
 
-		// A depends on B being "running" AND C being "completed"
-		err = tracker.AddDependency(unitA, unitB, statusRunning)
+		// A depends on B being unit.StatusStarted AND C being "completed"
+		err = tracker.AddDependency(unitA, unitB, unit.StatusStarted)
 		require.NoError(t, err)
-		err = tracker.AddDependency(unitA, unitC, statusCompleted)
+		err = tracker.AddDependency(unitA, unitC, unit.StatusComplete)
 		require.NoError(t, err)
 
-		// Update B to "running" but not C - A should not be ready
-		err = tracker.UpdateStatus(unitB, statusRunning)
+		// Update B to unit.StatusStarted but not C - A should not be ready
+		err = tracker.UpdateStatus(unitB, unit.StatusStarted)
 		require.NoError(t, err)
 
 		ready, err := tracker.IsReady(unitA)
@@ -563,7 +555,7 @@ func TestDependencyTracker_MultipleDependencies(t *testing.T) {
 		assert.False(t, ready)
 
 		// Update C to "completed" - A should now be ready
-		err = tracker.UpdateStatus(unitC, statusCompleted)
+		err = tracker.UpdateStatus(unitC, unit.StatusComplete)
 		require.NoError(t, err)
 
 		ready, err = tracker.IsReady(unitA)
@@ -578,9 +570,9 @@ func TestDependencyTracker_ErrorCases(t *testing.T) {
 	t.Run("UpdateStatusWithUnregisteredUnit", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testUnitID]()
+		tracker := unit.NewManager[string, testUnitID]()
 
-		err := tracker.UpdateStatus(unitA, statusRunning)
+		err := tracker.UpdateStatus(unitA, unit.StatusStarted)
 		require.Error(t, err)
 		assert.Equal(t, unit.ErrUnitNotFound, err)
 	})
@@ -588,7 +580,7 @@ func TestDependencyTracker_ErrorCases(t *testing.T) {
 	t.Run("IsReadyWithUnregisteredUnit", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testUnitID]()
+		tracker := unit.NewManager[string, testUnitID]()
 
 		ready, err := tracker.IsReady(unitA)
 		require.Error(t, err)
@@ -599,7 +591,7 @@ func TestDependencyTracker_ErrorCases(t *testing.T) {
 	t.Run("GetUnmetDependenciesWithUnregisteredUnit", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testUnitID]()
+		tracker := unit.NewManager[string, testUnitID]()
 
 		unmet, err := tracker.GetUnmetDependencies(unitA)
 		require.Error(t, err)
@@ -610,10 +602,10 @@ func TestDependencyTracker_ErrorCases(t *testing.T) {
 	t.Run("AddDependencyWithUnregisteredUnits", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testUnitID]()
+		tracker := unit.NewManager[string, testUnitID]()
 
 		// Try to add dependency with unregistered units
-		err := tracker.AddDependency(unitA, unitB, statusRunning)
+		err := tracker.AddDependency(unitA, unitB, unit.StatusStarted)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not registered")
 	})
@@ -621,7 +613,7 @@ func TestDependencyTracker_ErrorCases(t *testing.T) {
 	t.Run("CyclicDependencyDetection", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testUnitID]()
+		tracker := unit.NewManager[string, testUnitID]()
 
 		// Register units
 		err := tracker.Register(unitA)
@@ -630,11 +622,11 @@ func TestDependencyTracker_ErrorCases(t *testing.T) {
 		require.NoError(t, err)
 
 		// A depends on B
-		err = tracker.AddDependency(unitA, unitB, statusRunning)
+		err = tracker.AddDependency(unitA, unitB, unit.StatusStarted)
 		require.NoError(t, err)
 
 		// Try to make B depend on A (creates cycle)
-		err = tracker.AddDependency(unitB, unitA, statusStarted)
+		err = tracker.AddDependency(unitB, unitA, unit.StatusStarted)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "would create a cycle")
 	})
@@ -646,7 +638,7 @@ func TestDependencyTracker_ToDOT(t *testing.T) {
 	t.Run("ExportSimpleGraph", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testUnitID]()
+		tracker := unit.NewManager[string, testUnitID]()
 
 		// Register units
 		err := tracker.Register(unitA)
@@ -655,7 +647,7 @@ func TestDependencyTracker_ToDOT(t *testing.T) {
 		require.NoError(t, err)
 
 		// Add dependency
-		err = tracker.AddDependency(unitA, unitB, statusRunning)
+		err = tracker.AddDependency(unitA, unitB, unit.StatusStarted)
 		require.NoError(t, err)
 
 		dot, err := tracker.ExportDOT("test")
@@ -667,7 +659,7 @@ func TestDependencyTracker_ToDOT(t *testing.T) {
 	t.Run("ExportComplexGraph", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testUnitID]()
+		tracker := unit.NewManager[string, testUnitID]()
 
 		// Register all units
 		units := []testUnitID{unitA, unitB, unitC, unitD}
@@ -678,13 +670,13 @@ func TestDependencyTracker_ToDOT(t *testing.T) {
 
 		// Create complex dependency graph
 		// A depends on B and C, B depends on D, C depends on D
-		err := tracker.AddDependency(unitA, unitB, statusRunning)
+		err := tracker.AddDependency(unitA, unitB, unit.StatusStarted)
 		require.NoError(t, err)
-		err = tracker.AddDependency(unitA, unitC, statusStarted)
+		err = tracker.AddDependency(unitA, unitC, unit.StatusStarted)
 		require.NoError(t, err)
-		err = tracker.AddDependency(unitB, unitD, statusCompleted)
+		err = tracker.AddDependency(unitB, unitD, unit.StatusComplete)
 		require.NoError(t, err)
-		err = tracker.AddDependency(unitC, unitD, statusCompleted)
+		err = tracker.AddDependency(unitC, unitD, unit.StatusComplete)
 		require.NoError(t, err)
 
 		dot, err := tracker.ExportDOT("complex")
