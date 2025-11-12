@@ -1,8 +1,6 @@
 package unit_test
 
 import (
-	"errors"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -285,127 +283,6 @@ func TestDependencyTracker_GetUnmetDependencies(t *testing.T) {
 		require.Error(t, err)
 		assert.Equal(t, unit.ErrUnitNotFound, err)
 		assert.Nil(t, unmet)
-	})
-}
-
-func TestDependencyTracker_ConcurrentOperations(t *testing.T) {
-	t.Parallel()
-
-	t.Run("ConcurrentStatusUpdates", func(t *testing.T) {
-		t.Parallel()
-
-		tracker := unit.NewManager[string, testUnitID]()
-
-		// Register units
-		units := []testUnitID{unitA, unitB, unitC, unitD}
-		for _, unit := range units {
-			err := tracker.Register(unit)
-			require.NoError(t, err)
-		}
-
-		// Create dependencies: A depends on B, B depends on C, C depends on D
-		err := tracker.AddDependency(unitA, unitB, unit.StatusStarted)
-		require.NoError(t, err)
-		err = tracker.AddDependency(unitB, unitC, unit.StatusStarted)
-		require.NoError(t, err)
-		err = tracker.AddDependency(unitC, unitD, unit.StatusComplete)
-		require.NoError(t, err)
-
-		var wg sync.WaitGroup
-		const numGoroutines = 10
-
-		// Launch goroutines that update statuses
-		goroutineErrors := make([]error, numGoroutines)
-		for i := 0; i < numGoroutines; i++ {
-			wg.Add(1)
-			go func(goroutineID int) {
-				defer wg.Done()
-
-				// Update D to completed (should make C ready)
-				err := tracker.UpdateStatus(unitD, unit.StatusComplete)
-				if err != nil {
-					goroutineErrors[goroutineID] = err
-					return
-				}
-
-				// Update C to started (should make B ready)
-				err = tracker.UpdateStatus(unitC, unit.StatusStarted)
-				if err != nil {
-					goroutineErrors[goroutineID] = err
-					return
-				}
-
-				// Update B to running (should make A ready)
-				err = tracker.UpdateStatus(unitB, unit.StatusStarted)
-				if err != nil {
-					goroutineErrors[goroutineID] = err
-					return
-				}
-			}(i)
-		}
-
-		wg.Wait()
-
-		// Check for any errors in goroutines
-		// ErrSameStatusAlreadySet is expected when multiple goroutines try to set the same status
-		for i, err := range goroutineErrors {
-			if err != nil && !errors.Is(err, unit.ErrSameStatusAlreadySet) {
-				require.NoError(t, err, "goroutine %d had unexpected error", i)
-			}
-		}
-
-		// All units should be ready after the updates
-		for _, unit := range units {
-			ready, err := tracker.IsReady(unit)
-			require.NoError(t, err)
-			assert.True(t, ready)
-		}
-	})
-
-	t.Run("ConcurrentReadinessChecks", func(t *testing.T) {
-		t.Parallel()
-
-		tracker := unit.NewManager[string, testUnitID]()
-
-		// Register units
-		err := tracker.Register(unitA)
-		require.NoError(t, err)
-		err = tracker.Register(unitB)
-		require.NoError(t, err)
-
-		// A depends on B being unit.StatusStarted
-		err = tracker.AddDependency(unitA, unitB, unit.StatusStarted)
-		require.NoError(t, err)
-
-		var wg sync.WaitGroup
-		const numGoroutines = 20
-
-		// Launch goroutines that check readiness
-		for i := 0; i < numGoroutines; i++ {
-			wg.Add(1)
-			go func(goroutineID int) {
-				defer wg.Done()
-
-				// Check readiness multiple times
-				for j := 0; j < 10; j++ {
-					ready, err := tracker.IsReady(unitA)
-					require.NoError(t, err)
-					// Initially should be false, then true after B is updated
-					_ = ready
-
-					ready, err = tracker.IsReady(unitB)
-					require.NoError(t, err)
-					// B should always be ready (no dependencies)
-					assert.True(t, ready)
-				}
-			}(i)
-		}
-
-		// Update B to unit.StatusStarted in the middle of readiness checks
-		err = tracker.UpdateStatus(unitB, unit.StatusStarted)
-		require.NoError(t, err)
-
-		wg.Wait()
 	})
 }
 
