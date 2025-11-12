@@ -378,7 +378,7 @@ message Config {
   optional string template_id = 4;
   // Dry runs omit version id
   optional string template_version_id = 5;
-  optional bool exp_terraform_workspace_reuse = 6; // Whether to reuse existing terraform workspaces if they exist.
+  optional bool exp_reuse_terraform_workspace = 6; // Whether to reuse existing terraform workspaces if they exist.
 }
 
 // ParseRequest consumes source-code to produce inputs.

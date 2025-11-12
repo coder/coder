@@ -43,6 +43,7 @@ import (
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/coder/v2/coderd/usage/usagetypes"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
@@ -697,14 +698,14 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 
 		protoJob.Type = &proto.AcquiredJob_WorkspaceBuild_{
 			WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
-				WorkspaceBuildId:        workspaceBuild.ID.String(),
-				WorkspaceName:           workspace.Name,
-				State:                   workspaceBuild.ProvisionerState,
-				RichParameterValues:     convertRichParameterValues(workspaceBuildParameters),
-				PreviousParameterValues: convertRichParameterValues(lastWorkspaceBuildParameters),
-				VariableValues:          asVariableValues(templateVariables),
-				ExternalAuthProviders:   externalAuthProviders,
-				ReuseTerraformWorkspace: false, // TODO: Toggle based on experiment
+				WorkspaceBuildId:           workspaceBuild.ID.String(),
+				WorkspaceName:              workspace.Name,
+				State:                      workspaceBuild.ProvisionerState,
+				RichParameterValues:        convertRichParameterValues(workspaceBuildParameters),
+				PreviousParameterValues:    convertRichParameterValues(lastWorkspaceBuildParameters),
+				VariableValues:             asVariableValues(templateVariables),
+				ExternalAuthProviders:      externalAuthProviders,
+				ExpReuseTerraformWorkspace: ptr.Ref(false), // TODO: Toggle based on experiment
 				Metadata: &sdkproto.Metadata{
 					CoderUrl:                      s.AccessURL.String(),
 					WorkspaceTransition:           transition,
