@@ -1,4 +1,5 @@
 import { previousTemplateVersion, templateFiles } from "api/queries/templates";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { TemplateFiles } from "modules/templates/TemplateFiles/TemplateFiles";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
@@ -12,9 +13,7 @@ const TemplateFilesPage: FC = () => {
 		organization?: string;
 	};
 	const { template, activeVersion } = useTemplateLayoutContext();
-	const { data: currentFiles } = useQuery(
-		templateFiles(activeVersion.job.file_id),
-	);
+	const currentFilesQuery = useQuery(templateFiles(activeVersion.job.file_id));
 	const previousVersionQuery = useQuery(
 		previousTemplateVersion(
 			organizationName,
@@ -25,12 +24,33 @@ const TemplateFilesPage: FC = () => {
 	const previousVersion = previousVersionQuery.data;
 	const hasPreviousVersion =
 		previousVersionQuery.isSuccess && previousVersion !== null;
-	const { data: previousFiles } = useQuery({
+	const previousFilesQuery = useQuery({
 		...templateFiles(previousVersion?.job.file_id ?? ""),
 		enabled: hasPreviousVersion,
 	});
+
+	// Handle error case for file access
+	if (currentFilesQuery.isError) {
+		return (
+			<>
+				<title>{getTemplatePageTitle("Source Code", template)}</title>
+				<ErrorAlert error={currentFilesQuery.error} />
+			</>
+		);
+	}
+
+	// Handle error case for previous version files
+	if (previousFilesQuery.isError) {
+		return (
+			<>
+				<title>{getTemplatePageTitle("Source Code", template)}</title>
+				<ErrorAlert error={previousFilesQuery.error} />
+			</>
+		);
+	}
+
 	const shouldDisplayFiles =
-		currentFiles && (!hasPreviousVersion || previousFiles);
+		currentFilesQuery.data && (!hasPreviousVersion || previousFilesQuery.data);
 
 	return (
 		<>
@@ -41,8 +61,8 @@ const TemplateFilesPage: FC = () => {
 					organizationName={template.organization_name}
 					templateName={template.name}
 					versionName={activeVersion.name}
-					currentFiles={currentFiles}
-					baseFiles={previousFiles}
+					currentFiles={currentFilesQuery.data}
+					baseFiles={previousFilesQuery.data}
 				/>
 			) : (
 				<Loader />

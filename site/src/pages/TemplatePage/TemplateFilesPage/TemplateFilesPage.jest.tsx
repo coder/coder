@@ -54,3 +54,45 @@ test("displays the template files even when there is no previous version", async
 
 	await screen.findByTestId("syntax-highlighter");
 });
+
+test("displays an error when file access fails", async () => {
+	server.use(
+		http.get("/api/v2/files/:fileId", () => {
+			return new HttpResponse(null, {
+				status: 404,
+				statusText: "Not Found",
+			});
+		}),
+	);
+
+	render(
+		<AppProviders>
+			<RouterProvider
+				router={createMemoryRouter(
+					[
+						{
+							element: <RequireAuth />,
+							children: [
+								{
+									element: <TemplateLayout />,
+									children: [
+										{
+											path: "/templates/:template/files",
+											element: <TemplateFilesPage />,
+										},
+									],
+								},
+							],
+						},
+					],
+					{
+						initialEntries: [`/templates/${MockTemplate.name}/files`],
+					},
+				)}
+			/>
+		</AppProviders>,
+	);
+
+	// The error alert should be displayed
+	await screen.findByRole("alert");
+});
