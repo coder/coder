@@ -4057,16 +4057,17 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value                  |
-|------------------------|
-| `example`              |
-| `auto-fill-parameters` |
-| `notifications`        |
-| `workspace-usage`      |
-| `web-push`             |
-| `oauth2`               |
-| `mcp-server-http`      |
-| `workspace-sharing`    |
+| Value                       |
+|-----------------------------|
+| `example`                   |
+| `auto-fill-parameters`      |
+| `notifications`             |
+| `workspace-usage`           |
+| `web-push`                  |
+| `oauth2`                    |
+| `mcp-server-http`           |
+| `workspace-sharing`         |
+| `terraform-directory-reuse` |
 
 ## codersdk.ExternalAPIKeyScopes
 

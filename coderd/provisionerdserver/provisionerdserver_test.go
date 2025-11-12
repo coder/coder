@@ -26,6 +26,7 @@ import (
 	"storj.io/drpc"
 
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
@@ -4162,7 +4163,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 	defOrg, err := db.GetDefaultOrganization(context.Background())
 	require.NoError(t, err, "default org not found")
 
-	deploymentValues := &codersdk.DeploymentValues{}
+	deploymentValues := coderdtest.DeploymentValues(t)
 	var externalAuthConfigs []*externalauth.Config
 	tss := testTemplateScheduleStore()
 	uqhss := testUserQuietHoursScheduleStore()
@@ -4285,6 +4286,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		notifEnq,
 		&op,
 		provisionerdserver.NewMetrics(logger),
+		coderd.ReadExperiments(logger, deploymentValues.Experiments),
 	)
 	require.NoError(t, err)
 	return srv, db, ps, daemon
