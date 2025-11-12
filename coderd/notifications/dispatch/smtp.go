@@ -157,11 +157,11 @@ func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) Delivery
 		}
 
 		// Sender identification.
-		from, err := s.validateFromAddr(s.cfg.From.String())
+		fromAddr, err := s.validateFromAddr(s.cfg.From.String())
 		if err != nil {
 			return false, xerrors.Errorf("'from' validation: %w", err)
 		}
-		err = c.Mail(from, &smtp.MailOptions{})
+		err = c.Mail(fromAddr, &smtp.MailOptions{})
 		if err != nil {
 			// This is retryable because the server may be temporarily down.
 			return true, xerrors.Errorf("sender identification: %w", err)
@@ -201,7 +201,7 @@ func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) Delivery
 		msg := &bytes.Buffer{}
 		multipartBuffer := &bytes.Buffer{}
 		multipartWriter := multipart.NewWriter(multipartBuffer)
-		_, _ = fmt.Fprintf(msg, "From: %s\r\n", from)
+		_, _ = fmt.Fprintf(msg, "From: %s\r\n", fromAddr.String())
 		_, _ = fmt.Fprintf(msg, "To: %s\r\n", strings.Join(recipients, ", "))
 		_, _ = fmt.Fprintf(msg, "Subject: %s\r\n", subject)
 		_, _ = fmt.Fprintf(msg, "Message-Id: %s@%s\r\n", msgID, s.hostname())
@@ -487,7 +487,7 @@ func (s *SMTPHandler) auth(ctx context.Context, mechs string) (sasl.Client, erro
 	return nil, errs
 }
 
-func (*SMTPHandler) validateFromAddr(from string) (string, error) {
+func (*SMTPHandler) validateFromAddr(from string) (*mail.Address, error) {
 	addrs, err := mail.ParseAddressList(from)
 	if err != nil {
 		return "", xerrors.Errorf("parse 'from' address: %w", err)
@@ -495,7 +495,7 @@ func (*SMTPHandler) validateFromAddr(from string) (string, error) {
 	if len(addrs) != 1 {
 		return "", ErrValidationNoFromAddress
 	}
-	return from, nil
+	return addrs[0], nil
 }
 
 func (s *SMTPHandler) validateToAddrs(to string) ([]string, error) {
