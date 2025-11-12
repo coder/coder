@@ -58,6 +58,7 @@ func TestInstrument(t *testing.T) {
 	noClientCtx := ctx
 	// This should never be done, but promoauth should not break the default client
 	// even if this happens. So intentionally do this to verify nothing breaks.
+	//nolint:forbidigo // Figure out what to do here
 	ctx = context.WithValue(ctx, oauth2.HTTPClient, http.DefaultClient)
 	// Exchange should trigger a request
 	code := idp.CreateAuthCode(t, "foo")
