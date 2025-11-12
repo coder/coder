@@ -157,6 +157,9 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
 								Insights
 							</TabLink>
 						)}
+						<TabLink to="warnings" value="warnings">
+							Warnings
+						</TabLink>
 					</TabsList>
 				</Margins>
 			</Tabs>
