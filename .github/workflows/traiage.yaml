@@ -133,18 +133,15 @@ jobs:
           issue_number="$(gh issue view "${ISSUE_URL}" --json number --jq '.number')"
           context_key="gh-${issue_number}"
 
-          # Fetch issue description using `gh` CLI
-          #shellcheck disable=SC2016 # The template string should not be subject to shell expansion
-          issue_description=$(gh issue view "${ISSUE_URL}" \
-            --json 'title,body,comments' \
-            --template '{{printf "%s\n\n%s\n\nComments:\n" .title .body}}{{range $k, $v := .comments}}  - {{index $v.author "login"}}: {{printf "%s\n" $v.body}}{{end}}')
-
           TASK_PROMPT=$(cat <<EOF
           Fix ${ISSUE_URL}
 
-          Analyze the below GitHub issue description, understand the root cause, and make appropriate changes to resolve the issue.
-          ---
-          ${issue_description}
+            1. Use the gh CLI to read the issue description and comments.
+            2. Think carefully and try to understand the root cause. If the issue is unclear or not well defined, ask me to clarify and provide more information.
+            3. Write a proposed implementation plan to PLAN.md for me to review before starting implementation. Your plan should use TDD and only make the minimal changes necessary to fix the root cause.
+            4. When I approve your plan, start working on it. If you encounter issues with the plan, ask me for clarification and update the plan as required.
+            5. When you have finished implementation according to the plan, commit and push your changes, and create a PR using the gh CLI for me to review.
+
           EOF
           )
 
@@ -173,7 +170,7 @@ jobs:
           coder-organization: "default"
           coder-template-name: coder
           coder-template-preset: ${{ steps.determine-inputs.outputs.template_preset }}
-          coder-task-name-prefix: traiage
+          coder-task-name-prefix: gh-coder
           coder-task-prompt: ${{ steps.extract-context.outputs.task_prompt }}
           github-user-id: ${{ steps.determine-inputs.outputs.github_user_id }}
           github-token: ${{ github.token }}
