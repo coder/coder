@@ -275,7 +275,7 @@ func TestTasks(t *testing.T) {
 						Slug: "ccw",
 					}).Pending().Do()
 				},
-				expectedMessage: "Workspace build is pending",
+				expectedMessage: "Workspace is pending",
 			},
 			{
 				name: "WorkspaceStarting",
@@ -290,7 +290,7 @@ func TestTasks(t *testing.T) {
 						Slug: "ccw",
 					}).Starting().Do()
 				},
-				expectedMessage: "Starting workspace",
+				expectedMessage: "Workspace is starting",
 			},
 			{
 				name: "AgentConnecting",
@@ -308,7 +308,6 @@ func TestTasks(t *testing.T) {
 					require.True(t, wb.Task.WorkspaceAgentID.Valid)
 					require.NotEqual(t, uuid.Nil, wb.Task.WorkspaceAgentID.UUID)
 
-					// nolint:gocritic // System restricted operation to update agent lifecycle to "created"
 					err := db.UpdateWorkspaceAgentLifecycleStateByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAgentLifecycleStateByIDParams{
 						ID:             wb.Task.WorkspaceAgentID.UUID,
 						LifecycleState: database.WorkspaceAgentLifecycleStateCreated,
@@ -335,7 +334,6 @@ func TestTasks(t *testing.T) {
 					require.True(t, wb.Task.WorkspaceAgentID.Valid)
 					require.NotEqual(t, uuid.Nil, wb.Task.WorkspaceAgentID.UUID)
 
-					// nolint:gocritic // System restricted operation to update agent lifecycle to "created"
 					err := db.UpdateWorkspaceAgentLifecycleStateByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAgentLifecycleStateByIDParams{
 						ID:             wb.Task.WorkspaceAgentID.UUID,
 						LifecycleState: database.WorkspaceAgentLifecycleStateStarting,

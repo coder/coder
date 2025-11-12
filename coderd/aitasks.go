@@ -286,50 +286,7 @@ func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) cod
 		}
 	}
 
-	// Ignore 'latest app status' if it is older than the latest build and the
-	// latest build is a 'start' transition. This ensures that you don't show a
-	// stale app status from a previous build. For stop transitions, there is
-	// still value in showing the latest app status.
-	var currentState *codersdk.TaskStateEntry
-	if ws.LatestAppStatus != nil {
-		if ws.LatestBuild.Transition != codersdk.WorkspaceTransitionStart || ws.LatestAppStatus.CreatedAt.After(ws.LatestBuild.CreatedAt) {
-			currentState = &codersdk.TaskStateEntry{
-				Timestamp: ws.LatestAppStatus.CreatedAt,
-				State:     codersdk.TaskState(ws.LatestAppStatus.State),
-				Message:   ws.LatestAppStatus.Message,
-				URI:       ws.LatestAppStatus.URI,
-			}
-		}
-	}
-
-	// If no valid agent state was found for the current build and the task is initializing,
-	// provide a descriptive initialization message.
-	if currentState == nil && codersdk.TaskStatus(dbTask.Status) == codersdk.TaskStatusInitializing {
-		message := "Initializing workspace"
-
-		switch {
-		case ws.LatestBuild.Status == codersdk.WorkspaceStatusPending:
-			message = "Workspace build is pending"
-		case ws.LatestBuild.Status == codersdk.WorkspaceStatusStarting:
-			message = "Starting workspace"
-		case taskAgentLifecycle != nil:
-			switch *taskAgentLifecycle {
-			case codersdk.WorkspaceAgentLifecycleCreated:
-				message = "Agent is connecting"
-			case codersdk.WorkspaceAgentLifecycleStarting:
-				message = "Agent is starting"
-			default:
-				message = "Initializing workspace agent"
-			}
-		}
-
-		currentState = &codersdk.TaskStateEntry{
-			Timestamp: ws.LatestBuild.CreatedAt,
-			State:     codersdk.TaskStateWorking,
-			Message:   message,
-			URI:       "",
-		}
-	}
+	currentState := deriveTaskCurrentState(dbTask, ws, taskAgentLifecycle)
 
 	return codersdk.Task{
 		ID:                      dbTask.ID,
@@ -357,6 +314,58 @@ func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) cod
 		CreatedAt:               dbTask.CreatedAt,
 		UpdatedAt:               ws.UpdatedAt,
 	}
+}
+
+// deriveTaskCurrentState determines the current state of a task based on the
+// workspace's latest app status and initialization phase.
+// Returns nil if no valid state can be determined.
+func deriveTaskCurrentState(dbTask database.Task, ws codersdk.Workspace, taskAgentLifecycle *codersdk.WorkspaceAgentLifecycle) *codersdk.TaskStateEntry {
+	var currentState *codersdk.TaskStateEntry
+
+	// Ignore 'latest app status' if it is older than the latest build and the
+	// latest build is a 'start' transition. This ensures that you don't show a
+	// stale app status from a previous build. For stop transitions, there is
+	// still value in showing the latest app status.
+	if ws.LatestAppStatus != nil {
+		if ws.LatestBuild.Transition != codersdk.WorkspaceTransitionStart || ws.LatestAppStatus.CreatedAt.After(ws.LatestBuild.CreatedAt) {
+			currentState = &codersdk.TaskStateEntry{
+				Timestamp: ws.LatestAppStatus.CreatedAt,
+				State:     codersdk.TaskState(ws.LatestAppStatus.State),
+				Message:   ws.LatestAppStatus.Message,
+				URI:       ws.LatestAppStatus.URI,
+			}
+		}
+	}
+
+	// If no valid agent state was found for the current build and the task is initializing,
+	// provide a descriptive initialization message.
+	if currentState == nil && codersdk.TaskStatus(dbTask.Status) == codersdk.TaskStatusInitializing {
+		message := "Initializing workspace"
+
+		switch {
+		case ws.LatestBuild.Status == codersdk.WorkspaceStatusPending ||
+			ws.LatestBuild.Status == codersdk.WorkspaceStatusStarting:
+			message = fmt.Sprintf("Workspace is %s", ws.LatestBuild.Status)
+		case taskAgentLifecycle != nil:
+			switch *taskAgentLifecycle {
+			case codersdk.WorkspaceAgentLifecycleCreated:
+				message = "Agent is connecting"
+			case codersdk.WorkspaceAgentLifecycleStarting:
+				message = "Agent is starting"
+			default:
+				message = "Initializing workspace agent"
+			}
+		}
+
+		currentState = &codersdk.TaskStateEntry{
+			Timestamp: ws.LatestBuild.CreatedAt,
+			State:     codersdk.TaskStateWorking,
+			Message:   message,
+			URI:       "",
+		}
+	}
+
+	return currentState
 }
 
 // @Summary List AI tasks
