@@ -161,7 +161,7 @@ func (s *SMTPHandler) dispatch(subject, htmlBody, plainBody, to string) Delivery
 		if err != nil {
 			return false, xerrors.Errorf("'from' validation: %w", err)
 		}
-		err = c.Mail(fromAddr, &smtp.MailOptions{})
+		err = c.Mail(fromAddr.Address, &smtp.MailOptions{})
 		if err != nil {
 			// This is retryable because the server may be temporarily down.
 			return true, xerrors.Errorf("sender identification: %w", err)
