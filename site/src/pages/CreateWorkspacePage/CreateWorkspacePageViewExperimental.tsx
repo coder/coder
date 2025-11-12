@@ -42,7 +42,7 @@ import { docs } from "utils/docs";
 import { nameValidator } from "utils/formUtils";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import * as Yup from "yup";
-import type { CreateWorkspaceMode } from "./CreateWorkspacePage";
+import type { CreateWorkspaceMode } from "./CreateWorkspacePageExperimental";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWorkspacePermissions } from "./permissions";
 
