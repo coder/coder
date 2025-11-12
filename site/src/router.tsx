@@ -29,6 +29,7 @@ import WorkspacesPage from "./pages/WorkspacesPage/WorkspacesPage";
 // - Pages that are secondary, not in the main navigation or not usually accessed
 // - Pages that use heavy dependencies like charts or time libraries
 const NotFoundPage = lazy(() => import("./pages/404Page/404Page"));
+const TodoPage = lazy(() => import("./pages/TodoPage/TodoPage"));
 const DeploymentSettingsLayout = lazy(
 	() => import("./modules/management/DeploymentSettingsLayout"),
 );
@@ -403,6 +404,7 @@ export const router = createBrowserRouter(
 				<Route index element={<RequestOTPPage />} />
 				<Route path="change" element={<ChangePasswordPage />} />
 			</Route>
+			<Route path="/todo" element={<TodoPage />} />
 
 			{/* Dashboard routes */}
 			<Route element={<RequireAuth />}>
