@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { type FC, Fragment, useState } from "react";
 import { cn } from "utils/cn";
+import { humanDuration } from "utils/time";
 
 type RequestLogsRowProps = {
 	interception: AIBridgeInterception;
@@ -119,6 +120,18 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 										<dt>End Time:</dt>
 										<dd data-chromatic="ignore">
 											{new Date(interception.ended_at).toLocaleString()}
+										</dd>
+									</>
+								)}
+
+								{interception.ended_at && (
+									<>
+										<dt>Duration:</dt>
+										<dd data-chromatic="ignore">
+											{humanDuration(
+												new Date(interception.ended_at).getTime() -
+													new Date(interception.started_at).getTime(),
+											)}
 										</dd>
 									</>
 								)}
