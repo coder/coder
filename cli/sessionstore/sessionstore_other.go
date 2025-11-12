@@ -2,8 +2,6 @@
 
 package sessionstore
 
-const defaultServiceName = "not-implemented"
-
 type operatingSystemKeyring struct{}
 
 func (operatingSystemKeyring) Set(_, _ string) error {

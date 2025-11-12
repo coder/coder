@@ -13,13 +13,9 @@ import (
 )
 
 const (
-	// defaultServiceName is the service name used in the macOS Keychain
-	// for storing Coder CLI session tokens.
-	defaultServiceName = "coder-v2-credentials"
-
 	// fixedUsername is the fixed username used for all keychain entries.
 	// Since our interface only uses service names, we use a constant username.
-	fixedUsername = "coder-session-token"
+	fixedUsername = "coder-login-credentials"
 
 	execPathKeychain = "/usr/bin/security"
 	notFoundStr      = "could not be found"

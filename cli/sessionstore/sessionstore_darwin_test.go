@@ -10,7 +10,7 @@ import (
 
 const (
 	execPathKeychain = "/usr/bin/security"
-	fixedUsername    = "coder-session-token"
+	fixedUsername    = "coder-login-credentials"
 )
 
 func readRawKeychainCredential(t *testing.T, service string) []byte {
