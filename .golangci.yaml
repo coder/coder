@@ -13,6 +13,16 @@ linters-settings:
       # We want to enforce all values are specified when inserting or updating
       # a database row. Ref: #9936
       - 'github.com/coder/coder/v2/coderd/database\.[^G][^e][^t]\w+Params'
+
+  forbidigo:
+    forbid:
+      # Usage of the http package global DefaultClient and the associated
+      # functions that wrap said global are known to cause flakiness with
+      # parallel tests. They also introduce global state to production code.
+      # Prefer isolated instances of an http.Client.
+      - {p: '^http\.(Get|Post|Head|PostForm)(\(|$)', msg: 'methods wrap http.DefaultClient which introduces global state. Use a http.Client with timeouts.'}
+      - {p: '^http\.DefaultClient(\.|$)', msg: 'http.DefaultClient introduces global state. Use a http.Client with timeouts.'}
+
   gocognit:
     min-complexity: 300
 
@@ -232,6 +242,7 @@ linters:
     - errname
     - errorlint
     - exhaustruct
+    - forbidigo
     - forcetypeassert
     - gocritic
     # gocyclo is may be useful in the future when we start caring
