@@ -112,6 +112,8 @@ func (r *RootCmd) scaletestPrebuilds() *serpent.Command {
 			setupBarrier.Add(int(numTemplates))
 			creationBarrier := new(sync.WaitGroup)
 			creationBarrier.Add(int(numTemplates))
+			deletionSetupBarrier := new(sync.WaitGroup)
+			deletionSetupBarrier.Add(1)
 			deletionBarrier := new(sync.WaitGroup)
 			deletionBarrier.Add(int(numTemplates))
 
@@ -128,6 +130,7 @@ func (r *RootCmd) scaletestPrebuilds() *serpent.Command {
 					Metrics:                   metrics,
 					SetupBarrier:              setupBarrier,
 					CreationBarrier:           creationBarrier,
+					DeletionSetupBarrier:      deletionSetupBarrier,
 					DeletionBarrier:           deletionBarrier,
 					Clock:                     quartz.NewReal(),
 				}
@@ -182,6 +185,9 @@ func (r *RootCmd) scaletestPrebuilds() *serpent.Command {
 				return xerrors.Errorf("pause prebuilds before deletion: %w", err)
 			}
 
+			_, _ = fmt.Fprintln(inv.Stderr, "Prebuilds paused, signaling runners to prepare for deletion")
+			deletionSetupBarrier.Done()
+
 			_, _ = fmt.Fprintln(inv.Stderr, "Waiting for all templates to be updated with 0 prebuilds...")
 			deletionBarrier.Wait()
 			_, _ = fmt.Fprintln(inv.Stderr, "All templates updated")
@@ -204,6 +210,14 @@ func (r *RootCmd) scaletestPrebuilds() *serpent.Command {
 				return notifyCtx.Err()
 			}
 
+			res := th.Results()
+			for _, o := range outputs {
+				err = o.write(res, inv.Stdout)
+				if err != nil {
+					return xerrors.Errorf("write output %q to %q: %w", o.format, o.path, err)
+				}
+			}
+
 			if !noCleanup {
 				_, _ = fmt.Fprintln(inv.Stderr, "\nStarting cleanup (deleting templates)...")
 
@@ -218,14 +232,6 @@ func (r *RootCmd) scaletestPrebuilds() *serpent.Command {
 				// If the cleanup was interrupted, skip stats
 				if notifyCtx.Err() != nil {
 					return notifyCtx.Err()
-				}
-			}
-
-			res := th.Results()
-			for _, o := range outputs {
-				err = o.write(res, inv.Stdout)
-				if err != nil {
-					return xerrors.Errorf("write output %q to %q: %w", o.format, o.path, err)
 				}
 			}
 
