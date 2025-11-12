@@ -6,16 +6,16 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// ErrConsumerNotFound is returned when a consumer ID is not registered.
-var ErrConsumerNotFound = xerrors.New("consumer not found")
+// ErrUnitNotFound is returned when a unit ID is not registered.
+var ErrUnitNotFound = xerrors.New("unit not found")
 
-// ErrConsumerAlreadyRegistered is returned when a consumer ID is already registered.
-var ErrConsumerAlreadyRegistered = xerrors.New("consumer already registered")
+// ErrUnitAlreadyRegistered is returned when a unit ID is already registered.
+var ErrUnitAlreadyRegistered = xerrors.New("unit already registered")
 
-// ErrCannotUpdateOtherConsumer is returned when attempting to update another consumer's status.
-var ErrCannotUpdateOtherConsumer = xerrors.New("cannot update other consumer's status")
+// ErrCannotUpdateOtherUnit is returned when attempting to update another unit's status.
+var ErrCannotUpdateOtherUnit = xerrors.New("cannot update other unit's status")
 
-// ErrDependenciesNotSatisfied is returned when a consumer's dependencies are not satisfied.
+// ErrDependenciesNotSatisfied is returned when a unit's dependencies are not satisfied.
 var ErrDependenciesNotSatisfied = xerrors.New("unit dependencies not satisfied")
 
 // ErrSameStatusAlreadySet is returned when attempting to set the same status as the current status.
@@ -27,119 +27,119 @@ const (
 	StatusComplete = "completed"
 )
 
-// dependencyVertex represents a vertex in the dependency graph that is associated with a consumer.
-type dependencyVertex[ConsumerID comparable] struct {
-	ID ConsumerID
+// dependencyVertex represents a vertex in the dependency graph that is associated with a unit.
+type dependencyVertex[UnitID comparable] struct {
+	ID UnitID
 }
 
-// Dependency represents a dependency relationship between consumers.
-type Dependency[StatusType, ConsumerID comparable] struct {
-	Consumer       ConsumerID
-	DependsOn      ConsumerID
+// Dependency represents a dependency relationship between units.
+type Dependency[StatusType, UnitID comparable] struct {
+	Unit           UnitID
+	DependsOn      UnitID
 	RequiredStatus StatusType
 	CurrentStatus  StatusType
 	IsSatisfied    bool
 }
 
 // Manager provides reactive dependency tracking over a Graph.
-// It manages consumer registration, dependency relationships, and status updates
+// It manages unit registration, dependency relationships, and status updates
 // with automatic recalculation of readiness when dependencies are satisfied.
-type Manager[StatusType, ConsumerID comparable] struct {
+type Manager[StatusType, UnitID comparable] struct {
 	mu sync.RWMutex
 
 	// The underlying graph that stores dependency relationships
-	graph *Graph[StatusType, *dependencyVertex[ConsumerID]]
+	graph *Graph[StatusType, *dependencyVertex[UnitID]]
 
-	// Track current status of each consumer
-	consumerStatus map[ConsumerID]StatusType
+	// Track current status of each unit
+	unitStatus map[UnitID]StatusType
 
 	// Track readiness state (cached to avoid repeated graph traversal)
-	consumerReadiness map[ConsumerID]bool
+	unitReadiness map[UnitID]bool
 
-	// Track which consumers are registered
-	registeredConsumers map[ConsumerID]bool
+	// Track which units are registered
+	registeredUnits map[UnitID]bool
 
-	// Store vertex instances for each consumer to ensure consistent references
-	consumerVertices map[ConsumerID]*dependencyVertex[ConsumerID]
+	// Store vertex instances for each unit to ensure consistent references
+	unitVertices map[UnitID]*dependencyVertex[UnitID]
 }
 
 // NewManager creates a new Manager instance.
-func NewManager[StatusType, ConsumerID comparable]() *Manager[StatusType, ConsumerID] {
-	return &Manager[StatusType, ConsumerID]{
-		graph:               &Graph[StatusType, *dependencyVertex[ConsumerID]]{},
-		consumerStatus:      make(map[ConsumerID]StatusType),
-		consumerReadiness:   make(map[ConsumerID]bool),
-		registeredConsumers: make(map[ConsumerID]bool),
-		consumerVertices:    make(map[ConsumerID]*dependencyVertex[ConsumerID]),
+func NewManager[StatusType, UnitID comparable]() *Manager[StatusType, UnitID] {
+	return &Manager[StatusType, UnitID]{
+		graph:           &Graph[StatusType, *dependencyVertex[UnitID]]{},
+		unitStatus:      make(map[UnitID]StatusType),
+		unitReadiness:   make(map[UnitID]bool),
+		registeredUnits: make(map[UnitID]bool),
+		unitVertices:    make(map[UnitID]*dependencyVertex[UnitID]),
 	}
 }
 
-// Register registers a new consumer as a vertex in the dependency graph.
-func (dt *Manager[StatusType, ConsumerID]) Register(id ConsumerID) error {
+// Register registers a new unit as a vertex in the dependency graph.
+func (dt *Manager[StatusType, UnitID]) Register(id UnitID) error {
 	dt.mu.Lock()
 	defer dt.mu.Unlock()
 
-	if dt.registeredConsumers[id] {
-		return ErrConsumerAlreadyRegistered
+	if dt.registeredUnits[id] {
+		return ErrUnitAlreadyRegistered
 	}
 
-	// Create and store the vertex for this consumer
-	vertex := &dependencyVertex[ConsumerID]{ID: id}
-	dt.consumerVertices[id] = vertex
-	dt.registeredConsumers[id] = true
-	dt.consumerReadiness[id] = true // New consumers start as ready (no dependencies)
+	// Create and store the vertex for this unit
+	vertex := &dependencyVertex[UnitID]{ID: id}
+	dt.unitVertices[id] = vertex
+	dt.registeredUnits[id] = true
+	dt.unitReadiness[id] = true // New units start as ready (no dependencies)
 
 	return nil
 }
 
-// AddDependency adds a dependency relationship between consumers.
-// The consumer depends on the dependsOn consumer reaching the requiredStatus.
-func (dt *Manager[StatusType, ConsumerID]) AddDependency(consumer ConsumerID, dependsOn ConsumerID, requiredStatus StatusType) error {
+// AddDependency adds a dependency relationship between units.
+// The unit depends on the dependsOn unit reaching the requiredStatus.
+func (dt *Manager[StatusType, UnitID]) AddDependency(unit UnitID, dependsOn UnitID, requiredStatus StatusType) error {
 	dt.mu.Lock()
 	defer dt.mu.Unlock()
 
-	if !dt.registeredConsumers[consumer] {
-		return xerrors.Errorf("consumer %v is not registered", consumer)
+	if !dt.registeredUnits[unit] {
+		return xerrors.Errorf("unit %v is not registered", unit)
 	}
-	if !dt.registeredConsumers[dependsOn] {
-		return xerrors.Errorf("consumer %v is not registered", dependsOn)
+	if !dt.registeredUnits[dependsOn] {
+		return xerrors.Errorf("unit %v is not registered", dependsOn)
 	}
 
-	// Get the stored vertices for both consumers
-	consumerVertex := dt.consumerVertices[consumer]
-	dependsOnVertex := dt.consumerVertices[dependsOn]
+	// Get the stored vertices for both units
+	unitVertex := dt.unitVertices[unit]
+	dependsOnVertex := dt.unitVertices[dependsOn]
 
 	// Add the dependency edge to the graph
-	// The edge goes from consumer to dependsOn, representing the dependency
-	err := dt.graph.AddEdge(consumerVertex, dependsOnVertex, requiredStatus)
+	// The edge goes from unit to dependsOn, representing the dependency
+	err := dt.graph.AddEdge(unitVertex, dependsOnVertex, requiredStatus)
 	if err != nil {
 		return xerrors.Errorf("failed to add dependency: %w", err)
 	}
 
-	// Recalculate readiness for the consumer since it now has a dependency
-	dt.recalculateReadinessUnsafe(consumer)
+	// Recalculate readiness for the unit since it now has a dependency
+	dt.recalculateReadinessUnsafe(unit)
 
 	return nil
 }
 
-// UpdateStatus updates a consumer's status and recalculates readiness for affected dependents.
-func (dt *Manager[StatusType, ConsumerID]) UpdateStatus(consumer ConsumerID, newStatus StatusType) error {
+// UpdateStatus updates a unit's status and recalculates readiness for affected dependents.
+func (dt *Manager[StatusType, UnitID]) UpdateStatus(unit UnitID, newStatus StatusType) error {
 	dt.mu.Lock()
 	defer dt.mu.Unlock()
 
-	if !dt.registeredConsumers[consumer] {
-		return ErrConsumerNotFound
+	if !dt.registeredUnits[unit] {
+		return ErrUnitNotFound
 	}
 
-	// Update the consumer's status
-	if dt.consumerStatus[consumer] == newStatus {
+	// Update the unit's status
+	if dt.unitStatus[unit] == newStatus {
 		return ErrSameStatusAlreadySet
 	}
-	dt.consumerStatus[consumer] = newStatus
+	dt.unitStatus[unit] = newStatus
 
-	// Get all consumers that depend on this one (reverse adjacent vertices)
-	consumerVertex := dt.consumerVertices[consumer]
-	dependentEdges := dt.graph.GetReverseAdjacentVertices(consumerVertex)
+	// Get all units that depend on this one (reverse adjacent vertices)
+	unitVertex := dt.unitVertices[unit]
+	dependentEdges := dt.graph.GetReverseAdjacentVertices(unitVertex)
 
 	// Recalculate readiness for all dependents
 	for _, edge := range dependentEdges {
@@ -149,42 +149,42 @@ func (dt *Manager[StatusType, ConsumerID]) UpdateStatus(consumer ConsumerID, new
 	return nil
 }
 
-// IsReady checks if all dependencies for a consumer are satisfied.
-func (dt *Manager[StatusType, ConsumerID]) IsReady(consumer ConsumerID) (bool, error) {
+// IsReady checks if all dependencies for a unit are satisfied.
+func (dt *Manager[StatusType, UnitID]) IsReady(unit UnitID) (bool, error) {
 	dt.mu.RLock()
 	defer dt.mu.RUnlock()
 
-	if !dt.registeredConsumers[consumer] {
-		return false, ErrConsumerNotFound
+	if !dt.registeredUnits[unit] {
+		return false, ErrUnitNotFound
 	}
 
-	return dt.consumerReadiness[consumer], nil
+	return dt.unitReadiness[unit], nil
 }
 
-// GetUnmetDependencies returns a list of unsatisfied dependencies for a consumer.
-func (dt *Manager[StatusType, ConsumerID]) GetUnmetDependencies(consumer ConsumerID) ([]Dependency[StatusType, ConsumerID], error) {
+// GetUnmetDependencies returns a list of unsatisfied dependencies for a unit.
+func (dt *Manager[StatusType, UnitID]) GetUnmetDependencies(unit UnitID) ([]Dependency[StatusType, UnitID], error) {
 	dt.mu.RLock()
 	defer dt.mu.RUnlock()
 
-	if !dt.registeredConsumers[consumer] {
-		return nil, ErrConsumerNotFound
+	if !dt.registeredUnits[unit] {
+		return nil, ErrUnitNotFound
 	}
 
-	consumerVertex := dt.consumerVertices[consumer]
-	forwardEdges := dt.graph.GetForwardAdjacentVertices(consumerVertex)
+	unitVertex := dt.unitVertices[unit]
+	forwardEdges := dt.graph.GetForwardAdjacentVertices(unitVertex)
 
-	var unmetDependencies []Dependency[StatusType, ConsumerID]
+	var unmetDependencies []Dependency[StatusType, UnitID]
 
 	for _, edge := range forwardEdges {
-		dependsOnConsumer := edge.To.ID
+		dependsOnUnit := edge.To.ID
 		requiredStatus := edge.Edge
-		currentStatus, exists := dt.consumerStatus[dependsOnConsumer]
+		currentStatus, exists := dt.unitStatus[dependsOnUnit]
 		if !exists {
-			// If the dependency consumer has no status, it's not satisfied
+			// If the dependency unit has no status, it's not satisfied
 			var zeroStatus StatusType
-			unmetDependencies = append(unmetDependencies, Dependency[StatusType, ConsumerID]{
-				Consumer:       consumer,
-				DependsOn:      dependsOnConsumer,
+			unmetDependencies = append(unmetDependencies, Dependency[StatusType, UnitID]{
+				Unit:           unit,
+				DependsOn:      dependsOnUnit,
 				RequiredStatus: requiredStatus,
 				CurrentStatus:  zeroStatus, // Zero value
 				IsSatisfied:    false,
@@ -192,9 +192,9 @@ func (dt *Manager[StatusType, ConsumerID]) GetUnmetDependencies(consumer Consume
 		} else {
 			isSatisfied := currentStatus == requiredStatus
 			if !isSatisfied {
-				unmetDependencies = append(unmetDependencies, Dependency[StatusType, ConsumerID]{
-					Consumer:       consumer,
-					DependsOn:      dependsOnConsumer,
+				unmetDependencies = append(unmetDependencies, Dependency[StatusType, UnitID]{
+					Unit:           unit,
+					DependsOn:      dependsOnUnit,
 					RequiredStatus: requiredStatus,
 					CurrentStatus:  currentStatus,
 					IsSatisfied:    false,
@@ -206,50 +206,50 @@ func (dt *Manager[StatusType, ConsumerID]) GetUnmetDependencies(consumer Consume
 	return unmetDependencies, nil
 }
 
-// recalculateReadinessUnsafe recalculates the readiness state for a consumer.
+// recalculateReadinessUnsafe recalculates the readiness state for a unit.
 // This method assumes the caller holds the write lock.
-func (dt *Manager[StatusType, ConsumerID]) recalculateReadinessUnsafe(consumer ConsumerID) {
-	consumerVertex := dt.consumerVertices[consumer]
-	forwardEdges := dt.graph.GetForwardAdjacentVertices(consumerVertex)
+func (dt *Manager[StatusType, UnitID]) recalculateReadinessUnsafe(unit UnitID) {
+	unitVertex := dt.unitVertices[unit]
+	forwardEdges := dt.graph.GetForwardAdjacentVertices(unitVertex)
 
-	// If there are no dependencies, the consumer is ready
+	// If there are no dependencies, the unit is ready
 	if len(forwardEdges) == 0 {
-		dt.consumerReadiness[consumer] = true
+		dt.unitReadiness[unit] = true
 		return
 	}
 
 	// Check if all dependencies are satisfied
 	allSatisfied := true
 	for _, edge := range forwardEdges {
-		dependsOnConsumer := edge.To.ID
+		dependsOnUnit := edge.To.ID
 		requiredStatus := edge.Edge
-		currentStatus, exists := dt.consumerStatus[dependsOnConsumer]
+		currentStatus, exists := dt.unitStatus[dependsOnUnit]
 		if !exists || currentStatus != requiredStatus {
 			allSatisfied = false
 			break
 		}
 	}
 
-	dt.consumerReadiness[consumer] = allSatisfied
+	dt.unitReadiness[unit] = allSatisfied
 }
 
 // GetGraph returns the underlying graph for visualization and debugging.
 // This should be used carefully as it exposes the internal graph structure.
-func (dt *Manager[StatusType, ConsumerID]) GetGraph() *Graph[StatusType, *dependencyVertex[ConsumerID]] {
+func (dt *Manager[StatusType, UnitID]) GetGraph() *Graph[StatusType, *dependencyVertex[UnitID]] {
 	return dt.graph
 }
 
-// GetStatus returns the current status of a consumer.
-func (dt *Manager[StatusType, ConsumerID]) GetStatus(consumer ConsumerID) (StatusType, error) {
+// GetStatus returns the current status of a unit.
+func (dt *Manager[StatusType, UnitID]) GetStatus(unit UnitID) (StatusType, error) {
 	dt.mu.RLock()
 	defer dt.mu.RUnlock()
 
-	if !dt.registeredConsumers[consumer] {
+	if !dt.registeredUnits[unit] {
 		var zeroStatus StatusType
-		return zeroStatus, ErrConsumerNotFound
+		return zeroStatus, ErrUnitNotFound
 	}
 
-	status, exists := dt.consumerStatus[consumer]
+	status, exists := dt.unitStatus[unit]
 	if !exists {
 		var zeroStatus StatusType
 		return zeroStatus, nil
@@ -258,39 +258,39 @@ func (dt *Manager[StatusType, ConsumerID]) GetStatus(consumer ConsumerID) (Statu
 	return status, nil
 }
 
-// GetAllDependencies returns all dependencies for a consumer, both satisfied and unsatisfied.
-func (dt *Manager[StatusType, ConsumerID]) GetAllDependencies(consumer ConsumerID) ([]Dependency[StatusType, ConsumerID], error) {
+// GetAllDependencies returns all dependencies for a unit, both satisfied and unsatisfied.
+func (dt *Manager[StatusType, UnitID]) GetAllDependencies(unit UnitID) ([]Dependency[StatusType, UnitID], error) {
 	dt.mu.RLock()
 	defer dt.mu.RUnlock()
 
-	if !dt.registeredConsumers[consumer] {
-		return nil, ErrConsumerNotFound
+	if !dt.registeredUnits[unit] {
+		return nil, ErrUnitNotFound
 	}
 
-	consumerVertex := dt.consumerVertices[consumer]
-	forwardEdges := dt.graph.GetForwardAdjacentVertices(consumerVertex)
+	unitVertex := dt.unitVertices[unit]
+	forwardEdges := dt.graph.GetForwardAdjacentVertices(unitVertex)
 
-	var allDependencies []Dependency[StatusType, ConsumerID]
+	var allDependencies []Dependency[StatusType, UnitID]
 
 	for _, edge := range forwardEdges {
-		dependsOnConsumer := edge.To.ID
+		dependsOnUnit := edge.To.ID
 		requiredStatus := edge.Edge
-		currentStatus, exists := dt.consumerStatus[dependsOnConsumer]
+		currentStatus, exists := dt.unitStatus[dependsOnUnit]
 		if !exists {
-			// If the dependency consumer has no status, it's not satisfied
+			// If the dependency unit has no status, it's not satisfied
 			var zeroStatus StatusType
-			allDependencies = append(allDependencies, Dependency[StatusType, ConsumerID]{
-				Consumer:       consumer,
-				DependsOn:      dependsOnConsumer,
+			allDependencies = append(allDependencies, Dependency[StatusType, UnitID]{
+				Unit:           unit,
+				DependsOn:      dependsOnUnit,
 				RequiredStatus: requiredStatus,
 				CurrentStatus:  zeroStatus, // Zero value
 				IsSatisfied:    false,
 			})
 		} else {
 			isSatisfied := currentStatus == requiredStatus
-			allDependencies = append(allDependencies, Dependency[StatusType, ConsumerID]{
-				Consumer:       consumer,
-				DependsOn:      dependsOnConsumer,
+			allDependencies = append(allDependencies, Dependency[StatusType, UnitID]{
+				Unit:           unit,
+				DependsOn:      dependsOnUnit,
 				RequiredStatus: requiredStatus,
 				CurrentStatus:  currentStatus,
 				IsSatisfied:    isSatisfied,
@@ -302,6 +302,6 @@ func (dt *Manager[StatusType, ConsumerID]) GetAllDependencies(consumer ConsumerI
 }
 
 // ExportDOT exports the dependency graph to DOT format for visualization.
-func (dt *Manager[StatusType, ConsumerID]) ExportDOT(name string) (string, error) {
+func (dt *Manager[StatusType, UnitID]) ExportDOT(name string) (string, error) {
 	return dt.graph.ToDOT(name)
 }

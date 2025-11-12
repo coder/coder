@@ -19,58 +19,58 @@ const (
 	statusCompleted testStatus = "completed"
 )
 
-type testConsumerID string
+type testUnitID string
 
 const (
-	consumerA testConsumerID = "serviceA"
-	consumerB testConsumerID = "serviceB"
-	consumerC testConsumerID = "serviceC"
-	consumerD testConsumerID = "serviceD"
+	unitA testUnitID = "serviceA"
+	unitB testUnitID = "serviceB"
+	unitC testUnitID = "serviceC"
+	unitD testUnitID = "serviceD"
 )
 
 func TestDependencyTracker_Register(t *testing.T) {
 	t.Parallel()
 
-	tracker := unit.NewManager[testStatus, testConsumerID]()
+	tracker := unit.NewManager[testStatus, testUnitID]()
 
-	t.Run("RegisterNewConsumer", func(t *testing.T) {
+	t.Run("RegisterNewUnit", func(t *testing.T) {
 		t.Parallel()
 
-		err := tracker.Register(consumerA)
+		err := tracker.Register(unitA)
 		require.NoError(t, err)
 
-		// Consumer should be ready initially (no dependencies)
-		ready, err := tracker.IsReady(consumerA)
+		// Unit should be ready initially (no dependencies)
+		ready, err := tracker.IsReady(unitA)
 		require.NoError(t, err)
 		assert.True(t, ready)
 	})
 
-	t.Run("RegisterDuplicateConsumer", func(t *testing.T) {
+	t.Run("RegisterDuplicateUnit", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testConsumerID]()
-		err := tracker.Register(consumerA)
+		tracker := unit.NewManager[testStatus, testUnitID]()
+		err := tracker.Register(unitA)
 		require.NoError(t, err)
 
-		err = tracker.Register(consumerA)
+		err = tracker.Register(unitA)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "already registered")
 	})
 
-	t.Run("RegisterMultipleConsumers", func(t *testing.T) {
+	t.Run("RegisterMultipleUnits", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testConsumerID]()
+		tracker := unit.NewManager[testStatus, testUnitID]()
 
-		consumers := []testConsumerID{consumerA, consumerB, consumerC}
-		for _, consumer := range consumers {
-			err := tracker.Register(consumer)
+		units := []testUnitID{unitA, unitB, unitC}
+		for _, unit := range units {
+			err := tracker.Register(unit)
 			require.NoError(t, err)
 		}
 
 		// All should be ready initially
-		for _, consumer := range consumers {
-			ready, err := tracker.IsReady(consumer)
+		for _, unit := range units {
+			ready, err := tracker.IsReady(unit)
 			require.NoError(t, err)
 			assert.True(t, ready)
 		}
@@ -80,52 +80,52 @@ func TestDependencyTracker_Register(t *testing.T) {
 func TestDependencyTracker_AddDependency(t *testing.T) {
 	t.Parallel()
 
-	t.Run("AddDependencyBetweenRegisteredConsumers", func(t *testing.T) {
+	t.Run("AddDependencyBetweenRegisteredUnits", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testConsumerID]()
-		err := tracker.Register(consumerA)
+		tracker := unit.NewManager[testStatus, testUnitID]()
+		err := tracker.Register(unitA)
 		require.NoError(t, err)
-		err = tracker.Register(consumerB)
+		err = tracker.Register(unitB)
 		require.NoError(t, err)
 
 		// A depends on B being "running"
-		err = tracker.AddDependency(consumerA, consumerB, statusRunning)
+		err = tracker.AddDependency(unitA, unitB, statusRunning)
 		require.NoError(t, err)
 
 		// A should no longer be ready (depends on B)
-		ready, err := tracker.IsReady(consumerA)
+		ready, err := tracker.IsReady(unitA)
 		require.NoError(t, err)
 		assert.False(t, ready)
 
 		// B should still be ready (no dependencies)
-		ready, err = tracker.IsReady(consumerB)
+		ready, err = tracker.IsReady(unitB)
 		require.NoError(t, err)
 		assert.True(t, ready)
 	})
 
-	t.Run("AddDependencyWithUnregisteredConsumer", func(t *testing.T) {
+	t.Run("AddDependencyWithUnregisteredUnit", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testConsumerID]()
-		err := tracker.Register(consumerA)
+		tracker := unit.NewManager[testStatus, testUnitID]()
+		err := tracker.Register(unitA)
 		require.NoError(t, err)
 
-		// Try to add dependency to unregistered consumer
-		err = tracker.AddDependency(consumerA, consumerB, statusRunning)
+		// Try to add dependency to unregistered unit
+		err = tracker.AddDependency(unitA, unitB, statusRunning)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not registered")
 	})
 
-	t.Run("AddDependencyFromUnregisteredConsumer", func(t *testing.T) {
+	t.Run("AddDependencyFromUnregisteredUnit", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testConsumerID]()
-		err := tracker.Register(consumerB)
+		tracker := unit.NewManager[testStatus, testUnitID]()
+		err := tracker.Register(unitB)
 		require.NoError(t, err)
 
-		// Try to add dependency from unregistered consumer
-		err = tracker.AddDependency(consumerA, consumerB, statusRunning)
+		// Try to add dependency from unregistered unit
+		err = tracker.AddDependency(unitA, unitB, statusRunning)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not registered")
 	})
@@ -137,88 +137,88 @@ func TestDependencyTracker_UpdateStatus(t *testing.T) {
 	t.Run("UpdateStatusTriggersReadinessRecalculation", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testConsumerID]()
-		err := tracker.Register(consumerA)
+		tracker := unit.NewManager[testStatus, testUnitID]()
+		err := tracker.Register(unitA)
 		require.NoError(t, err)
-		err = tracker.Register(consumerB)
+		err = tracker.Register(unitB)
 		require.NoError(t, err)
 
 		// A depends on B being "running"
-		err = tracker.AddDependency(consumerA, consumerB, statusRunning)
+		err = tracker.AddDependency(unitA, unitB, statusRunning)
 		require.NoError(t, err)
 
 		// Initially A is not ready
-		ready, err := tracker.IsReady(consumerA)
+		ready, err := tracker.IsReady(unitA)
 		require.NoError(t, err)
 		assert.False(t, ready)
 
 		// Update B to "running" - A should become ready
-		err = tracker.UpdateStatus(consumerB, statusRunning)
+		err = tracker.UpdateStatus(unitB, statusRunning)
 		require.NoError(t, err)
 
-		ready, err = tracker.IsReady(consumerA)
+		ready, err = tracker.IsReady(unitA)
 		require.NoError(t, err)
 		assert.True(t, ready)
 	})
 
-	t.Run("UpdateStatusWithUnregisteredConsumer", func(t *testing.T) {
+	t.Run("UpdateStatusWithUnregisteredUnit", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testConsumerID]()
+		tracker := unit.NewManager[testStatus, testUnitID]()
 
-		err := tracker.UpdateStatus(consumerA, statusRunning)
+		err := tracker.UpdateStatus(unitA, statusRunning)
 		require.Error(t, err)
-		assert.Equal(t, unit.ErrConsumerNotFound, err)
+		assert.Equal(t, unit.ErrUnitNotFound, err)
 	})
 
 	t.Run("LinearChainDependencies", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testConsumerID]()
+		tracker := unit.NewManager[testStatus, testUnitID]()
 
-		// Register all consumers
-		consumers := []testConsumerID{consumerA, consumerB, consumerC}
-		for _, consumer := range consumers {
-			err := tracker.Register(consumer)
+		// Register all units
+		units := []testUnitID{unitA, unitB, unitC}
+		for _, unit := range units {
+			err := tracker.Register(unit)
 			require.NoError(t, err)
 		}
 
 		// Create chain: A depends on B being "started", B depends on C being "completed"
-		err := tracker.AddDependency(consumerA, consumerB, statusStarted)
+		err := tracker.AddDependency(unitA, unitB, statusStarted)
 		require.NoError(t, err)
-		err = tracker.AddDependency(consumerB, consumerC, statusCompleted)
+		err = tracker.AddDependency(unitB, unitC, statusCompleted)
 		require.NoError(t, err)
 
 		// Initially only C is ready
-		ready, err := tracker.IsReady(consumerC)
+		ready, err := tracker.IsReady(unitC)
 		require.NoError(t, err)
 		assert.True(t, ready)
 
-		ready, err = tracker.IsReady(consumerB)
+		ready, err = tracker.IsReady(unitB)
 		require.NoError(t, err)
 		assert.False(t, ready)
 
-		ready, err = tracker.IsReady(consumerA)
+		ready, err = tracker.IsReady(unitA)
 		require.NoError(t, err)
 		assert.False(t, ready)
 
 		// Update C to "completed" - B should become ready
-		err = tracker.UpdateStatus(consumerC, statusCompleted)
+		err = tracker.UpdateStatus(unitC, statusCompleted)
 		require.NoError(t, err)
 
-		ready, err = tracker.IsReady(consumerB)
+		ready, err = tracker.IsReady(unitB)
 		require.NoError(t, err)
 		assert.True(t, ready)
 
-		ready, err = tracker.IsReady(consumerA)
+		ready, err = tracker.IsReady(unitA)
 		require.NoError(t, err)
 		assert.False(t, ready)
 
 		// Update B to "started" - A should become ready
-		err = tracker.UpdateStatus(consumerB, statusStarted)
+		err = tracker.UpdateStatus(unitB, statusStarted)
 		require.NoError(t, err)
 
-		ready, err = tracker.IsReady(consumerA)
+		ready, err = tracker.IsReady(unitA)
 		require.NoError(t, err)
 		assert.True(t, ready)
 	})
@@ -227,71 +227,71 @@ func TestDependencyTracker_UpdateStatus(t *testing.T) {
 func TestDependencyTracker_GetUnmetDependencies(t *testing.T) {
 	t.Parallel()
 
-	t.Run("GetUnmetDependenciesForConsumerWithNoDependencies", func(t *testing.T) {
+	t.Run("GetUnmetDependenciesForUnitWithNoDependencies", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testConsumerID]()
-		err := tracker.Register(consumerA)
+		tracker := unit.NewManager[testStatus, testUnitID]()
+		err := tracker.Register(unitA)
 		require.NoError(t, err)
 
-		unmet, err := tracker.GetUnmetDependencies(consumerA)
+		unmet, err := tracker.GetUnmetDependencies(unitA)
 		require.NoError(t, err)
 		assert.Empty(t, unmet)
 	})
 
-	t.Run("GetUnmetDependenciesForConsumerWithUnsatisfiedDependencies", func(t *testing.T) {
+	t.Run("GetUnmetDependenciesForUnitWithUnsatisfiedDependencies", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testConsumerID]()
-		err := tracker.Register(consumerA)
+		tracker := unit.NewManager[testStatus, testUnitID]()
+		err := tracker.Register(unitA)
 		require.NoError(t, err)
-		err = tracker.Register(consumerB)
+		err = tracker.Register(unitB)
 		require.NoError(t, err)
 
 		// A depends on B being "running"
-		err = tracker.AddDependency(consumerA, consumerB, statusRunning)
+		err = tracker.AddDependency(unitA, unitB, statusRunning)
 		require.NoError(t, err)
 
-		unmet, err := tracker.GetUnmetDependencies(consumerA)
+		unmet, err := tracker.GetUnmetDependencies(unitA)
 		require.NoError(t, err)
 		require.Len(t, unmet, 1)
 
-		assert.Equal(t, consumerA, unmet[0].Consumer)
-		assert.Equal(t, consumerB, unmet[0].DependsOn)
+		assert.Equal(t, unitA, unmet[0].Unit)
+		assert.Equal(t, unitB, unmet[0].DependsOn)
 		assert.Equal(t, statusRunning, unmet[0].RequiredStatus)
 		assert.False(t, unmet[0].IsSatisfied)
 	})
 
-	t.Run("GetUnmetDependenciesForConsumerWithSatisfiedDependencies", func(t *testing.T) {
+	t.Run("GetUnmetDependenciesForUnitWithSatisfiedDependencies", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testConsumerID]()
-		err := tracker.Register(consumerA)
+		tracker := unit.NewManager[testStatus, testUnitID]()
+		err := tracker.Register(unitA)
 		require.NoError(t, err)
-		err = tracker.Register(consumerB)
+		err = tracker.Register(unitB)
 		require.NoError(t, err)
 
 		// A depends on B being "running"
-		err = tracker.AddDependency(consumerA, consumerB, statusRunning)
+		err = tracker.AddDependency(unitA, unitB, statusRunning)
 		require.NoError(t, err)
 
 		// Update B to "running"
-		err = tracker.UpdateStatus(consumerB, statusRunning)
+		err = tracker.UpdateStatus(unitB, statusRunning)
 		require.NoError(t, err)
 
-		unmet, err := tracker.GetUnmetDependencies(consumerA)
+		unmet, err := tracker.GetUnmetDependencies(unitA)
 		require.NoError(t, err)
 		assert.Empty(t, unmet)
 	})
 
-	t.Run("GetUnmetDependenciesForUnregisteredConsumer", func(t *testing.T) {
+	t.Run("GetUnmetDependenciesForUnregisteredUnit", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testConsumerID]()
+		tracker := unit.NewManager[testStatus, testUnitID]()
 
-		unmet, err := tracker.GetUnmetDependencies(consumerA)
+		unmet, err := tracker.GetUnmetDependencies(unitA)
 		require.Error(t, err)
-		assert.Equal(t, unit.ErrConsumerNotFound, err)
+		assert.Equal(t, unit.ErrUnitNotFound, err)
 		assert.Nil(t, unmet)
 	})
 }
@@ -302,21 +302,21 @@ func TestDependencyTracker_ConcurrentOperations(t *testing.T) {
 	t.Run("ConcurrentStatusUpdates", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testConsumerID]()
+		tracker := unit.NewManager[testStatus, testUnitID]()
 
-		// Register consumers
-		consumers := []testConsumerID{consumerA, consumerB, consumerC, consumerD}
-		for _, consumer := range consumers {
-			err := tracker.Register(consumer)
+		// Register units
+		units := []testUnitID{unitA, unitB, unitC, unitD}
+		for _, unit := range units {
+			err := tracker.Register(unit)
 			require.NoError(t, err)
 		}
 
 		// Create dependencies: A depends on B, B depends on C, C depends on D
-		err := tracker.AddDependency(consumerA, consumerB, statusRunning)
+		err := tracker.AddDependency(unitA, unitB, statusRunning)
 		require.NoError(t, err)
-		err = tracker.AddDependency(consumerB, consumerC, statusStarted)
+		err = tracker.AddDependency(unitB, unitC, statusStarted)
 		require.NoError(t, err)
-		err = tracker.AddDependency(consumerC, consumerD, statusCompleted)
+		err = tracker.AddDependency(unitC, unitD, statusCompleted)
 		require.NoError(t, err)
 
 		var wg sync.WaitGroup
@@ -330,21 +330,21 @@ func TestDependencyTracker_ConcurrentOperations(t *testing.T) {
 				defer wg.Done()
 
 				// Update D to completed (should make C ready)
-				err := tracker.UpdateStatus(consumerD, statusCompleted)
+				err := tracker.UpdateStatus(unitD, statusCompleted)
 				if err != nil {
 					goroutineErrors[goroutineID] = err
 					return
 				}
 
 				// Update C to started (should make B ready)
-				err = tracker.UpdateStatus(consumerC, statusStarted)
+				err = tracker.UpdateStatus(unitC, statusStarted)
 				if err != nil {
 					goroutineErrors[goroutineID] = err
 					return
 				}
 
 				// Update B to running (should make A ready)
-				err = tracker.UpdateStatus(consumerB, statusRunning)
+				err = tracker.UpdateStatus(unitB, statusRunning)
 				if err != nil {
 					goroutineErrors[goroutineID] = err
 					return
@@ -362,9 +362,9 @@ func TestDependencyTracker_ConcurrentOperations(t *testing.T) {
 			}
 		}
 
-		// All consumers should be ready after the updates
-		for _, consumer := range consumers {
-			ready, err := tracker.IsReady(consumer)
+		// All units should be ready after the updates
+		for _, unit := range units {
+			ready, err := tracker.IsReady(unit)
 			require.NoError(t, err)
 			assert.True(t, ready)
 		}
@@ -373,16 +373,16 @@ func TestDependencyTracker_ConcurrentOperations(t *testing.T) {
 	t.Run("ConcurrentReadinessChecks", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testConsumerID]()
+		tracker := unit.NewManager[testStatus, testUnitID]()
 
-		// Register consumers
-		err := tracker.Register(consumerA)
+		// Register units
+		err := tracker.Register(unitA)
 		require.NoError(t, err)
-		err = tracker.Register(consumerB)
+		err = tracker.Register(unitB)
 		require.NoError(t, err)
 
 		// A depends on B being "running"
-		err = tracker.AddDependency(consumerA, consumerB, statusRunning)
+		err = tracker.AddDependency(unitA, unitB, statusRunning)
 		require.NoError(t, err)
 
 		var wg sync.WaitGroup
@@ -396,12 +396,12 @@ func TestDependencyTracker_ConcurrentOperations(t *testing.T) {
 
 				// Check readiness multiple times
 				for j := 0; j < 10; j++ {
-					ready, err := tracker.IsReady(consumerA)
+					ready, err := tracker.IsReady(unitA)
 					require.NoError(t, err)
 					// Initially should be false, then true after B is updated
 					_ = ready
 
-					ready, err = tracker.IsReady(consumerB)
+					ready, err = tracker.IsReady(unitB)
 					require.NoError(t, err)
 					// B should always be ready (no dependencies)
 					assert.True(t, ready)
@@ -410,7 +410,7 @@ func TestDependencyTracker_ConcurrentOperations(t *testing.T) {
 		}
 
 		// Update B to "running" in the middle of readiness checks
-		err = tracker.UpdateStatus(consumerB, statusRunning)
+		err = tracker.UpdateStatus(unitB, statusRunning)
 		require.NoError(t, err)
 
 		wg.Wait()
@@ -420,42 +420,42 @@ func TestDependencyTracker_ConcurrentOperations(t *testing.T) {
 func TestDependencyTracker_MultipleDependencies(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ConsumerWithMultipleDependencies", func(t *testing.T) {
+	t.Run("UnitWithMultipleDependencies", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testConsumerID]()
+		tracker := unit.NewManager[testStatus, testUnitID]()
 
-		// Register all consumers
-		consumers := []testConsumerID{consumerA, consumerB, consumerC, consumerD}
-		for _, consumer := range consumers {
-			err := tracker.Register(consumer)
+		// Register all units
+		units := []testUnitID{unitA, unitB, unitC, unitD}
+		for _, unit := range units {
+			err := tracker.Register(unit)
 			require.NoError(t, err)
 		}
 
 		// A depends on B being "running" AND C being "started"
-		err := tracker.AddDependency(consumerA, consumerB, statusRunning)
+		err := tracker.AddDependency(unitA, unitB, statusRunning)
 		require.NoError(t, err)
-		err = tracker.AddDependency(consumerA, consumerC, statusStarted)
+		err = tracker.AddDependency(unitA, unitC, statusStarted)
 		require.NoError(t, err)
 
 		// A should not be ready (depends on both B and C)
-		ready, err := tracker.IsReady(consumerA)
+		ready, err := tracker.IsReady(unitA)
 		require.NoError(t, err)
 		assert.False(t, ready)
 
 		// Update B to "running" - A should still not be ready (needs C too)
-		err = tracker.UpdateStatus(consumerB, statusRunning)
+		err = tracker.UpdateStatus(unitB, statusRunning)
 		require.NoError(t, err)
 
-		ready, err = tracker.IsReady(consumerA)
+		ready, err = tracker.IsReady(unitA)
 		require.NoError(t, err)
 		assert.False(t, ready)
 
 		// Update C to "started" - A should now be ready
-		err = tracker.UpdateStatus(consumerC, statusStarted)
+		err = tracker.UpdateStatus(unitC, statusStarted)
 		require.NoError(t, err)
 
-		ready, err = tracker.IsReady(consumerA)
+		ready, err = tracker.IsReady(unitA)
 		require.NoError(t, err)
 		assert.True(t, ready)
 	})
@@ -463,12 +463,12 @@ func TestDependencyTracker_MultipleDependencies(t *testing.T) {
 	t.Run("ComplexDependencyChain", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testConsumerID]()
+		tracker := unit.NewManager[testStatus, testUnitID]()
 
-		// Register all consumers
-		consumers := []testConsumerID{consumerA, consumerB, consumerC, consumerD}
-		for _, consumer := range consumers {
-			err := tracker.Register(consumer)
+		// Register all units
+		units := []testUnitID{unitA, unitB, unitC, unitD}
+		for _, unit := range units {
+			err := tracker.Register(unit)
 			require.NoError(t, err)
 		}
 
@@ -476,61 +476,61 @@ func TestDependencyTracker_MultipleDependencies(t *testing.T) {
 		// A depends on B being "running" AND C being "started"
 		// B depends on D being "completed"
 		// C depends on D being "completed"
-		err := tracker.AddDependency(consumerA, consumerB, statusRunning)
+		err := tracker.AddDependency(unitA, unitB, statusRunning)
 		require.NoError(t, err)
-		err = tracker.AddDependency(consumerA, consumerC, statusStarted)
+		err = tracker.AddDependency(unitA, unitC, statusStarted)
 		require.NoError(t, err)
-		err = tracker.AddDependency(consumerB, consumerD, statusCompleted)
+		err = tracker.AddDependency(unitB, unitD, statusCompleted)
 		require.NoError(t, err)
-		err = tracker.AddDependency(consumerC, consumerD, statusCompleted)
+		err = tracker.AddDependency(unitC, unitD, statusCompleted)
 		require.NoError(t, err)
 
 		// Initially only D is ready
-		ready, err := tracker.IsReady(consumerD)
+		ready, err := tracker.IsReady(unitD)
 		require.NoError(t, err)
 		assert.True(t, ready)
 
-		ready, err = tracker.IsReady(consumerB)
+		ready, err = tracker.IsReady(unitB)
 		require.NoError(t, err)
 		assert.False(t, ready)
 
-		ready, err = tracker.IsReady(consumerC)
+		ready, err = tracker.IsReady(unitC)
 		require.NoError(t, err)
 		assert.False(t, ready)
 
-		ready, err = tracker.IsReady(consumerA)
+		ready, err = tracker.IsReady(unitA)
 		require.NoError(t, err)
 		assert.False(t, ready)
 
 		// Update D to "completed" - B and C should become ready
-		err = tracker.UpdateStatus(consumerD, statusCompleted)
+		err = tracker.UpdateStatus(unitD, statusCompleted)
 		require.NoError(t, err)
 
-		ready, err = tracker.IsReady(consumerB)
-		require.NoError(t, err)
-		assert.True(t, ready)
-
-		ready, err = tracker.IsReady(consumerC)
+		ready, err = tracker.IsReady(unitB)
 		require.NoError(t, err)
 		assert.True(t, ready)
 
-		ready, err = tracker.IsReady(consumerA)
+		ready, err = tracker.IsReady(unitC)
+		require.NoError(t, err)
+		assert.True(t, ready)
+
+		ready, err = tracker.IsReady(unitA)
 		require.NoError(t, err)
 		assert.False(t, ready)
 
 		// Update B to "running" - A should still not be ready (needs C)
-		err = tracker.UpdateStatus(consumerB, statusRunning)
+		err = tracker.UpdateStatus(unitB, statusRunning)
 		require.NoError(t, err)
 
-		ready, err = tracker.IsReady(consumerA)
+		ready, err = tracker.IsReady(unitA)
 		require.NoError(t, err)
 		assert.False(t, ready)
 
 		// Update C to "started" - A should now be ready
-		err = tracker.UpdateStatus(consumerC, statusStarted)
+		err = tracker.UpdateStatus(unitC, statusStarted)
 		require.NoError(t, err)
 
-		ready, err = tracker.IsReady(consumerA)
+		ready, err = tracker.IsReady(unitA)
 		require.NoError(t, err)
 		assert.True(t, ready)
 	})
@@ -538,35 +538,35 @@ func TestDependencyTracker_MultipleDependencies(t *testing.T) {
 	t.Run("DifferentStatusTypes", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testConsumerID]()
+		tracker := unit.NewManager[testStatus, testUnitID]()
 
-		// Register consumers
-		err := tracker.Register(consumerA)
+		// Register units
+		err := tracker.Register(unitA)
 		require.NoError(t, err)
-		err = tracker.Register(consumerB)
+		err = tracker.Register(unitB)
 		require.NoError(t, err)
-		err = tracker.Register(consumerC)
+		err = tracker.Register(unitC)
 		require.NoError(t, err)
 
 		// A depends on B being "running" AND C being "completed"
-		err = tracker.AddDependency(consumerA, consumerB, statusRunning)
+		err = tracker.AddDependency(unitA, unitB, statusRunning)
 		require.NoError(t, err)
-		err = tracker.AddDependency(consumerA, consumerC, statusCompleted)
+		err = tracker.AddDependency(unitA, unitC, statusCompleted)
 		require.NoError(t, err)
 
 		// Update B to "running" but not C - A should not be ready
-		err = tracker.UpdateStatus(consumerB, statusRunning)
+		err = tracker.UpdateStatus(unitB, statusRunning)
 		require.NoError(t, err)
 
-		ready, err := tracker.IsReady(consumerA)
+		ready, err := tracker.IsReady(unitA)
 		require.NoError(t, err)
 		assert.False(t, ready)
 
 		// Update C to "completed" - A should now be ready
-		err = tracker.UpdateStatus(consumerC, statusCompleted)
+		err = tracker.UpdateStatus(unitC, statusCompleted)
 		require.NoError(t, err)
 
-		ready, err = tracker.IsReady(consumerA)
+		ready, err = tracker.IsReady(unitA)
 		require.NoError(t, err)
 		assert.True(t, ready)
 	})
@@ -575,45 +575,45 @@ func TestDependencyTracker_MultipleDependencies(t *testing.T) {
 func TestDependencyTracker_ErrorCases(t *testing.T) {
 	t.Parallel()
 
-	t.Run("UpdateStatusWithUnregisteredConsumer", func(t *testing.T) {
+	t.Run("UpdateStatusWithUnregisteredUnit", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testConsumerID]()
+		tracker := unit.NewManager[testStatus, testUnitID]()
 
-		err := tracker.UpdateStatus(consumerA, statusRunning)
+		err := tracker.UpdateStatus(unitA, statusRunning)
 		require.Error(t, err)
-		assert.Equal(t, unit.ErrConsumerNotFound, err)
+		assert.Equal(t, unit.ErrUnitNotFound, err)
 	})
 
-	t.Run("IsReadyWithUnregisteredConsumer", func(t *testing.T) {
+	t.Run("IsReadyWithUnregisteredUnit", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testConsumerID]()
+		tracker := unit.NewManager[testStatus, testUnitID]()
 
-		ready, err := tracker.IsReady(consumerA)
+		ready, err := tracker.IsReady(unitA)
 		require.Error(t, err)
-		assert.Equal(t, unit.ErrConsumerNotFound, err)
+		assert.Equal(t, unit.ErrUnitNotFound, err)
 		assert.False(t, ready)
 	})
 
-	t.Run("GetUnmetDependenciesWithUnregisteredConsumer", func(t *testing.T) {
+	t.Run("GetUnmetDependenciesWithUnregisteredUnit", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testConsumerID]()
+		tracker := unit.NewManager[testStatus, testUnitID]()
 
-		unmet, err := tracker.GetUnmetDependencies(consumerA)
+		unmet, err := tracker.GetUnmetDependencies(unitA)
 		require.Error(t, err)
-		assert.Equal(t, unit.ErrConsumerNotFound, err)
+		assert.Equal(t, unit.ErrUnitNotFound, err)
 		assert.Nil(t, unmet)
 	})
 
-	t.Run("AddDependencyWithUnregisteredConsumers", func(t *testing.T) {
+	t.Run("AddDependencyWithUnregisteredUnits", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testConsumerID]()
+		tracker := unit.NewManager[testStatus, testUnitID]()
 
-		// Try to add dependency with unregistered consumers
-		err := tracker.AddDependency(consumerA, consumerB, statusRunning)
+		// Try to add dependency with unregistered units
+		err := tracker.AddDependency(unitA, unitB, statusRunning)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not registered")
 	})
@@ -621,20 +621,20 @@ func TestDependencyTracker_ErrorCases(t *testing.T) {
 	t.Run("CyclicDependencyDetection", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testConsumerID]()
+		tracker := unit.NewManager[testStatus, testUnitID]()
 
-		// Register consumers
-		err := tracker.Register(consumerA)
+		// Register units
+		err := tracker.Register(unitA)
 		require.NoError(t, err)
-		err = tracker.Register(consumerB)
+		err = tracker.Register(unitB)
 		require.NoError(t, err)
 
 		// A depends on B
-		err = tracker.AddDependency(consumerA, consumerB, statusRunning)
+		err = tracker.AddDependency(unitA, unitB, statusRunning)
 		require.NoError(t, err)
 
 		// Try to make B depend on A (creates cycle)
-		err = tracker.AddDependency(consumerB, consumerA, statusStarted)
+		err = tracker.AddDependency(unitB, unitA, statusStarted)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "would create a cycle")
 	})
@@ -646,16 +646,16 @@ func TestDependencyTracker_ToDOT(t *testing.T) {
 	t.Run("ExportSimpleGraph", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testConsumerID]()
+		tracker := unit.NewManager[testStatus, testUnitID]()
 
-		// Register consumers
-		err := tracker.Register(consumerA)
+		// Register units
+		err := tracker.Register(unitA)
 		require.NoError(t, err)
-		err = tracker.Register(consumerB)
+		err = tracker.Register(unitB)
 		require.NoError(t, err)
 
 		// Add dependency
-		err = tracker.AddDependency(consumerA, consumerB, statusRunning)
+		err = tracker.AddDependency(unitA, unitB, statusRunning)
 		require.NoError(t, err)
 
 		dot, err := tracker.ExportDOT("test")
@@ -667,24 +667,24 @@ func TestDependencyTracker_ToDOT(t *testing.T) {
 	t.Run("ExportComplexGraph", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[testStatus, testConsumerID]()
+		tracker := unit.NewManager[testStatus, testUnitID]()
 
-		// Register all consumers
-		consumers := []testConsumerID{consumerA, consumerB, consumerC, consumerD}
-		for _, consumer := range consumers {
-			err := tracker.Register(consumer)
+		// Register all units
+		units := []testUnitID{unitA, unitB, unitC, unitD}
+		for _, unit := range units {
+			err := tracker.Register(unit)
 			require.NoError(t, err)
 		}
 
 		// Create complex dependency graph
 		// A depends on B and C, B depends on D, C depends on D
-		err := tracker.AddDependency(consumerA, consumerB, statusRunning)
+		err := tracker.AddDependency(unitA, unitB, statusRunning)
 		require.NoError(t, err)
-		err = tracker.AddDependency(consumerA, consumerC, statusStarted)
+		err = tracker.AddDependency(unitA, unitC, statusStarted)
 		require.NoError(t, err)
-		err = tracker.AddDependency(consumerB, consumerD, statusCompleted)
+		err = tracker.AddDependency(unitB, unitD, statusCompleted)
 		require.NoError(t, err)
-		err = tracker.AddDependency(consumerC, consumerD, statusCompleted)
+		err = tracker.AddDependency(unitC, unitD, statusCompleted)
 		require.NoError(t, err)
 
 		dot, err := tracker.ExportDOT("complex")
