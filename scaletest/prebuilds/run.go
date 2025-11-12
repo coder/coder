@@ -213,7 +213,7 @@ func (r *Runner) measureDeletion(ctx context.Context, logger slog.Logger) error 
 			if ws.LatestBuild.Transition == codersdk.WorkspaceTransitionDelete {
 				createdCount++
 				switch ws.LatestBuild.Job.Status {
-				case codersdk.ProvisionerJobRunning, codersdk.ProvisionerJobSucceeded:
+				case codersdk.ProvisionerJobRunning:
 					runningCount++
 				case codersdk.ProvisionerJobFailed, codersdk.ProvisionerJobCanceled:
 					failedCount++
@@ -222,6 +222,7 @@ func (r *Runner) measureDeletion(ctx context.Context, logger slog.Logger) error 
 		}
 
 		completedCount := targetNumWorkspaces - len(workspaces.Workspaces)
+		createdCount += completedCount
 
 		r.cfg.Metrics.SetDeletionJobsCreated(createdCount, r.template.Name)
 		r.cfg.Metrics.SetDeletionJobsRunning(runningCount, r.template.Name)
