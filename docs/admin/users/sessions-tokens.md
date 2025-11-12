@@ -128,6 +128,7 @@ coder tokens create --name limited-token \
   --scope workspace:read --scope template:* --scope organization:* \
   --allow workspace:a1b2c3d4-5678-90ab-cdef-1234567890ab \
   --allow template:* \
-  --allow organization:*
+  --allow organization:* \
+  ... etc
 ``` 
 
