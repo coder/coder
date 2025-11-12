@@ -12,12 +12,13 @@ import (
 )
 
 type OAuth2Config struct {
+	client          http.Client
 	Token           *oauth2.Token
 	TokenSourceFunc OAuth2TokenSource
 }
 
-func (*OAuth2Config) Do(_ context.Context, _ promoauth.Oauth2Source, req *http.Request) (*http.Response, error) {
-	return http.DefaultClient.Do(req)
+func (c *OAuth2Config) Do(_ context.Context, _ promoauth.Oauth2Source, req *http.Request) (*http.Response, error) {
+	return c.client.Do(req)
 }
 
 func (*OAuth2Config) AuthCodeURL(state string, _ ...oauth2.AuthCodeOption) string {

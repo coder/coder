@@ -85,7 +85,7 @@ func New(opts *Options) (*ProxyHealth, error) {
 
 	client := opts.Client
 	if client == nil {
-		client = http.DefaultClient
+		client = &http.Client{}
 	}
 	// Set a timeout on the client, so we don't wait forever for a healthz response.
 	tmp := *client

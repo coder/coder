@@ -34,7 +34,8 @@ func New(db database.Store, url string, keys map[string]ed25519.PublicKey) func(
 		if err != nil {
 			return xerrors.Errorf("create license request: %w", err)
 		}
-		res, err := http.DefaultClient.Do(req)
+		client := &http.Client{}
+		res, err := client.Do(req)
 		if err != nil {
 			return xerrors.Errorf("perform license request: %w", err)
 		}

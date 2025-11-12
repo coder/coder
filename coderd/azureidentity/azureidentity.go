@@ -78,6 +78,7 @@ func Validate(ctx context.Context, signature string, options Options) (string, e
 			return "", xerrors.Errorf("certificate from %v is not cached: %w", signer.IssuingCertificateURL, err)
 		}
 
+		client := &http.Client{}
 		ctx, cancelFunc := context.WithTimeout(ctx, 5*time.Second)
 		defer cancelFunc()
 		for _, certURL := range signer.IssuingCertificateURL {
@@ -85,7 +86,7 @@ func Validate(ctx context.Context, signature string, options Options) (string, e
 			if err != nil {
 				return "", xerrors.Errorf("new request %q: %w", certURL, err)
 			}
-			res, err := http.DefaultClient.Do(req)
+			res, err := client.Do(req)
 			if err != nil {
 				return "", xerrors.Errorf("no cached certificate for %q found. error fetching: %w", certURL, err)
 			}

@@ -42,7 +42,7 @@ type Checker struct {
 // Options set optional parameters for the update check.
 type Options struct {
 	// Client is the HTTP client to use for the update check,
-	// if omitted, http.DefaultClient will be used.
+	// if omitted, an internal http.Client will be used.
 	Client *http.Client
 	// URL is the URL to check for the latest version of Coder,
 	// if omitted, the default URL will be used.
@@ -61,7 +61,7 @@ type Options struct {
 // New returns a new Checker that periodically checks for Coder updates.
 func New(db database.Store, log slog.Logger, opts Options) *Checker {
 	if opts.Client == nil {
-		opts.Client = http.DefaultClient
+		opts.Client = &http.Client{}
 	}
 	if opts.URL == "" {
 		opts.URL = defaultURL
