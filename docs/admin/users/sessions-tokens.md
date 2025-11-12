@@ -130,5 +130,4 @@ coder tokens create --name "limited-token" \
   --allow "template:*" \
   --allow "user:*" \
   ... etc
-``` 
-
+```
