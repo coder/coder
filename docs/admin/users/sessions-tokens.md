@@ -123,12 +123,12 @@ coder tokens create --name workspace-token \
 **Important:** Allow lists are exclusive - the token can **only** perform actions on resources explicitly listed. In the example above, the token can only read the specified workspace and cannot access any other resources (templates, organizations, other workspaces, etc.). To maintain access to other resources, you must explicitly add them to the allow list:
 
 ```sh
-# Token that can read one workspace AND access templates and organizations
+# Token that can read one workspace AND access templates and user info
 coder tokens create --name limited-token \
-  --scope workspace:read --scope template:* --scope organization:* \
+  --scope workspace:read --scope template:* --scope user:read \
   --allow workspace:a1b2c3d4-5678-90ab-cdef-1234567890ab \
   --allow template:* \
-  --allow organization:* \
+  --allow user:* \
   ... etc
 ``` 
 
