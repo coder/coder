@@ -20550,6 +20550,7 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "has_ai_task": {
+                    "description": "Deprecated: This field has been deprecated in favor of Task WorkspaceID.",
                     "type": "boolean"
                 },
                 "has_external_agent": {

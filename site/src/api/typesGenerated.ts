@@ -6394,6 +6394,9 @@ export interface WorkspaceBuild {
 	readonly daily_cost: number;
 	readonly matched_provisioners?: MatchedProvisioners;
 	readonly template_version_preset_id: string | null;
+	/**
+	 * Deprecated: This field has been deprecated in favor of Task WorkspaceID.
+	 */
 	readonly has_ai_task?: boolean;
 	readonly has_external_agent?: boolean;
 }
