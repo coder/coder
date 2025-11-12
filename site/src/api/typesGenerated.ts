@@ -31,6 +31,7 @@ export interface AIBridgeConfig {
 	readonly openai: AIBridgeOpenAIConfig;
 	readonly anthropic: AIBridgeAnthropicConfig;
 	readonly bedrock: AIBridgeBedrockConfig;
+	readonly inject_coder_mcp_tools: boolean;
 }
 
 // From codersdk/aibridge.go
@@ -6393,6 +6394,9 @@ export interface WorkspaceBuild {
 	readonly daily_cost: number;
 	readonly matched_provisioners?: MatchedProvisioners;
 	readonly template_version_preset_id: string | null;
+	/**
+	 * Deprecated: This field has been deprecated in favor of Task WorkspaceID.
+	 */
 	readonly has_ai_task?: boolean;
 	readonly has_external_agent?: boolean;
 }

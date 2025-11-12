@@ -169,6 +169,13 @@ export const permissionChecks = {
 		},
 		action: "read",
 	},
+	viewAnyAIBridgeInterception: {
+		object: {
+			resource_type: "aibridge_interception",
+			any_org: true,
+		},
+		action: "read",
+	},
 } as const satisfies Record<string, AuthorizationCheck>;
 
 export const canViewDeploymentSettings = (

@@ -11700,6 +11700,9 @@ const docTemplate = `{
                 "enabled": {
                     "type": "boolean"
                 },
+                "inject_coder_mcp_tools": {
+                    "type": "boolean"
+                },
                 "openai": {
                     "$ref": "#/definitions/codersdk.AIBridgeOpenAIConfig"
                 }
@@ -20547,6 +20550,7 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "has_ai_task": {
+                    "description": "Deprecated: This field has been deprecated in favor of Task WorkspaceID.",
                     "type": "boolean"
                 },
                 "has_external_agent": {
