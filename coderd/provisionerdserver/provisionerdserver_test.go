@@ -60,24 +60,24 @@ import (
 )
 
 func testTemplateScheduleStore() *atomic.Pointer[schedule.TemplateScheduleStore] {
-	ptr := &atomic.Pointer[schedule.TemplateScheduleStore]{}
+	poitr := &atomic.Pointer[schedule.TemplateScheduleStore]{}
 	store := schedule.NewAGPLTemplateScheduleStore()
-	ptr.Store(&store)
-	return ptr
+	poitr.Store(&store)
+	return poitr
 }
 
 func testUserQuietHoursScheduleStore() *atomic.Pointer[schedule.UserQuietHoursScheduleStore] {
-	ptr := &atomic.Pointer[schedule.UserQuietHoursScheduleStore]{}
+	poitr := &atomic.Pointer[schedule.UserQuietHoursScheduleStore]{}
 	store := schedule.NewAGPLUserQuietHoursScheduleStore()
-	ptr.Store(&store)
-	return ptr
+	poitr.Store(&store)
+	return poitr
 }
 
 func testUsageInserter() *atomic.Pointer[usage.Inserter] {
-	ptr := &atomic.Pointer[usage.Inserter]{}
+	poitr := &atomic.Pointer[usage.Inserter]{}
 	inserter := usage.NewAGPLInserter()
-	ptr.Store(&inserter)
-	return ptr
+	poitr.Store(&inserter)
+	return poitr
 }
 
 func TestAcquireJob_LongPoll(t *testing.T) {
@@ -4396,11 +4396,11 @@ type fakeUsageInserter struct {
 var _ usage.Inserter = &fakeUsageInserter{}
 
 func newFakeUsageInserter() (*fakeUsageInserter, *atomic.Pointer[usage.Inserter]) {
-	ptr := &atomic.Pointer[usage.Inserter]{}
+	poitr := &atomic.Pointer[usage.Inserter]{}
 	fake := &fakeUsageInserter{}
 	var inserter usage.Inserter = fake
-	ptr.Store(&inserter)
-	return fake, ptr
+	poitr.Store(&inserter)
+	return fake, poitr
 }
 
 func (f *fakeUsageInserter) InsertDiscreteUsageEvent(_ context.Context, _ database.Store, event usagetypes.DiscreteEvent) error {
