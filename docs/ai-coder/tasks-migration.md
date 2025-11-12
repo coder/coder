@@ -50,7 +50,8 @@ module "claude-code" {
 
 1. Add the `coder_ai_task` resource and set `app_id` to the `task_app_id` output of the Claude module.
 
-> [!NOTE] Refer to the documentation for the specific module you are using for the exact name of the output.
+> [!NOTE]
+> Refer to the documentation for the specific module you are using for the exact name of the output.
 
 ```diff
 resource "coder_ai_task" "task" {
