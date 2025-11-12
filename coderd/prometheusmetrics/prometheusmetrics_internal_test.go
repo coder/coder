@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/require"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentmetrics"
@@ -45,9 +45,9 @@ var sinkMetric prometheus.Metric
 func benchAsPrometheus(b *testing.B, base []string, extraN int) {
 	am := annotatedMetric{
 		Stats_Metric: &agentproto.Stats_Metric{
-			Name:  "blink_test_metric",
-			Type:  agentproto.Stats_Metric_GAUGE,
-			Value: 1,
+			Name:   "blink_test_metric",
+			Type:   agentproto.Stats_Metric_GAUGE,
+			Value:  1,
 			Labels: make([]*agentproto.Stats_Metric_Label, extraN),
 		},
 		username:          "user",
@@ -74,7 +74,7 @@ func benchAsPrometheus(b *testing.B, base []string, extraN int) {
 }
 
 func Benchmark_asPrometheus(b *testing.B) {
-	cases := []struct{
+	cases := []struct {
 		name   string
 		base   []string
 		extraN int

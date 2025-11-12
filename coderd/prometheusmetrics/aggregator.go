@@ -374,6 +374,8 @@ func (*MetricsAggregator) Describe(_ chan<- *prometheus.Desc) {
 }
 
 // cacheKeyForDesc is used to determine the cache key for a set of labels/extra labels. Used with the aggregators description cache.
+// for strings.Builder returned errors from these functions are always nil.
+// nolint:revive
 func cacheKeyForDesc(name string, baseLabelNames []string, extraLabels []*agentproto.Stats_Metric_Label) string {
 	var b strings.Builder
 	hint := len(name) + (len(baseLabelNames)+len(extraLabels))*8
@@ -389,6 +391,7 @@ func cacheKeyForDesc(name string, baseLabelNames []string, extraLabels []*agentp
 	}
 	return b.String()
 }
+
 // getOrCreateDec checks if we already have a metric description in the aggregators cache for a given combination of base
 // labels and extra labels. If we do not, we create a new description and cache it.
 func (ma *MetricsAggregator) getOrCreateDesc(name string, help string, baseLabelNames []string, extraLabels []*agentproto.Stats_Metric_Label) *prometheus.Desc {
@@ -412,7 +415,8 @@ func (ma *MetricsAggregator) getOrCreateDesc(name string, help string, baseLabel
 }
 
 // asPrometheus returns the annotatedMetric as a prometheus.Metric, it preallocates/fills by index, uses the aggregators
-//  metric description cache, and a small stack buffer for values in order to reduce memory allocations.
+//
+//	metric description cache, and a small stack buffer for values in order to reduce memory allocations.
 func (ma *MetricsAggregator) asPrometheus(am *annotatedMetric) (prometheus.Metric, error) {
 	baseLabelNames := am.aggregateByLabels
 	extraLabels := am.Labels
