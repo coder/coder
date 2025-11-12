@@ -43,7 +43,7 @@ func (s *DRPCAgentSocketService) SyncStart(_ context.Context, req *proto.SyncSta
 
 	if err := s.unitManager.Register(req.Unit); err != nil {
 		// If already registered, that's okay - we can still update status
-		if !errors.Is(err, unit.ErrConsumerAlreadyRegistered) {
+		if !errors.Is(err, unit.ErrUnitAlreadyRegistered) {
 			return &proto.SyncStartResponse{
 				Success: false,
 				Message: "Failed to register unit: " + err.Error(),
@@ -94,7 +94,7 @@ func (s *DRPCAgentSocketService) SyncWant(_ context.Context, req *proto.SyncWant
 	}
 
 	if err := s.unitManager.Register(req.Unit); err != nil {
-		if !errors.Is(err, unit.ErrConsumerAlreadyRegistered) {
+		if !errors.Is(err, unit.ErrUnitAlreadyRegistered) {
 			return &proto.SyncWantResponse{
 				Success: false,
 				Message: "failed to register unit: " + err.Error(),
@@ -103,7 +103,7 @@ func (s *DRPCAgentSocketService) SyncWant(_ context.Context, req *proto.SyncWant
 	}
 
 	if err := s.unitManager.Register(req.DependsOn); err != nil {
-		if !errors.Is(err, unit.ErrConsumerAlreadyRegistered) {
+		if !errors.Is(err, unit.ErrUnitAlreadyRegistered) {
 			return &proto.SyncWantResponse{
 				Success: false,
 				Message: "failed to register dependency unit: " + err.Error(),
