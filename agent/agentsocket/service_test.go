@@ -2,11 +2,16 @@ package agentsocket_test
 
 import (
 	"context"
+	"fmt"
 	"net"
+	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/yamux"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
@@ -15,6 +20,27 @@ import (
 	"github.com/coder/coder/v2/agent/unit"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 )
+
+// tempDirUnixSocket returns a temporary directory that can safely hold unix
+// sockets (probably).
+//
+// During tests on darwin we hit the max path length limit for unix sockets
+// pretty easily in the default location, so this function uses /tmp instead to
+// get shorter paths.
+func tempDirUnixSocket(t *testing.T) string {
+	t.Helper()
+	if runtime.GOOS == "darwin" {
+		testName := strings.ReplaceAll(t.Name(), "/", "_")
+		dir, err := os.MkdirTemp("/tmp", fmt.Sprintf("coder-test-%s-", testName))
+		require.NoError(t, err, "create temp dir for unix socket test")
+		t.Cleanup(func() {
+			err := os.RemoveAll(dir)
+			assert.NoError(t, err, "remove temp dir", dir)
+		})
+		return dir
+	}
+	return t.TempDir()
+}
 
 // newSocketClient creates a DRPC client connected to the Unix socket at the given path.
 func newSocketClient(t *testing.T, socketPath string) (proto.DRPCAgentSocketClient, func()) {
@@ -44,7 +70,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 	t.Run("Ping", func(t *testing.T) {
 		t.Parallel()
 
-		socketPath := filepath.Join(t.TempDir(), "test.sock")
+		socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
 
 		server, err := agentsocket.NewServer(
 			socketPath,
@@ -69,7 +95,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 
 		t.Run("NewUnit", func(t *testing.T) {
 			t.Parallel()
-			socketPath := filepath.Join(t.TempDir(), "test.sock")
+			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
 
 			server, err := agentsocket.NewServer(
 				socketPath,
@@ -98,7 +124,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 		t.Run("UnitAlreadyStarted", func(t *testing.T) {
 			t.Parallel()
 
-			socketPath := filepath.Join(t.TempDir(), "test.sock")
+			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
 
 			server, err := agentsocket.NewServer(
 				socketPath,
@@ -152,7 +178,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 		t.Run("UnitAlreadyCompleted", func(t *testing.T) {
 			t.Parallel()
 
-			socketPath := filepath.Join(t.TempDir(), "test.sock")
+			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
 
 			server, err := agentsocket.NewServer(
 				socketPath,
@@ -206,7 +232,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 		t.Run("UnitNotReady", func(t *testing.T) {
 			t.Parallel()
 
-			socketPath := filepath.Join(t.TempDir(), "test.sock")
+			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
 
 			server, err := agentsocket.NewServer(
 				socketPath,
@@ -251,7 +277,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 		t.Run("NewUnits", func(t *testing.T) {
 			t.Parallel()
 
-			socketPath := filepath.Join(t.TempDir(), "test.sock")
+			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
 
 			server, err := agentsocket.NewServer(
 				socketPath,
@@ -283,7 +309,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 		t.Run("DependencyAlreadyRegistered", func(t *testing.T) {
 			t.Parallel()
 
-			socketPath := filepath.Join(t.TempDir(), "test.sock")
+			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
 
 			server, err := agentsocket.NewServer(
 				socketPath,
@@ -330,7 +356,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 		t.Run("DependencyAddedAfterDependentStarted", func(t *testing.T) {
 			t.Parallel()
 
-			socketPath := filepath.Join(t.TempDir(), "test.sock")
+			socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
 
 			server, err := agentsocket.NewServer(
 				socketPath,
