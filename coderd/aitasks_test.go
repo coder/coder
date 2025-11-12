@@ -734,6 +734,228 @@ func TestTasks(t *testing.T) {
 			require.Equal(t, http.StatusBadGateway, sdkErr.StatusCode())
 		})
 	})
+
+	t.Run("UpdatePrompt", func(t *testing.T) {
+		t.Run("Stopped", func(t *testing.T) {
+			t.Parallel()
+
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			template := createAITemplate(t, client, user)
+
+			// Create a task with workspace
+			exp := codersdk.NewExperimentalClient(client)
+			task, err := exp.CreateTask(ctx, codersdk.Me, codersdk.CreateTaskRequest{
+				TemplateVersionID: template.ActiveVersionID,
+				Input:             "initial prompt",
+			})
+			require.NoError(t, err)
+			require.True(t, task.WorkspaceID.Valid, "task should have a workspace ID")
+
+			// Wait for the initial workspace build to complete (start transition)
+			workspace, err := client.Workspace(ctx, task.WorkspaceID.UUID)
+			require.NoError(t, err)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+			// Stop the workspace
+			build := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
+
+			// Verify build succeeded (stop transition completed)
+			build, err = client.WorkspaceBuild(ctx, build.ID)
+			require.NoError(t, err)
+			require.Equal(t, codersdk.WorkspaceStatusStopped, build.Status)
+
+			// Now update prompt should succeed
+			err = exp.UpdateTaskPrompt(ctx, task.OwnerName, task.ID, codersdk.UpdateTaskPromptRequest{
+				Prompt: "Updated prompt after stop",
+			})
+			require.NoError(t, err)
+		})
+
+		t.Run("Canceled", func(t *testing.T) {
+			t.Parallel()
+
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			template := createAITemplate(t, client, user)
+
+			// Create a task with workspace
+			exp := codersdk.NewExperimentalClient(client)
+			task, err := exp.CreateTask(ctx, codersdk.Me, codersdk.CreateTaskRequest{
+				TemplateVersionID: template.ActiveVersionID,
+				Input:             "initial prompt",
+			})
+			require.NoError(t, err)
+			require.True(t, task.WorkspaceID.Valid)
+
+			// Wait for the initial workspace build to complete
+			workspace, err := client.Workspace(ctx, task.WorkspaceID.UUID)
+			require.NoError(t, err)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+			// Stop the workspace first
+			stopBuild := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, stopBuild.ID)
+
+			// Start a new build and cancel it
+			startBuild := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStart)
+			err = client.CancelWorkspaceBuild(ctx, startBuild.ID, codersdk.CancelWorkspaceBuildParams{})
+			require.NoError(t, err)
+
+			// Wait for cancellation to complete
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, startBuild.ID)
+			startBuild, err = client.WorkspaceBuild(ctx, startBuild.ID)
+			require.NoError(t, err)
+			require.Equal(t, codersdk.WorkspaceStatusCanceled, startBuild.Status)
+
+			// Now update prompt should succeed
+			err = exp.UpdateTaskPrompt(ctx, task.OwnerName, task.ID, codersdk.UpdateTaskPromptRequest{
+				Prompt: "Updated prompt after cancel",
+			})
+			require.NoError(t, err)
+		})
+
+		t.Run("Running", func(t *testing.T) {
+			t.Parallel()
+
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			template := createAITemplate(t, client, user)
+
+			// Create a task with workspace
+			exp := codersdk.NewExperimentalClient(client)
+			task, err := exp.CreateTask(ctx, codersdk.Me, codersdk.CreateTaskRequest{
+				TemplateVersionID: template.ActiveVersionID,
+				Input:             "initial prompt",
+			})
+			require.NoError(t, err)
+			require.True(t, task.WorkspaceID.Valid)
+
+			// Wait for workspace to be running
+			workspace, err := client.Workspace(ctx, task.WorkspaceID.UUID)
+			require.NoError(t, err)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+			// Verify workspace is running (start transition succeeded)
+			workspace, err = client.Workspace(ctx, workspace.ID)
+			require.NoError(t, err)
+			require.Equal(t, codersdk.WorkspaceStatusRunning, workspace.LatestBuild.Status)
+			require.Equal(t, codersdk.WorkspaceTransitionStart, workspace.LatestBuild.Transition)
+
+			// Attempt to update prompt should fail with 409 Conflict
+			err = exp.UpdateTaskPrompt(ctx, task.OwnerName, task.ID, codersdk.UpdateTaskPromptRequest{
+				Prompt: "Should fail",
+			})
+			require.Error(t, err)
+			var apiErr *codersdk.Error
+			require.ErrorAs(t, err, &apiErr)
+			require.Equal(t, http.StatusConflict, apiErr.StatusCode())
+			require.Contains(t, apiErr.Message, "running")
+		})
+
+		t.Run("EmptyPrompt", func(t *testing.T) {
+			t.Parallel()
+
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			template := createAITemplate(t, client, user)
+
+			// Create a task with workspace
+			exp := codersdk.NewExperimentalClient(client)
+			task, err := exp.CreateTask(ctx, codersdk.Me, codersdk.CreateTaskRequest{
+				TemplateVersionID: template.ActiveVersionID,
+				Input:             "initial prompt",
+			})
+			require.NoError(t, err)
+			require.True(t, task.WorkspaceID.Valid)
+
+			// Wait for workspace to be running
+			workspace, err := client.Workspace(ctx, task.WorkspaceID.UUID)
+			require.NoError(t, err)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+			// Stop the workspace so we can test the empty prompt validation
+			build := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
+
+			// Attempt to update with empty prompt should fail with 400 Bad Request
+			err = exp.UpdateTaskPrompt(ctx, task.OwnerName, task.ID, codersdk.UpdateTaskPromptRequest{
+				Prompt: "",
+			})
+			require.Error(t, err)
+			var apiErr *codersdk.Error
+			require.ErrorAs(t, err, &apiErr)
+			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+			require.Contains(t, apiErr.Message, "required")
+		})
+
+		t.Run("NonExistentTask", func(t *testing.T) {
+			t.Parallel()
+
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			exp := codersdk.NewExperimentalClient(client)
+
+			// Attempt to update prompt for non-existent task
+			err := exp.UpdateTaskPrompt(ctx, user.UserID.String(), uuid.New(), codersdk.UpdateTaskPromptRequest{
+				Prompt: "Should fail",
+			})
+			require.Error(t, err)
+			var apiErr *codersdk.Error
+			require.ErrorAs(t, err, &apiErr)
+			require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+		})
+
+		t.Run("UnauthorizedUser", func(t *testing.T) {
+			t.Parallel()
+
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			anotherUser, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			template := createAITemplate(t, client, user)
+
+			// Create a task as the first user
+			exp := codersdk.NewExperimentalClient(client)
+			task, err := exp.CreateTask(ctx, codersdk.Me, codersdk.CreateTaskRequest{
+				TemplateVersionID: template.ActiveVersionID,
+				Input:             "initial prompt",
+			})
+			require.NoError(t, err)
+			require.True(t, task.WorkspaceID.Valid)
+
+			// Wait for workspace to complete
+			workspace, err := client.Workspace(ctx, task.WorkspaceID.UUID)
+			require.NoError(t, err)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+			// Stop the workspace
+			build := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
+
+			// Attempt to update prompt as another user should fail with 404 Not Found
+			otherExp := codersdk.NewExperimentalClient(anotherUser)
+			err = otherExp.UpdateTaskPrompt(ctx, task.OwnerName, task.ID, codersdk.UpdateTaskPromptRequest{
+				Prompt: "Should fail - unauthorized",
+			})
+			require.Error(t, err)
+			var apiErr *codersdk.Error
+			require.ErrorAs(t, err, &apiErr)
+			require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+		})
+	})
 }
 
 func TestTasksCreate(t *testing.T) {

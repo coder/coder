@@ -318,6 +318,51 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/tasks/{user}/{task}/prompt": {
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Experimental"
+                ],
+                "summary": "Update AI task prompt",
+                "operationId": "update-task-prompt",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Username, user ID, or 'me' for the authenticated user",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Task ID",
+                        "name": "task",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update task prompt request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateTaskPromptRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
         "/api/experimental/tasks/{user}/{task}/send": {
             "post": {
                 "security": [
@@ -18959,6 +19004,14 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                }
+            }
+        },
+        "codersdk.UpdateTaskPromptRequest": {
+            "type": "object",
+            "properties": {
+                "prompt": {
+                    "type": "string"
                 }
             }
         },

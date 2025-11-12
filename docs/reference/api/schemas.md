@@ -9155,6 +9155,20 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |---------|-----------------|----------|--------------|-------------|
 | `roles` | array of string | false    |              |             |
 
+## codersdk.UpdateTaskPromptRequest
+
+```json
+{
+  "prompt": "string"
+}
+```
+
+### Properties
+
+| Name     | Type   | Required | Restrictions | Description |
+|----------|--------|----------|--------------|-------------|
+| `prompt` | string | false    |              |             |
+
 ## codersdk.UpdateTemplateACL
 
 ```json
