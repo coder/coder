@@ -76,7 +76,7 @@ func (s *server) Plan(
 	defer cancel()
 	defer kill()
 
-	e := s.executor(sess.WorkDirectory, database.ProvisionerJobTimingStagePlan)
+	e := s.executor(sess.Files, database.ProvisionerJobTimingStagePlan)
 	if err := e.checkMinVersion(ctx); err != nil {
 		return provisionersdk.PlanErrorf("%s", err.Error())
 	}
@@ -92,7 +92,7 @@ func (s *server) Plan(
 		return &proto.PlanComplete{}
 	}
 
-	statefilePath := getStateFilePath(sess.WorkDirectory)
+	statefilePath := sess.Files.StateFilePath()
 	if len(sess.Config.State) > 0 {
 		err := os.WriteFile(statefilePath, sess.Config.State, 0o600)
 		if err != nil {
@@ -141,7 +141,7 @@ func (s *server) Plan(
 		return provisionersdk.PlanErrorf("initialize terraform: %s", err)
 	}
 
-	modules, err := getModules(sess.WorkDirectory)
+	modules, err := getModules(sess.Files)
 	if err != nil {
 		// We allow getModules to fail, as the result is used only
 		// for telemetry purposes now.
@@ -184,7 +184,7 @@ func (s *server) Apply(
 	defer cancel()
 	defer kill()
 
-	e := s.executor(sess.WorkDirectory, database.ProvisionerJobTimingStageApply)
+	e := s.executor(sess.Files, database.ProvisionerJobTimingStageApply)
 	if err := e.checkMinVersion(ctx); err != nil {
 		return provisionersdk.ApplyErrorf("%s", err.Error())
 	}
@@ -201,7 +201,7 @@ func (s *server) Apply(
 	}
 
 	// Earlier in the session, Plan() will have written the state file and the plan file.
-	statefilePath := getStateFilePath(sess.WorkDirectory)
+	statefilePath := sess.Files.StateFilePath()
 	env, err := provisionEnv(sess.Config, request.Metadata, nil, nil, nil)
 	if err != nil {
 		return provisionersdk.ApplyErrorf("provision env: %s", err)
@@ -348,7 +348,7 @@ func logTerraformEnvVars(sink logSink) {
 // shipped in v1.0.4.  It will return the stacktraces of the provider, which will hopefully allow us
 // to figure out why it hasn't exited.
 func tryGettingCoderProviderStacktrace(sess *provisionersdk.Session) string {
-	path := filepath.Clean(filepath.Join(sess.WorkDirectory, "../.coder/pprof"))
+	path := filepath.Clean(filepath.Join(sess.Files.WorkDirectory(), "../.coder/pprof"))
 	sess.Logger.Info(sess.Context(), "attempting to get stack traces", slog.F("path", path))
 	c := http.Client{
 		Transport: &http.Transport{
