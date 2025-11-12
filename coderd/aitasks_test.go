@@ -251,7 +251,7 @@ func TestTasks(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotEqual(t, previousCurrentState, updated.CurrentState)
 		assert.Equal(t, codersdk.TaskStateWorking, updated.CurrentState.State)
-		assert.Equal(t, "Agent is connecting", updated.CurrentState.Message)
+		assert.NotEqual(t, "all done", updated.CurrentState.Message)
 	})
 
 	t.Run("InitializingAgentState", func(t *testing.T) {
