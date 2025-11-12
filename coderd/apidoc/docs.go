@@ -14323,7 +14323,7 @@ const docTemplate = `{
                 "oauth2",
                 "mcp-server-http",
                 "workspace-sharing",
-                "terraform-workspaces"
+                "terraform-directory-reuse"
             ],
             "x-enum-comments": {
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
