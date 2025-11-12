@@ -12,6 +12,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/provisionersdk"
+	"github.com/coder/coder/v2/provisionersdk/tfpath"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -40,11 +41,11 @@ func TestStaleSessions(t *testing.T) {
 		fs, logger := prepare()
 
 		// given
-		first := provisionersdk.SessionDir(uuid.NewString())
+		first := tfpath.Session(workDirectory, uuid.NewString())
 		addSessionFolder(t, fs, first, now.Add(-7*24*time.Hour))
-		second := provisionersdk.SessionDir(uuid.NewString())
+		second := tfpath.Session(workDirectory, uuid.NewString())
 		addSessionFolder(t, fs, second, now.Add(-8*24*time.Hour))
-		third := provisionersdk.SessionDir(uuid.NewString())
+		third := tfpath.Session(workDirectory, uuid.NewString())
 		addSessionFolder(t, fs, third, now.Add(-9*24*time.Hour))
 
 		// when
@@ -65,9 +66,9 @@ func TestStaleSessions(t *testing.T) {
 		fs, logger := prepare()
 
 		// given
-		first := provisionersdk.SessionDir(uuid.NewString())
+		first := tfpath.Session(workDirectory, uuid.NewString())
 		addSessionFolder(t, fs, first, now.Add(-7*24*time.Hour))
-		second := provisionersdk.SessionDir(uuid.NewString())
+		second := tfpath.Session(workDirectory, uuid.NewString())
 		addSessionFolder(t, fs, second, now.Add(-6*24*time.Hour))
 
 		// when
@@ -77,7 +78,7 @@ func TestStaleSessions(t *testing.T) {
 		entries, err := afero.ReadDir(fs, workDirectory)
 		require.NoError(t, err)
 		require.Len(t, entries, 1, "one session should be present")
-		require.Equal(t, second, entries[0].Name(), 1)
+		require.Equal(t, second.WorkDirectory(), filepath.Join(workDirectory, entries[0].Name()), 1)
 	})
 
 	t.Run("no stale sessions", func(t *testing.T) {
@@ -89,9 +90,9 @@ func TestStaleSessions(t *testing.T) {
 		fs, logger := prepare()
 
 		// given
-		first := provisionersdk.SessionDir(uuid.NewString())
+		first := tfpath.Session(workDirectory, uuid.NewString())
 		addSessionFolder(t, fs, first, now.Add(-6*24*time.Hour))
-		second := provisionersdk.SessionDir(uuid.NewString())
+		second := tfpath.Session(workDirectory, uuid.NewString())
 		addSessionFolder(t, fs, second, now.Add(-5*24*time.Hour))
 
 		// when
@@ -104,9 +105,10 @@ func TestStaleSessions(t *testing.T) {
 	})
 }
 
-func addSessionFolder(t *testing.T, fs afero.Fs, sessionName string, modTime time.Time) {
-	err := fs.MkdirAll(filepath.Join(workDirectory, sessionName), 0o755)
+func addSessionFolder(t *testing.T, fs afero.Fs, files tfpath.Layout, modTime time.Time) {
+	workdir := files.WorkDirectory()
+	err := fs.MkdirAll(workdir, 0o755)
 	require.NoError(t, err, "can't create session folder")
-	require.NoError(t, fs.Chtimes(filepath.Join(workDirectory, sessionName), now, modTime), "can't chtime of session dir")
+	require.NoError(t, fs.Chtimes(workdir, now, modTime), "can't chtime of session dir")
 	require.NoError(t, err, "can't set times")
 }
