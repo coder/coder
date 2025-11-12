@@ -109,3 +109,16 @@ Common scope examples include:
 
 For a complete list of available scopes, see the API reference documentation.
 
+### Allow lists (advanced)
+
+For additional security, you can combine scopes with allow lists to restrict tokens to specific resources. Allow lists let you limit a token to only interact with particular workspaces, templates, or other resources by their UUID:
+
+```sh
+# Create a token limited to a specific workspace
+coder tokens create --name workspace-token \
+  --scope workspace:read \
+  --allow workspace:a1b2c3d4-5678-90ab-cdef-1234567890ab
+```
+
+This creates a token with `workspace:read` scope that can only access the specified workspace, even if the user has access to other workspaces.
+
