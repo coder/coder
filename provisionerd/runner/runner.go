@@ -518,7 +518,7 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 		TemplateSourceArchive:      r.job.GetTemplateSourceArchive(),
 		TemplateId:                 strings2.EmptyToNil(r.job.GetTemplateImport().Metadata.TemplateId),
 		TemplateVersionId:          strings2.EmptyToNil(r.job.GetTemplateImport().Metadata.TemplateVersionId),
-		ExpTerraformWorkspaceReuse: ptr.Ref(false),
+		ExpReuseTerraformWorkspace: ptr.Ref(false),
 	})
 	if failedJob != nil {
 		return nil, failedJob
@@ -1019,7 +1019,7 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 		ProvisionerLogLevel:        r.job.GetWorkspaceBuild().LogLevel,
 		TemplateId:                 strings2.EmptyToNil(r.job.GetWorkspaceBuild().Metadata.TemplateId),
 		TemplateVersionId:          strings2.EmptyToNil(r.job.GetWorkspaceBuild().Metadata.TemplateVersionId),
-		ExpTerraformWorkspaceReuse: r.job.GetWorkspaceBuild().ExpReuseTerraformWorkspace,
+		ExpReuseTerraformWorkspace: r.job.GetWorkspaceBuild().ExpReuseTerraformWorkspace,
 	})
 	if failedJob != nil {
 		return nil, failedJob

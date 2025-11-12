@@ -415,10 +415,16 @@ export interface Config {
   /** state is the provisioner state (if any) */
   state: Uint8Array;
   provisionerLogLevel: string;
-  templateId: string;
-  templateVersionId: string;
+  /** Template imports can omit template id */
+  templateId?:
+    | string
+    | undefined;
+  /** Dry runs omit version id */
+  templateVersionId?:
+    | string
+    | undefined;
   /** Whether to reuse existing terraform workspaces if they exist. */
-  terraformWorkspaceReuse: boolean;
+  expReuseTerraformWorkspace?: boolean | undefined;
 }
 
 /** ParseRequest consumes source-code to produce inputs. */
@@ -1321,14 +1327,14 @@ export const Config = {
     if (message.provisionerLogLevel !== "") {
       writer.uint32(26).string(message.provisionerLogLevel);
     }
-    if (message.templateId !== "") {
+    if (message.templateId !== undefined) {
       writer.uint32(34).string(message.templateId);
     }
-    if (message.templateVersionId !== "") {
+    if (message.templateVersionId !== undefined) {
       writer.uint32(42).string(message.templateVersionId);
     }
-    if (message.terraformWorkspaceReuse !== false) {
-      writer.uint32(48).bool(message.terraformWorkspaceReuse);
+    if (message.expReuseTerraformWorkspace !== undefined) {
+      writer.uint32(48).bool(message.expReuseTerraformWorkspace);
     }
     return writer;
   },
