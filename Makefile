@@ -697,6 +697,7 @@ gen/mark-fresh:
 		agent/proto/agent.pb.go \
 		provisionersdk/proto/provisioner.pb.go \
 		provisionerd/proto/provisionerd.pb.go \
+		agent/agentsocket/proto/agentsocket.pb.go \
 		vpn/vpn.pb.go \
 		enterprise/aibridged/proto/aibridged.pb.go \
 		coderd/database/dump.sql \
