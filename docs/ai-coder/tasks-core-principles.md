@@ -56,7 +56,8 @@ Coder maintains various agentic modules; see [Coder Labs](https://registry.coder
 
 The following code snippet can be dropped into any existing template in Coder v2.28 or above to modify it into a Claude-Code enabled task template. This snippet also includes space for a setup script that will prime the agent for execution.
 
-> [!NOTE] This requires at least version 2.13.0 of the `coder/coder` Terraform provider.
+> [!NOTE]
+> This requires at least version 2.13.0 of the `coder/coder` Terraform provider.
 
 ```hcl
 data "coder_parameter" "setup_script" {
