@@ -7,6 +7,7 @@ export const paginatedInterceptions = (
 	searchParams: URLSearchParams,
 ): UsePaginatedQueryOptions<AIBridgeListInterceptionsResponse, string> => {
 	return {
+		searchParams,
 		queryPayload: () => searchParams.get(useFilterParamsKey) ?? "",
 		queryKey: ({ payload, pageNumber }) => {
 			return ["aiBridgeInterceptions", payload, pageNumber] as const;
