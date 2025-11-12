@@ -16,7 +16,7 @@ import (
 
 // createSocket creates a Unix domain socket listener on Windows
 // Falls back to named pipe if Unix sockets are not supported
-func CreateSocket(path string) (net.Listener, error) {
+func createSocket(path string) (net.Listener, error) {
 	// Try Unix domain socket first (Windows 10 build 17063+)
 	listener, err := net.Listen("unix", path)
 	if err == nil {
@@ -33,7 +33,7 @@ func CreateSocket(path string) (net.Listener, error) {
 }
 
 // getDefaultSocketPath returns the default socket path for Windows
-func GetDefaultSocketPath() (string, error) {
+func getDefaultSocketPath() (string, error) {
 	// Try to use a temporary directory
 	tempDir := os.TempDir()
 	if tempDir == "" {
@@ -52,7 +52,7 @@ func GetDefaultSocketPath() (string, error) {
 }
 
 // cleanupSocket removes the socket file
-func CleanupSocket(path string) error {
+func cleanupSocket(path string) error {
 	return os.Remove(path)
 }
 
