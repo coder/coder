@@ -104,7 +104,7 @@ func (l Layout) ExtractArchive(ctx context.Context, logger slog.Logger, fs afero
 			return xerrors.Errorf("refusing to extract to non-local path")
 		}
 
-		// nolint: gosec // TODO: Use relative paths inside the workdir only.
+		// nolint: gosec // Safe to no-lint because the filepath.IsLocal check above.
 		headerPath := filepath.Join(l.WorkDirectory(), header.Name)
 		if !strings.HasPrefix(headerPath, filepath.Clean(l.WorkDirectory())) {
 			return xerrors.New("tar attempts to target relative upper directory")
