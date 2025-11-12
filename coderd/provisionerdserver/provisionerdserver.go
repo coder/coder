@@ -43,6 +43,7 @@ import (
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/coder/v2/coderd/usage/usagetypes"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
@@ -697,13 +698,14 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 
 		protoJob.Type = &proto.AcquiredJob_WorkspaceBuild_{
 			WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
-				WorkspaceBuildId:        workspaceBuild.ID.String(),
-				WorkspaceName:           workspace.Name,
-				State:                   workspaceBuild.ProvisionerState,
-				RichParameterValues:     convertRichParameterValues(workspaceBuildParameters),
-				PreviousParameterValues: convertRichParameterValues(lastWorkspaceBuildParameters),
-				VariableValues:          asVariableValues(templateVariables),
-				ExternalAuthProviders:   externalAuthProviders,
+				WorkspaceBuildId:           workspaceBuild.ID.String(),
+				WorkspaceName:              workspace.Name,
+				State:                      workspaceBuild.ProvisionerState,
+				RichParameterValues:        convertRichParameterValues(workspaceBuildParameters),
+				PreviousParameterValues:    convertRichParameterValues(lastWorkspaceBuildParameters),
+				VariableValues:             asVariableValues(templateVariables),
+				ExternalAuthProviders:      externalAuthProviders,
+				ExpReuseTerraformWorkspace: ptr.Ref(false), // TODO: Toggle based on experiment
 				Metadata: &sdkproto.Metadata{
 					CoderUrl:                      s.AccessURL.String(),
 					WorkspaceTransition:           transition,
@@ -773,6 +775,11 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			return nil, failJob(err.Error())
 		}
 
+		templateID := ""
+		if input.TemplateID.Valid {
+			templateID = input.TemplateID.UUID.String()
+		}
+
 		protoJob.Type = &proto.AcquiredJob_TemplateImport_{
 			TemplateImport: &proto.AcquiredJob_TemplateImport{
 				UserVariableValues: convertVariableValues(userVariableValues),
@@ -781,6 +788,8 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					// There is no owner for a template import, but we can assume
 					// the "Everyone" group as a placeholder.
 					WorkspaceOwnerGroups: []string{database.EveryoneGroup},
+					TemplateId:           templateID,
+					TemplateVersionId:    input.TemplateVersionID.String(),
 				},
 			},
 		}
@@ -3210,6 +3219,10 @@ func auditActionFromTransition(transition database.WorkspaceTransition) database
 }
 
 type TemplateVersionImportJob struct {
+	// TemplateID is not guaranteed to be set. Template versions can be created
+	// without being associated with a template. Resulting in a template id of
+	// `uuid.Nil`
+	TemplateID         uuid.NullUUID            `json:"template_id"`
 	TemplateVersionID  uuid.UUID                `json:"template_version_id"`
 	UserVariableValues []codersdk.VariableValue `json:"user_variable_values"`
 }
