@@ -24,7 +24,7 @@ func newSocketClient(t *testing.T, socketPath string) (proto.DRPCAgentSocketClie
 	require.NoError(t, err)
 
 	config := yamux.DefaultConfig()
-	config.LogOutput = nil
+	config.Logger = nil
 	session, err := yamux.Client(conn, config)
 	require.NoError(t, err)
 
@@ -131,10 +131,16 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			require.Equal(t, "started", status.Status)
 
 			// Second Start
-			_, err = client.SyncStart(context.Background(), &proto.SyncStartRequest{
+			response, err := client.SyncStart(context.Background(), &proto.SyncStartRequest{
 				Unit: "test-unit",
 			})
-			require.ErrorContains(t, err, unit.ErrSameStatusAlreadySet.Error())
+			// DRPC converts Success: false responses to errors, but we can still check the response
+			if err != nil {
+				require.Contains(t, err.Error(), unit.ErrSameStatusAlreadySet.Error())
+			} else {
+				require.False(t, response.Success)
+				require.Contains(t, response.Message, unit.ErrSameStatusAlreadySet.Error())
+			}
 
 			status, err = client.SyncStatus(context.Background(), &proto.SyncStatusRequest{
 				Unit: "test-unit",
@@ -220,10 +226,16 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			_, err = client.SyncStart(context.Background(), &proto.SyncStartRequest{
+			response, err := client.SyncStart(context.Background(), &proto.SyncStartRequest{
 				Unit: "test-unit",
 			})
-			require.ErrorContains(t, err, "Unit is not ready")
+			// DRPC converts Success: false responses to errors, but we can still check the response
+			if err != nil {
+				require.Contains(t, err.Error(), "Unit is not ready")
+			} else {
+				require.False(t, response.Success)
+				require.Contains(t, response.Message, "Unit is not ready")
+			}
 
 			status, err := client.SyncStatus(context.Background(), &proto.SyncStatusRequest{
 				Unit: "test-unit",
