@@ -2,12 +2,13 @@ package agentsocket_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"net"
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"testing"
 
 	"github.com/hashicorp/yamux"
@@ -26,12 +27,15 @@ import (
 //
 // During tests on darwin we hit the max path length limit for unix sockets
 // pretty easily in the default location, so this function uses /tmp instead to
-// get shorter paths.
+// get shorter paths. To keep paths short, we use a hash of the test name
+// instead of the full test name.
 func tempDirUnixSocket(t *testing.T) string {
 	t.Helper()
 	if runtime.GOOS == "darwin" {
-		testName := strings.ReplaceAll(t.Name(), "/", "_")
-		dir, err := os.MkdirTemp("/tmp", fmt.Sprintf("coder-test-%s-", testName))
+		// Use a short hash of the test name to keep the path under 104 chars
+		hash := sha256.Sum256([]byte(t.Name()))
+		hashStr := hex.EncodeToString(hash[:])[:8] // Use first 8 chars of hash
+		dir, err := os.MkdirTemp("/tmp", fmt.Sprintf("c-%s-", hashStr))
 		require.NoError(t, err, "create temp dir for unix socket test")
 		t.Cleanup(func() {
 			err := os.RemoveAll(dir)
