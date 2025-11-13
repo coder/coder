@@ -6943,24 +6943,26 @@ func TestTasksWithStatusView(t *testing.T) {
 			buildStatus:               database.ProvisionerJobStatusSucceeded,
 			buildTransition:           database.WorkspaceTransitionStart,
 			agentState:                database.WorkspaceAgentLifecycleStateStartTimeout,
-			expectedStatus:            database.TaskStatusUnknown,
-			description:               "Agent start timed out",
+			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthHealthy},
+			expectedStatus:            database.TaskStatusActive,
+			description:               "Agent start timed out but app is healthy, defer to app",
 			expectBuildNumberValid:    true,
 			expectBuildNumber:         1,
 			expectWorkspaceAgentValid: true,
-			expectWorkspaceAppValid:   false,
+			expectWorkspaceAppValid:   true,
 		},
 		{
 			name:                      "AgentStartError",
 			buildStatus:               database.ProvisionerJobStatusSucceeded,
 			buildTransition:           database.WorkspaceTransitionStart,
 			agentState:                database.WorkspaceAgentLifecycleStateStartError,
-			expectedStatus:            database.TaskStatusUnknown,
-			description:               "Agent failed to start",
+			appHealths:                []database.WorkspaceAppHealth{database.WorkspaceAppHealthHealthy},
+			expectedStatus:            database.TaskStatusActive,
+			description:               "Agent start failed but app is healthy, defer to app",
 			expectBuildNumberValid:    true,
 			expectBuildNumber:         1,
 			expectWorkspaceAgentValid: true,
-			expectWorkspaceAppValid:   false,
+			expectWorkspaceAppValid:   true,
 		},
 		{
 			name:                      "AgentShuttingDown",
@@ -7080,6 +7082,8 @@ func TestTasksWithStatusView(t *testing.T) {
 
 			got, err := db.GetTaskByID(ctx, task.ID)
 			require.NoError(t, err)
+
+			t.Logf("Task status debug: %s", got.StatusDebug)
 
 			require.Equal(t, tt.expectedStatus, got.Status)
 

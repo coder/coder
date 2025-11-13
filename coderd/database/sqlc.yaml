@@ -106,6 +106,9 @@ sql:
           # Workaround for sqlc not interpreting the left join correctly.
           - column: "tasks_with_status.workspace_build_number"
             go_type: "database/sql.NullInt32"
+          - column: "tasks_with_status.status"
+            go_type:
+              type: "TaskStatus"
         rename:
           group_member: GroupMemberTable
           group_members_expanded: GroupMember
