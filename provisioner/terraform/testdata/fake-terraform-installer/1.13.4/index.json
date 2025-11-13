@@ -1,0 +1,14 @@
+{
+  "builds": [
+    {
+      "arch": "amd64",
+      "filename": "terraform_1.13.4_linux_amd64.zip",
+      "name": "terraform",
+      "os": "linux",
+      "url": "/terraform/1.13.4/terraform_1.13.4_linux_amd64.zip",
+      "version": "1.13.4"
+    }
+  ],
+  "name": "terraform",
+  "version": "1.13.4"
+}

@@ -7,6 +7,8 @@ package terraform_test
 
 import (
 	"context"
+	"net"
+	"net/http"
 	"os"
 	"sync"
 	"testing"
@@ -20,6 +22,27 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+// starts fake http server serving fake terraform installation files
+func startFakeTerraformServer(t *testing.T) (*http.Server, string) {
+	t.Helper()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to create listener")
+	}
+
+	mux := http.NewServeMux()
+	fs := http.FileServer(http.Dir("./testdata/fake-terraform-installer"))
+	mux.Handle("/terraform/", http.StripPrefix("/terraform", fs))
+
+	server := http.Server{
+		ReadHeaderTimeout: time.Second,
+		Handler:           mux,
+	}
+	go server.Serve(listener)
+	return &server, "http://" + listener.Addr().String()
+}
+
 func TestInstall(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -28,6 +51,14 @@ func TestInstall(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
 	log := testutil.Logger(t)
+
+	srv, addr := startFakeTerraformServer(t)
+	defer func() {
+		err := srv.Close()
+		if err != nil {
+			t.Errorf("failed to close server: %v", err)
+		}
+	}()
 
 	// Install spins off 8 installs with Version and waits for them all
 	// to complete. The locking mechanism within Install should
@@ -40,7 +71,7 @@ func TestInstall(t *testing.T) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				p, err := terraform.Install(ctx, log, false, dir, version)
+				p, err := terraform.Install(ctx, log, false, dir, version, addr, false)
 				assert.NoError(t, err)
 				paths <- p
 			}()
@@ -60,7 +91,7 @@ func TestInstall(t *testing.T) {
 		return firstPath
 	}
 
-	version1 := terraform.TerraformVersion
+	version1 := version.Must(version.NewVersion("1.13.4"))
 	binPath := install(version1)
 
 	checkBinModTime := func() time.Time {
@@ -73,7 +104,7 @@ func TestInstall(t *testing.T) {
 	modTime1 := checkBinModTime()
 
 	// Since we're using the same version the install should be idempotent.
-	install(terraform.TerraformVersion)
+	install(version1)
 	modTime2 := checkBinModTime()
 	require.Equal(t, modTime1, modTime2)
 

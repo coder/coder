@@ -103,7 +103,7 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 					slog.F("min_version", minTerraformVersion.String()))
 			}
 
-			binPath, err := Install(ctx, options.Logger, options.ExternalProvisioner, options.CachePath, TerraformVersion)
+			binPath, err := Install(ctx, options.Logger, options.ExternalProvisioner, options.CachePath, TerraformVersion, "", true)
 			if err != nil {
 				return xerrors.Errorf("install terraform: %w", err)
 			}
