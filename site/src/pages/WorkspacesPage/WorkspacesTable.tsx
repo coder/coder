@@ -182,7 +182,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 											subtitle={
 												<div>
 													<span css={{ ...visuallyHidden }}>User: </span>
-													{workspace.owner_name}
+													{workspace.owner_email}
 												</div>
 											}
 											avatar={

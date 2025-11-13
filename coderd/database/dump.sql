@@ -1859,6 +1859,7 @@ CREATE VIEW workspaces_expanded AS
     workspaces.next_start_at,
     visible_users.avatar_url AS owner_avatar_url,
     visible_users.username AS owner_username,
+    users.email AS owner_email,
     organizations.name AS organization_name,
     organizations.display_name AS organization_display_name,
     organizations.icon AS organization_icon,
@@ -1867,12 +1868,13 @@ CREATE VIEW workspaces_expanded AS
     templates.display_name AS template_display_name,
     templates.icon AS template_icon,
     templates.description AS template_description
-   FROM (((workspaces
+   FROM ((((workspaces
      JOIN visible_users ON ((workspaces.owner_id = visible_users.id)))
+     JOIN users ON ((workspaces.owner_id = users.id)))
      JOIN organizations ON ((workspaces.organization_id = organizations.id)))
      JOIN templates ON ((workspaces.template_id = templates.id)));
 
-COMMENT ON VIEW workspaces_expanded IS 'Joins in the display name information such as username, avatar, and organization name.';
+COMMENT ON VIEW workspaces_expanded IS 'Joins in the display name information such as username, avatar, email, and organization name.';
 
 ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('licenses_id_seq'::regclass);
 
