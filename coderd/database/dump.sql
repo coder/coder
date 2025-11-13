@@ -2007,7 +2007,7 @@ CREATE VIEW tasks_with_status AS
      CROSS JOIN LATERAL ( SELECT
                 CASE
                     WHEN (latest_build_raw.job_status IS NULL) THEN 'pending'::task_status
-                    WHEN (latest_build_raw.job_status = 'failed'::provisioner_job_status) THEN 'error'::task_status
+                    WHEN (latest_build_raw.job_status = ANY (ARRAY['failed'::provisioner_job_status, 'canceling'::provisioner_job_status, 'canceled'::provisioner_job_status])) THEN 'error'::task_status
                     WHEN ((latest_build_raw.transition = ANY (ARRAY['stop'::workspace_transition, 'delete'::workspace_transition])) AND (latest_build_raw.job_status = 'succeeded'::provisioner_job_status)) THEN 'paused'::task_status
                     WHEN ((latest_build_raw.transition = 'start'::workspace_transition) AND (latest_build_raw.job_status = 'pending'::provisioner_job_status)) THEN 'initializing'::task_status
                     WHEN ((latest_build_raw.transition = 'start'::workspace_transition) AND (latest_build_raw.job_status = ANY (ARRAY['running'::provisioner_job_status, 'succeeded'::provisioner_job_status]))) THEN 'active'::task_status

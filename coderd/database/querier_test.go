@@ -6664,6 +6664,23 @@ func TestTasksWithStatusView(t *testing.T) {
 				StartedAt:      sql.NullTime{Valid: true, Time: dbtime.Now()},
 				CompletedAt:    sql.NullTime{Valid: true, Time: dbtime.Now()},
 			}
+		case database.ProvisionerJobStatusCanceling:
+			jobParams = database.ProvisionerJob{
+				OrganizationID: org.ID,
+				Type:           database.ProvisionerJobTypeWorkspaceBuild,
+				InitiatorID:    user.ID,
+				StartedAt:      sql.NullTime{Valid: true, Time: dbtime.Now()},
+				CanceledAt:     sql.NullTime{Valid: true, Time: dbtime.Now()},
+			}
+		case database.ProvisionerJobStatusCanceled:
+			jobParams = database.ProvisionerJob{
+				OrganizationID: org.ID,
+				Type:           database.ProvisionerJobTypeWorkspaceBuild,
+				InitiatorID:    user.ID,
+				StartedAt:      sql.NullTime{Valid: true, Time: dbtime.Now()},
+				CompletedAt:    sql.NullTime{Valid: true, Time: dbtime.Now()},
+				CanceledAt:     sql.NullTime{Valid: true, Time: dbtime.Now()},
+			}
 		default:
 			t.Errorf("invalid build status: %v", buildStatus)
 		}
@@ -6811,6 +6828,28 @@ func TestTasksWithStatusView(t *testing.T) {
 			buildTransition:           database.WorkspaceTransitionStart,
 			expectedStatus:            database.TaskStatusError,
 			description:               "Latest workspace build failed",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: false,
+			expectWorkspaceAppValid:   false,
+		},
+		{
+			name:                      "CancelingBuild",
+			buildStatus:               database.ProvisionerJobStatusCanceling,
+			buildTransition:           database.WorkspaceTransitionStart,
+			expectedStatus:            database.TaskStatusError,
+			description:               "Latest workspace build is canceling",
+			expectBuildNumberValid:    true,
+			expectBuildNumber:         1,
+			expectWorkspaceAgentValid: false,
+			expectWorkspaceAppValid:   false,
+		},
+		{
+			name:                      "CanceledBuild",
+			buildStatus:               database.ProvisionerJobStatusCanceled,
+			buildTransition:           database.WorkspaceTransitionStart,
+			expectedStatus:            database.TaskStatusError,
+			description:               "Latest workspace build was canceled",
 			expectBuildNumberValid:    true,
 			expectBuildNumber:         1,
 			expectWorkspaceAgentValid: false,
