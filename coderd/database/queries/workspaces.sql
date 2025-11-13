@@ -86,7 +86,6 @@ SELECT
 filtered_workspaces AS (
 SELECT
 	workspaces.*,
-	users.email as owner_email,
 	latest_build.template_version_id,
 	latest_build.template_version_name,
 	latest_build.completed_at as latest_build_completed_at,
