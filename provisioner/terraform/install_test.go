@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"sync"
 	"testing"
 	"time"
@@ -22,9 +23,22 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+var (
+	version1 = terraform.TerraformVersion
+	version2 = version.Must(version.NewVersion("1.2.0"))
+)
+
 // starts fake http server serving fake terraform installation files
 func startFakeTerraformServer(t *testing.T) (*http.Server, string) {
 	t.Helper()
+	tmpDir := t.TempDir()
+
+	// Create fake installation files
+	cmd := exec.Command("/bin/bash", "./testdata/fake-terraform-installer/setup_fakes.sh", tmpDir, version1.String(), version2.String())
+	output, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("failed to create fake terraform files: output: %v err: %v", string(output), err)
+	}
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -32,7 +46,7 @@ func startFakeTerraformServer(t *testing.T) (*http.Server, string) {
 	}
 
 	mux := http.NewServeMux()
-	fs := http.FileServer(http.Dir("./testdata/fake-terraform-installer"))
+	fs := http.FileServer(http.Dir(tmpDir))
 	mux.Handle("/terraform/", http.StripPrefix("/terraform", fs))
 
 	server := http.Server{
@@ -91,7 +105,6 @@ func TestInstall(t *testing.T) {
 		return firstPath
 	}
 
-	version1 := version.Must(version.NewVersion("1.13.4"))
 	binPath := install(version1)
 
 	checkBinModTime := func() time.Time {
@@ -109,8 +122,6 @@ func TestInstall(t *testing.T) {
 	require.Equal(t, modTime1, modTime2)
 
 	// Ensure a new install happens when version changes
-	version2 := version.Must(version.NewVersion("1.2.0"))
-
 	// Sanity-check
 	require.NotEqual(t, version2.String(), version1.String())
 
