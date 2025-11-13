@@ -8,6 +8,8 @@ package terraform_test
 import (
 	"archive/zip"
 	"context"
+	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -26,46 +28,7 @@ import (
 )
 
 const (
-	mainIndexJSONPrefix = `{
-  "name": "terraform",
-  "versions": {
-`
-
-	mainIndexJSONVersionTemplate = `
-  "${ver}": {
-    "builds": [
-      {
-        "arch": "amd64",
-        "filename": "terraform_${ver}_linux_amd64.zip",
-        "name": "terraform",
-        "os": "linux",
-        "url": "/terraform/${ver}/terraform_${ver}_linux_amd64.zip",
-        "version": "${ver}"
-      }
-    ],
-    "name": "terraform",
-    "version": "${ver}"
-  }`
-
-	mainIndexJSONSufix = `  }
-}
-`
-
-	versionedIndexJSONTemplate = `{
-  "builds": [
-    {
-      "arch": "amd64",
-      "filename": "terraform_${ver}_linux_amd64.zip",
-      "name": "terraform",
-      "os": "linux",
-      "url": "/terraform/${ver}/terraform_${ver}_linux_amd64.zip",
-      "version": "${ver}"
-    }
-  ],
-  "name": "terraform",
-  "version": "${ver}"
-}
-`
+	// simple script that mocks `./terraform version -json`
 	terraformExecutableTemplate = `#!/bin/bash
 cat <<EOF
 {
@@ -76,13 +39,77 @@ cat <<EOF
 }
 EOF
 `
-	zipFilenameTemplate = "terraform_${ver}_linux_amd64.zip"
 )
 
 var (
 	version1 = terraform.TerraformVersion
 	version2 = version.Must(version.NewVersion("1.2.0"))
 )
+
+type productBuild struct {
+	Name     string `json:"name"`
+	Version  string `json:"version"`
+	OS       string `json:"os"`
+	Arch     string `json:"arch"`
+	Filename string `json:"filename"`
+	URL      string `json:"url"`
+}
+
+type productVersion struct {
+	Name    string           `json:"name"`
+	Version *version.Version `json:"version"`
+	Builds  []productBuild   `json:"builds"`
+}
+
+type product struct {
+	Name     string                    `json:"name"`
+	Versions map[string]productVersion `json:"versions"`
+}
+
+func zipFilename(v *version.Version) string {
+	return fmt.Sprintf("terraform_%s_linux_amd64.zip", v)
+}
+
+// returns `/${version}/index.json` in struct format
+func versionedJSON(v *version.Version) productVersion {
+	return productVersion{
+		Name:    "terraform",
+		Version: v,
+		Builds: []productBuild{
+			{
+				Arch:     "amd64",
+				Filename: zipFilename(v),
+				Name:     "terraform",
+				OS:       "linux",
+				URL:      fmt.Sprintf("/terraform/%s/%s", v, zipFilename(v)),
+				Version:  v.String(),
+			},
+		},
+	}
+}
+
+// returns `/index.json` in struct format
+func mainJSON(versions ...*version.Version) product {
+	vj := map[string]productVersion{}
+	for _, v := range versions {
+		vj[v.String()] = versionedJSON(v)
+	}
+	mj := product{
+		Name:     "terraform",
+		Versions: vj,
+	}
+	return mj
+}
+
+func exeContent(v *version.Version) []byte {
+	return []byte(strings.ReplaceAll(terraformExecutableTemplate, "${ver}", v.String()))
+}
+
+func mustMarshal(t *testing.T, obj any) []byte {
+	b, err := json.Marshal(obj)
+	require.NoError(t, err)
+	return b
+}
 
 // Mock files are based on https://releases.hashicorp.com/terraform
 // mock directory structure:
@@ -93,49 +120,53 @@ var (
 //	  -> zip contains 'terraform' binary and sometimes 'LICENSE.txt'
 func createFakeTerraformInstallationFiles(t *testing.T) string {
 	tmpDir := t.TempDir()
-	mainV1 := strings.ReplaceAll(mainIndexJSONVersionTemplate, "${ver}", version1.String())
-	mainV2 := strings.ReplaceAll(mainIndexJSONVersionTemplate, "${ver}", version2.String())
-	mainIndex := mainIndexJSONPrefix + mainV1 + ",\n" + mainV2 + "\n" + mainIndexJSONSufix
 
-	jsonV1 := strings.ReplaceAll(versionedIndexJSONTemplate, "${ver}", version1.String())
-	jsonV2 := strings.ReplaceAll(versionedIndexJSONTemplate, "${ver}", version2.String())
+	mij := mustMarshal(t, mainJSON(version1, version2))
+	jv1 := mustMarshal(t, versionedJSON(version1))
+	jv2 := mustMarshal(t, versionedJSON(version2))
 
-	exe1Content := strings.ReplaceAll(terraformExecutableTemplate, "${ver}", version1.String())
-	exe2Content := strings.ReplaceAll(terraformExecutableTemplate, "${ver}", version2.String())
+	// `index.json`
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "index.json"), mij, 0o400))
 
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "index.json"), []byte(mainIndex), 0o400))
+	// `${version1}/index.json`
 	require.NoError(t, os.Mkdir(filepath.Join(tmpDir, version1.String()), 0o700))
-	require.NoError(t, os.Mkdir(filepath.Join(tmpDir, version2.String()), 0o700))
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, version1.String(), "index.json"), []byte(jsonV1), 0o400))
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, version2.String(), "index.json"), []byte(jsonV2), 0o400))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, version1.String(), "index.json"), jv1, 0o400))
 
-	zip1, err := os.Create(filepath.Join(tmpDir, version1.String(), strings.ReplaceAll(zipFilenameTemplate, "${ver}", version1.String())))
-	require.NoError(t, err)
-	zip2, err := os.Create(filepath.Join(tmpDir, version2.String(), strings.ReplaceAll(zipFilenameTemplate, "${ver}", version2.String())))
+	// `${version2}/index.json`
+	require.NoError(t, os.Mkdir(filepath.Join(tmpDir, version2.String()), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, version2.String(), "index.json"), jv2, 0o400))
+
+	// `${version1}/linux_amd64.zip`
+	zip1, err := os.Create(filepath.Join(tmpDir, version1.String(), zipFilename(version1)))
 	require.NoError(t, err)
 	zip1Writer := zip.NewWriter(zip1)
-	zip2Writer := zip.NewWriter(zip2)
 
+	// `${version1}/linux_amd64.zip/terraform`
 	exe1, err := zip1Writer.Create("terraform")
 	require.NoError(t, err)
-	bc, err := exe1.Write([]byte(exe1Content))
+	n, err := exe1.Write(exeContent(version1))
 	require.NoError(t, err)
-	require.NotZero(t, bc)
+	require.NotZero(t, n)
 
+	// `${version1}/linux_amd64.zip/LICENSE.txt`
 	lic1, err := zip1Writer.Create("LICENSE.txt")
 	require.NoError(t, err)
-	bc, err = lic1.Write([]byte("some license"))
+	n, err = lic1.Write([]byte("some license"))
 	require.NoError(t, err)
-	require.NotZero(t, bc)
+	require.NotZero(t, n)
+	require.NoError(t, zip1Writer.Close())
 
+	// `${version2}/linux_amd64.zip`
+	zip2, err := os.Create(filepath.Join(tmpDir, version2.String(), zipFilename(version2)))
+	require.NoError(t, err)
+	zip2Writer := zip.NewWriter(zip2)
+
+	// `${version1}/linux_amd64.zip/terraform`
 	exe2, err := zip2Writer.Create("terraform")
 	require.NoError(t, err)
-
-	bc, err = exe2.Write([]byte(exe2Content))
+	n, err = exe2.Write(exeContent(version2))
 	require.NoError(t, err)
-	require.NotZero(t, bc)
-
-	require.NoError(t, zip1Writer.Close())
+	require.NotZero(t, n)
 	require.NoError(t, zip2Writer.Close())
 
 	return tmpDir
