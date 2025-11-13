@@ -16155,6 +16155,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 			&i.NextStartAt,
 			&i.OwnerAvatarUrl,
 			&i.OwnerUsername,
+			&i.OwnerEmail,
 			&i.OrganizationName,
 			&i.OrganizationDisplayName,
 			&i.OrganizationIcon,

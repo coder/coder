@@ -372,6 +372,7 @@ WHERE
 		'0001-01-01 00:00:00+00'::timestamptz, -- next_start_at
 		'', -- owner_avatar_url
 		'', -- owner_username
+		'', -- owner_email
 		'', -- organization_name
 		'', -- organization_display_name
 		'', -- organization_icon
