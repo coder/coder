@@ -109,6 +109,12 @@ sql:
           - column: "tasks_with_status.status"
             go_type:
               type: "TaskStatus"
+          - column: "tasks_with_status.workspace_agent_lifecycle_state"
+            go_type:
+              type: "NullWorkspaceAgentLifecycleState"
+          - column: "tasks_with_status.workspace_app_health"
+            go_type:
+              type: "NullWorkspaceAppHealth"
         rename:
           group_member: GroupMemberTable
           group_members_expanded: GroupMember

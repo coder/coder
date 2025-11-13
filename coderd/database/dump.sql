@@ -1974,6 +1974,8 @@ CREATE VIEW tasks_with_status AS
     task_app.workspace_build_number,
     task_app.workspace_agent_id,
     task_app.workspace_app_id,
+    agent_raw.lifecycle_state AS workspace_agent_lifecycle_state,
+    app_raw.health AS workspace_app_health,
     task_owner.owner_username,
     task_owner.owner_name,
     task_owner.owner_avatar_url

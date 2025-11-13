@@ -30,6 +30,8 @@ AS
 			)
 		) AS status_debug,
 		task_app.*,
+		agent_raw.lifecycle_state AS workspace_agent_lifecycle_state,
+		app_raw.health AS workspace_app_health,
 		task_owner.*
 	FROM
 		tasks
