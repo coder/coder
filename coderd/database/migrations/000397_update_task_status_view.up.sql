@@ -96,8 +96,7 @@ AS
 		SELECT
 			CASE
 				WHEN latest_build_raw.job_status IS NULL THEN 'pending'::task_status
-				-- NOTE(mafredri): Should we consider 'canceling', 'canceled' here as well?
-				WHEN latest_build_raw.job_status = 'failed' THEN 'error'::task_status
+				WHEN latest_build_raw.job_status IN ('failed', 'canceling', 'canceled') THEN 'error'::task_status
 				WHEN
 					latest_build_raw.transition IN ('stop', 'delete')
 					AND latest_build_raw.job_status = 'succeeded' THEN 'paused'::task_status
