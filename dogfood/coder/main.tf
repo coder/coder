@@ -845,9 +845,9 @@ locals {
 }
 
 resource "coder_script" "boundary_config_setup" {
-  agent_id         = coder_agent.dev.id
-  display_name     = "Boundary Setup Configuration"
-  run_on_start     = true
+  agent_id     = coder_agent.dev.id
+  display_name = "Boundary Setup Configuration"
+  run_on_start = true
 
   script = <<-EOF
     #!/bin/sh
@@ -858,21 +858,21 @@ resource "coder_script" "boundary_config_setup" {
 }
 
 module "claude-code" {
-  count               = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
-  source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = "4.0.0"
-  enable_boundary     = true
-  boundary_version    = "cb50342a4065f7d44e497f26cb2c769922ed60a9" # feat: initial implementation of config file support #79
-  boundary_log_dir    = "/tmp/boundary_logs"
-  boundary_log_level  = "WARN"
+  count                            = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
+  source                           = "dev.registry.coder.com/coder/claude-code/coder"
+  version                          = "4.0.0"
+  enable_boundary                  = true
+  boundary_version                 = "cb50342a4065f7d44e497f26cb2c769922ed60a9" # feat: initial implementation of config file support #79
+  boundary_log_dir                 = "/tmp/boundary_logs"
+  boundary_log_level               = "WARN"
   boundary_additional_allowed_urls = []
-  boundary_proxy_port = "8087"
-  agent_id            = coder_agent.dev.id
-  workdir             = local.repo_dir
-  claude_code_version = "latest"
-  order               = 999
-  claude_api_key      = data.coder_parameter.use_ai_bridge.value ? data.coder_workspace_owner.me.session_token : var.anthropic_api_key
-  agentapi_version    = "latest"
+  boundary_proxy_port              = "8087"
+  agent_id                         = coder_agent.dev.id
+  workdir                          = local.repo_dir
+  claude_code_version              = "latest"
+  order                            = 999
+  claude_api_key                   = data.coder_parameter.use_ai_bridge.value ? data.coder_workspace_owner.me.session_token : var.anthropic_api_key
+  agentapi_version                 = "latest"
 
   system_prompt       = local.claude_system_prompt
   ai_prompt           = data.coder_task.me.prompt
