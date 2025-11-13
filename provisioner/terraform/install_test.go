@@ -6,11 +6,13 @@
 package terraform_test
 
 import (
+	"archive/zip"
 	"context"
 	"net"
 	"net/http"
 	"os"
-	"os/exec"
+	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -23,23 +25,124 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+const (
+	mainIndexJSONPrefix = `{
+  "name": "terraform",
+  "versions": {
+`
+
+	mainIndexJSONVersionTemplate = `
+  "${ver}": {
+    "builds": [
+      {
+        "arch": "amd64",
+        "filename": "terraform_${ver}_linux_amd64.zip",
+        "name": "terraform",
+        "os": "linux",
+        "url": "/terraform/${ver}/terraform_${ver}_linux_amd64.zip",
+        "version": "${ver}"
+      }
+    ],
+    "name": "terraform",
+    "version": "${ver}"
+  }`
+
+	mainIndexJSONSufix = `  }
+}
+`
+
+	versionedIndexJSONTemplate = `{
+  "builds": [
+    {
+      "arch": "amd64",
+      "filename": "terraform_${ver}_linux_amd64.zip",
+      "name": "terraform",
+      "os": "linux",
+      "url": "/terraform/${ver}/terraform_${ver}_linux_amd64.zip",
+      "version": "${ver}"
+    }
+  ],
+  "name": "terraform",
+  "version": "${ver}"
+}
+`
+	terraformExecutableTemplate = `#!/bin/bash
+cat <<EOF
+{
+  "terraform_version": "${ver}",
+  "platform": "linux_amd64",
+  "provider_selections": {},
+  "terraform_outdated": true
+}
+EOF
+`
+	zipFilenameTemplate = "terraform_${ver}_linux_amd64.zip"
+)
+
 var (
 	version1 = terraform.TerraformVersion
 	version2 = version.Must(version.NewVersion("1.2.0"))
 )
 
-// starts fake http server serving fake terraform installation files
-func startFakeTerraformServer(t *testing.T) (*http.Server, string) {
-	t.Helper()
+// Mock files are based on https://releases.hashicorp.com/terraform
+// mock directory structure:
+//
+//	${tmpDir}/index.json
+//	${tmpDir}/${version}/index.json
+//	${tmpDir}/${version}/terraform_${version}_linux_amd64.zip
+//	  -> zip contains 'terraform' binary and sometimes 'LICENSE.txt'
+func createFakeTerraformInstallationFiles(t *testing.T) string {
 	tmpDir := t.TempDir()
+	mainV1 := strings.ReplaceAll(mainIndexJSONVersionTemplate, "${ver}", version1.String())
+	mainV2 := strings.ReplaceAll(mainIndexJSONVersionTemplate, "${ver}", version2.String())
+	mainIndex := mainIndexJSONPrefix + mainV1 + ",\n" + mainV2 + "\n" + mainIndexJSONSufix
 
-	// Create fake installation files
-	cmd := exec.Command("/bin/bash", "./testdata/fake-terraform-installer/setup_fakes.sh", tmpDir, version1.String(), version2.String())
-	output, err := cmd.Output()
-	if err != nil {
-		t.Fatalf("failed to create fake terraform files: output: %v err: %v", string(output), err)
-	}
+	jsonV1 := strings.ReplaceAll(versionedIndexJSONTemplate, "${ver}", version1.String())
+	jsonV2 := strings.ReplaceAll(versionedIndexJSONTemplate, "${ver}", version2.String())
 
+	exe1Content := strings.ReplaceAll(terraformExecutableTemplate, "${ver}", version1.String())
+	exe2Content := strings.ReplaceAll(terraformExecutableTemplate, "${ver}", version2.String())
+
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "index.json"), []byte(mainIndex), 0o400))
+	require.NoError(t, os.Mkdir(filepath.Join(tmpDir, version1.String()), 0o700))
+	require.NoError(t, os.Mkdir(filepath.Join(tmpDir, version2.String()), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, version1.String(), "index.json"), []byte(jsonV1), 0o400))
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, version2.String(), "index.json"), []byte(jsonV2), 0o400))
+
+	zip1, err := os.Create(filepath.Join(tmpDir, version1.String(), strings.ReplaceAll(zipFilenameTemplate, "${ver}", version1.String())))
+	require.NoError(t, err)
+	zip2, err := os.Create(filepath.Join(tmpDir, version2.String(), strings.ReplaceAll(zipFilenameTemplate, "${ver}", version2.String())))
+	require.NoError(t, err)
+	zip1Writer := zip.NewWriter(zip1)
+	zip2Writer := zip.NewWriter(zip2)
+
+	exe1, err := zip1Writer.Create("terraform")
+	require.NoError(t, err)
+	bc, err := exe1.Write([]byte(exe1Content))
+	require.NoError(t, err)
+	require.NotZero(t, bc)
+
+	lic1, err := zip1Writer.Create("LICENSE.txt")
+	require.NoError(t, err)
+	bc, err = lic1.Write([]byte("some license"))
+	require.NoError(t, err)
+	require.NotZero(t, bc)
+
+	exe2, err := zip2Writer.Create("terraform")
+	require.NoError(t, err)
+
+	bc, err = exe2.Write([]byte(exe2Content))
+	require.NoError(t, err)
+	require.NotZero(t, bc)
+
+	require.NoError(t, zip1Writer.Close())
+	require.NoError(t, zip2Writer.Close())
+
+	return tmpDir
+}
+
+// starts fake http server serving fake terraform installation files
+func startFakeTerraformServer(t *testing.T, tmpDir string) (*http.Server, string) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("failed to create listener")
@@ -66,7 +169,8 @@ func TestInstall(t *testing.T) {
 	dir := t.TempDir()
 	log := testutil.Logger(t)
 
-	srv, addr := startFakeTerraformServer(t)
+	tmpDir := createFakeTerraformInstallationFiles(t)
+	srv, addr := startFakeTerraformServer(t, tmpDir)
 	defer func() {
 		err := srv.Close()
 		if err != nil {
