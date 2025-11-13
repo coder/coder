@@ -852,7 +852,7 @@ resource "coder_script" "boundary_config_setup" {
   script = <<-EOF
     #!/bin/sh
     mkdir -p ~/.config/coder_boundary
-    echo '${base64encode(file("${path.module}/config.yaml"))}' | base64 -d > ~/.config/coder_boundary/config.yaml
+    echo '${base64encode(file("${path.module}/boundary-config.yaml"))}' | base64 -d > ~/.config/coder_boundary/config.yaml
     chmod 600 ~/.config/coder_boundary/config.yaml
   EOF
 }
