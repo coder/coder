@@ -35,6 +35,10 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 		0,
 	);
 	const toolCalls = interception.tool_usages.length;
+	const duration =
+		interception.ended_at &&
+		new Date(interception.ended_at).getTime() -
+			new Date(interception.started_at).getTime();
 
 	return (
 		<>
@@ -124,14 +128,11 @@ export const RequestLogsRow: FC<RequestLogsRowProps> = ({ interception }) => {
 									</>
 								)}
 
-								{interception.ended_at && (
+								{duration && (
 									<>
 										<dt>Duration:</dt>
-										<dd data-chromatic="ignore">
-											{humanDuration(
-												new Date(interception.ended_at).getTime() -
-													new Date(interception.started_at).getTime(),
-											)}
+										<dd title={duration.toString()} data-chromatic="ignore">
+											{humanDuration(duration)}
 										</dd>
 									</>
 								)}
