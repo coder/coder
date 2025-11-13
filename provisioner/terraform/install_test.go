@@ -172,8 +172,8 @@ func createFakeTerraformInstallationFiles(t *testing.T) string {
 	return tmpDir
 }
 
-// starts fake http server serving fake terraform installation files
-func startFakeTerraformServer(t *testing.T, tmpDir string) (*http.Server, string) {
+// starts http server serving fake terraform installation files
+func startFakeTerraformServer(t *testing.T, tmpDir string) string {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("failed to create listener")
@@ -183,12 +183,17 @@ func startFakeTerraformServer(t *testing.T, tmpDir string) (*http.Server, string
 	fs := http.FileServer(http.Dir(tmpDir))
 	mux.Handle("/terraform/", http.StripPrefix("/terraform", fs))
 
-	server := http.Server{
+	srv := http.Server{
 		ReadHeaderTimeout: time.Second,
 		Handler:           mux,
 	}
-	go server.Serve(listener)
-	return &server, "http://" + listener.Addr().String()
+	go srv.Serve(listener)
+	t.Cleanup(func() {
+		if err := srv.Close(); err != nil {
+			t.Errorf("failed to close server: %v", err)
+		}
+	})
+	return "http://" + listener.Addr().String()
 }
 
 func TestInstall(t *testing.T) {
@@ -201,13 +206,7 @@ func TestInstall(t *testing.T) {
 	log := testutil.Logger(t)
 
 	tmpDir := createFakeTerraformInstallationFiles(t)
-	srv, addr := startFakeTerraformServer(t, tmpDir)
-	defer func() {
-		err := srv.Close()
-		if err != nil {
-			t.Errorf("failed to close server: %v", err)
-		}
-	}()
+	addr := startFakeTerraformServer(t, tmpDir)
 
 	// Install spins off 8 installs with Version and waits for them all
 	// to complete. The locking mechanism within Install should
