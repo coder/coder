@@ -2,6 +2,7 @@ import { API } from "api/api";
 import { checkAuthorization } from "api/queries/authCheck";
 import type { AuthorizationRequest } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Badge } from "components/Badge/Badge";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
@@ -50,10 +51,20 @@ const fetchTemplate = async (organizationId: string, templateName: string) => {
 		}),
 	]);
 
+	// TODO: Replace with actual API call once backend is implemented
+	// const warnings = await API.getTemplateVersionWarnings(activeVersion.id);
+	const warnings: Array<{ dismissed?: boolean }> = [
+		{ dismissed: false },
+		{ dismissed: false },
+		{ dismissed: false },
+	];
+	const unreadWarningsCount = warnings.filter(w => !w.dismissed).length;
+
 	return {
 		template,
 		activeVersion,
 		permissions,
+		unreadWarningsCount,
 	};
 };
 
@@ -158,7 +169,14 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
 							</TabLink>
 						)}
 						<TabLink to="warnings" value="warnings">
-							Warnings
+							<span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+								Warnings
+								{data.unreadWarningsCount > 0 && (
+									<Badge variant="destructive" size="xs">
+										{data.unreadWarningsCount}
+									</Badge>
+								)}
+							</span>
 						</TabLink>
 					</TabsList>
 				</Margins>
