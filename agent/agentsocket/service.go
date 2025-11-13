@@ -37,7 +37,6 @@ func (s *DRPCAgentSocketService) SyncStart(_ context.Context, req *proto.SyncSta
 	}
 
 	if err := s.unitManager.Register(req.Unit); err != nil {
-		// If already registered, that's okay - we can still update status
 		if !errors.Is(err, unit.ErrUnitAlreadyRegistered) {
 			return &proto.SyncStartResponse{}, nil
 		}
