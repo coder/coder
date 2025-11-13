@@ -3066,6 +3066,7 @@ type Workspace struct {
 	CreatedAt               time.Time        `db:"created_at" json:"created_at"`
 	UpdatedAt               time.Time        `db:"updated_at" json:"updated_at"`
 	OwnerID                 uuid.UUID        `db:"owner_id" json:"owner_id"`
+	OwnerEmail              string           `db:"owner_email" json:"owner_email"`
 	OrganizationID          uuid.UUID        `db:"organization_id" json:"organization_id"`
 	TemplateID              uuid.UUID        `db:"template_id" json:"template_id"`
 	Deleted                 bool             `db:"deleted" json:"deleted"`

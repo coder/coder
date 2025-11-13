@@ -15719,7 +15719,7 @@ SELECT
 ),
 filtered_workspaces AS (
 SELECT
-	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite, workspaces.next_start_at, workspaces.owner_avatar_url, workspaces.owner_username, workspaces.organization_name, workspaces.organization_display_name, workspaces.organization_icon, workspaces.organization_description, workspaces.template_name, workspaces.template_display_name, workspaces.template_icon, workspaces.template_description,
+	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite, workspaces.next_start_at, workspaces.owner_avatar_url, workspaces.owner_username, workspaces.owner_email, workspaces.organization_name, workspaces.organization_display_name, workspaces.organization_icon, workspaces.organization_description, workspaces.template_name, workspaces.template_display_name, workspaces.template_icon, workspaces.template_description,
 	latest_build.template_version_id,
 	latest_build.template_version_name,
 	latest_build.completed_at as latest_build_completed_at,
@@ -16082,6 +16082,7 @@ type GetWorkspacesRow struct {
 	NextStartAt             sql.NullTime         `db:"next_start_at" json:"next_start_at"`
 	OwnerAvatarUrl          string               `db:"owner_avatar_url" json:"owner_avatar_url"`
 	OwnerUsername           string               `db:"owner_username" json:"owner_username"`
+	OwnerEmail              string               `db:"owner_email" json:"owner_email"`
 	OrganizationName        string               `db:"organization_name" json:"organization_name"`
 	OrganizationDisplayName string               `db:"organization_display_name" json:"organization_display_name"`
 	OrganizationIcon        string               `db:"organization_icon" json:"organization_icon"`
@@ -16154,6 +16155,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 			&i.NextStartAt,
 			&i.OwnerAvatarUrl,
 			&i.OwnerUsername,
+			&i.OwnerEmail,
 			&i.OrganizationName,
 			&i.OrganizationDisplayName,
 			&i.OrganizationIcon,

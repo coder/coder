@@ -31,6 +31,7 @@ type Workspace struct {
 	UpdatedAt                            time.Time      `json:"updated_at" format:"date-time"`
 	OwnerID                              uuid.UUID      `json:"owner_id" format:"uuid"`
 	OwnerName                            string         `json:"owner_name"`
+	OwnerEmail                           string         `json:"owner_email,omitempty"`
 	OwnerAvatarURL                       string         `json:"owner_avatar_url"`
 	OrganizationID                       uuid.UUID      `json:"organization_id" format:"uuid"`
 	OrganizationName                     string         `json:"organization_name"`
