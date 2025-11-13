@@ -2,6 +2,7 @@ package agentsocket_test
 
 import (
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -12,6 +13,10 @@ import (
 
 func TestServer(t *testing.T) {
 	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("agentsocket is not supported on Windows")
+	}
 
 	t.Run("StartStop", func(t *testing.T) {
 		t.Parallel()

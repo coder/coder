@@ -71,6 +71,10 @@ func newSocketClient(t *testing.T, socketPath string) (proto.DRPCAgentSocketClie
 func TestDRPCAgentSocketService(t *testing.T) {
 	t.Parallel()
 
+	if runtime.GOOS == "windows" {
+		t.Skip("agentsocket is not supported on Windows")
+	}
+
 	t.Run("Ping", func(t *testing.T) {
 		t.Parallel()
 
