@@ -1,11 +1,24 @@
 import { useTheme } from "@emotion/react";
-import { CircleAlertIcon, InfoIcon, TriangleAlertIcon, XIcon, RotateCcwIcon } from "lucide-react";
-import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
-import { type FC, useState, useMemo } from "react";
-import { pageTitle } from "utils/page";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "components/Table/Table";
 import { Pill } from "components/Pill/Pill";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "components/Table/Table";
+import {
+	CircleAlertIcon,
+	InfoIcon,
+	RotateCcwIcon,
+	TriangleAlertIcon,
+	XIcon,
+} from "lucide-react";
+import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
+import { type FC, useMemo, useState } from "react";
+import { pageTitle } from "utils/page";
 
 interface Warning {
 	id: string;
@@ -20,30 +33,58 @@ interface Warning {
 const useTemplateWarnings = (templateVersionId: string): Warning[] => {
 	// TODO: Replace this with actual API call once backend is implemented
 	// Example: const { data } = useQuery(['templateWarnings', templateVersionId], () => API.getTemplateVersionWarnings(templateVersionId));
-	
+
 	// Mock data for UI demonstration
-	return [];
+	return [
+		{
+			id: "1",
+			severity: "error",
+			title: "Terraform module 'coder-server' is not pinned to a version",
+			message:
+				"The 'coder-server' module should be pinned to a specific version to ensure stability and reproducibility. " +
+				"Please update the module source to include a version constraint.",
+			code: "ERR_UNPINNED_MODULE_VERSION",
+		},
+		{
+			id: "2",
+			severity: "error",
+			title: "Missing terraform lock file",
+			message:
+				"The terraform lock file (terraform.lock.hcl) is missing. " +
+				"Please generate the lock file to ensure consistent provider versions.",
+			code: "ERR_MISSING_LOCK_FILE",
+		},
+		{
+			id: "3",
+			severity: "warning",
+			title: "Unused coder parameter 'region' detected",
+			message: "The parameter 'region' is defined but not used in the template. ",
+			code: "WRN_UNUSED_PARAMETER",
+		},
+	];
 };
 
 const TemplateWarningsPage: FC = () => {
 	const { template, activeVersion } = useTemplateLayoutContext();
 	const theme = useTheme();
 	const warnings = useTemplateWarnings(activeVersion.id);
-	const [dismissedWarnings, setDismissedWarnings] = useState<Set<string>>(new Set());
+	const [dismissedWarnings, setDismissedWarnings] = useState<Set<string>>(
+		new Set(),
+	);
 
 	// Sort warnings: non-dismissed first, dismissed at the end
 	const sortedWarnings = useMemo(() => {
 		return [...warnings].sort((a, b) => {
 			const aDismissed = dismissedWarnings.has(a.id) || a.dismissed;
 			const bDismissed = dismissedWarnings.has(b.id) || b.dismissed;
-			
+
 			if (aDismissed === bDismissed) return 0;
 			return aDismissed ? 1 : -1;
 		});
 	}, [warnings, dismissedWarnings]);
 
 	const handleToggleDismiss = (warningId: string) => {
-		setDismissedWarnings(prev => {
+		setDismissedWarnings((prev) => {
 			const next = new Set(prev);
 			if (next.has(warningId)) {
 				next.delete(warningId);
@@ -61,7 +102,7 @@ const TemplateWarningsPage: FC = () => {
 	const getSeverityIcon = (severity: string, dismissed: boolean) => {
 		const iconSize = 16;
 		const opacity = dismissed ? 0.4 : 1;
-		
+
 		switch (severity) {
 			case "error":
 				return (
@@ -80,12 +121,17 @@ const TemplateWarningsPage: FC = () => {
 			case "info":
 			default:
 				return (
-					<InfoIcon size={iconSize} css={{ color: theme.palette.info.main, opacity }} />
+					<InfoIcon
+						size={iconSize}
+						css={{ color: theme.palette.info.main, opacity }}
+					/>
 				);
 		}
 	};
 
-	const getSeverityPillType = (severity: string): "error" | "warning" | "info" => {
+	const getSeverityPillType = (
+		severity: string,
+	): "error" | "warning" | "info" => {
 		switch (severity) {
 			case "error":
 				return "error";
@@ -159,9 +205,9 @@ const TemplateWarningsPage: FC = () => {
 						<TableBody>
 							{sortedWarnings.map((warning) => {
 								const isDismissed = isWarningDismissed(warning);
-								
+
 								return (
-									<TableRow 
+									<TableRow
 										key={warning.id}
 										css={{
 											opacity: isDismissed ? 0.5 : 1,
@@ -170,13 +216,17 @@ const TemplateWarningsPage: FC = () => {
 									>
 										<TableCell>
 											<div css={{ display: "flex", alignItems: "center" }}>
-												{getSeverityIcon(warning.severity, isDismissed || false)}
+												{getSeverityIcon(
+													warning.severity,
+													isDismissed || false,
+												)}
 											</div>
 										</TableCell>
 										<TableCell>
 											{!isDismissed && (
 												<Pill type={getSeverityPillType(warning.severity)}>
-													{warning.severity.charAt(0).toUpperCase() + warning.severity.slice(1)}
+													{warning.severity.charAt(0).toUpperCase() +
+														warning.severity.slice(1)}
 												</Pill>
 											)}
 										</TableCell>
@@ -252,7 +302,9 @@ const TemplateWarningsPage: FC = () => {
 														color: theme.palette.text.primary,
 													},
 												}}
-												aria-label={isDismissed ? "Restore warning" : "Dismiss warning"}
+												aria-label={
+													isDismissed ? "Restore warning" : "Dismiss warning"
+												}
 												title={isDismissed ? "Restore" : "Dismiss"}
 											>
 												{isDismissed ? (
