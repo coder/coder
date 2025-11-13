@@ -1,7 +1,7 @@
 package x
 
 // This file will replace the `tfpath.go` in the parent `tfpath` package when the
-// `terraform-workspace` experiment is graduated.
+// `terraform-directory-reuse` experiment is graduated.
 
 import (
 	"archive/tar"
