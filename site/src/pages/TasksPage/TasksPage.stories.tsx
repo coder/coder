@@ -1,4 +1,5 @@
 import {
+	MockInitializingTasks,
 	MockTasks,
 	MockTemplate,
 	MockUserOwner,
@@ -165,5 +166,14 @@ export const OpenDeleteDialog: Story = {
 			name: /delete task/i,
 		});
 		await userEvent.click(deleteButtons[0]);
+	},
+};
+
+export const InitializingTasks: Story = {
+	beforeEach: () => {
+		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
+		spyOn(API.experimental, "getTasks").mockResolvedValue(
+			MockInitializingTasks,
+		);
 	},
 };
