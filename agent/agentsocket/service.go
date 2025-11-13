@@ -65,12 +65,12 @@ func (s *DRPCAgentSocketService) SyncStart(_ context.Context, req *proto.SyncSta
 		}, nil
 	}
 	if !isReady {
-		return nil, errors.New("Unit is not ready")
+		return nil, xerrors.New("Unit is not ready")
 	}
 
 	// Check if unit is already started
 	currentStatus, err := s.unitManager.GetStatus(req.Unit)
-	if err != nil && !errors.Is(err, unit.ErrConsumerNotFound) {
+	if err != nil && !errors.Is(err, unit.ErrUnitNotFound) {
 		return &proto.SyncStartResponse{
 			Success: false,
 			Message: xerrors.Errorf("unit is not ready: %w", unit.ErrDependenciesNotSatisfied).Error(),
