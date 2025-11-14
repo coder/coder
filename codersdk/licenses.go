@@ -134,3 +134,34 @@ func (c *Client) DeleteLicense(ctx context.Context, id int32) error {
 	}
 	return nil
 }
+
+// GetUsageEmbeddableDashboardRequest is a request to get an embeddable dashboard URL.
+type GetUsageEmbeddableDashboardRequest struct {
+	Dashboard      string                   `json:"dashboard"`
+	ColorOverrides []DashboardColorOverride `json:"color_overrides,omitempty"`
+}
+
+// DashboardColorOverride represents a color override for a dashboard.
+type DashboardColorOverride struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+// GetUsageEmbeddableDashboardResponse contains the embeddable dashboard URL.
+type GetUsageEmbeddableDashboardResponse struct {
+	DashboardURL string `json:"dashboard_url"`
+}
+
+// GetUsageEmbeddableDashboard retrieves an embeddable dashboard URL.
+func (c *Client) GetUsageEmbeddableDashboard(ctx context.Context, req GetUsageEmbeddableDashboardRequest) (GetUsageEmbeddableDashboardResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/licenses/usage/embeddable-dashboard", req)
+	if err != nil {
+		return GetUsageEmbeddableDashboardResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return GetUsageEmbeddableDashboardResponse{}, ReadBodyAsError(res)
+	}
+	var resp GetUsageEmbeddableDashboardResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}

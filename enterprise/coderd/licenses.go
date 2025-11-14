@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"slices"
 	"strconv"
 	"strings"
@@ -30,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/enterprise/coderd/usage/tallymansdk"
 )
 
 const (
@@ -380,4 +382,102 @@ func decodeClaims(l database.License) (jwt.MapClaims, error) {
 	d.UseNumber()
 	err = d.Decode(&c)
 	return c, err
+}
+
+// @Summary Get embeddable usage dashboard
+// @ID get-embeddable-usage-dashboard
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Enterprise
+// @Param request body codersdk.GetUsageEmbeddableDashboardRequest true "Dashboard request"
+// @Success 200 {object} codersdk.GetUsageEmbeddableDashboardResponse
+// @Router /licenses/usage/embeddable-dashboard [post]
+func (api *API) postUsageEmbeddableDashboard(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Authorization check - requires license read permission
+	if !api.AGPL.Authorize(r, policy.ActionRead, rbac.ResourceLicense) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	var req codersdk.GetUsageEmbeddableDashboardRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	// Create tallyman client
+	deploymentID, err := uuid.Parse(api.AGPL.DeploymentID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to parse deployment ID.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	client, err := tallymansdk.New(ctx, tallymansdk.NewOptions{
+		DB:           api.Database,
+		DeploymentID: deploymentID,
+		LicenseKeys:  api.LicenseKeys,
+	})
+	if xerrors.Is(err, tallymansdk.ErrNoLicenseSupportsPublishing) {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: "No license supports usage publishing.",
+		})
+		return
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to create usage client.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Convert request to tallymansdk format
+	tallyReq := tallymansdk.RetrieveEmbeddableDashboardRequest{
+		Dashboard:      tallymansdk.DashboardType(req.Dashboard),
+		ColorOverrides: make([]tallymansdk.DashboardColorOverride, len(req.ColorOverrides)),
+	}
+	for i, override := range req.ColorOverrides {
+		tallyReq.ColorOverrides[i] = tallymansdk.DashboardColorOverride{
+			Name:  override.Name,
+			Value: override.Value,
+		}
+	}
+
+	// Get dashboard URL from Tallyman
+	tallyResp, err := client.RetrieveEmbeddableDashboard(ctx, tallyReq)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to retrieve dashboard URL.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Verify the URL host is metronome.com or .metronome.com
+	dashboardURL, err := url.Parse(tallyResp.DashboardURL)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to parse dashboard URL.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	host := strings.ToLower(dashboardURL.Host)
+	if host != "metronome.com" && !strings.HasSuffix(host, ".metronome.com") {
+		httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
+			Message: "Dashboard URL host is not trusted.",
+			Detail:  fmt.Sprintf("Expected metronome.com or *.metronome.com, got %s", host),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.GetUsageEmbeddableDashboardResponse{
+		DashboardURL: tallyResp.DashboardURL,
+	})
 }

@@ -2755,6 +2755,22 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `allow_path_app_sharing`           | boolean | false    |              |             |
 | `allow_path_app_site_owner_access` | boolean | false    |              |             |
 
+## codersdk.DashboardColorOverride
+
+```json
+{
+  "name": "string",
+  "value": "string"
+}
+```
+
+### Properties
+
+| Name    | Type   | Required | Restrictions | Description |
+|---------|--------|----------|--------------|-------------|
+| `name`  | string | false    |              |             |
+| `value` | string | false    |              |             |
+
 ## codersdk.DeleteExternalAuthByIDResponse
 
 ```json
@@ -4393,6 +4409,41 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 |----------------|----------------------------------------------------------|----------|--------------|-------------|
 | `notification` | [codersdk.InboxNotification](#codersdkinboxnotification) | false    |              |             |
 | `unread_count` | integer                                                  | false    |              |             |
+
+## codersdk.GetUsageEmbeddableDashboardRequest
+
+```json
+{
+  "color_overrides": [
+    {
+      "name": "string",
+      "value": "string"
+    }
+  ],
+  "dashboard": "string"
+}
+```
+
+### Properties
+
+| Name              | Type                                                                        | Required | Restrictions | Description |
+|-------------------|-----------------------------------------------------------------------------|----------|--------------|-------------|
+| `color_overrides` | array of [codersdk.DashboardColorOverride](#codersdkdashboardcoloroverride) | false    |              |             |
+| `dashboard`       | string                                                                      | false    |              |             |
+
+## codersdk.GetUsageEmbeddableDashboardResponse
+
+```json
+{
+  "dashboard_url": "string"
+}
+```
+
+### Properties
+
+| Name            | Type   | Required | Restrictions | Description |
+|-----------------|--------|----------|--------------|-------------|
+| `dashboard_url` | string | false    |              |             |
 
 ## codersdk.GetUserStatusCountsResponse
 
