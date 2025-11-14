@@ -6,20 +6,22 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// ErrUnitNotFound is returned when a unit ID is not registered.
-var ErrUnitNotFound = xerrors.New("unit not found")
+var (
+	// ErrUnitNotFound is returned when a unit ID is not registered.
+	ErrUnitNotFound = xerrors.New("unit not found")
 
-// ErrUnitAlreadyRegistered is returned when a unit ID is already registered.
-var ErrUnitAlreadyRegistered = xerrors.New("unit already registered")
+	// ErrUnitAlreadyRegistered is returned when a unit ID is already registered.
+	ErrUnitAlreadyRegistered = xerrors.New("unit already registered")
 
-// ErrCannotUpdateOtherUnit is returned when attempting to update another unit's status.
-var ErrCannotUpdateOtherUnit = xerrors.New("cannot update other unit's status")
+	// ErrCannotUpdateOtherUnit is returned when attempting to update another unit's status.
+	ErrCannotUpdateOtherUnit = xerrors.New("cannot update other unit's status")
 
-// ErrDependenciesNotSatisfied is returned when a unit's dependencies are not satisfied.
-var ErrDependenciesNotSatisfied = xerrors.New("unit dependencies not satisfied")
+	// ErrDependenciesNotSatisfied is returned when a unit's dependencies are not satisfied.
+	ErrDependenciesNotSatisfied = xerrors.New("unit dependencies not satisfied")
 
-// ErrSameStatusAlreadySet is returned when attempting to set the same status as the current status.
-var ErrSameStatusAlreadySet = xerrors.New("same status already set")
+	// ErrSameStatusAlreadySet is returned when attempting to set the same status as the current status.
+	ErrSameStatusAlreadySet = xerrors.New("same status already set")
+)
 
 // Status constants for dependency tracking
 const (
