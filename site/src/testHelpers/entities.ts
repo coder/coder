@@ -5055,6 +5055,61 @@ export const MockTasks = [
 	},
 ] satisfies TypesGen.Task[];
 
+export const MockInitializingTasks = [
+	{
+		...MockTask,
+		id: "task-1",
+		name: "task-workspace-pending",
+		initial_prompt: "Task Workspace Pending",
+		status: "initializing",
+		current_state: {
+			timestamp: new Date().toISOString(),
+			state: "working",
+			message: "Workspace is pending",
+			uri: "",
+		},
+	},
+	{
+		...MockTask,
+		id: "task-1",
+		name: "task-workspace-starting",
+		initial_prompt: "Task Workspace Starting",
+		status: "initializing",
+		current_state: {
+			timestamp: new Date().toISOString(),
+			state: "working",
+			message: "Workspace is starting",
+			uri: "",
+		},
+	},
+	{
+		...MockTask,
+		id: "task-1",
+		name: "task-agent-connecting",
+		initial_prompt: "Task Agent Connecting",
+		status: "initializing",
+		current_state: {
+			timestamp: new Date().toISOString(),
+			state: "working",
+			message: "Agent is connecting",
+			uri: "",
+		},
+	},
+	{
+		...MockTask,
+		id: "task-1",
+		name: "task-agent-starting",
+		initial_prompt: "Task Agent Starting",
+		status: "initializing",
+		current_state: {
+			timestamp: new Date().toISOString(),
+			state: "working",
+			message: "Agent is starting",
+			uri: "",
+		},
+	},
+] satisfies TypesGen.Task[];
+
 export const MockInterception: TypesGen.AIBridgeInterception = {
 	id: "5c1da48a-9eb0-440e-9c82-5bc5692a603d",
 	initiator: {
