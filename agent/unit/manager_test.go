@@ -43,8 +43,7 @@ func TestDependencyTracker_Register(t *testing.T) {
 		require.NoError(t, err)
 
 		err = tracker.Register(unitA)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "already registered")
+		require.ErrorIs(t, err, unit.ErrUnitAlreadyRegistered)
 	})
 
 	t.Run("RegisterMultipleUnits", func(t *testing.T) {
@@ -103,8 +102,7 @@ func TestDependencyTracker_AddDependency(t *testing.T) {
 
 		// Try to add dependency to unregistered unit
 		err = tracker.AddDependency(unitA, unitB, unit.StatusStarted)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "not registered")
+		require.ErrorIs(t, err, unit.ErrUnitNotFound)
 	})
 
 	t.Run("AddDependencyFromUnregisteredUnit", func(t *testing.T) {
@@ -116,8 +114,7 @@ func TestDependencyTracker_AddDependency(t *testing.T) {
 
 		// Try to add dependency from unregistered unit
 		err = tracker.AddDependency(unitA, unitB, unit.StatusStarted)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "not registered")
+		require.ErrorIs(t, err, unit.ErrUnitNotFound)
 	})
 }
 
@@ -157,8 +154,7 @@ func TestDependencyTracker_UpdateStatus(t *testing.T) {
 		tracker := unit.NewManager[string, testUnitID]()
 
 		err := tracker.UpdateStatus(unitA, unit.StatusStarted)
-		require.Error(t, err)
-		assert.Equal(t, unit.ErrUnitNotFound, err)
+		require.ErrorIs(t, err, unit.ErrUnitNotFound)
 	})
 
 	t.Run("LinearChainDependencies", func(t *testing.T) {
@@ -280,8 +276,7 @@ func TestDependencyTracker_GetUnmetDependencies(t *testing.T) {
 		tracker := unit.NewManager[string, testUnitID]()
 
 		unmet, err := tracker.GetUnmetDependencies(unitA)
-		require.Error(t, err)
-		assert.Equal(t, unit.ErrUnitNotFound, err)
+		require.ErrorIs(t, err, unit.ErrUnitNotFound)
 		assert.Nil(t, unmet)
 	})
 }
@@ -450,8 +445,7 @@ func TestDependencyTracker_ErrorCases(t *testing.T) {
 		tracker := unit.NewManager[string, testUnitID]()
 
 		err := tracker.UpdateStatus(unitA, unit.StatusStarted)
-		require.Error(t, err)
-		assert.Equal(t, unit.ErrUnitNotFound, err)
+		require.ErrorIs(t, err, unit.ErrUnitNotFound)
 	})
 
 	t.Run("IsReadyWithUnregisteredUnit", func(t *testing.T) {
@@ -460,8 +454,7 @@ func TestDependencyTracker_ErrorCases(t *testing.T) {
 		tracker := unit.NewManager[string, testUnitID]()
 
 		ready, err := tracker.IsReady(unitA)
-		require.Error(t, err)
-		assert.Equal(t, unit.ErrUnitNotFound, err)
+		require.ErrorIs(t, err, unit.ErrUnitNotFound)
 		assert.False(t, ready)
 	})
 
@@ -515,8 +508,7 @@ func TestDependencyTracker_ErrorCases(t *testing.T) {
 
 		// Try to make D depend on A (creates indirect cycle)
 		err = tracker.AddDependency(unitD, unitA, unit.StatusStarted)
-		require.Error(t, err)
-		assert.ErrorContains(t, err, "would create a cycle")
+		require.ErrorIs(t, err, unit.ErrCycleDetected)
 	})
 }
 

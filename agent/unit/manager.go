@@ -21,6 +21,9 @@ var (
 
 	// ErrSameStatusAlreadySet is returned when attempting to set the same status as the current status.
 	ErrSameStatusAlreadySet = xerrors.New("same status already set")
+
+	// ErrCycleDetected is returned when a cycle is detected in the dependency graph.
+	ErrCycleDetected = xerrors.New("cycle detected")
 )
 
 // Status constants for dependency tracking
@@ -101,10 +104,10 @@ func (dt *Manager[StatusType, UnitID]) AddDependency(unit UnitID, dependsOn Unit
 	defer dt.mu.Unlock()
 
 	if !dt.registeredUnits[unit] {
-		return xerrors.Errorf("unit %v is not registered", unit)
+		return xerrors.Errorf("unit %v is not registered: %w", unit, ErrUnitNotFound)
 	}
 	if !dt.registeredUnits[dependsOn] {
-		return xerrors.Errorf("unit %v is not registered", dependsOn)
+		return xerrors.Errorf("unit %v is not registered: %w", dependsOn, ErrUnitNotFound)
 	}
 
 	// Get the stored vertices for both units
