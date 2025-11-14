@@ -84,6 +84,7 @@ export default defineConfig({
 		]
 			.filter(Boolean)
 			.join(" "),
+		stdout: "pipe",
 		env: {
 			...process.env,
 			// Otherwise, the runner fails on Mac with: could not determine kind of name for C.uuid_string_t
