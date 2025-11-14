@@ -14,7 +14,9 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -40,11 +42,17 @@ cat <<EOF
 }
 EOF
 `
-	windowsExecutableTemplate = `echo {^
-  "terraform_version": "${ver}",^
-  "platform": "${os}_${arch}",^
-  "provider_selections": {},^
-  "terraform_outdated": true^
+	windowsExecutableTemplateGo = `package main
+
+import "fmt"
+
+func main() {
+	fmt.Printf(` + "`" + `{
+  "terraform_version": "%s",
+  "platform": "windows_%s",
+  "provider_selections": {},
+  "terraform_outdated": true
+}` + "`" + `)
 }
 `
 )
@@ -53,7 +61,7 @@ var (
 	version1 = terraform.TerraformVersion
 	version2 = version.Must(version.NewVersion("1.2.0"))
 
-	allArchs = []osArch{
+	allPlatforms = []osArch{
 		{"darwin", "amd64"},
 		{"darwin", "arm64"},
 		{"freebsd", "386"},
@@ -117,8 +125,8 @@ func mockProductVersion(v *version.Version) productVersion {
 		Name:    "terraform",
 		Version: v,
 	}
-	for _, oa := range allArchs {
-		pv.Builds = append(pv.Builds, mockProductBuild(v, oa.os, oa.arch))
+	for _, platform := range allPlatforms {
+		pv.Builds = append(pv.Builds, mockProductBuild(v, platform.os, platform.arch))
 	}
 	return pv
 }
@@ -137,40 +145,63 @@ func mockProduct(versions ...*version.Version) product {
 }
 
 func mustCreateZips(t *testing.T, tmpDir string, v *version.Version) {
-	for _, oa := range allArchs {
-		rep := strings.NewReplacer("${ver}", v.String(), "${os}", oa.os, "${arch}", oa.arch)
-		exeContent := rep.Replace(bashExecutableTemplate)
-		if oa.os == "windows" {
-			exeContent = rep.Replace(windowsExecutableTemplate)
+	for _, platform := range allPlatforms {
+		if platform.os != runtime.GOOS || platform.arch != runtime.GOARCH {
+			// only zip for platform on which test is being run is needed
+			continue
 		}
 
 		// `${version}/${os}_${arch}.zip`
-		zip1, err := os.Create(filepath.Join(tmpDir, version1.String(), zipFilename(v, oa.os, oa.arch)))
+		zipFile, err := os.Create(filepath.Join(tmpDir, version1.String(), zipFilename(v, platform.os, platform.arch)))
 		require.NoError(t, err)
-		zip1Writer := zip.NewWriter(zip1)
+		zipWriter := zip.NewWriter(zipFile)
 
 		// `${version}/${os}_${arch}.zip/terraform{.exe}`
 		var exe io.Writer
-		if oa.os == "windows" {
-			exe, err = zip1Writer.Create("terraform.exe")
+		rep := strings.NewReplacer("${ver}", v.String(), "${os}", platform.os, "${arch}", platform.arch)
+
+		if platform.os == "windows" {
+			require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "fake-terraform.go"), []byte(fmt.Sprintf(windowsExecutableTemplateGo, v, platform.arch)), 0o600))
+
+			cmd := exec.Command("go", "mod", "init", "fake-terraform")
+			cmd.Dir = tmpDir
+			output, err := cmd.Output()
+			if err != nil {
+				t.Fatalf("failed to init go module for fake terraform windows exe: output: %v err: %v", string(output), err)
+			}
+
+			exePath := filepath.Join(tmpDir, "terraform.exe")
+			cmd = exec.Command("go", "build", "-o", exePath)
+			cmd.Dir = tmpDir
+			output, err = cmd.Output()
+			if err != nil {
+				t.Fatalf("failed to compile fake terraform windows exe: output: %v err: %v", string(output), err)
+			}
+			exeContent, err := os.ReadFile(exePath)
+			require.NoError(t, err)
+			exe, err = zipWriter.Create("terraform.exe")
+			require.NoError(t, err)
+			n, err := exe.Write(exeContent)
+			require.NoError(t, err)
+			require.NotZero(t, n)
 		} else {
-			exe, err = zip1Writer.Create("terraform")
+			exe, err = zipWriter.Create("terraform")
+			require.NoError(t, err)
+			n, err := exe.Write([]byte(rep.Replace(bashExecutableTemplate)))
+			require.NoError(t, err)
+			require.NotZero(t, n)
 		}
-		require.NoError(t, err)
-		n, err := exe.Write([]byte(exeContent))
-		require.NoError(t, err)
-		require.NotZero(t, n)
 
 		// not all versions include LICENSE files (eg. 1.2.0)
 		if !v.Equal(version2) {
 			// `${version}/${os}_${arch}.zip/LICENSE.txt`
-			lic1, err := zip1Writer.Create("LICENSE.txt")
+			lic, err := zipWriter.Create("LICENSE.txt")
 			require.NoError(t, err)
-			n, err = lic1.Write([]byte("some license"))
+			n, err := lic.Write([]byte("some license"))
 			require.NoError(t, err)
 			require.NotZero(t, n)
-			require.NoError(t, zip1Writer.Close())
 		}
+		require.NoError(t, zipWriter.Close())
 	}
 }
 
