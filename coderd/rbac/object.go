@@ -236,3 +236,8 @@ func (z Object) WithGroupACL(groups map[string][]policy.Action) Object {
 		AnyOrgOwner:  z.AnyOrgOwner,
 	}
 }
+
+// IsEmpty checks whether the minimum set of rbac Object fields are empty.
+func (z Object) IsEmpty() bool {
+	return z.Owner == "" || z.Owner == uuid.Nil.String() || z.OrgID == "" || z.OrgID == uuid.Nil.String()
+}

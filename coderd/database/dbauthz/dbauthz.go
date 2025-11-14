@@ -5532,11 +5532,13 @@ func (q *querier) UpdateWorkspaceAgentMetadata(ctx context.Context, arg database
 	// claim, there may be up to a 5-minute window where this uses stale owner_id.
 	if rbacObj, ok := WorkspaceRBACFromContext(ctx); ok {
 		// Verify the RBAC object is valid (has required fields).
-		if rbacObj.Owner != "" && rbacObj.OrgID != "" && rbacObj.Owner != uuid.Nil.String() && rbacObj.OrgID != uuid.Nil.String() {
+		if !rbacObj.IsEmpty() && rbacObj.Type == rbac.ResourceWorkspace.Type {
 			act, ok := ActorFromContext(ctx)
 			if !ok {
 				return ErrNoActor
 			}
+			// Errors here will result in falling back to the GetWorkspaceAgentByID query, skipping
+			// the cache in case the cached data is stale.
 			err := q.auth.Authorize(ctx, act, policy.ActionUpdate, rbacObj)
 			if err == nil {
 				return q.db.UpdateWorkspaceAgentMetadata(ctx, arg)
