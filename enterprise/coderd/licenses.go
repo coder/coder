@@ -418,31 +418,8 @@ func (api *API) postUsageEmbeddableDashboard(rw http.ResponseWriter, r *http.Req
 	}
 
 	// Validate color override names. These must match the colors available in Metronome.
-	validColors := map[string]struct{}{
-		"Gray_dark":               {},
-		"Gray_medium":             {},
-		"Gray_light":              {},
-		"Gray_extralight":         {},
-		"White":                   {},
-		"Primary_medium":          {},
-		"Primary_light":           {},
-		"UsageLine_0":             {},
-		"UsageLine_1":             {},
-		"UsageLine_2":             {},
-		"UsageLine_3":             {},
-		"UsageLine_4":             {},
-		"UsageLine_5":             {},
-		"UsageLine_6":             {},
-		"UsageLine_7":             {},
-		"UsageLine_8":             {},
-		"UsageLine_9":             {},
-		"Primary_green":           {},
-		"Primary_red":             {},
-		"Progress_bar":            {},
-		"Progress_bar_background": {},
-	}
 	for _, override := range req.ColorOverrides {
-		if _, ok := validColors[override.Name]; !ok {
+		if _, ok := tallymansdk.TallymanValidColorOverrides[override.Name]; !ok {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid color name.",
 				Detail:  fmt.Sprintf("Color name %q is not a valid Metronome color", override.Name),

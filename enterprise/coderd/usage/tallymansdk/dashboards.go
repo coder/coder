@@ -8,6 +8,33 @@ import (
 	"golang.org/x/xerrors"
 )
 
+// TallymanValidColorOverrides contains the valid color names that can be overridden
+// in Metronome dashboards. These correspond to the color palette available in the
+// Metronome embedding API.
+var TallymanValidColorOverrides = map[string]struct{}{
+	"Gray_dark":               {},
+	"Gray_medium":             {},
+	"Gray_light":              {},
+	"Gray_extralight":         {},
+	"White":                   {},
+	"Primary_medium":          {},
+	"Primary_light":           {},
+	"UsageLine_0":             {},
+	"UsageLine_1":             {},
+	"UsageLine_2":             {},
+	"UsageLine_3":             {},
+	"UsageLine_4":             {},
+	"UsageLine_5":             {},
+	"UsageLine_6":             {},
+	"UsageLine_7":             {},
+	"UsageLine_8":             {},
+	"UsageLine_9":             {},
+	"Primary_green":           {},
+	"Primary_red":             {},
+	"Progress_bar":            {},
+	"Progress_bar_background": {},
+}
+
 // DashboardType represents the type of dashboard to embed.
 // Corresponds to codersdk.UsageEmbeddableDashboardType.
 type DashboardType string
