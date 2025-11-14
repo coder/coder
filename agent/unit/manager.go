@@ -26,10 +26,14 @@ var (
 	ErrCycleDetected = xerrors.New("cycle detected")
 )
 
+// Status represents the status of a unit.
+type Status string
+
 // Status constants for dependency tracking
 const (
-	StatusStarted  = "started"
-	StatusComplete = "completed"
+	StatusPending  Status = ""
+	StatusStarted  Status = "started"
+	StatusComplete Status = "completed"
 )
 
 // dependencyVertex represents a vertex in the dependency graph that is associated with a unit.
@@ -49,14 +53,14 @@ type Dependency[StatusType, UnitID comparable] struct {
 // Manager provides reactive dependency tracking over a Graph.
 // It manages unit registration, dependency relationships, and status updates
 // with automatic recalculation of readiness when dependencies are satisfied.
-type Manager[StatusType, UnitID comparable] struct {
+type Manager[UnitID comparable] struct {
 	mu sync.RWMutex
 
 	// The underlying graph that stores dependency relationships
-	graph *Graph[StatusType, *dependencyVertex[UnitID]]
+	graph *Graph[Status, *dependencyVertex[UnitID]]
 
 	// Track current status of each unit
-	unitStatus map[UnitID]StatusType
+	unitStatus map[UnitID]Status
 
 	// Track readiness state (cached to avoid repeated graph traversal)
 	unitReadiness map[UnitID]bool
@@ -69,10 +73,10 @@ type Manager[StatusType, UnitID comparable] struct {
 }
 
 // NewManager creates a new Manager instance.
-func NewManager[StatusType, UnitID comparable]() *Manager[StatusType, UnitID] {
-	return &Manager[StatusType, UnitID]{
-		graph:           &Graph[StatusType, *dependencyVertex[UnitID]]{},
-		unitStatus:      make(map[UnitID]StatusType),
+func NewManager[UnitID comparable]() *Manager[UnitID] {
+	return &Manager[UnitID]{
+		graph:           &Graph[Status, *dependencyVertex[UnitID]]{},
+		unitStatus:      make(map[UnitID]Status),
 		unitReadiness:   make(map[UnitID]bool),
 		registeredUnits: make(map[UnitID]bool),
 		unitVertices:    make(map[UnitID]*dependencyVertex[UnitID]),
@@ -80,7 +84,7 @@ func NewManager[StatusType, UnitID comparable]() *Manager[StatusType, UnitID] {
 }
 
 // Register registers a new unit as a vertex in the dependency graph.
-func (dt *Manager[StatusType, UnitID]) Register(id UnitID) error {
+func (dt *Manager[UnitID]) Register(id UnitID) error {
 	dt.mu.Lock()
 	defer dt.mu.Unlock()
 
@@ -99,7 +103,7 @@ func (dt *Manager[StatusType, UnitID]) Register(id UnitID) error {
 
 // AddDependency adds a dependency relationship between units.
 // The unit depends on the dependsOn unit reaching the requiredStatus.
-func (dt *Manager[StatusType, UnitID]) AddDependency(unit UnitID, dependsOn UnitID, requiredStatus StatusType) error {
+func (dt *Manager[UnitID]) AddDependency(unit UnitID, dependsOn UnitID, requiredStatus Status) error {
 	dt.mu.Lock()
 	defer dt.mu.Unlock()
 
@@ -128,7 +132,7 @@ func (dt *Manager[StatusType, UnitID]) AddDependency(unit UnitID, dependsOn Unit
 }
 
 // UpdateStatus updates a unit's status and recalculates readiness for affected dependents.
-func (dt *Manager[StatusType, UnitID]) UpdateStatus(unit UnitID, newStatus StatusType) error {
+func (dt *Manager[UnitID]) UpdateStatus(unit UnitID, newStatus Status) error {
 	dt.mu.Lock()
 	defer dt.mu.Unlock()
 
@@ -155,7 +159,7 @@ func (dt *Manager[StatusType, UnitID]) UpdateStatus(unit UnitID, newStatus Statu
 }
 
 // IsReady checks if all dependencies for a unit are satisfied.
-func (dt *Manager[StatusType, UnitID]) IsReady(unit UnitID) (bool, error) {
+func (dt *Manager[UnitID]) IsReady(unit UnitID) (bool, error) {
 	dt.mu.RLock()
 	defer dt.mu.RUnlock()
 
@@ -167,13 +171,13 @@ func (dt *Manager[StatusType, UnitID]) IsReady(unit UnitID) (bool, error) {
 }
 
 // GetUnmetDependencies returns a list of unsatisfied dependencies for a unit.
-func (dt *Manager[StatusType, UnitID]) GetUnmetDependencies(unit UnitID) ([]Dependency[StatusType, UnitID], error) {
+func (dt *Manager[UnitID]) GetUnmetDependencies(unit UnitID) ([]Dependency[Status, UnitID], error) {
 	allDependencies, err := dt.GetAllDependencies(unit)
 	if err != nil {
 		return nil, err
 	}
 
-	var unmetDependencies []Dependency[StatusType, UnitID]
+	var unmetDependencies []Dependency[Status, UnitID]
 
 	for _, dependency := range allDependencies {
 		if !dependency.IsSatisfied {
@@ -186,7 +190,7 @@ func (dt *Manager[StatusType, UnitID]) GetUnmetDependencies(unit UnitID) ([]Depe
 
 // recalculateReadinessUnsafe recalculates the readiness state for a unit.
 // This method assumes the caller holds the write lock.
-func (dt *Manager[StatusType, UnitID]) recalculateReadinessUnsafe(unit UnitID) {
+func (dt *Manager[UnitID]) recalculateReadinessUnsafe(unit UnitID) {
 	unitVertex := dt.unitVertices[unit]
 	forwardEdges := dt.graph.GetForwardAdjacentVertices(unitVertex)
 
@@ -213,33 +217,29 @@ func (dt *Manager[StatusType, UnitID]) recalculateReadinessUnsafe(unit UnitID) {
 
 // GetGraph returns the underlying graph for visualization and debugging.
 // This should be used carefully as it exposes the internal graph structure.
-func (dt *Manager[StatusType, UnitID]) GetGraph() *Graph[StatusType, *dependencyVertex[UnitID]] {
+func (dt *Manager[UnitID]) GetGraph() *Graph[Status, *dependencyVertex[UnitID]] {
 	return dt.graph
 }
 
 // GetStatus returns the current status of a unit.
-func (dt *Manager[StatusType, UnitID]) GetStatus(unit UnitID) (StatusType, error) {
+func (dt *Manager[UnitID]) GetStatus(unit UnitID) (Status, error) {
 	dt.mu.RLock()
 	defer dt.mu.RUnlock()
 
 	if !dt.registeredUnits[unit] {
-		// Zero value represents StatusPending
-		var pendingStatus StatusType
-		return pendingStatus, ErrUnitNotFound
+		return StatusPending, ErrUnitNotFound
 	}
 
 	status, exists := dt.unitStatus[unit]
 	if !exists {
-		// Zero value represents StatusPending
-		var pendingStatus StatusType
-		return pendingStatus, nil
+		return StatusPending, nil
 	}
 
 	return status, nil
 }
 
 // GetAllDependencies returns all dependencies for a unit, both satisfied and unsatisfied.
-func (dt *Manager[StatusType, UnitID]) GetAllDependencies(unit UnitID) ([]Dependency[StatusType, UnitID], error) {
+func (dt *Manager[UnitID]) GetAllDependencies(unit UnitID) ([]Dependency[Status, UnitID], error) {
 	dt.mu.RLock()
 	defer dt.mu.RUnlock()
 
@@ -250,7 +250,7 @@ func (dt *Manager[StatusType, UnitID]) GetAllDependencies(unit UnitID) ([]Depend
 	unitVertex := dt.unitVertices[unit]
 	forwardEdges := dt.graph.GetForwardAdjacentVertices(unitVertex)
 
-	var allDependencies []Dependency[StatusType, UnitID]
+	var allDependencies []Dependency[Status, UnitID]
 
 	for _, edge := range forwardEdges {
 		dependsOnUnit := edge.To.ID
@@ -258,18 +258,16 @@ func (dt *Manager[StatusType, UnitID]) GetAllDependencies(unit UnitID) ([]Depend
 		currentStatus, exists := dt.unitStatus[dependsOnUnit]
 		if !exists {
 			// If the dependency unit has no status, it's not satisfied
-			// Zero value represents StatusPending
-			var pendingStatus StatusType
-			allDependencies = append(allDependencies, Dependency[StatusType, UnitID]{
+			allDependencies = append(allDependencies, Dependency[Status, UnitID]{
 				Unit:           unit,
 				DependsOn:      dependsOnUnit,
 				RequiredStatus: requiredStatus,
-				CurrentStatus:  pendingStatus, // StatusPending (zero value)
+				CurrentStatus:  StatusPending,
 				IsSatisfied:    false,
 			})
 		} else {
 			isSatisfied := currentStatus == requiredStatus
-			allDependencies = append(allDependencies, Dependency[StatusType, UnitID]{
+			allDependencies = append(allDependencies, Dependency[Status, UnitID]{
 				Unit:           unit,
 				DependsOn:      dependsOnUnit,
 				RequiredStatus: requiredStatus,
@@ -283,6 +281,6 @@ func (dt *Manager[StatusType, UnitID]) GetAllDependencies(unit UnitID) ([]Depend
 }
 
 // ExportDOT exports the dependency graph to DOT format for visualization.
-func (dt *Manager[StatusType, UnitID]) ExportDOT(name string) (string, error) {
+func (dt *Manager[UnitID]) ExportDOT(name string) (string, error) {
 	return dt.graph.ToDOT(name)
 }

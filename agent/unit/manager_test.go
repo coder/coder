@@ -21,7 +21,7 @@ const (
 func TestDependencyTracker_Register(t *testing.T) {
 	t.Parallel()
 
-	tracker := unit.NewManager[string, testUnitID]()
+	tracker := unit.NewManager[testUnitID]()
 
 	t.Run("RegisterNewUnit", func(t *testing.T) {
 		t.Parallel()
@@ -38,7 +38,7 @@ func TestDependencyTracker_Register(t *testing.T) {
 	t.Run("RegisterDuplicateUnit", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[string, testUnitID]()
+		tracker := unit.NewManager[testUnitID]()
 		err := tracker.Register(unitA)
 		require.NoError(t, err)
 
@@ -49,7 +49,7 @@ func TestDependencyTracker_Register(t *testing.T) {
 	t.Run("RegisterMultipleUnits", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[string, testUnitID]()
+		tracker := unit.NewManager[testUnitID]()
 
 		units := []testUnitID{unitA, unitB, unitC}
 		for _, unit := range units {
@@ -72,7 +72,7 @@ func TestDependencyTracker_AddDependency(t *testing.T) {
 	t.Run("AddDependencyBetweenRegisteredUnits", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[string, testUnitID]()
+		tracker := unit.NewManager[testUnitID]()
 		err := tracker.Register(unitA)
 		require.NoError(t, err)
 		err = tracker.Register(unitB)
@@ -96,7 +96,7 @@ func TestDependencyTracker_AddDependency(t *testing.T) {
 	t.Run("AddDependencyWithUnregisteredUnit", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[string, testUnitID]()
+		tracker := unit.NewManager[testUnitID]()
 		err := tracker.Register(unitA)
 		require.NoError(t, err)
 
@@ -108,7 +108,7 @@ func TestDependencyTracker_AddDependency(t *testing.T) {
 	t.Run("AddDependencyFromUnregisteredUnit", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[string, testUnitID]()
+		tracker := unit.NewManager[testUnitID]()
 		err := tracker.Register(unitB)
 		require.NoError(t, err)
 
@@ -124,7 +124,7 @@ func TestDependencyTracker_UpdateStatus(t *testing.T) {
 	t.Run("UpdateStatusTriggersReadinessRecalculation", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[string, testUnitID]()
+		tracker := unit.NewManager[testUnitID]()
 		err := tracker.Register(unitA)
 		require.NoError(t, err)
 		err = tracker.Register(unitB)
@@ -151,7 +151,7 @@ func TestDependencyTracker_UpdateStatus(t *testing.T) {
 	t.Run("UpdateStatusWithUnregisteredUnit", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[string, testUnitID]()
+		tracker := unit.NewManager[testUnitID]()
 
 		err := tracker.UpdateStatus(unitA, unit.StatusStarted)
 		require.ErrorIs(t, err, unit.ErrUnitNotFound)
@@ -160,7 +160,7 @@ func TestDependencyTracker_UpdateStatus(t *testing.T) {
 	t.Run("LinearChainDependencies", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[string, testUnitID]()
+		tracker := unit.NewManager[testUnitID]()
 
 		// Register all units
 		units := []testUnitID{unitA, unitB, unitC}
@@ -216,7 +216,7 @@ func TestDependencyTracker_GetUnmetDependencies(t *testing.T) {
 	t.Run("GetUnmetDependenciesForUnitWithNoDependencies", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[string, testUnitID]()
+		tracker := unit.NewManager[testUnitID]()
 		err := tracker.Register(unitA)
 		require.NoError(t, err)
 
@@ -228,7 +228,7 @@ func TestDependencyTracker_GetUnmetDependencies(t *testing.T) {
 	t.Run("GetUnmetDependenciesForUnitWithUnsatisfiedDependencies", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[string, testUnitID]()
+		tracker := unit.NewManager[testUnitID]()
 		err := tracker.Register(unitA)
 		require.NoError(t, err)
 		err = tracker.Register(unitB)
@@ -251,7 +251,7 @@ func TestDependencyTracker_GetUnmetDependencies(t *testing.T) {
 	t.Run("GetUnmetDependenciesForUnitWithSatisfiedDependencies", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[string, testUnitID]()
+		tracker := unit.NewManager[testUnitID]()
 		err := tracker.Register(unitA)
 		require.NoError(t, err)
 		err = tracker.Register(unitB)
@@ -273,7 +273,7 @@ func TestDependencyTracker_GetUnmetDependencies(t *testing.T) {
 	t.Run("GetUnmetDependenciesForUnregisteredUnit", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[string, testUnitID]()
+		tracker := unit.NewManager[testUnitID]()
 
 		unmet, err := tracker.GetUnmetDependencies(unitA)
 		require.ErrorIs(t, err, unit.ErrUnitNotFound)
@@ -287,7 +287,7 @@ func TestDependencyTracker_MultipleDependencies(t *testing.T) {
 	t.Run("UnitWithMultipleDependencies", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[string, testUnitID]()
+		tracker := unit.NewManager[testUnitID]()
 
 		// Register all units
 		units := []testUnitID{unitA, unitB, unitC, unitD}
@@ -327,7 +327,7 @@ func TestDependencyTracker_MultipleDependencies(t *testing.T) {
 	t.Run("ComplexDependencyChain", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[string, testUnitID]()
+		tracker := unit.NewManager[testUnitID]()
 
 		// Register all units
 		units := []testUnitID{unitA, unitB, unitC, unitD}
@@ -402,7 +402,7 @@ func TestDependencyTracker_MultipleDependencies(t *testing.T) {
 	t.Run("DifferentStatusTypes", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[string, testUnitID]()
+		tracker := unit.NewManager[testUnitID]()
 
 		// Register units
 		err := tracker.Register(unitA)
@@ -442,7 +442,7 @@ func TestDependencyTracker_ErrorCases(t *testing.T) {
 	t.Run("UpdateStatusWithUnregisteredUnit", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[string, testUnitID]()
+		tracker := unit.NewManager[testUnitID]()
 
 		err := tracker.UpdateStatus(unitA, unit.StatusStarted)
 		require.ErrorIs(t, err, unit.ErrUnitNotFound)
@@ -451,7 +451,7 @@ func TestDependencyTracker_ErrorCases(t *testing.T) {
 	t.Run("IsReadyWithUnregisteredUnit", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[string, testUnitID]()
+		tracker := unit.NewManager[testUnitID]()
 
 		ready, err := tracker.IsReady(unitA)
 		require.ErrorIs(t, err, unit.ErrUnitNotFound)
@@ -461,7 +461,7 @@ func TestDependencyTracker_ErrorCases(t *testing.T) {
 	t.Run("GetUnmetDependenciesWithUnregisteredUnit", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[string, testUnitID]()
+		tracker := unit.NewManager[testUnitID]()
 
 		unmet, err := tracker.GetUnmetDependencies(unitA)
 		require.Error(t, err)
@@ -472,7 +472,7 @@ func TestDependencyTracker_ErrorCases(t *testing.T) {
 	t.Run("AddDependencyWithUnregisteredUnits", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[string, testUnitID]()
+		tracker := unit.NewManager[testUnitID]()
 
 		// Try to add dependency with unregistered units
 		err := tracker.AddDependency(unitA, unitB, unit.StatusStarted)
@@ -483,7 +483,7 @@ func TestDependencyTracker_ErrorCases(t *testing.T) {
 	t.Run("CyclicDependencyDetection", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[string, testUnitID]()
+		tracker := unit.NewManager[testUnitID]()
 
 		// Register units
 		err := tracker.Register(unitA)
@@ -518,7 +518,7 @@ func TestDependencyTracker_ToDOT(t *testing.T) {
 	t.Run("ExportSimpleGraph", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[string, testUnitID]()
+		tracker := unit.NewManager[testUnitID]()
 
 		// Register units
 		err := tracker.Register(unitA)
@@ -539,7 +539,7 @@ func TestDependencyTracker_ToDOT(t *testing.T) {
 	t.Run("ExportComplexGraph", func(t *testing.T) {
 		t.Parallel()
 
-		tracker := unit.NewManager[string, testUnitID]()
+		tracker := unit.NewManager[testUnitID]()
 
 		// Register all units
 		units := []testUnitID{unitA, unitB, unitC, unitD}
