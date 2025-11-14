@@ -47,6 +47,7 @@ message SyncReadyRequest {
 message SyncReadyResponse {
 	bool success = 1;
 	string message = 2;
+  bool is_ready = 3;
 }
 
 message SyncStatusRequest {

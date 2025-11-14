@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"cdr.dev/slog"
@@ -13,6 +14,11 @@ import (
 )
 
 var _ proto.DRPCAgentSocketServer = (*DRPCAgentSocketService)(nil)
+
+var (
+	ErrUnitManagerNotAvailable = xerrors.New("unit manager not available")
+	ErrUnitNameRequired        = xerrors.New("unit name is required")
+)
 
 type DRPCAgentSocketService struct {
 	unitManager *unit.Manager[string]
@@ -30,14 +36,14 @@ func (s *DRPCAgentSocketService) SyncStart(_ context.Context, req *proto.SyncSta
 	if s.unitManager == nil {
 		return &proto.SyncStartResponse{
 			Success: false,
-			Message: "dependency tracker not available",
+			Message: ErrUnitManagerNotAvailable.Error(),
 		}, nil
 	}
 
 	if req.Unit == "" {
 		return &proto.SyncStartResponse{
 			Success: false,
-			Message: "Unit name is required",
+			Message: ErrUnitNameRequired.Error(),
 		}, nil
 	}
 
@@ -46,7 +52,7 @@ func (s *DRPCAgentSocketService) SyncStart(_ context.Context, req *proto.SyncSta
 		if !errors.Is(err, unit.ErrUnitAlreadyRegistered) {
 			return &proto.SyncStartResponse{
 				Success: false,
-				Message: "Failed to register unit: " + err.Error(),
+				Message: xerrors.Errorf("failed to register unit: %w", err).Error(),
 			}, nil
 		}
 	}
@@ -55,13 +61,13 @@ func (s *DRPCAgentSocketService) SyncStart(_ context.Context, req *proto.SyncSta
 	if err != nil {
 		return &proto.SyncStartResponse{
 			Success: false,
-			Message: "Failed to check readiness: " + err.Error(),
+			Message: xerrors.Errorf("failed to check readiness: %w", err).Error(),
 		}, nil
 	}
 	if !isReady {
 		return &proto.SyncStartResponse{
 			Success: false,
-			Message: "Unit is not ready",
+			Message: xerrors.Errorf("unit is not ready: %w", unit.ErrDependenciesNotSatisfied).Error(),
 		}, nil
 	}
 
@@ -82,14 +88,14 @@ func (s *DRPCAgentSocketService) SyncWant(_ context.Context, req *proto.SyncWant
 	if s.unitManager == nil {
 		return &proto.SyncWantResponse{
 			Success: false,
-			Message: "unit manager not available",
+			Message: ErrUnitManagerNotAvailable.Error(),
 		}, nil
 	}
 
 	if req.Unit == "" || req.DependsOn == "" {
 		return &proto.SyncWantResponse{
 			Success: false,
-			Message: "unit and depends_on are required",
+			Message: ErrUnitNameRequired.Error(),
 		}, nil
 	}
 
@@ -128,14 +134,14 @@ func (s *DRPCAgentSocketService) SyncComplete(_ context.Context, req *proto.Sync
 	if s.unitManager == nil {
 		return &proto.SyncCompleteResponse{
 			Success: false,
-			Message: "unit manager not available",
+			Message: ErrUnitManagerNotAvailable.Error(),
 		}, nil
 	}
 
 	if req.Unit == "" {
 		return &proto.SyncCompleteResponse{
 			Success: false,
-			Message: "unit name is required",
+			Message: ErrUnitNameRequired.Error(),
 		}, nil
 	}
 
@@ -156,14 +162,14 @@ func (s *DRPCAgentSocketService) SyncReady(_ context.Context, req *proto.SyncRea
 	if s.unitManager == nil {
 		return &proto.SyncReadyResponse{
 			Success: false,
-			Message: "unit manager not available",
+			Message: ErrUnitManagerNotAvailable.Error(),
 		}, nil
 	}
 
 	if req.Unit == "" {
 		return &proto.SyncReadyResponse{
 			Success: false,
-			Message: "unit name is required",
+			Message: ErrUnitNameRequired.Error(),
 		}, nil
 	}
 
@@ -172,19 +178,13 @@ func (s *DRPCAgentSocketService) SyncReady(_ context.Context, req *proto.SyncRea
 		return &proto.SyncReadyResponse{
 			Success: false,
 			Message: "failed to check readiness: " + err.Error(),
-		}, nil
-	}
-
-	if !isReady {
-		return &proto.SyncReadyResponse{
-			Success: false,
-			Message: unit.ErrDependenciesNotSatisfied.Error(),
+			IsReady: false,
 		}, nil
 	}
 
 	return &proto.SyncReadyResponse{
 		Success: true,
-		Message: "unit " + req.Unit + " dependencies are satisfied",
+		IsReady: isReady,
 	}, nil
 }
 
@@ -192,14 +192,14 @@ func (s *DRPCAgentSocketService) SyncStatus(_ context.Context, req *proto.SyncSt
 	if s.unitManager == nil {
 		return &proto.SyncStatusResponse{
 			Success: false,
-			Message: "unit manager not available",
+			Message: ErrUnitManagerNotAvailable.Error(),
 		}, nil
 	}
 
 	if req.Unit == "" {
 		return &proto.SyncStatusResponse{
 			Success: false,
-			Message: "unit name is required",
+			Message: ErrUnitNameRequired.Error(),
 		}, nil
 	}
 
