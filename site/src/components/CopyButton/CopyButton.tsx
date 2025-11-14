@@ -22,7 +22,7 @@ export const CopyButton: FC<CopyButtonProps> = ({
 	const { showCopiedSuccess, copyToClipboard } = useClipboard();
 
 	return (
-		<TooltipProvider>
+		<TooltipProvider delayDuration={100}>
 			<Tooltip>
 				<TooltipTrigger asChild>
 					<Button
