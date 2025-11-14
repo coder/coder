@@ -3,6 +3,7 @@ package tallymansdk
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -12,13 +13,31 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/usage/usagetypes"
+	"github.com/coder/coder/v2/enterprise/coderd/license"
 )
 
 const (
 	// DefaultURL is the default URL for the Tallyman API.
 	DefaultURL = "https://tallyman-prod.coder.com"
 )
+
+var ErrNoLicenseSupportsPublishing = xerrors.New("usage publishing is not enabled by any license")
+
+// NewOptions contains options for creating a new Tallyman client.
+type NewOptions struct {
+	// DB is the database store for querying licenses and deployment ID.
+	DB database.Store
+	// DeploymentID is the deployment ID. If uuid.Nil, it will be fetched from the database.
+	DeploymentID uuid.UUID
+	// LicenseKeys is a map of license keys for verifying license JWTs.
+	LicenseKeys map[string]ed25519.PublicKey
+	// BaseURL is the base URL for the Tallyman API. If nil, DefaultURL is used.
+	BaseURL *url.URL
+	// HTTPClient is the HTTP client to use for requests. If nil, http.DefaultClient is used.
+	HTTPClient *http.Client
+}
 
 // Client is a client for the Tallyman API.
 type Client struct {
@@ -35,8 +54,8 @@ type Client struct {
 // ClientOption is a functional option for configuring the Client.
 type ClientOption func(*Client)
 
-// New creates a new Tallyman API client.
-func New(baseURL *url.URL, licenseKey string, deploymentID uuid.UUID, opts ...ClientOption) *Client {
+// NewWithAuth creates a new Tallyman API client with explicit authentication.
+func NewWithAuth(baseURL *url.URL, licenseKey string, deploymentID uuid.UUID, opts ...ClientOption) *Client {
 	if baseURL == nil {
 		baseURL, _ = url.Parse(DefaultURL)
 	}
@@ -62,6 +81,80 @@ func WithHTTPClient(httpClient *http.Client) ClientOption {
 			c.HTTPClient = httpClient
 		}
 	}
+}
+
+// New creates a new Tallyman API client by looking up the best license from the database.
+// It selects the most recently issued license that:
+// - Is unexpired
+// - Has AccountType == AccountTypeSalesforce
+// - Has PublishUsageData enabled
+//
+// If opts.DeploymentID is uuid.Nil, it will be fetched from the database.
+// If no suitable license is found, it returns ErrNoLicenseSupportsPublishing.
+func New(ctx context.Context, opts NewOptions) (*Client, error) {
+	// Fetch deployment ID if not provided
+	deploymentID := opts.DeploymentID
+	if deploymentID == uuid.Nil {
+		deploymentIDStr, err := opts.DB.GetDeploymentID(ctx)
+		if err != nil {
+			return nil, xerrors.Errorf("get deployment ID: %w", err)
+		}
+		deploymentID, err = uuid.Parse(deploymentIDStr)
+		if err != nil {
+			return nil, xerrors.Errorf("parse deployment ID %q: %w", deploymentIDStr, err)
+		}
+	}
+
+	licenses, err := opts.DB.GetUnexpiredLicenses(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("get unexpired licenses: %w", err)
+	}
+	if len(licenses) == 0 {
+		return nil, ErrNoLicenseSupportsPublishing
+	}
+
+	type licenseJWTWithClaims struct {
+		Claims *license.Claims
+		Raw    string
+	}
+
+	var bestLicense licenseJWTWithClaims
+	for _, dbLicense := range licenses {
+		claims, err := license.ParseClaims(dbLicense.JWT, opts.LicenseKeys)
+		if err != nil {
+			// Skip licenses that can't be parsed
+			continue
+		}
+		if claims.AccountType != license.AccountTypeSalesforce {
+			// Non-Salesforce accounts cannot be tracked
+			continue
+		}
+		if !claims.PublishUsageData {
+			// Publishing is disabled
+			continue
+		}
+
+		// Select the most recently issued license
+		// IssuedAt is verified to be non-nil in license.ParseClaims
+		if bestLicense.Claims == nil || claims.IssuedAt.Time.After(bestLicense.Claims.IssuedAt.Time) {
+			bestLicense = licenseJWTWithClaims{
+				Claims: claims,
+				Raw:    dbLicense.JWT,
+			}
+		}
+	}
+
+	if bestLicense.Raw == "" {
+		return nil, ErrNoLicenseSupportsPublishing
+	}
+
+	// Set default HTTP client if not provided
+	httpClient := opts.HTTPClient
+	if httpClient == nil {
+		httpClient = http.DefaultClient
+	}
+
+	return NewWithAuth(opts.BaseURL, bestLicense.Raw, deploymentID, WithHTTPClient(httpClient)), nil
 }
 
 // Request makes an HTTP request to the Tallyman API.

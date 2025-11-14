@@ -19,7 +19,6 @@ import (
 	"github.com/coder/coder/v2/coderd/pproflabel"
 	"github.com/coder/coder/v2/coderd/usage/usagetypes"
 	"github.com/coder/coder/v2/cryptorand"
-	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/enterprise/coderd/usage/tallymansdk"
 	"github.com/coder/quartz"
 )
@@ -32,8 +31,6 @@ const (
 	tallymanPublishTimeout   = 30 * time.Second
 	tallymanPublishBatchSize = 100
 )
-
-var errUsagePublishingDisabled = xerrors.New("usage publishing is not enabled by any license")
 
 // Publisher publishes usage events ***somewhere***.
 type Publisher interface {
@@ -203,11 +200,17 @@ func (p *tallymanPublisher) publish(ctx context.Context, deploymentID uuid.UUID)
 // publishOnce publishes up to tallymanPublishBatchSize usage events to
 // tallyman. It returns the number of successfully published events.
 func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.UUID) (int, error) {
-	licenseJwt, err := p.getBestLicenseJWT(ctx)
-	if xerrors.Is(err, errUsagePublishingDisabled) {
+	sdkClient, err := tallymansdk.New(ctx, tallymansdk.NewOptions{
+		DB:           p.db,
+		DeploymentID: deploymentID,
+		LicenseKeys:  p.licenseKeys,
+		BaseURL:      p.baseURL,
+		HTTPClient:   p.httpClient,
+	})
+	if xerrors.Is(err, tallymansdk.ErrNoLicenseSupportsPublishing) {
 		return 0, nil
 	} else if err != nil {
-		return 0, xerrors.Errorf("find usage publishing license: %w", err)
+		return 0, xerrors.Errorf("create tallyman client: %w", err)
 	}
 
 	events, err := p.db.SelectUsageEventsForPublishing(ctx, dbtime.Time(p.clock.Now()))
@@ -246,7 +249,7 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 		return 0, xerrors.Errorf("duplicate event IDs found in events for publishing")
 	}
 
-	resp, err := p.sendPublishRequest(ctx, deploymentID, licenseJwt, tallymanReq)
+	resp, err := p.sendPublishRequest(ctx, sdkClient, tallymanReq)
 	allFailed := err != nil
 	if err != nil {
 		p.log.Warn(ctx, "failed to send publish request to tallyman", slog.F("count", len(events)), slog.Error(err))
@@ -336,72 +339,7 @@ func (p *tallymanPublisher) publishOnce(ctx context.Context, deploymentID uuid.U
 	return len(resp.AcceptedEvents), returnErr
 }
 
-// getBestLicenseJWT returns the best license JWT to use for the request. The
-// criteria is as follows:
-// - The license must be valid and active (after nbf, before exp)
-// - The license must have usage publishing enabled
-// The most recently issued (iat) license is chosen.
-//
-// If no licenses are found or none have usage publishing enabled,
-// errUsagePublishingDisabled is returned.
-func (p *tallymanPublisher) getBestLicenseJWT(ctx context.Context) (string, error) {
-	licenses, err := p.db.GetUnexpiredLicenses(ctx)
-	if err != nil {
-		return "", xerrors.Errorf("get unexpired licenses: %w", err)
-	}
-	if len(licenses) == 0 {
-		return "", errUsagePublishingDisabled
-	}
-
-	type licenseJWTWithClaims struct {
-		Claims *license.Claims
-		Raw    string
-	}
-
-	var bestLicense licenseJWTWithClaims
-	for _, dbLicense := range licenses {
-		claims, err := license.ParseClaims(dbLicense.JWT, p.licenseKeys)
-		if err != nil {
-			p.log.Warn(ctx, "failed to parse license claims", slog.F("license_id", dbLicense.ID), slog.Error(err))
-			continue
-		}
-		if claims.AccountType != license.AccountTypeSalesforce {
-			// Non-Salesforce accounts cannot be tracked as they do not have a
-			// trusted Salesforce opportunity ID encoded in the license.
-			continue
-		}
-		if !claims.PublishUsageData {
-			// Publishing is disabled.
-			continue
-		}
-
-		// Otherwise, if it's issued more recently, it's the best license.
-		// IssuedAt is verified to be non-nil in license.ParseClaims.
-		if bestLicense.Claims == nil || claims.IssuedAt.Time.After(bestLicense.Claims.IssuedAt.Time) {
-			bestLicense = licenseJWTWithClaims{
-				Claims: claims,
-				Raw:    dbLicense.JWT,
-			}
-		}
-	}
-
-	if bestLicense.Raw == "" {
-		return "", errUsagePublishingDisabled
-	}
-
-	return bestLicense.Raw, nil
-}
-
-func (p *tallymanPublisher) sendPublishRequest(ctx context.Context, deploymentID uuid.UUID, licenseJwt string, req usagetypes.TallymanV1IngestRequest) (usagetypes.TallymanV1IngestResponse, error) {
-	// Create a new SDK client for this request.
-	// We create it per-request since the license key may change.
-	sdkClient := tallymansdk.New(
-		p.baseURL,
-		licenseJwt,
-		deploymentID,
-		tallymansdk.WithHTTPClient(p.httpClient),
-	)
-
+func (*tallymanPublisher) sendPublishRequest(ctx context.Context, sdkClient *tallymansdk.Client, req usagetypes.TallymanV1IngestRequest) (usagetypes.TallymanV1IngestResponse, error) {
 	return sdkClient.PublishUsageEvents(ctx, req)
 }
 
