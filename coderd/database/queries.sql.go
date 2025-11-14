@@ -19760,8 +19760,52 @@ func (q *sqlQuerier) InsertWorkspaceAgentStats(ctx context.Context, arg InsertWo
 }
 
 const upsertWorkspaceAppAuditSession = `-- name: UpsertWorkspaceAppAuditSession :one
-INSERT INTO
-	workspace_app_audit_sessions (
+WITH filtered_input AS (
+	-- By filtering the input this way, we can avoid upsert write operations
+	-- (which PostgreSQL does not optimize away even if the input is the same)
+	-- on a specified interval (1 minute). This means we lose some precision
+	-- but avoid unnecessary writes.
+	SELECT
+		$1::uuid AS id,
+		$2::uuid AS agent_id,
+		$3::uuid AS app_id,
+		$4::uuid AS user_id,
+		$5::text AS ip,
+		$6::text AS user_agent,
+		$7::text AS slug_or_port,
+		$8::int4 AS status_code,
+		$9::timestamptz AS started_at,
+		$10::timestamptz AS updated_at
+	WHERE
+		NOT EXISTS (
+			SELECT 1
+			FROM workspace_app_audit_sessions w
+			WHERE
+				w.agent_id = $2
+				AND w.app_id = $3
+				AND w.user_id = $4
+				AND w.ip = $5
+				AND w.user_agent = $6
+				AND w.slug_or_port = $7
+				AND w.status_code = $8
+				AND w.updated_at >= NOW() - '1 minute'::interval
+		)
+),
+upsert_result AS (
+	INSERT INTO
+		workspace_app_audit_sessions (
+			id,
+			agent_id,
+			app_id,
+			user_id,
+			ip,
+			user_agent,
+			slug_or_port,
+			status_code,
+			started_at,
+			updated_at
+		)
+	SELECT
 		id,
 		agent_id,
 		app_id,
@@ -19772,39 +19816,29 @@ INSERT INTO
 		status_code,
 		started_at,
 		updated_at
-	)
-VALUES
-	(
-		$1,
-		$2,
-		$3,
-		$4,
-		$5,
-		$6,
-		$7,
-		$8,
-		$9,
-		$10
-	)
-ON CONFLICT
-	(agent_id, app_id, user_id, ip, user_agent, slug_or_port, status_code)
-DO
-	UPDATE
-	SET
-		-- ID is used to know if session was reset on upsert.
-		id = CASE
-			WHEN workspace_app_audit_sessions.updated_at > NOW() - ($11::bigint || ' ms')::interval
-			THEN workspace_app_audit_sessions.id
-			ELSE EXCLUDED.id
-		END,
-		started_at = CASE
-			WHEN workspace_app_audit_sessions.updated_at > NOW() - ($11::bigint || ' ms')::interval
-			THEN workspace_app_audit_sessions.started_at
-			ELSE EXCLUDED.started_at
-		END,
-		updated_at = EXCLUDED.updated_at
-RETURNING
-	id = $1 AS new_or_stale
+	FROM
+		filtered_input
+	ON CONFLICT
+		(agent_id, app_id, user_id, ip, user_agent, slug_or_port, status_code)
+	DO UPDATE
+		SET
+			-- ID is used to know if session was reset on upsert.
+			id = CASE
+				WHEN workspace_app_audit_sessions.updated_at > NOW() - ($11::bigint || ' ms')::interval
+				THEN workspace_app_audit_sessions.id
+				ELSE EXCLUDED.id
+			END,
+			started_at = CASE
+				WHEN workspace_app_audit_sessions.updated_at > NOW() - ($11::bigint || ' ms')::interval
+				THEN workspace_app_audit_sessions.started_at
+				ELSE EXCLUDED.started_at
+			END,
+			updated_at = EXCLUDED.updated_at
+	RETURNING
+		id
+)
+SELECT
+	EXISTS(SELECT 1 FROM upsert_result WHERE id = $1) AS new_or_stale
 `
 
 type UpsertWorkspaceAppAuditSessionParams struct {
