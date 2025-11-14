@@ -13289,7 +13289,7 @@
 					}
 				},
 				"dashboard": {
-					"type": "string"
+					"$ref": "#/definitions/codersdk.UsageEmbeddableDashboardType"
 				}
 			}
 		},
@@ -17735,6 +17735,11 @@
 				"UsageAppNameReconnectingPty",
 				"UsageAppNameSSH"
 			]
+		},
+		"codersdk.UsageEmbeddableDashboardType": {
+			"type": "string",
+			"enum": ["usage"],
+			"x-enum-varnames": ["UsageEmbeddableDashboardTypeUsage"]
 		},
 		"codersdk.UsagePeriod": {
 			"type": "object",

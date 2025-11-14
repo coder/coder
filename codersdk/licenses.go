@@ -135,10 +135,18 @@ func (c *Client) DeleteLicense(ctx context.Context, id int32) error {
 	return nil
 }
 
+// UsageEmbeddableDashboardType represents the type of usage dashboard to embed.
+type UsageEmbeddableDashboardType string
+
+const (
+	// UsageEmbeddableDashboardTypeUsage is the usage dashboard type.
+	UsageEmbeddableDashboardTypeUsage UsageEmbeddableDashboardType = "usage"
+)
+
 // GetUsageEmbeddableDashboardRequest is a request to get an embeddable dashboard URL.
 type GetUsageEmbeddableDashboardRequest struct {
-	Dashboard      string                   `json:"dashboard"`
-	ColorOverrides []DashboardColorOverride `json:"color_overrides,omitempty"`
+	Dashboard      UsageEmbeddableDashboardType `json:"dashboard"`
+	ColorOverrides []DashboardColorOverride     `json:"color_overrides,omitempty"`
 }
 
 // DashboardColorOverride represents a color override for a dashboard.

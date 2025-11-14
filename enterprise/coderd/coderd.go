@@ -662,6 +662,9 @@ type Options struct {
 	ProxyHealthInterval        time.Duration
 	LicenseKeys                map[string]ed25519.PublicKey
 
+	// TallymanURL is the base URL for the Tallyman API. If nil, the default URL is used.
+	TallymanURL *url.URL
+
 	// optional pre-shared key for authentication of external provisioner daemons
 	ProvisionerDaemonPSK string
 

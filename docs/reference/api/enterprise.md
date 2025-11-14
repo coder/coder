@@ -751,7 +751,7 @@ curl -X POST http://coder-server:8080/api/v2/licenses/usage/embeddable-dashboard
       "value": "string"
     }
   ],
-  "dashboard": "string"
+  "dashboard": "usage"
 }
 ```
 
