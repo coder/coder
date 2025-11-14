@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/quartz"
 )
 
 // DBTokenProvider provides authentication and authorization for workspace apps
@@ -46,6 +47,7 @@ type DBTokenProvider struct {
 	WorkspaceAgentInactiveTimeout   time.Duration
 	WorkspaceAppAuditSessionTimeout time.Duration
 	Keycache                        cryptokeys.SigningKeycache
+	Clock                           quartz.Clock
 }
 
 var _ SignedTokenProvider = &DBTokenProvider{}
@@ -79,6 +81,7 @@ func NewDBTokenProvider(log slog.Logger,
 		WorkspaceAgentInactiveTimeout:   workspaceAgentInactiveTimeout,
 		WorkspaceAppAuditSessionTimeout: workspaceAppAuditSessionTimeout,
 		Keycache:                        signer,
+		Clock:                           quartz.NewReal(),
 	}
 }
 
@@ -415,7 +418,7 @@ func (p *DBTokenProvider) connLogInitRequest(ctx context.Context, w http.Respons
 	}
 
 	aReq = &connLogRequest{
-		time: dbtime.Now(),
+		time: dbtime.Time(p.Clock.Now()),
 	}
 
 	// Set the commit function on the status writer to create a connection log
@@ -481,6 +484,7 @@ func (p *DBTokenProvider) connLogInitRequest(ctx context.Context, w http.Respons
 			newOrStale, err = tx.UpsertWorkspaceAppAuditSession(dangerousSystemCtx, database.UpsertWorkspaceAppAuditSessionParams{
 				// Config.
 				StaleIntervalMS: p.WorkspaceAppAuditSessionTimeout.Milliseconds(),
+				Now:             aReq.time,
 
 				// Data.
 				ID:         uuid.New(),

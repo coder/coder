@@ -3189,7 +3189,20 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		u := testutil.Fake(s.T(), faker, database.User{})
 		agent := testutil.Fake(s.T(), faker, database.WorkspaceAgent{})
 		app := testutil.Fake(s.T(), faker, database.WorkspaceApp{})
-		arg := database.UpsertWorkspaceAppAuditSessionParams{AgentID: agent.ID, AppID: app.ID, UserID: u.ID, Ip: "127.0.0.1"}
+		arg := database.UpsertWorkspaceAppAuditSessionParams{
+			ID:              uuid.New(),
+			AgentID:         agent.ID,
+			AppID:           app.ID,
+			UserID:          u.ID,
+			Ip:              "127.0.0.1",
+			UserAgent:       "test-agent",
+			SlugOrPort:      "8080",
+			StatusCode:      200,
+			StartedAt:       dbtime.Now(),
+			UpdatedAt:       dbtime.Now(),
+			Now:             dbtime.Now(),
+			StaleIntervalMS: 3600000,
+		}
 		dbm.EXPECT().UpsertWorkspaceAppAuditSession(gomock.Any(), arg).Return(true, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
 	}))
