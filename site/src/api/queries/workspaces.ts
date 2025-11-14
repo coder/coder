@@ -5,6 +5,7 @@ import type {
 	ProvisionerLogLevel,
 	UsageAppName,
 	Workspace,
+	WorkspaceACL,
 	WorkspaceAgentLog,
 	WorkspaceBuild,
 	WorkspaceBuildParameter,
@@ -40,6 +41,13 @@ export const workspaceByOwnerAndName = (owner: string, name: string) => {
 				include_deleted: true,
 			}),
 	};
+};
+
+export const workspaceACL = (workspaceId: string) => {
+	return {
+		queryKey: ["workspaces", workspaceId, "acl"],
+		queryFn: () => API.getWorkspaceACL(workspaceId),
+	} as const satisfies QueryOptions<WorkspaceACL>;
 };
 
 type CreateWorkspaceMutationVariables = CreateWorkspaceRequest & {

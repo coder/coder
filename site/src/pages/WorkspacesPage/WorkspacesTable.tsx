@@ -7,6 +7,7 @@ import {
 	deleteWorkspace,
 	startWorkspace,
 	stopWorkspace,
+	workspaceACL,
 } from "api/queries/workspaces";
 import type {
 	Template,
@@ -55,6 +56,7 @@ import {
 	SquareIcon,
 	SquareTerminalIcon,
 	StarIcon,
+	UsersIcon,
 } from "lucide-react";
 import {
 	getTerminalHref,
@@ -210,9 +212,10 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 											</Stack>
 										}
 										subtitle={
-											<div>
+											<div className="flex items-center gap-1">
 												<span className="sr-only">Owner: </span>
-												{workspace.owner_name}
+												<span>{workspace.owner_name}</span>
+												<WorkspaceSharingInfo workspaceId={workspace.id} />
 											</div>
 										}
 										avatar={
@@ -312,6 +315,72 @@ const WorkspacesRow: FC<WorkspacesRowProps> = ({
 		>
 			{children}
 		</TableRow>
+	);
+};
+
+interface WorkspaceSharingInfoProps {
+	workspaceId: string;
+}
+
+const WorkspaceSharingInfo: FC<WorkspaceSharingInfoProps> = ({
+	workspaceId,
+}) => {
+	const { experiments } = useDashboard();
+	const isWorkspaceSharingEnabled = experiments.includes("workspace-sharing");
+
+	const { data } = useQuery({
+		...workspaceACL(workspaceId),
+		enabled: isWorkspaceSharingEnabled,
+	});
+
+	const users = data?.users ?? [];
+	const groups = data?.group ?? [];
+
+	const hasShares = users.length > 0 || groups.length > 0;
+
+	if (!isWorkspaceSharingEnabled || !hasShares) {
+		return null;
+	}
+
+	return (
+		<TooltipProvider delayDuration={100}>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<Button
+						size="icon"
+						variant="subtle"
+						onClick={(event) => {
+							event.stopPropagation();
+						}}
+					>
+						<UsersIcon className="!w-5 !h-5"/>
+						<span className="sr-only">View workspace sharing permissions</span>
+					</Button>
+				</TooltipTrigger>
+				<TooltipContent className="max-w-64 space-y-2">
+					<div className="text-sm font-medium">Workspace permissions</div>
+					<div className="text-xs text-muted-foreground">
+						This workspace is shared with:
+					</div>
+					<ul className="text-xs space-y-1">
+						{groups.map((group) => (
+							<li key={`group-${group.id}`}>
+								<span className="font-medium">{group.display_name}</span>{" "}
+								<span className="text-muted-foreground">({group.role})</span>
+							</li>
+						))}
+						{users.map((user) => (
+							<li key={`user-${user.id}`}>
+								<span className="font-medium">
+									{user.name ?? user.username}
+								</span>{" "}
+								<span className="text-muted-foreground">({user.role})</span>
+							</li>
+						))}
+					</ul>
+				</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
 	);
 };
 
