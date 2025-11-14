@@ -3,7 +3,6 @@ import { users } from "../../constants";
 import {
 	createTemplate,
 	createWorkspace,
-	disableDynamicParameters,
 	echoResponsesWithParameters,
 	login,
 	updateTemplate,
@@ -34,9 +33,6 @@ test("update workspace, new optional, immutable parameter added", async ({
 		page,
 		echoResponsesWithParameters(richParameters),
 	);
-
-	// Disable dynamic parameters to use classic parameter flow for this test
-	await disableDynamicParameters(page, template);
 
 	await login(page, users.member);
 	const workspaceName = await createWorkspace(page, template);
@@ -80,9 +76,6 @@ test("update workspace, new required, mutable parameter added", async ({
 		page,
 		echoResponsesWithParameters(richParameters),
 	);
-
-	// Disable dynamic parameters to use classic parameter flow for this test
-	await disableDynamicParameters(page, template);
 
 	await login(page, users.member);
 	const workspaceName = await createWorkspace(page, template);
@@ -128,9 +121,6 @@ test("update workspace with ephemeral parameter enabled", async ({ page }) => {
 		page,
 		echoResponsesWithParameters(richParameters),
 	);
-
-	// Disable dynamic parameters to use classic parameter flow for this test
-	await disableDynamicParameters(page, template);
 
 	await login(page, users.member);
 	const workspaceName = await createWorkspace(page, template);
