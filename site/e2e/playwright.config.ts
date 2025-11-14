@@ -81,9 +81,11 @@ export default defineConfig({
 			"--provisioner-daemons=10",
 			"--web-terminal-renderer=dom",
 			"--pprof-enable",
+			"--log-filter=.*",
 		]
 			.filter(Boolean)
 			.join(" "),
+		stdout: "pipe",
 		env: {
 			...process.env,
 			// Otherwise, the runner fails on Mac with: could not determine kind of name for C.uuid_string_t
