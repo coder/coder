@@ -58,7 +58,7 @@ func (g *Graph[EdgeType, VertexType]) AddEdge(from, to VertexType, edge EdgeType
 	toID := g.getOrCreateVertexID(to)
 
 	if g.canReach(to, from) {
-		return xerrors.Errorf("adding edge (%v -> %v) would create a cycle", from, to)
+		return xerrors.Errorf("adding edge (%v -> %v): %w", from, to, ErrCycleDetected)
 	}
 
 	g.gonumGraph.SetEdge(simple.Edge{F: simple.Node(fromID), T: simple.Node(toID)})

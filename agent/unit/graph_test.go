@@ -148,8 +148,7 @@ func TestGraph(t *testing.T) {
 			graph := &testGraph{}
 			unit1 := &testGraphVertex{Name: "unit1"}
 			err := graph.AddEdge(unit1, unit1, testEdgeCompleted)
-			require.Error(t, err)
-			require.ErrorContains(t, err, fmt.Sprintf("adding edge (%v -> %v) would create a cycle", unit1, unit1))
+			require.ErrorIs(t, err, unit.ErrCycleDetected)
 
 			return graph
 		},
@@ -160,8 +159,7 @@ func TestGraph(t *testing.T) {
 			err := graph.AddEdge(unit1, unit2, testEdgeCompleted)
 			require.NoError(t, err)
 			err = graph.AddEdge(unit2, unit1, testEdgeStarted)
-			require.Error(t, err)
-			require.ErrorContains(t, err, fmt.Sprintf("adding edge (%v -> %v) would create a cycle", unit2, unit1))
+			require.ErrorIs(t, err, unit.ErrCycleDetected)
 
 			return graph
 		},
@@ -341,7 +339,7 @@ func TestGraphThreadSafety(t *testing.T) {
 		// Verify all attempts correctly returned cycle error
 		for i, err := range cycleErrors {
 			require.Error(t, err, "goroutine %d should have detected cycle", i)
-			require.Contains(t, err.Error(), "would create a cycle")
+			require.ErrorIs(t, err, unit.ErrCycleDetected)
 		}
 
 		// Verify graph remains valid (original chain intact)
