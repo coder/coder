@@ -814,6 +814,58 @@ curl -X POST http://coder-server:8080/api/v2/licenses/refresh-entitlements \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get embeddable usage dashboard
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/licenses/usage/embeddable-dashboard \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /licenses/usage/embeddable-dashboard`
+
+> Body parameter
+
+```json
+{
+  "color_overrides": [
+    {
+      "name": "string",
+      "value": "string"
+    }
+  ],
+  "dashboard": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                                 | Required | Description       |
+|--------|------|------------------------------------------------------------------------------------------------------|----------|-------------------|
+| `body` | body | [codersdk.GetUsageEmbeddableDashboardRequest](schemas.md#codersdkgetusageembeddabledashboardrequest) | true     | Dashboard request |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "dashboard_url": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                                 |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GetUsageEmbeddableDashboardResponse](schemas.md#codersdkgetusageembeddabledashboardresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Delete license
 
 ### Code samples

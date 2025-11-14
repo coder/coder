@@ -1856,6 +1856,45 @@ const docTemplate = `{
                 }
             }
         },
+        "/licenses/usage/embeddable-dashboard": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get embeddable usage dashboard",
+                "operationId": "get-embeddable-usage-dashboard",
+                "parameters": [
+                    {
+                        "description": "Dashboard request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.GetUsageEmbeddableDashboardRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.GetUsageEmbeddableDashboardResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/licenses/{id}": {
             "delete": {
                 "security": [
@@ -14084,6 +14123,17 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.DashboardColorOverride": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.DeleteExternalAuthByIDResponse": {
             "type": "object",
             "properties": {
@@ -14823,6 +14873,28 @@ const docTemplate = `{
                 },
                 "unread_count": {
                     "type": "integer"
+                }
+            }
+        },
+        "codersdk.GetUsageEmbeddableDashboardRequest": {
+            "type": "object",
+            "properties": {
+                "color_overrides": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.DashboardColorOverride"
+                    }
+                },
+                "dashboard": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.GetUsageEmbeddableDashboardResponse": {
+            "type": "object",
+            "properties": {
+                "dashboard_url": {
+                    "type": "string"
                 }
             }
         },

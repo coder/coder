@@ -260,6 +260,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Post("/", api.postLicense)
 			r.Get("/", api.licenses)
 			r.Delete("/{id}", api.deleteLicense)
+			r.Post("/usage/embeddable-dashboard", api.postUsageEmbeddableDashboard)
 		})
 		r.Route("/applications/reconnecting-pty-signed-token", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)

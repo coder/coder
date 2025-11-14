@@ -1651,6 +1651,15 @@ export interface DangerousConfig {
 	readonly allow_all_cors: boolean;
 }
 
+// From codersdk/licenses.go
+/**
+ * DashboardColorOverride represents a color override for a dashboard.
+ */
+export interface DashboardColorOverride {
+	readonly name: string;
+	readonly value: string;
+}
+
 // From codersdk/database.go
 export const DatabaseNotReachable = "database not reachable";
 
@@ -2175,6 +2184,23 @@ export interface GenerateAPIKeyResponse {
 export interface GetInboxNotificationResponse {
 	readonly notification: InboxNotification;
 	readonly unread_count: number;
+}
+
+// From codersdk/licenses.go
+/**
+ * GetUsageEmbeddableDashboardRequest is a request to get an embeddable dashboard URL.
+ */
+export interface GetUsageEmbeddableDashboardRequest {
+	readonly dashboard: string;
+	readonly color_overrides?: readonly DashboardColorOverride[];
+}
+
+// From codersdk/licenses.go
+/**
+ * GetUsageEmbeddableDashboardResponse contains the embeddable dashboard URL.
+ */
+export interface GetUsageEmbeddableDashboardResponse {
+	readonly dashboard_url: string;
 }
 
 // From codersdk/insights.go
