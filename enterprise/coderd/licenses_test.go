@@ -11,11 +11,81 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/enterprise/coderd/usage/tallymansdk"
 	"github.com/coder/coder/v2/testutil"
 )
+
+func TestPostUsageEmbeddableDashboard(t *testing.T) {
+	t.Parallel()
+
+	// Note: Tests that require a working Tallyman server are integration tests
+	// and should be run against a real or properly mocked Tallyman instance.
+	// The tests below focus on authorization and license validation logic.
+
+	t.Run("NoLicense", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			DontAddLicense: true,
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		_, err := client.GetUsageEmbeddableDashboard(ctx, codersdk.GetUsageEmbeddableDashboardRequest{
+			Dashboard: string(tallymansdk.DashboardTypeUsage),
+		})
+
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		assert.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+		assert.Contains(t, apiErr.Message, "No license supports usage publishing")
+	})
+
+	t.Run("LicenseWithoutPublishing", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{})
+		// Default license has PublishUsageData: false
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		_, err := client.GetUsageEmbeddableDashboard(ctx, codersdk.GetUsageEmbeddableDashboardRequest{
+			Dashboard: string(tallymansdk.DashboardTypeUsage),
+		})
+
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		assert.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+		assert.Contains(t, apiErr.Message, "No license supports usage publishing")
+	})
+
+
+
+	t.Run("UnauthorizedUser", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient, adminUser := coderdenttest.New(t, &coderdenttest.Options{})
+		coderdenttest.AddLicense(t, adminClient, coderdenttest.LicenseOptions{
+			AccountType:      license.AccountTypeSalesforce,
+			AccountID:        "test-account",
+			PublishUsageData: true,
+		})
+
+		// Create a regular user (non-admin)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		_, err := memberClient.GetUsageEmbeddableDashboard(ctx, codersdk.GetUsageEmbeddableDashboardRequest{
+			Dashboard: string(tallymansdk.DashboardTypeUsage),
+		})
+
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		assert.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+	})
+}
 
 func TestPostLicense(t *testing.T) {
 	t.Parallel()
