@@ -40,6 +40,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentscripts"
+	"github.com/coder/coder/v2/agent/agentsocket"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/proto/resourcesmonitor"
@@ -91,6 +92,7 @@ type Options struct {
 	Devcontainers                bool
 	DevcontainerAPIOptions       []agentcontainers.Option // Enable Devcontainers for these to be effective.
 	Clock                        quartz.Clock
+	SocketPath                   string // Path for the agent socket server
 }
 
 type Client interface {
@@ -190,6 +192,7 @@ func New(options Options) Agent {
 
 		devcontainers:       options.Devcontainers,
 		containerAPIOptions: options.DevcontainerAPIOptions,
+		socketPath:          options.SocketPath,
 	}
 	// Initially, we have a closed channel, reflecting the fact that we are not initially connected.
 	// Each time we connect we replace the channel (while holding the closeMutex) with a new one
@@ -271,6 +274,9 @@ type agent struct {
 	devcontainers       bool
 	containerAPIOptions []agentcontainers.Option
 	containerAPI        *agentcontainers.API
+
+	socketPath   string
+	socketServer *agentsocket.Server
 }
 
 func (a *agent) TailnetConn() *tailnet.Conn {
@@ -350,7 +356,33 @@ func (a *agent) init() {
 			s.ExperimentalContainers = a.devcontainers
 		},
 	)
+
+	a.initSocketServer()
+
 	go a.runLoop()
+}
+
+// initSocketServer initializes server that allows direct communication with a workspace agent using IPC.
+func (a *agent) initSocketServer() {
+	if a.socketPath == "" {
+		a.logger.Info(a.hardCtx, "socket server disabled (no path configured)")
+		return
+	}
+
+	server, err := agentsocket.NewServer(a.socketPath, a.logger.Named("socket"))
+	if err != nil {
+		a.logger.Warn(a.hardCtx, "failed to create socket server", slog.Error(err))
+		return
+	}
+
+	err = server.Start()
+	if err != nil {
+		a.logger.Warn(a.hardCtx, "failed to start socket server", slog.Error(err))
+		return
+	}
+
+	a.socketServer = server
+	a.logger.Debug(a.hardCtx, "socket server started", slog.F("path", a.socketPath))
 }
 
 // runLoop attempts to start the agent in a retry loop.
@@ -1920,6 +1952,13 @@ func (a *agent) Close() error {
 			lifecycleState = codersdk.WorkspaceAgentLifecycleShutdownError
 		}
 	}
+
+	if a.socketServer != nil {
+		if err := a.socketServer.Stop(); err != nil {
+			a.logger.Error(a.hardCtx, "socket server close", slog.Error(err))
+		}
+	}
+
 	a.setLifecycle(lifecycleState)
 
 	err = a.scriptRunner.Close()
