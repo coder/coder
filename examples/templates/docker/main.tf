@@ -141,7 +141,7 @@ module "jetbrains" {
   agent_id   = coder_agent.main.id
   agent_name = "main"
   folder     = "/home/coder"
-  tooltip    = "You need to [Install Coder Desktop](https://coder.com/docs/user-guides/desktop#install-coder-desktop) to use this button."
+  tooltip    = "You need to [install JetBrains Toolbox](https://coder.com/docs/user-guides/workspace-access/jetbrains/toolbox) to use this app."
 }
 
 resource "docker_volume" "home_volume" {

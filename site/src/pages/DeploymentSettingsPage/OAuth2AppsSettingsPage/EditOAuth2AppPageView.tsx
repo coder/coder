@@ -150,20 +150,20 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
 						<dl css={styles.dataList}>
 							<dt>Client ID</dt>
 							<dd>
-								<CopyableValue value={app.id}>
+								<CopyableValue value={app.id} side="right">
 									{app.id} <CopyIcon className="size-icon-xs" />
 								</CopyableValue>
 							</dd>
 							<dt>Authorization URL</dt>
 							<dd>
-								<CopyableValue value={app.endpoints.authorization}>
+								<CopyableValue value={app.endpoints.authorization} side="right">
 									{app.endpoints.authorization}{" "}
 									<CopyIcon className="size-icon-xs" />
 								</CopyableValue>
 							</dd>
 							<dt>Token URL</dt>
 							<dd>
-								<CopyableValue value={app.endpoints.token}>
+								<CopyableValue value={app.endpoints.token} side="right">
 									{app.endpoints.token} <CopyIcon className="size-icon-xs" />
 								</CopyableValue>
 							</dd>

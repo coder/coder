@@ -10,12 +10,6 @@ import (
 	"github.com/danieljoos/wincred"
 )
 
-const (
-	// defaultServiceName is the service name used in the Windows Credential Manager
-	// for storing Coder CLI session tokens.
-	defaultServiceName = "coder-v2-credentials"
-)
-
 // operatingSystemKeyring implements keyringProvider and uses Windows Credential Manager.
 // It is largely adapted from the zalando/go-keyring package.
 type operatingSystemKeyring struct{}

@@ -1,6 +1,7 @@
 package sessionstore_test
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -16,6 +17,11 @@ import (
 	"github.com/coder/coder/v2/cli/sessionstore"
 )
 
+type storedCredentials map[string]struct {
+	CoderURL string `json:"coder_url"`
+	APIToken string `json:"api_token"`
+}
+
 // Generate a test service name for use with the OS keyring. It uses a combination
 // of the test name and a nanosecond timestamp to prevent collisions.
 func keyringTestServiceName(t *testing.T) string {
@@ -26,8 +32,8 @@ func keyringTestServiceName(t *testing.T) string {
 func TestKeyring(t *testing.T) {
 	t.Parallel()
 
-	if runtime.GOOS != "windows" {
-		t.Skip("linux and darwin are not supported yet")
+	if runtime.GOOS != "windows" && runtime.GOOS != "darwin" {
+		t.Skip("linux is not supported yet")
 	}
 
 	// This test exercises use of the operating system keyring. As a result,
@@ -197,6 +203,66 @@ func TestKeyring(t *testing.T) {
 
 		// Clean up remaining credentials
 		err = backend.Delete(srvURL2)
+		require.NoError(t, err)
+	})
+
+	t.Run("StorageFormat", func(t *testing.T) {
+		t.Parallel()
+		// The storage format must remain consistent to ensure we don't break
+		// compatibility with other Coder related applications that may read
+		// or decode the same credential.
+
+		const testURL1 = "http://127.0.0.1:1337"
+		srv1URL, err := url.Parse(testURL1)
+		require.NoError(t, err)
+
+		const testURL2 = "http://127.0.0.1:1338"
+		srv2URL, err := url.Parse(testURL2)
+		require.NoError(t, err)
+
+		serviceName := keyringTestServiceName(t)
+		backend := sessionstore.NewKeyringWithService(serviceName)
+		t.Cleanup(func() {
+			_ = backend.Delete(srv1URL)
+			_ = backend.Delete(srv2URL)
+		})
+
+		// Write token for server 1
+		const token1 = "token-server-1"
+		err = backend.Write(srv1URL, token1)
+		require.NoError(t, err)
+
+		// Write token for server 2 (should NOT overwrite server 1's token)
+		const token2 = "token-server-2"
+		err = backend.Write(srv2URL, token2)
+		require.NoError(t, err)
+
+		// Verify both credentials are stored in the raw format and can
+		// be extracted through the Backend API.
+		rawCredential := readRawKeychainCredential(t, serviceName)
+
+		storedCreds := make(storedCredentials)
+		err = json.Unmarshal(rawCredential, &storedCreds)
+		require.NoError(t, err, "unmarshalling stored credentials")
+
+		// Both credentials should exist
+		require.Len(t, storedCreds, 2)
+		require.Equal(t, token1, storedCreds[srv1URL.Host].APIToken)
+		require.Equal(t, token2, storedCreds[srv2URL.Host].APIToken)
+
+		// Read individual credentials
+		token, err := backend.Read(srv1URL)
+		require.NoError(t, err)
+		require.Equal(t, token1, token)
+
+		token, err = backend.Read(srv2URL)
+		require.NoError(t, err)
+		require.Equal(t, token2, token)
+
+		// Cleanup
+		err = backend.Delete(srv1URL)
+		require.NoError(t, err)
+		err = backend.Delete(srv2URL)
 		require.NoError(t, err)
 	})
 }

@@ -46,6 +46,12 @@ var (
 	ErrNotImplemented = xerrors.New("not implemented")
 )
 
+const (
+	// defaultServiceName is the service name used in keyrings  for storing Coder CLI session
+	// tokens.
+	defaultServiceName = "coder-v2-credentials"
+)
+
 // keyringProvider represents an operating system keyring. The expectation
 // is these methods operate on the user/login keyring.
 type keyringProvider interface {

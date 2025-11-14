@@ -95,7 +95,7 @@ func TestReinitializeAgent(t *testing.T) {
 
 	// Ensure that workspace agents can reinitialize against claimed prebuilds in non-default organizations:
 	for _, useDefaultOrg := range []bool{true, false} {
-		t.Run("", func(t *testing.T) {
+		t.Run(fmt.Sprintf("useDefaultOrg=%t", useDefaultOrg), func(t *testing.T) {
 			t.Parallel()
 
 			tempAgentLog := testutil.CreateTemp(t, "", "testReinitializeAgent")

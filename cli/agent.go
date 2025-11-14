@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -201,18 +202,15 @@ func workspaceAgent() *serpent.Command {
 			// Enable pprof handler
 			// This prevents the pprof import from being accidentally deleted.
 			_ = pprof.Handler
-			pprofSrvClose := ServeHandler(ctx, logger, nil, pprofAddress, "pprof")
-			defer pprofSrvClose()
-			if port, err := extractPort(pprofAddress); err == nil {
-				ignorePorts[port] = "pprof"
-			}
+			if pprofAddress != "" {
+				pprofSrvClose := ServeHandler(ctx, logger, nil, pprofAddress, "pprof")
+				defer pprofSrvClose()
 
-			if port, err := extractPort(prometheusAddress); err == nil {
-				ignorePorts[port] = "prometheus"
-			}
-
-			if port, err := extractPort(debugAddress); err == nil {
-				ignorePorts[port] = "debug"
+				if port, err := extractPort(pprofAddress); err == nil {
+					ignorePorts[port] = "pprof"
+				}
+			} else {
+				logger.Debug(ctx, "pprof address is empty, disabling pprof server")
 			}
 
 			executablePath, err := os.Executable()
@@ -276,6 +274,28 @@ func workspaceAgent() *serpent.Command {
 			for {
 				prometheusRegistry := prometheus.NewRegistry()
 
+				promHandler := agent.PrometheusMetricsHandler(prometheusRegistry, logger)
+				var serverClose []func()
+				if prometheusAddress != "" {
+					prometheusSrvClose := ServeHandler(ctx, logger, promHandler, prometheusAddress, "prometheus")
+					serverClose = append(serverClose, prometheusSrvClose)
+
+					if port, err := extractPort(prometheusAddress); err == nil {
+						ignorePorts[port] = "prometheus"
+					}
+				} else {
+					logger.Debug(ctx, "prometheus address is empty, disabling prometheus server")
+				}
+
+				if debugAddress != "" {
+					// ServerHandle depends on `agnt.HTTPDebug()`, but `agnt`
+					// depends on `ignorePorts`. Keep this if statement in sync
+					// with below.
+					if port, err := extractPort(debugAddress); err == nil {
+						ignorePorts[port] = "debug"
+					}
+				}
+
 				agnt := agent.New(agent.Options{
 					Client:        client,
 					Logger:        logger,
@@ -299,10 +319,15 @@ func workspaceAgent() *serpent.Command {
 					},
 				})
 
-				promHandler := agent.PrometheusMetricsHandler(prometheusRegistry, logger)
-				prometheusSrvClose := ServeHandler(ctx, logger, promHandler, prometheusAddress, "prometheus")
-
-				debugSrvClose := ServeHandler(ctx, logger, agnt.HTTPDebug(), debugAddress, "debug")
+				if debugAddress != "" {
+					// ServerHandle depends on `agnt.HTTPDebug()`, but `agnt`
+					// depends on `ignorePorts`. Keep this if statement in sync
+					// with above.
+					debugSrvClose := ServeHandler(ctx, logger, agnt.HTTPDebug(), debugAddress, "debug")
+					serverClose = append(serverClose, debugSrvClose)
+				} else {
+					logger.Debug(ctx, "debug address is empty, disabling debug server")
+				}
 
 				select {
 				case <-ctx.Done():
@@ -314,8 +339,11 @@ func workspaceAgent() *serpent.Command {
 				}
 
 				lastErr = agnt.Close()
-				debugSrvClose()
-				prometheusSrvClose()
+
+				slices.Reverse(serverClose)
+				for _, closeFunc := range serverClose {
+					closeFunc()
+				}
 
 				if mustExit {
 					break

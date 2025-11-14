@@ -251,16 +251,17 @@ func (c *Client) RequestWithoutSessionToken(ctx context.Context, method, path st
 	}
 
 	// Copy the request body so we can log it.
-	var reqBody []byte
+	var reqLogFields []any
 	c.mu.RLock()
 	logBodies := c.logBodies
 	c.mu.RUnlock()
 	if r != nil && logBodies {
-		reqBody, err = io.ReadAll(r)
+		reqBody, err := io.ReadAll(r)
 		if err != nil {
 			return nil, xerrors.Errorf("read request body: %w", err)
 		}
 		r = bytes.NewReader(reqBody)
+		reqLogFields = append(reqLogFields, slog.F("body", string(reqBody)))
 	}
 
 	req, err := http.NewRequestWithContext(ctx, method, serverURL.String(), r)
@@ -291,7 +292,7 @@ func (c *Client) RequestWithoutSessionToken(ctx context.Context, method, path st
 		slog.F("url", req.URL.String()),
 	)
 	tracing.RunWithoutSpan(ctx, func(ctx context.Context) {
-		c.Logger().Debug(ctx, "sdk request", slog.F("body", string(reqBody)))
+		c.Logger().Debug(ctx, "sdk request", reqLogFields...)
 	})
 
 	resp, err := c.HTTPClient.Do(req)
@@ -324,11 +325,11 @@ func (c *Client) RequestWithoutSessionToken(ctx context.Context, method, path st
 	span.SetStatus(httpconv.ClientStatus(resp.StatusCode))
 
 	// Copy the response body so we can log it if it's a loggable mime type.
-	var respBody []byte
+	var respLogFields []any
 	if resp.Body != nil && logBodies {
 		mimeType := parseMimeType(resp.Header.Get("Content-Type"))
 		if _, ok := loggableMimeTypes[mimeType]; ok {
-			respBody, err = io.ReadAll(resp.Body)
+			respBody, err := io.ReadAll(resp.Body)
 			if err != nil {
 				return nil, xerrors.Errorf("copy response body for logs: %w", err)
 			}
@@ -337,16 +338,18 @@ func (c *Client) RequestWithoutSessionToken(ctx context.Context, method, path st
 				return nil, xerrors.Errorf("close response body: %w", err)
 			}
 			resp.Body = io.NopCloser(bytes.NewReader(respBody))
+			respLogFields = append(respLogFields, slog.F("body", string(respBody)))
 		}
 	}
 
 	// See above for why this is not logged to the span.
 	tracing.RunWithoutSpan(ctx, func(ctx context.Context) {
 		c.Logger().Debug(ctx, "sdk response",
-			slog.F("status", resp.StatusCode),
-			slog.F("body", string(respBody)),
-			slog.F("trace_id", resp.Header.Get("X-Trace-Id")),
-			slog.F("span_id", resp.Header.Get("X-Span-Id")),
+			append(respLogFields,
+				slog.F("status", resp.StatusCode),
+				slog.F("trace_id", resp.Header.Get("X-Trace-Id")),
+				slog.F("span_id", resp.Header.Get("X-Span-Id")),
+			)...,
 		)
 	})
 

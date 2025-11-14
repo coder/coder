@@ -17,8 +17,8 @@ on:
         type: string
       template_preset:
         description: "Template preset to use"
-        required: true
-        default: "none"
+        required: false
+        default: ""
         type: string
       prefix:
         description: "Prefix for workspace name"
@@ -67,7 +67,7 @@ jobs:
           GITHUB_EVENT_USER_LOGIN: ${{ github.event.sender.login }}
           INPUTS_ISSUE_URL: ${{ inputs.issue_url }}
           INPUTS_TEMPLATE_NAME: ${{ inputs.template_name || 'coder' }}
-          INPUTS_TEMPLATE_PRESET: ${{ inputs.template_preset || 'none'}}
+          INPUTS_TEMPLATE_PRESET: ${{ inputs.template_preset || ''}}
           INPUTS_PREFIX: ${{ inputs.prefix || 'traiage' }}
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -124,7 +124,7 @@ jobs:
             exit 1
           fi
 
-      - name: Extract context key from issue
+      - name: Extract context key and description from issue
         id: extract-context
         env:
           ISSUE_URL: ${{ steps.determine-inputs.outputs.issue_url }}
@@ -132,86 +132,59 @@ jobs:
         run: |
           issue_number="$(gh issue view "${ISSUE_URL}" --json number --jq '.number')"
           context_key="gh-${issue_number}"
-          echo "context_key=${context_key}" >> "${GITHUB_OUTPUT}"
-          echo "CONTEXT_KEY=${context_key}" >> "${GITHUB_ENV}"
 
-      - name: Download and install Coder binary
-        shell: bash
-        env:
-          CODER_URL: ${{ secrets.TRAIAGE_CODER_URL }}
-        run: |
-          if [ "${{ runner.arch }}" == "ARM64" ]; then
-            ARCH="arm64"
-          else
-            ARCH="amd64"
-          fi
-          mkdir -p "${HOME}/.local/bin"
-          curl -fsSL --compressed "$CODER_URL/bin/coder-linux-${ARCH}" -o "${HOME}/.local/bin/coder"
-          chmod +x "${HOME}/.local/bin/coder"
-          export PATH="$HOME/.local/bin:$PATH"
-          coder version
-          coder whoami
-          echo "$HOME/.local/bin" >> "${GITHUB_PATH}"
+          TASK_PROMPT=$(cat <<EOF
+          Fix ${ISSUE_URL}
 
-      - name: Get Coder username from GitHub actor
-        id: get-coder-username
-        env:
-          CODER_SESSION_TOKEN: ${{ secrets.TRAIAGE_CODER_SESSION_TOKEN }}
-          GH_TOKEN: ${{ github.token }}
-          GITHUB_USER_ID: ${{ steps.determine-inputs.outputs.github_user_id }}
-        run: |
-          user_json=$(
-            coder users list --github-user-id="${GITHUB_USER_ID}" --output=json
+            1. Use the gh CLI to read the issue description and comments.
+            2. Think carefully and try to understand the root cause. If the issue is unclear or not well defined, ask me to clarify and provide more information.
+            3. Write a proposed implementation plan to PLAN.md for me to review before starting implementation. Your plan should use TDD and only make the minimal changes necessary to fix the root cause.
+            4. When I approve your plan, start working on it. If you encounter issues with the plan, ask me for clarification and update the plan as required.
+            5. When you have finished implementation according to the plan, commit and push your changes, and create a PR using the gh CLI for me to review.
+
+          EOF
           )
-          coder_username=$(jq -r 'first | .username' <<< "$user_json")
-          [[ -z "${coder_username}" || "${coder_username}" == "null" ]] && echo "No Coder user with GitHub user ID ${GITHUB_USER_ID} found" && exit 1
-          echo "coder_username=${coder_username}" >> "${GITHUB_OUTPUT}"
+
+          echo "context_key=${context_key}" >> "${GITHUB_OUTPUT}"
+          {
+            echo "TASK_PROMPT<<EOF"
+            echo "${TASK_PROMPT}"
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
 
       - name: Checkout repository
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
+          fetch-depth: 1
+          path: ./.github/actions/create-task-action
           persist-credentials: false
-          fetch-depth: 0
+          ref: main
+          repository: coder/create-task-action
 
-      # TODO(Cian): this is a good use-case for 'recipes'
-      - name: Create Coder task
-        id: create-task
+      - name: Create Coder Task
+        id: create_task
+        uses: ./.github/actions/create-task-action
+        with:
+          coder-url: ${{ secrets.TRAIAGE_CODER_URL }}
+          coder-token: ${{ secrets.TRAIAGE_CODER_SESSION_TOKEN }}
+          coder-organization: "default"
+          coder-template-name: coder
+          coder-template-preset: ${{ steps.determine-inputs.outputs.template_preset }}
+          coder-task-name-prefix: gh-coder
+          coder-task-prompt: ${{ steps.extract-context.outputs.task_prompt }}
+          github-user-id: ${{ steps.determine-inputs.outputs.github_user_id }}
+          github-token: ${{ github.token }}
+          github-issue-url: ${{ steps.determine-inputs.outputs.issue_url }}
+          comment-on-issue: ${{ startsWith(steps.determine-inputs.outputs.issue_url, format('{0}/{1}', github.server_url, github.repository)) }}
+
+      - name: Write outputs
         env:
-          CODER_USERNAME: ${{ steps.get-coder-username.outputs.coder_username }}
-          CONTEXT_KEY: ${{ steps.extract-context.outputs.context_key }}
-          GH_TOKEN: ${{ github.token }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          ISSUE_URL: ${{ steps.determine-inputs.outputs.issue_url }}
-          PREFIX: ${{ steps.determine-inputs.outputs.prefix }}
-          RUN_ID: ${{ github.run_id }}
-          TEMPLATE_NAME: ${{ steps.determine-inputs.outputs.template_name }}
-          TEMPLATE_PARAMETERS: ${{ secrets.TRAIAGE_TEMPLATE_PARAMETERS }}
-          TEMPLATE_PRESET: ${{ steps.determine-inputs.outputs.template_preset }}
+          TASK_CREATED: ${{ steps.create_task.outputs.task-created }}
+          TASK_NAME: ${{ steps.create_task.outputs.task-name }}
+          TASK_URL: ${{ steps.create_task.outputs.task-url }}
         run: |
-          # Fetch issue description using `gh` CLI
-          #shellcheck disable=SC2016 # The template string should not be subject to shell expansion
-          issue_description=$(gh issue view "${ISSUE_URL}" \
-            --json 'title,body,comments' \
-            --template '{{printf "%s\n\n%s\n\nComments:\n" .title .body}}{{range $k, $v := .comments}}  - {{index $v.author "login"}}: {{printf "%s\n" $v.body}}{{end}}')
-
-          # Write a prompt to PROMPT_FILE
-          PROMPT=$(cat <<EOF
-          Fix ${ISSUE_URL}
-
-          Analyze the below GitHub issue description, understand the root cause, and make appropriate changes to resolve the issue.
-          ---
-          ${issue_description}
-          EOF
-          )
-          export PROMPT
-
-          export TASK_NAME="${PREFIX}-${CONTEXT_KEY}-${RUN_ID}"
-          echo "Creating task: $TASK_NAME"
-          ./scripts/traiage.sh create
-          if [[ "${ISSUE_URL}" == "https://github.com/${GITHUB_REPOSITORY}"* ]]; then
-            gh issue comment "${ISSUE_URL}" --body "Task created: https://dev.coder.com/tasks/${CODER_USERNAME}/${TASK_NAME}" --create-if-none --edit-last
-          else
-            echo "Skipping comment on other repo."
-          fi
-          echo "TASK_NAME=${CODER_USERNAME}/${TASK_NAME}" >> "${GITHUB_OUTPUT}"
-          echo "TASK_NAME=${CODER_USERNAME}/${TASK_NAME}" >> "${GITHUB_ENV}"
+          {
+            echo "**Task created:** ${TASK_CREATED}"
+            echo "**Task name:**    ${TASK_NAME}"
+            echo "**Task URL**:     ${TASK_URL}"
+          } >> "${GITHUB_STEP_SUMMARY}"

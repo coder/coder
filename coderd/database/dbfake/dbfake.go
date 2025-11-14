@@ -189,7 +189,6 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 			Bool:  true,
 			Valid: true,
 		}
-		b.seed.AITaskSidebarAppID = uuid.NullUUID{UUID: b.taskAppID, Valid: true}
 	}
 
 	resp := WorkspaceResponse{
@@ -623,6 +622,7 @@ func (t TemplateVersionBuilder) Do() TemplateVersionResponse {
 	}
 
 	payload, err := json.Marshal(provisionerdserver.TemplateVersionImportJob{
+		TemplateID:        t.seed.TemplateID,
 		TemplateVersionID: t.seed.ID,
 	})
 	require.NoError(t.t, err)
