@@ -82,6 +82,10 @@ coder:
   # https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
   podLabels: {}
 
+  # coder.priorityClassName -- The priority class name to assign to the Coder pod.
+  # See: https://kubernetes.io/docs/concepts/configuration/pod-priority-preemption/
+  priorityClassName: ""
+
   # coder.serviceAccount -- Configuration for the automatically created service
   # account. Creation of the service account cannot be disabled.
   serviceAccount:
