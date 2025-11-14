@@ -2,7 +2,10 @@ package coderd_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -11,11 +14,290 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/enterprise/coderd/usage/tallymansdk"
 	"github.com/coder/coder/v2/testutil"
 )
+
+func TestPostUsageEmbeddableDashboard(t *testing.T) {
+	t.Parallel()
+
+	t.Run("NoLicense", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			DontAddLicense: true,
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		//nolint:gocritic // owner user is required to read licenses
+		_, err := client.GetUsageEmbeddableDashboard(ctx, codersdk.GetUsageEmbeddableDashboardRequest{
+			Dashboard: codersdk.UsageEmbeddableDashboardTypeUsage,
+		})
+
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		assert.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+		assert.Contains(t, apiErr.Message, "No license supports usage publishing")
+	})
+
+	t.Run("LicenseWithoutPublishing", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{})
+		// Default license has PublishUsageData: false
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		//nolint:gocritic // owner user is required to read licenses
+		_, err := client.GetUsageEmbeddableDashboard(ctx, codersdk.GetUsageEmbeddableDashboardRequest{
+			Dashboard: codersdk.UsageEmbeddableDashboardTypeUsage,
+		})
+
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		assert.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+		assert.Contains(t, apiErr.Message, "No license supports usage publishing")
+	})
+
+	t.Run("UnauthorizedUser", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient, adminUser := coderdenttest.New(t, &coderdenttest.Options{})
+		coderdenttest.AddLicense(t, adminClient, coderdenttest.LicenseOptions{
+			AccountType:      license.AccountTypeSalesforce,
+			AccountID:        "test-account",
+			PublishUsageData: true,
+		})
+
+		// Create a regular user (non-admin)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		_, err := memberClient.GetUsageEmbeddableDashboard(ctx, codersdk.GetUsageEmbeddableDashboardRequest{
+			Dashboard: codersdk.UsageEmbeddableDashboardTypeUsage,
+		})
+
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		assert.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+	})
+
+	t.Run("InvalidDashboardType", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{})
+		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			AccountType:      license.AccountTypeSalesforce,
+			AccountID:        "test-account",
+			PublishUsageData: true,
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		//nolint:gocritic // owner user is required to read licenses
+		_, err := client.GetUsageEmbeddableDashboard(ctx, codersdk.GetUsageEmbeddableDashboardRequest{
+			Dashboard: "invalid-type",
+		})
+
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		assert.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		assert.Contains(t, apiErr.Message, "Invalid dashboard type")
+	})
+
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+
+		// Create a fake Tallyman server
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Verify the request is correct
+			assert.Equal(t, "/api/v1/dashboards/embed", r.URL.Path)
+			assert.Equal(t, http.MethodPost, r.Method)
+
+			// Verify authentication headers
+			assert.NotEmpty(t, r.Header.Get("Coder-License-Key"), "missing Coder-License-Key header")
+			assert.NotEmpty(t, r.Header.Get("Coder-Deployment-ID"), "missing Coder-Deployment-ID header")
+
+			// Return a valid response
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			err := json.NewEncoder(w).Encode(tallymansdk.RetrieveEmbeddableDashboardResponse{
+				DashboardURL: "https://app.metronome.com/embed/dashboard/test123",
+			})
+			assert.NoError(t, err)
+		}))
+		defer srv.Close()
+
+		tallymanURL, err := url.Parse(srv.URL)
+		require.NoError(t, err)
+
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			TallymanURL: tallymanURL,
+		})
+		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			AccountType:      license.AccountTypeSalesforce,
+			AccountID:        "test-account",
+			PublishUsageData: true,
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		//nolint:gocritic // owner user is required to read licenses
+		resp, err := client.GetUsageEmbeddableDashboard(ctx, codersdk.GetUsageEmbeddableDashboardRequest{
+			Dashboard: codersdk.UsageEmbeddableDashboardTypeUsage,
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, "https://app.metronome.com/embed/dashboard/test123", resp.DashboardURL)
+	})
+
+	t.Run("WithColorOverrides", func(t *testing.T) {
+		t.Parallel()
+
+		// Create a fake Tallyman server that validates the request
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var req tallymansdk.RetrieveEmbeddableDashboardRequest
+			err := json.NewDecoder(r.Body).Decode(&req)
+			assert.NoError(t, err)
+
+			// Verify color overrides were passed through
+			assert.Len(t, req.ColorOverrides, 2)
+			assert.Equal(t, "Primary_medium", req.ColorOverrides[0].Name)
+			assert.Equal(t, "#FF5733", req.ColorOverrides[0].Value)
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			err = json.NewEncoder(w).Encode(tallymansdk.RetrieveEmbeddableDashboardResponse{
+				DashboardURL: "https://dashboard.metronome.com/embed/test",
+			})
+			assert.NoError(t, err)
+		}))
+		defer srv.Close()
+
+		tallymanURL, err := url.Parse(srv.URL)
+		require.NoError(t, err)
+
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			TallymanURL: tallymanURL,
+		})
+		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			AccountType:      license.AccountTypeSalesforce,
+			AccountID:        "test-account",
+			PublishUsageData: true,
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		//nolint:gocritic // owner user is required to read licenses
+		resp, err := client.GetUsageEmbeddableDashboard(ctx, codersdk.GetUsageEmbeddableDashboardRequest{
+			Dashboard: codersdk.UsageEmbeddableDashboardTypeUsage,
+			ColorOverrides: []codersdk.DashboardColorOverride{
+				{Name: "Primary_medium", Value: "#FF5733"},
+				{Name: "UsageLine_0", Value: "#33FF57"},
+			},
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, "https://dashboard.metronome.com/embed/test", resp.DashboardURL)
+	})
+
+	t.Run("InvalidColorNameRejected", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{})
+		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			AccountType:      license.AccountTypeSalesforce,
+			AccountID:        "test-account",
+			PublishUsageData: true,
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		//nolint:gocritic // owner user is required to read licenses
+		_, err := client.GetUsageEmbeddableDashboard(ctx, codersdk.GetUsageEmbeddableDashboardRequest{
+			Dashboard: codersdk.UsageEmbeddableDashboardTypeUsage,
+			ColorOverrides: []codersdk.DashboardColorOverride{
+				{Name: "invalid_color_name", Value: "#FF5733"},
+			},
+		})
+
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		assert.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		assert.Contains(t, sdkErr.Message, "Invalid color name")
+	})
+
+	t.Run("UntrustedHostRejected", func(t *testing.T) {
+		t.Parallel()
+
+		// Create a fake Tallyman server that returns an untrusted host
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			err := json.NewEncoder(w).Encode(tallymansdk.RetrieveEmbeddableDashboardResponse{
+				DashboardURL: "https://evil.com/steal-data",
+			})
+			assert.NoError(t, err)
+		}))
+		defer srv.Close()
+
+		tallymanURL, err := url.Parse(srv.URL)
+		require.NoError(t, err)
+
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			TallymanURL: tallymanURL,
+		})
+		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			AccountType:      license.AccountTypeSalesforce,
+			AccountID:        "test-account",
+			PublishUsageData: true,
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		_, err = client.GetUsageEmbeddableDashboard(ctx, codersdk.GetUsageEmbeddableDashboardRequest{
+			Dashboard: codersdk.UsageEmbeddableDashboardTypeUsage,
+		})
+
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		assert.Equal(t, http.StatusBadGateway, apiErr.StatusCode())
+		assert.Contains(t, apiErr.Message, "Dashboard URL host is not trusted")
+	})
+
+	t.Run("TallymanServerError", func(t *testing.T) {
+		t.Parallel()
+
+		// Create a fake Tallyman server that returns an error
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, err := w.Write([]byte("Internal server error"))
+			assert.NoError(t, err)
+		}))
+		defer srv.Close()
+
+		tallymanURL, err := url.Parse(srv.URL)
+		require.NoError(t, err)
+
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			TallymanURL: tallymanURL,
+		})
+		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			AccountType:      license.AccountTypeSalesforce,
+			AccountID:        "test-account",
+			PublishUsageData: true,
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		_, err = client.GetUsageEmbeddableDashboard(ctx, codersdk.GetUsageEmbeddableDashboardRequest{
+			Dashboard: codersdk.UsageEmbeddableDashboardTypeUsage,
+		})
+
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		assert.Equal(t, http.StatusInternalServerError, apiErr.StatusCode())
+		assert.Contains(t, apiErr.Message, "Failed to retrieve dashboard URL")
+	})
+}
 
 func TestPostLicense(t *testing.T) {
 	t.Parallel()
