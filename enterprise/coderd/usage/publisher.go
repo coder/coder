@@ -1,20 +1,18 @@
 package usage
 
 import (
-	"bytes"
 	"context"
 	"crypto/ed25519"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -22,13 +20,11 @@ import (
 	"github.com/coder/coder/v2/coderd/usage/usagetypes"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/enterprise/coderd/usage/tallymansdk"
 	"github.com/coder/quartz"
 )
 
 const (
-	tallymanURL         = "https://tallyman-prod.coder.com"
-	tallymanIngestURLV1 = tallymanURL + "/api/v1/events/ingest"
-
 	tallymanPublishInitialMinimumDelay = 5 * time.Minute
 	// Chosen to be a prime number and not a multiple of 5 like many other
 	// recurring tasks.
@@ -56,7 +52,7 @@ type tallymanPublisher struct {
 	done        chan struct{}
 
 	// Configured with options:
-	ingestURL    string
+	baseURL      *url.URL
 	httpClient   *http.Client
 	clock        quartz.Clock
 	initialDelay time.Duration
@@ -70,6 +66,7 @@ func NewTallymanPublisher(ctx context.Context, log slog.Logger, db database.Stor
 	ctx, cancel := context.WithCancel(ctx)
 	ctx = dbauthz.AsUsagePublisher(ctx) //nolint:gocritic // we intentionally want to be able to process usage events
 
+	baseURL, _ := url.Parse(tallymansdk.DefaultURL)
 	publisher := &tallymanPublisher{
 		ctx:         ctx,
 		ctxCancel:   cancel,
@@ -78,7 +75,7 @@ func NewTallymanPublisher(ctx context.Context, log slog.Logger, db database.Stor
 		licenseKeys: keys,
 		done:        make(chan struct{}),
 
-		ingestURL:  tallymanIngestURLV1,
+		baseURL:    baseURL,
 		httpClient: http.DefaultClient,
 		clock:      quartz.NewReal(),
 	}
@@ -108,10 +105,18 @@ func PublisherWithClock(clock quartz.Clock) TallymanPublisherOption {
 }
 
 // PublisherWithIngestURL sets the ingest URL to use for publishing usage
-// events.
+// events. The base URL is extracted from the ingest URL.
 func PublisherWithIngestURL(ingestURL string) TallymanPublisherOption {
 	return func(p *tallymanPublisher) {
-		p.ingestURL = ingestURL
+		parsed, err := url.Parse(ingestURL)
+		if err != nil {
+			// This shouldn't happen in practice, but if it does, keep the default.
+			return
+		}
+		p.baseURL = &url.URL{
+			Scheme: parsed.Scheme,
+			Host:   parsed.Host,
+		}
 	}
 }
 
@@ -388,41 +393,16 @@ func (p *tallymanPublisher) getBestLicenseJWT(ctx context.Context) (string, erro
 }
 
 func (p *tallymanPublisher) sendPublishRequest(ctx context.Context, deploymentID uuid.UUID, licenseJwt string, req usagetypes.TallymanV1IngestRequest) (usagetypes.TallymanV1IngestResponse, error) {
-	body, err := json.Marshal(req)
-	if err != nil {
-		return usagetypes.TallymanV1IngestResponse{}, err
-	}
+	// Create a new SDK client for this request.
+	// We create it per-request since the license key may change.
+	sdkClient := tallymansdk.New(
+		p.baseURL,
+		licenseJwt,
+		deploymentID,
+		tallymansdk.WithHTTPClient(p.httpClient),
+	)
 
-	r, err := http.NewRequestWithContext(ctx, http.MethodPost, p.ingestURL, bytes.NewReader(body))
-	if err != nil {
-		return usagetypes.TallymanV1IngestResponse{}, err
-	}
-	r.Header.Set("User-Agent", "coderd/"+buildinfo.Version())
-	r.Header.Set(usagetypes.TallymanCoderLicenseKeyHeader, licenseJwt)
-	r.Header.Set(usagetypes.TallymanCoderDeploymentIDHeader, deploymentID.String())
-
-	resp, err := p.httpClient.Do(r)
-	if err != nil {
-		return usagetypes.TallymanV1IngestResponse{}, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		var errBody usagetypes.TallymanV1Response
-		if err := json.NewDecoder(resp.Body).Decode(&errBody); err != nil {
-			errBody = usagetypes.TallymanV1Response{
-				Message: fmt.Sprintf("could not decode error response body: %v", err),
-			}
-		}
-		return usagetypes.TallymanV1IngestResponse{}, xerrors.Errorf("unexpected status code %v, error: %s", resp.StatusCode, errBody.Message)
-	}
-
-	var respBody usagetypes.TallymanV1IngestResponse
-	if err := json.NewDecoder(resp.Body).Decode(&respBody); err != nil {
-		return usagetypes.TallymanV1IngestResponse{}, xerrors.Errorf("decode response body: %w", err)
-	}
-
-	return respBody, nil
+	return sdkClient.PublishUsageEvents(ctx, req)
 }
 
 // Close implements Publisher.
