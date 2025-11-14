@@ -11,6 +11,11 @@ permissions:
   contents: read
 
 jobs:
+  wush:
+    runs-on: ${{ matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'depot-windows-2022-16' }}
+    steps:
+      - uses: coder/wush-action@v1.0.0
+        timeout-minutes: 30
   test-go-pg:
     # make sure to adjust NUM_PARALLEL_PACKAGES and NUM_PARALLEL_TESTS below
     # when changing runner sizes
