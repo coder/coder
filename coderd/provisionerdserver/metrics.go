@@ -153,6 +153,9 @@ func (m *Metrics) UpdateWorkspaceTimingsMetrics(
 		m.workspaceClaimTimings.
 			WithLabelValues(organizationName, templateName, presetName).Observe(buildTime)
 	default:
-		m.logger.Warn(ctx, "unsupported workspace timing flags")
+		m.logger.Warn(ctx, "unsupported workspace timing flags",
+			"isPrebuild", flags.IsPrebuild,
+			"isClaim", flags.IsClaim,
+			"isWorkspaceFirstBuild", flags.IsFirstBuild)
 	}
 }
