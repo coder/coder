@@ -332,11 +332,11 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 
 	// Capture the duration of the call to `terraform graph`.
 	graphTimings := newTimingAggregator(database.ProvisionerJobTimingStageGraph)
-	graphTimings.ingest(createGraphTimingsEvent(timingGraphStart))
+	graphTimings.ingest(createPostPlanGraphTimingsEvent(timingGraphStart))
 
 	state, plan, err := e.planResources(ctx, killCtx, planfilePath)
 	if err != nil {
-		graphTimings.ingest(createGraphTimingsEvent(timingGraphErrored))
+		graphTimings.ingest(createPostPlanGraphTimingsEvent(timingGraphErrored))
 		return nil, xerrors.Errorf("plan resources: %w", err)
 	}
 	planJSON, err := json.Marshal(plan)
@@ -344,7 +344,7 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		return nil, xerrors.Errorf("marshal plan: %w", err)
 	}
 
-	graphTimings.ingest(createGraphTimingsEvent(timingGraphComplete))
+	graphTimings.ingest(createPostPlanGraphTimingsEvent(timingGraphComplete))
 
 	var moduleFiles []byte
 	// Skipping modules archiving is useful if the caller does not need it, eg during
@@ -600,10 +600,18 @@ func (e *executor) apply(
 	if err != nil {
 		return nil, xerrors.Errorf("terraform apply: %w", err)
 	}
+
+	graphTimings := newTimingAggregator(database.ProvisionerJobTimingStageGraph)
+	graphTimings.ingest(createPostApplyGraphTimingsEvent(timingGraphStart))
+
 	state, err := e.stateResources(ctx, killCtx)
 	if err != nil {
+		graphTimings.ingest(createPostApplyGraphTimingsEvent(timingGraphErrored))
 		return nil, err
 	}
+
+	graphTimings.ingest(createPostApplyGraphTimingsEvent(timingGraphComplete))
+
 	statefilePath := e.files.StateFilePath()
 	stateContent, err := os.ReadFile(statefilePath)
 	if err != nil {
@@ -615,7 +623,7 @@ func (e *executor) apply(
 		Resources:             state.Resources,
 		ExternalAuthProviders: state.ExternalAuthProviders,
 		State:                 stateContent,
-		Timings:               e.timings.aggregate(),
+		Timings:               append(e.timings.aggregate(), graphTimings.aggregate()...),
 		AiTasks:               state.AITasks,
 	}, nil
 }
