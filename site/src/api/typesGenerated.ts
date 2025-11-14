@@ -1654,6 +1654,7 @@ export interface DangerousConfig {
 // From codersdk/licenses.go
 /**
  * DashboardColorOverride represents a color override for a dashboard.
+ * Corresponds to tallymansdk.DashboardColorOverride.
  */
 export interface DashboardColorOverride {
 	readonly name: string;
@@ -2189,6 +2190,7 @@ export interface GetInboxNotificationResponse {
 // From codersdk/licenses.go
 /**
  * GetUsageEmbeddableDashboardRequest is a request to get an embeddable dashboard URL.
+ * Corresponds to tallymansdk.RetrieveEmbeddableDashboardRequest.
  */
 export interface GetUsageEmbeddableDashboardRequest {
 	readonly dashboard: UsageEmbeddableDashboardType;
@@ -2198,6 +2200,7 @@ export interface GetUsageEmbeddableDashboardRequest {
 // From codersdk/licenses.go
 /**
  * GetUsageEmbeddableDashboardResponse contains the embeddable dashboard URL.
+ * Corresponds to tallymansdk.RetrieveEmbeddableDashboardResponse.
  */
 export interface GetUsageEmbeddableDashboardResponse {
 	readonly dashboard_url: string;
