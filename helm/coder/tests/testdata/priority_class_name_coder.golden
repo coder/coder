@@ -143,7 +143,6 @@ spec:
                   - coder
               topologyKey: kubernetes.io/hostname
             weight: 1
-      priorityClassName: high-priority
       containers:
       - args:
         - server
@@ -200,6 +199,7 @@ spec:
           seccompProfile:
             type: RuntimeDefault
         volumeMounts: []
+      priorityClassName: high-priority
       restartPolicy: Always
       serviceAccountName: coder
       terminationGracePeriodSeconds: 60

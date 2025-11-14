@@ -12,14 +12,14 @@ metadata:
     app.kubernetes.io/version: 0.1.0
     helm.sh/chart: coder-0.1.0
   name: coder
-  namespace: coder
+  namespace: default
 ---
 # Source: coder/templates/rbac.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: coder-workspace-perms
-  namespace: coder
+  namespace: default
 rules:
   - apiGroups: [""]
     resources: ["pods"]
@@ -62,7 +62,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: "coder"
-  namespace: coder
+  namespace: default
 subjects:
   - kind: ServiceAccount
     name: "coder"
@@ -76,7 +76,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: coder
-  namespace: coder
+  namespace: default
   labels:
     helm.sh/chart: coder-0.1.0
     app.kubernetes.io/name: coder
@@ -113,7 +113,7 @@ metadata:
     app.kubernetes.io/version: 0.1.0
     helm.sh/chart: coder-0.1.0
   name: coder
-  namespace: coder
+  namespace: default
 spec:
   replicas: 1
   selector:
@@ -143,7 +143,6 @@ spec:
                   - coder
               topologyKey: kubernetes.io/hostname
             weight: 1
-      priorityClassName: high-priority
       containers:
       - args:
         - server
@@ -157,7 +156,7 @@ spec:
         - name: CODER_PPROF_ADDRESS
           value: 0.0.0.0:6060
         - name: CODER_ACCESS_URL
-          value: http://coder.coder.svc.cluster.local
+          value: http://coder.default.svc.cluster.local
         - name: KUBE_POD_IP
           valueFrom:
             fieldRef:
@@ -200,6 +199,7 @@ spec:
           seccompProfile:
             type: RuntimeDefault
         volumeMounts: []
+      priorityClassName: high-priority
       restartPolicy: Always
       serviceAccountName: coder
       terminationGracePeriodSeconds: 60
