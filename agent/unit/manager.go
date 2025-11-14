@@ -165,44 +165,16 @@ func (dt *Manager[StatusType, UnitID]) IsReady(unit UnitID) (bool, error) {
 
 // GetUnmetDependencies returns a list of unsatisfied dependencies for a unit.
 func (dt *Manager[StatusType, UnitID]) GetUnmetDependencies(unit UnitID) ([]Dependency[StatusType, UnitID], error) {
-	dt.mu.RLock()
-	defer dt.mu.RUnlock()
-
-	if !dt.registeredUnits[unit] {
-		return nil, ErrUnitNotFound
+	allDependencies, err := dt.GetAllDependencies(unit)
+	if err != nil {
+		return nil, err
 	}
-
-	unitVertex := dt.unitVertices[unit]
-	forwardEdges := dt.graph.GetForwardAdjacentVertices(unitVertex)
 
 	var unmetDependencies []Dependency[StatusType, UnitID]
 
-	for _, edge := range forwardEdges {
-		dependsOnUnit := edge.To.ID
-		requiredStatus := edge.Edge
-		currentStatus, exists := dt.unitStatus[dependsOnUnit]
-		if !exists {
-			// If the dependency unit has no status, it's not satisfied
-			// Zero value represents StatusPending
-			var pendingStatus StatusType
-			unmetDependencies = append(unmetDependencies, Dependency[StatusType, UnitID]{
-				Unit:           unit,
-				DependsOn:      dependsOnUnit,
-				RequiredStatus: requiredStatus,
-				CurrentStatus:  pendingStatus, // StatusPending (zero value)
-				IsSatisfied:    false,
-			})
-		} else {
-			isSatisfied := currentStatus == requiredStatus
-			if !isSatisfied {
-				unmetDependencies = append(unmetDependencies, Dependency[StatusType, UnitID]{
-					Unit:           unit,
-					DependsOn:      dependsOnUnit,
-					RequiredStatus: requiredStatus,
-					CurrentStatus:  currentStatus,
-					IsSatisfied:    false,
-				})
-			}
+	for _, dependency := range allDependencies {
+		if !dependency.IsSatisfied {
+			unmetDependencies = append(unmetDependencies, dependency)
 		}
 	}
 
