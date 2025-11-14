@@ -407,6 +407,16 @@ func (api *API) postUsageEmbeddableDashboard(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
+	// Validate dashboard type. Currently only "usage" is supported,
+	// but this may expand in the future.
+	if req.Dashboard != codersdk.UsageEmbeddableDashboardTypeUsage {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid dashboard type.",
+			Detail:  fmt.Sprintf("Dashboard type must be %q, got %q", codersdk.UsageEmbeddableDashboardTypeUsage, req.Dashboard),
+		})
+		return
+	}
+
 	// Create tallyman client
 	deploymentID, err := uuid.Parse(api.AGPL.DeploymentID)
 	if err != nil {
@@ -421,6 +431,7 @@ func (api *API) postUsageEmbeddableDashboard(rw http.ResponseWriter, r *http.Req
 		DB:           api.Database,
 		DeploymentID: deploymentID,
 		LicenseKeys:  api.LicenseKeys,
+		BaseURL:      api.TallymanURL,
 	})
 	if xerrors.Is(err, tallymansdk.ErrNoLicenseSupportsPublishing) {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{

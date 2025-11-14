@@ -14886,7 +14886,7 @@ const docTemplate = `{
                     }
                 },
                 "dashboard": {
-                    "type": "string"
+                    "$ref": "#/definitions/codersdk.UsageEmbeddableDashboardType"
                 }
             }
         },
@@ -19594,6 +19594,15 @@ const docTemplate = `{
                 "UsageAppNameJetbrains",
                 "UsageAppNameReconnectingPty",
                 "UsageAppNameSSH"
+            ]
+        },
+        "codersdk.UsageEmbeddableDashboardType": {
+            "type": "string",
+            "enum": [
+                "usage"
+            ],
+            "x-enum-varnames": [
+                "UsageEmbeddableDashboardTypeUsage"
             ]
         },
         "codersdk.UsagePeriod": {

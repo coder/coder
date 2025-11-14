@@ -2191,7 +2191,7 @@ export interface GetInboxNotificationResponse {
  * GetUsageEmbeddableDashboardRequest is a request to get an embeddable dashboard URL.
  */
 export interface GetUsageEmbeddableDashboardRequest {
-	readonly dashboard: string;
+	readonly dashboard: UsageEmbeddableDashboardType;
 	readonly color_overrides?: readonly DashboardColorOverride[];
 }
 
@@ -5660,6 +5660,13 @@ export const UsageAppNames: UsageAppName[] = [
 	"reconnecting-pty",
 	"ssh",
 	"vscode",
+];
+
+// From codersdk/licenses.go
+export type UsageEmbeddableDashboardType = "usage";
+
+export const UsageEmbeddableDashboardTypes: UsageEmbeddableDashboardType[] = [
+	"usage",
 ];
 
 // From codersdk/deployment.go

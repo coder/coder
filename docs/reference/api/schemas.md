@@ -4453,16 +4453,16 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
       "value": "string"
     }
   ],
-  "dashboard": "string"
+  "dashboard": "usage"
 }
 ```
 
 ### Properties
 
-| Name              | Type                                                                        | Required | Restrictions | Description |
-|-------------------|-----------------------------------------------------------------------------|----------|--------------|-------------|
-| `color_overrides` | array of [codersdk.DashboardColorOverride](#codersdkdashboardcoloroverride) | false    |              |             |
-| `dashboard`       | string                                                                      | false    |              |             |
+| Name              | Type                                                                           | Required | Restrictions | Description |
+|-------------------|--------------------------------------------------------------------------------|----------|--------------|-------------|
+| `color_overrides` | array of [codersdk.DashboardColorOverride](#codersdkdashboardcoloroverride)    | false    |              |             |
+| `dashboard`       | [codersdk.UsageEmbeddableDashboardType](#codersdkusageembeddabledashboardtype) | false    |              |             |
 
 ## codersdk.GetUsageEmbeddableDashboardResponse
 
@@ -9656,6 +9656,20 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `jetbrains`        |
 | `reconnecting-pty` |
 | `ssh`              |
+
+## codersdk.UsageEmbeddableDashboardType
+
+```json
+"usage"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value   |
+|---------|
+| `usage` |
 
 ## codersdk.UsagePeriod
 
