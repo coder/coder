@@ -11,39 +11,73 @@ Coder Tasks provides a method for automating these repeatable workflows. With a 
 1. Focus on other higher-priority needs, while the agent addresses the issue
 1. Get notified that the issue has been addressed, and you can review the proposed solution
 
-This guide walks you through how to configure GitHub and Coder together so that you can tag Coder in a GitHub issue comment, and securely delegate work to coding agents.
+This guide walks you through how to configure GitHub and Coder together so that you can tag Coder in a GitHub issue comment, and securely delegate work to coding agents in a Coder Task. 
 
-### How Does This GHa Work
+### How Does This GHA Work
 
 TODO implement diagram
 
-## How to implement the GHA
+## Implementing the GHA
 
-### Step 1: Create a Coder Deployment
+The below steps outline how to use the Coder [Create Task Action GHA](https://github.com/coder/create-task-action) in a github workflow to solve a bug. The guide makes the following assumptions:
 
-Follow the [Coder Quickstart Guide](https://coder.com/docs/tutorials/quickstart) or the [Coder Installation Guide](https://coder.com/docs/install) to deploy Coder to your environment. 
+- You have access to a Coder Server that is running. If you don't have a Coder Server running, follow our [Quickstart Guide](https://coder.com/docs/tutorials/quickstart)
+- Your Coder Server is accessible from GitHub
+- You have an AI-enabled Task Template that can successfully create a Coder Task. If you don't have a Task Template available, follow our [Getting Started with Tasks Guide](https://coder.com/docs/ai-coder/tasks#getting-started-with-tasks)
+- Check the [Requirements section of the GHA](https://github.com/coder/create-task-action?tab=readme-ov-file#requirements) for specific version requirements for your Coder deployment
 
-In order for the GitHub to Coder integration to work, your Coder server needs to be accessible by GitHub. You will need to connect Coder to GitHub in the future steps.
+This guide can be followed for other usecases beyond bugs like updating documetantion or implementing a small feature, but may require minor changes to file names and the prompts provided to the Coder Task.
 
-### Step 2: Enable Claude Code in Coder Tasks
+### Step 1: Create a GitHub Workflow file
 
-In this step you need to configure your Coder Tasks template with Claude Code (or any other Agentic AI of your choice). This will allow you to use this template for the purpose of the integration.
+In your repository, create a new file in the `./.github/workflows/` directory named `triage-bug.yaml`. Within that file, add the following code: 
 
-It is strongly advised that you used the following Template Example for your setup. This template (**link needed**) has been tuned specifically for this type of integrations by Coder experts. 
+```yaml
+name: Start Coder Task
 
-If you already have a polished template which you are using in your environment, please merge the blocks labelled in the example (**link needed**) with `COPY THIS TO YOUR TEMPLATE` comment. These sections are coming with additional comments which will help you understand what they do. 
+on:
+  issues:
+    types:
+      - labeled
 
-Of course, you may always tune the Template further if you want to. Please check what we have in [Coder Registry](https://registry.coder.com/) to enhance it with additional modules.
+permissions:
+  issues: write
 
-### Step 3: Create the GitHub Workflow
+jobs:
+  start-coder-task:
+    runs-on: ubuntu-latest
+    if: github.event.label.name == 'coder'
+    steps:
+      - name: Start Coder Task
+        uses: coder/start-coder-task@v0.0.2
+        with:
+          coder-url: ${{ secrets.CODER_URL }}
+          coder-token: ${{ secrets.CODER_TOKEN }}
+          coder-organization: "default"
+          coder-template-name: "my-template"
+          coder-task-name-prefix: "gh-task"
+          coder-task-prompt: "Use the gh CLI to read ${{ github.event.issue.html_url }}, write an appropriate plan for solving the issue to PLAN.md, and then wait for feedback."
+          github-user-id: ${{ github.event.sender.id }}
+          github-issue-url: ${{ github.event.issue.html_url }}
+          github-token: ${{ github.token }}
+          comment-on-issue: true
+```
 
-In this step you need to configure your Coder Tasks template with Claude Code (or any other Agentic AI of your choice). This will allow you to use this template for the purpose of the integration.
+This code will perform the following actions:
 
-It is strongly advised that you used the following Template Example for your setup. This template (**link needed**) has been tuned specifically for this type of integrations by Coder experts. 
+- Create a Coder Task when you apply the `coder` label to an existing GitHub issue
+- Pass as a prompt to the Coder Task
+    
+    1. Use the GitHub CLI to access and read the content of the linked GitHub issue
+    1. Generate an initial implementation plan to solve the bug
+    1. Write that plan to a `PLAN.md` file
+    1. Wait for additional input
 
-If you already have a polished template which you are using in your environment, please merge the blocks labelled in the example (**link needed**) with `COPY THIS TO YOUR TEMPLATE` comment. These sections are coming with additional comments which will help you understand what they do. 
+The prompt text can be modified to not wait for additional human input, but continue with implementing the proposed solution and creating a PR for example.
 
-Of course, you may always tune the Template further if you want to. Please check what we have in [Coder Registry](https://registry.coder.com/) to enhance it with additional modules.
+### Step 2: Setup the Required Secrets
+
+
 
 ### Step 4: Test Your Setup
 
