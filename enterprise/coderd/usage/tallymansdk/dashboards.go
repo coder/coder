@@ -9,6 +9,7 @@ import (
 )
 
 // DashboardType represents the type of dashboard to embed.
+// Corresponds to codersdk.UsageEmbeddableDashboardType.
 type DashboardType string
 
 const (
@@ -17,18 +18,21 @@ const (
 )
 
 // DashboardColorOverride represents a color override for a dashboard.
+// Corresponds to codersdk.DashboardColorOverride.
 type DashboardColorOverride struct {
 	Name  string `json:"name"`
 	Value string `json:"value"`
 }
 
 // RetrieveEmbeddableDashboardRequest is a request to get an embed URL for a dashboard.
+// Corresponds to codersdk.GetUsageEmbeddableDashboardRequest.
 type RetrieveEmbeddableDashboardRequest struct {
 	Dashboard      DashboardType            `json:"dashboard"`
 	ColorOverrides []DashboardColorOverride `json:"color_overrides,omitempty"`
 }
 
 // RetrieveEmbeddableDashboardResponse is a response containing a dashboard embed URL.
+// Corresponds to codersdk.GetUsageEmbeddableDashboardResponse.
 type RetrieveEmbeddableDashboardResponse struct {
 	DashboardURL string `json:"dashboard_url"`
 }

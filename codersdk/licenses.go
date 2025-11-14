@@ -136,6 +136,7 @@ func (c *Client) DeleteLicense(ctx context.Context, id int32) error {
 }
 
 // UsageEmbeddableDashboardType represents the type of usage dashboard to embed.
+// Corresponds to tallymansdk.DashboardType.
 type UsageEmbeddableDashboardType string
 
 const (
@@ -144,18 +145,21 @@ const (
 )
 
 // GetUsageEmbeddableDashboardRequest is a request to get an embeddable dashboard URL.
+// Corresponds to tallymansdk.RetrieveEmbeddableDashboardRequest.
 type GetUsageEmbeddableDashboardRequest struct {
 	Dashboard      UsageEmbeddableDashboardType `json:"dashboard"`
 	ColorOverrides []DashboardColorOverride     `json:"color_overrides,omitempty"`
 }
 
 // DashboardColorOverride represents a color override for a dashboard.
+// Corresponds to tallymansdk.DashboardColorOverride.
 type DashboardColorOverride struct {
 	Name  string `json:"name"`
 	Value string `json:"value"`
 }
 
 // GetUsageEmbeddableDashboardResponse contains the embeddable dashboard URL.
+// Corresponds to tallymansdk.RetrieveEmbeddableDashboardResponse.
 type GetUsageEmbeddableDashboardResponse struct {
 	DashboardURL string `json:"dashboard_url"`
 }

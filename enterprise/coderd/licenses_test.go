@@ -163,7 +163,7 @@ func TestPostUsageEmbeddableDashboard(t *testing.T) {
 
 			// Verify color overrides were passed through
 			assert.Len(t, req.ColorOverrides, 2)
-			assert.Equal(t, "primary", req.ColorOverrides[0].Name)
+			assert.Equal(t, "Primary_medium", req.ColorOverrides[0].Name)
 			assert.Equal(t, "#FF5733", req.ColorOverrides[0].Value)
 
 			w.Header().Set("Content-Type", "application/json")
@@ -192,13 +192,39 @@ func TestPostUsageEmbeddableDashboard(t *testing.T) {
 		resp, err := client.GetUsageEmbeddableDashboard(ctx, codersdk.GetUsageEmbeddableDashboardRequest{
 			Dashboard: codersdk.UsageEmbeddableDashboardTypeUsage,
 			ColorOverrides: []codersdk.DashboardColorOverride{
-				{Name: "primary", Value: "#FF5733"},
-				{Name: "secondary", Value: "#33FF57"},
+				{Name: "Primary_medium", Value: "#FF5733"},
+				{Name: "UsageLine_0", Value: "#33FF57"},
 			},
 		})
 
 		require.NoError(t, err)
 		assert.Equal(t, "https://dashboard.metronome.com/embed/test", resp.DashboardURL)
+	})
+
+	t.Run("InvalidColorNameRejected", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{})
+		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
+			AccountType:      license.AccountTypeSalesforce,
+			AccountID:        "test-account",
+			PublishUsageData: true,
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		//nolint:gocritic // owner user is required to read licenses
+		_, err := client.GetUsageEmbeddableDashboard(ctx, codersdk.GetUsageEmbeddableDashboardRequest{
+			Dashboard: codersdk.UsageEmbeddableDashboardTypeUsage,
+			ColorOverrides: []codersdk.DashboardColorOverride{
+				{Name: "invalid_color_name", Value: "#FF5733"},
+			},
+		})
+
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		assert.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		assert.Contains(t, sdkErr.Message, "Invalid color name")
 	})
 
 	t.Run("UntrustedHostRejected", func(t *testing.T) {

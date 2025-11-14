@@ -101,19 +101,11 @@ func PublisherWithClock(clock quartz.Clock) TallymanPublisherOption {
 	}
 }
 
-// PublisherWithIngestURL sets the ingest URL to use for publishing usage
-// events. The base URL is extracted from the ingest URL.
-func PublisherWithIngestURL(ingestURL string) TallymanPublisherOption {
+// PublisherWithTallymanBaseURL sets the base URL to use for publishing usage
+// events.
+func PublisherWithTallymanBaseURL(baseURL *url.URL) TallymanPublisherOption {
 	return func(p *tallymanPublisher) {
-		parsed, err := url.Parse(ingestURL)
-		if err != nil {
-			// This shouldn't happen in practice, but if it does, keep the default.
-			return
-		}
-		p.baseURL = &url.URL{
-			Scheme: parsed.Scheme,
-			Host:   parsed.Host,
-		}
+		p.baseURL = baseURL
 	}
 }
 

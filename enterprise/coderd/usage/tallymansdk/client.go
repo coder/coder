@@ -25,20 +25,6 @@ const (
 
 var ErrNoLicenseSupportsPublishing = xerrors.New("usage publishing is not enabled by any license")
 
-// NewOptions contains options for creating a new Tallyman client.
-type NewOptions struct {
-	// DB is the database store for querying licenses and deployment ID.
-	DB database.Store
-	// DeploymentID is the deployment ID. If uuid.Nil, it will be fetched from the database.
-	DeploymentID uuid.UUID
-	// LicenseKeys is a map of license keys for verifying license JWTs.
-	LicenseKeys map[string]ed25519.PublicKey
-	// BaseURL is the base URL for the Tallyman API. If nil, DefaultURL is used.
-	BaseURL *url.URL
-	// HTTPClient is the HTTP client to use for requests. If nil, http.DefaultClient is used.
-	HTTPClient *http.Client
-}
-
 // Client is a client for the Tallyman API.
 type Client struct {
 	// URL is the base URL for the Tallyman API.
@@ -81,6 +67,20 @@ func WithHTTPClient(httpClient *http.Client) ClientOption {
 			c.HTTPClient = httpClient
 		}
 	}
+}
+
+// NewOptions contains options for creating a new Tallyman client.
+type NewOptions struct {
+	// DB is the database store for querying licenses and deployment ID.
+	DB database.Store
+	// DeploymentID is the deployment ID. If uuid.Nil, it will be fetched from the database.
+	DeploymentID uuid.UUID
+	// LicenseKeys is a map of license keys for verifying license JWTs.
+	LicenseKeys map[string]ed25519.PublicKey
+	// BaseURL is the base URL for the Tallyman API. If nil, DefaultURL is used.
+	BaseURL *url.URL
+	// HTTPClient is the HTTP client to use for requests. If nil, http.DefaultClient is used.
+	HTTPClient *http.Client
 }
 
 // New creates a new Tallyman API client by looking up the best license from the database.
