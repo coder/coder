@@ -2,17 +2,26 @@
 
 ## Background
 
-This guide will help you configure GitHub and Coder and connect them together, allowing for the Coder Tasks to be launched directly from GitHub issues and resulting in pull requests being issued from the Agentic AI against the original GitHub repository, with a link to the issue the work was triggered from. Combined with the Coder Notifications for Tasks, this setup allows for the developers to safely and securely delegate a number of implementation tasks to Agentic AI, while being able to focus on something else in the meantime. 
+Most software engineering organizations track and manage their codebase through GitHub, and use project mnnagement tools like Asana, Jira, or even Github's Projects to coordinate work. Across these systems, engineers are frequently performing the same repetitive workflows: triaging and addressing bugs, updating documentation, or implementing well-defined changes for example.
 
-The diagram below illustrates the flow from GitHub to Coder Tasks and back to GitHub:
+Coder Tasks provides a method for automating these repeatable workflows. With a Task, you can direct an agent like Claude Code to update your documentation or even diagnose and address a bug. By connecting GitHub to Coder Tasks, you can build out a GitHub workflow that will for example:
 
-TODO
+1. Trigger an automation to take a pre-existing issue
+1. Automatically spin up a Coder Task with the same context from that issue and direct an agent to work on it
+1. Focus on other higher-priority needs, while the agent addresses the issue
+1. Get notified that the issue has been addressed, and you can review the proposed solution
+
+This guide walks you through how to configure GitHub and Coder together so that you can tag Coder in a GitHub issue comment, and securely delegate work to coding agents.
+
+### How Does This GHa Work
+
+TODO implement diagram
 
 ## How to implement the GHA
 
 ### Step 1: Create a Coder Deployment
 
-Please follow [Coder Quickstart Guide](https://coder.com/docs/tutorials/quickstart) instructions or alternatively the [Coder Installation Guide](https://coder.com/docs/install) to deploy Coder to your environment. 
+Follow the [Coder Quickstart Guide](https://coder.com/docs/tutorials/quickstart) or the [Coder Installation Guide](https://coder.com/docs/install) to deploy Coder to your environment. 
 
 In order for the GitHub to Coder integration to work, your Coder server needs to be accessible by GitHub. You will need to connect Coder to GitHub in the future steps.
 
