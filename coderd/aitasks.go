@@ -274,7 +274,7 @@ func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) cod
 
 	// If we have an agent ID from the task, find the agent details in the workspace.
 	// TODO(ssncferreira): Use 'workspace_agent_lifecycle_state' and 'workspace_app_health'
-	//   from new 'tasks_with_status' query
+	//   from new 'tasks_with_status' view (PR https://github.com/coder/coder/pull/20683)
 	if dbTask.WorkspaceAgentID.Valid {
 	findTaskAgentLoop:
 		for _, resource := range ws.LatestBuild.Resources {
