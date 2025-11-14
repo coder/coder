@@ -17,6 +17,7 @@ import (
 
 type StatsAPI struct {
 	AgentFn                   func(context.Context) (database.WorkspaceAgent, error)
+	WorkspaceFn               func() database.Workspace
 	Database                  database.Store
 	Log                       slog.Logger
 	StatsReporter             *workspacestats.Reporter
@@ -46,11 +47,9 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 	if err != nil {
 		return nil, err
 	}
-	getWorkspaceAgentByIDRow, err := a.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
-	if err != nil {
-		return nil, xerrors.Errorf("get workspace by agent ID %q: %w", workspaceAgent.ID, err)
-	}
-	workspace := getWorkspaceAgentByIDRow
+	// Construct workspace from cached fields to avoid DB query
+	workspace:= a.WorkspaceFn()
+
 	a.Log.Debug(ctx, "read stats report",
 		slog.F("interval", a.AgentStatsRefreshInterval),
 		slog.F("workspace_id", workspace.ID),
@@ -72,7 +71,7 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 		a.now(),
 		workspace,
 		workspaceAgent,
-		getWorkspaceAgentByIDRow.TemplateName,
+		workspace.TemplateName,
 		req.Stats,
 		false,
 	)

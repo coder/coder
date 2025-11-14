@@ -17,10 +17,11 @@ import (
 )
 
 type MetadataAPI struct {
-	AgentFn  func(context.Context) (database.WorkspaceAgent, error)
-	Database database.Store
-	Pubsub   pubsub.Pubsub
-	Log      slog.Logger
+	AgentFn       func(context.Context) (database.WorkspaceAgent, error)
+	RBACContextFn func(context.Context) context.Context
+	Database      database.Store
+	Pubsub        pubsub.Pubsub
+	Log           slog.Logger
 
 	TimeNowFn func() time.Time // defaults to dbtime.Now()
 }
@@ -107,6 +108,9 @@ func (a *MetadataAPI) BatchUpdateMetadata(ctx context.Context, req *agentproto.B
 		)
 	}
 
+	// Inject RBAC object into context for dbauthz fast path, avoid having to
+	// call GetWorkspaceByAgentID on every metadata update.
+	ctx = a.RBACContextFn(ctx)
 	err = a.Database.UpdateWorkspaceAgentMetadata(ctx, dbUpdate)
 	if err != nil {
 		return nil, xerrors.Errorf("update workspace agent metadata in database: %w", err)
