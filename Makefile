@@ -642,6 +642,7 @@ AIBRIDGED_MOCKS := \
 GEN_FILES := \
 	tailnet/proto/tailnet.pb.go \
 	agent/proto/agent.pb.go \
+	agent/agentsocket/proto/agentsocket.pb.go \
 	provisionersdk/proto/provisioner.pb.go \
 	provisionerd/proto/provisionerd.pb.go \
 	vpn/vpn.pb.go \
@@ -696,6 +697,7 @@ gen/mark-fresh:
 		agent/proto/agent.pb.go \
 		provisionersdk/proto/provisioner.pb.go \
 		provisionerd/proto/provisionerd.pb.go \
+		agent/agentsocket/proto/agentsocket.pb.go \
 		vpn/vpn.pb.go \
 		enterprise/aibridged/proto/aibridged.pb.go \
 		coderd/database/dump.sql \
@@ -799,6 +801,14 @@ agent/proto/agent.pb.go: agent/proto/agent.proto
 		--go-drpc_out=. \
 		--go-drpc_opt=paths=source_relative \
 		./agent/proto/agent.proto
+
+agent/agentsocket/proto/agentsocket.pb.go: agent/agentsocket/proto/agentsocket.proto
+	protoc \
+		--go_out=. \
+		--go_opt=paths=source_relative \
+		--go-drpc_out=. \
+		--go-drpc_opt=paths=source_relative \
+		./agent/agentsocket/proto/agentsocket.proto
 
 provisionersdk/proto/provisioner.pb.go: provisionersdk/proto/provisioner.proto
 	protoc \
