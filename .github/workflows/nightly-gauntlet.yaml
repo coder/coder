@@ -11,12 +11,6 @@ permissions:
   contents: read
 
 jobs:
-  wush:
-    runs-on: windows-2022
-    steps:
-      - name: Run wush
-        if: ${{ !cancelled() }}
-        uses: coder/wush-action@v1.0.0
   test-go-pg:
     # make sure to adjust NUM_PARALLEL_PACKAGES and NUM_PARALLEL_TESTS below
     # when changing runner sizes
