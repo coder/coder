@@ -4,6 +4,8 @@ import (
 	"sync"
 
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
 var (
@@ -177,13 +179,9 @@ func (dt *Manager[UnitID]) GetUnmetDependencies(unit UnitID) ([]Dependency[Statu
 		return nil, err
 	}
 
-	var unmetDependencies []Dependency[Status, UnitID]
-
-	for _, dependency := range allDependencies {
-		if !dependency.IsSatisfied {
-			unmetDependencies = append(unmetDependencies, dependency)
-		}
-	}
+	var unmetDependencies []Dependency[Status, UnitID] = slice.Filter(allDependencies, func(dependency Dependency[Status, UnitID]) bool {
+		return !dependency.IsSatisfied
+	})
 
 	return unmetDependencies, nil
 }

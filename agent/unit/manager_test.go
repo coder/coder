@@ -21,11 +21,10 @@ const (
 func TestDependencyTracker_Register(t *testing.T) {
 	t.Parallel()
 
-	tracker := unit.NewManager[testUnitID]()
-
 	t.Run("RegisterNewUnit", func(t *testing.T) {
 		t.Parallel()
 
+		tracker := unit.NewManager[testUnitID]()
 		err := tracker.Register(unitA)
 		require.NoError(t, err)
 
