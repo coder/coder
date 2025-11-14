@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -28,8 +29,8 @@ import (
 )
 
 const (
-	// simple script that mocks `./terraform version -json`
-	terraformExecutableTemplate = `#!/bin/bash
+	// simple scripts that mock `./terraform version -json`
+	bashExecutableTemplate = `#!/bin/bash
 cat <<EOF
 {
   "terraform_version": "${ver}",
@@ -38,6 +39,13 @@ cat <<EOF
   "terraform_outdated": true
 }
 EOF
+`
+	windowsExecutableTemplate = `echo {^
+  "terraform_version": "${ver}",^
+  "platform": "${os}_${arch}",^
+  "provider_selections": {},^
+  "terraform_outdated": true^
+}
 `
 )
 
@@ -131,17 +139,25 @@ func mockProduct(versions ...*version.Version) product {
 func mustCreateZips(t *testing.T, tmpDir string, v *version.Version) {
 	for _, oa := range allArchs {
 		rep := strings.NewReplacer("${ver}", v.String(), "${os}", oa.os, "${arch}", oa.arch)
-		exeContent := rep.Replace(terraformExecutableTemplate)
+		exeContent := rep.Replace(bashExecutableTemplate)
+		if oa.os == "windows" {
+			exeContent = rep.Replace(windowsExecutableTemplate)
+		}
 
 		// `${version}/${os}_${arch}.zip`
 		zip1, err := os.Create(filepath.Join(tmpDir, version1.String(), zipFilename(v, oa.os, oa.arch)))
 		require.NoError(t, err)
 		zip1Writer := zip.NewWriter(zip1)
 
-		// `${version}/${os}_${arch}.zip/terraform`
-		exe1, err := zip1Writer.Create("terraform")
+		// `${version}/${os}_${arch}.zip/terraform{.exe}`
+		var exe io.Writer
+		if oa.os == "windows" {
+			exe, err = zip1Writer.Create("terraform.exe")
+		} else {
+			exe, err = zip1Writer.Create("terraform")
+		}
 		require.NoError(t, err)
-		n, err := exe1.Write([]byte(exeContent))
+		n, err := exe.Write([]byte(exeContent))
 		require.NoError(t, err)
 		require.NotZero(t, n)
 
