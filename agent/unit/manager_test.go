@@ -497,15 +497,26 @@ func TestDependencyTracker_ErrorCases(t *testing.T) {
 		require.NoError(t, err)
 		err = tracker.Register(unitB)
 		require.NoError(t, err)
+		err = tracker.Register(unitC)
+		require.NoError(t, err)
+		err = tracker.Register(unitD)
+		require.NoError(t, err)
 
 		// A depends on B
 		err = tracker.AddDependency(unitA, unitB, unit.StatusStarted)
 		require.NoError(t, err)
+		// B depends on C
+		err = tracker.AddDependency(unitB, unitC, unit.StatusStarted)
+		require.NoError(t, err)
 
-		// Try to make B depend on A (creates cycle)
-		err = tracker.AddDependency(unitB, unitA, unit.StatusStarted)
+		// C depends on D
+		err = tracker.AddDependency(unitC, unitD, unit.StatusStarted)
+		require.NoError(t, err)
+
+		// Try to make D depend on A (creates indirect cycle)
+		err = tracker.AddDependency(unitD, unitA, unit.StatusStarted)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "would create a cycle")
+		assert.ErrorContains(t, err, "would create a cycle")
 	})
 }
 
