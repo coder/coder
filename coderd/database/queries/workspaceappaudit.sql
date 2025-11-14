@@ -31,7 +31,7 @@ WITH filtered_input AS (
 				AND w.user_agent = @user_agent
 				AND w.slug_or_port = @slug_or_port
 				AND w.status_code = @status_code
-				AND w.updated_at >= NOW() - '1 minute'::interval
+				AND w.updated_at >= (@now::timestamptz) - '1 minute'::interval
 		)
 ),
 upsert_result AS (
@@ -67,12 +67,12 @@ upsert_result AS (
 		SET
 			-- ID is used to know if session was reset on upsert.
 			id = CASE
-				WHEN workspace_app_audit_sessions.updated_at > NOW() - (@stale_interval_ms::bigint || ' ms')::interval
+				WHEN workspace_app_audit_sessions.updated_at > (@now::timestamptz) - (@stale_interval_ms::bigint || ' ms')::interval
 				THEN workspace_app_audit_sessions.id
 				ELSE EXCLUDED.id
 			END,
 			started_at = CASE
-				WHEN workspace_app_audit_sessions.updated_at > NOW() - (@stale_interval_ms::bigint || ' ms')::interval
+				WHEN workspace_app_audit_sessions.updated_at > (@now::timestamptz) - (@stale_interval_ms::bigint || ' ms')::interval
 				THEN workspace_app_audit_sessions.started_at
 				ELSE EXCLUDED.started_at
 			END,

@@ -19788,7 +19788,7 @@ WITH filtered_input AS (
 				AND w.user_agent = $6
 				AND w.slug_or_port = $7
 				AND w.status_code = $8
-				AND w.updated_at >= NOW() - '1 minute'::interval
+				AND w.updated_at >= ($11::timestamptz) - '1 minute'::interval
 		)
 ),
 upsert_result AS (
@@ -19824,12 +19824,12 @@ upsert_result AS (
 		SET
 			-- ID is used to know if session was reset on upsert.
 			id = CASE
-				WHEN workspace_app_audit_sessions.updated_at > NOW() - ($11::bigint || ' ms')::interval
+				WHEN workspace_app_audit_sessions.updated_at > ($11::timestamptz) - ($12::bigint || ' ms')::interval
 				THEN workspace_app_audit_sessions.id
 				ELSE EXCLUDED.id
 			END,
 			started_at = CASE
-				WHEN workspace_app_audit_sessions.updated_at > NOW() - ($11::bigint || ' ms')::interval
+				WHEN workspace_app_audit_sessions.updated_at > ($11::timestamptz) - ($12::bigint || ' ms')::interval
 				THEN workspace_app_audit_sessions.started_at
 				ELSE EXCLUDED.started_at
 			END,
@@ -19852,6 +19852,7 @@ type UpsertWorkspaceAppAuditSessionParams struct {
 	StatusCode      int32     `db:"status_code" json:"status_code"`
 	StartedAt       time.Time `db:"started_at" json:"started_at"`
 	UpdatedAt       time.Time `db:"updated_at" json:"updated_at"`
+	Now             time.Time `db:"now" json:"now"`
 	StaleIntervalMS int64     `db:"stale_interval_ms" json:"stale_interval_ms"`
 }
 
@@ -19870,6 +19871,7 @@ func (q *sqlQuerier) UpsertWorkspaceAppAuditSession(ctx context.Context, arg Ups
 		arg.StatusCode,
 		arg.StartedAt,
 		arg.UpdatedAt,
+		arg.Now,
 		arg.StaleIntervalMS,
 	)
 	var new_or_stale bool
