@@ -261,11 +261,20 @@ func createInitTimingsEvent(event timingKind) (time.Time, *timingSpan) {
 	}
 }
 
-func createGraphTimingsEvent(event timingKind) (time.Time, *timingSpan) {
+func createPostPlanGraphTimingsEvent(event timingKind) (time.Time, *timingSpan) {
 	return dbtime.Now(), &timingSpan{
 		kind:     event,
 		action:   "building terraform dependency graph",
 		provider: "terraform",
-		resource: "state file",
+		resource: "post plan",
+	}
+}
+
+func createPostApplyGraphTimingsEvent(event timingKind) (time.Time, *timingSpan) {
+	return dbtime.Now(), &timingSpan{
+		kind:     event,
+		action:   "building terraform dependency graph",
+		provider: "terraform",
+		resource: "post apply",
 	}
 }
