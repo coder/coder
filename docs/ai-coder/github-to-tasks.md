@@ -1,4 +1,4 @@
-# How To: GitHub to Coder Tasks
+# Guide: Create a GitHub to Coder Tasks Workflow
 
 ## Background
 
@@ -75,23 +75,90 @@ This code will perform the following actions:
 
 The prompt text can be modified to not wait for additional human input, but continue with implementing the proposed solution and creating a PR for example.
 
-### Step 2: Setup the Required Secrets
+### Step 2: Setup the Required Secrets & Inputs
 
+The GHA has mutliple required inputs that require configuring before the workflow can successfully operate. 
 
+You must set the following inputs as secrets within your repository:
 
-### Step 4: Test Your Setup
+- `coder-url`: the URL of your Coder deployment, e.g. https://coder.example.com
+- `coder-token`: follow our [API Tokens documentation](https://coder.com/docs/admin/users/sessions-tokens#long-lived-tokens-api-tokens) to generate a token
 
-The simplest way to test your new integration is to open (or create) a simple GitHub issue in your project which describes a change to your project or a relatively simple bug fix to perform. For the sake of test, we recommend something basic like “The sidebar color needs to be red” or “The text ‘Coder Tasks are Awesome’ needs to appear in the top left corner of the screen”. 
+You must also set `coder-template-name` as part of this. That can be determined a few ways:
 
-Once you identify (or create) a simple issue in GitHub issues for your repository, please label it with `coder` label. This will trigger the automatic GitHub action. You will soon receive a Tasks notification from Coder informing you of a newly started task, and you will also see the Task ID linked to the GitHub issue. 
+- By viewing the URL of the template in the UI, e.g. `https://your-coder-url/templates/<org-name>/<template-name>`
+- Using the Coder CLI:
 
-> Why `coder` label, you might ask? Because it makes it super easy to later find all the issues or feature requests which were used with Coder Tasks.
-> 
+```bash
+# List all templates in your organization
+coder templates list
 
-Depending on the complexity of the task and the size of your repository the Coder Task may take minutes or hours to complete. You may watch the progress by opening your task list and the details of this particular task via `https://<your.coder.server>/tasks` or by using the link which you will find in the issue you started the GitHub action from. But probably a better idea is to do something else in the meantime and just wait for the Coder Tasks notification about your task completion.
+# List templates in a specific organization
+coder templates list --org your-org-name
+```
 
-If everything went well you should also see the pull request issued on your behalf against the repository and linked to the GitHub issue you have started the whole flow from. Depending on how well the Agentic AI did its job you may also need to check the Coder Workspace assigned to this particular task and help the Agent get the changes across the finish line.
+You can also choose to modify the other [input parameters](https://github.com/coder/create-task-action?tab=readme-ov-file#inputs) to better fit your desired workflow.
+
+### Step 3: Test Your Setup
+
+Create a new GitHub issue for a bug in your codebase. We recommend a basic bug, for this test, like “The sidebar color needs to be red” or “The text ‘Coder Tasks are Awesome’ needs to appear in the top left corner of the screen”. You should adapt the phrasing to be specific to your code base.
+
+Add the `coder` label to that GitHub issue. You should see the followig things occur:
+
+- A comment is made on the issue saying `Task created: https://your-coder-url/tasks/username/task-id`
+- A Coder Task will spin up, and you'll receive a Tasks notification to that effect
+- You can click the link to follow the Task's progress in creating a plan to solve your bug
+
+Depending on the complexity of the task and the size of your repository, the Coder Task may take minutes or hours to complete. Our recommendation is to rely on Task Notifications to know when the Task completes, and furhter action is required.
 
 And that’s it! You may now enjoy all the hours you have saved because of this easy integration.
 
+#### Step 4: Adapt this Workflow to your Processes
+
+Following the above steps sets up a GitHub Worflow that will
+
+1. Allow you to label bugs with `coder`
+1. A coding agent will determine a plan to address the bug
+1. You'll receive a notification to review the plan and prompt the agent to proceed, or change course
+
+We recommend that you further adapt this workflow to better match your process. For example, you could:
+
+- Modify the prompt to implement the plan it came up with, and then create a PR once it has a solution
+- Update your GitHub issue template to automatically apply the `coder` label to attempt to solve bugs that have been logged
+- Modify the underlying use case to handle updating documentation, implementing a small feature, reviewing bug reports for completness, or even writing unit test
+- Modify the workflow trigger for other scenarios such as
+
+```yml
+# Comment-based trigger slash comamnds
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  trigger-on-comment:
+    runs-on: ubuntu-latest
+    if: startsWith(github.event.comment.body, '/coder')
+
+# On Pull Request Creation
+jobs:
+  on-pr-opened:
+    runs-on: ubuntu-latest
+    # No if needed - just runs on PR open
+
+# On changes to a specific directory
+on:
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'src/api/**'
+      - '*.md'
+
+jobs:
+  on-docs-changed:
+    runs-on: ubuntu-latest
+    # Runs automatically when files in these paths change
+```
+
 ## Sumamry
+
+This guide shows you how to automatically delegate routine engineering work to AI coding agents by connecting GitHub issues to Coder Tasks. When you label an issue (like a bug report or documentation update), a coding agent spins up in a secure Coder workspace, reads the issue context, and works on solving it while you focus on higher-priority tasks. The agent reports back with a proposed solution for you to review and approve, turning hours of repetitive work into minutes of oversight. This same pattern can be adapted to handle documentation updates, test writing, code reviews, and other automatable workflows across your development process.
