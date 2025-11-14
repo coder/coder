@@ -3614,6 +3614,7 @@ type AIBridgeInterception struct {
 	StartedAt   time.Time             `db:"started_at" json:"started_at"`
 	Metadata    pqtype.NullRawMessage `db:"metadata" json:"metadata"`
 	EndedAt     sql.NullTime          `db:"ended_at" json:"ended_at"`
+	APIKeyID    sql.NullString        `db:"api_key_id" json:"api_key_id"`
 }
 
 // Audit log of tokens used by intercepted requests in AI Bridge
@@ -4293,6 +4294,7 @@ type Template struct {
 	MaxPortSharingLevel           AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
 	UseClassicParameterFlow       bool            `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
 	CorsBehavior                  CorsBehavior    `db:"cors_behavior" json:"cors_behavior"`
+	UseTerraformWorkspaceCache    bool            `db:"use_terraform_workspace_cache" json:"use_terraform_workspace_cache"`
 	CreatedByAvatarURL            string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
 	CreatedByName                 string          `db:"created_by_name" json:"created_by_name"`
@@ -4342,6 +4344,8 @@ type TemplateTable struct {
 	// Determines whether to default to the dynamic parameter creation flow for this template or continue using the legacy classic parameter creation flow.This is a template wide setting, the template admin can revert to the classic flow if there are any issues. An escape hatch is required, as workspace creation is a core workflow and cannot break. This column will be removed when the dynamic parameter creation flow is stable.
 	UseClassicParameterFlow bool         `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
 	CorsBehavior            CorsBehavior `db:"cors_behavior" json:"cors_behavior"`
+	// Determines whether to keep terraform directories cached between runs for workspaces created from this template. When enabled, this can significantly speed up the `terraform init` step at the cost of increased disk usage. This is an opt-in experience, as it prevents modules from being updated, and therefore is a behavioral difference from the default.
+	UseTerraformWorkspaceCache bool `db:"use_terraform_workspace_cache" json:"use_terraform_workspace_cache"`
 }
 
 // Records aggregated usage statistics for templates/users. All usage is rounded up to the nearest minute.
@@ -4939,7 +4943,6 @@ type WorkspaceBuild struct {
 	MaxDeadline             time.Time           `db:"max_deadline" json:"max_deadline"`
 	TemplateVersionPresetID uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
 	HasAITask               sql.NullBool        `db:"has_ai_task" json:"has_ai_task"`
-	AITaskSidebarAppID      uuid.NullUUID       `db:"ai_task_sidebar_app_id" json:"ai_task_sidebar_app_id"`
 	HasExternalAgent        sql.NullBool        `db:"has_external_agent" json:"has_external_agent"`
 	InitiatorByAvatarUrl    string              `db:"initiator_by_avatar_url" json:"initiator_by_avatar_url"`
 	InitiatorByUsername     string              `db:"initiator_by_username" json:"initiator_by_username"`
@@ -4971,7 +4974,6 @@ type WorkspaceBuildTable struct {
 	MaxDeadline             time.Time           `db:"max_deadline" json:"max_deadline"`
 	TemplateVersionPresetID uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
 	HasAITask               sql.NullBool        `db:"has_ai_task" json:"has_ai_task"`
-	AITaskSidebarAppID      uuid.NullUUID       `db:"ai_task_sidebar_app_id" json:"ai_task_sidebar_app_id"`
 	HasExternalAgent        sql.NullBool        `db:"has_external_agent" json:"has_external_agent"`
 }
 

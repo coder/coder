@@ -1056,7 +1056,8 @@ CREATE TABLE aibridge_interceptions (
     model text NOT NULL,
     started_at timestamp with time zone NOT NULL,
     metadata jsonb,
-    ended_at timestamp with time zone
+    ended_at timestamp with time zone,
+    api_key_id text
 );
 
 COMMENT ON TABLE aibridge_interceptions IS 'Audit log of requests intercepted by AI Bridge';
@@ -1948,9 +1949,7 @@ CREATE TABLE workspace_builds (
     max_deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
     template_version_preset_id uuid,
     has_ai_task boolean,
-    ai_task_sidebar_app_id uuid,
     has_external_agent boolean,
-    CONSTRAINT workspace_builds_ai_task_sidebar_app_id_required CHECK (((((has_ai_task IS NULL) OR (has_ai_task = false)) AND (ai_task_sidebar_app_id IS NULL)) OR ((has_ai_task = true) AND (ai_task_sidebar_app_id IS NOT NULL)))),
     CONSTRAINT workspace_builds_deadline_below_max_deadline CHECK ((((deadline <> '0001-01-01 00:00:00+00'::timestamp with time zone) AND (deadline <= max_deadline)) OR (max_deadline = '0001-01-01 00:00:00+00'::timestamp with time zone)))
 );
 
@@ -2287,7 +2286,8 @@ CREATE TABLE templates (
     activity_bump bigint DEFAULT '3600000000000'::bigint NOT NULL,
     max_port_sharing_level app_sharing_level DEFAULT 'owner'::app_sharing_level NOT NULL,
     use_classic_parameter_flow boolean DEFAULT false NOT NULL,
-    cors_behavior cors_behavior DEFAULT 'simple'::cors_behavior NOT NULL
+    cors_behavior cors_behavior DEFAULT 'simple'::cors_behavior NOT NULL,
+    use_terraform_workspace_cache boolean DEFAULT false NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for autostop for workspaces created from this template.';
@@ -2309,6 +2309,8 @@ COMMENT ON COLUMN templates.autostart_block_days_of_week IS 'A bitmap of days of
 COMMENT ON COLUMN templates.deprecated IS 'If set to a non empty string, the template will no longer be able to be used. The message will be displayed to the user.';
 
 COMMENT ON COLUMN templates.use_classic_parameter_flow IS 'Determines whether to default to the dynamic parameter creation flow for this template or continue using the legacy classic parameter creation flow.This is a template wide setting, the template admin can revert to the classic flow if there are any issues. An escape hatch is required, as workspace creation is a core workflow and cannot break. This column will be removed when the dynamic parameter creation flow is stable.';
+
+COMMENT ON COLUMN templates.use_terraform_workspace_cache IS 'Determines whether to keep terraform directories cached between runs for workspaces created from this template. When enabled, this can significantly speed up the `terraform init` step at the cost of increased disk usage. This is an opt-in experience, as it prevents modules from being updated, and therefore is a behavioral difference from the default.';
 
 CREATE VIEW template_with_names AS
  SELECT templates.id,
@@ -2341,6 +2343,7 @@ CREATE VIEW template_with_names AS
     templates.max_port_sharing_level,
     templates.use_classic_parameter_flow,
     templates.cors_behavior,
+    templates.use_terraform_workspace_cache,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username,
     COALESCE(visible_users.name, ''::text) AS created_by_name,
@@ -2703,7 +2706,6 @@ CREATE VIEW workspace_build_with_user AS
     workspace_builds.max_deadline,
     workspace_builds.template_version_preset_id,
     workspace_builds.has_ai_task,
-    workspace_builds.ai_task_sidebar_app_id,
     workspace_builds.has_external_agent,
     COALESCE(visible_users.avatar_url, ''::text) AS initiator_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS initiator_by_username,
@@ -3803,9 +3805,6 @@ ALTER TABLE ONLY workspace_apps
 
 ALTER TABLE ONLY workspace_build_parameters
     ADD CONSTRAINT workspace_build_parameters_workspace_build_id_fkey FOREIGN KEY (workspace_build_id) REFERENCES workspace_builds(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY workspace_builds
-    ADD CONSTRAINT workspace_builds_ai_task_sidebar_app_id_fkey FOREIGN KEY (ai_task_sidebar_app_id) REFERENCES workspace_apps(id);
 
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;

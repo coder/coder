@@ -773,6 +773,11 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		classicTemplateFlow = *req.UseClassicParameterFlow
 	}
 
+	useTerraformWorkspaceCache := template.UseTerraformWorkspaceCache
+	if req.UseTerraformWorkspaceCache != nil {
+		useTerraformWorkspaceCache = *req.UseTerraformWorkspaceCache
+	}
+
 	displayName := ptr.NilToDefault(req.DisplayName, template.DisplayName)
 	description := ptr.NilToDefault(req.Description, template.Description)
 	icon := ptr.NilToDefault(req.Icon, template.Icon)
@@ -798,7 +803,8 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			(deprecationMessage == template.Deprecated) &&
 			(classicTemplateFlow == template.UseClassicParameterFlow) &&
 			maxPortShareLevel == template.MaxPortSharingLevel &&
-			corsBehavior == template.CorsBehavior {
+			corsBehavior == template.CorsBehavior &&
+			useTerraformWorkspaceCache == template.UseTerraformWorkspaceCache {
 			return nil
 		}
 
@@ -841,6 +847,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			MaxPortSharingLevel:          maxPortShareLevel,
 			UseClassicParameterFlow:      classicTemplateFlow,
 			CorsBehavior:                 corsBehavior,
+			UseTerraformWorkspaceCache:   useTerraformWorkspaceCache,
 		})
 		if err != nil {
 			return xerrors.Errorf("update template metadata: %w", err)
@@ -1119,30 +1126,23 @@ func (api *API) convertTemplate(
 			DaysOfWeek: codersdk.BitmapToWeekdays(template.AutostartAllowedDays()),
 		},
 		// These values depend on entitlements and come from the templateAccessControl
-		RequireActiveVersion:    templateAccessControl.RequireActiveVersion,
-		Deprecated:              templateAccessControl.IsDeprecated(),
-		DeprecationMessage:      templateAccessControl.Deprecated,
-		MaxPortShareLevel:       maxPortShareLevel,
-		UseClassicParameterFlow: template.UseClassicParameterFlow,
-		CORSBehavior:            codersdk.CORSBehavior(template.CorsBehavior),
+		RequireActiveVersion:       templateAccessControl.RequireActiveVersion,
+		Deprecated:                 templateAccessControl.IsDeprecated(),
+		DeprecationMessage:         templateAccessControl.Deprecated,
+		MaxPortShareLevel:          maxPortShareLevel,
+		UseClassicParameterFlow:    template.UseClassicParameterFlow,
+		UseTerraformWorkspaceCache: template.UseTerraformWorkspaceCache,
+		CORSBehavior:               codersdk.CORSBehavior(template.CorsBehavior),
 	}
 }
 
 // findTemplateAdmins fetches all users with template admin permission including owners.
 func findTemplateAdmins(ctx context.Context, store database.Store) ([]database.GetUsersRow, error) {
-	// Notice: we can't scrape the user information in parallel as pq
-	// fails with: unexpected describe rows response: 'D'
-	owners, err := store.GetUsers(ctx, database.GetUsersParams{
-		RbacRole: []string{codersdk.RoleOwner},
+	templateAdmins, err := store.GetUsers(ctx, database.GetUsersParams{
+		RbacRole: []string{codersdk.RoleTemplateAdmin, codersdk.RoleOwner},
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("get owners: %w", err)
 	}
-	templateAdmins, err := store.GetUsers(ctx, database.GetUsersParams{
-		RbacRole: []string{codersdk.RoleTemplateAdmin},
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("get template admins: %w", err)
-	}
-	return append(owners, templateAdmins...), nil
+	return templateAdmins, nil
 }

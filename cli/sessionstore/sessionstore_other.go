@@ -1,8 +1,6 @@
-//go:build !windows
+//go:build !windows && !darwin
 
 package sessionstore
-
-const defaultServiceName = "not-implemented"
 
 type operatingSystemKeyring struct{}
 
