@@ -41,7 +41,7 @@ type executor struct {
 	// cachePath and files must not be used by multiple processes at once.
 	cachePath     string
 	cliConfigPath string
-	files         tfpath.Layout
+	files         tfpath.Layouter
 	// used to capture execution times at various stages
 	timings *timingAggregator
 }
@@ -536,7 +536,11 @@ func (e *executor) graph(ctx, killCtx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	args := []string{"graph"}
+	args := []string{
+		"graph",
+		// TODO: When the plan is present, we should probably use it?
+		// "-plan=" + e.files.PlanFilePath(),
+	}
 	if ver.GreaterThanOrEqual(version170) {
 		args = append(args, "-type=plan")
 	}

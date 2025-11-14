@@ -103,7 +103,7 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 					slog.F("min_version", minTerraformVersion.String()))
 			}
 
-			binPath, err := Install(ctx, options.Logger, options.ExternalProvisioner, options.CachePath, TerraformVersion)
+			binPath, err := Install(ctx, options.Logger, options.ExternalProvisioner, options.CachePath, TerraformVersion, "", true)
 			if err != nil {
 				return xerrors.Errorf("install terraform: %w", err)
 			}
@@ -161,7 +161,7 @@ func (s *server) startTrace(ctx context.Context, name string, opts ...trace.Span
 	))...)
 }
 
-func (s *server) executor(files tfpath.Layout, stage database.ProvisionerJobTimingStage) *executor {
+func (s *server) executor(files tfpath.Layouter, stage database.ProvisionerJobTimingStage) *executor {
 	return &executor{
 		server:        s,
 		mut:           s.execMut,

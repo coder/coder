@@ -4057,16 +4057,17 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value                  |
-|------------------------|
-| `example`              |
-| `auto-fill-parameters` |
-| `notifications`        |
-| `workspace-usage`      |
-| `web-push`             |
-| `oauth2`               |
-| `mcp-server-http`      |
-| `workspace-sharing`    |
+| Value                       |
+|-----------------------------|
+| `example`                   |
+| `auto-fill-parameters`      |
+| `notifications`             |
+| `workspace-usage`           |
+| `web-push`                  |
+| `oauth2`                    |
+| `mcp-server-http`           |
+| `workspace-sharing`         |
+| `terraform-directory-reuse` |
 
 ## codersdk.ExternalAPIKeyScopes
 
@@ -8118,7 +8119,8 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z",
-  "use_classic_parameter_flow": true
+  "use_classic_parameter_flow": true,
+  "use_terraform_workspace_cache": true
 }
 ```
 
@@ -8159,6 +8161,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `time_til_dormant_ms`              | integer                                                                        | false    |              |                                                                                                                                                                                                 |
 | `updated_at`                       | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `use_classic_parameter_flow`       | boolean                                                                        | false    |              |                                                                                                                                                                                                 |
+| `use_terraform_workspace_cache`    | boolean                                                                        | false    |              |                                                                                                                                                                                                 |
 
 #### Enumerated Values
 
@@ -9210,7 +9213,8 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "time_til_dormant_ms": 0,
   "update_workspace_dormant_at": true,
   "update_workspace_last_used_at": true,
-  "use_classic_parameter_flow": true
+  "use_classic_parameter_flow": true,
+  "use_terraform_workspace_cache": true
 }
 ```
 
@@ -9240,6 +9244,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `update_workspace_dormant_at`      | boolean                                                                        | false    |              | Update workspace dormant at updates the dormant_at field of workspaces spawned from the template. This is useful for preventing dormant workspaces being immediately deleted when updating the dormant_ttl field to a new, shorter value.                                                                                                                                          |
 | `update_workspace_last_used_at`    | boolean                                                                        | false    |              | Update workspace last used at updates the last_used_at field of workspaces spawned from the template. This is useful for preventing workspaces being immediately locked when updating the inactivity_ttl field to a new, shorter value.                                                                                                                                            |
 | `use_classic_parameter_flow`       | boolean                                                                        | false    |              | Use classic parameter flow is a flag that switches the default behavior to use the classic parameter flow when creating a workspace. This only affects deployments with the experiment "dynamic-parameters" enabled. This setting will live for a period after the experiment is made the default. An "opt-out" is present in case the new feature breaks some existing templates. |
+| `use_terraform_workspace_cache`    | boolean                                                                        | false    |              | Use terraform workspace cache allows optionally specifying whether to use cached terraform directories for workspaces created from this template. This field only applies when the correct experiment is enabled. This field is subject to being removed in the future.                                                                                                            |
 
 ## codersdk.UpdateUserAppearanceSettingsRequest
 

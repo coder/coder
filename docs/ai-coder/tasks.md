@@ -45,7 +45,8 @@ To import the template and begin configuring it, import the example [Run Coder T
 
 A template becomes a Task-capable template if it defines a `coder_ai_task` resource. Coder analyzes template files during template version import to determine if these requirements are met. Try adding this terraform block to an existing template where you'll add our Claude Code module.
 
-> [!NOTE] The `coder_ai_task` resource is not defined within the [Claude Code Module](https://registry.coder.com/modules/coder/claude-code?tab=readme). You need to define it yourself.
+> [!NOTE]
+> The `coder_ai_task` resource is not defined within the [Claude Code Module](https://registry.coder.com/modules/coder/claude-code?tab=readme). You need to define it yourself.
 
 ```hcl
 terraform {
@@ -121,7 +122,8 @@ Because Tasks run unpredictable AI agents, often for background tasks, we recomm
 
 Alternatively, follow our guide for [custom agents](./custom-agents.md).
 
-> [!IMPORTANT] Upgrading from Coder v2.27 or earlier? See the [Tasks Migration Guide](./tasks-migration.md) for breaking changes in v2.28.0.
+> [!IMPORTANT]
+> Upgrading from Coder v2.27 or earlier? See the [Tasks Migration Guide](./tasks-migration.md) for breaking changes in v2.28.0.
 
 ## Customizing the Task UI
 
