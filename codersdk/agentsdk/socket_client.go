@@ -50,7 +50,7 @@ func NewSocketClient(config SocketConfig) (*SocketClient, error) {
 	configYamux.Logger = nil // Disable yamux logging
 	session, err := yamux.Client(conn, configYamux)
 	if err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return nil, xerrors.Errorf("create yamux client: %w", err)
 	}
 
@@ -85,9 +85,9 @@ func (c *SocketClient) Ping(ctx context.Context) (*PingResponse, error) {
 }
 
 // SyncStart starts a unit in the dependency graph
-func (c *SocketClient) SyncStart(ctx context.Context, unit string) error {
+func (c *SocketClient) SyncStart(ctx context.Context, unitName string) error {
 	resp, err := c.client.SyncStart(ctx, &proto.SyncStartRequest{
-		Unit: unit,
+		Unit: unitName,
 	})
 	if err != nil {
 		return err
@@ -101,9 +101,9 @@ func (c *SocketClient) SyncStart(ctx context.Context, unit string) error {
 }
 
 // SyncWant declares a dependency between units
-func (c *SocketClient) SyncWant(ctx context.Context, unit, dependsOn string) error {
+func (c *SocketClient) SyncWant(ctx context.Context, unitName, dependsOn string) error {
 	resp, err := c.client.SyncWant(ctx, &proto.SyncWantRequest{
-		Unit:      unit,
+		Unit:      unitName,
 		DependsOn: dependsOn,
 	})
 	if err != nil {
@@ -118,9 +118,9 @@ func (c *SocketClient) SyncWant(ctx context.Context, unit, dependsOn string) err
 }
 
 // SyncComplete marks a unit as complete in the dependency graph
-func (c *SocketClient) SyncComplete(ctx context.Context, unit string) error {
+func (c *SocketClient) SyncComplete(ctx context.Context, unitName string) error {
 	resp, err := c.client.SyncComplete(ctx, &proto.SyncCompleteRequest{
-		Unit: unit,
+		Unit: unitName,
 	})
 	if err != nil {
 		return err
@@ -154,9 +154,9 @@ func (c *SocketClient) SyncReady(ctx context.Context, unitName string) error {
 }
 
 // SyncStatus gets the status of a unit and its dependencies
-func (c *SocketClient) SyncStatus(ctx context.Context, unit string, recursive bool) (*SyncStatusResponse, error) {
+func (c *SocketClient) SyncStatus(ctx context.Context, unitName string, recursive bool) (*SyncStatusResponse, error) {
 	resp, err := c.client.SyncStatus(ctx, &proto.SyncStatusRequest{
-		Unit:      unit,
+		Unit:      unitName,
 		Recursive: recursive,
 	})
 	if err != nil {
