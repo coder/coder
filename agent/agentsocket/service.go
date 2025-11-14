@@ -15,7 +15,7 @@ import (
 var _ proto.DRPCAgentSocketServer = (*DRPCAgentSocketService)(nil)
 
 type DRPCAgentSocketService struct {
-	unitManager *unit.Manager[string, string]
+	unitManager *unit.Manager[string]
 	logger      slog.Logger
 }
 
@@ -231,8 +231,8 @@ func (s *DRPCAgentSocketService) SyncStatus(_ context.Context, req *proto.SyncSt
 	for _, dep := range dependencies {
 		depInfos = append(depInfos, &proto.DependencyInfo{
 			DependsOn:      dep.DependsOn,
-			RequiredStatus: dep.RequiredStatus,
-			CurrentStatus:  dep.CurrentStatus,
+			RequiredStatus: string(dep.RequiredStatus),
+			CurrentStatus:  string(dep.CurrentStatus),
 			IsSatisfied:    dep.IsSatisfied,
 		})
 	}
@@ -252,7 +252,7 @@ func (s *DRPCAgentSocketService) SyncStatus(_ context.Context, req *proto.SyncSt
 		Success:      true,
 		Message:      "unit status retrieved successfully",
 		Unit:         req.Unit,
-		Status:       status,
+		Status:       string(status),
 		IsReady:      isReady,
 		Dependencies: depInfos,
 		Dot:          dotStr,

@@ -25,7 +25,7 @@ type Server struct {
 	logger     slog.Logger
 	path       string
 	listener   net.Listener
-	mu         sync.RWMutex
+	mu         sync.Mutex
 	ctx        context.Context
 	cancel     context.CancelFunc
 	wg         sync.WaitGroup
@@ -40,7 +40,7 @@ func NewServer(path string, logger slog.Logger) (*Server, error) {
 		path:   path,
 		service: &DRPCAgentSocketService{
 			logger:      logger,
-			unitManager: unit.NewManager[string, string](),
+			unitManager: unit.NewManager[string](),
 		},
 	}
 
