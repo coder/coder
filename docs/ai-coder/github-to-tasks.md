@@ -77,7 +77,7 @@ The prompt text can be modified to not wait for additional human input, but cont
 
 ### Step 2: Setup the Required Secrets & Inputs
 
-The GHA has mutliple required inputs that require configuring before the workflow can successfully operate. 
+The GHA has multiple required inputs that require configuring before the workflow can successfully operate. 
 
 You must set the following inputs as secrets within your repository:
 
@@ -103,19 +103,19 @@ You can also choose to modify the other [input parameters](https://github.com/co
 
 Create a new GitHub issue for a bug in your codebase. We recommend a basic bug, for this test, like “The sidebar color needs to be red” or “The text ‘Coder Tasks are Awesome’ needs to appear in the top left corner of the screen”. You should adapt the phrasing to be specific to your code base.
 
-Add the `coder` label to that GitHub issue. You should see the followig things occur:
+Add the `coder` label to that GitHub issue. You should see the following things occur:
 
 - A comment is made on the issue saying `Task created: https://your-coder-url/tasks/username/task-id`
 - A Coder Task will spin up, and you'll receive a Tasks notification to that effect
 - You can click the link to follow the Task's progress in creating a plan to solve your bug
 
-Depending on the complexity of the task and the size of your repository, the Coder Task may take minutes or hours to complete. Our recommendation is to rely on Task Notifications to know when the Task completes, and furhter action is required.
+Depending on the complexity of the task and the size of your repository, the Coder Task may take minutes or hours to complete. Our recommendation is to rely on Task Notifications to know when the Task completes, and further action is required.
 
 And that’s it! You may now enjoy all the hours you have saved because of this easy integration.
 
 #### Step 4: Adapt this Workflow to your Processes
 
-Following the above steps sets up a GitHub Worflow that will
+Following the above steps sets up a GitHub Workflow that will
 
 1. Allow you to label bugs with `coder`
 1. A coding agent will determine a plan to address the bug
@@ -125,11 +125,11 @@ We recommend that you further adapt this workflow to better match your process. 
 
 - Modify the prompt to implement the plan it came up with, and then create a PR once it has a solution
 - Update your GitHub issue template to automatically apply the `coder` label to attempt to solve bugs that have been logged
-- Modify the underlying use case to handle updating documentation, implementing a small feature, reviewing bug reports for completness, or even writing unit test
+- Modify the underlying use case to handle updating documentation, implementing a small feature, reviewing bug reports for completeness, or even writing unit test
 - Modify the workflow trigger for other scenarios such as
 
 ```yml
-# Comment-based trigger slash comamnds
+# Comment-based trigger slash commands
 on:
   issue_comment:
     types: [created]
@@ -159,6 +159,6 @@ jobs:
     # Runs automatically when files in these paths change
 ```
 
-## Sumamry
+## Summary
 
 This guide shows you how to automatically delegate routine engineering work to AI coding agents by connecting GitHub issues to Coder Tasks. When you label an issue (like a bug report or documentation update), a coding agent spins up in a secure Coder workspace, reads the issue context, and works on solving it while you focus on higher-priority tasks. The agent reports back with a proposed solution for you to review and approve, turning hours of repetitive work into minutes of oversight. This same pattern can be adapted to handle documentation updates, test writing, code reviews, and other automatable workflows across your development process.
