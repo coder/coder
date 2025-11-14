@@ -81,6 +81,7 @@ export default defineConfig({
 			"--provisioner-daemons=10",
 			"--web-terminal-renderer=dom",
 			"--pprof-enable",
+			"--log-filter=.*",
 		]
 			.filter(Boolean)
 			.join(" "),
