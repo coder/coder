@@ -100,7 +100,11 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	reachedCreationBarrier = true
 	r.cfg.CreationBarrier.Done()
 	r.cfg.CreationBarrier.Wait()
-	logger.Info(ctx, "all runners reached creation barrier, preparing for deletion")
+	logger.Info(ctx, "all runners reached creation barrier")
+
+	logger.Info(ctx, "waiting for runner owner to pause prebuilds (deletion setup barrier)")
+	r.cfg.DeletionSetupBarrier.Wait()
+	logger.Info(ctx, "prebuilds paused, preparing for deletion")
 
 	// Now prepare for deletion by creating an empty template version
 	// At this point, prebuilds should be paused by the caller

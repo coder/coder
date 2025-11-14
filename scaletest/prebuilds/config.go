@@ -37,6 +37,11 @@ type Config struct {
 	// before pausing prebuilds for deletion.
 	CreationBarrier *sync.WaitGroup `json:"-"`
 
+	// DeletionSetupBarrier is used by the runner owner (CLI/test) to signal when
+	// prebuilds have been paused, allowing runners to create new template versions
+	// with 0 prebuilds. Only the owner calls Done(), runners only Wait().
+	DeletionSetupBarrier *sync.WaitGroup `json:"-"`
+
 	// DeletionBarrier is used to ensure all templates have been updated
 	// with 0 prebuilds before resuming prebuilds.
 	DeletionBarrier *sync.WaitGroup `json:"-"`
@@ -59,6 +64,10 @@ func (c Config) Validate() error {
 
 	if c.CreationBarrier == nil {
 		return xerrors.New("creation barrier must be set")
+	}
+
+	if c.DeletionSetupBarrier == nil {
+		return xerrors.New("deletion setup barrier must be set")
 	}
 
 	if c.DeletionBarrier == nil {

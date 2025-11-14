@@ -51,6 +51,8 @@ func TestRun(t *testing.T) {
 	setupBarrier.Add(numTemplates)
 	creationBarrier := new(sync.WaitGroup)
 	creationBarrier.Add(numTemplates)
+	deletionSetupBarrier := new(sync.WaitGroup)
+	deletionSetupBarrier.Add(1)
 	deletionBarrier := new(sync.WaitGroup)
 	deletionBarrier.Add(numTemplates)
 
@@ -69,6 +71,7 @@ func TestRun(t *testing.T) {
 			Metrics:                   metrics,
 			SetupBarrier:              setupBarrier,
 			CreationBarrier:           creationBarrier,
+			DeletionSetupBarrier:      deletionSetupBarrier,
 			DeletionBarrier:           deletionBarrier,
 			Clock:                     quartz.NewReal(),
 		}
@@ -105,6 +108,9 @@ func TestRun(t *testing.T) {
 		ReconciliationPaused: true,
 	})
 	require.NoError(t, err)
+
+	// Signal runners that prebuilds are paused and they can prepare for deletion
+	deletionSetupBarrier.Done()
 
 	// Wait for all runners to reach the deletion barrier (template versions updated to 0 prebuilds)
 	deletionBarrier.Wait()
