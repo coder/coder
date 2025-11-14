@@ -56,9 +56,11 @@ func TestInstrument(t *testing.T) {
 	require.Nil(t, promhelp.MetricValue(t, reg, metricname, labels), "no metrics at start")
 
 	noClientCtx := ctx
-	// This should never be done, but promoauth should not break the default client
-	// even if this happens. So intentionally do this to verify nothing breaks.
-	ctx = context.WithValue(ctx, oauth2.HTTPClient, http.DefaultClient)
+	// This should never be done, but promoauth should not break a client value
+	// in the context even if this happens. So intentionally do this to verify
+	// nothing breaks.
+	ctxClient := &http.Client{}
+	ctx = context.WithValue(ctx, oauth2.HTTPClient, ctxClient)
 	// Exchange should trigger a request
 	code := idp.CreateAuthCode(t, "foo")
 	_, err := cfg.Exchange(ctx, code)
@@ -86,16 +88,15 @@ func TestInstrument(t *testing.T) {
 	require.True(t, valid)
 	require.Equal(t, count("ValidateToken"), 1)
 
-	// Verify the default client was not broken. This check is added because we
-	// extend the http.DefaultTransport. If a `.Clone()` is not done, this can be
+	// Verify ctxClient was not broken. This check is added because we extend
+	// the http.DefaultTransport. If a `.Clone()` is not done, this can be
 	// mis-used. It is cheap to run this quick check.
 	snapshot := promhelp.RegistryDump(reg)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
 		must[*url.URL](t)(idp.IssuerURL().Parse("/.well-known/openid-configuration")).String(), nil)
 	require.NoError(t, err)
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := ctxClient.Do(req)
 	require.NoError(t, err)
 	_ = resp.Body.Close()
 

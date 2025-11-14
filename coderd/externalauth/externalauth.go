@@ -509,12 +509,15 @@ func (c *DeviceAuth) AuthorizeDevice(ctx context.Context) (*codersdk.ExternalAut
 	}
 	req.Header.Set("Accept", "application/json")
 
-	do := http.DefaultClient.Do
+	var do func(*http.Request) (*http.Response, error)
 	if c.Config != nil {
 		// The cfg can be nil in unit tests.
 		do = func(req *http.Request) (*http.Response, error) {
 			return c.Config.Do(ctx, promoauth.SourceAuthorizeDevice, req)
 		}
+	} else {
+		client := &http.Client{}
+		do = client.Do
 	}
 
 	resp, err := do(req)
@@ -585,7 +588,8 @@ func (c *DeviceAuth) ExchangeDeviceCode(ctx context.Context, deviceCode string) 
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -1151,7 +1155,7 @@ type exchangeWithClientSecret struct {
 func (e *exchangeWithClientSecret) Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
 	httpClient, ok := ctx.Value(oauth2.HTTPClient).(*http.Client)
 	if httpClient == nil || !ok {
-		httpClient = http.DefaultClient
+		httpClient = &http.Client{}
 	}
 	oldTransport := httpClient.Transport
 	if oldTransport == nil {

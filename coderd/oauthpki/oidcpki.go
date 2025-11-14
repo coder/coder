@@ -178,11 +178,13 @@ func (src *jwtTokenSource) Token() (*oauth2.Token, error) {
 	if src.refreshToken == "" {
 		return nil, xerrors.New("oauth2: token expired and refresh token is not set")
 	}
-	cli := http.DefaultClient
+	var cli *http.Client
 	if v, ok := src.ctx.Value(oauth2.HTTPClient).(*http.Client); ok {
 		// This client should be the instrumented client already. So no need to
 		// handle this manually.
 		cli = v
+	} else {
+		cli = &http.Client{}
 	}
 
 	token, err := src.cfg.jwtToken()

@@ -35,7 +35,8 @@ func sendRestart(t *testing.T, serverURL *url.URL, derp bool, coordinator bool) 
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, serverURL.String(), nil)
 	require.NoError(t, err)
-	resp, err := http.DefaultClient.Do(req)
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 

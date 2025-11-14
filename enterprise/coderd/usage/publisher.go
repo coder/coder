@@ -79,7 +79,7 @@ func NewTallymanPublisher(ctx context.Context, log slog.Logger, db database.Stor
 		done:        make(chan struct{}),
 
 		ingestURL:  tallymanIngestURLV1,
-		httpClient: http.DefaultClient,
+		httpClient: &http.Client{},
 		clock:      quartz.NewReal(),
 	}
 	for _, opt := range opts {
@@ -94,7 +94,7 @@ type TallymanPublisherOption func(*tallymanPublisher)
 func PublisherWithHTTPClient(httpClient *http.Client) TallymanPublisherOption {
 	return func(p *tallymanPublisher) {
 		if httpClient == nil {
-			httpClient = http.DefaultClient
+			httpClient = &http.Client{}
 		}
 		p.httpClient = httpClient
 	}

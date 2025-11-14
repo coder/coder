@@ -398,9 +398,9 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("create cache directory: %w", err)
 			}
 
-			// Clean up idle connections at the end, e.g.
-			// embedded-postgres can leave an idle connection
-			// which is caught by goleaks.
+			//nolint:forbidigo // Clean up idle connections at the end, e.g.
+			// embedded-postgres can leave an idle connection which is caught
+			// by goleak.
 			defer http.DefaultClient.CloseIdleConnections()
 
 			tracerProvider, sqlDriver, closeTracing := ConfigureTraceProvider(ctx, logger, vals)

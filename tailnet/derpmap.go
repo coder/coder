@@ -86,7 +86,8 @@ func NewDERPMap(ctx context.Context, region *tailcfg.DERPRegion, stunAddrs []str
 		if err != nil {
 			return nil, xerrors.Errorf("create request: %w", err)
 		}
-		res, err := http.DefaultClient.Do(req)
+		client := &http.Client{}
+		res, err := client.Do(req)
 		if err != nil {
 			return nil, xerrors.Errorf("get derpmap: %w", err)
 		}
