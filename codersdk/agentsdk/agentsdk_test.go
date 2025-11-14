@@ -14,6 +14,7 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/httpclient"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -42,7 +43,7 @@ func TestStreamAgentReinitEvents(t *testing.T) {
 		requestCtx := testutil.Context(t, testutil.WaitShort)
 		req, err := http.NewRequestWithContext(requestCtx, "GET", srv.URL, nil)
 		require.NoError(t, err)
-		client := &http.Client{}
+		client := httpclient.New()
 		resp, err := client.Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
@@ -78,7 +79,7 @@ func TestStreamAgentReinitEvents(t *testing.T) {
 		requestCtx := testutil.Context(t, testutil.WaitShort)
 		req, err := http.NewRequestWithContext(requestCtx, "GET", srv.URL, nil)
 		require.NoError(t, err)
-		client := &http.Client{}
+		client := httpclient.New()
 		resp, err := client.Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
@@ -112,7 +113,7 @@ func TestStreamAgentReinitEvents(t *testing.T) {
 		requestCtx := testutil.Context(t, testutil.WaitShort)
 		req, err := http.NewRequestWithContext(requestCtx, "GET", srv.URL, nil)
 		require.NoError(t, err)
-		client := &http.Client{}
+		client := httpclient.New()
 		resp, err := client.Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()

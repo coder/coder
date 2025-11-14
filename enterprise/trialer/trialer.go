@@ -16,11 +16,15 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/httpclient"
 )
 
 // New creates a handler that can issue trial licenses!
 func New(db database.Store, url string, keys map[string]ed25519.PublicKey) func(ctx context.Context, body codersdk.LicensorTrialRequest) error {
 	return func(ctx context.Context, body codersdk.LicensorTrialRequest) error {
+		httpClient := httpclient.New()
+		defer httpClient.CloseIdleConnections()
+
 		deploymentID, err := db.GetDeploymentID(ctx)
 		if err != nil {
 			return xerrors.Errorf("get deployment id: %w", err)
@@ -34,7 +38,7 @@ func New(db database.Store, url string, keys map[string]ed25519.PublicKey) func(
 		if err != nil {
 			return xerrors.Errorf("create license request: %w", err)
 		}
-		res, err := http.DefaultClient.Do(req)
+		res, err := httpClient.Do(req)
 		if err != nil {
 			return xerrors.Errorf("perform license request: %w", err)
 		}

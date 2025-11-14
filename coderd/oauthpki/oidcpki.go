@@ -21,6 +21,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/promoauth"
+	"github.com/coder/coder/v2/httpclient"
 )
 
 // Config uses jwt assertions over client_secret for oauth2 authentication of
@@ -178,7 +179,7 @@ func (src *jwtTokenSource) Token() (*oauth2.Token, error) {
 	if src.refreshToken == "" {
 		return nil, xerrors.New("oauth2: token expired and refresh token is not set")
 	}
-	cli := http.DefaultClient
+	cli := httpclient.New()
 	if v, ok := src.ctx.Value(oauth2.HTTPClient).(*http.Client); ok {
 		// This client should be the instrumented client already. So no need to
 		// handle this manually.

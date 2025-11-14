@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/coderd/userpassword"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/httpclient"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
 )
@@ -1270,7 +1271,7 @@ func customTokenExchange(ctx context.Context, baseURL, clientID, clientSecret, c
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	client := &http.Client{}
+	client := httpclient.New()
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err

@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/httpclient"
 )
 
 // RequireEventuallyResponseOK makes HTTP GET requests to the given endpoint until it returns
@@ -16,12 +18,15 @@ import (
 func RequireEventuallyResponseOK(ctx context.Context, t testing.TB, endpoint string, target interface{}) {
 	t.Helper()
 
+	client := httpclient.New()
+	t.Cleanup(client.CloseIdleConnections)
+
 	ok := Eventually(ctx, t, func(ctx context.Context) (done bool) {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 		if err != nil {
 			return false
 		}
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := client.Do(req)
 		if err != nil {
 			return false
 		}

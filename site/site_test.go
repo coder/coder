@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/httpclient"
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -232,7 +233,7 @@ func TestServingFiles(t *testing.T) {
 		Database:  db,
 	}))
 	defer srv.Close()
-	client := &http.Client{}
+	client := httpclient.New()
 
 	// Create a context
 	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -522,7 +523,7 @@ func TestServingBin(t *testing.T) {
 			compressor := middleware.NewCompressor(1, "text/*", "application/*")
 			srv := httptest.NewServer(compressor.Handler(site))
 			defer srv.Close()
-			client := &http.Client{}
+			client := httpclient.New()
 
 			// Create a context
 			ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)

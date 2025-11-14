@@ -12,6 +12,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/httpclient"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -29,7 +30,7 @@ func TestOAuth2AuthorizationServerMetadata(t *testing.T) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	require.NoError(t, err)
 
-	httpClient := &http.Client{}
+	httpClient := httpclient.New()
 	resp, err := httpClient.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
@@ -66,7 +67,7 @@ func TestOAuth2ProtectedResourceMetadata(t *testing.T) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	require.NoError(t, err)
 
-	httpClient := &http.Client{}
+	httpClient := httpclient.New()
 	resp, err := httpClient.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()

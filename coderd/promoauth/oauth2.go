@@ -9,6 +9,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"golang.org/x/oauth2"
+
+	"github.com/coder/coder/v2/httpclient"
 )
 
 type Oauth2Source string
@@ -256,7 +258,7 @@ func (c *Config) wrapClient(ctx context.Context, source Oauth2Source) context.Co
 
 // oauthHTTPClient returns an http client that will instrument every request made.
 func (c *Config) oauthHTTPClient(ctx context.Context, source Oauth2Source) *http.Client {
-	cli := &http.Client{}
+	cli := httpclient.New()
 
 	// Check if the context has a http client already.
 	if hc, ok := ctx.Value(oauth2.HTTPClient).(*http.Client); ok {

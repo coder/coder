@@ -56,6 +56,7 @@ import (
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/httpclient"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
@@ -2028,7 +2029,7 @@ func runSubAgentMain() int {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	req = req.WithContext(ctx)
-	client := &http.Client{}
+	client := httpclient.New()
 	resp, err := client.Do(req)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "agent connection failed: %v\n", err)

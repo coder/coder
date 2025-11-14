@@ -16,6 +16,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/updatecheck"
+	"github.com/coder/coder/v2/httpclient"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -52,7 +53,10 @@ func TestChecker_Notify(t *testing.T) {
 	db, _ := dbtestutil.NewDB(t)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named(t.Name())
 	notify := make(chan updatecheck.Result, len(wantVersion))
+	httpClient := httpclient.New()
+	t.Cleanup(httpClient.CloseIdleConnections)
 	c := updatecheck.New(db, logger, updatecheck.Options{
+		Client:   httpClient,
 		Interval: 1 * time.Nanosecond, // Zero means unset.
 		URL:      srv.URL,
 		Notify: func(r updatecheck.Result) {
@@ -132,8 +136,11 @@ func TestChecker_Latest(t *testing.T) {
 
 			db, _ := dbtestutil.NewDB(t)
 			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named(t.Name())
+			client := httpclient.New()
+			t.Cleanup(client.CloseIdleConnections)
 			c := updatecheck.New(db, logger, updatecheck.Options{
-				URL: srv.URL,
+				Client: client,
+				URL:    srv.URL,
 			})
 			defer c.Close()
 

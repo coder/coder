@@ -14,6 +14,8 @@ import (
 	"golang.org/x/xerrors"
 	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/tailcfg"
+
+	"github.com/coder/coder/v2/httpclient"
 )
 
 const DisableSTUN = "disable"
@@ -86,7 +88,9 @@ func NewDERPMap(ctx context.Context, region *tailcfg.DERPRegion, stunAddrs []str
 		if err != nil {
 			return nil, xerrors.Errorf("create request: %w", err)
 		}
-		res, err := http.DefaultClient.Do(req)
+		httpClient := httpclient.New()
+		defer httpClient.CloseIdleConnections()
+		res, err := httpClient.Do(req)
 		if err != nil {
 			return nil, xerrors.Errorf("get derpmap: %w", err)
 		}

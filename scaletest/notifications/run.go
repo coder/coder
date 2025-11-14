@@ -20,6 +20,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/httpclient"
 	"github.com/coder/coder/v2/scaletest/createusers"
 	"github.com/coder/coder/v2/scaletest/harness"
 	"github.com/coder/coder/v2/scaletest/loadtestutil"
@@ -298,9 +299,8 @@ func (r *Runner) watchNotificationsSMTP(ctx context.Context, user codersdk.User,
 	receivedNotifications := make(map[uuid.UUID]struct{})
 
 	apiURL := fmt.Sprintf("%s/messages?email=%s", r.cfg.SMTPApiURL, user.Email)
-	httpClient := &http.Client{
-		Timeout: r.cfg.SMTPRequestTimeout,
-	}
+	httpClient := httpclient.New()
+	httpClient.Timeout = r.cfg.SMTPRequestTimeout
 
 	const smtpPollInterval = 2 * time.Second
 	done := xerrors.New("done")

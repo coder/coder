@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/httpclient"
 	"github.com/coder/coder/v2/scaletest/smtpmock"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -58,11 +59,14 @@ func TestServer_SendAndReceiveEmail(t *testing.T) {
 		return srv.MessageCount() == 1
 	}, testutil.WaitShort, testutil.IntervalMedium)
 
+	client := httpclient.New()
+	t.Cleanup(client.CloseIdleConnections)
+
 	url := fmt.Sprintf("%s/messages", srv.APIAddress())
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	require.NoError(t, err)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
@@ -99,11 +103,14 @@ func TestServer_FilterByEmail(t *testing.T) {
 		return srv.MessageCount() == 2
 	}, testutil.WaitShort, testutil.IntervalMedium)
 
+	client := httpclient.New()
+	t.Cleanup(client.CloseIdleConnections)
+
 	url := fmt.Sprintf("%s/messages?email=admin@coder.com", srv.APIAddress())
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	require.NoError(t, err)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
@@ -138,11 +145,14 @@ func TestServer_NotificationTemplateID(t *testing.T) {
 		return srv.MessageCount() == 1
 	}, testutil.WaitShort, testutil.IntervalMedium)
 
+	client := httpclient.New()
+	t.Cleanup(client.CloseIdleConnections)
+
 	url := fmt.Sprintf("%s/messages", srv.APIAddress())
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	require.NoError(t, err)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
@@ -174,11 +184,14 @@ func TestServer_Purge(t *testing.T) {
 		return srv.MessageCount() == 1
 	}, testutil.WaitShort, testutil.IntervalMedium)
 
+	client := httpclient.New()
+	t.Cleanup(client.CloseIdleConnections)
+
 	url := fmt.Sprintf("%s/purge", srv.APIAddress())
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
 	require.NoError(t, err)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)

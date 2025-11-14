@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/httpclient"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/pty/ptytest"
@@ -495,7 +496,7 @@ func TestProvisionerDaemon_PrometheusEnabled(t *testing.T) {
 	// Fetch metrics from Prometheus endpoint
 	var req *http.Request
 	var res *http.Response
-	httpClient := &http.Client{}
+	httpClient := httpclient.New()
 	require.Eventually(t, func() bool {
 		req, err = http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("http://127.0.0.1:%d", prometheusPort), nil)
 		if err != nil {

@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/httpclient"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -33,9 +34,12 @@ func sendRestart(t *testing.T, serverURL *url.URL, derp bool, coordinator bool) 
 	serverURL.RawQuery = q.Encode()
 	require.NoError(t, err)
 
+	httpClient := httpclient.New()
+	t.Cleanup(httpClient.CloseIdleConnections)
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, serverURL.String(), nil)
 	require.NoError(t, err)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 

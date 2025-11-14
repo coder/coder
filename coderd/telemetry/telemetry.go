@@ -34,6 +34,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/httpclient"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/quartz"
 )
@@ -91,7 +92,7 @@ func New(options Options) (Reporter, error) {
 		deploymentURL: deploymentURL,
 		snapshotURL:   snapshotURL,
 		startedAt:     dbtime.Time(options.Clock.Now()).UTC(),
-		client:        &http.Client{},
+		client:        httpclient.New(),
 	}
 	go reporter.runSnapshotter()
 	return reporter, nil

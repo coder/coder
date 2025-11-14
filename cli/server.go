@@ -57,6 +57,7 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/v2/coderd/pproflabel"
+	"github.com/coder/coder/v2/httpclient"
 	"github.com/coder/pretty"
 	"github.com/coder/quartz"
 	"github.com/coder/retry"
@@ -2239,7 +2240,8 @@ func ConfigureHTTPClient(ctx context.Context, clientCertFile, clientKeyFile stri
 		}
 		return context.WithValue(ctx, oauth2.HTTPClient, httpClient), httpClient, nil
 	}
-	return ctx, &http.Client{}, nil
+
+	return ctx, httpclient.New(), nil
 }
 
 // nolint:revive

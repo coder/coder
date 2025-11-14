@@ -43,6 +43,7 @@ import (
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/util/syncmap"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/httpclient"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -1369,7 +1370,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 func (f *FakeIDP) HTTPClient(rest *http.Client) *http.Client {
 	if f.serve {
 		if rest == nil {
-			return &http.Client{}
+			return httpclient.New()
 		}
 		return rest
 	}

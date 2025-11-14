@@ -20,6 +20,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
+	"github.com/coder/coder/v2/httpclient"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -511,7 +512,7 @@ func tsDERPMap(ctx context.Context, t testing.TB) *tailcfg.DERPMap {
 	req, err := http.NewRequestWithContext(ctx, "GET", ipn.DefaultControlURL+"/derpmap/default", nil)
 	require.NoError(t, err)
 
-	client := &http.Client{}
+	client := httpclient.New()
 	res, err := client.Do(req)
 	require.NoError(t, err)
 	defer res.Body.Close()

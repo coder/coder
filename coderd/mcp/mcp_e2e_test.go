@@ -21,6 +21,7 @@ import (
 	mcpserver "github.com/coder/coder/v2/coderd/mcp"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/toolsdk"
+	"github.com/coder/coder/v2/httpclient"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -141,7 +142,7 @@ func TestMCPHTTP_E2E_UnauthenticatedAccess(t *testing.T) {
 	require.NoError(t, err, "Should be able to create HTTP request")
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
+	client := httpclient.New()
 	resp, err := client.Do(req)
 	require.NoError(t, err, "Should be able to make HTTP request")
 	defer resp.Body.Close()
@@ -415,7 +416,7 @@ func TestMCPHTTP_E2E_RFC6750_UnauthenticatedRequest(t *testing.T) {
 		Header: make(http.Header),
 	}
 
-	client := &http.Client{}
+	client := httpclient.New()
 	resp, err := client.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
@@ -464,7 +465,7 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 			Body: http.NoBody,
 		}
 
-		client := &http.Client{}
+		client := httpclient.New()
 		resp, err := client.Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
@@ -558,10 +559,9 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 			api.AccessURL.String(), app.ID, "http://localhost:3000/callback")
 
 		// Create an HTTP client that follows redirects but captures the final redirect
-		client := &http.Client{
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse // Stop following redirects
-			},
+		client := httpclient.New()
+		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse // Stop following redirects
 		}
 
 		// Make the authorization request (this would normally be done in a browser)
@@ -784,7 +784,7 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 			},
 		}
 
-		client := &http.Client{}
+		client := httpclient.New()
 		resp, err := client.Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
@@ -813,7 +813,7 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 			Header: make(http.Header),
 		}
 
-		client := &http.Client{}
+		client := httpclient.New()
 		resp, err := client.Do(req)
 		require.NoError(t, err)
 		defer resp.Body.Close()
@@ -873,10 +873,9 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 			api.AccessURL.String(), clientID, "http://localhost:3000/callback")
 
 		// Create an HTTP client that captures redirects
-		authClient := &http.Client{
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse // Stop following redirects
-			},
+		authClient := httpclient.New()
+		authClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse // Stop following redirects
 		}
 
 		// Make the authorization request with authentication
@@ -1152,7 +1151,7 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 		require.NoError(t, err)
 		regReq1.Header.Set("Content-Type", "application/json")
 
-		client := &http.Client{}
+		client := httpclient.New()
 		regResp1, err := client.Do(regReq1)
 		require.NoError(t, err)
 		defer regResp1.Body.Close()

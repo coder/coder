@@ -19,6 +19,7 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/httpclient"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -142,11 +143,10 @@ func AuthorizeOAuth2App(t *testing.T, client *codersdk.Client, baseURL string, p
 	req.Header.Set("Coder-Session-Token", client.SessionToken())
 
 	// Perform request
-	httpClient := &http.Client{
-		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
-			// Don't follow redirects, we want to capture the redirect URL
-			return http.ErrUseLastResponse
-		},
+	httpClient := httpclient.New()
+	httpClient.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
+		// Don't follow redirects, we want to capture the redirect URL
+		return http.ErrUseLastResponse
 	}
 
 	resp, err := httpClient.Do(req)
@@ -214,7 +214,8 @@ func ExchangeCodeForToken(t *testing.T, baseURL string, params TokenExchangePara
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	// Perform request
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := httpclient.New()
+	client.Timeout = 10 * time.Second
 	resp, err := client.Do(req)
 	require.NoError(t, err, "failed to perform token request")
 	defer resp.Body.Close()
@@ -281,7 +282,8 @@ func PerformTokenExchangeExpectingError(t *testing.T, baseURL string, params Tok
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	// Perform request
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := httpclient.New()
+	client.Timeout = 10 * time.Second
 	resp, err := client.Do(req)
 	require.NoError(t, err, "failed to perform token request")
 	defer resp.Body.Close()
@@ -302,7 +304,8 @@ func FetchOAuth2Metadata(t *testing.T, baseURL string) map[string]any {
 	req, err := http.NewRequestWithContext(ctx, "GET", baseURL+"/.well-known/oauth-authorization-server", nil)
 	require.NoError(t, err, "failed to create metadata request")
 
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := httpclient.New()
+	client.Timeout = 10 * time.Second
 	resp, err := client.Do(req)
 	require.NoError(t, err, "failed to fetch metadata")
 	defer resp.Body.Close()

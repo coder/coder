@@ -21,6 +21,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/httpclient"
 	"github.com/coder/websocket"
 
 	"cdr.dev/slog"
@@ -114,7 +115,7 @@ type ClientOption func(*Client)
 func New(serverURL *url.URL, opts ...ClientOption) *Client {
 	client := &Client{
 		URL:                  serverURL,
-		HTTPClient:           &http.Client{},
+		HTTPClient:           httpclient.New(),
 		SessionTokenProvider: FixedSessionTokenProvider{},
 	}
 	for _, opt := range opts {

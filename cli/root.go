@@ -678,7 +678,11 @@ func (r *RootCmd) HeaderTransport(ctx context.Context, serverURL *url.URL) (*cod
 }
 
 func (r *RootCmd) createHTTPClient(ctx context.Context, serverURL *url.URL, inv *serpent.Invocation) (*http.Client, error) {
-	transport := http.DefaultTransport
+	defaultTransport, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		return nil, xerrors.New("default transport is not an http.Transport")
+	}
+	transport := http.RoundTripper(defaultTransport.Clone())
 	transport = wrapTransportWithTelemetryHeader(transport, inv)
 	if !r.noVersionCheck {
 		transport = wrapTransportWithVersionMismatchCheck(transport, inv, buildinfo.Version(), func(ctx context.Context) (codersdk.BuildInfoResponse, error) {

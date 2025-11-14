@@ -21,6 +21,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/httpclient"
 )
 
 const (
@@ -42,7 +43,7 @@ type Checker struct {
 // Options set optional parameters for the update check.
 type Options struct {
 	// Client is the HTTP client to use for the update check,
-	// if omitted, http.DefaultClient will be used.
+	// if omitted, an internal client will be used.
 	Client *http.Client
 	// URL is the URL to check for the latest version of Coder,
 	// if omitted, the default URL will be used.
@@ -61,7 +62,7 @@ type Options struct {
 // New returns a new Checker that periodically checks for Coder updates.
 func New(db database.Store, log slog.Logger, opts Options) *Checker {
 	if opts.Client == nil {
-		opts.Client = http.DefaultClient
+		opts.Client = httpclient.New()
 	}
 	if opts.URL == "" {
 		opts.URL = defaultURL

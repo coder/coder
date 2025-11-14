@@ -24,6 +24,7 @@ import (
 	agplproxyhealth "github.com/coder/coder/v2/coderd/proxyhealth"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/httpclient"
 )
 
 type Status string
@@ -85,7 +86,7 @@ func New(opts *Options) (*ProxyHealth, error) {
 
 	client := opts.Client
 	if client == nil {
-		client = http.DefaultClient
+		client = httpclient.New()
 	}
 	// Set a timeout on the client, so we don't wait forever for a healthz response.
 	tmp := *client

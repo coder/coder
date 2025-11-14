@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/clitest"
+	"github.com/coder/coder/v2/httpclient"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -114,7 +115,7 @@ func TestWorkspaceProxy_Server_PrometheusEnabled(t *testing.T) {
 
 	// Fetch metrics from Prometheus endpoint
 	var res *http.Response
-	client := &http.Client{}
+	client := httpclient.New()
 	require.Eventually(t, func() bool {
 		req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("http://127.0.0.1:%d", prometheusPort), nil)
 		assert.NoError(t, err)

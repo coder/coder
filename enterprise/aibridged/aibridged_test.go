@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/aibridged"
 	mock "github.com/coder/coder/v2/enterprise/aibridged/aibridgedmock"
 	"github.com/coder/coder/v2/enterprise/aibridged/proto"
+	"github.com/coder/coder/v2/httpclient"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -70,7 +71,7 @@ func TestServeHTTP_FailureModes(t *testing.T) {
 	t.Parallel()
 
 	defaultHeaders := map[string]string{"Authorization": "Bearer key"}
-	httpClient := &http.Client{}
+	httpClient := httpclient.New()
 
 	cases := []struct {
 		name           string

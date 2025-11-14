@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/httpclient"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -651,7 +652,7 @@ func TestAIBridgeRouting(t *testing.T) {
 			require.NoError(t, err)
 			req.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
 
-			httpClient := &http.Client{}
+			httpClient := httpclient.New()
 			resp, err := httpClient.Do(req)
 			require.NoError(t, err)
 			defer resp.Body.Close()

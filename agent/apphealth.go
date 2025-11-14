@@ -12,6 +12,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/httpclient"
 	"github.com/coder/quartz"
 )
 
@@ -63,7 +64,7 @@ func NewAppHealthReporterWithClock(
 		// run a ticker for each app health check.
 		var mu sync.RWMutex
 		failures := make(map[uuid.UUID]int, 0)
-		client := &http.Client{}
+		client := httpclient.New()
 		for _, nextApp := range apps {
 			if !shouldStartTicker(nextApp) {
 				continue

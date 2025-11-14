@@ -13,6 +13,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/healthcheck"
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
+	"github.com/coder/coder/v2/httpclient"
 )
 
 func TestAccessURL(t *testing.T) {
@@ -55,7 +56,7 @@ func TestAccessURL(t *testing.T) {
 		defer cancel()
 
 		report.Run(ctx, &healthcheck.AccessURLReportOptions{
-			Client:    &http.Client{},
+			Client:    httpclient.New(),
 			AccessURL: nil,
 		})
 

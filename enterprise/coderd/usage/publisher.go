@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/usage/usagetypes"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/httpclient"
 	"github.com/coder/quartz"
 )
 
@@ -79,7 +80,7 @@ func NewTallymanPublisher(ctx context.Context, log slog.Logger, db database.Stor
 		done:        make(chan struct{}),
 
 		ingestURL:  tallymanIngestURLV1,
-		httpClient: http.DefaultClient,
+		httpClient: httpclient.New(),
 		clock:      quartz.NewReal(),
 	}
 	for _, opt := range opts {
@@ -94,7 +95,7 @@ type TallymanPublisherOption func(*tallymanPublisher)
 func PublisherWithHTTPClient(httpClient *http.Client) TallymanPublisherOption {
 	return func(p *tallymanPublisher) {
 		if httpClient == nil {
-			httpClient = http.DefaultClient
+			httpClient = httpclient.New()
 		}
 		p.httpClient = httpClient
 	}

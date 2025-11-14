@@ -27,6 +27,7 @@ import (
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/nettype"
 
+	"github.com/coder/coder/v2/httpclient"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/test/integration"
 	"github.com/coder/coder/v2/testutil"
@@ -335,9 +336,8 @@ func waitForServerAvailable(t *testing.T, serverURL *url.URL) {
 	const delay = 100 * time.Millisecond
 	const reqTimeout = 2 * time.Second
 	const timeout = 30 * time.Second
-	client := http.Client{
-		Timeout: reqTimeout,
-	}
+	client := httpclient.New()
+	client.Timeout = reqTimeout
 
 	u, err := url.Parse(serverURL.String() + "/derp/latency-check")
 	require.NoError(t, err)

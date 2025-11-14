@@ -40,6 +40,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/enterprise/wsproxy/wsproxysdk"
+	"github.com/coder/coder/v2/httpclient"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
@@ -640,7 +641,7 @@ func TestWorkspaceProxyDERPMeshProbe(t *testing.T) {
 		})
 
 		// Check they're all healthy according to /healthz-report.
-		httpClient := &http.Client{}
+		httpClient := httpclient.New()
 		for _, proxy := range proxies {
 			// GET /healthz-report
 			u := proxy.ServerURL.ResolveReference(&url.URL{Path: "/healthz-report"})
@@ -733,7 +734,7 @@ func TestWorkspaceProxyDERPMeshProbe(t *testing.T) {
 		u := proxy.ServerURL.ResolveReference(&url.URL{Path: "/healthz-report"})
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 		require.NoError(t, err)
-		httpClient := &http.Client{}
+		httpClient := httpclient.New()
 		resp, err := httpClient.Do(req)
 		require.NoError(t, err)
 
@@ -822,7 +823,7 @@ func TestWorkspaceProxyDERPMeshProbe(t *testing.T) {
 		u := proxy.ServerURL.ResolveReference(&url.URL{Path: "/healthz-report"})
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 		require.NoError(t, err)
-		httpClient := &http.Client{}
+		httpClient := httpclient.New()
 		resp, err := httpClient.Do(req)
 		require.NoError(t, err)
 		var respJSON codersdk.ProxyHealthReport

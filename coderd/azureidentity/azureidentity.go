@@ -15,6 +15,8 @@ import (
 
 	"go.mozilla.org/pkcs7"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/httpclient"
 )
 
 // allowedSigners matches valid common names listed here:
@@ -80,12 +82,14 @@ func Validate(ctx context.Context, signature string, options Options) (string, e
 
 		ctx, cancelFunc := context.WithTimeout(ctx, 5*time.Second)
 		defer cancelFunc()
+		httpClient := httpclient.New()
+		defer httpClient.CloseIdleConnections()
 		for _, certURL := range signer.IssuingCertificateURL {
 			req, err := http.NewRequestWithContext(ctx, "GET", certURL, nil)
 			if err != nil {
 				return "", xerrors.Errorf("new request %q: %w", certURL, err)
 			}
-			res, err := http.DefaultClient.Do(req)
+			res, err := httpClient.Do(req)
 			if err != nil {
 				return "", xerrors.Errorf("no cached certificate for %q found. error fetching: %w", certURL, err)
 			}

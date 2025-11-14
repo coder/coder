@@ -55,6 +55,7 @@ import (
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/httpclient"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
 	"github.com/coder/coder/v2/testutil"
@@ -1251,7 +1252,7 @@ func TestServer(t *testing.T) {
 					t.Logf("error creating request: %s", err.Error())
 					return false
 				}
-				client := &http.Client{}
+				client := httpclient.New()
 				// nolint:bodyclose
 				res, err := client.Do(req)
 				if err != nil {
@@ -1314,7 +1315,7 @@ func TestServer(t *testing.T) {
 					t.Logf("error creating request: %s", err.Error())
 					return false
 				}
-				client := &http.Client{}
+				client := httpclient.New()
 				// nolint:bodyclose
 				res, err := client.Do(req)
 				if err != nil {

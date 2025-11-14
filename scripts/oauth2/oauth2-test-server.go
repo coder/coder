@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/httpclient"
 )
 
 type TokenResponse struct {
@@ -188,7 +190,8 @@ func exchangeToken(config *Config, code string) (*TokenResponse, error) {
 
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := httpclient.New()
+	client.Timeout = 10 * time.Second
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err

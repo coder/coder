@@ -9,15 +9,21 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/coder/coder/v2/coderd/promoauth"
+	"github.com/coder/coder/v2/httpclient"
 )
 
 type OAuth2Config struct {
 	Token           *oauth2.Token
 	TokenSourceFunc OAuth2TokenSource
+	httpClient      *http.Client
 }
 
-func (*OAuth2Config) Do(_ context.Context, _ promoauth.Oauth2Source, req *http.Request) (*http.Response, error) {
-	return http.DefaultClient.Do(req)
+func (c *OAuth2Config) Do(_ context.Context, _ promoauth.Oauth2Source, req *http.Request) (*http.Response, error) {
+	// Use an isolated HTTP client to prevent tests from interfering with each other
+	if c.httpClient == nil {
+		c.httpClient = httpclient.New()
+	}
+	return c.httpClient.Do(req)
 }
 
 func (*OAuth2Config) AuthCodeURL(state string, _ ...oauth2.AuthCodeOption) string {

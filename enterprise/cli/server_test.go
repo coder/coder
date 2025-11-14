@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/enterprise/cli"
+	"github.com/coder/coder/v2/httpclient"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -43,7 +44,7 @@ func TestServer_Single(t *testing.T) {
 	)
 	clitest.Start(t, inv.WithContext(ctx))
 	accessURL := waitAccessURL(t, cfg)
-	client := &http.Client{}
+	client := httpclient.New()
 	require.Eventually(t, func() bool {
 		reqCtx := testutil.Context(t, testutil.IntervalMedium)
 		req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, accessURL.String()+"/healthz", nil)

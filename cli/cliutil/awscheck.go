@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/httpclient"
 )
 
 const AWSIPRangesURL = "https://ip-ranges.amazonaws.com/ip-ranges.json"
@@ -40,7 +42,7 @@ type awsIPRangesResponse struct {
 }
 
 func FetchAWSIPRanges(ctx context.Context, url string) (*AWSIPRanges, error) {
-	client := &http.Client{}
+	client := httpclient.New()
 	reqCtx, reqCancel := context.WithTimeout(ctx, 5*time.Second)
 	defer reqCancel()
 	req, _ := http.NewRequestWithContext(reqCtx, http.MethodGet, url, nil)

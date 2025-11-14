@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
+	"github.com/coder/coder/v2/httpclient"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
@@ -591,7 +592,7 @@ func TestSCIMDisabled(t *testing.T) {
 		"/scim/v2/random/path/that/is/long.txt",
 	}
 
-	client := &http.Client{}
+	client := httpclient.New()
 	for _, p := range checkPaths {
 		t.Run(p, func(t *testing.T) {
 			t.Parallel()

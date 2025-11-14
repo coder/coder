@@ -52,6 +52,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/workspacestats/workspacestatstest"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/httpclient"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/pty"
@@ -1242,7 +1243,7 @@ func TestSSH(t *testing.T) {
 				// true exits the loop.
 				return true
 			}
-			client := &http.Client{}
+			client := httpclient.New()
 			resp, err := client.Do(req)
 			if err != nil {
 				t.Logf("HTTP GET http://localhost:8222/ %s", err)

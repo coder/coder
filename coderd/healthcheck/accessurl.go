@@ -9,6 +9,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
+	"github.com/coder/coder/v2/httpclient"
 )
 
 type AccessURLReport healthsdk.AccessURLReport
@@ -36,7 +37,7 @@ func (r *AccessURLReport) Run(ctx context.Context, opts *AccessURLReportOptions)
 	r.AccessURL = opts.AccessURL.String()
 
 	if opts.Client == nil {
-		opts.Client = http.DefaultClient
+		opts.Client = httpclient.New()
 	}
 
 	accessURL, err := opts.AccessURL.Parse("/healthz")

@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/httpclient"
 	"github.com/coder/retry"
 )
 
@@ -509,7 +510,9 @@ func (c *DeviceAuth) AuthorizeDevice(ctx context.Context) (*codersdk.ExternalAut
 	}
 	req.Header.Set("Accept", "application/json")
 
-	do := http.DefaultClient.Do
+	httpClient := httpclient.New()
+	defer httpClient.CloseIdleConnections()
+	do := httpClient.Do
 	if c.Config != nil {
 		// The cfg can be nil in unit tests.
 		do = func(req *http.Request) (*http.Response, error) {
@@ -585,7 +588,9 @@ func (c *DeviceAuth) ExchangeDeviceCode(ctx context.Context, deviceCode string) 
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	httpClient := httpclient.New()
+	defer httpClient.CloseIdleConnections()
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -1151,7 +1156,7 @@ type exchangeWithClientSecret struct {
 func (e *exchangeWithClientSecret) Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
 	httpClient, ok := ctx.Value(oauth2.HTTPClient).(*http.Client)
 	if httpClient == nil || !ok {
-		httpClient = http.DefaultClient
+		httpClient = httpclient.New()
 	}
 	oldTransport := httpClient.Transport
 	if oldTransport == nil {
