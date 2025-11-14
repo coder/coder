@@ -30,6 +30,9 @@ GitHub labels that affect release notes:
 
 Flags:
 
+Set --mainline (most recent version), --stable (release prior to mainline), or 
+--security (release prior to stable) as options when creating a patch
+
 Set --major or --minor to force a larger version bump, even when there are no
 breaking changes. By default a patch version will be created, --patch is no-op.
 
@@ -57,7 +60,7 @@ channel=mainline
 pr_review_assignee=${CODER_RELEASE_PR_REVIEW_ASSIGNEE:-@me}
 pr_review_reviewer=${CODER_RELEASE_PR_REVIEW_REVIEWER:-bpmct,stirby}
 
-args="$(getopt -o h -l dry-run,help,ref:,mainline,stable,major,minor,patch,force,ignore-script-out-of-date -- "$@")"
+args="$(getopt -o h -l dry-run,help,ref:,mainline,stable,security,major,minor,patch,force,ignore-script-out-of-date -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
@@ -77,6 +80,11 @@ while true; do
 	--stable)
 		mainline=0
 		channel=stable
+		shift
+		;;
+	--security)
+		mainline=0
+		channel=security
 		shift
 		;;
 	--ref)
@@ -175,13 +183,33 @@ latest_mainline_version=${versions[0]}
 latest_stable_version="$(curl -fsSLI -o /dev/null -w "%{url_effective}" https://github.com/coder/coder/releases/latest)"
 latest_stable_version="${latest_stable_version#https://github.com/coder/coder/releases/tag/}"
 
+# Calculate security support version (one minor version before stable)
+latest_security_version=""
+if [[ ${latest_stable_version} =~ ^v([0-9]+)\.([0-9]+)\. ]]; then
+	major=${BASH_REMATCH[1]}
+	minor=${BASH_REMATCH[2]}
+	security_minor=$((minor - 1))
+	# Find the latest patch for that minor version
+	latest_security_version=$(printf '%s\n' "${versions[@]}" | grep "^v${major}\.${security_minor}\." | head -n 1)
+fi
+
 log "Latest mainline release: ${latest_mainline_version}"
 log "Latest stable release: ${latest_stable_version}"
+if [[ -n ${latest_security_version} ]]; then
+	log "Latest security release: ${latest_security_version}"
+else
+	log "Latest security release: <none found>"
+fi
 log
 
 old_version=${latest_mainline_version}
-if ((!mainline)); then
+if [[ ${channel} == "stable" ]]; then
 	old_version=${latest_stable_version}
+elif [[ ${channel} == "security" ]]; then
+	if [[ -z ${latest_security_version} ]]; then
+		error "Could not determine security support version from stable version ${latest_stable_version}"
+	fi
+	old_version=${latest_security_version}
 fi
 
 trap 'log "Check commit metadata failed, you can try to set \"export CODER_IGNORE_MISSING_COMMIT_METADATA=1\" and try again, if you know what you are doing."' EXIT
