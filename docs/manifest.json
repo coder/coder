@@ -917,7 +917,7 @@
 							"path": "./ai-coder/security.md"
 						},
 						{
-							"title": "GitHub to Coder Tasks",
+							"title": "Guide: Create a GitHub to Coder Tasks Workflow",
 							"description": "How to setup Coder Tasks to run in GitHub",
 							"path": "./ai-coder/github-to-tasks.md",
 							"state": ["beta"]
