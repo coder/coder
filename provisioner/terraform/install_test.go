@@ -42,7 +42,7 @@ cat <<EOF
 }
 EOF
 `
-	windowsExecutableTemplateGo = `package main
+	windowsExecutableGoSourceCodeTemplate = `package main
 
 import "fmt"
 
@@ -152,20 +152,26 @@ func unixExeContent(t *testing.T, v *version.Version, platform osArch) []byte {
 
 // for windows it seems some progmram complication is required
 func windowsExeContent(t *testing.T, tmpDir string, v *version.Version, platform osArch) []byte {
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "fake-terraform.go"), []byte(fmt.Sprintf(windowsExecutableTemplateGo, v, platform.arch)), 0o600))
+	code := fmt.Sprintf(windowsExecutableGoSourceCodeTemplate, v, platform.arch)
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "fake-terraform.go"), []byte(code), 0o600))
+
+	var errbuf strings.Builder
 	cmd := exec.Command("go", "mod", "init", "fake-terraform")
 	cmd.Dir = tmpDir
+	cmd.Stderr = &errbuf
 	output, err := cmd.Output()
 	if err != nil {
-		t.Fatalf("failed to init go module: output: %v err: %v", string(output), err)
+		t.Fatalf("failed to init go module: stdout: %s  stderr: %s  err: %v", output, errbuf.String(), err)
 	}
 
 	exePath := filepath.Join(tmpDir, "terraform.exe")
+	errbuf.Reset()
 	cmd = exec.Command("go", "build", "-o", exePath)
 	cmd.Dir = tmpDir
+	cmd.Stderr = &errbuf
 	output, err = cmd.Output()
 	if err != nil {
-		t.Fatalf("failed to compile fake binary: output: %v err: %v", string(output), err)
+		t.Fatalf("failed to compile fake binary: stdout: %s  stderr: %s  err: %v", output, errbuf.String(), err)
 	}
 	exeContent, err := os.ReadFile(exePath)
 	require.NoError(t, err)
