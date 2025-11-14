@@ -270,9 +270,11 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) codersdk.Task {
 	var taskAgentLifecycle *codersdk.WorkspaceAgentLifecycle
 	var taskAgentHealth *codersdk.WorkspaceAgentHealth
+	var taskAppHealth *codersdk.WorkspaceAppHealth
 
-	// If we have an agent ID from the task, find the agent details in the
-	// workspace.
+	// If we have an agent ID from the task, find the agent details in the workspace.
+	// TODO(ssncferreira): Use 'workspace_agent_lifecycle_state' and 'workspace_app_health'
+	//   from new 'tasks_with_status' query
 	if dbTask.WorkspaceAgentID.Valid {
 	findTaskAgentLoop:
 		for _, resource := range ws.LatestBuild.Resources {
@@ -280,13 +282,24 @@ func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) cod
 				if agent.ID == dbTask.WorkspaceAgentID.UUID {
 					taskAgentLifecycle = &agent.LifecycleState
 					taskAgentHealth = &agent.Health
+
+					// Get task app health if it exists
+					if dbTask.WorkspaceAppID.Valid {
+						for _, app := range agent.Apps {
+							if app.ID == dbTask.WorkspaceAppID.UUID {
+								taskAppHealth = &app.Health
+								break
+							}
+						}
+					}
+
 					break findTaskAgentLoop
 				}
 			}
 		}
 	}
 
-	currentState := deriveTaskCurrentState(dbTask, ws, taskAgentLifecycle)
+	currentState := deriveTaskCurrentState(dbTask, ws, taskAgentLifecycle, taskAppHealth)
 
 	return codersdk.Task{
 		ID:                      dbTask.ID,
@@ -319,7 +332,12 @@ func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) cod
 // deriveTaskCurrentState determines the current state of a task based on the
 // workspace's latest app status and initialization phase.
 // Returns nil if no valid state can be determined.
-func deriveTaskCurrentState(dbTask database.Task, ws codersdk.Workspace, taskAgentLifecycle *codersdk.WorkspaceAgentLifecycle) *codersdk.TaskStateEntry {
+func deriveTaskCurrentState(
+	dbTask database.Task,
+	ws codersdk.Workspace,
+	taskAgentLifecycle *codersdk.WorkspaceAgentLifecycle,
+	taskAppHealth *codersdk.WorkspaceAppHealth,
+) *codersdk.TaskStateEntry {
 	var currentState *codersdk.TaskStateEntry
 
 	// Ignore 'latest app status' if it is older than the latest build and the
@@ -347,11 +365,19 @@ func deriveTaskCurrentState(dbTask database.Task, ws codersdk.Workspace, taskAge
 			ws.LatestBuild.Status == codersdk.WorkspaceStatusStarting:
 			message = fmt.Sprintf("Workspace is %s", ws.LatestBuild.Status)
 		case taskAgentLifecycle != nil:
-			switch *taskAgentLifecycle {
-			case codersdk.WorkspaceAgentLifecycleCreated:
+			switch {
+			case *taskAgentLifecycle == codersdk.WorkspaceAgentLifecycleCreated:
 				message = "Agent is connecting"
-			case codersdk.WorkspaceAgentLifecycleStarting:
+			case *taskAgentLifecycle == codersdk.WorkspaceAgentLifecycleStarting:
 				message = "Agent is starting"
+			case *taskAgentLifecycle == codersdk.WorkspaceAgentLifecycleReady:
+				if taskAppHealth != nil && *taskAppHealth == codersdk.WorkspaceAppHealthInitializing {
+					message = "App is initializing"
+				} else {
+					// In case the workspace app is not initializing,
+					// the overall task status should be updated accordingly
+					message = "Initializing workspace applications"
+				}
 			default:
 				message = "Initializing workspace agent"
 			}
