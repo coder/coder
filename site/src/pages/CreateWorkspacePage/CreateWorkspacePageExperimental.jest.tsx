@@ -20,13 +20,13 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { API } from "api/api";
 import type { DynamicParametersResponse } from "api/typesGenerated";
-import CreateWorkspacePageExperimental from "./CreateWorkspacePageExperimental";
+import CreateWorkspacePage from "./CreateWorkspacePage";
 
-describe("CreateWorkspacePageExperimental", () => {
-	const renderCreateWorkspacePageExperimental = (
+describe("CreateWorkspacePage", () => {
+	const renderCreateWorkspacePage = (
 		route = `/templates/${MockTemplate.name}/workspace`,
 	) => {
-		return renderWithAuth(<CreateWorkspacePageExperimental />, {
+		return renderWithAuth(<CreateWorkspacePage />, {
 			route,
 			path: "/templates/:template/workspace",
 			extraRoutes: [
@@ -81,7 +81,7 @@ describe("CreateWorkspacePageExperimental", () => {
 
 	describe("WebSocket Integration", () => {
 		it("establishes WebSocket connection and receives initial parameters", async () => {
-			renderCreateWorkspacePageExperimental();
+			renderCreateWorkspacePage();
 
 			await waitForLoaderToBeRemoved();
 
@@ -131,7 +131,7 @@ describe("CreateWorkspacePageExperimental", () => {
 					return mockWebSocket;
 				});
 
-			renderCreateWorkspacePageExperimental();
+			renderCreateWorkspacePage();
 			await waitForLoaderToBeRemoved();
 
 			expect(screen.getByText(/instance type/i)).toBeInTheDocument();
@@ -173,7 +173,7 @@ describe("CreateWorkspacePageExperimental", () => {
 					return mockWebSocket;
 				});
 
-			renderCreateWorkspacePageExperimental();
+			renderCreateWorkspacePage();
 
 			await waitFor(() => {
 				expect(mockPublisher).toBeDefined();
@@ -195,7 +195,7 @@ describe("CreateWorkspacePageExperimental", () => {
 					return mockWebSocket;
 				});
 
-			renderCreateWorkspacePageExperimental();
+			renderCreateWorkspacePage();
 
 			await waitFor(() => {
 				expect(mockPublisher).toBeDefined();
@@ -229,7 +229,7 @@ describe("CreateWorkspacePageExperimental", () => {
 					return mockWebSocket;
 				});
 
-			renderCreateWorkspacePageExperimental();
+			renderCreateWorkspacePage();
 			await waitForLoaderToBeRemoved();
 
 			const response1: DynamicParametersResponse = {
@@ -278,7 +278,7 @@ describe("CreateWorkspacePageExperimental", () => {
 					return mockWebSocket;
 				});
 
-			renderCreateWorkspacePageExperimental();
+			renderCreateWorkspacePage();
 			await waitForLoaderToBeRemoved();
 
 			await waitFor(() => {
@@ -353,7 +353,7 @@ describe("CreateWorkspacePageExperimental", () => {
 					return mockWebSocket;
 				});
 
-			renderCreateWorkspacePageExperimental();
+			renderCreateWorkspacePage();
 			await waitForLoaderToBeRemoved();
 
 			await waitFor(() => {
@@ -401,7 +401,7 @@ describe("CreateWorkspacePageExperimental", () => {
 				.spyOn(API, "getTemplateVersionExternalAuth")
 				.mockResolvedValue([MockTemplateVersionExternalAuthGithub]);
 
-			renderCreateWorkspacePageExperimental();
+			renderCreateWorkspacePage();
 			await waitForLoaderToBeRemoved();
 
 			await waitFor(() => {
@@ -419,7 +419,7 @@ describe("CreateWorkspacePageExperimental", () => {
 					MockTemplateVersionExternalAuthGithubAuthenticated,
 				]);
 
-			renderCreateWorkspacePageExperimental();
+			renderCreateWorkspacePage();
 			await waitForLoaderToBeRemoved();
 
 			await waitFor(() => {
@@ -433,7 +433,7 @@ describe("CreateWorkspacePageExperimental", () => {
 				.spyOn(API, "getTemplateVersionExternalAuth")
 				.mockResolvedValue([MockTemplateVersionExternalAuthGithub]);
 
-			renderCreateWorkspacePageExperimental(
+			renderCreateWorkspacePage(
 				`/templates/${MockTemplate.name}/workspace?mode=auto`,
 			);
 			await waitForLoaderToBeRemoved();
@@ -462,7 +462,7 @@ describe("CreateWorkspacePageExperimental", () => {
 				.spyOn(API, "createWorkspace")
 				.mockRejectedValue(new Error("Auto-creation failed"));
 
-			renderCreateWorkspacePageExperimental(
+			renderCreateWorkspacePage(
 				`/templates/${MockTemplate.name}/workspace?mode=auto`,
 			);
 
@@ -481,7 +481,7 @@ describe("CreateWorkspacePageExperimental", () => {
 
 	describe("Form Submission", () => {
 		it("creates workspace with correct parameters", async () => {
-			renderCreateWorkspacePageExperimental();
+			renderCreateWorkspacePage();
 			await waitForLoaderToBeRemoved();
 
 			expect(screen.getByText(/instance type/i)).toBeInTheDocument();
@@ -526,7 +526,7 @@ describe("CreateWorkspacePageExperimental", () => {
 
 	describe("URL Parameters", () => {
 		it("pre-fills parameters from URL", async () => {
-			renderCreateWorkspacePageExperimental(
+			renderCreateWorkspacePage(
 				`/templates/${MockTemplate.name}/workspace?param.instance_type=t3.large&param.cpu_count=4`,
 			);
 			await waitForLoaderToBeRemoved();
@@ -538,7 +538,7 @@ describe("CreateWorkspacePageExperimental", () => {
 		it("uses custom template version when specified", async () => {
 			const customVersionId = "custom-version-123";
 
-			renderCreateWorkspacePageExperimental(
+			renderCreateWorkspacePage(
 				`/templates/${MockTemplate.name}/workspace?version=${customVersionId}`,
 			);
 
@@ -554,7 +554,7 @@ describe("CreateWorkspacePageExperimental", () => {
 		it("pre-fills workspace name from URL", async () => {
 			const workspaceName = "my-custom-workspace";
 
-			renderCreateWorkspacePageExperimental(
+			renderCreateWorkspacePage(
 				`/templates/${MockTemplate.name}/workspace?name=${workspaceName}`,
 			);
 			await waitForLoaderToBeRemoved();
@@ -570,7 +570,7 @@ describe("CreateWorkspacePageExperimental", () => {
 
 	describe("Navigation", () => {
 		it("navigates to workspace after successful creation", async () => {
-			const { router } = renderCreateWorkspacePageExperimental();
+			const { router } = renderCreateWorkspacePage();
 			await waitForLoaderToBeRemoved();
 
 			const nameInput = screen.getByRole("textbox", {
