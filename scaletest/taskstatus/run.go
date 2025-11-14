@@ -41,7 +41,10 @@ type Runner struct {
 	clock quartz.Clock
 }
 
-var _ harness.Runnable = &Runner{}
+var (
+	_ harness.Runnable  = &Runner{}
+	_ harness.Cleanable = &Runner{}
+)
 
 // NewRunner creates a new Runner with the provided codersdk.Client and configuration.
 func NewRunner(coderClient *codersdk.Client, cfg Config) *Runner {
@@ -108,6 +111,30 @@ func (r *Runner) Run(ctx context.Context, name string, logs io.Writer) error {
 	if err != nil {
 		return xerrors.Errorf("watch workspace: %w", err)
 	}
+	return nil
+}
+
+// Cleanup deletes the external workspace created by this runner.
+func (r *Runner) Cleanup(ctx context.Context, id string, logs io.Writer) error {
+	if r.workspaceID == uuid.Nil {
+		// No workspace was created, nothing to cleanup
+		return nil
+	}
+
+	logs = loadtestutil.NewSyncWriter(logs)
+	logger := slog.Make(sloghuman.Sink(logs)).Leveled(slog.LevelDebug).Named(id)
+
+	logger.Info(ctx, "deleting external workspace", slog.F("workspace_id", r.workspaceID))
+
+	err := r.client.deleteWorkspace(ctx, r.workspaceID)
+	if err != nil {
+		logger.Error(ctx, "failed to delete external workspace",
+			slog.F("workspace_id", r.workspaceID),
+			slog.Error(err))
+		return xerrors.Errorf("delete external workspace: %w", err)
+	}
+
+	logger.Info(ctx, "successfully deleted external workspace", slog.F("workspace_id", r.workspaceID))
 	return nil
 }
 

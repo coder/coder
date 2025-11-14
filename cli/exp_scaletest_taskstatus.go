@@ -206,6 +206,17 @@ After all runners connect, it waits for the baseline duration before triggering 
 				}
 			}
 
+			cleanupCtx, cleanupCancel := cleanupStrategy.toContext(ctx)
+			defer cleanupCancel()
+			err = th.Cleanup(cleanupCtx)
+			if err != nil {
+				return xerrors.Errorf("cleanup tests: %w", err)
+			}
+
+			if res.TotalFail > 0 {
+				return xerrors.New("load test failed, see above for more details")
+			}
+
 			return nil
 		},
 	}
