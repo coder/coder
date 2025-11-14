@@ -144,6 +144,34 @@ func mockProduct(versions ...*version.Version) product {
 	return mj
 }
 
+// for linux/mac simple script works
+func unixExeContent(t *testing.T, v *version.Version, platform osArch) []byte {
+	rep := strings.NewReplacer("${ver}", v.String(), "${os}", platform.os, "${arch}", platform.arch)
+	return []byte(rep.Replace(bashExecutableTemplate))
+}
+
+// for windows it seems some progmram complication is required
+func windowsExeContent(t *testing.T, tmpDir string, v *version.Version, platform osArch) []byte {
+	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "fake-terraform.go"), []byte(fmt.Sprintf(windowsExecutableTemplateGo, v, platform.arch)), 0o600))
+	cmd := exec.Command("go", "mod", "init", "fake-terraform")
+	cmd.Dir = tmpDir
+	output, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("failed to init go module: output: %v err: %v", string(output), err)
+	}
+
+	exePath := filepath.Join(tmpDir, "terraform.exe")
+	cmd = exec.Command("go", "build", "-o", exePath)
+	cmd.Dir = tmpDir
+	output, err = cmd.Output()
+	if err != nil {
+		t.Fatalf("failed to compile fake binary: output: %v err: %v", string(output), err)
+	}
+	exeContent, err := os.ReadFile(exePath)
+	require.NoError(t, err)
+	return exeContent
+}
+
 func mustCreateZips(t *testing.T, tmpDir string, v *version.Version) {
 	for _, platform := range allPlatforms {
 		if platform.os != runtime.GOOS || platform.arch != runtime.GOARCH {
@@ -158,36 +186,17 @@ func mustCreateZips(t *testing.T, tmpDir string, v *version.Version) {
 
 		// `${version}/${os}_${arch}.zip/terraform{.exe}`
 		var exe io.Writer
-		rep := strings.NewReplacer("${ver}", v.String(), "${os}", platform.os, "${arch}", platform.arch)
 
 		if platform.os == "windows" {
-			require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "fake-terraform.go"), []byte(fmt.Sprintf(windowsExecutableTemplateGo, v, platform.arch)), 0o600))
-
-			cmd := exec.Command("go", "mod", "init", "fake-terraform")
-			cmd.Dir = tmpDir
-			output, err := cmd.Output()
-			if err != nil {
-				t.Fatalf("failed to init go module for fake terraform windows exe: output: %v err: %v", string(output), err)
-			}
-
-			exePath := filepath.Join(tmpDir, "terraform.exe")
-			cmd = exec.Command("go", "build", "-o", exePath)
-			cmd.Dir = tmpDir
-			output, err = cmd.Output()
-			if err != nil {
-				t.Fatalf("failed to compile fake terraform windows exe: output: %v err: %v", string(output), err)
-			}
-			exeContent, err := os.ReadFile(exePath)
-			require.NoError(t, err)
 			exe, err = zipWriter.Create("terraform.exe")
 			require.NoError(t, err)
-			n, err := exe.Write(exeContent)
+			n, err := exe.Write(windowsExeContent(t, tmpDir, v, platform))
 			require.NoError(t, err)
 			require.NotZero(t, n)
 		} else {
 			exe, err = zipWriter.Create("terraform")
 			require.NoError(t, err)
-			n, err := exe.Write([]byte(rep.Replace(bashExecutableTemplate)))
+			n, err := exe.Write(unixExeContent(t, v, platform))
 			require.NoError(t, err)
 			require.NotZero(t, n)
 		}
