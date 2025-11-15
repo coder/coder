@@ -366,14 +366,18 @@ func New(options *Options) *API {
 		panic("coderd: both AppHostname and AppHostnameRegex must be set or unset")
 	}
 	if options.AgentConnectionUpdateFrequency == 0 {
-		options.AgentConnectionUpdateFrequency = 15 * time.Second
+		// Increased from 15s to 30s to reduce network overhead and improve stability
+		// with higher latency connections and DERP relays.
+		options.AgentConnectionUpdateFrequency = 30 * time.Second
 	}
 	if options.AgentInactiveDisconnectTimeout == 0 {
-		// Multiply the update by two to allow for some lag-time.
-		options.AgentInactiveDisconnectTimeout = options.AgentConnectionUpdateFrequency * 2
-		// Set a minimum timeout to avoid disconnecting too soon.
-		if options.AgentInactiveDisconnectTimeout < 2*time.Second {
-			options.AgentInactiveDisconnectTimeout = 2 * time.Second
+		// Multiply the update by four to allow for network latency, server load,
+		// and transient connectivity issues. Previously was 2x which was too aggressive.
+		options.AgentInactiveDisconnectTimeout = options.AgentConnectionUpdateFrequency * 4
+		// Set a minimum timeout of 60s to avoid premature disconnections.
+		// This is especially important for VS Code/Windsurf SSH connections.
+		if options.AgentInactiveDisconnectTimeout < 60*time.Second {
+			options.AgentInactiveDisconnectTimeout = 60 * time.Second
 		}
 	}
 	if options.AgentStatsRefreshInterval == 0 {
