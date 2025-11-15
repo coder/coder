@@ -1277,7 +1277,8 @@ func (api *API) derpMapUpdates(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	go func(ctx context.Context) {
-		// TODO(mafredri): Is this too frequent? Use separate ping disconnect timeout?
+		// Ping frequency is controlled by AgentConnectionUpdateFrequency (default: 30s).
+		// Disconnect timeout is 4x this value (default: 120s) to handle network latency.
 		t := time.NewTicker(api.AgentConnectionUpdateFrequency)
 		defer t.Stop()
 
