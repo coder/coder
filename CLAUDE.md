@@ -33,7 +33,20 @@ Only pause to ask for confirmation when:
 - Your partner asked a question (answer the question, don't jump to implementation)
 
 @.claude/docs/WORKFLOWS.md
+@site/CLAUDE.md
 @package.json
+
+## Auto-Formatting
+
+Files are automatically formatted on save via `.claude/settings.json` hooks:
+
+- **Go**: `make fmt/go`
+- **TypeScript/JavaScript**: `make fmt/ts` (uses Biome)
+- **Terraform**: `make fmt/terraform`
+- **Shell**: `make fmt/shfmt`
+- **Markdown**: `make fmt/markdown`
+
+The formatting hook runs automatically after Edit/Write operations via `.claude/scripts/format.sh`.
 
 ## Essential Commands
 
@@ -57,6 +70,26 @@ Only pause to ask for confirmation when:
 - `pnpm run lint-docs` - Lint and fix markdown files
 - `pnpm run storybook` - Run Storybook (from site directory)
 
+### Frontend Commands (in site/ directory)
+
+See **site/CLAUDE.md** for comprehensive frontend guidelines.
+
+- `pnpm dev` - Start Vite development server
+- `pnpm test` - Run Vitest and Jest tests
+- `pnpm check` - Type check and lint (use before PRs)
+- `pnpm format` - Format with Biome
+
+### Database Migration Helpers
+
+- `./coderd/database/migrations/create_migration.sh "name"` - Create new migration files
+- `./coderd/database/migrations/fix_migration_numbers.sh` - Fix duplicate/conflicting migration numbers
+- `./coderd/database/migrations/create_fixture.sh "name"` - Create test fixtures
+
+### Scaletest Commands
+
+- `./scaletest/scaletest.sh` - Run performance/load tests
+- See `scaletest/` directory for specific test scenarios
+
 ## Critical Patterns
 
 ### Database Changes (ALWAYS FOLLOW)
@@ -67,6 +100,13 @@ Only pause to ask for confirmation when:
 4. Run `make gen` again
 
 ### LSP Navigation (USE FIRST)
+
+**IMPORTANT**: Always use LSP tools for code navigation before manually searching files.
+
+MCP servers configured in `.mcp.json`:
+
+- **go-language-server**: For Go code navigation (uses gopls)
+- **typescript-language-server**: For TypeScript/React code (in site/)
 
 #### Go LSP (for backend code)
 
@@ -89,7 +129,9 @@ Only pause to ask for confirmation when:
 writeOAuth2Error(ctx, rw, http.StatusBadRequest, "invalid_grant", "description")
 ```
 
-### Authorization Context
+### RBAC & Authorization
+
+**Key Pattern**: Use `dbauthz` package for authorization context:
 
 ```go
 // Public endpoints needing system access
@@ -97,7 +139,16 @@ app, err := api.Database.GetOAuth2ProviderAppByClientID(dbauthz.AsSystemRestrict
 
 // Authenticated endpoints with user context
 app, err := api.Database.GetOAuth2ProviderAppByClientID(ctx, clientID)
+
+// System operations in middleware
+roles, err := db.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), userID)
 ```
+
+**RBAC Documentation**:
+
+- `coderd/rbac/README.md` - Authorization system overview
+- `coderd/rbac/POLICY.md` - Policy definitions
+- `coderd/rbac/USAGE.md` - Usage examples
 
 ## Quick Reference
 
@@ -111,10 +162,32 @@ app, err := api.Database.GetOAuth2ProviderAppByClientID(ctx, clientID)
 
 ## Architecture
 
-- **coderd**: Main API service
-- **provisionerd**: Infrastructure provisioning
-- **Agents**: Workspace services (SSH, port forwarding)
-- **Database**: PostgreSQL with `dbauthz` authorization
+### Core Components
+
+- **coderd**: Main API service (REST + WebSocket)
+- **provisionerd**: Infrastructure provisioning (Terraform executor)
+- **Agents**: Workspace services (SSH, port forwarding, apps)
+- **Database**: PostgreSQL 13+ with `dbauthz` authorization layer
+- **Tailnet**: Wireguard-based mesh network for workspace connectivity
+- **site/**: React/TypeScript frontend (Vite build)
+
+### Directory Structure
+
+- **coderd/**: Main server code, API handlers, business logic
+- **enterprise/**: Premium features (audit, RBAC, replicas, etc.)
+- **cli/**: CLI commands and client functionality
+- **codersdk/**: Go SDK and API types
+- **site/**: Frontend React application
+- **scripts/**: Build, test, and utility scripts
+- **provisioner/**: Terraform provisioning interface
+- **tailnet/**: Networking layer
+
+### Enterprise vs Open Source
+
+- **Open source** (AGPL-3.0): Core Coder functionality in root directories
+- **Enterprise** (proprietary): Premium features in `enterprise/` directory
+  - High availability, RBAC, audit logging, SCIM, etc.
+  - Separate license file: `LICENSE.enterprise`
 
 ## Testing
 
@@ -149,10 +222,22 @@ seems like it should use `time.Sleep`, read through https://github.com/coder/qua
 
 ## Common Pitfalls
 
-1. **Audit table errors** → Update `enterprise/audit/table.go`
-2. **OAuth2 errors** → Return RFC-compliant format
-3. **Race conditions** → Use unique test identifiers
-4. **Missing newlines** → Ensure files end with newline
+1. **Audit table errors** → Update `enterprise/audit/table.go` and run `make gen`
+2. **OAuth2 errors** → Return RFC-compliant format (see OAUTH2.md)
+3. **Race conditions** → Use unique test identifiers with `time.Now().UnixNano()`
+4. **Missing newlines** → Ensure files end with newline (auto-fixed by hooks)
+5. **Duplicate migrations** → Use `fix_migration_numbers.sh` to renumber
+6. **Frontend styling** → Use Tailwind CSS, not Emotion (deprecated)
+7. **Frontend components** → Use shadcn/ui, not MUI (deprecated)
+8. **Authorization context** → Use `dbauthz.AsSystemRestricted(ctx)` for public endpoints
+
+## Recent Developments
+
+- **Auto-formatting hooks**: Files are auto-formatted on save via `.claude/settings.json`
+- **Migration helpers**: Use helper scripts to avoid migration number conflicts
+- **Scaletest improvements**: New prebuilds and task status testing capabilities
+- **Frontend migration**: Ongoing migration from MUI/Emotion to shadcn/Tailwind
+- **Terraform caching**: Experimental persistent Terraform directories feature
 
 ---
 
