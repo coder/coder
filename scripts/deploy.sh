@@ -47,7 +47,11 @@ log "Current commit: $CURRENT_COMMIT"
 # Create backup
 log "Creating backup: $BACKUP_NAME"
 mkdir -p "$BACKUP_DIR/$BACKUP_NAME"
-cp -r ./.coderv2 "$BACKUP_DIR/$BACKUP_NAME/" 2>/dev/null || warn "No .coderv2 directory to backup"
+if [ -d ".coderv2" ]; then
+    cp -r ./.coderv2 "$BACKUP_DIR/$BACKUP_NAME/"
+else
+    warn "No .coderv2 directory to backup"
+fi
 
 # Keep only last 5 backups
 log "Cleaning old backups (keeping last 5)..."
