@@ -855,6 +855,7 @@ export const MockTemplate: TypesGen.Template = {
 	max_port_share_level: "public",
 	use_classic_parameter_flow: false,
 	cors_behavior: "simple",
+	use_terraform_workspace_cache: false,
 };
 
 const _MockTemplateVersionFiles: TemplateVersionFiles = {

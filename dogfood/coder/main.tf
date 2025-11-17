@@ -268,16 +268,16 @@ data "coder_parameter" "ide_choices" {
   form_type   = "multi-select"
   mutable     = true
   description = "Choose one or more IDEs to enable in your workspace"
-  default     = jsonencode(["vscode", "code-server", "cursor", "cmux"])
+  default     = jsonencode(["vscode", "code-server", "cursor", "mux"])
   option {
     name  = "VS Code Desktop"
     value = "vscode"
     icon  = "/icon/code.svg"
   }
   option {
-    name  = "cmux"
-    value = "cmux"
-    icon  = "/icon/cmux.svg"
+    name  = "mux"
+    value = "mux"
+    icon  = "/icon/mux.svg"
   }
   option {
     name  = "code-server"
@@ -375,9 +375,9 @@ module "personalize" {
   agent_id = coder_agent.dev.id
 }
 
-module "cmux" {
-  count     = contains(jsondecode(data.coder_parameter.ide_choices.value), "cmux") ? data.coder_workspace.me.start_count : 0
-  source    = "registry.coder.com/coder/cmux/coder"
+module "mux" {
+  count     = contains(jsondecode(data.coder_parameter.ide_choices.value), "mux") ? data.coder_workspace.me.start_count : 0
+  source    = "registry.coder.com/coder/mux/coder"
   version   = "1.0.0"
   agent_id  = coder_agent.dev.id
   subdomain = true
