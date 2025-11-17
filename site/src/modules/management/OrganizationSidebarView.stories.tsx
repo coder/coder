@@ -257,7 +257,8 @@ export const OrgsSortedAlphabetically: Story = {
 		const filteredElems = orgElements.slice(0, 3);
 
 		const orgNames = filteredElems.map(
-			(el) => el.textContent || "",
+			// handling fuzzy matching
+			(el) => el.textContent?.replace(/^[A-Z]/, "").trim() || "",
 		);
 
 		// active name first
