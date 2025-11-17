@@ -84,16 +84,15 @@ resource "coder_script" "boundary_config_setup" {
 
 Boundary automatically reads `config.yaml` from `~/.config/coder_boundary/` when it starts, so everyone who launches Boundary manually inside the workspace picks up the same configuration without extra flags. This is especially convenient for managing extensive allow lists in version control.
 
-- `boundary_version` defines what version of Boundary is being applied. This is set to `main`, which points to the main branch of `coder/boundary`.
+- `boundary_version` defines what version of Boundary is being applied. This is set to `v0.2.0`, which points to the v0.2.0 release tag of `coder/boundary`.
 - `boundary_log_dir` is the directory where log files are written to when the workspace spins up.
 - `boundary_log_level` defines the verbosity at which requests are logged. Boundary uses the following verbosity levels:
   - `WARN`: logs only requests that have been blocked by Boundary
   - `INFO`: logs all requests at a high level
   - `DEBUG`: logs all requests in detail
 - `boundary_additional_allowed_urls`: defines the URLs that the agent can access, in addition to the default URLs required for the agent to work. Rules use the format `"key=value [key=value ...]"`:
-  - `domain=github.com` - allows only the specific domain
+  - `domain=github.com` - allows the domain and all its subdomains
   - `domain=*.github.com` - allows only subdomains (the specific domain is excluded)
-  - `domain=*github.com` - allows both the specific domain and all subdomains
   - `method=GET,HEAD domain=api.github.com` - allows specific HTTP methods for a domain
   - `method=POST domain=api.example.com path=/users,/posts` - allows specific methods, domain, and paths
   - `path=/api/v1/*,/api/v2/*` - allows specific URL paths
