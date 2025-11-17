@@ -6,7 +6,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"time"
 
 	"golang.org/x/xerrors"
 
@@ -14,7 +13,6 @@ import (
 	"storj.io/drpc"
 
 	"github.com/coder/coder/v2/agent/agentsocket/proto"
-	"github.com/coder/coder/v2/agent/unit"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 )
 
@@ -72,29 +70,22 @@ func (c *SocketClient) Close() error {
 }
 
 // Ping sends a ping request to the agent
-func (c *SocketClient) Ping(ctx context.Context) (*PingResponse, error) {
-	resp, err := c.client.Ping(ctx, &proto.PingRequest{})
-	if err != nil {
-		return nil, err
-	}
-
-	return &PingResponse{
-		Message:   resp.Message,
-		Timestamp: resp.Timestamp.AsTime(),
-	}, nil
-}
-
-// SyncStart starts a unit in the dependency graph
-func (c *SocketClient) SyncStart(ctx context.Context, unitName string) error {
-	resp, err := c.client.SyncStart(ctx, &proto.SyncStartRequest{
-		Unit: unitName,
-	})
+func (c *SocketClient) Ping(ctx context.Context) error {
+	_, err := c.client.Ping(ctx, &proto.PingRequest{})
 	if err != nil {
 		return err
 	}
 
-	if !resp.Success {
-		return xerrors.Errorf("sync start failed: %s", resp.Message)
+	return nil
+}
+
+// SyncStart starts a unit in the dependency graph
+func (c *SocketClient) SyncStart(ctx context.Context, unitName string) error {
+	_, err := c.client.SyncStart(ctx, &proto.SyncStartRequest{
+		Unit: unitName,
+	})
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -102,7 +93,7 @@ func (c *SocketClient) SyncStart(ctx context.Context, unitName string) error {
 
 // SyncWant declares a dependency between units
 func (c *SocketClient) SyncWant(ctx context.Context, unitName, dependsOn string) error {
-	resp, err := c.client.SyncWant(ctx, &proto.SyncWantRequest{
+	_, err := c.client.SyncWant(ctx, &proto.SyncWantRequest{
 		Unit:      unitName,
 		DependsOn: dependsOn,
 	})
@@ -110,24 +101,16 @@ func (c *SocketClient) SyncWant(ctx context.Context, unitName, dependsOn string)
 		return err
 	}
 
-	if !resp.Success {
-		return xerrors.Errorf("sync want failed: %s", resp.Message)
-	}
-
 	return nil
 }
 
 // SyncComplete marks a unit as complete in the dependency graph
 func (c *SocketClient) SyncComplete(ctx context.Context, unitName string) error {
-	resp, err := c.client.SyncComplete(ctx, &proto.SyncCompleteRequest{
+	_, err := c.client.SyncComplete(ctx, &proto.SyncCompleteRequest{
 		Unit: unitName,
 	})
 	if err != nil {
 		return err
-	}
-
-	if !resp.Success {
-		return xerrors.Errorf("sync complete failed: %s", resp.Message)
 	}
 
 	return nil
@@ -135,19 +118,11 @@ func (c *SocketClient) SyncComplete(ctx context.Context, unitName string) error 
 
 // SyncReady requests whether a unit is ready to be started. That is, all dependencies are satisfied.
 func (c *SocketClient) SyncReady(ctx context.Context, unitName string) error {
-	resp, err := c.client.SyncReady(ctx, &proto.SyncReadyRequest{
+	_, err := c.client.SyncReady(ctx, &proto.SyncReadyRequest{
 		Unit: unitName,
 	})
 	if err != nil {
 		return err
-	}
-
-	if !resp.Success {
-		// Check if this is a dependencies not satisfied error
-		if resp.Message == unit.ErrDependenciesNotSatisfied.Error() {
-			return unit.ErrDependenciesNotSatisfied
-		}
-		return xerrors.Errorf("sync ready failed: %s", resp.Message)
 	}
 
 	return nil
@@ -216,26 +191,6 @@ func discoverSocketPath() (string, error) {
 	}
 
 	return "", xerrors.New("agent socket not found")
-}
-
-// Response types for backward compatibility
-type PingResponse struct {
-	Message   string    `json:"message"`
-	Timestamp time.Time `json:"timestamp"`
-}
-
-type HealthResponse struct {
-	Status    string    `json:"status"`
-	Timestamp time.Time `json:"timestamp"`
-	Uptime    string    `json:"uptime"`
-}
-
-type AgentInfo struct {
-	ID        string    `json:"id"`
-	Version   string    `json:"version"`
-	Status    string    `json:"status"`
-	StartedAt time.Time `json:"started_at"`
-	Uptime    string    `json:"uptime"`
 }
 
 type SyncStatusResponse struct {
