@@ -28,13 +28,13 @@ Put every setting directly in the Terraform module when you just want to experim
 ```tf
 module "claude-code" {
   source              = "dev.registry.coder.com/coder/claude-code/coder"
+  version             = "4.1.0"
   enable_boundary     = true
-  boundary_version    = "main"
-  boundary_log_dir    = "/tmp/boundary_logs" 
+  boundary_version    = "v0.2.0"
+  boundary_log_dir    = "/tmp/boundary_logs"
   boundary_log_level  = "WARN"
   boundary_additional_allowed_urls = ["GET *google.com"]
   boundary_proxy_port = "8087"
-  version             = "3.2.1"
 }
 ```
 
