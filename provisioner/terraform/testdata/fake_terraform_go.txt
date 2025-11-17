@@ -1,0 +1,14 @@
+package main
+
+import "fmt"
+
+func main() {
+
+	fmt.Printf(`{
+  "terraform_version": "%s",
+  "platform": "windows_$s",
+  "provider_selections": {},
+  "terraform_outdated": true
+}`)
+
+}

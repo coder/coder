@@ -8,8 +8,8 @@ package terraform_test
 import (
 	"archive/zip"
 	"context"
+	_ "embed"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -43,47 +43,15 @@ cat <<EOF
 }
 EOF
 `
-	windowsExecutableGoSourceCodeTemplate = `package main
-
-import "fmt"
-
-func main() {
-	fmt.Printf(` + "`" + `{
-  "terraform_version": "%s",
-  "platform": "windows_%s",
-  "provider_selections": {},
-  "terraform_outdated": true
-}` + "`" + `)
-}
-`
 )
 
 var (
+	//go:embed testdata/fake_terraform_go.txt
+	windowsExecutableGoSourceCodeTemplate string
+
 	version1 = terraform.TerraformVersion
 	version2 = version.Must(version.NewVersion("1.2.0"))
-
-	allPlatforms = []osArch{
-		{"darwin", "amd64"},
-		{"darwin", "arm64"},
-		{"freebsd", "386"},
-		{"freebsd", "amd64"},
-		{"freebsd", "arm"},
-		{"linux", "386"},
-		{"linux", "amd64"},
-		{"linux", "arm"},
-		{"linux", "arm64"},
-		{"openbsd", "386"},
-		{"openbsd", "amd64"},
-		{"solaris", "amd64"},
-		{"windows", "386"},
-		{"windows", "amd64"},
-	}
 )
-
-type osArch struct {
-	os   string
-	arch string
-}
 
 type productBuild struct {
 	Name     string `json:"name"`
@@ -125,9 +93,7 @@ func mockProductVersion(v *version.Version) productVersion {
 	pv := productVersion{
 		Name:    "terraform",
 		Version: v,
-	}
-	for _, platform := range allPlatforms {
-		pv.Builds = append(pv.Builds, mockProductBuild(v, platform.os, platform.arch))
+		Builds:  []productBuild{mockProductBuild(v, runtime.GOOS, runtime.GOARCH)},
 	}
 	return pv
 }
@@ -146,33 +112,35 @@ func mockProduct(versions ...*version.Version) product {
 }
 
 // for linux/mac simple script works
-func unixExeContent(t *testing.T, v *version.Version, platform osArch) []byte {
-	rep := strings.NewReplacer("${ver}", v.String(), "${os}", platform.os, "${arch}", platform.arch)
+func unixExeContent(t *testing.T, v *version.Version) []byte {
+	rep := strings.NewReplacer("${ver}", v.String(), "${os}", runtime.GOOS, "${arch}", runtime.GOARCH)
 	return []byte(rep.Replace(bashExecutableTemplate))
 }
 
 // for windows it seems program compilation is required
-func windowsExeContent(t *testing.T, tmpDir string, v *version.Version, platform osArch) []byte {
-	code := fmt.Sprintf(windowsExecutableGoSourceCodeTemplate, v, platform.arch)
+func windowsExeContent(t *testing.T, tmpDir string, v *version.Version) []byte {
+	code := fmt.Sprintf(windowsExecutableGoSourceCodeTemplate, v, runtime.GOARCH)
 	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "fake-terraform.go"), []byte(code), 0o600))
 
-	var errbuf strings.Builder
-	if _, err := os.Stat(filepath.Join(tmpDir, "go.mod")); errors.Is(err, os.ErrNotExist) {
-		cmd := exec.Command("go", "mod", "init", "fake-terraform")
-		cmd.Dir = tmpDir
-		cmd.Stderr = &errbuf
-		output, err := cmd.Output()
-		if err != nil {
-			t.Fatalf("failed to init go module: stdout: %s  stderr: %s  err: %v", output, errbuf.String(), err)
-		}
-	}
+	verDir := filepath.Join(tmpDir, v.String())
 
-	exePath := filepath.Join(tmpDir, "terraform.exe")
-	errbuf.Reset()
-	cmd := exec.Command("go", "build", "-o", exePath)
-	cmd.Dir = tmpDir
+	// init go mod
+	var errbuf strings.Builder
+	cmd := exec.Command("go", "mod", "init", "fake-terraform")
+	cmd.Dir = verDir
 	cmd.Stderr = &errbuf
 	output, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("failed to init go module: stdout: %s  stderr: %s  err: %v", output, errbuf.String(), err)
+	}
+
+	// compile fake exe
+	exePath := filepath.Join(verDir, "terraform.exe")
+	errbuf.Reset()
+	cmd = exec.Command("go", "build", "-o", exePath)
+	cmd.Dir = verDir
+	cmd.Stderr = &errbuf
+	output, err = cmd.Output()
 	if err != nil {
 		t.Fatalf("failed to compile fake binary: stdout: %s  stderr: %s  err: %v", output, errbuf.String(), err)
 	}
@@ -182,45 +150,39 @@ func windowsExeContent(t *testing.T, tmpDir string, v *version.Version, platform
 }
 
 func mustCreateZips(t *testing.T, tmpDir string, v *version.Version) {
-	for _, platform := range allPlatforms {
-		if platform.os != runtime.GOOS || platform.arch != runtime.GOARCH {
-			// only zip for platform on which test is being run is needed
-			continue
-		}
 
-		// `${version}/${os}_${arch}.zip`
-		zipFile, err := os.Create(filepath.Join(tmpDir, version1.String(), zipFilename(v, platform.os, platform.arch)))
+	// `${version}/${os}_${arch}.zip`
+	zipFile, err := os.Create(filepath.Join(tmpDir, v.String(), zipFilename(v, runtime.GOOS, runtime.GOARCH)))
+	require.NoError(t, err)
+	zipWriter := zip.NewWriter(zipFile)
+
+	// `${version}/${os}_${arch}.zip/terraform{.exe}`
+	var exe io.Writer
+
+	if runtime.GOOS == "windows" {
+		exe, err = zipWriter.Create("terraform.exe")
 		require.NoError(t, err)
-		zipWriter := zip.NewWriter(zipFile)
-
-		// `${version}/${os}_${arch}.zip/terraform{.exe}`
-		var exe io.Writer
-
-		if platform.os == "windows" {
-			exe, err = zipWriter.Create("terraform.exe")
-			require.NoError(t, err)
-			n, err := exe.Write(windowsExeContent(t, tmpDir, v, platform))
-			require.NoError(t, err)
-			require.NotZero(t, n)
-		} else {
-			exe, err = zipWriter.Create("terraform")
-			require.NoError(t, err)
-			n, err := exe.Write(unixExeContent(t, v, platform))
-			require.NoError(t, err)
-			require.NotZero(t, n)
-		}
-
-		// not all versions include LICENSE files (eg. 1.2.0)
-		if !v.Equal(version2) {
-			// `${version}/${os}_${arch}.zip/LICENSE.txt`
-			lic, err := zipWriter.Create("LICENSE.txt")
-			require.NoError(t, err)
-			n, err := lic.Write([]byte("some license"))
-			require.NoError(t, err)
-			require.NotZero(t, n)
-		}
-		require.NoError(t, zipWriter.Close())
+		n, err := exe.Write(windowsExeContent(t, tmpDir, v))
+		require.NoError(t, err)
+		require.NotZero(t, n)
+	} else {
+		exe, err = zipWriter.Create("terraform")
+		require.NoError(t, err)
+		n, err := exe.Write(unixExeContent(t, v))
+		require.NoError(t, err)
+		require.NotZero(t, n)
 	}
+
+	// not all versions include LICENSE files (eg. 1.2.0)
+	if !v.Equal(version2) {
+		// `${version}/${os}_${arch}.zip/LICENSE.txt`
+		lic, err := zipWriter.Create("LICENSE.txt")
+		require.NoError(t, err)
+		n, err := lic.Write([]byte("some license"))
+		require.NoError(t, err)
+		require.NotZero(t, n)
+	}
+	require.NoError(t, zipWriter.Close())
 }
 
 func mustMarshal(t *testing.T, obj any) []byte {

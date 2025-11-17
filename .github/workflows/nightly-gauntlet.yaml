@@ -80,11 +80,6 @@ jobs:
           key-prefix: embedded-pg-${{ runner.os }}-${{ runner.arch }}
           cache-path: ${{ steps.embedded-pg-cache.outputs.cached-dirs }}
 
-      - name: "wush"
-        if: runner.OS == 'Windows'
-        uses: coder/wush-action@v1.0.0
-        timeout-minutes: 90
-
       - name: Test with PostgreSQL Database
         env:
           POSTGRES_VERSION: "13"
