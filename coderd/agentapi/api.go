@@ -310,7 +310,7 @@ func (a *API) agent(ctx context.Context) (database.WorkspaceAgent, error) {
 	return agent, nil
 }
 
-func (a *API) workspace() (database.Workspace) {
+func (a *API) workspace() database.Workspace {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 

@@ -48,7 +48,7 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 		return nil, err
 	}
 	// Construct workspace from cached fields to avoid DB query
-	workspace:= a.WorkspaceFn()
+	workspace := a.WorkspaceFn()
 
 	a.Log.Debug(ctx, "read stats report",
 		slog.F("interval", a.AgentStatsRefreshInterval),
