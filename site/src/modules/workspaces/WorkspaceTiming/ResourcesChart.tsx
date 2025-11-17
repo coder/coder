@@ -53,7 +53,9 @@ export const ResourcesChart: FC<ResourcesChartProps> = ({
 	const [filter, setFilter] = useState("");
 	const visibleTimings = timings.filter(
 		// Stage boundaries are also included
-		(t) => (!isCoderResource(t.name) || isStageBoundary(t.name)) && t.name.includes(filter),
+		(t) =>
+			(!isCoderResource(t.name) || isStageBoundary(t.name)) &&
+			t.name.includes(filter),
 	);
 	const theme = useTheme();
 	const legendsByAction = getLegendsByAction(theme);
@@ -113,7 +115,9 @@ export const ResourcesChart: FC<ResourcesChartProps> = ({
 											<>
 												<TooltipTitle>{t.name}</TooltipTitle>
 												{/* Stage boundaries should not have these links */}
-												{!stageBoundary && <TooltipLink to="">view template</TooltipLink>}
+												{!stageBoundary && (
+													<TooltipLink to="">view template</TooltipLink>
+												)}
 											</>
 										}
 									>

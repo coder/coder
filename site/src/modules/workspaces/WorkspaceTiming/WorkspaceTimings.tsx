@@ -17,7 +17,11 @@ import {
 	mergeTimeRanges,
 	type TimeRange,
 } from "./Chart/utils";
-import { isCoderResource, isStageBoundary, ResourcesChart } from "./ResourcesChart";
+import {
+	isCoderResource,
+	isStageBoundary,
+	ResourcesChart,
+} from "./ResourcesChart";
 import { ScriptsChart } from "./ScriptsChart";
 import {
 	agentStages,
@@ -143,8 +147,8 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 
 										// StageBoundaries are being drawn on the total timeline.
 										// Do not show them as discrete resources inside the stage view.
-										if(isProvisionerTiming && isStageBoundary(t.resource)) {
-											return false
+										if (isProvisionerTiming && isStageBoundary(t.resource)) {
+											return false;
 										}
 
 										return isProvisionerTiming
