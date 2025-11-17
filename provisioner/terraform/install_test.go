@@ -6,18 +6,15 @@
 package terraform_test
 
 import (
-	"archive/zip"
 	"context"
 	_ "embed"
-	"encoding/json"
-	"fmt"
+	"errors"
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -32,216 +29,92 @@ import (
 )
 
 const (
-	// simple scripts that mock `./terraform version -json`
-	bashExecutableTemplate = `#!/bin/bash
-cat <<EOF
-{
-  "terraform_version": "${ver}",
-  "platform": "${os}_${arch}",
-  "provider_selections": {},
-  "terraform_outdated": true
-}
-EOF
-`
+	cacheSubDir  = "terraform_install_test"
+	terraformURL = "https://releases.hashicorp.com"
 )
 
 var (
-	//go:embed testdata/fake_terraform_go.txt
-	windowsExecutableGoSourceCodeTemplate string
-
 	version1 = terraform.TerraformVersion
 	version2 = version.Must(version.NewVersion("1.2.0"))
 )
 
-type productBuild struct {
-	Name     string `json:"name"`
-	Version  string `json:"version"`
-	OS       string `json:"os"`
-	Arch     string `json:"arch"`
-	Filename string `json:"filename"`
-	URL      string `json:"url"`
+type terraformProxy struct {
+	t          *testing.T
+	cacheRoot  string
+	listener   net.Listener
+	srv        *http.Server
+	fsHandler  http.Handler
+	httpClient *http.Client
+	mutex      *sync.Mutex
 }
 
-type productVersion struct {
-	Name    string           `json:"name"`
-	Version *version.Version `json:"version"`
-	Builds  []productBuild   `json:"builds"`
-}
-
-type product struct {
-	Name     string                    `json:"name"`
-	Versions map[string]productVersion `json:"versions"`
-}
-
-func zipFilename(v *version.Version, osys string, arch string) string {
-	return fmt.Sprintf("terraform_%s_%s_%s.zip", v, osys, arch)
-}
-
-func mockProductBuild(v *version.Version, osys string, arch string) productBuild {
-	return productBuild{
-		Arch:     arch,
-		Filename: zipFilename(v, osys, arch),
-		Name:     "terraform",
-		OS:       osys,
-		URL:      fmt.Sprintf("/terraform/%s/%s", v, zipFilename(v, osys, arch)),
-		Version:  v.String(),
-	}
-}
-
-// returns `/${version}/index.json` in struct format
-func mockProductVersion(v *version.Version) productVersion {
-	pv := productVersion{
-		Name:    "terraform",
-		Version: v,
-		Builds:  []productBuild{mockProductBuild(v, runtime.GOOS, runtime.GOARCH)},
-	}
-	return pv
-}
-
-// returns `/index.json` in struct format
-func mockProduct(versions ...*version.Version) product {
-	vj := map[string]productVersion{}
-	for _, v := range versions {
-		vj[v.String()] = mockProductVersion(v)
-	}
-	mj := product{
-		Name:     "terraform",
-		Versions: vj,
-	}
-	return mj
-}
-
-// for linux/mac simple script works
-func unixExeContent(t *testing.T, v *version.Version) []byte {
-	rep := strings.NewReplacer("${ver}", v.String(), "${os}", runtime.GOOS, "${arch}", runtime.GOARCH)
-	return []byte(rep.Replace(bashExecutableTemplate))
-}
-
-// for windows it seems program compilation is required
-func windowsExeContent(t *testing.T, tmpDir string, v *version.Version) []byte {
-	code := fmt.Sprintf(windowsExecutableGoSourceCodeTemplate, v, runtime.GOARCH)
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "fake-terraform.go"), []byte(code), 0o600))
-
-	verDir := filepath.Join(tmpDir, v.String())
-
-	// init go mod
-	var errbuf strings.Builder
-	cmd := exec.Command("go", "mod", "init", "fake-terraform")
-	cmd.Dir = verDir
-	cmd.Stderr = &errbuf
-	output, err := cmd.Output()
-	if err != nil {
-		t.Fatalf("failed to init go module: stdout: %s  stderr: %s  err: %v", output, errbuf.String(), err)
+// Simple cached proxy for terraform files.
+// Serves files from persistent cache or forwards requests to releases.hashicorp.com
+// Modifies downloaded index.json files so they point to proxy.
+func persistentlyCachedProxy(t *testing.T) *terraformProxy {
+	cacheRoot := filepath.Join(testutil.PersistentCacheDir(t), cacheSubDir)
+	proxy := terraformProxy{
+		t:          t,
+		mutex:      &sync.Mutex{},
+		cacheRoot:  cacheRoot,
+		fsHandler:  http.FileServer(http.Dir(cacheRoot)),
+		httpClient: &http.Client{},
 	}
 
-	// compile fake exe
-	exePath := filepath.Join(verDir, "terraform.exe")
-	errbuf.Reset()
-	cmd = exec.Command("go", "build", "-o", exePath)
-	cmd.Dir = verDir
-	cmd.Stderr = &errbuf
-	output, err = cmd.Output()
-	if err != nil {
-		t.Fatalf("failed to compile fake binary: stdout: %s  stderr: %s  err: %v", output, errbuf.String(), err)
-	}
-	exeContent, err := os.ReadFile(exePath)
-	require.NoError(t, err)
-	return exeContent
-}
-
-func mustCreateZips(t *testing.T, tmpDir string, v *version.Version) {
-
-	// `${version}/${os}_${arch}.zip`
-	zipFile, err := os.Create(filepath.Join(tmpDir, v.String(), zipFilename(v, runtime.GOOS, runtime.GOARCH)))
-	require.NoError(t, err)
-	zipWriter := zip.NewWriter(zipFile)
-
-	// `${version}/${os}_${arch}.zip/terraform{.exe}`
-	var exe io.Writer
-
-	if runtime.GOOS == "windows" {
-		exe, err = zipWriter.Create("terraform.exe")
-		require.NoError(t, err)
-		n, err := exe.Write(windowsExeContent(t, tmpDir, v))
-		require.NoError(t, err)
-		require.NotZero(t, n)
-	} else {
-		exe, err = zipWriter.Create("terraform")
-		require.NoError(t, err)
-		n, err := exe.Write(unixExeContent(t, v))
-		require.NoError(t, err)
-		require.NotZero(t, n)
-	}
-
-	// not all versions include LICENSE files (eg. 1.2.0)
-	if !v.Equal(version2) {
-		// `${version}/${os}_${arch}.zip/LICENSE.txt`
-		lic, err := zipWriter.Create("LICENSE.txt")
-		require.NoError(t, err)
-		n, err := lic.Write([]byte("some license"))
-		require.NoError(t, err)
-		require.NotZero(t, n)
-	}
-	require.NoError(t, zipWriter.Close())
-}
-
-func mustMarshal(t *testing.T, obj any) []byte {
-	b, err := json.Marshal(obj)
-	require.NoError(t, err)
-	return b
-}
-
-// Mock files are based on https://releases.hashicorp.com/terraform
-// mock directory structure:
-//
-//	${tmpDir}/index.json
-//	${tmpDir}/${version}/index.json
-//	${tmpDir}/${version}/terraform_${version}_linux_amd64.zip
-//	  -> zip contains 'terraform' binary and sometimes 'LICENSE.txt'
-func createFakeTerraformInstallationFiles(t *testing.T) string {
-	tmpDir := t.TempDir()
-
-	// `index.json`
-	mij := mustMarshal(t, mockProduct(version1, version2))
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "index.json"), mij, 0o400))
-
-	// `${version1}/index.json`
-	jv1 := mustMarshal(t, mockProductVersion(version1))
-	require.NoError(t, os.Mkdir(filepath.Join(tmpDir, version1.String()), 0o700))
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, version1.String(), "index.json"), jv1, 0o400))
-
-	// `${version2}/index.json`
-	jv2 := mustMarshal(t, mockProductVersion(version2))
-	require.NoError(t, os.Mkdir(filepath.Join(tmpDir, version2.String()), 0o700))
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, version2.String(), "index.json"), jv2, 0o400))
-
-	mustCreateZips(t, tmpDir, version1)
-	mustCreateZips(t, tmpDir, version2)
-	return tmpDir
-}
-
-// starts http server serving fake terraform installation files
-func startFakeTerraformServer(t *testing.T, tmpDir string) string {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("failed to create listener")
 	}
+	proxy.listener = listener
 
-	mux := http.NewServeMux()
-	fs := http.FileServer(http.Dir(tmpDir))
-	mux.Handle("/terraform/", http.StripPrefix("/terraform", fs))
+	m := http.NewServeMux()
+	m.HandleFunc("GET /", proxy.handleGet)
 
-	srv := http.Server{
-		ReadHeaderTimeout: time.Second,
-		Handler:           mux,
+	proxy.srv = &http.Server{
+		WriteTimeout: 30 * time.Second,
+		ReadTimeout:  30 * time.Second,
+		Handler:      m,
 	}
-	go srv.Serve(listener)
-	t.Cleanup(func() {
-		if err := srv.Close(); err != nil {
-			t.Errorf("failed to close server: %v", err)
+	return &proxy
+}
+
+func uriToFilename(u url.URL) string {
+	return strings.ReplaceAll(u.RequestURI(), "/", "_")
+}
+
+func (p *terraformProxy) handleGet(w http.ResponseWriter, r *http.Request) {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	filename := uriToFilename(*r.URL)
+	path := filepath.Join(p.cacheRoot, filename)
+	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+		require.NoError(p.t, os.MkdirAll(p.cacheRoot, os.ModeDir|0o700))
+
+		// Update cache
+		req, err := http.NewRequestWithContext(p.t.Context(), "GET", terraformURL+r.URL.Path, nil)
+		require.NoError(p.t, err)
+
+		resp, err := p.httpClient.Do(req)
+		require.NoError(p.t, err)
+		defer resp.Body.Close()
+
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(p.t, err)
+
+		// update index.json so it points to proxy
+		if strings.HasSuffix(r.URL.Path, "index.json") {
+			body = []byte(strings.ReplaceAll(string(body), terraformURL, ""))
 		}
-	})
-	return "http://" + listener.Addr().String()
+		require.NoError(p.t, os.WriteFile(path, body, 0o400))
+	} else if err != nil {
+		p.t.Errorf("unexpected error when trying to read file from cache: %v", err)
+	}
+
+	// Serve from cache
+	r.URL.Path = filename
+	r.URL.RawPath = filename
+	p.fsHandler.ServeHTTP(w, r)
 }
 
 func TestInstall(t *testing.T) {
@@ -253,8 +126,11 @@ func TestInstall(t *testing.T) {
 	dir := t.TempDir()
 	log := testutil.Logger(t)
 
-	tmpDir := createFakeTerraformInstallationFiles(t)
-	addr := startFakeTerraformServer(t, tmpDir)
+	proxy := persistentlyCachedProxy(t)
+	go proxy.srv.Serve(proxy.listener)
+	t.Cleanup(func() {
+		require.NoError(t, proxy.srv.Close())
+	})
 
 	// Install spins off 8 installs with Version and waits for them all
 	// to complete. The locking mechanism within Install should
@@ -267,7 +143,7 @@ func TestInstall(t *testing.T) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				p, err := terraform.Install(ctx, log, false, dir, version, addr, false)
+				p, err := terraform.Install(ctx, log, false, dir, version, "http://"+proxy.listener.Addr().String())
 				assert.NoError(t, err)
 				paths <- p
 			}()
