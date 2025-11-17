@@ -254,12 +254,7 @@ export const OrgsSortedAlphabetically: Story = {
 
 		const orgElements = globalScreen.getAllByRole("option");
 		// filter out Create btn
-		const filteredElems = orgElements.slice(0, 3);
-
-		const orgNames = filteredElems.map(
-			// handling fuzzy matching
-			(el) => el.textContent?.replace(/^[A-Z]/, "").trim() || "",
-		);
+		const orgNames = orgElements.slice(0, 3);
 
 		// active name first
 		expect(orgNames).toEqual(["Omega org", "alpha Org", "Zeta Org"]);
