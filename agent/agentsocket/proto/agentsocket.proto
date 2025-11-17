@@ -3,52 +3,34 @@ option go_package = "github.com/coder/coder/v2/agent/agentsocket/proto";
 
 package coder.agentsocket.v1;
 
-import "google/protobuf/timestamp.proto";
-
 message PingRequest {}
 
-message PingResponse {
-	string message = 1;
-	google.protobuf.Timestamp timestamp = 2;
-}
+message PingResponse {}
 
 message SyncStartRequest {
 	string unit = 1;
 }
 
-message SyncStartResponse {
-	bool success = 1;
-	string message = 2;
-}
+message SyncStartResponse {}
 
 message SyncWantRequest {
 	string unit = 1;
 	string depends_on = 2;
 }
 
-message SyncWantResponse {
-	bool success = 1;
-	string message = 2;
-}
+message SyncWantResponse {}
 
 message SyncCompleteRequest {
 	string unit = 1;
 }
 
-message SyncCompleteResponse {
-	bool success = 1;
-	string message = 2;
-}
+message SyncCompleteResponse {}
 
 message SyncReadyRequest {
 	string unit = 1;
 }
 
-message SyncReadyResponse {
-	bool success = 1;
-	string message = 2;
-  bool is_ready = 3;
-}
+message SyncReadyResponse {}
 
 message SyncStatusRequest {
 	string unit = 1;

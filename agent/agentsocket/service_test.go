@@ -18,7 +18,6 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/agent/agentsocket"
 	"github.com/coder/coder/v2/agent/agentsocket/proto"
-	"github.com/coder/coder/v2/agent/unit"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 )
 
@@ -92,34 +91,26 @@ func TestDRPCAgentSocketService(t *testing.T) {
 		client, cleanup := newSocketClient(t, socketPath)
 		defer cleanup()
 
-		respStart, err := client.SyncStart(context.Background(), &proto.SyncStartRequest{
+		_, err = client.SyncStart(context.Background(), &proto.SyncStartRequest{
 			Unit: "",
 		})
 		require.NoError(t, err)
-		require.False(t, respStart.Success)
-		require.Contains(t, respStart.Message, agentsocket.ErrUnitNameRequired.Error())
 
-		respWant, err := client.SyncWant(context.Background(), &proto.SyncWantRequest{
+		_, err = client.SyncWant(context.Background(), &proto.SyncWantRequest{
 			Unit:      "",
 			DependsOn: "dependency-unit",
 		})
 		require.NoError(t, err)
-		require.False(t, respWant.Success)
-		require.Contains(t, respWant.Message, agentsocket.ErrUnitNameRequired.Error())
 
-		respComplete, err := client.SyncComplete(context.Background(), &proto.SyncCompleteRequest{
+		_, err = client.SyncComplete(context.Background(), &proto.SyncCompleteRequest{
 			Unit: "",
 		})
 		require.NoError(t, err)
-		require.False(t, respComplete.Success)
-		require.Contains(t, respComplete.Message, agentsocket.ErrUnitNameRequired.Error())
 
-		respReady, err := client.SyncReady(context.Background(), &proto.SyncReadyRequest{
+		_, err = client.SyncReady(context.Background(), &proto.SyncReadyRequest{
 			Unit: "",
 		})
 		require.NoError(t, err)
-		require.False(t, respReady.Success)
-		require.Contains(t, respReady.Message, agentsocket.ErrUnitNameRequired.Error())
 
 		respStatus, err := client.SyncStatus(context.Background(), &proto.SyncStatusRequest{
 			Unit: "",
@@ -147,9 +138,8 @@ func TestDRPCAgentSocketService(t *testing.T) {
 		client, cleanup := newSocketClient(t, socketPath)
 		defer cleanup()
 
-		response, err := client.Ping(context.Background(), &proto.PingRequest{})
+		_, err = client.Ping(context.Background(), &proto.PingRequest{})
 		require.NoError(t, err)
-		require.Equal(t, "pong", response.Message)
 	})
 
 	t.Run("SyncStart", func(t *testing.T) {
@@ -200,31 +190,22 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			client, cleanup := newSocketClient(t, socketPath)
 			defer cleanup()
 
+			// First Start
 			_, err = client.SyncStart(context.Background(), &proto.SyncStartRequest{
 				Unit: "test-unit",
 			})
 			require.NoError(t, err)
-
-			// First Start
 			status, err := client.SyncStatus(context.Background(), &proto.SyncStatusRequest{
 				Unit: "test-unit",
 			})
 			require.NoError(t, err)
 			require.Equal(t, "started", status.Status)
 
-			status, err = client.SyncStatus(context.Background(), &proto.SyncStatusRequest{
-				Unit: "test-unit",
-			})
-			require.NoError(t, err)
-			require.Equal(t, "started", status.Status)
-
 			// Second Start
-			response, err := client.SyncStart(context.Background(), &proto.SyncStartRequest{
+			_, err = client.SyncStart(context.Background(), &proto.SyncStartRequest{
 				Unit: "test-unit",
 			})
-			require.NoError(t, err)
-			require.False(t, response.Success)
-			require.Contains(t, response.Message, unit.ErrSameStatusAlreadySet.Error())
+			require.ErrorContains(t, err, "unit already started")
 
 			status, err = client.SyncStatus(context.Background(), &proto.SyncStatusRequest{
 				Unit: "test-unit",
@@ -310,18 +291,17 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			response, err := client.SyncStart(context.Background(), &proto.SyncStartRequest{
+			_, err = client.SyncStart(context.Background(), &proto.SyncStartRequest{
 				Unit: "test-unit",
 			})
-			require.NoError(t, err)
-			require.False(t, response.Success)
-			require.Contains(t, response.Message, unit.ErrDependenciesNotSatisfied.Error())
+			require.ErrorContains(t, err, "unit not ready")
 
 			status, err := client.SyncStatus(context.Background(), &proto.SyncStatusRequest{
 				Unit: "test-unit",
 			})
 			require.NoError(t, err)
 			require.Equal(t, "", status.Status)
+			require.False(t, status.IsReady)
 		})
 	})
 
@@ -478,13 +458,10 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			client, cleanup := newSocketClient(t, socketPath)
 			defer cleanup()
 
-			response, err := client.SyncReady(context.Background(), &proto.SyncReadyRequest{
+			_, err = client.SyncReady(context.Background(), &proto.SyncReadyRequest{
 				Unit: "unregistered-unit",
 			})
-			require.False(t, response.Success)
-			require.NoError(t, err)
-			require.Contains(t, response.Message, "unit not found")
-			require.False(t, response.IsReady)
+			require.ErrorContains(t, err, "unit not ready")
 		})
 
 		t.Run("UnitNotReady", func(t *testing.T) {
@@ -512,12 +489,10 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			require.NoError(t, err)
 
 			// Check readiness - should be false because dependency is not satisfied
-			response, err := client.SyncReady(context.Background(), &proto.SyncReadyRequest{
+			_, err = client.SyncReady(context.Background(), &proto.SyncReadyRequest{
 				Unit: "test-unit",
 			})
-			require.NoError(t, err)
-			require.True(t, response.Success)
-			require.False(t, response.IsReady)
+			require.ErrorContains(t, err, "unit not ready")
 		})
 
 		t.Run("UnitReady", func(t *testing.T) {
@@ -544,12 +519,10 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			require.NoError(t, err)
 
 			// Check readiness - should be true
-			response, err := client.SyncReady(context.Background(), &proto.SyncReadyRequest{
+			_, err = client.SyncReady(context.Background(), &proto.SyncReadyRequest{
 				Unit: "test-unit",
 			})
 			require.NoError(t, err)
-			require.True(t, response.Success)
-			require.True(t, response.IsReady)
 
 			// Also test a unit with satisfied dependencies
 			_, err = client.SyncWant(context.Background(), &proto.SyncWantRequest{
@@ -565,12 +538,10 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			require.NoError(t, err)
 
 			// Now dependent-unit should be ready
-			response, err = client.SyncReady(context.Background(), &proto.SyncReadyRequest{
+			_, err = client.SyncReady(context.Background(), &proto.SyncReadyRequest{
 				Unit: "dependent-unit",
 			})
 			require.NoError(t, err)
-			require.True(t, response.Success)
-			require.True(t, response.IsReady)
 		})
 	})
 }
