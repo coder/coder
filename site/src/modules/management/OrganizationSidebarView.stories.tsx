@@ -254,7 +254,11 @@ export const OrgsSortedAlphabetically: Story = {
 
 		const orgElements = globalScreen.getAllByRole("option");
 		// filter out Create btn
-		const orgNames = orgElements.slice(0, 3);
+		const filteredElems = orgElements.slice(0, 3);
+
+		const orgNames = filteredElems.map(
+			(el) => el.textContent || "",
+		);
 
 		// active name first
 		expect(orgNames).toEqual(["Omega org", "alpha Org", "Zeta Org"]);
