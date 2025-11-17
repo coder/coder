@@ -115,7 +115,6 @@ func (s *server) Plan(
 	err = e.init(ctx, killCtx, sess)
 	endStage(err)
 	if err != nil {
-
 		s.logger.Debug(ctx, "init failed", slog.Error(err))
 
 		// Special handling for "text file busy" c.f. https://github.com/coder/coder/issues/14726
