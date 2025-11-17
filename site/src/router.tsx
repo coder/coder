@@ -334,11 +334,11 @@ const ProvisionerJobsPage = lazy(
 );
 const TasksPage = lazy(() => import("./pages/TasksPage/TasksPage"));
 const TaskPage = lazy(() => import("./pages/TaskPage/TaskPage"));
-const AIGovernanceLayout = lazy(
-	() => import("./pages/AIGovernancePage/AIGovernanceLayout"),
+const AIBridgeLayout = lazy(
+	() => import("./pages/AIBridgePage/AIBridgeLayout"),
 );
-const AIGovernanceRequestLogsPage = lazy(
-	() => import("./pages/AIGovernancePage/RequestLogsPage/RequestLogsPage"),
+const AIBridgeRequestLogsPage = lazy(
+	() => import("./pages/AIBridgePage/RequestLogsPage/RequestLogsPage"),
 );
 
 const RoutesWithSuspense = () => {
@@ -563,11 +563,11 @@ export const router = createBrowserRouter(
 						</Route>
 					</Route>
 
-					<Route path="/aigovernance" element={<AIGovernanceLayout />}>
+					<Route path="/aibridge" element={<AIBridgeLayout />}>
 						<Route index element={<Navigate to="request-logs" replace />} />
 						<Route
 							path="request-logs"
-							element={<AIGovernanceRequestLogsPage />}
+							element={<AIBridgeRequestLogsPage />}
 						/>
 					</Route>
 

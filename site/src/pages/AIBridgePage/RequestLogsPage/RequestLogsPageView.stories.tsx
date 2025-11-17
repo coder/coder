@@ -28,7 +28,7 @@ const defaultFilterProps = getDefaultFilterProps<FilterProps>({
 const interceptions = [MockInterception, MockInterception, MockInterception];
 
 const meta: Meta<typeof RequestLogsPageView> = {
-	title: "pages/AIGovernancePage/RequestLogsPageView",
+	title: "pages/AIBridgePage/RequestLogsPageView",
 	component: RequestLogsPageView,
 	args: {},
 };

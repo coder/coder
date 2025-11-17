@@ -36,8 +36,8 @@ export const RequestLogsPageView: FC<RequestLogsPageViewProps> = ({
 	if (!isRequestLogsVisible) {
 		return (
 			<Paywall
-				message="AI Governance"
-				description="AI Governance allows you to monitor and manage AI requests. You need an Premium license to use this feature."
+				message="AI Bridge"
+				description="AI Bridge allows you to monitor and manage AI requests. You need an Premium license to use this feature."
 				documentationLink={docs("/ai-coder/ai-bridge")}
 			/>
 		);
