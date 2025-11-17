@@ -369,8 +369,11 @@ func (a *API) startCacheRefreshLoop(ctx context.Context) {
 		a.refreshCachedWorkspace(ctx)
 		return nil
 	}, "cache_refresh")
-
-	<-ctx.Done()
+	a.opts.Log.Debug(ctx, "cache refresh loop exited, invalidating the workspace cache on agent API",
+		slog.F("workspace_id", a.cachedWorkspaceFields.ID),
+		slog.F("owner_id", a.cachedWorkspaceFields.OwnerUsername),
+		slog.F("name", a.cachedWorkspaceFields.Name))
+	a.cachedWorkspaceFields = CachedWorkspaceFields{}
 }
 
 func (a *API) publishWorkspaceUpdate(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
