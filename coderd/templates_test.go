@@ -1753,6 +1753,22 @@ func TestDeleteTemplate(t *testing.T) {
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 	})
+
+	t.Run("DeletedIsSet", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Verify the deleted field is exposed in the SDK and set to false for active templates
+		got, err := client.Template(ctx, template.ID)
+		require.NoError(t, err)
+		require.False(t, got.Deleted)
+	})
 }
 
 func TestTemplateMetrics(t *testing.T) {

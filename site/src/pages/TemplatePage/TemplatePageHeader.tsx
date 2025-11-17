@@ -220,6 +220,7 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
 				actions={
 					<>
 						{!template.deprecated &&
+							!template.deleted &&
 							workspacePermissions.createWorkspaceForUserID && (
 								<Button asChild>
 									<RouterLink to={`${templateLink}/workspace`}>

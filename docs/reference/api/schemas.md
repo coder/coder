@@ -8101,6 +8101,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
   "created_by_name": "string",
   "default_ttl_ms": 0,
+  "deleted": true,
   "deprecated": true,
   "deprecation_message": "string",
   "description": "string",
@@ -8142,6 +8143,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `created_by_id`                    | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `created_by_name`                  | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `default_ttl_ms`                   | integer                                                                        | false    |              |                                                                                                                                                                                                 |
+| `deleted`                          | boolean                                                                        | false    |              |                                                                                                                                                                                                 |
 | `deprecated`                       | boolean                                                                        | false    |              |                                                                                                                                                                                                 |
 | `deprecation_message`              | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `description`                      | string                                                                         | false    |              |                                                                                                                                                                                                 |

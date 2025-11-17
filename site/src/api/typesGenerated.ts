@@ -4886,6 +4886,7 @@ export interface Template {
 	readonly description: string;
 	readonly deprecated: boolean;
 	readonly deprecation_message: string;
+	readonly deleted: boolean;
 	readonly icon: string;
 	readonly default_ttl_ms: number;
 	readonly activity_bump_ms: number;
