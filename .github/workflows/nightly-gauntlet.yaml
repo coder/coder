@@ -26,6 +26,9 @@ jobs:
           - macos-latest
           - windows-2022
     steps:
+      - name: "wush"
+        uses: coder/wush-action@v1.0.0
+        timeout-minutes: 90
       - name: Harden Runner
         uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
         with:
