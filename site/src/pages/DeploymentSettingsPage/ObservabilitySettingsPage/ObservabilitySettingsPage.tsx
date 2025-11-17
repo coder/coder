@@ -8,7 +8,10 @@ import { ObservabilitySettingsPageView } from "./ObservabilitySettingsPageView";
 const ObservabilitySettingsPage: FC = () => {
 	const { deploymentConfig } = useDeploymentConfig();
 	const { entitlements } = useDashboard();
-	const { multiple_organizations: hasPremiumLicense, aibridge: hasAIBridgeEnabled } = useFeatureVisibility();
+	const {
+		multiple_organizations: hasPremiumLicense,
+		aibridge: hasAIBridgeEnabled,
+	} = useFeatureVisibility();
 
 	return (
 		<>

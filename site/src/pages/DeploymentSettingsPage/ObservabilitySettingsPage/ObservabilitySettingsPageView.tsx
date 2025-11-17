@@ -100,9 +100,11 @@ export const ObservabilitySettingsPageView: FC<
 			</div>
 
 			<div>
-				<SettingsHeader actions={
-					<SettingsHeaderDocsLink href={docs("/ai-coder/ai-bridge")} />
-				}>
+				<SettingsHeader
+					actions={
+						<SettingsHeaderDocsLink href={docs("/ai-coder/ai-bridge")} />
+					}
+				>
 					<SettingsHeaderTitle hierarchy="secondary" level="h2">
 						AI Bridge
 					</SettingsHeaderTitle>
