@@ -374,6 +374,8 @@ func deriveTaskCurrentState(
 					message = "Initializing workspace applications"
 				}
 			default:
+				// In case the workspace agent is not initializing,
+				// the overall task status should be updated accordingly
 				message = "Initializing workspace agent"
 			}
 		}
