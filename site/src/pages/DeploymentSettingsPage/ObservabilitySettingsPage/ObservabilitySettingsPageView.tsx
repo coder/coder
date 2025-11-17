@@ -26,13 +26,18 @@ import OptionsTable from "../OptionsTable";
 type ObservabilitySettingsPageViewProps = {
 	options: SerpentOption[];
 	featureAuditLogEnabled: boolean;
+	featureAIBridgeEnabled: boolean;
 	isPremium: boolean;
-	isAIBridgeEnabled: boolean;
 };
 
 export const ObservabilitySettingsPageView: FC<
 	ObservabilitySettingsPageViewProps
-> = ({ options, featureAuditLogEnabled, isPremium, isAIBridgeEnabled }) => {
+> = ({
+	options,
+	featureAuditLogEnabled,
+	isPremium,
+	featureAIBridgeEnabled,
+}) => {
 	return (
 		<Stack direction="column" spacing={6}>
 			<div>
@@ -99,7 +104,7 @@ export const ObservabilitySettingsPageView: FC<
 				/>
 			</div>
 
-			{isAIBridgeEnabled && (
+			{featureAIBridgeEnabled && (
 				<div>
 					<SettingsHeader
 						actions={
