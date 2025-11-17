@@ -49,7 +49,6 @@ func (s *DRPCAgentSocketService) SyncStart(_ context.Context, req *proto.SyncSta
 	case !isReady:
 		return &proto.SyncStartResponse{}, xerrors.Errorf("unit not ready: %q", req.Unit)
 	}
-
 	err = s.unitManager.UpdateStatus(req.Unit, unit.StatusStarted)
 	switch {
 	case errors.Is(err, unit.ErrSameStatusAlreadySet):
