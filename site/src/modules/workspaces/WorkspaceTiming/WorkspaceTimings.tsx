@@ -141,7 +141,7 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 									const visibleResources = stageTimings.filter((t) => {
 										const isProvisionerTiming = "resource" in t;
 
-										if(isProvisionerTiming && t.resource === "coder_stage") {
+										if(isProvisionerTiming && t.resource.startsWith("coder_stage")) {
 											return false;
 										}
 

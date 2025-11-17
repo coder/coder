@@ -133,9 +133,11 @@ export const ResourcesChart: FC<ResourcesChartProps> = ({
 };
 
 export const isCoderResource = (resource: string) => {
-	if(resource === "coder_stage") {
-		return false
-	}
+	// coder_stage is a special internal resource that indicates the entire stage timing boundary. It should
+	// appear differently in the detailed chart.
+	// if(resource.startsWith("coder_stage_")) {
+	// 	return false
+	// }
 	return (
 		resource.startsWith("data.coder") ||
 		resource.startsWith("module.coder") ||
