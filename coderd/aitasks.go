@@ -629,6 +629,10 @@ func (api *API) taskUpdatePrompt(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// NOTE(DanielleMaywood):
+	// If there is a workspace associated with this task, we should check it isn't actively running.
+	// If it is running, we do not want to update the prompt as updating the prompt of a running
+	// workspace doesn't make sense.
 	if task.WorkspaceID.Valid {
 		build, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, task.WorkspaceID.UUID)
 		if err != nil {
