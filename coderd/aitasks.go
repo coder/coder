@@ -13,6 +13,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -23,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/taskname"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 
@@ -272,27 +274,20 @@ func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) cod
 	var taskAgentHealth *codersdk.WorkspaceAgentHealth
 	var taskAppHealth *codersdk.WorkspaceAppHealth
 
-	// If we have an agent ID from the task, find the agent details in the workspace.
-	// TODO(ssncferreira): Use 'workspace_agent_lifecycle_state' and 'workspace_app_health'
-	//   from new 'tasks_with_status' view (PR https://github.com/coder/coder/pull/20683)
+	if dbTask.WorkspaceAgentLifecycleState.Valid {
+		taskAgentLifecycle = ptr.Ref(codersdk.WorkspaceAgentLifecycle(dbTask.WorkspaceAgentLifecycleState.WorkspaceAgentLifecycleState))
+	}
+	if dbTask.WorkspaceAppHealth.Valid {
+		taskAppHealth = ptr.Ref(codersdk.WorkspaceAppHealth(dbTask.WorkspaceAppHealth.WorkspaceAppHealth))
+	}
+
+	// If we have an agent ID from the task, find the agent health info
 	if dbTask.WorkspaceAgentID.Valid {
 	findTaskAgentLoop:
 		for _, resource := range ws.LatestBuild.Resources {
 			for _, agent := range resource.Agents {
 				if agent.ID == dbTask.WorkspaceAgentID.UUID {
-					taskAgentLifecycle = &agent.LifecycleState
 					taskAgentHealth = &agent.Health
-
-					// Get task app health if it exists
-					if dbTask.WorkspaceAppID.Valid {
-						for _, app := range agent.Apps {
-							if app.ID == dbTask.WorkspaceAppID.UUID {
-								taskAppHealth = &app.Health
-								break
-							}
-						}
-					}
-
 					break findTaskAgentLoop
 				}
 			}
