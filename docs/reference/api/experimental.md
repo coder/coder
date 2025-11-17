@@ -166,6 +166,43 @@ curl -X GET http://coder-server:8080/api/v2/api/experimental/tasks/{user}/{task}
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Update AI task prompt
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/api/experimental/tasks/{user}/{task}/prompt \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /api/experimental/tasks/{user}/{task}/prompt`
+
+> Body parameter
+
+```json
+{
+  "prompt": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                           | Required | Description                                           |
+|--------|------|--------------------------------------------------------------------------------|----------|-------------------------------------------------------|
+| `user` | path | string                                                                         | true     | Username, user ID, or 'me' for the authenticated user |
+| `task` | path | string(uuid)                                                                   | true     | Task ID                                               |
+| `body` | body | [codersdk.UpdateTaskPromptRequest](schemas.md#codersdkupdatetaskpromptrequest) | true     | Update task prompt request                            |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Send input to AI task
 
 ### Code samples
