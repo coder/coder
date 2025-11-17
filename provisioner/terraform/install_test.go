@@ -102,7 +102,8 @@ func (p *terraformProxy) handleGet(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(resp.Body)
 		require.NoError(p.t, err)
 
-		// update index.json so it points to proxy
+		// update index.json so urls in it point to proxy by making them relative
+		// "https://releases.hashicorp.com/terraform/1.13.4/terraform_1.13.4_windows_amd64.zip" -> "/terraform/1.13.4/terraform_1.13.4_windows_amd64.zip"
 		if strings.HasSuffix(r.URL.Path, "index.json") {
 			body = []byte(strings.ReplaceAll(string(body), terraformURL, ""))
 		}
