@@ -2708,6 +2708,16 @@ class ExperimentalApiMethods {
 		await this.axios.delete(`/api/experimental/tasks/${user}/${id}`);
 	};
 
+	updateTaskPrompt = async (
+		user: string,
+		id: string,
+		prompt: string,
+	): Promise<void> => {
+		await this.axios.patch(`/api/experimental/tasks/${user}/${id}/prompt`, {
+			prompt,
+		});
+	};
+
 	createTaskFeedback = async (
 		_taskId: string,
 		_req: CreateTaskFeedbackRequest,
