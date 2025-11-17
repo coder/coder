@@ -282,15 +282,6 @@ func (e *timingSpan) toProto() *proto.Timing {
 	}
 }
 
-func createInitTimingsEvent(event timingKind) (time.Time, *timingSpan) {
-	return dbtime.Now(), &timingSpan{
-		kind:     event,
-		action:   "initializing terraform",
-		provider: "terraform",
-		resource: "init",
-	}
-}
-
 func createGraphTimingsEvent(event timingKind) (time.Time, *timingSpan) {
 	return dbtime.Now(), &timingSpan{
 		kind:     event,
