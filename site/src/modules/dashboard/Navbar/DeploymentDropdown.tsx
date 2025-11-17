@@ -117,11 +117,7 @@ const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
 			)}
 			{canViewAIBridge && (
 				<PopoverClose asChild>
-					<MenuItem
-						component={NavLink}
-						to="/aibridge"
-						css={styles.menuItem}
-					>
+					<MenuItem component={NavLink} to="/aibridge" css={styles.menuItem}>
 						AI Bridge
 					</MenuItem>
 				</PopoverClose>
