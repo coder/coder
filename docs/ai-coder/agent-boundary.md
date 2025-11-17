@@ -16,7 +16,14 @@ Agent Boundaries offer network policy enforcement, which blocks domains and HTTP
 
 The easiest way to use Agent Boundaries is through existing Coder modules, such as the [Claude Code module](https://registry.coder.com/modules/coder/claude-code). It can also be ran directly in the terminal by installing the [CLI](https://github.com/coder/boundary).
 
-Below is an example of how to configure Agent Boundaries for usage in your workspace.
+There are two supported ways to configure Boundary today:
+
+1. **Inline module configuration** – fastest for quick testing.
+2. **External `config.yaml`** – best when you need a large allow list or want everyone who launches Boundary manually to share the same config.
+
+### Option 1: Inline module configuration (quick start)
+
+Put every setting directly in the Terraform module when you just want to experiment:
 
 ```tf
 module "claude-code" {
@@ -30,6 +37,23 @@ module "claude-code" {
   version             = "3.2.1"
 }
 ```
+
+All Boundary knobs live in Terraform, so you can iterate quickly without creating extra files.
+
+### Option 2: Keep policy in `config.yaml` (extensive allow lists)
+
+When you need to maintain a long allow list or share a detailed policy with teammates, keep Terraform minimal and move the rest into `config.yaml`:
+
+```tf
+module "claude-code" {
+  source              = "dev.registry.coder.com/coder/claude-code/coder"
+  version             = "4.1.0"
+  enable_boundary     = true
+  boundary_version    = "v0.2.0"
+}
+```
+
+Boundary automatically reads `config.yaml` when it starts, so everyone who launches Boundary manually inside the workspace picks up the same configuration without extra flags. This is especially convenient for managing extensive `allowed_urls` lists in version control.
 
 - `boundary_version` defines what version of Boundary is being applied. This is set to `main`, which points to the main branch of `coder/boundary`.
 - `boundary_log_dir` is the directory where log files are written to when the workspace spins up.
