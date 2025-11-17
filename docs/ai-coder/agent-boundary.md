@@ -53,7 +53,34 @@ module "claude-code" {
 }
 ```
 
-Boundary automatically reads `config.yaml` when it starts, so everyone who launches Boundary manually inside the workspace picks up the same configuration without extra flags. This is especially convenient for managing extensive `allowed_urls` lists in version control.
+Then create a `config.yaml` file in your template directory with your policy:
+
+```yaml
+allowlist:
+  - method=GET domain=google.com
+log_dir: /tmp/boundary_logs
+proxy_port: 8087
+log_level: warn
+```
+
+Add a `coder_script` resource to mount the configuration file into the workspace filesystem:
+
+```tf
+resource "coder_script" "boundary_config_setup" {
+  agent_id     = coder_agent.dev.id
+  display_name = "Boundary Setup Configuration"
+  run_on_start = true
+
+  script = <<-EOF
+    #!/bin/sh
+    mkdir -p ~/.config/coder_boundary
+    echo '${base64encode(file("${path.module}/config.yaml"))}' | base64 -d > ~/.config/coder_boundary/config.yaml
+    chmod 600 ~/.config/coder_boundary/config.yaml
+  EOF
+}
+```
+
+Boundary automatically reads `config.yaml` from `~/.config/coder_boundary/` when it starts, so everyone who launches Boundary manually inside the workspace picks up the same configuration without extra flags. This is especially convenient for managing extensive allow lists in version control.
 
 - `boundary_version` defines what version of Boundary is being applied. This is set to `main`, which points to the main branch of `coder/boundary`.
 - `boundary_log_dir` is the directory where log files are written to when the workspace spins up.
