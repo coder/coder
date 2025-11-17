@@ -256,10 +256,13 @@ export const OrgsSortedAlphabetically: Story = {
 		// filter out Create btn
 		const filteredElems = orgElements.slice(0, 3);
 
-		const orgNames = filteredElems.map(
-			// handling fuzzy matching
-			(el) => el.textContent?.replace(/^[A-Z]/, "").trim() || "",
-		);
+		// Query the .truncate span to get only the organization name.
+		// This avoids including the avatar content, which renders as the first
+		// uppercase letter of the org name when the icon fails to load.
+		const orgNames = filteredElems.map((el) => {
+			const nameSpan = el.querySelector(".truncate");
+			return nameSpan?.textContent?.trim() || "";
+		});
 
 		// active name first
 		expect(orgNames).toEqual(["Omega org", "alpha Org", "Zeta Org"]);
