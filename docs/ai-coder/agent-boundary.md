@@ -33,7 +33,7 @@ module "claude-code" {
   boundary_version    = "v0.2.0"
   boundary_log_dir    = "/tmp/boundary_logs"
   boundary_log_level  = "WARN"
-  boundary_additional_allowed_urls = ["GET *google.com"]
+  boundary_additional_allowed_urls = ["domain=google.com"]
   boundary_proxy_port = "8087"
 }
 ```
@@ -57,7 +57,9 @@ Then create a `config.yaml` file in your template directory with your policy:
 
 ```yaml
 allowlist:
-  - method=GET domain=google.com
+  - "domain=google.com"
+  - "method=GET,HEAD domain=api.github.com"
+  - "method=POST domain=api.example.com path=/users,/posts"
 log_dir: /tmp/boundary_logs
 proxy_port: 8087
 log_level: warn
@@ -88,11 +90,13 @@ Boundary automatically reads `config.yaml` from `~/.config/coder_boundary/` when
   - `WARN`: logs only requests that have been blocked by Boundary
   - `INFO`: logs all requests at a high level
   - `DEBUG`: logs all requests in detail
-- `boundary_additional_allowed_urls`: defines the URLs that the agent can access, in additional to the default URLs required for the agent to work
-  - `github.com` means only the specific domain is allowed
-  - `*.github.com` means only the subdomains are allowed - the specific domain is excluded
-  - `*github.com` means both the specific domain and all subdomains are allowed
-  - You can also also filter on methods, hostnames, and paths - for example, `GET,HEAD *github.com/coder`.
+- `boundary_additional_allowed_urls`: defines the URLs that the agent can access, in addition to the default URLs required for the agent to work. Rules use the format `"key=value [key=value ...]"`:
+  - `domain=github.com` - allows only the specific domain
+  - `domain=*.github.com` - allows only subdomains (the specific domain is excluded)
+  - `domain=*github.com` - allows both the specific domain and all subdomains
+  - `method=GET,HEAD domain=api.github.com` - allows specific HTTP methods for a domain
+  - `method=POST domain=api.example.com path=/users,/posts` - allows specific methods, domain, and paths
+  - `path=/api/v1/*,/api/v2/*` - allows specific URL paths
 
 You can also run Agent Boundaries directly in your workspace and configure it per template. You can do so by installing the [binary](https://github.com/coder/boundary) into the workspace image or at start-up. You can do so with the following command:
 
