@@ -151,7 +151,7 @@ func unixExeContent(t *testing.T, v *version.Version, platform osArch) []byte {
 	return []byte(rep.Replace(bashExecutableTemplate))
 }
 
-// for windows it seems some progmram complication is required
+// for windows it seems program compilation is required
 func windowsExeContent(t *testing.T, tmpDir string, v *version.Version, platform osArch) []byte {
 	code := fmt.Sprintf(windowsExecutableGoSourceCodeTemplate, v, platform.arch)
 	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "fake-terraform.go"), []byte(code), 0o600))
