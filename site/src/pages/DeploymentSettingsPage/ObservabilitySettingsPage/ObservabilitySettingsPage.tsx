@@ -8,7 +8,7 @@ import { ObservabilitySettingsPageView } from "./ObservabilitySettingsPageView";
 const ObservabilitySettingsPage: FC = () => {
 	const { deploymentConfig } = useDeploymentConfig();
 	const { entitlements } = useDashboard();
-	const { multiple_organizations: hasPremiumLicense } = useFeatureVisibility();
+	const { multiple_organizations: hasPremiumLicense, aibridge: hasAIBridgeEnabled } = useFeatureVisibility();
 
 	return (
 		<>
@@ -18,6 +18,7 @@ const ObservabilitySettingsPage: FC = () => {
 				options={deploymentConfig.options}
 				featureAuditLogEnabled={entitlements.features.audit_log.enabled}
 				isPremium={hasPremiumLicense}
+				isAIBridgeEnabled={hasAIBridgeEnabled}
 			/>
 		</>
 	);

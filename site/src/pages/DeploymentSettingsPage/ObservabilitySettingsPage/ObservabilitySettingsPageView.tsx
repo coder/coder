@@ -27,6 +27,7 @@ type ObservabilitySettingsPageViewProps = {
 	options: SerpentOption[];
 	featureAuditLogEnabled: boolean;
 	isPremium: boolean;
+	isAIBridgeEnabled: boolean;
 };
 
 export const ObservabilitySettingsPageView: FC<
@@ -94,6 +95,25 @@ export const ObservabilitySettingsPageView: FC<
 				<OptionsTable
 					options={options.filter((o) =>
 						deploymentGroupHasParent(o.group, "Introspection"),
+					)}
+				/>
+			</div>
+
+			<div>
+				<SettingsHeader actions={
+					<SettingsHeaderDocsLink href={docs("/ai-coder/ai-bridge")} />
+				}>
+					<SettingsHeaderTitle hierarchy="secondary" level="h2">
+						AI Bridge
+					</SettingsHeaderTitle>
+					<SettingsHeaderDescription>
+						Monitor and manage AI requests across your deployment.
+					</SettingsHeaderDescription>
+				</SettingsHeader>
+
+				<OptionsTable
+					options={options.filter((o) =>
+						deploymentGroupHasParent(o.group, "AIBridge"),
 					)}
 				/>
 			</div>
