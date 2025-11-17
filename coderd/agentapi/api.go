@@ -327,7 +327,7 @@ func (a *API) workspace() database.Workspace {
 	}
 }
 
-func (a *API) rbacContext(ctx context.Context) context.Context {
+func (a *API) rbacContext(ctx context.Context) (context.Context, error) {
 	workspace := a.workspace()
 	return dbauthz.WithWorkspaceRBAC(ctx, workspace.RBACObject())
 }

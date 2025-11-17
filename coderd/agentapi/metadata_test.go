@@ -90,8 +90,8 @@ func TestBatchUpdateMetadata(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			RBACContextFn: func(ctx context.Context) context.Context {
-				return ctx
+			RBACContextFn: func(ctx context.Context) (context.Context, error) {
+				return ctx, nil
 			},
 			Database: dbM,
 			Pubsub:   pub,
@@ -178,8 +178,8 @@ func TestBatchUpdateMetadata(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			RBACContextFn: func(ctx context.Context) context.Context {
-				return ctx
+			RBACContextFn: func(ctx context.Context) (context.Context, error) {
+				return ctx, nil
 			},
 			Database: dbM,
 			Pubsub:   pub,
@@ -250,8 +250,8 @@ func TestBatchUpdateMetadata(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			RBACContextFn: func(ctx context.Context) context.Context {
-				return ctx
+			RBACContextFn: func(ctx context.Context) (context.Context, error) {
+				return ctx, nil
 			},
 			Database: dbM,
 			Pubsub:   pub,
@@ -349,7 +349,7 @@ func TestBatchUpdateMetadata(t *testing.T) {
 			AgentFn: func(_ context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			RBACContextFn: func(ctx context.Context) context.Context {
+			RBACContextFn: func(ctx context.Context) (context.Context, error) {
 				// Create a valid RBAC object with proper workspace ID, owner ID, and org ID
 				// These IDs match the workspace/owner/org that this agent belongs to
 				workspace := database.Workspace{
@@ -436,7 +436,7 @@ func TestBatchUpdateMetadata(t *testing.T) {
 			AgentFn: func(_ context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			RBACContextFn: func(ctx context.Context) context.Context {
+			RBACContextFn: func(ctx context.Context) (context.Context, error) {
 				// Create an invalid RBAC object with nil UUIDs for owner/org
 				// This will fail dbauthz fast path validation and trigger GetWorkspaceByAgentID
 				workspace := database.Workspace{
@@ -523,10 +523,10 @@ func TestBatchUpdateMetadata(t *testing.T) {
 			AgentFn: func(_ context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			RBACContextFn: func(ctx context.Context) context.Context {
+			RBACContextFn: func(ctx context.Context) (context.Context, error) {
 				// Don't attach any RBAC object - return context as-is
 				// This should trigger the slow path since no cached RBAC object exists
-				return ctx
+				return ctx, nil
 			},
 			Database: dbauthz.New(dbM, auth, testutil.Logger(t), accessControlStore),
 			Pubsub:   pub,
@@ -616,7 +616,7 @@ func TestBatchUpdateMetadata(t *testing.T) {
 				// Return agent directly without DB call
 				return agent, nil
 			},
-			RBACContextFn: func(ctx context.Context) context.Context {
+			RBACContextFn: func(ctx context.Context) (context.Context, error) {
 				// Inject STALE cached RBAC object with prebuild owner
 				// This will cause fast path authorization to fail when real owner calls it
 				workspace := database.Workspace{

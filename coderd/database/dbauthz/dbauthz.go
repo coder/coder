@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -208,8 +209,17 @@ type workspaceRBACContextKey struct{}
 //
 // This is primarily used by the workspace agent RPC handler to cache workspace
 // authorization data for the duration of an agent connection.
-func WithWorkspaceRBAC(ctx context.Context, rbacObj rbac.Object) context.Context {
-	return context.WithValue(ctx, workspaceRBACContextKey{}, rbacObj)
+func WithWorkspaceRBAC(ctx context.Context, rbacObj rbac.Object) (context.Context, error) {
+	if rbacObj.Type != rbac.ResourceWorkspace.Type {
+		return ctx, errors.New("RBAC Object must be of type Workspace")
+	}
+	if rbacObj.IsEmpty() {
+		return ctx, fmt.Errorf("cannot attach empty RBAC object to context: %+v", rbacObj)
+	}
+	if rbacObj.ACLGroupList != nil || len(rbacObj.ACLGroupList) != 0 || rbacObj.ACLUserList != nil || len(rbacObj.ACLUserList) != 0 {
+		return ctx, errors.New("ACL fields for Workspace RBAC object must be nil, the can be changed during runtime and should not be cached")
+	}
+	return context.WithValue(ctx, workspaceRBACContextKey{}, rbacObj), nil
 }
 
 // WorkspaceRBACFromContext attempts to retrieve the workspace RBAC object from context.

@@ -18,7 +18,7 @@ import (
 
 type MetadataAPI struct {
 	AgentFn       func(context.Context) (database.WorkspaceAgent, error)
-	RBACContextFn func(context.Context) context.Context
+	RBACContextFn func(context.Context) (context.Context, error)
 	Database      database.Store
 	Pubsub        pubsub.Pubsub
 	Log           slog.Logger
@@ -110,7 +110,11 @@ func (a *MetadataAPI) BatchUpdateMetadata(ctx context.Context, req *agentproto.B
 
 	// Inject RBAC object into context for dbauthz fast path, avoid having to
 	// call GetWorkspaceByAgentID on every metadata update.
-	err = a.Database.UpdateWorkspaceAgentMetadata(a.RBACContextFn(ctx), dbUpdate)
+	rbacCtx, err := a.RBACContextFn(ctx)
+	if err != nil {
+		a.Log.Error(ctx, "cached RBAC Workspace context wrapping was invalid", slog.Error(err))
+	}
+	err = a.Database.UpdateWorkspaceAgentMetadata(rbacCtx, dbUpdate)
 	if err != nil {
 		return nil, xerrors.Errorf("update workspace agent metadata in database: %w", err)
 	}
