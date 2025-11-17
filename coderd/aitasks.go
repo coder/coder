@@ -352,7 +352,7 @@ func deriveTaskCurrentState(
 
 	// If no valid agent state was found for the current build and the task is initializing,
 	// provide a descriptive initialization message.
-	if currentState == nil && codersdk.TaskStatus(dbTask.Status) == codersdk.TaskStatusInitializing {
+	if currentState == nil && dbTask.Status == database.TaskStatusInitializing {
 		message := "Initializing workspace"
 
 		switch {
