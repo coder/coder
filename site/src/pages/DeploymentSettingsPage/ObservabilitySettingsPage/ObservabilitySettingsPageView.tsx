@@ -32,7 +32,7 @@ type ObservabilitySettingsPageViewProps = {
 
 export const ObservabilitySettingsPageView: FC<
 	ObservabilitySettingsPageViewProps
-> = ({ options, featureAuditLogEnabled, isPremium }) => {
+> = ({ options, featureAuditLogEnabled, isPremium, isAIBridgeEnabled }) => {
 	return (
 		<Stack direction="column" spacing={6}>
 			<div>
@@ -99,26 +99,28 @@ export const ObservabilitySettingsPageView: FC<
 				/>
 			</div>
 
-			<div>
-				<SettingsHeader
-					actions={
-						<SettingsHeaderDocsLink href={docs("/ai-coder/ai-bridge")} />
-					}
-				>
-					<SettingsHeaderTitle hierarchy="secondary" level="h2">
-						AI Bridge
-					</SettingsHeaderTitle>
-					<SettingsHeaderDescription>
-						Monitor and manage AI requests across your deployment.
-					</SettingsHeaderDescription>
-				</SettingsHeader>
+			{isAIBridgeEnabled && (
+				<div>
+					<SettingsHeader
+						actions={
+							<SettingsHeaderDocsLink href={docs("/ai-coder/ai-bridge")} />
+						}
+					>
+						<SettingsHeaderTitle hierarchy="secondary" level="h2">
+							AI Bridge
+						</SettingsHeaderTitle>
+						<SettingsHeaderDescription>
+							Monitor and manage AI requests across your deployment.
+						</SettingsHeaderDescription>
+					</SettingsHeader>
 
-				<OptionsTable
-					options={options.filter((o) =>
-						deploymentGroupHasParent(o.group, "AIBridge"),
-					)}
-				/>
-			</div>
+					<OptionsTable
+						options={options.filter((o) =>
+							deploymentGroupHasParent(o.group, "AIBridge"),
+						)}
+					/>
+				</div>
+			)}
 		</Stack>
 	);
 };
