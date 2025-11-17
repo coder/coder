@@ -44,9 +44,6 @@ const (
 	timingResourceDrift timingKind = "resource_drift"
 	timingVersion       timingKind = "version"
 	// These are not part of message_types, but we want to track init/graph timings as well.
-	timingInitStart     timingKind = "init_start"
-	timingInitComplete  timingKind = "init_complete"
-	timingInitErrored   timingKind = "init_errored"
 	timingGraphStart    timingKind = "graph_start"
 	timingGraphComplete timingKind = "graph_complete"
 	timingGraphErrored  timingKind = "graph_errored"
@@ -116,13 +113,13 @@ func (t *timingAggregator) ingest(ts time.Time, s *timingSpan) {
 	ts = dbtime.Time(ts.UTC())
 
 	switch s.kind {
-	case timingApplyStart, timingProvisionStart, timingRefreshStart, timingInitStart, timingGraphStart, timingStageStart:
+	case timingApplyStart, timingProvisionStart, timingRefreshStart, timingGraphStart, timingStageStart:
 		s.start = ts
 		s.state = proto.TimingState_STARTED
-	case timingApplyComplete, timingProvisionComplete, timingRefreshComplete, timingInitComplete, timingGraphComplete, timingStageEnd:
+	case timingApplyComplete, timingProvisionComplete, timingRefreshComplete, timingGraphComplete, timingStageEnd:
 		s.end = ts
 		s.state = proto.TimingState_COMPLETED
-	case timingApplyErrored, timingProvisionErrored, timingInitErrored, timingGraphErrored, timingStageError:
+	case timingApplyErrored, timingProvisionErrored, timingGraphErrored, timingStageError:
 		s.end = ts
 		s.state = proto.TimingState_FAILED
 	case timingInitOutput:
@@ -191,7 +188,7 @@ func (t *timingAggregator) startStage(stage database.ProvisionerJobTimingStage) 
 	ts := timingSpan{
 		kind:     timingStageStart,
 		stage:    stage,
-		resource: "coder_stage",
+		resource: "coder_stage_" + string(stage),
 		action:   "terraform",
 		provider: "coder",
 	}
@@ -246,7 +243,7 @@ func (l timingKind) Category() string {
 	switch l {
 	case timingStageStart, timingStageEnd, timingStageError:
 		return "stage"
-	case timingInitStart, timingInitComplete, timingInitErrored, timingInitOutput:
+	case timingInitOutput:
 		return "init"
 	case timingGraphStart, timingGraphComplete, timingGraphErrored:
 		return "graph"
