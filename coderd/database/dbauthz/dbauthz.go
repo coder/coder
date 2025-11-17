@@ -215,8 +215,8 @@ func WithWorkspaceRBAC(ctx context.Context, rbacObj rbac.Object) (context.Contex
 	if rbacObj.IsEmpty() {
 		return ctx, xerrors.Errorf("cannot attach empty RBAC object to context: %+v", rbacObj)
 	}
-	if rbacObj.ACLGroupList != nil || len(rbacObj.ACLGroupList) != 0 || rbacObj.ACLUserList != nil || len(rbacObj.ACLUserList) != 0 {
-		return ctx, xerrors.New("ACL fields for Workspace RBAC object must be nil, the can be changed during runtime and should not be cached")
+	if len(rbacObj.ACLGroupList) != 0 || len(rbacObj.ACLUserList) != 0 {
+		return ctx, xerrors.New("ACL fields for Workspace RBAC object must be nullified, the can be changed during runtime and should not be cached")
 	}
 	return context.WithValue(ctx, workspaceRBACContextKey{}, rbacObj), nil
 }

@@ -365,10 +365,14 @@ func (a *API) startCacheRefreshLoop(ctx context.Context) {
 	// Refresh every 5 minutes. This provides a reasonable balance between:
 	// - Keeping cache fresh for prebuild claims and other workspace updates
 	// - Minimizing unnecessary database queries
-	_ = a.opts.Clock.TickerFunc(ctx, workspaceCacheRefreshInterval, func() error {
+	ticker := a.opts.Clock.TickerFunc(ctx, workspaceCacheRefreshInterval, func() error {
 		a.refreshCachedWorkspace(ctx)
 		return nil
 	}, "cache_refresh")
+
+	// We need to wait on the ticker exiting.
+	_ = ticker.Wait()
+
 	a.opts.Log.Debug(ctx, "cache refresh loop exited, invalidating the workspace cache on agent API",
 		slog.F("workspace_id", a.cachedWorkspaceFields.ID),
 		slog.F("owner_id", a.cachedWorkspaceFields.OwnerUsername),

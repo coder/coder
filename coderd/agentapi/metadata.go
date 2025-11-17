@@ -112,7 +112,9 @@ func (a *MetadataAPI) BatchUpdateMetadata(ctx context.Context, req *agentproto.B
 	// call GetWorkspaceByAgentID on every metadata update.
 	rbacCtx, err := a.RBACContextFn(ctx)
 	if err != nil {
-		a.Log.Error(ctx, "cached RBAC Workspace context wrapping was invalid", slog.Error(err))
+		// Don't use error level here; that will fail the call but in reality an invalid object here is okay
+		// since we will then just fallback to the actual GetWorkspaceByAgentID call in dbauthz.
+		a.Log.Warn(ctx, "cached RBAC Workspace context wrapping was invalid", slog.Error(err))
 	}
 	err = a.Database.UpdateWorkspaceAgentMetadata(rbacCtx, dbUpdate)
 	if err != nil {
