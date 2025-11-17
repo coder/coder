@@ -23,6 +23,12 @@ import (
 
 const statusUpdatePrefix = "scaletest status update:"
 
+// createExternalWorkspaceResult contains the results from creating an external workspace.
+type createExternalWorkspaceResult struct {
+	workspaceID uuid.UUID
+	agentToken  string
+}
+
 type Runner struct {
 	client  client
 	patcher appStatusPatcher
@@ -65,6 +71,10 @@ func (r *Runner) Run(ctx context.Context, name string, logs io.Writer) error {
 		}
 	}()
 
+	// ensure these labels are initialized, so we see the time series right away in prometheus.
+	r.cfg.Metrics.MissingStatusUpdatesTotal.WithLabelValues(r.cfg.MetricLabelValues...).Add(0)
+	r.cfg.Metrics.ReportTaskStatusErrorsTotal.WithLabelValues(r.cfg.MetricLabelValues...).Add(0)
+
 	logs = loadtestutil.NewSyncWriter(logs)
 	r.logger = slog.Make(sloghuman.Sink(logs)).Leveled(slog.LevelDebug).Named(name)
 	r.client.initialize(r.logger)
@@ -74,25 +84,22 @@ func (r *Runner) Run(ctx context.Context, name string, logs io.Writer) error {
 		slog.F("template_id", r.cfg.TemplateID),
 		slog.F("workspace_name", r.cfg.WorkspaceName))
 
-	result, err := r.client.createExternalWorkspace(ctx, codersdk.CreateWorkspaceRequest{
+	result, err := r.createExternalWorkspace(ctx, codersdk.CreateWorkspaceRequest{
 		TemplateID: r.cfg.TemplateID,
 		Name:       r.cfg.WorkspaceName,
 	})
 	if err != nil {
+		r.cfg.Metrics.ReportTaskStatusErrorsTotal.WithLabelValues(r.cfg.MetricLabelValues...).Inc()
 		return xerrors.Errorf("create external workspace: %w", err)
 	}
 
 	// Set the workspace ID
-	r.workspaceID = result.WorkspaceID
+	r.workspaceID = result.workspaceID
 	r.logger.Info(ctx, "created external workspace", slog.F("workspace_id", r.workspaceID))
 
 	// Initialize the patcher with the agent token
-	r.patcher.initialize(r.logger, result.AgentToken)
+	r.patcher.initialize(r.logger, result.agentToken)
 	r.logger.Info(ctx, "initialized app status patcher with agent token")
-
-	// ensure these labels are initialized, so we see the time series right away in prometheus.
-	r.cfg.Metrics.MissingStatusUpdatesTotal.WithLabelValues(r.cfg.MetricLabelValues...).Add(0)
-	r.cfg.Metrics.ReportTaskStatusErrorsTotal.WithLabelValues(r.cfg.MetricLabelValues...).Add(0)
 
 	workspaceUpdatesCtx, cancelWorkspaceUpdates := context.WithCancel(ctx)
 	defer cancelWorkspaceUpdates()
@@ -256,4 +263,78 @@ func parseStatusMessage(message string) (int, bool) {
 		return 0, false
 	}
 	return msgNo, true
+}
+
+// createExternalWorkspace creates an external workspace and returns the workspace ID
+// and agent token for the first external agent found in the workspace resources.
+func (r *Runner) createExternalWorkspace(ctx context.Context, req codersdk.CreateWorkspaceRequest) (createExternalWorkspaceResult, error) {
+	// Create the workspace
+	workspace, err := r.client.CreateUserWorkspace(ctx, codersdk.Me, req)
+	if err != nil {
+		return createExternalWorkspaceResult{}, err
+	}
+
+	r.logger.Info(ctx, "waiting for workspace build to complete",
+		slog.F("workspace_name", workspace.Name),
+		slog.F("workspace_id", workspace.ID))
+
+	// Poll the workspace until the build is complete
+	var finalWorkspace codersdk.Workspace
+	buildComplete := xerrors.New("build complete") // sentinel error
+	waiter := r.clock.TickerFunc(ctx, 30*time.Second, func() error {
+		// Get the workspace with latest build details
+		workspace, err := r.client.WorkspaceByOwnerAndName(ctx, codersdk.Me, workspace.Name, codersdk.WorkspaceOptions{})
+		if err != nil {
+			r.logger.Error(ctx, "failed to poll workspace while waiting for build to complete", slog.Error(err))
+			return nil
+		}
+
+		jobStatus := workspace.LatestBuild.Job.Status
+		r.logger.Debug(ctx, "checking workspace build status",
+			slog.F("status", jobStatus),
+			slog.F("build_id", workspace.LatestBuild.ID))
+
+		switch jobStatus {
+		case codersdk.ProvisionerJobSucceeded:
+			// Build succeeded
+			r.logger.Info(ctx, "workspace build succeeded")
+			finalWorkspace = workspace
+			return buildComplete
+		case codersdk.ProvisionerJobFailed:
+			return xerrors.Errorf("workspace build failed: %s", workspace.LatestBuild.Job.Error)
+		case codersdk.ProvisionerJobCanceled:
+			return xerrors.Errorf("workspace build was canceled")
+		case codersdk.ProvisionerJobPending, codersdk.ProvisionerJobRunning, codersdk.ProvisionerJobCanceling:
+			// Still in progress, continue polling
+			return nil
+		default:
+			return xerrors.Errorf("unexpected job status: %s", jobStatus)
+		}
+	}, "createExternalWorkspace")
+
+	err = waiter.Wait()
+	if err != nil && !xerrors.Is(err, buildComplete) {
+		return createExternalWorkspaceResult{}, xerrors.Errorf("wait for build completion: %w", err)
+	}
+
+	// Find external agents in resources
+	for _, resource := range finalWorkspace.LatestBuild.Resources {
+		if resource.Type != "coder_external_agent" || len(resource.Agents) == 0 {
+			continue
+		}
+
+		// Get credentials for the first agent
+		agent := resource.Agents[0]
+		credentials, err := r.client.WorkspaceExternalAgentCredentials(ctx, finalWorkspace.ID, agent.Name)
+		if err != nil {
+			return createExternalWorkspaceResult{}, err
+		}
+
+		return createExternalWorkspaceResult{
+			workspaceID: finalWorkspace.ID,
+			agentToken:  credentials.AgentToken,
+		}, nil
+	}
+
+	return createExternalWorkspaceResult{}, xerrors.Errorf("no external agent found in workspace")
 }
