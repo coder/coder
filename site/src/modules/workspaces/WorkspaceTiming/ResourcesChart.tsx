@@ -52,7 +52,8 @@ export const ResourcesChart: FC<ResourcesChartProps> = ({
 	const [ticks, scale] = makeTicks(totalTime);
 	const [filter, setFilter] = useState("");
 	const visibleTimings = timings.filter(
-		(t) => !isCoderResource(t.name) && t.name.includes(filter),
+		// Stage boundaries are also included
+		(t) => (!isCoderResource(t.name) || isStageBoundary(t.name)) && t.name.includes(filter),
 	);
 	const theme = useTheme();
 	const legendsByAction = getLegendsByAction(theme);
@@ -98,6 +99,7 @@ export const ResourcesChart: FC<ResourcesChartProps> = ({
 				<XAxis ticks={ticks} scale={scale}>
 					<XAxisSection>
 						{visibleTimings.map((t) => {
+							const stageBoundary = isStageBoundary(t.name);
 							const duration = calcDuration(t.range);
 							const legend = legendsByAction[t.action] ?? { label: t.action };
 
@@ -110,7 +112,8 @@ export const ResourcesChart: FC<ResourcesChartProps> = ({
 										title={
 											<>
 												<TooltipTitle>{t.name}</TooltipTitle>
-												<TooltipLink to="">view template</TooltipLink>
+												{/* Stage boundaries should not have these links */}
+												{!stageBoundary && <TooltipLink to="">view template</TooltipLink>}
 											</>
 										}
 									>
@@ -132,12 +135,11 @@ export const ResourcesChart: FC<ResourcesChartProps> = ({
 	);
 };
 
+export const isStageBoundary = (resource: string) => {
+	return resource.startsWith("coder_stage_");
+};
+
 export const isCoderResource = (resource: string) => {
-	// coder_stage is a special internal resource that indicates the entire stage timing boundary. It should
-	// appear differently in the detailed chart.
-	// if(resource.startsWith("coder_stage_")) {
-	// 	return false
-	// }
 	return (
 		resource.startsWith("data.coder") ||
 		resource.startsWith("module.coder") ||
