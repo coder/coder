@@ -133,6 +133,9 @@ export const ResourcesChart: FC<ResourcesChartProps> = ({
 };
 
 export const isCoderResource = (resource: string) => {
+	if(resource === "coder_stage") {
+		return false
+	}
 	return (
 		resource.startsWith("data.coder") ||
 		resource.startsWith("module.coder") ||

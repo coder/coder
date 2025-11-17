@@ -596,10 +596,15 @@ func (e *executor) apply(
 		<-doneErr
 	}()
 
+	// `terraform apply`
+	endStage := e.timings.startStage(database.ProvisionerJobTimingStageApply)
 	err := e.execWriteOutput(ctx, killCtx, args, env, outWriter, errWriter)
+	endStage(err)
 	if err != nil {
 		return nil, xerrors.Errorf("terraform apply: %w", err)
 	}
+
+	// `terraform show` & `terraform graph`
 	state, err := e.stateResources(ctx, killCtx)
 	if err != nil {
 		return nil, err
@@ -610,12 +615,13 @@ func (e *executor) apply(
 		return nil, xerrors.Errorf("read statefile %q: %w", statefilePath, err)
 	}
 
+	agg := e.timings.aggregate()
 	return &proto.ApplyComplete{
 		Parameters:            state.Parameters,
 		Resources:             state.Resources,
 		ExternalAuthProviders: state.ExternalAuthProviders,
 		State:                 stateContent,
-		Timings:               e.timings.aggregate(),
+		Timings:               agg,
 		AiTasks:               state.AITasks,
 	}, nil
 }

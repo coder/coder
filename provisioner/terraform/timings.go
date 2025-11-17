@@ -19,6 +19,13 @@ type timingKind string
 // Copied from https://github.com/hashicorp/terraform/blob/01c0480e77263933b2b086dc8d600a69f80fad2d/internal/command/jsonformat/renderer.go
 // We cannot reference these because they're in an internal package.
 const (
+	// Stage markers are used to denote the beginning and end of stages. Without
+	// these, only discrete events within stages can be measured, which may omit
+	// setup/teardown time or other unmeasured overhead.
+	timingStageStart timingKind = "stage_start"
+	timingStageEnd   timingKind = "stage_end"
+	timingStageError timingKind = "stage_error"
+
 	timingApplyStart        timingKind = "apply_start"
 	timingApplyProgress     timingKind = "apply_progress"
 	timingApplyComplete     timingKind = "apply_complete"
@@ -109,13 +116,13 @@ func (t *timingAggregator) ingest(ts time.Time, s *timingSpan) {
 	ts = dbtime.Time(ts.UTC())
 
 	switch s.kind {
-	case timingApplyStart, timingProvisionStart, timingRefreshStart, timingInitStart, timingGraphStart:
+	case timingApplyStart, timingProvisionStart, timingRefreshStart, timingInitStart, timingGraphStart, timingStageStart:
 		s.start = ts
 		s.state = proto.TimingState_STARTED
-	case timingApplyComplete, timingProvisionComplete, timingRefreshComplete, timingInitComplete, timingGraphComplete:
+	case timingApplyComplete, timingProvisionComplete, timingRefreshComplete, timingInitComplete, timingGraphComplete, timingStageEnd:
 		s.end = ts
 		s.state = proto.TimingState_COMPLETED
-	case timingApplyErrored, timingProvisionErrored, timingInitErrored, timingGraphErrored:
+	case timingApplyErrored, timingProvisionErrored, timingInitErrored, timingGraphErrored, timingStageError:
 		s.end = ts
 		s.state = proto.TimingState_FAILED
 	case timingInitOutput:
@@ -176,8 +183,35 @@ func (t *timingAggregator) aggregate() []*proto.Timing {
 	return out
 }
 
+// startStage denotes the beginning of a stage and returns a function which
+// should be called to mark the end of the stage. This is used to measure a
+// stage's total duration across all it's discrete events and unmeasured
+// overhead/events.
+func (t *timingAggregator) startStage(stage database.ProvisionerJobTimingStage) (end func(err error)) {
+	ts := timingSpan{
+		kind:     timingStageStart,
+		stage:    stage,
+		resource: "coder_stage",
+		action:   "terraform",
+		provider: "coder",
+	}
+	endTs := ts
+	t.ingest(dbtime.Now(), &ts)
+
+	return func(err error) {
+		endTs.kind = timingStageEnd
+		if err != nil {
+			endTs.kind = timingStageError
+		}
+		t.ingest(dbtime.Now(), &endTs)
+	}
+}
+
 func (l timingKind) Valid() bool {
 	return slices.Contains([]timingKind{
+		timingStageStart,
+		timingStageEnd,
+		timingStageError,
 		timingApplyStart,
 		timingApplyProgress,
 		timingApplyComplete,
@@ -210,6 +244,8 @@ func (l timingKind) Valid() bool {
 // if all other attributes are identical.
 func (l timingKind) Category() string {
 	switch l {
+	case timingStageStart, timingStageEnd, timingStageError:
+		return "stage"
 	case timingInitStart, timingInitComplete, timingInitErrored, timingInitOutput:
 		return "init"
 	case timingGraphStart, timingGraphComplete, timingGraphErrored:

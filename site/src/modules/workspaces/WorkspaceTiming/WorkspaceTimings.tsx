@@ -140,10 +140,17 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 									// user and would add noise.
 									const visibleResources = stageTimings.filter((t) => {
 										const isProvisionerTiming = "resource" in t;
+
+										if(isProvisionerTiming && t.resource === "coder_stage") {
+											return false;
+										}
+
 										return isProvisionerTiming
 											? !isCoderResource(t.resource)
 											: true;
 									});
+
+									// console.log(stageTimings)
 
 									return {
 										stage: s,
