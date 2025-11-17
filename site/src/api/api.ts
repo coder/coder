@@ -2692,6 +2692,16 @@ class ApiMethods {
 		await this.axios.delete(`/api/v2/tasks/${user}/${id}`);
 	};
 
+	updateTaskInput = async (
+		user: string,
+		id: string,
+		input: string,
+	): Promise<void> => {
+		await this.axios.patch(`/api/v2/tasks/${user}/${id}/input`, {
+			input,
+		} satisfies TypesGen.UpdateTaskInputRequest);
+	};
+
 	createTaskFeedback = async (
 		_taskId: string,
 		_req: CreateTaskFeedbackRequest,
