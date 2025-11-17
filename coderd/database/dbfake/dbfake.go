@@ -361,12 +361,20 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 			require.Fail(b.t, "task app not configured but workspace is a task workspace")
 		}
 
-		app := mustWorkspaceAppByWorkspaceAndBuildAndAppID(ownerCtx, b.t, b.db, resp.Workspace.ID, resp.Build.BuildNumber, b.taskAppID)
+		workspaceAgentID := uuid.NullUUID{}
+		workspaceAppID := uuid.NullUUID{}
+		// Workspace agent and app are only properly set upon job completion
+		if b.jobStatus != database.ProvisionerJobStatusPending && b.jobStatus != database.ProvisionerJobStatusRunning {
+			app := mustWorkspaceAppByWorkspaceAndBuildAndAppID(ownerCtx, b.t, b.db, resp.Workspace.ID, resp.Build.BuildNumber, b.taskAppID)
+			workspaceAgentID = uuid.NullUUID{UUID: app.AgentID, Valid: true}
+			workspaceAppID = uuid.NullUUID{UUID: app.ID, Valid: true}
+		}
+
 		_, err = b.db.UpsertTaskWorkspaceApp(ownerCtx, database.UpsertTaskWorkspaceAppParams{
 			TaskID:               task.ID,
 			WorkspaceBuildNumber: resp.Build.BuildNumber,
-			WorkspaceAgentID:     uuid.NullUUID{UUID: app.AgentID, Valid: true},
-			WorkspaceAppID:       uuid.NullUUID{UUID: app.ID, Valid: true},
+			WorkspaceAgentID:     workspaceAgentID,
+			WorkspaceAppID:       workspaceAppID,
 		})
 		require.NoError(b.t, err, "upsert task workspace app")
 		b.logger.Debug(context.Background(), "linked task to workspace build",
