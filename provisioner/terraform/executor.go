@@ -325,7 +325,9 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		<-doneErr
 	}()
 
+	endStage := e.timings.startStage(database.ProvisionerJobTimingStagePlan)
 	err := e.execWriteOutput(ctx, killCtx, args, env, outWriter, errWriter)
+	endStage(err)
 	if err != nil {
 		return nil, xerrors.Errorf("terraform plan: %w", err)
 	}
