@@ -264,7 +264,7 @@ export const OrgsSortedAlphabetically: Story = {
 			return nameSpan?.textContent?.trim() || "";
 		});
 
-		// active name first
+		// Active org first (Omega), then alphabetically sorted (alpha, Zeta)
 		expect(orgNames).toEqual(["Omega org", "alpha Org", "Zeta Org"]);
 	},
 };
