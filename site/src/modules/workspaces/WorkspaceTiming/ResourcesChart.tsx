@@ -90,10 +90,14 @@ export const ResourcesChart: FC<ResourcesChartProps> = ({
 						<YAxisHeader>{stage.name} stage</YAxisHeader>
 						<YAxisLabels>
 							{visibleTimings.map((t) => {
-								const label = isStageBoundary(t.name) ? "total stage duration" : t.name
-								return <YAxisLabel key={label} id={encodeURIComponent(t.name)}>
-									{label}
-								</YAxisLabel>
+								const label = isStageBoundary(t.name)
+									? "total stage duration"
+									: t.name;
+								return (
+									<YAxisLabel key={label} id={encodeURIComponent(t.name)}>
+										{label}
+									</YAxisLabel>
+								);
 							})}
 						</YAxisLabels>
 					</YAxisSection>
@@ -105,7 +109,7 @@ export const ResourcesChart: FC<ResourcesChartProps> = ({
 							const stageBoundary = isStageBoundary(t.name);
 							const duration = calcDuration(t.range);
 							const legend = legendsByAction[t.action] ?? { label: t.action };
-							const label = stageBoundary ? "total stage duration" : t.name
+							const label = stageBoundary ? "total stage duration" : t.name;
 
 							return (
 								<XAxisRow
