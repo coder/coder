@@ -341,8 +341,12 @@ func (a *API) refreshCachedWorkspace(ctx context.Context) {
 	}
 
 	// Update fields that can change during workspace lifecycle (e.g., prebuild claim)
-	a.cachedWorkspaceFields = CachedWorkspaceFields{}
-
+	a.cachedWorkspaceFields.OwnerID = ws.OwnerID
+	a.cachedWorkspaceFields.Name = ws.Name
+	a.cachedWorkspaceFields.OwnerUsername = ws.OwnerUsername
+	a.cachedWorkspaceFields.ID = ws.ID
+	a.cachedWorkspaceFields.TemplateID = ws.TemplateID
+	a.cachedWorkspaceFields.TemplateName = ws.TemplateName
 
 	a.opts.Log.Debug(ctx, "refreshed cached workspace fields",
 		slog.F("workspace_id", ws.ID),
