@@ -2190,8 +2190,11 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		}
 		_, err = db.InsertProvisionerJobTimings(ctx, params)
 		if err != nil {
-			// Log error but don't fail the whole transaction for non-critical data
+			// A database error here will "fail" this transaction. Making this error fatal.
+			// If this error is seen, add checks above to validate the insert parameters. In
+			// production, timings should not be a fatal error.
 			s.Logger.Warn(ctx, "failed to update provisioner job timings", slog.F("job_id", jobID), slog.Error(err))
+			return xerrors.Errorf("update provisioner job timings: %w", err)
 		}
 
 		// On start, we want to ensure that workspace agents timeout statuses
