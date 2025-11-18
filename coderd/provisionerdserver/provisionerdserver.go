@@ -2175,6 +2175,12 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 				continue
 			}
 
+			// Scan does not guarantee validity
+			if !stg.Valid() {
+				s.Logger.Warn(ctx, "invalid stage, will fail insert based one enum", slog.F("value", t.Stage))
+				continue
+			}
+
 			params.Stage = append(params.Stage, stg)
 			params.Source = append(params.Source, t.Source)
 			params.Resource = append(params.Resource, t.Resource)
