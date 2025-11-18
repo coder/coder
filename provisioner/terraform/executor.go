@@ -333,20 +333,16 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 	}
 
 	// Capture the duration of the call to `terraform graph`.
-	graphTimings := newTimingAggregator(database.ProvisionerJobTimingStageGraph)
-	graphTimings.ingest(createGraphTimingsEvent(timingGraphStart))
-
+	endGraph := e.timings.startStage(database.ProvisionerJobTimingStageGraph)
 	state, plan, err := e.planResources(ctx, killCtx, planfilePath)
+	endGraph(err)
 	if err != nil {
-		graphTimings.ingest(createGraphTimingsEvent(timingGraphErrored))
 		return nil, xerrors.Errorf("plan resources: %w", err)
 	}
 	planJSON, err := json.Marshal(plan)
 	if err != nil {
 		return nil, xerrors.Errorf("marshal plan: %w", err)
 	}
-
-	graphTimings.ingest(createGraphTimingsEvent(timingGraphComplete))
 
 	var moduleFiles []byte
 	// Skipping modules archiving is useful if the caller does not need it, eg during
@@ -390,7 +386,7 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		Parameters:            state.Parameters,
 		Resources:             state.Resources,
 		ExternalAuthProviders: state.ExternalAuthProviders,
-		Timings:               append(e.timings.aggregate(), graphTimings.aggregate()...),
+		Timings:               e.timings.aggregate(),
 		Presets:               state.Presets,
 		Plan:                  planJSON,
 		ResourceReplacements:  resReps,
@@ -607,10 +603,13 @@ func (e *executor) apply(
 	}
 
 	// `terraform show` & `terraform graph`
+	//endGraph := e.timings.startStage(database.ProvisionerJobTimingStageGraph)
 	state, err := e.stateResources(ctx, killCtx)
+	//endGraph(err)
 	if err != nil {
 		return nil, err
 	}
+
 	statefilePath := e.files.StateFilePath()
 	stateContent, err := os.ReadFile(statefilePath)
 	if err != nil {
