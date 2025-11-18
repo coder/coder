@@ -25,9 +25,9 @@ export const TaskStartupAlert: FC<TaskStartupAlertProps> = ({ agent }) => {
 const ErrorScriptAlert: FC = () => {
 	return (
 		<Alert severity="warning" dismissible>
-			The workspace{" "}
+			A workspace{" "}
 			<Link
-				title="startup script has exited with an error"
+				title="Startup script has exited with an error"
 				href={docs(
 					"/admin/templates/troubleshooting#startup-script-exited-with-an-error",
 				)}
@@ -38,7 +38,7 @@ const ErrorScriptAlert: FC = () => {
 			</Link>
 			. We recommend{" "}
 			<Link
-				title="debugging the startup script"
+				title="Debugging the startup script"
 				href={docs("/admin/templates/troubleshooting#startup-script-issues")}
 				target="_blank"
 				rel="noreferrer"
@@ -47,7 +47,7 @@ const ErrorScriptAlert: FC = () => {
 			</Link>{" "}
 			because{" "}
 			<Link
-				title="your workspace may be incomplete"
+				title="Your workspace may be incomplete"
 				href={docs(
 					"/admin/templates/troubleshooting#your-workspace-may-be-incomplete",
 				)}
@@ -64,9 +64,9 @@ const ErrorScriptAlert: FC = () => {
 const TimeoutScriptAlert: FC = () => {
 	return (
 		<Alert severity="warning" dismissible>
-			The workspace{" "}
+			A workspace{" "}
 			<Link
-				title="startup script has timed out"
+				title="Startup script has timed out"
 				href={docs(
 					"/admin/templates/troubleshooting#startup-script-exited-with-an-error",
 				)}
@@ -77,7 +77,7 @@ const TimeoutScriptAlert: FC = () => {
 			</Link>
 			. We recommend{" "}
 			<Link
-				title="debugging the startup script"
+				title="Debugging the startup script"
 				href={docs("/admin/templates/troubleshooting#startup-script-issues")}
 				target="_blank"
 				rel="noreferrer"
@@ -86,7 +86,7 @@ const TimeoutScriptAlert: FC = () => {
 			</Link>{" "}
 			because{" "}
 			<Link
-				title="your workspace may be incomplete"
+				title="Your workspace may be incomplete"
 				href={docs(
 					"/admin/templates/troubleshooting#your-workspace-may-be-incomplete",
 				)}
