@@ -1,16 +1,18 @@
 package agentapi_test
 
-import(
+import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/database"
 )
 
 func TestCacheClear(t *testing.T) {
+	t.Parallel()
+
 	var (
 		user = database.User{
 			ID:       uuid.New(),
@@ -41,10 +43,12 @@ func TestCacheClear(t *testing.T) {
 
 	emptyCws := agentapi.CachedWorkspaceFields{}
 	workspaceAsCacheFields.Clear()
-	require.Equal(t, emptyCws, workspaceAsCacheFields)
+	require.True(t, emptyCws.Equal(&workspaceAsCacheFields))
 }
 
 func TestCacheUpdate(t *testing.T) {
+	t.Parallel()
+
 	var (
 		user = database.User{
 			ID:       uuid.New(),
@@ -75,5 +79,5 @@ func TestCacheUpdate(t *testing.T) {
 
 	cws := agentapi.CachedWorkspaceFields{}
 	cws.UpdateValues(workspace)
-	require.Equal(t, workspaceAsCacheFields, cws)
+	require.True(t, workspaceAsCacheFields.Equal(&cws))
 }

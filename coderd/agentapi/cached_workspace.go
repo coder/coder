@@ -1,8 +1,8 @@
 package agentapi
 
 import (
-	"sync"
 	"database/sql"
+	"sync"
 
 	"github.com/google/uuid"
 
@@ -36,6 +36,17 @@ type CachedWorkspaceFields struct {
 	AutostartSchedule sql.NullString
 }
 
+func (cws *CachedWorkspaceFields) Equal(cws2 *CachedWorkspaceFields) bool {
+	cws.lock.RLock()
+	defer cws.lock.RUnlock()
+	cws2.lock.RLock()
+	defer cws2.lock.RUnlock()
+
+	return cws.ID == cws2.ID && cws.OwnerID == cws2.OwnerID && cws.OrganizationID == cws2.OrganizationID &&
+		cws.TemplateID == cws2.TemplateID && cws.Name == cws2.Name && cws.OwnerUsername == cws2.OwnerUsername &&
+		cws.TemplateName == cws2.TemplateName && cws.AutostartSchedule == cws2.AutostartSchedule
+}
+
 func (cws *CachedWorkspaceFields) Clear() {
 	cws.lock.Lock()
 	defer cws.lock.Unlock()
@@ -64,7 +75,7 @@ func (cws *CachedWorkspaceFields) UpdateValues(ws database.Workspace) {
 
 func (cws *CachedWorkspaceFields) AsDatabaseWorkspace() database.Workspace {
 	cws.lock.RLock()
-	defer 	cws.lock.RUnlock()
+	defer cws.lock.RUnlock()
 	return database.Workspace{
 		ID:                cws.ID,
 		OwnerID:           cws.OwnerID,
