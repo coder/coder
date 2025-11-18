@@ -603,9 +603,9 @@ func (e *executor) apply(
 	}
 
 	// `terraform show` & `terraform graph`
-	//endGraph := e.timings.startStage(database.ProvisionerJobTimingStageGraph)
+	// endGraph := e.timings.startStage(database.ProvisionerJobTimingStageGraph)
 	state, err := e.stateResources(ctx, killCtx)
-	//endGraph(err)
+	// endGraph(err)
 	if err != nil {
 		return nil, err
 	}
