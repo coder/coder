@@ -577,53 +577,57 @@ func prepWorkspaceBuild(inv *serpent.Invocation, client *codersdk.Client, args p
 		return nil, xerrors.Errorf("template version git auth: %w", err)
 	}
 
-	// Run a dry-run with the given parameters to check correctness
-	dryRun, err := client.CreateTemplateVersionDryRun(inv.Context(), templateVersion.ID, codersdk.CreateTemplateVersionDryRunRequest{
-		WorkspaceName:       args.NewWorkspaceName,
-		RichParameterValues: buildParameters,
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("begin workspace dry-run: %w", err)
-	}
+	// Only perform dry-run for workspace creation and updates
+	// Skip for start and restart to avoid unnecessary delays
+	if args.Action == WorkspaceCreate || args.Action == WorkspaceUpdate {
+		// Run a dry-run with the given parameters to check correctness
+		dryRun, err := client.CreateTemplateVersionDryRun(inv.Context(), templateVersion.ID, codersdk.CreateTemplateVersionDryRunRequest{
+			WorkspaceName:       args.NewWorkspaceName,
+			RichParameterValues: buildParameters,
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("begin workspace dry-run: %w", err)
+		}
 
-	matchedProvisioners, err := client.TemplateVersionDryRunMatchedProvisioners(inv.Context(), templateVersion.ID, dryRun.ID)
-	if err != nil {
-		return nil, xerrors.Errorf("get matched provisioners: %w", err)
-	}
-	cliutil.WarnMatchedProvisioners(inv.Stdout, &matchedProvisioners, dryRun)
-	_, _ = fmt.Fprintln(inv.Stdout, "Planning workspace...")
-	err = cliui.ProvisionerJob(inv.Context(), inv.Stdout, cliui.ProvisionerJobOptions{
-		Fetch: func() (codersdk.ProvisionerJob, error) {
-			return client.TemplateVersionDryRun(inv.Context(), templateVersion.ID, dryRun.ID)
-		},
-		Cancel: func() error {
-			return client.CancelTemplateVersionDryRun(inv.Context(), templateVersion.ID, dryRun.ID)
-		},
-		Logs: func() (<-chan codersdk.ProvisionerJobLog, io.Closer, error) {
-			return client.TemplateVersionDryRunLogsAfter(inv.Context(), templateVersion.ID, dryRun.ID, 0)
-		},
-		// Don't show log output for the dry-run unless there's an error.
-		Silent: true,
-	})
-	if err != nil {
-		// TODO (Dean): reprompt for parameter values if we deem it to
-		// be a validation error
-		return nil, xerrors.Errorf("dry-run workspace: %w", err)
-	}
+		matchedProvisioners, err := client.TemplateVersionDryRunMatchedProvisioners(inv.Context(), templateVersion.ID, dryRun.ID)
+		if err != nil {
+			return nil, xerrors.Errorf("get matched provisioners: %w", err)
+		}
+		cliutil.WarnMatchedProvisioners(inv.Stdout, &matchedProvisioners, dryRun)
+		_, _ = fmt.Fprintln(inv.Stdout, "Planning workspace...")
+		err = cliui.ProvisionerJob(inv.Context(), inv.Stdout, cliui.ProvisionerJobOptions{
+			Fetch: func() (codersdk.ProvisionerJob, error) {
+				return client.TemplateVersionDryRun(inv.Context(), templateVersion.ID, dryRun.ID)
+			},
+			Cancel: func() error {
+				return client.CancelTemplateVersionDryRun(inv.Context(), templateVersion.ID, dryRun.ID)
+			},
+			Logs: func() (<-chan codersdk.ProvisionerJobLog, io.Closer, error) {
+				return client.TemplateVersionDryRunLogsAfter(inv.Context(), templateVersion.ID, dryRun.ID, 0)
+			},
+			// Don't show log output for the dry-run unless there's an error.
+			Silent: true,
+		})
+		if err != nil {
+			// TODO (Dean): reprompt for parameter values if we deem it to
+			// be a validation error
+			return nil, xerrors.Errorf("dry-run workspace: %w", err)
+		}
 
-	resources, err := client.TemplateVersionDryRunResources(inv.Context(), templateVersion.ID, dryRun.ID)
-	if err != nil {
-		return nil, xerrors.Errorf("get workspace dry-run resources: %w", err)
-	}
+		resources, err := client.TemplateVersionDryRunResources(inv.Context(), templateVersion.ID, dryRun.ID)
+		if err != nil {
+			return nil, xerrors.Errorf("get workspace dry-run resources: %w", err)
+		}
 
-	err = cliui.WorkspaceResources(inv.Stdout, resources, cliui.WorkspaceResourcesOptions{
-		WorkspaceName: args.NewWorkspaceName,
-		// Since agents haven't connected yet, hiding this makes more sense.
-		HideAgentState: true,
-		Title:          "Workspace Preview",
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("get resources: %w", err)
+		err = cliui.WorkspaceResources(inv.Stdout, resources, cliui.WorkspaceResourcesOptions{
+			WorkspaceName: args.NewWorkspaceName,
+			// Since agents haven't connected yet, hiding this makes more sense.
+			HideAgentState: true,
+			Title:          "Workspace Preview",
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("get resources: %w", err)
+		}
 	}
 
 	return buildParameters, nil

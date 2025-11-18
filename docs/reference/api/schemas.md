@@ -389,6 +389,7 @@
     "small_fast_model": "string"
   },
   "enabled": true,
+  "inject_coder_mcp_tools": true,
   "openai": {
     "base_url": "string",
     "key": "string"
@@ -398,17 +399,19 @@
 
 ### Properties
 
-| Name        | Type                                                                 | Required | Restrictions | Description |
-|-------------|----------------------------------------------------------------------|----------|--------------|-------------|
-| `anthropic` | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig) | false    |              |             |
-| `bedrock`   | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)     | false    |              |             |
-| `enabled`   | boolean                                                              | false    |              |             |
-| `openai`    | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              |             |
+| Name                     | Type                                                                 | Required | Restrictions | Description |
+|--------------------------|----------------------------------------------------------------------|----------|--------------|-------------|
+| `anthropic`              | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig) | false    |              |             |
+| `bedrock`                | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)     | false    |              |             |
+| `enabled`                | boolean                                                              | false    |              |             |
+| `inject_coder_mcp_tools` | boolean                                                              | false    |              |             |
+| `openai`                 | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              |             |
 
 ## codersdk.AIBridgeInterception
 
 ```json
 {
+  "api_key_id": "string",
   "ended_at": "2019-08-24T14:15:22Z",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "initiator": {
@@ -475,6 +478,7 @@
 
 | Name               | Type                                                                | Required | Restrictions | Description |
 |--------------------|---------------------------------------------------------------------|----------|--------------|-------------|
+| `api_key_id`       | string                                                              | false    |              |             |
 | `ended_at`         | string                                                              | false    |              |             |
 | `id`               | string                                                              | false    |              |             |
 | `initiator`        | [codersdk.MinimalUser](#codersdkminimaluser)                        | false    |              |             |
@@ -494,6 +498,7 @@
   "count": 0,
   "results": [
     {
+      "api_key_id": "string",
       "ended_at": "2019-08-24T14:15:22Z",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "initiator": {
@@ -692,6 +697,7 @@
       "small_fast_model": "string"
     },
     "enabled": true,
+    "inject_coder_mcp_tools": true,
     "openai": {
       "base_url": "string",
       "key": "string"
@@ -2848,6 +2854,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "small_fast_model": "string"
         },
         "enabled": true,
+        "inject_coder_mcp_tools": true,
         "openai": {
           "base_url": "string",
           "key": "string"
@@ -3362,6 +3369,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "small_fast_model": "string"
       },
       "enabled": true,
+      "inject_coder_mcp_tools": true,
       "openai": {
         "base_url": "string",
         "key": "string"
@@ -4049,16 +4057,17 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value                  |
-|------------------------|
-| `example`              |
-| `auto-fill-parameters` |
-| `notifications`        |
-| `workspace-usage`      |
-| `web-push`             |
-| `oauth2`               |
-| `mcp-server-http`      |
-| `workspace-sharing`    |
+| Value                       |
+|-----------------------------|
+| `example`                   |
+| `auto-fill-parameters`      |
+| `notifications`             |
+| `workspace-usage`           |
+| `web-push`                  |
+| `oauth2`                    |
+| `mcp-server-http`           |
+| `workspace-sharing`         |
+| `terraform-directory-reuse` |
 
 ## codersdk.ExternalAPIKeyScopes
 
@@ -8126,7 +8135,8 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z",
-  "use_classic_parameter_flow": true
+  "use_classic_parameter_flow": true,
+  "use_terraform_workspace_cache": true
 }
 ```
 
@@ -8167,6 +8177,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `time_til_dormant_ms`              | integer                                                                        | false    |              |                                                                                                                                                                                                 |
 | `updated_at`                       | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `use_classic_parameter_flow`       | boolean                                                                        | false    |              |                                                                                                                                                                                                 |
+| `use_terraform_workspace_cache`    | boolean                                                                        | false    |              |                                                                                                                                                                                                 |
 
 #### Enumerated Values
 
@@ -9218,7 +9229,8 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "time_til_dormant_ms": 0,
   "update_workspace_dormant_at": true,
   "update_workspace_last_used_at": true,
-  "use_classic_parameter_flow": true
+  "use_classic_parameter_flow": true,
+  "use_terraform_workspace_cache": true
 }
 ```
 
@@ -9248,6 +9260,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `update_workspace_dormant_at`      | boolean                                                                        | false    |              | Update workspace dormant at updates the dormant_at field of workspaces spawned from the template. This is useful for preventing dormant workspaces being immediately deleted when updating the dormant_ttl field to a new, shorter value.                                                                                                                                          |
 | `update_workspace_last_used_at`    | boolean                                                                        | false    |              | Update workspace last used at updates the last_used_at field of workspaces spawned from the template. This is useful for preventing workspaces being immediately locked when updating the inactivity_ttl field to a new, shorter value.                                                                                                                                            |
 | `use_classic_parameter_flow`       | boolean                                                                        | false    |              | Use classic parameter flow is a flag that switches the default behavior to use the classic parameter flow when creating a workspace. This only affects deployments with the experiment "dynamic-parameters" enabled. This setting will live for a period after the experiment is made the default. An "opt-out" is present in case the new feature breaks some existing templates. |
+| `use_terraform_workspace_cache`    | boolean                                                                        | false    |              | Use terraform workspace cache allows optionally specifying whether to use cached terraform directories for workspaces created from this template. This field only applies when the correct experiment is enabled. This field is subject to being removed in the future.                                                                                                            |
 
 ## codersdk.UpdateUserAppearanceSettingsRequest
 
@@ -9987,7 +10000,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
   },
   "latest_build": {
-    "ai_task_sidebar_app_id": "852ddafb-2cb9-4cbf-8a8c-075389fb3d3d",
     "build_number": 0,
     "created_at": "2019-08-24T14:15:22Z",
     "daily_cost": 0,
@@ -10182,7 +10194,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       }
     ],
     "status": "pending",
-    "task_app_id": "ca438251-3e16-4fae-b9ab-dd3c237c3735",
     "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
     "template_version_name": "string",
     "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
@@ -11162,7 +11173,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
-  "ai_task_sidebar_app_id": "852ddafb-2cb9-4cbf-8a8c-075389fb3d3d",
   "build_number": 0,
   "created_at": "2019-08-24T14:15:22Z",
   "daily_cost": 0,
@@ -11357,7 +11367,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     }
   ],
   "status": "pending",
-  "task_app_id": "ca438251-3e16-4fae-b9ab-dd3c237c3735",
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "template_version_name": "string",
   "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
@@ -11373,35 +11382,33 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                         | Type                                                              | Required | Restrictions | Description                                                         |
-|------------------------------|-------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------|
-| `ai_task_sidebar_app_id`     | string                                                            | false    |              | Deprecated: This field has been replaced with `TaskAppID`           |
-| `build_number`               | integer                                                           | false    |              |                                                                     |
-| `created_at`                 | string                                                            | false    |              |                                                                     |
-| `daily_cost`                 | integer                                                           | false    |              |                                                                     |
-| `deadline`                   | string                                                            | false    |              |                                                                     |
-| `has_ai_task`                | boolean                                                           | false    |              |                                                                     |
-| `has_external_agent`         | boolean                                                           | false    |              |                                                                     |
-| `id`                         | string                                                            | false    |              |                                                                     |
-| `initiator_id`               | string                                                            | false    |              |                                                                     |
-| `initiator_name`             | string                                                            | false    |              |                                                                     |
-| `job`                        | [codersdk.ProvisionerJob](#codersdkprovisionerjob)                | false    |              |                                                                     |
-| `matched_provisioners`       | [codersdk.MatchedProvisioners](#codersdkmatchedprovisioners)      | false    |              |                                                                     |
-| `max_deadline`               | string                                                            | false    |              |                                                                     |
-| `reason`                     | [codersdk.BuildReason](#codersdkbuildreason)                      | false    |              |                                                                     |
-| `resources`                  | array of [codersdk.WorkspaceResource](#codersdkworkspaceresource) | false    |              |                                                                     |
-| `status`                     | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)              | false    |              |                                                                     |
-| `task_app_id`                | string                                                            | false    |              |                                                                     |
-| `template_version_id`        | string                                                            | false    |              |                                                                     |
-| `template_version_name`      | string                                                            | false    |              |                                                                     |
-| `template_version_preset_id` | string                                                            | false    |              |                                                                     |
-| `transition`                 | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)      | false    |              |                                                                     |
-| `updated_at`                 | string                                                            | false    |              |                                                                     |
-| `workspace_id`               | string                                                            | false    |              |                                                                     |
-| `workspace_name`             | string                                                            | false    |              |                                                                     |
-| `workspace_owner_avatar_url` | string                                                            | false    |              |                                                                     |
-| `workspace_owner_id`         | string                                                            | false    |              |                                                                     |
-| `workspace_owner_name`       | string                                                            | false    |              | Workspace owner name is the username of the owner of the workspace. |
+| Name                         | Type                                                              | Required | Restrictions | Description                                                              |
+|------------------------------|-------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------|
+| `build_number`               | integer                                                           | false    |              |                                                                          |
+| `created_at`                 | string                                                            | false    |              |                                                                          |
+| `daily_cost`                 | integer                                                           | false    |              |                                                                          |
+| `deadline`                   | string                                                            | false    |              |                                                                          |
+| `has_ai_task`                | boolean                                                           | false    |              | Deprecated: This field has been deprecated in favor of Task WorkspaceID. |
+| `has_external_agent`         | boolean                                                           | false    |              |                                                                          |
+| `id`                         | string                                                            | false    |              |                                                                          |
+| `initiator_id`               | string                                                            | false    |              |                                                                          |
+| `initiator_name`             | string                                                            | false    |              |                                                                          |
+| `job`                        | [codersdk.ProvisionerJob](#codersdkprovisionerjob)                | false    |              |                                                                          |
+| `matched_provisioners`       | [codersdk.MatchedProvisioners](#codersdkmatchedprovisioners)      | false    |              |                                                                          |
+| `max_deadline`               | string                                                            | false    |              |                                                                          |
+| `reason`                     | [codersdk.BuildReason](#codersdkbuildreason)                      | false    |              |                                                                          |
+| `resources`                  | array of [codersdk.WorkspaceResource](#codersdkworkspaceresource) | false    |              |                                                                          |
+| `status`                     | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)              | false    |              |                                                                          |
+| `template_version_id`        | string                                                            | false    |              |                                                                          |
+| `template_version_name`      | string                                                            | false    |              |                                                                          |
+| `template_version_preset_id` | string                                                            | false    |              |                                                                          |
+| `transition`                 | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)      | false    |              |                                                                          |
+| `updated_at`                 | string                                                            | false    |              |                                                                          |
+| `workspace_id`               | string                                                            | false    |              |                                                                          |
+| `workspace_name`             | string                                                            | false    |              |                                                                          |
+| `workspace_owner_avatar_url` | string                                                            | false    |              |                                                                          |
+| `workspace_owner_id`         | string                                                            | false    |              |                                                                          |
+| `workspace_owner_name`       | string                                                            | false    |              | Workspace owner name is the username of the owner of the workspace.      |
 
 #### Enumerated Values
 
@@ -12003,7 +12010,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
       },
       "latest_build": {
-        "ai_task_sidebar_app_id": "852ddafb-2cb9-4cbf-8a8c-075389fb3d3d",
         "build_number": 0,
         "created_at": "2019-08-24T14:15:22Z",
         "daily_cost": 0,
@@ -12181,7 +12187,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           }
         ],
         "status": "pending",
-        "task_app_id": "ca438251-3e16-4fae-b9ab-dd3c237c3735",
         "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
         "template_version_name": "string",
         "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",

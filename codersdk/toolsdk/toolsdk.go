@@ -317,13 +317,14 @@ type GetWorkspaceArgs struct {
 var GetWorkspace = Tool[GetWorkspaceArgs, codersdk.Workspace]{
 	Tool: aisdk.Tool{
 		Name: ToolNameGetWorkspace,
-		Description: `Get a workspace by ID.
+		Description: `Get a workspace by name or ID.
 
 This returns more data than list_workspaces to reduce token usage.`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
 				"workspace_id": map[string]any{
-					"type": "string",
+					"type":        "string",
+					"description": workspaceDescription,
 				},
 			},
 			Required: []string{"workspace_id"},
@@ -332,7 +333,7 @@ This returns more data than list_workspaces to reduce token usage.`,
 	Handler: func(ctx context.Context, deps Deps, args GetWorkspaceArgs) (codersdk.Workspace, error) {
 		wsID, err := uuid.Parse(args.WorkspaceID)
 		if err != nil {
-			return codersdk.Workspace{}, xerrors.New("workspace_id must be a valid UUID")
+			return namedWorkspace(ctx, deps.coderClient, NormalizeWorkspaceInput(args.WorkspaceID))
 		}
 		return deps.coderClient.Workspace(ctx, wsID)
 	},
@@ -1432,7 +1433,7 @@ var WorkspaceLS = Tool[WorkspaceLSArgs, WorkspaceLSResponse]{
 			Properties: map[string]any{
 				"workspace": map[string]any{
 					"type":        "string",
-					"description": workspaceDescription,
+					"description": workspaceAgentDescription,
 				},
 				"path": map[string]any{
 					"type":        "string",
@@ -1489,7 +1490,7 @@ var WorkspaceReadFile = Tool[WorkspaceReadFileArgs, WorkspaceReadFileResponse]{
 			Properties: map[string]any{
 				"workspace": map[string]any{
 					"type":        "string",
-					"description": workspaceDescription,
+					"description": workspaceAgentDescription,
 				},
 				"path": map[string]any{
 					"type":        "string",
@@ -1566,7 +1567,7 @@ content you are trying to write, then re-encode it properly.
 			Properties: map[string]any{
 				"workspace": map[string]any{
 					"type":        "string",
-					"description": workspaceDescription,
+					"description": workspaceAgentDescription,
 				},
 				"path": map[string]any{
 					"type":        "string",
@@ -1614,7 +1615,7 @@ var WorkspaceEditFile = Tool[WorkspaceEditFileArgs, codersdk.Response]{
 			Properties: map[string]any{
 				"workspace": map[string]any{
 					"type":        "string",
-					"description": workspaceDescription,
+					"description": workspaceAgentDescription,
 				},
 				"path": map[string]any{
 					"type":        "string",
@@ -1681,7 +1682,7 @@ var WorkspaceEditFiles = Tool[WorkspaceEditFilesArgs, codersdk.Response]{
 			Properties: map[string]any{
 				"workspace": map[string]any{
 					"type":        "string",
-					"description": workspaceDescription,
+					"description": workspaceAgentDescription,
 				},
 				"files": map[string]any{
 					"type":        "array",
@@ -1755,7 +1756,7 @@ var WorkspacePortForward = Tool[WorkspacePortForwardArgs, WorkspacePortForwardRe
 			Properties: map[string]any{
 				"workspace": map[string]any{
 					"type":        "string",
-					"description": workspaceDescription,
+					"description": workspaceAgentDescription,
 				},
 				"port": map[string]any{
 					"type":        "number",
@@ -1812,7 +1813,7 @@ var WorkspaceListApps = Tool[WorkspaceListAppsArgs, WorkspaceListAppsResponse]{
 			Properties: map[string]any{
 				"workspace": map[string]any{
 					"type":        "string",
-					"description": workspaceDescription,
+					"description": workspaceAgentDescription,
 				},
 			},
 			Required: []string{"workspace"},
@@ -2199,7 +2200,9 @@ func newAgentConn(ctx context.Context, client *codersdk.Client, workspace string
 	return conn, nil
 }
 
-const workspaceDescription = "The workspace name in the format [owner/]workspace[.agent]. If an owner is not specified, the authenticated user is used."
+const workspaceDescription = "The workspace ID or name in the format [owner/]workspace. If an owner is not specified, the authenticated user is used."
+
+const workspaceAgentDescription = "The workspace name in the format [owner/]workspace[.agent]. If an owner is not specified, the authenticated user is used."
 
 func taskIDDescription(action string) string {
 	return fmt.Sprintf("ID or workspace identifier in the format [owner/]workspace[.agent] for the task to %s. If an owner is not specified, the authenticated user is used.", action)

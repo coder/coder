@@ -299,7 +299,7 @@ func (r *Runner) watchNotificationsSMTP(ctx context.Context, user codersdk.User,
 
 	apiURL := fmt.Sprintf("%s/messages?email=%s", r.cfg.SMTPApiURL, user.Email)
 	httpClient := &http.Client{
-		Timeout: 10 * time.Second,
+		Timeout: r.cfg.SMTPRequestTimeout,
 	}
 
 	const smtpPollInterval = 2 * time.Second

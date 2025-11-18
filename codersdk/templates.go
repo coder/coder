@@ -63,7 +63,8 @@ type Template struct {
 	MaxPortShareLevel    WorkspaceAgentPortShareLevel `json:"max_port_share_level"`
 	CORSBehavior         CORSBehavior                 `json:"cors_behavior"`
 
-	UseClassicParameterFlow bool `json:"use_classic_parameter_flow"`
+	UseClassicParameterFlow    bool `json:"use_classic_parameter_flow"`
+	UseTerraformWorkspaceCache bool `json:"use_terraform_workspace_cache"`
 }
 
 // WeekdaysToBitmap converts a list of weekdays to a bitmap in accordance with
@@ -263,6 +264,11 @@ type UpdateTemplateMeta struct {
 	// made the default.
 	// An "opt-out" is present in case the new feature breaks some existing templates.
 	UseClassicParameterFlow *bool `json:"use_classic_parameter_flow,omitempty"`
+	// UseTerraformWorkspaceCache allows optionally specifying whether to use cached
+	// terraform directories for workspaces created from this template. This field
+	// only applies when the correct experiment is enabled. This field is subject to
+	// being removed in the future.
+	UseTerraformWorkspaceCache *bool `json:"use_terraform_workspace_cache,omitempty"`
 }
 
 type TemplateExample struct {

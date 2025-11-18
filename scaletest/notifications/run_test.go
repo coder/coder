@@ -228,6 +228,7 @@ func TestRunWithSMTP(t *testing.T) {
 			ReceivingWatchBarrier:    receivingWatchBarrier,
 			ExpectedNotificationsIDs: expectedNotificationsIDs,
 			SMTPApiURL:               smtpAPIServer.URL,
+			SMTPRequestTimeout:       testutil.WaitLong,
 		}
 		err := runnerCfg.Validate()
 		require.NoError(t, err)

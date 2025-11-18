@@ -100,6 +100,12 @@ func (m *Metrics) Register(reg prometheus.Registerer) error {
 	return reg.Register(m.workspaceClaimTimings)
 }
 
+// IsTrackable returns true if the workspace build should be tracked in metrics.
+// This includes workspace creation, prebuild creation, and prebuild claims.
+func (f WorkspaceTimingFlags) IsTrackable() bool {
+	return f.IsPrebuild || f.IsClaim || f.IsFirstBuild
+}
+
 // getWorkspaceTimingType classifies a workspace build:
 //   - PrebuildCreation: creation of a prebuilt workspace
 //   - PrebuildClaim: claim of an existing prebuilt workspace
@@ -153,6 +159,6 @@ func (m *Metrics) UpdateWorkspaceTimingsMetrics(
 		m.workspaceClaimTimings.
 			WithLabelValues(organizationName, templateName, presetName).Observe(buildTime)
 	default:
-		m.logger.Warn(ctx, "unsupported workspace timing flags")
+		// Not a trackable build type (e.g. restart, stop, subsequent builds)
 	}
 }

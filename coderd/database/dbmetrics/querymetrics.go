@@ -1530,6 +1530,13 @@ func (m queryMetricsStore) GetTaskByID(ctx context.Context, id uuid.UUID) (datab
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetTaskByOwnerIDAndName(ctx context.Context, arg database.GetTaskByOwnerIDAndNameParams) (database.Task, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTaskByOwnerIDAndName(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetTaskByOwnerIDAndName").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetTaskByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.Task, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetTaskByWorkspaceID(ctx, workspaceID)

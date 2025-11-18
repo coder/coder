@@ -178,6 +178,51 @@ func TestWorkspaceAgent(t *testing.T) {
 		require.Greater(t, atomic.LoadInt64(&called), int64(0), "expected coderd to be reached with custom headers")
 		require.Greater(t, atomic.LoadInt64(&derpCalled), int64(0), "expected /derp to be called with custom headers")
 	})
+
+	t.Run("DisabledServers", func(t *testing.T) {
+		t.Parallel()
+
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent().Do()
+
+		logDir := t.TempDir()
+		inv, _ := clitest.New(t,
+			"agent",
+			"--auth", "token",
+			"--agent-token", r.AgentToken,
+			"--agent-url", client.URL.String(),
+			"--log-dir", logDir,
+			"--pprof-address", "",
+			"--prometheus-address", "",
+			"--debug-address", "",
+		)
+
+		clitest.Start(t, inv)
+
+		// Verify the agent is connected and working.
+		resources := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).
+			MatchResources(matchAgentWithVersion).Wait()
+		require.Len(t, resources, 1)
+		require.Len(t, resources[0].Agents, 1)
+		require.NotEmpty(t, resources[0].Agents[0].Version)
+
+		// Verify the servers are not listening by checking the log for disabled
+		// messages.
+		require.Eventually(t, func() bool {
+			logContent, err := os.ReadFile(filepath.Join(logDir, "coder-agent.log"))
+			if err != nil {
+				return false
+			}
+			logStr := string(logContent)
+			return strings.Contains(logStr, "pprof address is empty, disabling pprof server") &&
+				strings.Contains(logStr, "prometheus address is empty, disabling prometheus server") &&
+				strings.Contains(logStr, "debug address is empty, disabling debug server")
+		}, testutil.WaitLong, testutil.IntervalMedium)
+	})
 }
 
 func matchAgentWithVersion(rs []codersdk.WorkspaceResource) bool {

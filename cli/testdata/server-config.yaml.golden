@@ -747,3 +747,7 @@ aibridge:
   # https://docs.claude.com/en/docs/claude-code/settings#environment-variables.
   # (default: global.anthropic.claude-haiku-4-5-20251001-v1:0, type: string)
   bedrock_small_fast_model: global.anthropic.claude-haiku-4-5-20251001-v1:0
+  # Whether to inject Coder's MCP tools into intercepted AI Bridge requests
+  # (requires the "oauth2" and "mcp-server-http" experiments to be enabled).
+  # (default: false, type: bool)
+  inject_coder_mcp_tools: false

@@ -7,10 +7,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
-	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -159,12 +157,13 @@ func TestTasks(t *testing.T) {
 		t.Parallel()
 
 		var (
-			client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-			ctx        = testutil.Context(t, testutil.WaitLong)
-			user       = coderdtest.CreateFirstUser(t, client)
-			template   = createAITemplate(t, client, user)
-			wantPrompt = "review my code"
-			exp        = codersdk.NewExperimentalClient(client)
+			client, db     = coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			ctx            = testutil.Context(t, testutil.WaitLong)
+			user           = coderdtest.CreateFirstUser(t, client)
+			anotherUser, _ = coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+			template       = createAITemplate(t, client, user)
+			wantPrompt     = "review my code"
+			exp            = codersdk.NewExperimentalClient(client)
 		)
 
 		task, err := exp.CreateTask(ctx, "me", codersdk.CreateTaskRequest{
@@ -214,6 +213,24 @@ func TestTasks(t *testing.T) {
 		assert.Equal(t, taskAppID, updated.WorkspaceAppID.UUID, "workspace app id should match")
 		assert.NotEmpty(t, updated.WorkspaceStatus, "task status should not be empty")
 
+		// Fetch the task by name and verify the same result
+		byName, err := exp.TaskByOwnerAndName(ctx, codersdk.Me, task.Name)
+		require.NoError(t, err)
+		require.Equal(t, byName, updated)
+
+		// Another member user should not be able to fetch the task
+		otherClient := codersdk.NewExperimentalClient(anotherUser)
+		_, err = otherClient.TaskByID(ctx, task.ID)
+		require.Error(t, err, "fetching task should fail by ID for another member user")
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+		// Also test by name
+		_, err = otherClient.TaskByOwnerAndName(ctx, task.OwnerName, task.Name)
+		require.Error(t, err, "fetching task should fail by name for another member user")
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+
 		// Stop the workspace
 		coderdtest.MustTransitionWorkspace(t, client, task.WorkspaceID.UUID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
@@ -223,14 +240,18 @@ func TestTasks(t *testing.T) {
 		assert.NotNil(t, updated.CurrentState, "current state should not be nil")
 		assert.Equal(t, "all done", updated.CurrentState.Message)
 		assert.Equal(t, codersdk.TaskStateComplete, updated.CurrentState.State)
+		previousCurrentState := updated.CurrentState
 
 		// Start the workspace again
 		coderdtest.MustTransitionWorkspace(t, client, task.WorkspaceID.UUID, codersdk.WorkspaceTransitionStop, codersdk.WorkspaceTransitionStart)
 
-		// Verify that the status from the previous build is no longer present
+		// Verify that the status from the previous build has been cleared
+		// and replaced by the agent initialization status.
 		updated, err = exp.TaskByID(ctx, task.ID)
 		require.NoError(t, err)
-		assert.Nil(t, updated.CurrentState, "current state should be nil")
+		assert.NotEqual(t, previousCurrentState, updated.CurrentState)
+		assert.Equal(t, codersdk.TaskStateWorking, updated.CurrentState.State)
+		assert.NotEqual(t, "all done", updated.CurrentState.Message)
 	})
 
 	t.Run("Delete", func(t *testing.T) {
@@ -657,7 +678,7 @@ func TestTasks(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 
 		// Fetch the task by ID via experimental API and verify fields.
-		task, err = exp.TaskByID(ctx, task.ID)
+		task, err = exp.TaskByIdentifier(ctx, task.ID.String())
 		require.NoError(t, err)
 		require.NotZero(t, task.WorkspaceBuildNumber)
 		require.True(t, task.WorkspaceAgentID.Valid)
@@ -1168,6 +1189,7 @@ func TestTasksNotification(t *testing.T) {
 		isNotificationSent   bool
 		notificationTemplate uuid.UUID
 		taskPrompt           string
+		agentLifecycle       database.WorkspaceAgentLifecycleState
 	}{
 		// Should not send a notification when the agent app is not an AI task.
 		{
@@ -1215,6 +1237,7 @@ func TestTasksNotification(t *testing.T) {
 			isNotificationSent:   true,
 			notificationTemplate: notifications.TemplateTaskIdle,
 			taskPrompt:           "InitialTemplateTaskIdle",
+			agentLifecycle:       database.WorkspaceAgentLifecycleStateReady,
 		},
 		// Should send TemplateTaskWorking when the AI task transitions to 'Working' from 'Idle'.
 		{
@@ -1228,6 +1251,7 @@ func TestTasksNotification(t *testing.T) {
 			isNotificationSent:   true,
 			notificationTemplate: notifications.TemplateTaskWorking,
 			taskPrompt:           "TemplateTaskWorkingFromIdle",
+			agentLifecycle:       database.WorkspaceAgentLifecycleStateReady,
 		},
 		// Should send TemplateTaskIdle when the AI task transitions to 'Idle'.
 		{
@@ -1238,6 +1262,7 @@ func TestTasksNotification(t *testing.T) {
 			isNotificationSent:   true,
 			notificationTemplate: notifications.TemplateTaskIdle,
 			taskPrompt:           "TemplateTaskIdle",
+			agentLifecycle:       database.WorkspaceAgentLifecycleStateReady,
 		},
 		// Long task prompts should be truncated to 160 characters.
 		{
@@ -1248,6 +1273,7 @@ func TestTasksNotification(t *testing.T) {
 			isNotificationSent:   true,
 			notificationTemplate: notifications.TemplateTaskIdle,
 			taskPrompt:           "This is a very long task prompt that should be truncated to 160 characters. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+			agentLifecycle:       database.WorkspaceAgentLifecycleStateReady,
 		},
 		// Should send TemplateTaskCompleted when the AI task transitions to 'Complete'.
 		{
@@ -1258,6 +1284,7 @@ func TestTasksNotification(t *testing.T) {
 			isNotificationSent:   true,
 			notificationTemplate: notifications.TemplateTaskCompleted,
 			taskPrompt:           "TemplateTaskCompleted",
+			agentLifecycle:       database.WorkspaceAgentLifecycleStateReady,
 		},
 		// Should send TemplateTaskFailed when the AI task transitions to 'Failure'.
 		{
@@ -1268,6 +1295,7 @@ func TestTasksNotification(t *testing.T) {
 			isNotificationSent:   true,
 			notificationTemplate: notifications.TemplateTaskFailed,
 			taskPrompt:           "TemplateTaskFailed",
+			agentLifecycle:       database.WorkspaceAgentLifecycleStateReady,
 		},
 		// Should send TemplateTaskCompleted when the AI task transitions from 'Idle' to 'Complete'.
 		{
@@ -1278,6 +1306,7 @@ func TestTasksNotification(t *testing.T) {
 			isNotificationSent:   true,
 			notificationTemplate: notifications.TemplateTaskCompleted,
 			taskPrompt:           "TemplateTaskCompletedFromIdle",
+			agentLifecycle:       database.WorkspaceAgentLifecycleStateReady,
 		},
 		// Should send TemplateTaskFailed when the AI task transitions from 'Idle' to 'Failure'.
 		{
@@ -1288,6 +1317,7 @@ func TestTasksNotification(t *testing.T) {
 			isNotificationSent:   true,
 			notificationTemplate: notifications.TemplateTaskFailed,
 			taskPrompt:           "TemplateTaskFailedFromIdle",
+			agentLifecycle:       database.WorkspaceAgentLifecycleStateReady,
 		},
 		// Should NOT send notification when transitioning from 'Complete' to 'Complete' (no change).
 		{
@@ -1307,6 +1337,37 @@ func TestTasksNotification(t *testing.T) {
 			isNotificationSent: false,
 			taskPrompt:         "NoNotificationFailureToFailure",
 		},
+		// Should NOT send notification when agent is in 'starting' lifecycle state (agent startup).
+		{
+			name:               "AgentStarting_NoNotification",
+			latestAppStatuses:  nil,
+			newAppStatus:       codersdk.WorkspaceAppStatusStateIdle,
+			isAITask:           true,
+			isNotificationSent: false,
+			taskPrompt:         "AgentStarting_NoNotification",
+			agentLifecycle:     database.WorkspaceAgentLifecycleStateStarting,
+		},
+		// Should NOT send notification when agent is in 'created' lifecycle state (agent not started).
+		{
+			name:               "AgentCreated_NoNotification",
+			latestAppStatuses:  []codersdk.WorkspaceAppStatusState{codersdk.WorkspaceAppStatusStateWorking},
+			newAppStatus:       codersdk.WorkspaceAppStatusStateIdle,
+			isAITask:           true,
+			isNotificationSent: false,
+			taskPrompt:         "AgentCreated_NoNotification",
+			agentLifecycle:     database.WorkspaceAgentLifecycleStateCreated,
+		},
+		// Should send notification when agent is in 'ready' lifecycle state (agent fully started).
+		{
+			name:                 "AgentReady_SendNotification",
+			latestAppStatuses:    []codersdk.WorkspaceAppStatusState{codersdk.WorkspaceAppStatusStateWorking},
+			newAppStatus:         codersdk.WorkspaceAppStatusStateIdle,
+			isAITask:             true,
+			isNotificationSent:   true,
+			notificationTemplate: notifications.TemplateTaskIdle,
+			taskPrompt:           "AgentReady_SendNotification",
+			agentLifecycle:       database.WorkspaceAgentLifecycleStateReady,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -1325,31 +1386,57 @@ func TestTasksNotification(t *testing.T) {
 			// Given: a workspace build with an agent containing an App
 			workspaceAgentAppID := uuid.New()
 			workspaceBuildID := uuid.New()
-			workspaceBuildSeed := database.WorkspaceBuild{
-				ID: workspaceBuildID,
-			}
-			if tc.isAITask {
-				workspaceBuildSeed = database.WorkspaceBuild{
-					ID: workspaceBuildID,
-					// AI Task configuration
-					HasAITask:          sql.NullBool{Bool: true, Valid: true},
-					AITaskSidebarAppID: uuid.NullUUID{UUID: workspaceAgentAppID, Valid: true},
-				}
-			}
-			workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			workspaceBuilder := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 				OrganizationID: ownerUser.OrganizationID,
 				OwnerID:        memberUser.ID,
-			}).Seed(workspaceBuildSeed).Params(database.WorkspaceBuildParameter{
-				WorkspaceBuildID: workspaceBuildID,
-				Name:             codersdk.AITaskPromptParameterName,
-				Value:            tc.taskPrompt,
-			}).WithAgent(func(agent []*proto.Agent) []*proto.Agent {
-				agent[0].Apps = []*proto.App{{
-					Id:   workspaceAgentAppID.String(),
-					Slug: "ccw",
-				}}
-				return agent
-			}).Do()
+			}).Seed(database.WorkspaceBuild{
+				ID: workspaceBuildID,
+			})
+			if tc.isAITask {
+				workspaceBuilder = workspaceBuilder.
+					WithTask(database.TaskTable{
+						Prompt: tc.taskPrompt,
+					}, &proto.App{
+						Id:   workspaceAgentAppID.String(),
+						Slug: "ccw",
+					})
+			} else {
+				workspaceBuilder = workspaceBuilder.
+					WithAgent(func(agent []*proto.Agent) []*proto.Agent {
+						agent[0].Apps = []*proto.App{{
+							Id:   workspaceAgentAppID.String(),
+							Slug: "ccw",
+						}}
+						return agent
+					})
+			}
+			workspaceBuild := workspaceBuilder.Do()
+
+			// Given: set the agent lifecycle state if specified
+			if tc.agentLifecycle != "" {
+				workspace := coderdtest.MustWorkspace(t, client, workspaceBuild.Workspace.ID)
+				agentID := workspace.LatestBuild.Resources[0].Agents[0].ID
+
+				var (
+					startedAt sql.NullTime
+					readyAt   sql.NullTime
+				)
+				if tc.agentLifecycle == database.WorkspaceAgentLifecycleStateReady {
+					startedAt = sql.NullTime{Time: dbtime.Now(), Valid: true}
+					readyAt = sql.NullTime{Time: dbtime.Now(), Valid: true}
+				} else if tc.agentLifecycle == database.WorkspaceAgentLifecycleStateStarting {
+					startedAt = sql.NullTime{Time: dbtime.Now(), Valid: true}
+				}
+
+				// nolint:gocritic // This is a system restricted operation for test setup.
+				err := db.UpdateWorkspaceAgentLifecycleStateByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+					ID:             agentID,
+					LifecycleState: tc.agentLifecycle,
+					StartedAt:      startedAt,
+					ReadyAt:        readyAt,
+				})
+				require.NoError(t, err)
+			}
 
 			// Given: the workspace agent app has previous statuses
 			agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(workspaceBuild.AgentToken))
@@ -1390,13 +1477,7 @@ func TestTasksNotification(t *testing.T) {
 				require.Len(t, sent, 1)
 				require.Equal(t, memberUser.ID, sent[0].UserID)
 				require.Len(t, sent[0].Labels, 2)
-				// NOTE: len(string) is the number of bytes in the string, not the number of runes.
-				require.LessOrEqual(t, utf8.RuneCountInString(sent[0].Labels["task"]), 160)
-				if len(tc.taskPrompt) > 160 {
-					require.Contains(t, tc.taskPrompt, strings.TrimSuffix(sent[0].Labels["task"], "…"))
-				} else {
-					require.Equal(t, tc.taskPrompt, sent[0].Labels["task"])
-				}
+				require.Equal(t, workspaceBuild.Task.Name, sent[0].Labels["task"])
 				require.Equal(t, workspace.Name, sent[0].Labels["workspace"])
 			} else {
 				// Then: No notification is sent

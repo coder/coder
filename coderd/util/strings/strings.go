@@ -10,6 +10,15 @@ import (
 	"github.com/microcosm-cc/bluemonday"
 )
 
+// EmptyToNil returns a `nil` for an empty string, or a pointer to the string
+// otherwise. Useful when needing to treat zero values as nil in APIs.
+func EmptyToNil(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
 // JoinWithConjunction joins a slice of strings with commas except for the last
 // two which are joined with "and".
 func JoinWithConjunction(s []string) string {

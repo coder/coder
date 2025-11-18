@@ -2168,7 +2168,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 		})
 		res := testutil.Fake(s.T(), faker, database.WorkspaceResource{JobID: b.JobID})
 		agt := testutil.Fake(s.T(), faker, database.WorkspaceAgent{ResourceID: res.ID})
-		app := testutil.Fake(s.T(), faker, database.WorkspaceApp{AgentID: agt.ID})
+		_ = testutil.Fake(s.T(), faker, database.WorkspaceApp{AgentID: agt.ID})
 
 		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), w.ID).Return(w, nil).AnyTimes()
 		dbm.EXPECT().GetWorkspaceBuildByID(gomock.Any(), b.ID).Return(b, nil).AnyTimes()
@@ -2177,7 +2177,6 @@ func (s *MethodTestSuite) TestWorkspace() {
 			ID:               b.ID,
 			HasAITask:        sql.NullBool{Bool: true, Valid: true},
 			HasExternalAgent: sql.NullBool{Bool: true, Valid: true},
-			SidebarAppID:     uuid.NullUUID{UUID: app.ID, Valid: true},
 			UpdatedAt:        b.UpdatedAt,
 		}).Asserts(w, policy.ActionUpdate)
 	}))
@@ -2381,6 +2380,17 @@ func (s *MethodTestSuite) TestTasks() {
 		task := testutil.Fake(s.T(), faker, database.Task{})
 		dbm.EXPECT().GetTaskByID(gomock.Any(), task.ID).Return(task, nil).AnyTimes()
 		check.Args(task.ID).Asserts(task, policy.ActionRead).Returns(task)
+	}))
+	s.Run("GetTaskByOwnerIDAndName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		task := testutil.Fake(s.T(), faker, database.Task{})
+		dbm.EXPECT().GetTaskByOwnerIDAndName(gomock.Any(), database.GetTaskByOwnerIDAndNameParams{
+			OwnerID: task.OwnerID,
+			Name:    task.Name,
+		}).Return(task, nil).AnyTimes()
+		check.Args(database.GetTaskByOwnerIDAndNameParams{
+			OwnerID: task.OwnerID,
+			Name:    task.Name,
+		}).Asserts(task, policy.ActionRead).Returns(task)
 	}))
 	s.Run("DeleteTask", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		task := testutil.Fake(s.T(), faker, database.Task{})

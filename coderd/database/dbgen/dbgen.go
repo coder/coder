@@ -451,7 +451,6 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 	buildID := takeFirst(orig.ID, uuid.New())
 	jobID := takeFirst(orig.JobID, uuid.New())
 	hasAITask := takeFirst(orig.HasAITask, sql.NullBool{})
-	sidebarAppID := takeFirst(orig.AITaskSidebarAppID, uuid.NullUUID{})
 	hasExternalAgent := takeFirst(orig.HasExternalAgent, sql.NullBool{})
 	var build database.WorkspaceBuild
 	err := db.InTx(func(db database.Store) error {
@@ -491,7 +490,6 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 				ID:               buildID,
 				HasAITask:        hasAITask,
 				HasExternalAgent: hasExternalAgent,
-				SidebarAppID:     sidebarAppID,
 				UpdatedAt:        dbtime.Now(),
 			}))
 		}
@@ -1499,6 +1497,7 @@ func ClaimPrebuild(
 func AIBridgeInterception(t testing.TB, db database.Store, seed database.InsertAIBridgeInterceptionParams, endedAt *time.Time) database.AIBridgeInterception {
 	interception, err := db.InsertAIBridgeInterception(genCtx, database.InsertAIBridgeInterceptionParams{
 		ID:          takeFirst(seed.ID, uuid.New()),
+		APIKeyID:    seed.APIKeyID,
 		InitiatorID: takeFirst(seed.InitiatorID, uuid.New()),
 		Provider:    takeFirst(seed.Provider, "provider"),
 		Model:       takeFirst(seed.Model, "model"),

@@ -12,7 +12,8 @@ RUN apk add --no-cache \
 		bash \
 		git \
 		openssl \
-		openssh-client && \
+		openssh-client \
+		tzdata && \
 	addgroup \
 		-g 1000 \
 		coder && \

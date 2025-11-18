@@ -396,11 +396,6 @@
 									"title": "Up to 3,000 Users",
 									"description": "Enterprise-scale architecture recommendations for Coder deployments that support up to 3,000 users",
 									"path": "./admin/infrastructure/validated-architectures/3k-users.md"
-								},
-								{
-									"title": "Up to 10,000 Users",
-									"description": "Enterprise-scale architecture recommendations for Coder deployments that support up to 10,000 users",
-									"path": "./admin/infrastructure/validated-architectures/10k-users.md"
 								}
 							]
 						},
@@ -436,6 +431,11 @@
 									"title": "Google",
 									"description": "Configure Google as an OIDC provider",
 									"path": "./admin/users/oidc-auth/google.md"
+								},
+								{
+									"title": "Microsoft",
+									"description": "Configure Microsoft Entra ID as an OIDC provider",
+									"path": "./admin/users/oidc-auth/microsoft.md"
 								},
 								{
 									"title": "Configure OIDC refresh tokens",
@@ -906,6 +906,12 @@
 							"state": ["beta"]
 						},
 						{
+							"title": "Tasks Migration Guide",
+							"description": "Changes to Coder Tasks made in v2.28",
+							"path": "./ai-coder/tasks-migration.md",
+							"state": ["beta"]
+						},
+						{
 							"title": "Security \u0026 Boundaries",
 							"description": "Learn about security and boundaries when running AI coding agents in Coder",
 							"path": "./ai-coder/security.md"
@@ -927,9 +933,37 @@
 				{
 					"title": "AI Bridge",
 					"description": "Centralized LLM and MCP proxy for platform teams",
-					"path": "./ai-coder/ai-bridge.md",
+					"path": "./ai-coder/ai-bridge/index.md",
 					"icon_path": "./images/icons/api.svg",
-					"state": ["premium", "early access"]
+					"state": ["premium", "early access"],
+					"children": [
+						{
+							"title": "Setup",
+							"description": "How to set up and configure AI Bridge",
+							"path": "./ai-coder/ai-bridge/setup.md"
+						},
+						{
+							"title": "Client Configuration",
+							"description": "How to configure your AI coding tools to use AI Bridge",
+							"path": "./ai-coder/ai-bridge/client-config.md"
+						},
+						{
+							"title": "MCP Tools Injection",
+							"description": "How to configure MCP servers for tools injection through AI Bridge",
+							"path": "./ai-coder/ai-bridge/mcp.md",
+							"state": ["early access"]
+						},
+						{
+							"title": "Monitoring",
+							"description": "How to monitor AI Bridge",
+							"path": "./ai-coder/ai-bridge/monitoring.md"
+						},
+						{
+							"title": "Reference",
+							"description": "Technical reference for AI Bridge",
+							"path": "./ai-coder/ai-bridge/reference.md"
+						}
+					]
 				},
 				{
 					"title": "Tasks CLI",

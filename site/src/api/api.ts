@@ -2716,6 +2716,16 @@ class ExperimentalApiMethods {
 			setTimeout(() => res(), 500);
 		});
 	};
+
+	getAIBridgeInterceptions = async (options: SearchParamOptions) => {
+		const url = getURLWithSearchParams(
+			"/api/experimental/aibridge/interceptions",
+			options,
+		);
+		const response =
+			await this.axios.get<TypesGen.AIBridgeListInterceptionsResponse>(url);
+		return response.data;
+	};
 }
 
 // This is a hard coded CSRF token/cookie pair for local development. In prod,
@@ -2759,7 +2769,7 @@ function getConfiguredAxiosInstance(): AxiosInstance {
 		}
 	} else {
 		// Do not write error logs if we are in a FE unit test.
-		if (process.env.JEST_WORKER_ID === undefined) {
+		if (!process.env.JEST_WORKER_ID && !process.env.VITEST) {
 			console.error("CSRF token not found");
 		}
 	}

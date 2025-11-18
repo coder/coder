@@ -2989,6 +2989,10 @@ func (q *querier) GetTaskByID(ctx context.Context, id uuid.UUID) (database.Task,
 	return fetch(q.log, q.auth, q.db.GetTaskByID)(ctx, id)
 }
 
+func (q *querier) GetTaskByOwnerIDAndName(ctx context.Context, arg database.GetTaskByOwnerIDAndNameParams) (database.Task, error) {
+	return fetch(q.log, q.auth, q.db.GetTaskByOwnerIDAndName)(ctx, arg)
+}
+
 func (q *querier) GetTaskByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.Task, error) {
 	return fetch(q.log, q.auth, q.db.GetTaskByWorkspaceID)(ctx, workspaceID)
 }
