@@ -107,7 +107,7 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 			if provisionerKey != "" {
 				pkDetails, err := client.GetProvisionerKey(ctx, provisionerKey)
 				if err != nil {
-					return xerrors.New("unable to get provisioner key details")
+					return xerrors.Errorf("unable to get provisioner key details: %w", err)
 				}
 
 				for k, v := range pkDetails.Tags {
