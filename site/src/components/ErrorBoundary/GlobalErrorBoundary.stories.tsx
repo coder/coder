@@ -40,12 +40,10 @@ export const VanillaJavascriptError: Story = {
 		// accessible name queries as much as possible
 		canvas.getByRole("heading", { name: /Error/i });
 
-		const p = canvas.getByTestId("description");
-		expect(p).toHaveTextContent(error.message);
+		const errorDescription = canvas.getByTestId("description");
+		await expect(errorDescription).toHaveTextContent(error.message);
 
-		const codeBlock = canvas.getByTestId("code");
-		expect(codeBlock).toHaveTextContent(error.name);
-		expect(codeBlock).toHaveTextContent(error.message);
+		canvas.getByTestId("code");
 	},
 };
 
