@@ -364,6 +364,15 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			action: "create",
 			resource: "coder_metadata.container_info[0]",
 		},
+		{
+			job_id: "86fd4143-d95f-4602-b464-1149ede62269",
+			started_at: "2024-10-14T11:30:53.693767Z",
+			ended_at: "2024-10-14T11:30:58.693767Z",
+			stage: "graph_second",
+			source: "terraform",
+			action: "terraform",
+			resource: "coder_graph_second_stage",
+		},
 	],
 	agent_script_timings: [
 		{

@@ -34,6 +34,10 @@ export type Stage = {
 	 */
 	name: TimingStage;
 	/**
+	 * The graph stage actually runs twice, the second with another name.
+	 */
+	alternativeNames?: TimingStage[];
+	/**
 	 * The value to display in the stage label. This can differ from the stage
 	 * name to provide more context or clarity.
 	 */
@@ -247,6 +251,7 @@ export const provisioningStages: Stage[] = [
 	},
 	{
 		name: "graph",
+		alternativeNames: ["graph_second"],
 		label: "graph",
 		section: "provisioning",
 		tooltip: {

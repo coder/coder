@@ -419,7 +419,8 @@ CREATE TYPE provisioner_job_timing_stage AS ENUM (
     'init',
     'plan',
     'graph',
-    'apply'
+    'apply',
+    'graph_second'
 );
 
 CREATE TYPE provisioner_job_type AS ENUM (
@@ -843,15 +844,15 @@ BEGIN
             IF workspace_count > 0 THEN
                 error_parts := array_append(error_parts, workspace_count || ' workspaces');
             END IF;
-            
+
             IF template_count > 0 THEN
                 error_parts := array_append(error_parts, template_count || ' templates');
             END IF;
-            
+
             IF provisioner_keys_count > 0 THEN
                 error_parts := array_append(error_parts, provisioner_keys_count || ' provisioner keys');
             END IF;
-            
+
             error_message := error_message || array_to_string(error_parts, ', ') || ' that must be deleted first';
             RAISE EXCEPTION '%', error_message;
         END;

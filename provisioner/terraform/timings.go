@@ -109,7 +109,11 @@ func (t *timingAggregator) ingest(ts time.Time, s *timingSpan) {
 		return
 	}
 
-	s.stage = t.stage
+	// Only set the stage if it hasn't already been set on the span.
+	// Explicitly set stage takes precedence.
+	if s.stage == "" {
+		s.stage = t.stage
+	}
 	ts = dbtime.Time(ts.UTC())
 
 	switch s.kind {

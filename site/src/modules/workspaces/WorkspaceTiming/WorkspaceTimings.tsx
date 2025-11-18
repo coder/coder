@@ -132,8 +132,10 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 							<StagesChart
 								timings={stages.map((s) => {
 									const stageTimings = timings.filter(
-										(t) => t.stage === s.name,
+										// graph has 2 stages, `graph` and `graph_second`
+										(t) => t.stage === s.name || s.alternativeNames?.includes(t.stage),
 									);
+									// console.log(s.name, stageTimings)
 									const stageRange =
 										stageTimings.length === 0
 											? undefined

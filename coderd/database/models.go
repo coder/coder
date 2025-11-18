@@ -2413,10 +2413,11 @@ func AllProvisionerJobStatusValues() []ProvisionerJobStatus {
 type ProvisionerJobTimingStage string
 
 const (
-	ProvisionerJobTimingStageInit  ProvisionerJobTimingStage = "init"
-	ProvisionerJobTimingStagePlan  ProvisionerJobTimingStage = "plan"
-	ProvisionerJobTimingStageGraph ProvisionerJobTimingStage = "graph"
-	ProvisionerJobTimingStageApply ProvisionerJobTimingStage = "apply"
+	ProvisionerJobTimingStageInit        ProvisionerJobTimingStage = "init"
+	ProvisionerJobTimingStagePlan        ProvisionerJobTimingStage = "plan"
+	ProvisionerJobTimingStageGraph       ProvisionerJobTimingStage = "graph"
+	ProvisionerJobTimingStageApply       ProvisionerJobTimingStage = "apply"
+	ProvisionerJobTimingStageGraphSecond ProvisionerJobTimingStage = "graph_second"
 )
 
 func (e *ProvisionerJobTimingStage) Scan(src interface{}) error {
@@ -2459,7 +2460,8 @@ func (e ProvisionerJobTimingStage) Valid() bool {
 	case ProvisionerJobTimingStageInit,
 		ProvisionerJobTimingStagePlan,
 		ProvisionerJobTimingStageGraph,
-		ProvisionerJobTimingStageApply:
+		ProvisionerJobTimingStageApply,
+		ProvisionerJobTimingStageGraphSecond:
 		return true
 	}
 	return false
@@ -2471,6 +2473,7 @@ func AllProvisionerJobTimingStageValues() []ProvisionerJobTimingStage {
 		ProvisionerJobTimingStagePlan,
 		ProvisionerJobTimingStageGraph,
 		ProvisionerJobTimingStageApply,
+		ProvisionerJobTimingStageGraphSecond,
 	}
 }
 
