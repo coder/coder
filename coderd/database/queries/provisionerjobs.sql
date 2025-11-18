@@ -329,7 +329,7 @@ ORDER BY random()
 LIMIT @max_jobs;
 
 -- name: InsertProvisionerJobTimings :many
-INSERT INTO provisioner_job_timings (job_id, started_at, ended_at, stage, source, action, resource)
+INSERT INTO provisioner_job_timings (job_id, started_at, ended_at, stage, source, action, resource, stage_seq)
 SELECT
     @job_id::uuid AS provisioner_job_id,
     unnest(@started_at::timestamptz[]),
@@ -337,7 +337,8 @@ SELECT
     unnest(@stage::provisioner_job_timing_stage[]),
     unnest(@source::text[]),
     unnest(@action::text[]),
-    unnest(@resource::text[])
+    unnest(@resource::text[]),
+	unnest(@stage_seq::integer[])
 RETURNING *;
 
 -- name: GetProvisionerJobTimingsByJobID :many

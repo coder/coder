@@ -1615,6 +1615,7 @@ func provisionerJobTiming(t testing.TB, db database.Store, seed database.Provisi
 		StartedAt: []time.Time{takeFirst(seed.StartedAt, dbtime.Now())},
 		EndedAt:   []time.Time{takeFirst(seed.EndedAt, dbtime.Now())},
 		Stage:     []database.ProvisionerJobTimingStage{takeFirst(seed.Stage, database.ProvisionerJobTimingStageInit)},
+		StageSeq:  []int32{seed.StageSeq},
 		Source:    []string{takeFirst(seed.Source, "source")},
 		Action:    []string{takeFirst(seed.Action, "action")},
 		Resource:  []string{takeFirst(seed.Resource, "resource")},

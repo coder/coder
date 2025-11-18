@@ -109,8 +109,8 @@ func (s *server) Plan(
 
 	// The JSON output of `terraform init` doesn't include discrete fields for capturing timings of each plugin,
 	// so we capture the whole init process.
-	initTimings := newTimingAggregator(database.ProvisionerJobTimingStageInit)
-	endStage := initTimings.startStage(database.ProvisionerJobTimingStageInit)
+	initTimings := newTimingAggregator(database.ProvisionerJobTimingStageInit, 0)
+	endStage := initTimings.startStage(database.ProvisionerJobTimingStageInit, 0)
 
 	err = e.init(ctx, killCtx, sess)
 	endStage(err)

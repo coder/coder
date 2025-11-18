@@ -75,7 +75,8 @@ const (
 )
 
 type timingAggregator struct {
-	stage database.ProvisionerJobTimingStage
+	stage         database.ProvisionerJobTimingStage
+	stageSequence int32
 
 	// Protects the stateLookup map.
 	lookupMu    sync.Mutex
@@ -88,16 +89,18 @@ type timingSpan struct {
 	messageCode                initMessageCode
 	start, end                 time.Time
 	stage                      database.ProvisionerJobTimingStage
+	stageSeq                   int32
 	action, provider, resource string
 	state                      proto.TimingState
 }
 
 // newTimingAggregator creates a new aggregator which measures the duration of resource init/plan/apply actions; stage
 // represents the stage of provisioning the timings are occurring within.
-func newTimingAggregator(stage database.ProvisionerJobTimingStage) *timingAggregator {
+func newTimingAggregator(stage database.ProvisionerJobTimingStage, seq int32) *timingAggregator {
 	return &timingAggregator{
-		stage:       stage,
-		stateLookup: make(map[uint64]*timingSpan),
+		stage:         stage,
+		stageSequence: seq,
+		stateLookup:   make(map[uint64]*timingSpan),
 	}
 }
 
@@ -113,6 +116,7 @@ func (t *timingAggregator) ingest(ts time.Time, s *timingSpan) {
 	// Explicitly set stage takes precedence.
 	if s.stage == "" {
 		s.stage = t.stage
+		s.stageSeq = t.stageSequence
 	}
 	ts = dbtime.Time(ts.UTC())
 
@@ -188,13 +192,14 @@ func (t *timingAggregator) aggregate() []*proto.Timing {
 // should be called to mark the end of the stage. This is used to measure a
 // stage's total duration across all it's discrete events and unmeasured
 // overhead/events.
-func (t *timingAggregator) startStage(stage database.ProvisionerJobTimingStage) (end func(err error)) {
+func (t *timingAggregator) startStage(stage database.ProvisionerJobTimingStage, seq int32) (end func(err error)) {
 	ts := timingSpan{
 		kind:     timingStageStart,
 		stage:    stage,
 		resource: "coder_stage_" + string(stage),
 		action:   "terraform",
 		provider: "coder",
+		stageSeq: seq,
 	}
 	endTs := ts
 	t.ingest(dbtime.Now(), &ts)
@@ -283,6 +288,7 @@ func (e *timingSpan) toProto() *proto.Timing {
 		Source:   e.provider,
 		Resource: e.resource,
 		State:    e.state,
+		StageSeq: e.stageSeq,
 	}
 }
 

@@ -170,6 +170,6 @@ func (s *server) executor(files tfpath.Layouter, stage database.ProvisionerJobTi
 		cliConfigPath: s.cliConfigPath,
 		files:         files,
 		logger:        s.logger.Named("executor"),
-		timings:       newTimingAggregator(stage),
+		timings:       newTimingAggregator(stage, 0),
 	}
 }

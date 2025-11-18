@@ -1688,8 +1688,11 @@ CREATE TABLE provisioner_job_timings (
     stage provisioner_job_timing_stage NOT NULL,
     source text NOT NULL,
     action text NOT NULL,
-    resource text NOT NULL
+    resource text NOT NULL,
+    stage_seq integer DEFAULT 0 NOT NULL
 );
+
+COMMENT ON COLUMN provisioner_job_timings.stage_seq IS 'Distinguish repeated runs of the same stage within a single build job.';
 
 CREATE TABLE provisioner_jobs (
     id uuid NOT NULL,

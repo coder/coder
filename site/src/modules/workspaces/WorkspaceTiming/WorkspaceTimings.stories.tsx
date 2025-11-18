@@ -188,6 +188,7 @@ export const MissedAction: Story = {
 				source: "coder",
 				stage: "apply",
 				started_at: "2025-03-12T18:08:07.194957Z",
+				stage_sequence: 0,
 			},
 			{
 				action: "create",
@@ -197,6 +198,7 @@ export const MissedAction: Story = {
 				source: "null",
 				stage: "apply",
 				started_at: "2025-03-12T18:08:07.399387Z",
+				stage_sequence: 0,
 			},
 			{
 				action: "create",
@@ -206,6 +208,7 @@ export const MissedAction: Story = {
 				source: "random",
 				stage: "apply",
 				started_at: "2025-03-12T18:08:07.403171Z",
+				stage_sequence: 0,
 			},
 			{
 				action: "missed action",
@@ -215,6 +218,7 @@ export const MissedAction: Story = {
 				source: "null",
 				stage: "apply",
 				started_at: "2025-03-12T18:08:07.410219Z",
+				stage_sequence: 0,
 			},
 		],
 	},

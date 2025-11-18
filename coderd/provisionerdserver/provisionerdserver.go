@@ -2182,6 +2182,7 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			}
 
 			params.Stage = append(params.Stage, stg)
+			params.StageSeq = append(params.StageSeq, t.StageSeq)
 			params.Source = append(params.Source, t.Source)
 			params.Resource = append(params.Resource, t.Resource)
 			params.Action = append(params.Action, t.Action)

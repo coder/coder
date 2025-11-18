@@ -104,7 +104,7 @@ func TestAggregation(t *testing.T) {
 				require.Truef(t, stage.Valid(), "%q is not a valid stage name; acceptable values: %v",
 					file.Name, database.AllProvisionerJobTimingStageValues())
 
-				agg := newTimingAggregator(stage)
+				agg := newTimingAggregator(stage, 0)
 				ingestAllSpans(t, file.Data, agg)
 				actualTimings = append(actualTimings, agg.aggregate()...)
 			}

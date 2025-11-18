@@ -1295,13 +1295,14 @@ func (api *API) buildTimings(ctx context.Context, build database.WorkspaceBuild)
 		}
 
 		res.ProvisionerTimings = append(res.ProvisionerTimings, codersdk.ProvisionerTiming{
-			JobID:     t.JobID,
-			Stage:     codersdk.TimingStage(t.Stage),
-			Source:    t.Source,
-			Action:    t.Action,
-			Resource:  t.Resource,
-			StartedAt: t.StartedAt,
-			EndedAt:   t.EndedAt,
+			JobID:         t.JobID,
+			Stage:         codersdk.TimingStage(t.Stage),
+			StageSequence: t.StageSeq,
+			Source:        t.Source,
+			Action:        t.Action,
+			Resource:      t.Resource,
+			StartedAt:     t.StartedAt,
+			EndedAt:       t.EndedAt,
 		})
 	}
 	for _, t := range agentScriptTimings {

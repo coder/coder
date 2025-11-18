@@ -10,6 +10,7 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			source: "coder",
 			action: "terraform",
 			resource: "coder_stage_init",
+			stage_sequence: 0,
 		},
 		{
 			job_id: "86fd4143-d95f-4602-b464-1149ede62269",
@@ -19,6 +20,7 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			source: "coder",
 			action: "terraform",
 			resource: "coder_stage_plan",
+			stage_sequence: 0,
 		},
 		{
 			job_id: "86fd4143-d95f-4602-b464-1149ede62269",
@@ -28,6 +30,7 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			source: "coder",
 			action: "read",
 			resource: "data.coder_workspace_owner.me",
+			stage_sequence: 0,
 		},
 		{
 			job_id: "86fd4143-d95f-4602-b464-1149ede62269",
@@ -37,6 +40,7 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			source: "coder",
 			action: "read",
 			resource: "data.coder_parameter.repo_base_dir",
+			stage_sequence: 0,
 		},
 		{
 			job_id: "86fd4143-d95f-4602-b464-1149ede62269",
@@ -46,6 +50,7 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			source: "coder",
 			action: "read",
 			resource: "module.coder-login.data.coder_workspace_owner.me",
+			stage_sequence: 0,
 		},
 		{
 			job_id: "86fd4143-d95f-4602-b464-1149ede62269",
@@ -55,6 +60,7 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			source: "coder",
 			action: "read",
 			resource: "data.coder_parameter.image_type",
+			stage_sequence: 0,
 		},
 		{
 			job_id: "86fd4143-d95f-4602-b464-1149ede62269",
@@ -64,6 +70,7 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			source: "coder",
 			action: "read",
 			resource: "data.coder_external_auth.github",
+			stage_sequence: 0,
 		},
 		{
 			job_id: "86fd4143-d95f-4602-b464-1149ede62269",
@@ -73,6 +80,7 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			source: "coder",
 			action: "read",
 			resource: "module.dotfiles.data.coder_parameter.dotfiles_uri[0]",
+			stage_sequence: 0,
 		},
 		{
 			job_id: "86fd4143-d95f-4602-b464-1149ede62269",
@@ -82,6 +90,7 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			source: "coder",
 			action: "read",
 			resource: "module.jetbrains_gateway.data.coder_parameter.jetbrains_ide",
+			stage_sequence: 0,
 		},
 		{
 			job_id: "86fd4143-d95f-4602-b464-1149ede62269",
@@ -91,6 +100,7 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			source: "coder",
 			action: "read",
 			resource: "module.jetbrains_gateway.data.coder_workspace.me",
+			stage_sequence: 0,
 		},
 		{
 			job_id: "86fd4143-d95f-4602-b464-1149ede62269",
@@ -100,6 +110,7 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			source: "coder",
 			action: "read",
 			resource: "data.coder_workspace.me",
+			stage_sequence: 0,
 		},
 		{
 			job_id: "86fd4143-d95f-4602-b464-1149ede62269",
@@ -109,6 +120,7 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			source: "coder",
 			action: "read",
 			resource: "data.coder_parameter.region",
+			stage_sequence: 0,
 		},
 		{
 			job_id: "86fd4143-d95f-4602-b464-1149ede62269",
@@ -118,6 +130,7 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			source: "coder",
 			action: "read",
 			resource: "module.filebrowser.data.coder_workspace_owner.me",
+			stage_sequence: 0,
 		},
 		{
 			job_id: "86fd4143-d95f-4602-b464-1149ede62269",
@@ -127,6 +140,7 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			source: "coder",
 			action: "read",
 			resource: "module.cursor.data.coder_workspace_owner.me",
+			stage_sequence: 0,
 		},
 		{
 			job_id: "86fd4143-d95f-4602-b464-1149ede62269",
@@ -136,6 +150,7 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			source: "coder",
 			action: "read",
 			resource: "module.cursor.data.coder_workspace.me",
+			stage_sequence: 0,
 		},
 		{
 			job_id: "86fd4143-d95f-4602-b464-1149ede62269",
@@ -146,6 +161,7 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			action: "read",
 			resource:
 				'module.jetbrains_gateway.data.http.jetbrains_ide_versions["WS"]',
+			stage_sequence: 0,
 		},
 		{
 			job_id: "86fd4143-d95f-4602-b464-1149ede62269",
@@ -155,6 +171,7 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			source: "coder",
 			action: "read",
 			resource: "module.coder-login.data.coder_workspace.me",
+			stage_sequence: 0,
 		},
 		{
 			job_id: "86fd4143-d95f-4602-b464-1149ede62269",
@@ -164,6 +181,7 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			source: "coder",
 			action: "read",
 			resource: "module.filebrowser.data.coder_workspace.me",
+			stage_sequence: 0,
 		},
 		{
 			job_id: "86fd4143-d95f-4602-b464-1149ede62269",
@@ -174,6 +192,7 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			action: "read",
 			resource:
 				'module.jetbrains_gateway.data.http.jetbrains_ide_versions["GO"]',
+			stage_sequence: 0,
 		},
 		{
 			job_id: "86fd4143-d95f-4602-b464-1149ede62269",
@@ -183,6 +202,7 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			source: "coder",
 			action: "state refresh",
 			resource: "coder_agent.dev",
+			stage_sequence: 0,
 		},
 		{
 			job_id: "86fd4143-d95f-4602-b464-1149ede62269",
@@ -192,6 +212,7 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			source: "coder",
 			action: "state refresh",
 			resource: "module.slackme.coder_script.install_slackme",
+			stage_sequence: 0,
 		},
 		{
 			job_id: "86fd4143-d95f-4602-b464-1149ede62269",
@@ -201,6 +222,7 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			source: "coder",
 			action: "state refresh",
 			resource: "module.dotfiles.coder_script.dotfiles",
+			stage_sequence: 0,
 		},
 		{
 			job_id: "86fd4143-d95f-4602-b464-1149ede62269",
@@ -210,6 +232,7 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			source: "coder",
 			action: "state refresh",
 			resource: "module.git-clone.coder_script.git_clone",
+			stage_sequence: 0,
 		},
 		{
 			job_id: "86fd4143-d95f-4602-b464-1149ede62269",
@@ -219,6 +242,7 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			source: "coder",
 			action: "state refresh",
 			resource: "module.personalize.coder_script.personalize",
+			stage_sequence: 0,
 		},
 		{
 			job_id: "86fd4143-d95f-4602-b464-1149ede62269",
@@ -228,6 +252,7 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			source: "coder",
 			action: "state refresh",
 			resource: "module.code-server.coder_app.code-server",
+			stage_sequence: 0,
 		},
 		{
 			job_id: "86fd4143-d95f-4602-b464-1149ede62269",
@@ -237,6 +262,7 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			source: "coder",
 			action: "state refresh",
 			resource: "module.cursor.coder_app.cursor",
+			stage_sequence: 0,
 		},
 		{
 			job_id: "86fd4143-d95f-4602-b464-1149ede62269",
@@ -246,6 +272,7 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			source: "coder",
 			action: "state refresh",
 			resource: "module.coder-login.coder_script.coder-login",
+			stage_sequence: 0,
 		},
 		{
 			job_id: "86fd4143-d95f-4602-b464-1149ede62269",
@@ -255,6 +282,7 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			source: "coder",
 			action: "state refresh",
 			resource: "module.code-server.coder_script.code-server",
+			stage_sequence: 0,
 		},
 		{
 			job_id: "86fd4143-d95f-4602-b464-1149ede62269",
@@ -264,6 +292,7 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			source: "coder",
 			action: "state refresh",
 			resource: "module.filebrowser.coder_script.filebrowser",
+			stage_sequence: 0,
 		},
 		{
 			job_id: "86fd4143-d95f-4602-b464-1149ede62269",
@@ -273,6 +302,7 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			source: "coder",
 			action: "state refresh",
 			resource: "module.filebrowser.coder_app.filebrowser",
+			stage_sequence: 0,
 		},
 		{
 			job_id: "86fd4143-d95f-4602-b464-1149ede62269",
@@ -282,6 +312,7 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			source: "coder",
 			action: "state refresh",
 			resource: "module.jetbrains_gateway.coder_app.gateway",
+			stage_sequence: 0,
 		},
 		{
 			job_id: "86fd4143-d95f-4602-b464-1149ede62269",
@@ -291,6 +322,7 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			source: "docker",
 			action: "state refresh",
 			resource: "docker_volume.home_volume",
+			stage_sequence: 0,
 		},
 		{
 			job_id: "86fd4143-d95f-4602-b464-1149ede62269",
@@ -300,6 +332,7 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			source: "docker",
 			action: "read",
 			resource: "data.docker_registry_image.dogfood",
+			stage_sequence: 0,
 		},
 		{
 			job_id: "86fd4143-d95f-4602-b464-1149ede62269",
@@ -309,6 +342,7 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			source: "docker",
 			action: "state refresh",
 			resource: "docker_image.dogfood",
+			stage_sequence: 0,
 		},
 		{
 			job_id: "86fd4143-d95f-4602-b464-1149ede62269",
@@ -318,6 +352,7 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			source: "terraform",
 			action: "building terraform dependency graph",
 			resource: "state file",
+			stage_sequence: 0,
 		},
 		{
 			job_id: "86fd4143-d95f-4602-b464-1149ede62269",
@@ -327,6 +362,7 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			source: "coder",
 			action: "terraform",
 			resource: "coder_stage_apply",
+			stage_sequence: 0,
 		},
 		{
 			job_id: "86fd4143-d95f-4602-b464-1149ede62269",
@@ -336,6 +372,7 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			source: "coder",
 			action: "delete",
 			resource: "module.coder-login.coder_script.coder-login",
+			stage_sequence: 0,
 		},
 		{
 			job_id: "86fd4143-d95f-4602-b464-1149ede62269",
@@ -345,6 +382,7 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			source: "coder",
 			action: "create",
 			resource: "module.coder-login.coder_script.coder-login",
+			stage_sequence: 0,
 		},
 		{
 			job_id: "86fd4143-d95f-4602-b464-1149ede62269",
@@ -354,6 +392,7 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			source: "docker",
 			action: "create",
 			resource: "docker_container.workspace[0]",
+			stage_sequence: 0,
 		},
 		{
 			job_id: "86fd4143-d95f-4602-b464-1149ede62269",
@@ -363,6 +402,7 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			source: "coder",
 			action: "create",
 			resource: "coder_metadata.container_info[0]",
+			stage_sequence: 0,
 		},
 	],
 	agent_script_timings: [

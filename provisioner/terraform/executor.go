@@ -325,7 +325,7 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		<-doneErr
 	}()
 
-	endStage := e.timings.startStage(database.ProvisionerJobTimingStagePlan)
+	endStage := e.timings.startStage(database.ProvisionerJobTimingStagePlan, 0)
 	err := e.execWriteOutput(ctx, killCtx, args, env, outWriter, errWriter)
 	endStage(err)
 	if err != nil {
@@ -333,7 +333,7 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 	}
 
 	// Capture the duration of the call to `terraform graph`.
-	endGraph := e.timings.startStage(database.ProvisionerJobTimingStageGraph)
+	endGraph := e.timings.startStage(database.ProvisionerJobTimingStageGraph, 0)
 	state, plan, err := e.planResources(ctx, killCtx, planfilePath)
 	endGraph(err)
 	if err != nil {
@@ -595,7 +595,7 @@ func (e *executor) apply(
 	}()
 
 	// `terraform apply`
-	endStage := e.timings.startStage(database.ProvisionerJobTimingStageApply)
+	endStage := e.timings.startStage(database.ProvisionerJobTimingStageApply, 0)
 	err := e.execWriteOutput(ctx, killCtx, args, env, outWriter, errWriter)
 	endStage(err)
 	if err != nil {
@@ -603,9 +603,10 @@ func (e *executor) apply(
 	}
 
 	// `terraform show` & `terraform graph`
-	// endGraph := e.timings.startStage(database.ProvisionerJobTimingStageGraph)
+	// The sequence number is `1` as `graph` has already been called during `plan`. (the 0th stage)
+	endGraph := e.timings.startStage(database.ProvisionerJobTimingStageGraph, 1)
 	state, err := e.stateResources(ctx, killCtx)
-	// endGraph(err)
+	endGraph(err)
 	if err != nil {
 		return nil, err
 	}

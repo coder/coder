@@ -3766,6 +3766,7 @@ export interface ProvisionerTiming {
 	readonly started_at: string;
 	readonly ended_at: string;
 	readonly stage: TimingStage;
+	readonly stage_sequence: number;
 	readonly source: string;
 	readonly action: string;
 	readonly resource: string;
