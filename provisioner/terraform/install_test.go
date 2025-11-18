@@ -7,7 +7,6 @@ package terraform_test
 
 import (
 	"context"
-	_ "embed"
 	"errors"
 	"io"
 	"net"
