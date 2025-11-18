@@ -623,8 +623,8 @@ func (api *API) taskUpdateInput(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var updatedTask database.TaskTable
-	if err := api.Database.InTx(func(s database.Store) error {
-		task, err := api.Database.GetTaskByID(ctx, task.ID)
+	if err := api.Database.InTx(func(tx database.Store) error {
+		task, err := tx.GetTaskByID(ctx, task.ID)
 		if err != nil {
 			return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to fetch task.",
@@ -639,7 +639,7 @@ func (api *API) taskUpdateInput(rw http.ResponseWriter, r *http.Request) {
 			})
 		}
 
-		updatedTask, err = api.Database.UpdateTaskPrompt(ctx, database.UpdateTaskPromptParams{
+		updatedTask, err = tx.UpdateTaskPrompt(ctx, database.UpdateTaskPromptParams{
 			ID:     task.ID,
 			Prompt: req.Input,
 		})

@@ -9155,7 +9155,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |---------|-----------------|----------|--------------|-------------|
 | `roles` | array of string | false    |              |             |
 
-## codersdk.UpdateTaskPromptRequest
+## codersdk.UpdateTaskInputRequest
 
 ```json
 {

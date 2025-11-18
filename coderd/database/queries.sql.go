@@ -13284,7 +13284,8 @@ func (q *sqlQuerier) ListTasks(ctx context.Context, arg ListTasksParams) ([]Task
 }
 
 const updateTaskPrompt = `-- name: UpdateTaskPrompt :one
-UPDATE tasks
+UPDATE
+	tasks
 SET
 	prompt = $1::text
 WHERE
