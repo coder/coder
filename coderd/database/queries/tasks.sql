@@ -67,7 +67,8 @@ RETURNING *;
 
 
 -- name: UpdateTaskPrompt :one
-UPDATE tasks
+UPDATE
+	tasks
 SET
 	prompt = @prompt::text
 WHERE

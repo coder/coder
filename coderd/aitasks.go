@@ -439,7 +439,7 @@ func (api *API) convertTasks(ctx context.Context, requesterID uuid.UUID, dbTasks
 // @Security CoderSessionToken
 // @Tags Experimental
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
-// @Param task path string true "Task ID" format(uuid)
+// @Param task path string true "Task ID, or task name"
 // @Success 200 {object} codersdk.Task
 // @Router /api/experimental/tasks/{user}/{task} [get]
 //
@@ -517,7 +517,7 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Tags Experimental
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
-// @Param task path string true "Task ID" format(uuid)
+// @Param task path string true "Task ID, or task name"
 // @Success 202 "Task deletion initiated"
 // @Router /api/experimental/tasks/{user}/{task} [delete]
 //
@@ -585,20 +585,20 @@ func (api *API) taskDelete(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusAccepted)
 }
 
-// @Summary Update AI task prompt
+// @Summary Update AI task input
 // @Description: EXPERIMENTAL: this endpoint is experimental and not guaranteed to be stable.
-// @ID update-task-prompt
+// @ID update-task-input
 // @Security CoderSessionToken
 // @Tags Experimental
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
-// @Param task path string true "Task ID" format(uuid)
-// @Param request body codersdk.UpdateTaskPromptRequest true "Update task prompt request"
+// @Param task path string true "Task ID, or task name"
+// @Param request body codersdk.UpdateTaskInputRequest true "Update task input request"
 // @Success 204
-// @Router /api/experimental/tasks/{user}/{task}/prompt [patch]
+// @Router /api/experimental/tasks/{user}/{task}/input [patch]
 //
 // EXPERIMENTAL: This endpoint is experimental and not guaranteed to be stable.
-// taskUpdatePrompt allows modifying a task's prompt before the agent executes it.
-func (api *API) taskUpdatePrompt(rw http.ResponseWriter, r *http.Request) {
+// taskUpdateInput allows modifying a task's prompt before the agent executes it.
+func (api *API) taskUpdateInput(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx              = r.Context()
 		task             = httpmw.TaskParam(r)
@@ -617,76 +617,45 @@ func (api *API) taskUpdatePrompt(rw http.ResponseWriter, r *http.Request) {
 	aReq.Old = task.TaskTable()
 	aReq.UpdateOrganizationID(task.OrganizationID)
 
-	var req codersdk.UpdateTaskPromptRequest
+	var req codersdk.UpdateTaskInputRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 
-	if req.Prompt == "" {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Prompt is required.",
+	var updatedTask database.TaskTable
+	if err := api.Database.InTx(func(s database.Store) error {
+		task, err := api.Database.GetTaskByID(ctx, task.ID)
+		if err != nil {
+			return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to fetch task.",
+				Detail:  err.Error(),
+			})
+		}
+
+		if task.Status == database.TaskStatusInitializing || task.Status == database.TaskStatusActive {
+			return httperror.NewResponseError(http.StatusConflict, codersdk.Response{
+				Message: "Cannot update input while task is initializing or active.",
+				Detail:  "Please stop the task's workspace before updating the input.",
+			})
+		}
+
+		updatedTask, err = api.Database.UpdateTaskPrompt(ctx, database.UpdateTaskPromptParams{
+			ID:     task.ID,
+			Prompt: req.Input,
 		})
+		if err != nil {
+			return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to update task input.",
+				Detail:  err.Error(),
+			})
+		}
+
+		return nil
+	}, nil); err != nil {
+		httperror.WriteResponseError(ctx, rw, err)
 		return
 	}
 
-	// NOTE(DanielleMaywood):
-	// If there is a workspace associated with this task, we should check it isn't actively running.
-	// If it is running, we do not want to update the prompt as updating the prompt of a running
-	// workspace doesn't make sense.
-	if task.WorkspaceID.Valid {
-		build, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, task.WorkspaceID.UUID)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to get workspace build.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-
-		job, err := api.Database.GetProvisionerJobByID(ctx, build.JobID)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to get provisioner job.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-
-		// Check workspace build status - must NOT be in active/transitional state
-		// Block updates if:
-		// 1. Job is actively running (pending, running, canceling)
-		// 2. Workspace is running (job succeeded with start transition)
-		if job.JobStatus == database.ProvisionerJobStatusPending ||
-			job.JobStatus == database.ProvisionerJobStatusRunning ||
-			job.JobStatus == database.ProvisionerJobStatusCanceling {
-			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: "Cannot update prompt while workspace build is active.",
-				Detail:  fmt.Sprintf("Current build status: %s. Please wait for the build to complete or stop the workspace.", job.JobStatus),
-			})
-			return
-		}
-
-		// Also block if workspace is running (successful start transition)
-		if job.JobStatus == database.ProvisionerJobStatusSucceeded && build.Transition == database.WorkspaceTransitionStart {
-			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: "Cannot update prompt while workspace is running.",
-				Detail:  "Please stop the workspace before updating the prompt.",
-			})
-			return
-		}
-	}
-
-	updatedTask, err := api.Database.UpdateTaskPrompt(ctx, database.UpdateTaskPromptParams{
-		ID:     task.ID,
-		Prompt: req.Prompt,
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to update task prompt.",
-			Detail:  err.Error(),
-		})
-		return
-	}
 	aReq.New = updatedTask
 
 	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
@@ -698,7 +667,7 @@ func (api *API) taskUpdatePrompt(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Tags Experimental
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
-// @Param task path string true "Task ID" format(uuid)
+// @Param task path string true "Task ID, or task name"
 // @Param request body codersdk.TaskSendRequest true "Task input request"
 // @Success 204 "Input sent successfully"
 // @Router /api/experimental/tasks/{user}/{task}/send [post]
@@ -772,7 +741,7 @@ func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Tags Experimental
 // @Param user path string true "Username, user ID, or 'me' for the authenticated user"
-// @Param task path string true "Task ID" format(uuid)
+// @Param task path string true "Task ID, or task name"
 // @Success 200 {object} codersdk.TaskLogsResponse
 // @Router /api/experimental/tasks/{user}/{task}/logs [get]
 //

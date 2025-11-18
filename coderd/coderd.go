@@ -1035,7 +1035,7 @@ func New(options *Options) *API {
 					r.Use(httpmw.ExtractTaskParam(options.Database))
 					r.Get("/", api.taskGet)
 					r.Delete("/", api.taskDelete)
-					r.Patch("/prompt", api.taskUpdatePrompt)
+					r.Patch("/input", api.taskUpdateInput)
 					r.Post("/send", api.taskSend)
 					r.Get("/logs", api.taskLogs)
 				})

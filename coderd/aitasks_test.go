@@ -769,8 +769,8 @@ func TestTasks(t *testing.T) {
 			require.Equal(t, codersdk.WorkspaceStatusStopped, build.Status)
 
 			// Now update prompt should succeed
-			err = exp.UpdateTaskPrompt(ctx, task.OwnerName, task.ID, codersdk.UpdateTaskPromptRequest{
-				Prompt: "Updated prompt after stop",
+			err = exp.UpdateTaskInput(ctx, task.OwnerName, task.ID, codersdk.UpdateTaskInputRequest{
+				Input: "Updated prompt after stop",
 			})
 			require.NoError(t, err)
 		})
@@ -814,8 +814,8 @@ func TestTasks(t *testing.T) {
 			require.Equal(t, codersdk.WorkspaceStatusCanceled, startBuild.Status)
 
 			// Now update prompt should succeed
-			err = exp.UpdateTaskPrompt(ctx, task.OwnerName, task.ID, codersdk.UpdateTaskPromptRequest{
-				Prompt: "Updated prompt after cancel",
+			err = exp.UpdateTaskInput(ctx, task.OwnerName, task.ID, codersdk.UpdateTaskInputRequest{
+				Input: "Updated prompt after cancel",
 			})
 			require.NoError(t, err)
 		})
@@ -850,52 +850,14 @@ func TestTasks(t *testing.T) {
 			require.Equal(t, codersdk.WorkspaceTransitionStart, workspace.LatestBuild.Transition)
 
 			// Attempt to update prompt should fail with 409 Conflict
-			err = exp.UpdateTaskPrompt(ctx, task.OwnerName, task.ID, codersdk.UpdateTaskPromptRequest{
-				Prompt: "Should fail",
+			err = exp.UpdateTaskInput(ctx, task.OwnerName, task.ID, codersdk.UpdateTaskInputRequest{
+				Input: "Should fail",
 			})
 			require.Error(t, err)
 			var apiErr *codersdk.Error
 			require.ErrorAs(t, err, &apiErr)
 			require.Equal(t, http.StatusConflict, apiErr.StatusCode())
-			require.Contains(t, apiErr.Message, "running")
-		})
-
-		t.Run("EmptyPrompt", func(t *testing.T) {
-			t.Parallel()
-
-			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-			user := coderdtest.CreateFirstUser(t, client)
-			ctx := testutil.Context(t, testutil.WaitLong)
-
-			template := createAITemplate(t, client, user)
-
-			// Create a task with workspace
-			exp := codersdk.NewExperimentalClient(client)
-			task, err := exp.CreateTask(ctx, codersdk.Me, codersdk.CreateTaskRequest{
-				TemplateVersionID: template.ActiveVersionID,
-				Input:             "initial prompt",
-			})
-			require.NoError(t, err)
-			require.True(t, task.WorkspaceID.Valid)
-
-			// Wait for workspace to be running
-			workspace, err := client.Workspace(ctx, task.WorkspaceID.UUID)
-			require.NoError(t, err)
-			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-
-			// Stop the workspace so we can test the empty prompt validation
-			build := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
-			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
-
-			// Attempt to update with empty prompt should fail with 400 Bad Request
-			err = exp.UpdateTaskPrompt(ctx, task.OwnerName, task.ID, codersdk.UpdateTaskPromptRequest{
-				Prompt: "",
-			})
-			require.Error(t, err)
-			var apiErr *codersdk.Error
-			require.ErrorAs(t, err, &apiErr)
-			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
-			require.Contains(t, apiErr.Message, "required")
+			require.Contains(t, apiErr.Message, "Cannot update input")
 		})
 
 		t.Run("NonExistentTask", func(t *testing.T) {
@@ -908,8 +870,8 @@ func TestTasks(t *testing.T) {
 			exp := codersdk.NewExperimentalClient(client)
 
 			// Attempt to update prompt for non-existent task
-			err := exp.UpdateTaskPrompt(ctx, user.UserID.String(), uuid.New(), codersdk.UpdateTaskPromptRequest{
-				Prompt: "Should fail",
+			err := exp.UpdateTaskInput(ctx, user.UserID.String(), uuid.New(), codersdk.UpdateTaskInputRequest{
+				Input: "Should fail",
 			})
 			require.Error(t, err)
 			var apiErr *codersdk.Error
@@ -947,8 +909,8 @@ func TestTasks(t *testing.T) {
 
 			// Attempt to update prompt as another user should fail with 404 Not Found
 			otherExp := codersdk.NewExperimentalClient(anotherUser)
-			err = otherExp.UpdateTaskPrompt(ctx, task.OwnerName, task.ID, codersdk.UpdateTaskPromptRequest{
-				Prompt: "Should fail - unauthorized",
+			err = otherExp.UpdateTaskInput(ctx, task.OwnerName, task.ID, codersdk.UpdateTaskInputRequest{
+				Input: "Should fail - unauthorized",
 			})
 			require.Error(t, err)
 			var apiErr *codersdk.Error

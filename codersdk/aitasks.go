@@ -352,18 +352,18 @@ func (c *ExperimentalClient) TaskSend(ctx context.Context, user string, id uuid.
 	return nil
 }
 
-// UpdateTaskPromptRequest is used to update a task's prompt.
+// UpdateTaskInputRequest is used to update a task's prompt.
 //
 // Experimental: This type is experimental and may change in the future.
-type UpdateTaskPromptRequest struct {
-	Prompt string `json:"prompt"`
+type UpdateTaskInputRequest struct {
+	Input string `json:"prompt"`
 }
 
-// UpdateTaskPrompt updates the task's prompt.
+// UpdateTaskInput updates the task's input.
 //
 // Experimental: This method is experimental and may change in the future.
-func (c *ExperimentalClient) UpdateTaskPrompt(ctx context.Context, user string, id uuid.UUID, req UpdateTaskPromptRequest) error {
-	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/tasks/%s/%s/prompt", user, id.String()), req)
+func (c *ExperimentalClient) UpdateTaskInput(ctx context.Context, user string, id uuid.UUID, req UpdateTaskInputRequest) error {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/tasks/%s/%s/input", user, id.String()), req)
 	if err != nil {
 		return err
 	}
