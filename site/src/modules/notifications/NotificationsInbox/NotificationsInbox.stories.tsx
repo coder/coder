@@ -123,7 +123,9 @@ export const MarkAllAsReadFailure: Story = {
 			name: /mark all as read/i,
 		});
 		await userEvent.click(markAllAsReadButton);
-		await body.findByText("Failed to mark all notifications as read");
+		await expect(
+			body.findByText("Failed to mark all notifications as read"),
+		).resolves.toBeInTheDocument();
 	},
 };
 
