@@ -39,44 +39,6 @@ import (
 
 const workspaceCacheRefreshInterval = 5 * time.Minute
 
-// CachedWorkspaceFields contains workspace data that is safe to cache for the
-// duration of an agent connection. These fields are used to reduce database calls
-// in high-frequency operations like stats reporting and metadata updates.
-// Prebuild workspaces should not be cached using this struct within the API struct,
-// however some of these fields for a workspace can be updated live so there is a
-// routine in the API for refreshing the workspace on a timed interval.
-//
-// IMPORTANT: ACL fields (GroupACL, UserACL) are NOT cached because they can be
-// modified in the database and we must use fresh data for authorization checks.
-type CachedWorkspaceFields struct {
-	// Identity fields
-	ID             uuid.UUID
-	OwnerID        uuid.UUID
-	OrganizationID uuid.UUID
-	TemplateID     uuid.UUID
-
-	// Display fields for logging/metrics
-	Name          string
-	OwnerUsername string
-	TemplateName  string
-
-	// Lifecycle fields needed for stats reporting
-	AutostartSchedule sql.NullString
-}
-
-func (cws *CachedWorkspaceFields) AsDatabaseWorkspace() database.Workspace {
-	return database.Workspace{
-		ID:                cws.ID,
-		OwnerID:           cws.OwnerID,
-		OrganizationID:    cws.OrganizationID,
-		TemplateID:        cws.TemplateID,
-		Name:              cws.Name,
-		OwnerUsername:     cws.OwnerUsername,
-		TemplateName:      cws.TemplateName,
-		AutostartSchedule: cws.AutostartSchedule,
-	}
-}
-
 // API implements the DRPC agent API interface from agent/proto. This struct is
 // instantiated once per agent connection and kept alive for the duration of the
 // session.
@@ -325,9 +287,6 @@ func (a *API) agent(ctx context.Context) (database.WorkspaceAgent, error) {
 // This ensures that changes like prebuild claims (which modify owner_id, name, etc.)
 // are eventually reflected in the cache without requiring agent reconnection.
 func (a *API) refreshCachedWorkspace(ctx context.Context) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
 	ws, err := a.opts.Database.GetWorkspaceByID(ctx, a.opts.WorkspaceID)
 	if err != nil {
 		a.opts.Log.Warn(ctx, "failed to refresh cached workspace fields", slog.Error(err))
@@ -340,13 +299,7 @@ func (a *API) refreshCachedWorkspace(ctx context.Context) {
 	}
 
 	// Update fields that can change during workspace lifecycle (e.g., prebuild claim)
-	a.cachedWorkspaceFields.OwnerID = ws.OwnerID
-	a.cachedWorkspaceFields.Name = ws.Name
-	a.cachedWorkspaceFields.OwnerUsername = ws.OwnerUsername
-	a.cachedWorkspaceFields.ID = ws.ID
-	a.cachedWorkspaceFields.TemplateID = ws.TemplateID
-	a.cachedWorkspaceFields.TemplateName = ws.TemplateName
-	a.cachedWorkspaceFields.AutostartSchedule = ws.AutostartSchedule
+	a.cachedWorkspaceFields.UpdateValues(ws)
 
 	a.opts.Log.Debug(ctx, "refreshed cached workspace fields",
 		slog.F("workspace_id", ws.ID),
@@ -373,9 +326,7 @@ func (a *API) startCacheRefreshLoop(ctx context.Context) {
 		slog.F("workspace_id", a.cachedWorkspaceFields.ID),
 		slog.F("owner_id", a.cachedWorkspaceFields.OwnerUsername),
 		slog.F("name", a.cachedWorkspaceFields.Name))
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.cachedWorkspaceFields = CachedWorkspaceFields{}
+	a.cachedWorkspaceFields.Clear()
 }
 
 func (a *API) publishWorkspaceUpdate(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
