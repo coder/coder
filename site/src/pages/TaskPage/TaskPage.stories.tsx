@@ -7,11 +7,10 @@ import {
 	MockTasks,
 	MockUserOwner,
 	MockWorkspace,
+	MockWorkspaceAgent,
 	MockWorkspaceAgentLogSource,
 	MockWorkspaceAgentReady,
-	MockWorkspaceAgentStartError,
 	MockWorkspaceAgentStarting,
-	MockWorkspaceAgentStartTimeout,
 	MockWorkspaceApp,
 	MockWorkspaceAppStatus,
 	MockWorkspaceResource,
@@ -226,7 +225,10 @@ export const StartupScriptError: Story = {
 		queries: [
 			{
 				key: ["tasks", MockTask.owner_name, MockTask.id],
-				data: MockTask,
+				data: {
+					...MockTask,
+					workspace_agent_lifecycle: "start_error",
+				},
 			},
 			{
 				key: [
@@ -243,7 +245,7 @@ export const StartupScriptError: Story = {
 						resources: [
 							{
 								...MockWorkspaceResource,
-								agents: [MockWorkspaceAgentStartError],
+								agents: [MockWorkspaceAgent],
 							},
 						],
 					},
@@ -278,7 +280,10 @@ export const StartupScriptTimeout: Story = {
 		queries: [
 			{
 				key: ["tasks", MockTask.owner_name, MockTask.id],
-				data: MockTask,
+				data: {
+					...MockTask,
+					workspace_agent_lifecycle: "start_timeout",
+				},
 			},
 			{
 				key: [
@@ -295,7 +300,7 @@ export const StartupScriptTimeout: Story = {
 						resources: [
 							{
 								...MockWorkspaceResource,
-								agents: [MockWorkspaceAgentStartTimeout],
+								agents: [MockWorkspaceAgent],
 							},
 						],
 					},
