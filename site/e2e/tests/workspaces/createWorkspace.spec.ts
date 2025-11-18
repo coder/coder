@@ -39,7 +39,9 @@ test("create workspace", async ({ page }) => {
 	await createWorkspace(page, template);
 });
 
-test("create workspace with default immutable parameters", async ({ page }) => {
+test.only("create workspace with default immutable parameters", async ({
+	page,
+}) => {
 	await login(page, users.templateAdmin);
 	const richParameters: RichParameter[] = [
 		secondParameter,

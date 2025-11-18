@@ -1,5 +1,6 @@
 import { type ChildProcess, exec, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import * as fs from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";
 import { Duplex } from "node:stream";
@@ -547,6 +548,9 @@ interface EchoProvisionerResponses {
 	plan?: RecursivePartial<Response>[];
 	// apply occurs when the workspace is built
 	apply?: RecursivePartial<Response>[];
+	// extraFiles allows the bundling of terraform files in echo provisioner tars
+	// in order to support dynamic parameters
+	extraFiles?: Map<string, string>;
 }
 
 const emptyPlan = new TextEncoder().encode("{}");
@@ -595,6 +599,13 @@ const createTemplateVersionTar = async (
 	}
 
 	const tar = new TarWriter();
+
+	if (responses.extraFiles) {
+		for (const [fileName, fileContents] of responses.extraFiles) {
+			tar.addFile(fileName, fileContents);
+		}
+	}
+
 	responses.parse.forEach((response, index) => {
 		response.parse = {
 			templateVariables: [],
@@ -730,9 +741,11 @@ const createTemplateVersionTar = async (
 		);
 	});
 	const tarFile = await tar.write();
-	return Buffer.from(
+	const a = Buffer.from(
 		tarFile instanceof Blob ? await tarFile.arrayBuffer() : tarFile,
 	);
+	await fs.writeFile(`debug/echo-provisioner-${randomName()}.tar`, a);
+	return a;
 };
 
 export const randomName = (annotation?: string) => {
@@ -830,6 +843,28 @@ export const findSessionToken = async (page: Page): Promise<string> => {
 export const echoResponsesWithParameters = (
 	richParameters: RichParameter[],
 ): EchoProvisionerResponses => {
+	let tf = `terraform {
+  required_providers {
+    coder = {
+      source = "coder/coder"
+    }
+  }
+}
+`;
+
+	for (const parameter of richParameters) {
+		tf += `
+data "coder_parameter" "${parameter.name}" {
+	type      = ${JSON.stringify(parameter.type)}
+	name      = ${JSON.stringify(parameter.displayName)}
+	icon      = ${JSON.stringify(parameter.icon)}
+	mutable   = ${JSON.stringify(parameter.mutable)}
+	required  = ${JSON.stringify(parameter.required)}
+	default   = ${JSON.stringify(parameter.defaultValue)}
+}
+`;
+	}
+
 	return {
 		parse: [
 			{
@@ -854,6 +889,7 @@ export const echoResponsesWithParameters = (
 				},
 			},
 		],
+		extraFiles: new Map([["main.tf", tf]]),
 	};
 };
 
