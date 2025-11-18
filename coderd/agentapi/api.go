@@ -2,7 +2,6 @@ package agentapi
 
 import (
 	"context"
-	"database/sql"
 	"io"
 	"net"
 	"net/url"
@@ -61,10 +60,6 @@ type CachedWorkspaceFields struct {
 	Name          string
 	OwnerUsername string
 	TemplateName  string
-
-	// Lifecycle fields needed for stats reporting
-	AutostartSchedule sql.NullString
-	DormantAt         sql.NullTime
 }
 
 // API implements the DRPC agent API interface from agent/proto. This struct is
@@ -132,23 +127,6 @@ func New(opts Options, workspace database.Workspace) *API {
 
 	api := &API{
 		opts: opts,
-		cachedWorkspaceFields: CachedWorkspaceFields{
-			ID:             workspace.ID,
-			OwnerID:        workspace.OwnerID,
-			OrganizationID: workspace.OrganizationID,
-			TemplateID:     workspace.TemplateID,
-			Name:           workspace.Name,
-			OwnerUsername:  workspace.OwnerUsername,
-			TemplateName:   workspace.TemplateName,
-			AutostartSchedule: sql.NullString{
-				String: workspace.AutostartSchedule.String,
-				Valid:  workspace.AutostartSchedule.Valid,
-			},
-			DormantAt: sql.NullTime{
-				Time:  workspace.DormantAt.Time,
-				Valid: workspace.DormantAt.Valid,
-			},
-		},
 		mu: sync.Mutex{},
 	}
 
@@ -162,6 +140,20 @@ func New(opts Options, workspace database.Workspace) *API {
 		Database:                 opts.Database,
 		DerpMapFn:                opts.DerpMapFn,
 		WorkspaceID:              opts.WorkspaceID,
+	}
+
+	// Don't cache details for prebuilds, though the cached fields will eventually be updated
+	// by the refresh routine once the prebuild workspace is claimed.
+	if !workspace.IsPrebuild() {
+		api.cachedWorkspaceFields = CachedWorkspaceFields{
+			ID:             workspace.ID,
+			OwnerID:        workspace.OwnerID,
+			OrganizationID: workspace.OrganizationID,
+			TemplateID:     workspace.TemplateID,
+			Name:           workspace.Name,
+			OwnerUsername:  workspace.OwnerUsername,
+			TemplateName:   workspace.TemplateName,
+		}
 	}
 
 	api.AnnouncementBannerAPI = &AnnouncementBannerAPI{
@@ -322,8 +314,6 @@ func (a *API) workspace() database.Workspace {
 		Name:              a.cachedWorkspaceFields.Name,
 		OwnerUsername:     a.cachedWorkspaceFields.OwnerUsername,
 		TemplateName:      a.cachedWorkspaceFields.TemplateName,
-		AutostartSchedule: a.cachedWorkspaceFields.AutostartSchedule,
-		DormantAt:         a.cachedWorkspaceFields.DormantAt,
 	}
 }
 
@@ -345,12 +335,14 @@ func (a *API) refreshCachedWorkspace(ctx context.Context) {
 		return
 	}
 
+	if ws.IsPrebuild() {
+		a.opts.Log.Debug(ctx, "workspace is a prebuild, not caching in AgentAPI")
+		return
+	}
+
 	// Update fields that can change during workspace lifecycle (e.g., prebuild claim)
-	a.cachedWorkspaceFields.OwnerID = ws.OwnerID
-	a.cachedWorkspaceFields.Name = ws.Name
-	a.cachedWorkspaceFields.OwnerUsername = ws.OwnerUsername
-	a.cachedWorkspaceFields.AutostartSchedule = ws.AutostartSchedule
-	a.cachedWorkspaceFields.DormantAt = ws.DormantAt
+	a.cachedWorkspaceFields = CachedWorkspaceFields{}
+
 
 	a.opts.Log.Debug(ctx, "refreshed cached workspace fields",
 		slog.F("workspace_id", ws.ID),
@@ -377,6 +369,8 @@ func (a *API) startCacheRefreshLoop(ctx context.Context) {
 		slog.F("workspace_id", a.cachedWorkspaceFields.ID),
 		slog.F("owner_id", a.cachedWorkspaceFields.OwnerUsername),
 		slog.F("name", a.cachedWorkspaceFields.Name))
+	a.mu.Lock()
+	defer a.mu.Unlock()
 	a.cachedWorkspaceFields = CachedWorkspaceFields{}
 }
 

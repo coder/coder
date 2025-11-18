@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"golang.org/x/xerrors"
+	"github.com/google/uuid"
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	"cdr.dev/slog"
@@ -49,6 +50,15 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 	}
 	// Construct workspace from cached fields to avoid DB query
 	workspace := a.WorkspaceFn()
+
+	// If cache is empty (prebuild or invalid), fall back to DB
+	if workspace.ID == uuid.Nil {
+		ws, err := a.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
+		if err != nil {
+			return nil, xerrors.Errorf("get workspace by agent ID %q: %w", workspaceAgent.ID, err)
+		}
+		workspace = ws
+	}
 
 	a.Log.Debug(ctx, "read stats report",
 		slog.F("interval", a.AgentStatsRefreshInterval),
