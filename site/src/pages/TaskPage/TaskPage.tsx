@@ -44,6 +44,7 @@ import {
 } from "../WorkspacePage/WorkspaceBuildProgress";
 import { TaskAppIFrame } from "./TaskAppIframe";
 import { TaskApps } from "./TaskApps";
+import { TaskStartupAlert } from "./TaskStartupAlert";
 import { TaskTopbar } from "./TaskTopbar";
 
 const TaskPageLayout: FC<PropsWithChildren> = ({ children }) => {
@@ -145,7 +146,12 @@ const TaskPage = () => {
 		);
 	} else if (workspace.latest_build.status !== "running") {
 		content = <WorkspaceNotRunning workspace={workspace} />;
-	} else if (agent && ["created", "starting"].includes(agent.lifecycle_state)) {
+	} else if (
+		agent &&
+		["created", "starting", "start_error", "start_timeout"].includes(
+			agent.lifecycle_state,
+		)
+	) {
 		content = <TaskStartingAgent agent={agent} />;
 	} else {
 		const chatApp = getAllAppsWithAgent(workspace).find(
@@ -378,6 +384,7 @@ const TaskStartingAgent: FC<TaskStartingAgentProps> = ({ agent }) => {
 					</header>
 
 					<div className="w-full max-w-screen-lg flex flex-col gap-4 overflow-hidden">
+						<TaskStartupAlert agent={agent} />
 						<div className="h-96 border border-solid border-border rounded-lg">
 							<AgentLogs
 								ref={listRef}
