@@ -21,7 +21,6 @@ import (
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/notifications"
@@ -60,6 +59,18 @@ type CachedWorkspaceFields struct {
 	Name          string
 	OwnerUsername string
 	TemplateName  string
+}
+
+func (cws *CachedWorkspaceFields) AsDatabaseWorkspace() database.Workspace {
+	return database.Workspace{
+		ID:             cws.ID,
+		OwnerID:        cws.OwnerID,
+		OrganizationID: cws.OrganizationID,
+		TemplateID:     cws.TemplateID,
+		Name:           cws.Name,
+		OwnerUsername:  cws.OwnerUsername,
+		TemplateName:   cws.TemplateName,
+	}
 }
 
 // API implements the DRPC agent API interface from agent/proto. This struct is
@@ -181,7 +192,7 @@ func New(opts Options, workspace database.Workspace) *API {
 
 	api.StatsAPI = &StatsAPI{
 		AgentFn:                   api.agent,
-		WorkspaceFn:               api.workspace,
+		Workspace:                 &api.cachedWorkspaceFields,
 		Database:                  opts.Database,
 		Log:                       opts.Log,
 		StatsReporter:             opts.StatsReporter,
@@ -205,11 +216,11 @@ func New(opts Options, workspace database.Workspace) *API {
 	}
 
 	api.MetadataAPI = &MetadataAPI{
-		AgentFn:       api.agent,
-		RBACContextFn: api.rbacContext,
-		Database:      opts.Database,
-		Pubsub:        opts.Pubsub,
-		Log:           opts.Log,
+		AgentFn:   api.agent,
+		Workspace: &api.cachedWorkspaceFields,
+		Database:  opts.Database,
+		Pubsub:    opts.Pubsub,
+		Log:       opts.Log,
 	}
 
 	api.LogsAPI = &LogsAPI{
@@ -300,26 +311,6 @@ func (a *API) agent(ctx context.Context) (database.WorkspaceAgent, error) {
 		return database.WorkspaceAgent{}, xerrors.Errorf("get workspace agent by id %q: %w", a.opts.AgentID, err)
 	}
 	return agent, nil
-}
-
-func (a *API) workspace() database.Workspace {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	return database.Workspace{
-		ID:             a.cachedWorkspaceFields.ID,
-		OwnerID:        a.cachedWorkspaceFields.OwnerID,
-		OrganizationID: a.cachedWorkspaceFields.OrganizationID,
-		TemplateID:     a.cachedWorkspaceFields.TemplateID,
-		Name:           a.cachedWorkspaceFields.Name,
-		OwnerUsername:  a.cachedWorkspaceFields.OwnerUsername,
-		TemplateName:   a.cachedWorkspaceFields.TemplateName,
-	}
-}
-
-func (a *API) rbacContext(ctx context.Context) (context.Context, error) {
-	workspace := a.workspace()
-	return dbauthz.WithWorkspaceRBAC(ctx, workspace.RBACObject())
 }
 
 // refreshCachedWorkspace periodically updates the cached workspace fields.

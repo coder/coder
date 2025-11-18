@@ -12,16 +12,17 @@ import (
 	"cdr.dev/slog"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 )
 
 type MetadataAPI struct {
-	AgentFn       func(context.Context) (database.WorkspaceAgent, error)
-	RBACContextFn func(context.Context) (context.Context, error)
-	Database      database.Store
-	Pubsub        pubsub.Pubsub
-	Log           slog.Logger
+	AgentFn   func(context.Context) (database.WorkspaceAgent, error)
+	Workspace *CachedWorkspaceFields
+	Database  database.Store
+	Pubsub    pubsub.Pubsub
+	Log       slog.Logger
 
 	TimeNowFn func() time.Time // defaults to dbtime.Now()
 }
@@ -110,7 +111,7 @@ func (a *MetadataAPI) BatchUpdateMetadata(ctx context.Context, req *agentproto.B
 
 	// Inject RBAC object into context for dbauthz fast path, avoid having to
 	// call GetWorkspaceByAgentID on every metadata update.
-	rbacCtx, err := a.RBACContextFn(ctx)
+	rbacCtx, err := dbauthz.WithWorkspaceRBAC(ctx, a.Workspace.AsDatabaseWorkspace().RBACObject())
 	if err != nil {
 		// Don't use error level here; that will fail the call but in reality an invalid object here is okay
 		// since we will then just fallback to the actual GetWorkspaceByAgentID call in dbauthz.

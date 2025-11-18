@@ -52,6 +52,14 @@ func TestUpdateStates(t *testing.T) {
 			ID:   uuid.New(),
 			Name: "abc",
 		}
+		workspaceAsCacheFields = agentapi.CachedWorkspaceFields{
+			ID:            workspace.ID,
+			OwnerID:       workspace.OwnerID,
+			OwnerUsername: workspace.OwnerUsername,
+			TemplateID:    workspace.TemplateID,
+			Name:          workspace.Name,
+			TemplateName:  workspace.TemplateName,
+		}
 	)
 
 	t.Run("OK", func(t *testing.T) {
@@ -111,10 +119,8 @@ func TestUpdateStates(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			WorkspaceFn: func() database.Workspace {
-				return workspace
-			},
-			Database: dbM,
+			Workspace: &workspaceAsCacheFields,
+			Database:  dbM,
 			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
 				Database:              dbM,
 				Pubsub:                ps,
@@ -223,10 +229,8 @@ func TestUpdateStates(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			WorkspaceFn: func() database.Workspace {
-				return workspace
-			},
-			Database: dbM,
+			Workspace: &workspaceAsCacheFields,
+			Database:  dbM,
 			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
 				Database:              dbM,
 				Pubsub:                ps,
@@ -260,10 +264,8 @@ func TestUpdateStates(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			WorkspaceFn: func() database.Workspace {
-				return workspace
-			},
-			Database: dbM,
+			Workspace: &workspaceAsCacheFields,
+			Database:  dbM,
 			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
 				Database:              dbM,
 				Pubsub:                ps,
@@ -340,10 +342,8 @@ func TestUpdateStates(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			WorkspaceFn: func() database.Workspace {
-				return workspace
-			},
-			Database: dbM,
+			Workspace: &workspaceAsCacheFields,
+			Database:  dbM,
 			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
 				Database:              dbM,
 				Pubsub:                ps,
@@ -454,10 +454,8 @@ func TestUpdateStates(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			WorkspaceFn: func() database.Workspace {
-				return workspace
-			},
-			Database: dbM,
+			Workspace: &workspaceAsCacheFields,
+			Database:  dbM,
 			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
 				Database:              dbM,
 				Pubsub:                ps,

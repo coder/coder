@@ -18,7 +18,7 @@ import (
 
 type StatsAPI struct {
 	AgentFn                   func(context.Context) (database.WorkspaceAgent, error)
-	WorkspaceFn               func() database.Workspace
+	Workspace                 *CachedWorkspaceFields
 	Database                  database.Store
 	Log                       slog.Logger
 	StatsReporter             *workspacestats.Reporter
@@ -48,21 +48,21 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 	if err != nil {
 		return nil, err
 	}
-	// Construct workspace from cached fields to avoid DB query
-	workspace := a.WorkspaceFn()
 
 	// If cache is empty (prebuild or invalid), fall back to DB
-	if workspace.ID == uuid.Nil {
+	if a.Workspace.ID == uuid.Nil {
 		ws, err := a.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
 		if err != nil {
 			return nil, xerrors.Errorf("get workspace by agent ID %q: %w", workspaceAgent.ID, err)
 		}
-		workspace = ws
+		// a.refre
+		// todo updates
+		a.Workspace.ID = ws.ID
 	}
 
 	a.Log.Debug(ctx, "read stats report",
 		slog.F("interval", a.AgentStatsRefreshInterval),
-		slog.F("workspace_id", workspace.ID),
+		slog.F("workspace_id", a.Workspace.ID),
 		slog.F("payload", req),
 	)
 
@@ -79,9 +79,9 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 	err = a.StatsReporter.ReportAgentStats(
 		ctx,
 		a.now(),
-		workspace,
+		a.Workspace.AsDatabaseWorkspace(),
 		workspaceAgent,
-		workspace.TemplateName,
+		a.Workspace.TemplateName,
 		req.Stats,
 		false,
 	)

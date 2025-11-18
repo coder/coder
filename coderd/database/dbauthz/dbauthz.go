@@ -5522,7 +5522,7 @@ func (q *querier) UpdateWorkspaceAgentMetadata(ctx context.Context, arg database
 			}
 			// Errors here will result in falling back to the GetWorkspaceAgentByID query, skipping
 			// the cache in case the cached data is stale.
-			
+
 			if err := q.auth.Authorize(ctx, act, policy.ActionUpdate, rbacObj); err == nil {
 				return q.db.UpdateWorkspaceAgentMetadata(ctx, arg)
 			}
