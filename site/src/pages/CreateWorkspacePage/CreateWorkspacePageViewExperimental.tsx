@@ -339,6 +339,16 @@ export const CreateWorkspacePageViewExperimental: FC<
 		setFieldValue: form.setFieldValue,
 	});
 
+	const disabled =
+		creatingWorkspace ||
+		!hasAllRequiredExternalAuth ||
+		diagnostics.some((diagnostic) => diagnostic.severity === "error") ||
+		parameters.some((parameter) =>
+			parameter.diagnostics.some(
+				(diagnostic) => diagnostic.severity === "error",
+			),
+		);
+
 	return (
 		<>
 			<div className="sticky top-5 ml-10">
@@ -662,21 +672,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 					)}
 
 					<div className="flex flex-row justify-end">
-						<Button
-							type="submit"
-							disabled={
-								creatingWorkspace ||
-								!hasAllRequiredExternalAuth ||
-								diagnostics.some(
-									(diagnostic) => diagnostic.severity === "error",
-								) ||
-								parameters.some((parameter) =>
-									parameter.diagnostics.some(
-										(diagnostic) => diagnostic.severity === "error",
-									),
-								)
-							}
-						>
+						<Button type="submit" disabled={disabled}>
 							<Spinner loading={creatingWorkspace} />
 							Create workspace
 						</Button>
