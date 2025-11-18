@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"golang.org/x/xerrors"
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	"cdr.dev/slog"

@@ -201,32 +201,6 @@ func ActorFromContext(ctx context.Context) (rbac.Subject, bool) {
 	return a, ok
 }
 
-type workspaceRBACContextKey struct{}
-
-// WithWorkspaceRBAC attaches a workspace RBAC object to the context.
-// RBAC fields on this RBAC object should not be used.
-//
-// This is primarily used by the workspace agent RPC handler to cache workspace
-// authorization data for the duration of an agent connection.
-func WithWorkspaceRBAC(ctx context.Context, rbacObj rbac.Object) (context.Context, error) {
-	if rbacObj.Type != rbac.ResourceWorkspace.Type {
-		return ctx, xerrors.New("RBAC Object must be of type Workspace")
-	}
-	if rbacObj.IsEmpty() {
-		return ctx, xerrors.Errorf("cannot attach empty RBAC object to context: %+v", rbacObj)
-	}
-	if len(rbacObj.ACLGroupList) != 0 || len(rbacObj.ACLUserList) != 0 {
-		return ctx, xerrors.New("ACL fields for Workspace RBAC object must be nullified, the can be changed during runtime and should not be cached")
-	}
-	return context.WithValue(ctx, workspaceRBACContextKey{}, rbacObj), nil
-}
-
-// WorkspaceRBACFromContext attempts to retrieve the workspace RBAC object from context.
-func WorkspaceRBACFromContext(ctx context.Context) (rbac.Object, bool) {
-	obj, ok := ctx.Value(workspaceRBACContextKey{}).(rbac.Object)
-	return obj, ok
-}
-
 var (
 	subjectProvisionerd = rbac.Subject{
 		Type:         rbac.SubjectTypeProvisionerd,
@@ -5548,8 +5522,8 @@ func (q *querier) UpdateWorkspaceAgentMetadata(ctx context.Context, arg database
 			}
 			// Errors here will result in falling back to the GetWorkspaceAgentByID query, skipping
 			// the cache in case the cached data is stale.
-			err := q.auth.Authorize(ctx, act, policy.ActionUpdate, rbacObj)
-			if err == nil {
+			
+			if err := q.auth.Authorize(ctx, act, policy.ActionUpdate, rbacObj); err == nil {
 				return q.db.UpdateWorkspaceAgentMetadata(ctx, arg)
 			}
 			q.log.Debug(ctx, "fast path authorization failed, using slow path",

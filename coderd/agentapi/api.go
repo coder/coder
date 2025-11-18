@@ -127,7 +127,7 @@ func New(opts Options, workspace database.Workspace) *API {
 
 	api := &API{
 		opts: opts,
-		mu: sync.Mutex{},
+		mu:   sync.Mutex{},
 	}
 
 	api.ManifestAPI = &ManifestAPI{
@@ -307,13 +307,13 @@ func (a *API) workspace() database.Workspace {
 	defer a.mu.Unlock()
 
 	return database.Workspace{
-		ID:                a.cachedWorkspaceFields.ID,
-		OwnerID:           a.cachedWorkspaceFields.OwnerID,
-		OrganizationID:    a.cachedWorkspaceFields.OrganizationID,
-		TemplateID:        a.cachedWorkspaceFields.TemplateID,
-		Name:              a.cachedWorkspaceFields.Name,
-		OwnerUsername:     a.cachedWorkspaceFields.OwnerUsername,
-		TemplateName:      a.cachedWorkspaceFields.TemplateName,
+		ID:             a.cachedWorkspaceFields.ID,
+		OwnerID:        a.cachedWorkspaceFields.OwnerID,
+		OrganizationID: a.cachedWorkspaceFields.OrganizationID,
+		TemplateID:     a.cachedWorkspaceFields.TemplateID,
+		Name:           a.cachedWorkspaceFields.Name,
+		OwnerUsername:  a.cachedWorkspaceFields.OwnerUsername,
+		TemplateName:   a.cachedWorkspaceFields.TemplateName,
 	}
 }
 
