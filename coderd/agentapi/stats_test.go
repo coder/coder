@@ -53,12 +53,13 @@ func TestUpdateStates(t *testing.T) {
 			Name: "abc",
 		}
 		workspaceAsCacheFields = agentapi.CachedWorkspaceFields{
-			ID:            workspace.ID,
-			OwnerID:       workspace.OwnerID,
-			OwnerUsername: workspace.OwnerUsername,
-			TemplateID:    workspace.TemplateID,
-			Name:          workspace.Name,
-			TemplateName:  workspace.TemplateName,
+			ID:                workspace.ID,
+			OwnerID:           workspace.OwnerID,
+			OwnerUsername:     workspace.OwnerUsername,
+			TemplateID:        workspace.TemplateID,
+			Name:              workspace.Name,
+			TemplateName:      workspace.TemplateName,
+			AutostartSchedule: workspace.AutostartSchedule,
 		}
 	)
 
@@ -338,11 +339,15 @@ func TestUpdateStates(t *testing.T) {
 				},
 			}
 		)
+		// need to overwrite the cached fields for this test
+		ws := workspaceAsCacheFields
+		ws.AutostartSchedule = workspace.AutostartSchedule
+
 		api := agentapi.StatsAPI{
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			Workspace: &workspaceAsCacheFields,
+			Workspace: &ws,
 			Database:  dbM,
 			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
 				Database:              dbM,

@@ -2,6 +2,7 @@ package agentapi
 
 import (
 	"context"
+	"database/sql"
 	"io"
 	"net"
 	"net/url"
@@ -41,13 +42,12 @@ const workspaceCacheRefreshInterval = 5 * time.Minute
 // CachedWorkspaceFields contains workspace data that is safe to cache for the
 // duration of an agent connection. These fields are used to reduce database calls
 // in high-frequency operations like stats reporting and metadata updates.
+// Prebuild workspaces should not be cached using this struct within the API struct,
+// however some of these fields for a workspace can be updated live so there is a
+// routine in the API for refreshing the workspace on a timed interval.
 //
 // IMPORTANT: ACL fields (GroupACL, UserACL) are NOT cached because they can be
 // modified in the database and we must use fresh data for authorization checks.
-//
-// Prebuild Safety: When a prebuild is claimed, the owner_id changes in the database
-// but the agent connection persists. Currently we handle this by periodically refreshing
-// the cached fields (every 5 minutes) to pick up changes like prebuild claims.
 type CachedWorkspaceFields struct {
 	// Identity fields
 	ID             uuid.UUID
@@ -59,17 +59,21 @@ type CachedWorkspaceFields struct {
 	Name          string
 	OwnerUsername string
 	TemplateName  string
+
+	// Lifecycle fields needed for stats reporting
+	AutostartSchedule sql.NullString
 }
 
 func (cws *CachedWorkspaceFields) AsDatabaseWorkspace() database.Workspace {
 	return database.Workspace{
-		ID:             cws.ID,
-		OwnerID:        cws.OwnerID,
-		OrganizationID: cws.OrganizationID,
-		TemplateID:     cws.TemplateID,
-		Name:           cws.Name,
-		OwnerUsername:  cws.OwnerUsername,
-		TemplateName:   cws.TemplateName,
+		ID:                cws.ID,
+		OwnerID:           cws.OwnerID,
+		OrganizationID:    cws.OrganizationID,
+		TemplateID:        cws.TemplateID,
+		Name:              cws.Name,
+		OwnerUsername:     cws.OwnerUsername,
+		TemplateName:      cws.TemplateName,
+		AutostartSchedule: cws.AutostartSchedule,
 	}
 }
 
@@ -164,6 +168,10 @@ func New(opts Options, workspace database.Workspace) *API {
 			Name:           workspace.Name,
 			OwnerUsername:  workspace.OwnerUsername,
 			TemplateName:   workspace.TemplateName,
+			AutostartSchedule: sql.NullString{
+				String: workspace.AutostartSchedule.String,
+				Valid:  workspace.AutostartSchedule.Valid,
+			},
 		}
 	}
 
@@ -338,6 +346,7 @@ func (a *API) refreshCachedWorkspace(ctx context.Context) {
 	a.cachedWorkspaceFields.ID = ws.ID
 	a.cachedWorkspaceFields.TemplateID = ws.TemplateID
 	a.cachedWorkspaceFields.TemplateName = ws.TemplateName
+	a.cachedWorkspaceFields.AutostartSchedule = ws.AutostartSchedule
 
 	a.opts.Log.Debug(ctx, "refreshed cached workspace fields",
 		slog.F("workspace_id", ws.ID),

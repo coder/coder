@@ -50,14 +50,12 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 	}
 
 	// If cache is empty (prebuild or invalid), fall back to DB
+	ws := a.Workspace.AsDatabaseWorkspace()
 	if a.Workspace.ID == uuid.Nil {
-		ws, err := a.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
+		ws, err = a.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
 		if err != nil {
 			return nil, xerrors.Errorf("get workspace by agent ID %q: %w", workspaceAgent.ID, err)
 		}
-		// a.refre
-		// todo updates
-		a.Workspace.ID = ws.ID
 	}
 
 	a.Log.Debug(ctx, "read stats report",
@@ -79,9 +77,9 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 	err = a.StatsReporter.ReportAgentStats(
 		ctx,
 		a.now(),
-		a.Workspace.AsDatabaseWorkspace(),
+		ws,
 		workspaceAgent,
-		a.Workspace.TemplateName,
+		ws.TemplateName,
 		req.Stats,
 		false,
 	)
