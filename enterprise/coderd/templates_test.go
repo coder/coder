@@ -2115,7 +2115,7 @@ func TestMultipleOrganizationTemplates(t *testing.T) {
 func TestInvalidateTemplatePrebuilds(t *testing.T) {
 	t.Parallel()
 
-	// Given
+	// Given the following parameters and presets...
 	templateVersionParameters := []*proto.RichParameter{
 		{Name: "param1", Type: "string", Required: false, DefaultValue: "default1"},
 		{Name: "param2", Type: "string", Required: false, DefaultValue: "default2"},
@@ -2138,8 +2138,16 @@ func TestInvalidateTemplatePrebuilds(t *testing.T) {
 		},
 	}
 
-	//
+	presetWithParameters3 := &proto.Preset{
+		Name: "Preset With Parameters 3",
+		Parameters: []*proto.PresetParameter{
+			{Name: "param1", Value: "value7"},
+			{Name: "param2", Value: "value8"},
+			{Name: "param3", Value: "value9"},
+		},
+	}
 
+	// Given the template versions and template...
 	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
@@ -2151,30 +2159,47 @@ func TestInvalidateTemplatePrebuilds(t *testing.T) {
 		}})
 	templateAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
 
-	planResponse := &proto.Response{
-		Type: &proto.Response_Plan{
-			Plan: &proto.PlanComplete{
-				Presets: []*proto.Preset{
-					presetWithParameters1, presetWithParameters2,
+	buildPlanResponse := func(presets ...*proto.Preset) *proto.Response {
+		return &proto.Response{
+			Type: &proto.Response_Plan{
+				Plan: &proto.PlanComplete{
+					Presets:    presets,
+					Parameters: templateVersionParameters,
 				},
-				Parameters: templateVersionParameters,
 			},
-		},
+		}
 	}
 
 	version1 := coderdtest.CreateTemplateVersion(t, templateAdminClient, owner.OrganizationID, &echo.Responses{
 		Parse:          echo.ParseComplete,
-		ProvisionPlan:  []*proto.Response{planResponse},
+		ProvisionPlan:  []*proto.Response{buildPlanResponse(presetWithParameters1, presetWithParameters2)},
 		ProvisionApply: echo.ApplyComplete,
 	})
 	coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdminClient, version1.ID)
 	template := coderdtest.CreateTemplate(t, templateAdminClient, owner.OrganizationID, version1.ID)
 
 	// When
-	ctx := testutil.Context(t, testutil.WaitShort)
+	ctx := testutil.Context(t, testutil.WaitLong)
 	invalidated, err := templateAdminClient.InvalidateTemplatePrebuilds(ctx, template.ID)
 	require.NoError(t, err)
 
 	// Then
 	require.Equal(t, []string{presetWithParameters1.Name, presetWithParameters2.Name}, invalidated.InvalidatedPresets)
+
+	// Given the template is updated...
+	version2 := coderdtest.UpdateTemplateVersion(t, templateAdminClient, owner.OrganizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  []*proto.Response{buildPlanResponse(presetWithParameters2, presetWithParameters3)},
+		ProvisionApply: echo.ApplyComplete,
+	}, template.ID)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdminClient, version2.ID)
+	err = templateAdminClient.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{ID: version2.ID})
+	require.NoError(t, err)
+
+	// When
+	invalidated, err = templateAdminClient.InvalidateTemplatePrebuilds(ctx, template.ID)
+	require.NoError(t, err)
+
+	// Then
+	require.Equal(t, []string{presetWithParameters2.Name, presetWithParameters3.Name}, invalidated.InvalidatedPresets)
 }
