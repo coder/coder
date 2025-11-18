@@ -600,6 +600,9 @@ func TestExpiredPrebuilds(t *testing.T) {
 		running int32
 		desired int32
 		expired int32
+
+		presetInvalidated bool
+
 		checkFn func(runningPrebuilds []database.GetRunningPrebuiltWorkspacesRow, state prebuilds.ReconciliationState, actions []*prebuilds.ReconciliationActions)
 	}{
 		// With 2 running prebuilds, none of which are expired, and the desired count is met,
@@ -712,6 +715,29 @@ func TestExpiredPrebuilds(t *testing.T) {
 				validateActions(t, expectedActions, actions)
 			},
 		},
+		{
+			name:              "preset has been invalidated - both instances expired",
+			running:           2,
+			desired:           2,
+			expired:           0,
+			presetInvalidated: true,
+			checkFn: func(runningPrebuilds []database.GetRunningPrebuiltWorkspacesRow, state prebuilds.ReconciliationState, actions []*prebuilds.ReconciliationActions) {
+				expectedState := prebuilds.ReconciliationState{Actual: 2, Desired: 2, Expired: 2}
+				expectedActions := []*prebuilds.ReconciliationActions{
+					{
+						ActionType: prebuilds.ActionTypeDelete,
+						DeleteIDs:  []uuid.UUID{runningPrebuilds[0].ID, runningPrebuilds[1].ID},
+					},
+					{
+						ActionType: prebuilds.ActionTypeCreate,
+						Create:     2,
+					},
+				}
+
+				validateState(t, expectedState, state)
+				validateActions(t, expectedActions, actions)
+			},
+		},
 	}
 
 	for _, tc := range cases {
@@ -719,7 +745,14 @@ func TestExpiredPrebuilds(t *testing.T) {
 			t.Parallel()
 
 			// GIVEN: a preset.
-			defaultPreset := preset(true, tc.desired, current)
+			var muts []func(row database.GetTemplatePresetsWithPrebuildsRow) database.GetTemplatePresetsWithPrebuildsRow
+			if tc.presetInvalidated {
+				muts = append(muts, func(row database.GetTemplatePresetsWithPrebuildsRow) database.GetTemplatePresetsWithPrebuildsRow {
+					row.LastInvalidatedAt = sql.NullTime{Valid: true, Time: time.Now().Add(1 * time.Minute)}
+					return row
+				})
+			}
+			defaultPreset := preset(true, tc.desired, current, muts...)
 			presets := []database.GetTemplatePresetsWithPrebuildsRow{
 				defaultPreset,
 			}
@@ -732,6 +765,7 @@ func TestExpiredPrebuilds(t *testing.T) {
 				name, err := prebuilds.GenerateName()
 				require.NoError(t, err)
 				prebuildCreateAt := time.Now()
+
 				if int(tc.expired) > expiredCount {
 					// Update the prebuild workspace createdAt to exceed its TTL (5 seconds)
 					prebuildCreateAt = prebuildCreateAt.Add(-ttlDuration - 10*time.Second)
