@@ -859,8 +859,8 @@ data "coder_parameter" "${parameter.name}" {
 	name      = ${JSON.stringify(parameter.displayName)}
 	icon      = ${JSON.stringify(parameter.icon)}
 	mutable   = ${JSON.stringify(parameter.mutable)}
-	required  = ${JSON.stringify(parameter.required)}
 	default   = ${JSON.stringify(parameter.defaultValue)}
+	order     = ${JSON.stringify(parameter.order)}
 }
 `;
 	}
