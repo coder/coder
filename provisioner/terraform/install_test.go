@@ -6,12 +6,12 @@
 package terraform_test
 
 import (
-	"archive/zip"
 	"context"
-	"encoding/json"
-	"fmt"
+	"errors"
+	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,17 +28,8 @@ import (
 )
 
 const (
-	// simple script that mocks `./terraform version -json`
-	terraformExecutableTemplate = `#!/bin/bash
-cat <<EOF
-{
-  "terraform_version": "${ver}",
-  "platform": "linux_amd64",
-  "provider_selections": {},
-  "terraform_outdated": true
-}
-EOF
-`
+	cacheSubDir  = "terraform_install_test"
+	terraformURL = "https://releases.hashicorp.com"
 )
 
 var (
@@ -46,154 +37,84 @@ var (
 	version2 = version.Must(version.NewVersion("1.2.0"))
 )
 
-type productBuild struct {
-	Name     string `json:"name"`
-	Version  string `json:"version"`
-	OS       string `json:"os"`
-	Arch     string `json:"arch"`
-	Filename string `json:"filename"`
-	URL      string `json:"url"`
+type terraformProxy struct {
+	t          *testing.T
+	cacheRoot  string
+	listener   net.Listener
+	srv        *http.Server
+	fsHandler  http.Handler
+	httpClient *http.Client
+	mutex      *sync.Mutex
 }
 
-type productVersion struct {
-	Name    string           `json:"name"`
-	Version *version.Version `json:"version"`
-	Builds  []productBuild   `json:"builds"`
-}
-
-type product struct {
-	Name     string                    `json:"name"`
-	Versions map[string]productVersion `json:"versions"`
-}
-
-func zipFilename(v *version.Version) string {
-	return fmt.Sprintf("terraform_%s_linux_amd64.zip", v)
-}
-
-// returns `/${version}/index.json` in struct format
-func versionedJSON(v *version.Version) productVersion {
-	return productVersion{
-		Name:    "terraform",
-		Version: v,
-		Builds: []productBuild{
-			{
-				Arch:     "amd64",
-				Filename: zipFilename(v),
-				Name:     "terraform",
-				OS:       "linux",
-				URL:      fmt.Sprintf("/terraform/%s/%s", v, zipFilename(v)),
-				Version:  v.String(),
-			},
-		},
+// Simple cached proxy for terraform files.
+// Serves files from persistent cache or forwards requests to releases.hashicorp.com
+// Modifies downloaded index.json files so they point to proxy.
+func persistentlyCachedProxy(t *testing.T) *terraformProxy {
+	cacheRoot := filepath.Join(testutil.PersistentCacheDir(t), cacheSubDir)
+	proxy := terraformProxy{
+		t:          t,
+		mutex:      &sync.Mutex{},
+		cacheRoot:  cacheRoot,
+		fsHandler:  http.FileServer(http.Dir(cacheRoot)),
+		httpClient: &http.Client{},
 	}
-}
 
-// returns `/index.json` in struct format
-func mainJSON(versions ...*version.Version) product {
-	vj := map[string]productVersion{}
-	for _, v := range versions {
-		vj[v.String()] = versionedJSON(v)
-	}
-	mj := product{
-		Name:     "terraform",
-		Versions: vj,
-	}
-	return mj
-}
-
-func exeContent(v *version.Version) []byte {
-	return []byte(strings.ReplaceAll(terraformExecutableTemplate, "${ver}", v.String()))
-}
-
-func mustMarshal(t *testing.T, obj any) []byte {
-	b, err := json.Marshal(obj)
-	require.NoError(t, err)
-	return b
-}
-
-// Mock files are based on https://releases.hashicorp.com/terraform
-// mock directory structure:
-//
-//	${tmpDir}/index.json
-//	${tmpDir}/${version}/index.json
-//	${tmpDir}/${version}/terraform_${version}_linux_amd64.zip
-//	  -> zip contains 'terraform' binary and sometimes 'LICENSE.txt'
-func createFakeTerraformInstallationFiles(t *testing.T) string {
-	tmpDir := t.TempDir()
-
-	mij := mustMarshal(t, mainJSON(version1, version2))
-	jv1 := mustMarshal(t, versionedJSON(version1))
-	jv2 := mustMarshal(t, versionedJSON(version2))
-
-	// `index.json`
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "index.json"), mij, 0o400))
-
-	// `${version1}/index.json`
-	require.NoError(t, os.Mkdir(filepath.Join(tmpDir, version1.String()), 0o700))
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, version1.String(), "index.json"), jv1, 0o400))
-
-	// `${version2}/index.json`
-	require.NoError(t, os.Mkdir(filepath.Join(tmpDir, version2.String()), 0o700))
-	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, version2.String(), "index.json"), jv2, 0o400))
-
-	// `${version1}/linux_amd64.zip`
-	zip1, err := os.Create(filepath.Join(tmpDir, version1.String(), zipFilename(version1)))
-	require.NoError(t, err)
-	zip1Writer := zip.NewWriter(zip1)
-
-	// `${version1}/linux_amd64.zip/terraform`
-	exe1, err := zip1Writer.Create("terraform")
-	require.NoError(t, err)
-	n, err := exe1.Write(exeContent(version1))
-	require.NoError(t, err)
-	require.NotZero(t, n)
-
-	// `${version1}/linux_amd64.zip/LICENSE.txt`
-	lic1, err := zip1Writer.Create("LICENSE.txt")
-	require.NoError(t, err)
-	n, err = lic1.Write([]byte("some license"))
-	require.NoError(t, err)
-	require.NotZero(t, n)
-	require.NoError(t, zip1Writer.Close())
-
-	// `${version2}/linux_amd64.zip`
-	zip2, err := os.Create(filepath.Join(tmpDir, version2.String(), zipFilename(version2)))
-	require.NoError(t, err)
-	zip2Writer := zip.NewWriter(zip2)
-
-	// `${version1}/linux_amd64.zip/terraform`
-	exe2, err := zip2Writer.Create("terraform")
-	require.NoError(t, err)
-	n, err = exe2.Write(exeContent(version2))
-	require.NoError(t, err)
-	require.NotZero(t, n)
-	require.NoError(t, zip2Writer.Close())
-
-	return tmpDir
-}
-
-// starts http server serving fake terraform installation files
-func startFakeTerraformServer(t *testing.T, tmpDir string) string {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("failed to create listener")
 	}
+	proxy.listener = listener
 
-	mux := http.NewServeMux()
-	fs := http.FileServer(http.Dir(tmpDir))
-	mux.Handle("/terraform/", http.StripPrefix("/terraform", fs))
+	m := http.NewServeMux()
+	m.HandleFunc("GET /", proxy.handleGet)
 
-	srv := http.Server{
-		ReadHeaderTimeout: time.Second,
-		Handler:           mux,
+	proxy.srv = &http.Server{
+		WriteTimeout: 30 * time.Second,
+		ReadTimeout:  30 * time.Second,
+		Handler:      m,
 	}
-	go srv.Serve(listener)
-	t.Cleanup(func() {
-		if err := srv.Close(); err != nil {
-			t.Errorf("failed to close server: %v", err)
+	return &proxy
+}
+
+func uriToFilename(u url.URL) string {
+	return strings.ReplaceAll(u.RequestURI(), "/", "_")
+}
+
+func (p *terraformProxy) handleGet(w http.ResponseWriter, r *http.Request) {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
+
+	filename := uriToFilename(*r.URL)
+	path := filepath.Join(p.cacheRoot, filename)
+	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+		require.NoError(p.t, os.MkdirAll(p.cacheRoot, os.ModeDir|0o700))
+
+		// Update cache
+		req, err := http.NewRequestWithContext(p.t.Context(), "GET", terraformURL+r.URL.Path, nil)
+		require.NoError(p.t, err)
+
+		resp, err := p.httpClient.Do(req)
+		require.NoError(p.t, err)
+		defer resp.Body.Close()
+
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(p.t, err)
+
+		// update index.json so urls in it point to proxy by making them relative
+		// "https://releases.hashicorp.com/terraform/1.13.4/terraform_1.13.4_windows_amd64.zip" -> "/terraform/1.13.4/terraform_1.13.4_windows_amd64.zip"
+		if strings.HasSuffix(r.URL.Path, "index.json") {
+			body = []byte(strings.ReplaceAll(string(body), terraformURL, ""))
 		}
-	})
-	return "http://" + listener.Addr().String()
+		require.NoError(p.t, os.WriteFile(path, body, 0o400))
+	} else if err != nil {
+		p.t.Errorf("unexpected error when trying to read file from cache: %v", err)
+	}
+
+	// Serve from cache
+	r.URL.Path = filename
+	r.URL.RawPath = filename
+	p.fsHandler.ServeHTTP(w, r)
 }
 
 func TestInstall(t *testing.T) {
@@ -205,8 +126,11 @@ func TestInstall(t *testing.T) {
 	dir := t.TempDir()
 	log := testutil.Logger(t)
 
-	tmpDir := createFakeTerraformInstallationFiles(t)
-	addr := startFakeTerraformServer(t, tmpDir)
+	proxy := persistentlyCachedProxy(t)
+	go proxy.srv.Serve(proxy.listener)
+	t.Cleanup(func() {
+		require.NoError(t, proxy.srv.Close())
+	})
 
 	// Install spins off 8 installs with Version and waits for them all
 	// to complete. The locking mechanism within Install should
@@ -219,7 +143,7 @@ func TestInstall(t *testing.T) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				p, err := terraform.Install(ctx, log, false, dir, version, addr, false)
+				p, err := terraform.Install(ctx, log, false, dir, version, "http://"+proxy.listener.Addr().String())
 				assert.NoError(t, err)
 				paths <- p
 			}()
