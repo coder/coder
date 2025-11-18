@@ -1,5 +1,6 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import type { TimingStage } from "api/typesGenerated";
+import { T } from "lodash/fp";
 import { CircleAlertIcon, InfoIcon } from "lucide-react";
 import type { FC } from "react";
 import { Bar, ClickableBar } from "./Chart/Bar";
@@ -52,7 +53,7 @@ export type Stage = {
 	tooltip: Omit<TooltipProps, "children">;
 };
 
-type StageTiming = {
+export type StageTiming = {
 	stage: Stage;
 	/**
 	 * Represents the number of resources included in this stage that can be
@@ -65,7 +66,7 @@ type StageTiming = {
 	 * duration of the stage and to position the stage within the chart. This can
 	 * be undefined if a stage has no timing data.
 	 */
-	range: TimeRange | undefined;
+	ranges: TimeRange[] | undefined;
 	/**
 	 * Display an error icon within the bar to indicate when a stage has failed.
 	 * This is used in the agent scripts stage.
@@ -83,7 +84,10 @@ export const StagesChart: FC<StagesChartProps> = ({
 	onSelectStage,
 }) => {
 	const totalRange = mergeTimeRanges(
-		timings.map((t) => t.range).filter((t) => t !== undefined),
+		timings
+			.map((t) => t.ranges)
+			.filter((t) => t !== undefined)
+			.flat(),
 	);
 	const totalTime = calcDuration(totalRange);
 	const [ticks, scale] = makeTicks(totalTime);
@@ -129,11 +133,12 @@ export const StagesChart: FC<StagesChartProps> = ({
 						const stageTimings = timings.filter(
 							(t) => t.stage.section === section,
 						);
+
 						return (
 							<XAxisSection key={section}>
 								{stageTimings.map((t) => {
 									// If the stage has no timing data, we just want to render an empty row
-									if (t.range === undefined) {
+									if (t.ranges === undefined) {
 										return (
 											<XAxisRow
 												key={t.stage.name}
@@ -142,53 +147,55 @@ export const StagesChart: FC<StagesChartProps> = ({
 										);
 									}
 
-									const value = calcDuration(t.range);
-									const offset = calcOffset(t.range, totalRange);
-									const validDuration = value > 0 && !Number.isNaN(value);
+									return t.ranges?.map((range, index) => {
+										const value = calcDuration(range);
+										const offset = calcOffset(range, totalRange);
+										const validDuration = value > 0 && !Number.isNaN(value);
 
-									return (
-										<XAxisRow
-											key={t.stage.name}
-											yAxisLabelId={encodeURIComponent(t.stage.name)}
-										>
-											{/** We only want to expand stages with more than one resource */}
-											{t.visibleResources > 1 ? (
-												<ClickableBar
-													aria-label={`View ${t.stage.label} details`}
-													scale={scale}
-													value={value}
-													offset={offset}
-													onClick={() => {
-														onSelectStage(t.stage);
-													}}
-												>
-													{t.error && (
-														<CircleAlertIcon
-															className="size-icon-sm"
-															css={{
-																color: "#F87171",
-																marginRight: 4,
-															}}
-														/>
-													)}
-													<Blocks count={t.visibleResources} />
-												</ClickableBar>
-											) : (
-												<Bar scale={scale} value={value} offset={offset} />
-											)}
-											{validDuration ? (
-												<span>{formatTime(value)}</span>
-											) : (
-												<span
-													css={(theme) => ({
-														color: theme.palette.error.main,
-													})}
-												>
-													Invalid
-												</span>
-											)}
-										</XAxisRow>
-									);
+										return (
+											<XAxisRow
+												key={t.stage.name + index}
+												yAxisLabelId={encodeURIComponent(t.stage.name)}
+											>
+												{/** We only want to expand stages with more than one resource */}
+												{t.visibleResources > 1 ? (
+													<ClickableBar
+														aria-label={`View ${t.stage.label} details`}
+														scale={scale}
+														value={value}
+														offset={offset}
+														onClick={() => {
+															onSelectStage(t.stage);
+														}}
+													>
+														{t.error && (
+															<CircleAlertIcon
+																className="size-icon-sm"
+																css={{
+																	color: "#F87171",
+																	marginRight: 4,
+																}}
+															/>
+														)}
+														<Blocks count={t.visibleResources} />
+													</ClickableBar>
+												) : (
+													<Bar scale={scale} value={value} offset={offset} />
+												)}
+												{validDuration ? (
+													<span>{formatTime(value)}</span>
+												) : (
+													<span
+														css={(theme) => ({
+															color: theme.palette.error.main,
+														})}
+													>
+														Invalid
+													</span>
+												)}
+											</XAxisRow>
+										);
+									});
 								})}
 							</XAxisSection>
 						);

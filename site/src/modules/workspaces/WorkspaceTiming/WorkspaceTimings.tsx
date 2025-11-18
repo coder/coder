@@ -28,6 +28,7 @@ import {
 	provisioningStages,
 	type Stage,
 	StagesChart,
+	type StageTiming,
 } from "./StagesChart";
 
 type TimingView =
@@ -130,16 +131,25 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 					<div css={styles.collapseBody}>
 						{view.name === "default" && (
 							<StagesChart
-								timings={stages.map((s) => {
+								timings={stages.map((s): StageTiming => {
 									const stageTimings = timings.filter(
 										// graph has 2 stages, `graph` and `graph_second`
-										(t) => t.stage === s.name || s.alternativeNames?.includes(t.stage),
+										(t) =>
+											t.stage === s.name ||
+											s.alternativeNames?.includes(t.stage),
 									);
-									// console.log(s.name, stageTimings)
-									const stageRange =
-										stageTimings.length === 0
+
+
+									const keyedRanges = stageTimings.reduce<Record<string, TimeRange[]>>(
+										(acc, t) => {
+											acc[t.stage] = acc[t.stage] || [];
+											acc[t.stage].push(toTimeRange(t));
+											return acc;
+										}, {});
+
+									const stageRanges = stageTimings.length === 0
 											? undefined
-											: mergeTimeRanges(stageTimings.map(toTimeRange));
+											: Object.entries(keyedRanges).map(([_, ranges]) => mergeTimeRanges(ranges));
 
 									// Prevent users from inspecting internal coder resources in
 									// provisioner timings because they were not useful to the
@@ -160,7 +170,7 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 
 									return {
 										stage: s,
-										range: stageRange,
+										ranges: stageRanges,
 										visibleResources: visibleResources.length,
 										error: stageTimings.some(
 											(t) => "status" in t && t.status === "exit_failure",
