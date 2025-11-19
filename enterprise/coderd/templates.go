@@ -366,13 +366,13 @@ func (api *API) postInvalidateTemplatePresets(rw http.ResponseWriter, r *http.Re
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to invalidate prebuilds.",
+			Message: "Failed to invalidate presets.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	api.Logger.Info(ctx, "invalidated prebuilds",
+	api.Logger.Info(ctx, "invalidated presets",
 		slog.F("template_id", template.ID),
 		slog.F("template_name", template.Name),
 		slog.F("preset_count", len(invalidatedPresets)),
