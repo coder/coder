@@ -363,7 +363,7 @@ func (api *API) postInvalidateTemplatePrebuilds(rw http.ResponseWriter, r *http.
 	// Update last_invalidated_at for all presets of the active template version
 	invalidatedPresets, err := api.Database.UpdatePresetsLastInvalidatedAt(ctx, database.UpdatePresetsLastInvalidatedAtParams{
 		TemplateID:        template.ID,
-		LastInvalidatedAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
+		LastInvalidatedAt: sql.NullTime{Time: api.Clock.Now(), Valid: true},
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
