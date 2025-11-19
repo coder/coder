@@ -15,6 +15,7 @@ var (
 	ErrDependenciesNotSatisfied = "unit dependencies not satisfied"
 	ErrSameStatusAlreadySet     = "same status already set"
 	ErrCycleDetected            = "cycle detected"
+	ErrFailedToAddDependency    = "failed to add dependency"
 )
 
 // Status represents the status of a unit.
@@ -90,7 +91,7 @@ func (m *Manager) Register(id ID) error {
 	defer m.mu.Unlock()
 
 	if m.registered(id) {
-		return xerrors.Errorf(ErrUnitAlreadyRegistered)
+		return xerrors.Errorf("%s: unit %q", ErrUnitAlreadyRegistered, id)
 	}
 
 	m.units[id] = Unit{
@@ -135,14 +136,14 @@ func (m *Manager) AddDependency(unit ID, dependsOn ID, requiredStatus Status) er
 	defer m.mu.Unlock()
 
 	if !m.registered(unit) {
-		return xerrors.Errorf("unit %v is not registered: %w", unit, ErrUnitNotFound)
+		return xerrors.Errorf("%s: unit %q", ErrUnitNotFound, unit)
 	}
 
 	// Add the dependency edge to the graph
 	// The edge goes from unit to dependsOn, representing the dependency
 	err := m.graph.AddEdge(unit, dependsOn, requiredStatus)
 	if err != nil {
-		return xerrors.Errorf("failed to add dependency: %w", err)
+		return xerrors.Errorf("%s: %w", ErrFailedToAddDependency, err)
 	}
 
 	// Recalculate readiness for the unit since it now has a new dependency
@@ -158,10 +159,10 @@ func (m *Manager) UpdateStatus(unit ID, newStatus Status) error {
 
 	u := m.units[unit]
 	if !m.registered(unit) {
-		return xerrors.Errorf("unit %v is not registered: %w", unit, ErrUnitNotFound)
+		return xerrors.Errorf("%s: unit %q", ErrUnitNotFound, unit)
 	}
 	if u.status == newStatus {
-		return xerrors.Errorf("%s", ErrSameStatusAlreadySet)
+		return xerrors.Errorf("%s: unit %q", ErrSameStatusAlreadySet, unit)
 	}
 
 	u.status = newStatus
@@ -239,7 +240,7 @@ func (m *Manager) GetAllDependencies(unit ID) ([]Dependency, error) {
 	defer m.mu.RUnlock()
 
 	if !m.registered(unit) {
-		return nil, xerrors.Errorf("%s", ErrUnitNotFound)
+		return nil, xerrors.Errorf("%s: unit %q", ErrUnitNotFound, unit)
 	}
 
 	forwardEdges := m.graph.GetForwardAdjacentVertices(unit)
