@@ -342,12 +342,12 @@ func (api *API) RequireFeatureMW(feat codersdk.FeatureName) func(http.Handler) h
 }
 
 // @Summary Invalidate presets for template
-// @ID invalidate-prebuilt-workspaces-for-template
+// @ID invalidate-presets-for-template
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
 // @Param template path string true "Template ID" format(uuid)
-// @Success 200 {object} codersdk.InvalidatePrebuildsResponse
+// @Success 200 {object} codersdk.InvalidatePresetsResponse
 // @Router /templates/{template}/prebuilds/invalidate [post]
 func (api *API) postInvalidateTemplatePresets(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
