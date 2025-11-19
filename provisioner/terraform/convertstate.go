@@ -24,27 +24,6 @@ import (
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
-type ReducedState struct {
-	Resources []*proto.Resource
-}
-
-func ConvertStateWithoutGraph(ctx context.Context, modules []*tfjson.StateModule, logger slog.Logger) (*ReducedState, error) {
-	converter := newConverter(ctx, logger, gographviz.NewGraph())
-
-	// Index all resources from the state.
-	converter.indexTerraformResources(modules)
-
-	// Associate agent instance IDs.
-	converter.processAgentInstances()
-
-	// Build the final resource list.
-	converter.buildResources()
-
-	return &ReducedState{
-		Resources: converter.resources,
-	}, nil
-}
-
 // ConvertState consumes Terraform state and a GraphViz representation
 // produced by `terraform graph` to produce resources consumable by Coder.
 func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph string, logger slog.Logger) (*State, error) {
