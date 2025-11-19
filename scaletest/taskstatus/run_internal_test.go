@@ -14,6 +14,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/quartz"
 
 	"github.com/coder/coder/v2/codersdk"
@@ -55,6 +56,12 @@ func (m *fakeClient) createExternalWorkspace(ctx context.Context, req codersdk.C
 		WorkspaceID: uuid.UUID{1, 2, 3, 4}, // Fake workspace ID
 		AgentToken:  testAgentToken,
 	}, nil
+}
+
+func (m *fakeClient) deleteWorkspace(ctx context.Context, workspaceID uuid.UUID) error {
+	m.logger.Debug(ctx, "called fake DeleteWorkspace", slog.F("workspace_id", workspaceID.String()))
+	// Simulate successful deletion in tests
+	return nil
 }
 
 // fakeAppStatusPatcher implements the appStatusPatcher interface for testing
@@ -479,4 +486,69 @@ func TestParseStatusMessage(t *testing.T) {
 			assert.Equal(t, tt.wantOk, gotOk)
 		})
 	}
+}
+
+func TestRunner_Cleanup(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	fakeClient := &fakeClientWithCleanupTracking{
+		fakeClient:           newFakeClient(t),
+		deleteWorkspaceCalls: make([]uuid.UUID, 0),
+	}
+	fakeClient.initialize(slog.Make(sloghuman.Sink(testutil.NewTestLogWriter(t))).Leveled(slog.LevelDebug))
+
+	cfg := Config{
+		AppSlug:              "test-app",
+		TemplateID:           uuid.UUID{5, 6, 7, 8},
+		WorkspaceName:        "test-workspace",
+		MetricLabelValues:    []string{"test"},
+		Metrics:              NewMetrics(prometheus.NewRegistry(), "test"),
+		ReportStatusPeriod:   100 * time.Millisecond,
+		ReportStatusDuration: 200 * time.Millisecond,
+		StartReporting:       make(chan struct{}),
+		ConnectedWaitGroup:   &sync.WaitGroup{},
+	}
+
+	runner := &Runner{
+		client:  fakeClient,
+		patcher: newFakeAppStatusPatcher(t),
+		cfg:     cfg,
+		clock:   quartz.NewMock(t),
+	}
+
+	logWriter := testutil.NewTestLogWriter(t)
+
+	// Case 1: No workspace created - Cleanup should do nothing
+	err := runner.Cleanup(ctx, "test-runner", logWriter)
+	require.NoError(t, err)
+	require.Len(t, fakeClient.deleteWorkspaceCalls, 0, "deleteWorkspace should not be called when no workspace was created")
+
+	// Case 2: Workspace created - Cleanup should delete it
+	runner.workspaceID = uuid.UUID{1, 2, 3, 4}
+	err = runner.Cleanup(ctx, "test-runner", logWriter)
+	require.NoError(t, err)
+	require.Len(t, fakeClient.deleteWorkspaceCalls, 1, "deleteWorkspace should be called once")
+	require.Equal(t, runner.workspaceID, fakeClient.deleteWorkspaceCalls[0], "deleteWorkspace should be called with correct workspace ID")
+
+	// Case 3: Cleanup with error
+	fakeClient.deleteError = xerrors.New("delete failed")
+	runner.workspaceID = uuid.UUID{5, 6, 7, 8}
+	err = runner.Cleanup(ctx, "test-runner", logWriter)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "delete external workspace")
+}
+
+// fakeClientWithCleanupTracking extends fakeClient to track deleteWorkspace calls
+type fakeClientWithCleanupTracking struct {
+	*fakeClient
+	deleteWorkspaceCalls []uuid.UUID
+	deleteError          error
+}
+
+func (c *fakeClientWithCleanupTracking) deleteWorkspace(ctx context.Context, workspaceID uuid.UUID) error {
+	c.deleteWorkspaceCalls = append(c.deleteWorkspaceCalls, workspaceID)
+	c.logger.Debug(ctx, "called fake DeleteWorkspace with tracking", slog.F("workspace_id", workspaceID.String()))
+	return c.deleteError
 }
