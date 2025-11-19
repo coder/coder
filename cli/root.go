@@ -56,7 +56,7 @@ var (
 	// anything.
 	ErrSilent = xerrors.New("silent error")
 
-	errKeyringNotSupported = xerrors.New("keyring storage is not supported on this operating system; remove the --use-keyring flag to use file-based storage")
+	errKeyringNotSupported = xerrors.New("keyring storage is not supported on this operating system; use --token or CODER_SESSION_TOKEN for in-memory token storage")
 )
 
 const (
@@ -480,13 +480,13 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 			Group:       globalGroup,
 		},
 		{
-			Flag: varUseKeyring,
-			Env:  envUseKeyring,
-			Description: "Store and retrieve session tokens using the operating system " +
-				"keyring. Currently only supported on Windows. By default, tokens are " +
-				"stored in plain text files.",
-			Value: serpent.BoolOf(&r.useKeyring),
-			Group: globalGroup,
+			Flag:        varUseKeyring,
+			Env:         envUseKeyring,
+			Description: "Deprecated: Keyring storage is now automatic on supported platforms.",
+			UseInstead:  []serpent.Option{{Flag: varToken}},
+			Hidden:      true,
+			Value:       serpent.BoolOf(&r.useKeyring),
+			Group:       globalGroup,
 		},
 		{
 			Flag:        "debug-http",
@@ -714,13 +714,14 @@ func (r *RootCmd) createUnauthenticatedClient(ctx context.Context, serverURL *ur
 }
 
 // ensureTokenBackend returns the session token storage backend, creating it if necessary.
-// This must be called after flags are parsed so we can respect the value of the --use-keyring
-// flag.
+// On Windows and macOS, keyring storage is mandatory and cannot be disabled. On Linux,
+// file storage is used by default.
 func (r *RootCmd) ensureTokenBackend() sessionstore.Backend {
 	if r.tokenBackend == nil {
-		if r.useKeyring {
+		switch runtime.GOOS {
+		case "windows", "darwin":
 			r.tokenBackend = sessionstore.NewKeyring()
-		} else {
+		default:
 			r.tokenBackend = sessionstore.NewFile(r.createConfig)
 		}
 	}

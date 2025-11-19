@@ -154,9 +154,11 @@ func (r *RootCmd) login() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "login [<url>]",
 		Short: "Authenticate with Coder deployment",
-		Long: "By default, the session token is stored in a plain text file. Use the " +
-			"--use-keyring flag or set CODER_USE_KEYRING=true to store the token in " +
-			"the operating system keyring instead.",
+		Long: "Session tokens are stored in the operating system keyring " +
+			"(Windows Credential Manager or macOS Keychain). On Windows and macOS, " +
+			"keyring storage is mandatory and cannot be disabled. On Linux, tokens are " +
+			"automatically stored in plain text files. " +
+			"For in-memory token storage, use --token or CODER_SESSION_TOKEN.",
 		Middleware: serpent.RequireRangeArgs(0, 1),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
@@ -203,15 +205,6 @@ func (r *RootCmd) login() *serpent.Command {
 			client, err := r.createUnauthenticatedClient(ctx, serverURL, inv)
 			if err != nil {
 				return err
-			}
-
-			// Check keyring availability before prompting the user for a token to fail fast.
-			if r.useKeyring {
-				backend := r.ensureTokenBackend()
-				_, err := backend.Read(client.URL)
-				if err != nil && xerrors.Is(err, sessionstore.ErrNotImplemented) {
-					return errKeyringNotSupported
-				}
 			}
 
 			hasFirstUser, err := client.HasFirstUser(ctx)
