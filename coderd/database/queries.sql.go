@@ -9268,10 +9268,14 @@ SET
 	last_invalidated_at = $1
 FROM
 	templates t
+	JOIN template_versions tv ON tv.id = t.active_version_id
 WHERE
 	t.id = $2
-	AND tvp.template_version_id = t.active_version_id
-RETURNING tvp.name
+	AND tvp.template_version_id = tv.id
+RETURNING
+	t.name AS template_name,
+	tv.name AS template_version_name,
+	tvp.name AS template_version_preset_name
 `
 
 type UpdatePresetsLastInvalidatedAtParams struct {
@@ -9279,19 +9283,25 @@ type UpdatePresetsLastInvalidatedAtParams struct {
 	TemplateID        uuid.UUID    `db:"template_id" json:"template_id"`
 }
 
-func (q *sqlQuerier) UpdatePresetsLastInvalidatedAt(ctx context.Context, arg UpdatePresetsLastInvalidatedAtParams) ([]string, error) {
+type UpdatePresetsLastInvalidatedAtRow struct {
+	TemplateName              string `db:"template_name" json:"template_name"`
+	TemplateVersionName       string `db:"template_version_name" json:"template_version_name"`
+	TemplateVersionPresetName string `db:"template_version_preset_name" json:"template_version_preset_name"`
+}
+
+func (q *sqlQuerier) UpdatePresetsLastInvalidatedAt(ctx context.Context, arg UpdatePresetsLastInvalidatedAtParams) ([]UpdatePresetsLastInvalidatedAtRow, error) {
 	rows, err := q.db.QueryContext(ctx, updatePresetsLastInvalidatedAt, arg.LastInvalidatedAt, arg.TemplateID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []string
+	var items []UpdatePresetsLastInvalidatedAtRow
 	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
+		var i UpdatePresetsLastInvalidatedAtRow
+		if err := rows.Scan(&i.TemplateName, &i.TemplateVersionName, &i.TemplateVersionPresetName); err != nil {
 			return nil, err
 		}
-		items = append(items, name)
+		items = append(items, i)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
