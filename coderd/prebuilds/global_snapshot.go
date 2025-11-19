@@ -127,7 +127,7 @@ func (s GlobalSnapshot) IsHardLimited(presetID uuid.UUID) bool {
 // filterExpiredWorkspaces splits running workspaces into expired and non-expired
 // based on the preset's TTL and last_invalidated_at timestamp.
 // A prebuild is considered expired if:
-// 1. It was created before the preset's last_invalidated_at timestamp, OR
+// 1. The preset has been invalidated (last_invalidated_at is set), OR
 // 2. It exceeds the preset's TTL (if TTL is set)
 // If TTL is missing or zero, only last_invalidated_at is checked.
 func filterExpiredWorkspaces(preset database.GetTemplatePresetsWithPrebuildsRow, runningWorkspaces []database.GetRunningPrebuiltWorkspacesRow) (nonExpired []database.GetRunningPrebuiltWorkspacesRow, expired []database.GetRunningPrebuiltWorkspacesRow) {
