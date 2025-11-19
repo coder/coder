@@ -82,6 +82,7 @@ export default defineConfig({
 			"--web-terminal-renderer=dom",
 			"--pprof-enable",
 			"--log-filter=.*",
+			`--log-human=${path.join(__dirname, "test-results/debug.log")}`,
 		]
 			.filter(Boolean)
 			.join(" "),
