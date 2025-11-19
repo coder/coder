@@ -1,6 +1,5 @@
-import { MockTask } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { TaskStartupWarningButton } from "./TaskStartupAlert";
+import { TaskStartupWarningButton } from "./TaskStartupWarningButton";
 
 const meta: Meta<typeof TaskStartupWarningButton> = {
 	title: "pages/TaskPage/TaskStartupWarningButton",
@@ -15,36 +14,24 @@ type Story = StoryObj<typeof TaskStartupWarningButton>;
 
 export const StartError: Story = {
 	args: {
-		task: {
-			...MockTask,
-			workspace_agent_lifecycle: "start_error",
-		},
+		lifecycleState: "start_error",
 	},
 };
 
 export const StartTimeout: Story = {
 	args: {
-		task: {
-			...MockTask,
-			workspace_agent_lifecycle: "start_timeout",
-		},
+		lifecycleState: "start_timeout",
 	},
 };
 
 export const NoWarning: Story = {
 	args: {
-		task: {
-			...MockTask,
-			workspace_agent_lifecycle: "ready",
-		},
+		lifecycleState: "ready",
 	},
 };
 
 export const NullLifecycle: Story = {
 	args: {
-		task: {
-			...MockTask,
-			workspace_agent_lifecycle: null,
-		},
+		lifecycleState: null,
 	},
 };

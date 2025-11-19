@@ -1,5 +1,5 @@
 import Link from "@mui/material/Link";
-import type { Task } from "api/typesGenerated";
+import type { WorkspaceAgentLifecycle } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
 	Tooltip,
@@ -12,27 +12,24 @@ import type { FC } from "react";
 import { docs } from "utils/docs";
 
 type TaskStartupWarningButtonProps = {
-	task: Task;
+	lifecycleState: WorkspaceAgentLifecycle | null;
 };
 
 export const TaskStartupWarningButton: FC<TaskStartupWarningButtonProps> = ({
-	task,
+	lifecycleState,
 }) => {
-	const lifecycleState = task.workspace_agent_lifecycle;
-
 	if (!lifecycleState) {
 		return null;
 	}
 
-	if (lifecycleState === "start_error") {
-		return <ErrorScriptButton />;
+	switch (lifecycleState) {
+		case "start_error":
+			return <ErrorScriptButton />;
+		case "start_timeout":
+			return <TimeoutScriptButton />;
+		default:
+			return null;
 	}
-
-	if (lifecycleState === "start_timeout") {
-		return <TimeoutScriptButton />;
-	}
-
-	return null;
 };
 
 type StartupWarningButtonBaseProps = {

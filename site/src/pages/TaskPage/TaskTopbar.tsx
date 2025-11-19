@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
-import { TaskStartupWarningButton } from "./TaskStartupAlert";
+import { TaskStartupWarningButton } from "./TaskStartupWarningButton";
 import { TaskStatusLink } from "./TaskStatusLink";
 
 type TaskTopbarProps = { task: Task; workspace: Workspace };
@@ -47,7 +47,9 @@ export const TaskTopbar: FC<TaskTopbarProps> = ({ task, workspace }) => {
 			)}
 
 			<div className="ml-auto gap-2 flex items-center">
-				<TaskStartupWarningButton task={task} />
+				<TaskStartupWarningButton
+					lifecycleState={task.workspace_agent_lifecycle}
+				/>
 
 				<TooltipProvider delayDuration={250}>
 					<Tooltip>
