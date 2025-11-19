@@ -21,6 +21,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/config"
+	"github.com/coder/coder/v2/cli/sessionstore"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/testutil"
@@ -28,14 +29,25 @@ import (
 )
 
 // New creates a CLI instance with a configuration pointed to a
-// temporary testing directory.
+// temporary testing directory. On Windows/macOS where keyring is mandatory,
+// it injects a file-based mock backend to avoid accessing the OS keyring.
 func New(t testing.TB, args ...string) (*serpent.Invocation, config.Root) {
 	var root cli.RootCmd
 
 	cmd, err := root.Command(root.AGPL())
 	require.NoError(t, err)
 
-	return NewWithCommand(t, cmd, args...)
+	// Get the invocation and config
+	inv, cfg := NewWithCommand(t, cmd, args...)
+
+	// Inject a file-based backend for tests to avoid issues with parallel use
+	// of the OS keyring.
+	root.WithSessionStorageBackend(sessionstore.NewFile(func() config.Root {
+		return cfg
+	}))
+	inv.Command = cmd
+
+	return inv, cfg
 }
 
 type logWriter struct {

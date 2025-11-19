@@ -51,8 +51,10 @@ func (m *mockKeyring) Delete(_ *url.URL) error {
 }
 
 func TestUseKeyring(t *testing.T) {
-	// Verify that the --use-keyring flag opts into using a keyring backend for
-	// storing session tokens instead of plain text files.
+	// Verify that keyring storage works correctly:
+	// - On Windows/macOS: keyring is mandatory (mocked via backend injection in tests)
+	// - On Linux: file storage is used by default
+	// - The --use-keyring flag is deprecated and has no effect
 	t.Parallel()
 
 	t.Run("Login", func(t *testing.T) {
@@ -65,11 +67,11 @@ func TestUseKeyring(t *testing.T) {
 		// Create a pty for interactive prompts
 		pty := ptytest.New(t)
 
-		// Create CLI invocation with --use-keyring flag
+		// Create CLI invocation (uses mock keyring backend via injection)
 		inv, cfg := clitest.New(t,
 			"login",
 			"--force-tty",
-			"--use-keyring",
+			"--use-keyring", // Deprecated flag (ignored)
 			"--no-open",
 			client.URL.String(),
 		)
@@ -119,11 +121,11 @@ func TestUseKeyring(t *testing.T) {
 		// Create a pty for interactive prompts
 		pty := ptytest.New(t)
 
-		// First, login with --use-keyring
+		// First, login (uses mock keyring backend via injection)
 		loginInv, cfg := clitest.New(t,
 			"login",
 			"--force-tty",
-			"--use-keyring",
+			"--use-keyring", // Deprecated flag (ignored)
 			"--no-open",
 			client.URL.String(),
 		)
@@ -155,10 +157,10 @@ func TestUseKeyring(t *testing.T) {
 		require.NoError(t, err, "read credential should succeed before logout")
 		require.NotEmpty(t, cred, "credential should exist after logout")
 
-		// Now run logout with --use-keyring
+		// Now run logout (uses same mock keyring backend)
 		logoutInv, _ := clitest.New(t,
 			"logout",
-			"--use-keyring",
+			"--use-keyring", // Deprecated flag (ignored)
 			"--yes",
 			"--global-config", string(cfg),
 		)
@@ -181,8 +183,11 @@ func TestUseKeyring(t *testing.T) {
 		require.ErrorIs(t, err, os.ErrNotExist, "credential should be deleted from keyring after logout")
 	})
 
-	t.Run("OmitFlag", func(t *testing.T) {
+	t.Run("MockBackend", func(t *testing.T) {
 		t.Parallel()
+
+		// clitest.New() injects a file-based backend for all platforms. This
+		// test verifies that session tokens are stored correctly in tests.
 
 		// Create a test server
 		client := coderdtest.New(t, nil)
@@ -191,7 +196,7 @@ func TestUseKeyring(t *testing.T) {
 		// Create a pty for interactive prompts
 		pty := ptytest.New(t)
 
-		// --use-keyring flag omitted (should use file-based storage)
+		// clitest.New injects file backend for us
 		inv, cfg := clitest.New(t,
 			"login",
 			"--force-tty",
@@ -213,12 +218,12 @@ func TestUseKeyring(t *testing.T) {
 		pty.ExpectMatch("Welcome to Coder")
 		<-doneChan
 
-		// Verify that session file WAS created (not using keyring)
+		// Verify the session file was created by the injected file backend
 		sessionFile := path.Join(string(cfg), "session")
 		_, err := os.Stat(sessionFile)
-		require.NoError(t, err, "session file should exist when NOT using --use-keyring")
+		require.NoError(t, err, "session file should exist from injected file backend")
 
-		// Read and verify the token from file
+		// Read and verify the token
 		content, err := os.ReadFile(sessionFile)
 		require.NoError(t, err, "should be able to read session file")
 		require.Equal(t, client.SessionToken(), string(content), "file should contain the session token")
@@ -278,8 +283,6 @@ func TestUseKeyring(t *testing.T) {
 }
 
 func TestUseKeyringUnsupportedOS(t *testing.T) {
-	// Verify that trying to use --use-keyring on an unsupported operating system produces
-	// a helpful error message.
 	t.Parallel()
 
 	// Only run this on an unsupported OS.
@@ -287,50 +290,28 @@ func TestUseKeyringUnsupportedOS(t *testing.T) {
 		t.Skipf("Skipping unsupported OS test on %s where keyring is supported", runtime.GOOS)
 	}
 
-	const expMessage = "keyring storage is not supported on this operating system; remove the --use-keyring flag"
-
-	t.Run("LoginWithUnsupportedKeyring", func(t *testing.T) {
-		t.Parallel()
-
-		client := coderdtest.New(t, nil)
-		coderdtest.CreateFirstUser(t, client)
-
-		// Try to login with --use-keyring on an unsupported OS
-		inv, _ := clitest.New(t,
-			"login",
-			"--use-keyring",
-			client.URL.String(),
-		)
-
-		// The error should occur immediately, before any prompts
-		loginErr := inv.Run()
-
-		// Verify we got an error about unsupported OS
-		require.Error(t, loginErr)
-		require.Contains(t, loginErr.Error(), expMessage)
-	})
-
-	t.Run("LogoutWithUnsupportedKeyring", func(t *testing.T) {
+	t.Run("LoginWithDeprecatedFlag", func(t *testing.T) {
 		t.Parallel()
 
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
 		pty := ptytest.New(t)
 
-		// First login without keyring to create a session
-		loginInv, cfg := clitest.New(t,
+		// Login with deprecated --use-keyring=true flag (should be ignored)
+		inv, cfg := clitest.New(t,
 			"login",
 			"--force-tty",
+			"--use-keyring=true",
 			"--no-open",
 			client.URL.String(),
 		)
-		loginInv.Stdin = pty.Input()
-		loginInv.Stdout = pty.Output()
+		inv.Stdin = pty.Input()
+		inv.Stdout = pty.Output()
 
 		doneChan := make(chan struct{})
 		go func() {
 			defer close(doneChan)
-			err := loginInv.Run()
+			err := inv.Run()
 			assert.NoError(t, err)
 		}()
 
@@ -339,17 +320,14 @@ func TestUseKeyringUnsupportedOS(t *testing.T) {
 		pty.ExpectMatch("Welcome to Coder")
 		<-doneChan
 
-		// Now try to logout with --use-keyring on an unsupported OS
-		logoutInv, _ := clitest.New(t,
-			"logout",
-			"--use-keyring",
-			"--yes",
-			"--global-config", string(cfg),
-		)
+		// Verify file storage was used (flag was ignored)
+		sessionFile := path.Join(string(cfg), "session")
+		_, err := os.Stat(sessionFile)
+		require.NoError(t, err, "session file should exist - flag is deprecated and ignored")
 
-		err := logoutInv.Run()
-		// Verify we got an error about unsupported OS
-		require.Error(t, err)
-		require.Contains(t, err.Error(), expMessage)
+		// Read and verify the token from file
+		content, err := os.ReadFile(sessionFile)
+		require.NoError(t, err, "should be able to read session file")
+		require.Equal(t, client.SessionToken(), string(content), "file should contain the session token")
 	})
 }
