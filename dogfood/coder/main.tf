@@ -844,10 +844,25 @@ locals {
   EOT
 }
 
+resource "coder_script" "boundary_config_setup" {
+  agent_id     = coder_agent.dev.id
+  display_name = "Boundary Setup Configuration"
+  run_on_start = true
+
+  script = <<-EOF
+    #!/bin/sh
+    mkdir -p ~/.config/coder_boundary
+    echo '${base64encode(file("${path.module}/boundary-config.yaml"))}' | base64 -d > ~/.config/coder_boundary/config.yaml
+    chmod 600 ~/.config/coder_boundary/config.yaml
+  EOF
+}
+
 module "claude-code" {
   count               = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
   source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = "4.0.0"
+  version             = "4.1.0"
+  enable_boundary     = true
+  boundary_version    = "v0.2.0"
   agent_id            = coder_agent.dev.id
   workdir             = local.repo_dir
   claude_code_version = "latest"
