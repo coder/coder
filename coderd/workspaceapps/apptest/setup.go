@@ -195,6 +195,22 @@ func setupProxyTestWithFactory(t *testing.T, factory DeploymentFactory, opts *De
 	if opts.DisableSubdomainApps {
 		opts.AppHost = ""
 	}
+	if opts.StatsCollectorOptions.ReportInterval == 0 {
+		// Set to a really high value to avoid triggering flush without manually
+		// calling the function in test. This can easily happen because the
+		// default value is 30s and we run tests in parallel. The assertion
+		// typically happens such that:
+		//
+		// 	[use workspace] -> [fetch previous last used] -> [flush] -> [fetch new last used]
+		//
+		// When this edge case is triggered:
+		//
+		// 	[use workspace] -> [report interval flush] -> [fetch previous last used] -> [flush] -> [fetch new last used]
+		//
+		// In this case, both the previous and new last used will be the same,
+		// breaking the test assertion.
+		opts.StatsCollectorOptions.ReportInterval = 9001 * time.Hour
+	}
 
 	deployment := factory(t, opts)
 
