@@ -138,6 +138,40 @@ func TestConvertStateGolden(t *testing.T) {
 				require.NoError(t, err)
 
 				require.JSONEq(t, string(expBytes), string(gotBytes), "converted state")
+
+				if expectedState, ok := expectedOutput.(*terraform.State); ok {
+					t.Run("WithoutGraph", func(t *testing.T) {
+						gotState, err := terraform.ConvertStateWithoutGraph(ctx, modules, logger)
+						require.NoError(t, err)
+						sortResources(gotState.Resources)
+
+						for _, res := range expectedState.Resources {
+							// Agents will not exist without the graph.
+							original := res.Agents
+							t.Cleanup(func() {
+								res.Agents = original
+							})
+							res.Agents = nil
+
+							// Metadata will not exist without the graph.
+							originalMetadata := res.Metadata
+							t.Cleanup(func() {
+								res.Metadata = originalMetadata
+							})
+							res.Metadata = nil
+						}
+
+						require.Equal(t, len(expectedState.Resources), len(gotState.Resources), "number of resources")
+						for i := range gotState.Resources {
+							got, err := json.Marshal(gotState.Resources[i])
+							require.NoError(t, err, "marshaling got resource to JSON")
+							expected, err := json.Marshal(expectedState.Resources[i])
+							require.NoError(t, err, "marshaling expected resource to JSON")
+
+							require.JSONEq(t, string(expected), string(got), "json cmp")
+						}
+					})
+				}
 			})
 		}
 	}

@@ -24,29 +24,25 @@ import (
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
-// stateConverter holds intermediate state for converting Terraform state to Coder resources.
-type stateConverter struct {
-	ctx    context.Context
-	logger slog.Logger
-	graph  *gographviz.Graph
+type ReducedState struct {
+	Resources []*proto.Resource
+}
 
-	// Indexed Terraform resources by their label (what "terraform graph" uses to reference nodes).
-	tfResourcesByLabel map[string]map[string]*tfjson.StateResource
+func ConvertStateWithoutGraph(ctx context.Context, modules []*tfjson.StateModule, logger slog.Logger) (*ReducedState, error) {
+	converter := newConverter(ctx, logger, gographviz.NewGraph())
 
-	// Categorized resources for processing.
-	tfResourcesRichParameters []*tfjson.StateResource
-	tfResourcesPresets        []*tfjson.StateResource
-	tfResourcesAITasks        []*tfjson.StateResource
+	// Index all resources from the state.
+	converter.indexTerraformResources(modules)
 
-	// Output state.
-	resources      []*proto.Resource
-	resourceAgents map[string][]*proto.Agent
+	// Associate agent instance IDs.
+	converter.processAgentInstances()
 
-	// Resource metadata collected during processing.
-	resourceMetadata map[string][]*proto.Resource_Metadata
-	resourceHidden   map[string]bool
-	resourceIcon     map[string]string
-	resourceCost     map[string]int32
+	// Build the final resource list.
+	converter.buildResources()
+
+	return &ReducedState{
+		Resources: converter.resources,
+	}, nil
 }
 
 // ConvertState consumes Terraform state and a GraphViz representation
@@ -61,17 +57,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		return nil, xerrors.Errorf("analyze graph: %w", err)
 	}
 
-	converter := &stateConverter{
-		ctx:                       ctx,
-		logger:                    logger,
-		graph:                     graph,
-		tfResourcesByLabel:        make(map[string]map[string]*tfjson.StateResource),
-		tfResourcesRichParameters: make([]*tfjson.StateResource, 0),
-		tfResourcesPresets:        make([]*tfjson.StateResource, 0),
-		tfResourcesAITasks:        make([]*tfjson.StateResource, 0),
-		resources:                 make([]*proto.Resource, 0),
-		resourceAgents:            make(map[string][]*proto.Agent),
-	}
+	converter := newConverter(ctx, logger, graph)
 
 	// Index all resources from the state.
 	converter.indexTerraformResources(modules)
@@ -137,6 +123,45 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		AITasks:               aiTasks,
 		HasExternalAgents:     hasExternalAgentResources(converter.graph),
 	}, nil
+}
+
+// stateConverter holds intermediate state for converting Terraform state to Coder resources.
+type stateConverter struct {
+	ctx    context.Context
+	logger slog.Logger
+	graph  *gographviz.Graph
+
+	// Indexed Terraform resources by their label (what "terraform graph" uses to reference nodes).
+	tfResourcesByLabel map[string]map[string]*tfjson.StateResource
+
+	// Categorized resources for processing.
+	tfResourcesRichParameters []*tfjson.StateResource
+	tfResourcesPresets        []*tfjson.StateResource
+	tfResourcesAITasks        []*tfjson.StateResource
+
+	// Output state.
+	resources      []*proto.Resource
+	resourceAgents map[string][]*proto.Agent
+
+	// Resource metadata collected during processing.
+	resourceMetadata map[string][]*proto.Resource_Metadata
+	resourceHidden   map[string]bool
+	resourceIcon     map[string]string
+	resourceCost     map[string]int32
+}
+
+func newConverter(ctx context.Context, logger slog.Logger, graph *gographviz.Graph) *stateConverter {
+	return &stateConverter{
+		ctx:                       ctx,
+		logger:                    logger,
+		graph:                     graph,
+		tfResourcesByLabel:        make(map[string]map[string]*tfjson.StateResource),
+		tfResourcesRichParameters: make([]*tfjson.StateResource, 0),
+		tfResourcesPresets:        make([]*tfjson.StateResource, 0),
+		tfResourcesAITasks:        make([]*tfjson.StateResource, 0),
+		resources:                 make([]*proto.Resource, 0),
+		resourceAgents:            make(map[string][]*proto.Agent),
+	}
 }
 
 // indexTerraformResources recursively indexes all Terraform resources by label and categorizes special types.
@@ -1030,4 +1055,8 @@ func (c *stateConverter) processExternalAuthProviders() ([]*proto.ExternalAuthPr
 	}
 
 	return externalAuthProviders, nil
+}
+
+func (c *stateConverter) hasGraph() bool {
+	return c.graph != nil
 }
