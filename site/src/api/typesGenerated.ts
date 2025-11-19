@@ -32,6 +32,8 @@ export interface AIBridgeConfig {
 	readonly anthropic: AIBridgeAnthropicConfig;
 	readonly bedrock: AIBridgeBedrockConfig;
 	readonly inject_coder_mcp_tools: boolean;
+	readonly retention: number;
+	readonly retention_limit: number;
 }
 
 // From codersdk/aibridge.go

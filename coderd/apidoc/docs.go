@@ -11705,6 +11705,12 @@ const docTemplate = `{
                 },
                 "openai": {
                     "$ref": "#/definitions/codersdk.AIBridgeOpenAIConfig"
+                },
+                "retention": {
+                    "type": "integer"
+                },
+                "retention_limit": {
+                    "type": "integer"
                 }
             }
         },

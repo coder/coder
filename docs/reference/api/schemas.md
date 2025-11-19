@@ -393,7 +393,9 @@
   "openai": {
     "base_url": "string",
     "key": "string"
-  }
+  },
+  "retention": 0,
+  "retention_limit": 0
 }
 ```
 
@@ -406,6 +408,8 @@
 | `enabled`                | boolean                                                              | false    |              |             |
 | `inject_coder_mcp_tools` | boolean                                                              | false    |              |             |
 | `openai`                 | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              |             |
+| `retention`              | integer                                                              | false    |              |             |
+| `retention_limit`        | integer                                                              | false    |              |             |
 
 ## codersdk.AIBridgeInterception
 
@@ -701,7 +705,9 @@
     "openai": {
       "base_url": "string",
       "key": "string"
-    }
+    },
+    "retention": 0,
+    "retention_limit": 0
   }
 }
 ```
@@ -2858,7 +2864,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "openai": {
           "base_url": "string",
           "key": "string"
-        }
+        },
+        "retention": 0,
+        "retention_limit": 0
       }
     },
     "allow_workspace_renames": true,
@@ -3373,7 +3381,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "openai": {
         "base_url": "string",
         "key": "string"
-      }
+      },
+      "retention": 0,
+      "retention_limit": 0
     }
   },
   "allow_workspace_renames": true,

@@ -389,6 +389,13 @@ func (m queryMetricsStore) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx conte
 	return r0
 }
 
+func (m queryMetricsStore) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime database.DeleteOldAIBridgeRecordsParams) error {
+	start := time.Now()
+	r0 := m.s.DeleteOldAIBridgeRecords(ctx, beforeTime)
+	m.queryLatencies.WithLabelValues("DeleteOldAIBridgeRecords").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) DeleteOldAuditLogConnectionEvents(ctx context.Context, threshold database.DeleteOldAuditLogConnectionEventsParams) error {
 	start := time.Now()
 	r0 := m.s.DeleteOldAuditLogConnectionEvents(ctx, threshold)

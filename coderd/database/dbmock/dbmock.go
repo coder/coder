@@ -709,6 +709,20 @@ func (mr *MockStoreMockRecorder) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOAuth2ProviderAppTokensByAppAndUserID", reflect.TypeOf((*MockStore)(nil).DeleteOAuth2ProviderAppTokensByAppAndUserID), ctx, arg)
 }
 
+// DeleteOldAIBridgeRecords mocks base method.
+func (m *MockStore) DeleteOldAIBridgeRecords(ctx context.Context, arg database.DeleteOldAIBridgeRecordsParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteOldAIBridgeRecords", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteOldAIBridgeRecords indicates an expected call of DeleteOldAIBridgeRecords.
+func (mr *MockStoreMockRecorder) DeleteOldAIBridgeRecords(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldAIBridgeRecords", reflect.TypeOf((*MockStore)(nil).DeleteOldAIBridgeRecords), ctx, arg)
+}
+
 // DeleteOldAuditLogConnectionEvents mocks base method.
 func (m *MockStore) DeleteOldAuditLogConnectionEvents(ctx context.Context, arg database.DeleteOldAuditLogConnectionEventsParams) error {
 	m.ctrl.T.Helper()

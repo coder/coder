@@ -3340,14 +3340,36 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "bedrock_small_fast_model",
 		},
 		{
-			Name:        "AI Bridge Inject Coder MCP tools",
-			Description: "Whether to inject Coder's MCP tools into intercepted AI Bridge requests (requires the \"oauth2\" and \"mcp-server-http\" experiments to be enabled).",
+			Name:        "AIBridge Inject Coder MCP tools",
+			Description: "Whether to inject Coder's MCP tools into intercepted AIBridge requests (requires the \"oauth2\" and \"mcp-server-http\" experiments to be enabled).",
 			Flag:        "aibridge-inject-coder-mcp-tools",
 			Env:         "CODER_AIBRIDGE_INJECT_CODER_MCP_TOOLS",
 			Value:       &c.AI.BridgeConfig.InjectCoderMCPTools,
 			Default:     "false",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "inject_coder_mcp_tools",
+		},
+		{
+			Name:        "AIBridge Data Retention Duration",
+			Description: "Length of time to retain data such as interceptions and all related records (token, prompt, tool use).",
+			Flag:        "aibridge-retention",
+			Env:         "CODER_AIBRIDGE_RETENTION",
+			Value:       &c.AI.BridgeConfig.Retention,
+			Default:     "1440h", // 60 days.
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "retention",
+		},
+		{
+			Name: "AIBridge Data Retention Purge Limit",
+			Description: "Maximum number of records to purge per dbpurge cycle (10m). MUST be set higher than expected base rate of interceptions * 10m. " +
+				"For example, if you expect 50 interceptions per second you'll need a limit of 50*10*60=30000 for dbpurge to keep up with the rate of insertions. " +
+				"Setting a value that's too high may slow down purging of other tables.",
+			Flag:    "aibridge-retention-limit",
+			Env:     "CODER_AIBRIDGE_RETENTION_LIMIT",
+			Value:   &c.AI.BridgeConfig.RetentionLimit,
+			Default: "12000", // Assuming 20 requests per second.
+			Group:   &deploymentGroupAIBridge,
+			YAML:    "retention_limit",
 		},
 		{
 			Name: "Enable Authorization Recordings",
@@ -3373,6 +3395,8 @@ type AIBridgeConfig struct {
 	Anthropic           AIBridgeAnthropicConfig `json:"anthropic" typescript:",notnull"`
 	Bedrock             AIBridgeBedrockConfig   `json:"bedrock" typescript:",notnull"`
 	InjectCoderMCPTools serpent.Bool            `json:"inject_coder_mcp_tools" typescript:",notnull"`
+	Retention           serpent.Duration        `json:"retention" typescript:",notnull"`
+	RetentionLimit      serpent.Int64           `json:"retention_limit" typescript:",notnull"`
 }
 
 type AIBridgeOpenAIConfig struct {

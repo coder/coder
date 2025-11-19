@@ -324,6 +324,31 @@ func (q *sqlQuerier) CountAIBridgeInterceptions(ctx context.Context, arg CountAI
 	return count, err
 }
 
+const deleteOldAIBridgeRecords = `-- name: DeleteOldAIBridgeRecords :exec
+WITH
+  -- We don't have FK relationships between the dependent tables and aibridge_interceptions, so we can't rely on DELETE CASCADE.
+  to_delete AS (
+    SELECT id FROM aibridge_interceptions
+    WHERE started_at < $1::timestamp with time zone
+	LIMIT $2::int
+  ),
+  -- CTEs are executed before the main statement, so all dependent records will delete before interceptions.
+  tool_usages AS (DELETE FROM aibridge_tool_usages WHERE interception_id IN (SELECT id FROM to_delete)),
+  token_usages AS (DELETE FROM aibridge_token_usages WHERE interception_id IN (SELECT id FROM to_delete)),
+  user_prompts AS (DELETE FROM aibridge_user_prompts WHERE interception_id IN (SELECT id FROM to_delete))
+DELETE FROM aibridge_interceptions WHERE id IN (SELECT id FROM to_delete)
+`
+
+type DeleteOldAIBridgeRecordsParams struct {
+	BeforeTime time.Time `db:"before_time" json:"before_time"`
+	LimitCount int32     `db:"limit_count" json:"limit_count"`
+}
+
+func (q *sqlQuerier) DeleteOldAIBridgeRecords(ctx context.Context, arg DeleteOldAIBridgeRecordsParams) error {
+	_, err := q.db.ExecContext(ctx, deleteOldAIBridgeRecords, arg.BeforeTime, arg.LimitCount)
+	return err
+}
+
 const getAIBridgeInterceptionByID = `-- name: GetAIBridgeInterceptionByID :one
 SELECT
 	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id

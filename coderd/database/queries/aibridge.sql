@@ -326,3 +326,17 @@ FROM
     prompt_aggregates pa,
     tool_aggregates tool_agg
 ;
+
+-- name: DeleteOldAIBridgeRecords :exec
+WITH
+  -- We don't have FK relationships between the dependent tables and aibridge_interceptions, so we can't rely on DELETE CASCADE.
+  to_delete AS (
+    SELECT id FROM aibridge_interceptions
+    WHERE started_at < @before_time::timestamp with time zone
+	LIMIT @limit_count::int
+  ),
+  -- CTEs are executed before the main statement, so all dependent records will delete before interceptions.
+  tool_usages AS (DELETE FROM aibridge_tool_usages WHERE interception_id IN (SELECT id FROM to_delete)),
+  token_usages AS (DELETE FROM aibridge_token_usages WHERE interception_id IN (SELECT id FROM to_delete)),
+  user_prompts AS (DELETE FROM aibridge_user_prompts WHERE interception_id IN (SELECT id FROM to_delete))
+DELETE FROM aibridge_interceptions WHERE id IN (SELECT id FROM to_delete);
