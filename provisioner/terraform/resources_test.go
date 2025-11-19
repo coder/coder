@@ -2,16 +2,19 @@ package terraform_test
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/stretchr/testify/require"
 	protobuf "google.golang.org/protobuf/proto"
@@ -28,6 +31,96 @@ import (
 
 func ctxAndLogger(t *testing.T) (context.Context, slog.Logger) {
 	return context.Background(), testutil.Logger(t)
+}
+
+// TestConvertStateGoldenFiles compares the output of ConvertState to a golden
+// file to prevent regressions. If the logic changes, update the golden files
+// accordingly.
+func TestConvertStateGoldenFiles(t *testing.T) {
+	t.Parallel()
+
+	testResourceDirectories := filepath.Join("testdata", "resources")
+	entries, err := os.ReadDir(testResourceDirectories)
+	require.NoError(t, err)
+
+	for _, testDirectory := range entries {
+		if !testDirectory.IsDir() {
+			continue
+		}
+
+		testFiles, err := os.ReadDir(filepath.Join(testResourceDirectories, testDirectory.Name()))
+		require.NoError(t, err)
+
+		planIdx := slices.IndexFunc(testFiles, func(entry os.DirEntry) bool {
+			return strings.HasSuffix(entry.Name(), ".tfplan.json")
+		})
+		dotIdx := slices.IndexFunc(testFiles, func(entry os.DirEntry) bool {
+			return strings.HasSuffix(entry.Name(), ".tfplan.dot")
+		})
+
+		if planIdx == -1 || dotIdx == -1 {
+			continue
+		}
+
+		t.Run(testDirectory.Name(), func(t *testing.T) {
+			testDirectoryPath := filepath.Join(testResourceDirectories, testDirectory.Name())
+			planFile := filepath.Join(testDirectoryPath, testFiles[planIdx].Name())
+			dotFile := filepath.Join(testDirectoryPath, testFiles[dotIdx].Name())
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			logger := slogtest.Make(t, nil)
+
+			// Gather plan
+			tfPlanRaw, err := os.ReadFile(planFile)
+			require.NoError(t, err)
+
+			var tfPlan tfjson.Plan
+			err = json.Unmarshal(tfPlanRaw, &tfPlan)
+			require.NoError(t, err)
+
+			modules := []*tfjson.StateModule{tfPlan.PlannedValues.RootModule}
+			if tfPlan.PriorState != nil {
+				modules = append(modules, tfPlan.PriorState.Values.RootModule)
+			} else {
+				// Ensure that resources canF be duplicated in the source state
+				// and that no errors occur!
+				modules = append(modules, tfPlan.PlannedValues.RootModule)
+			}
+
+			// Gather graph
+			dotFileRaw, err := os.ReadFile(dotFile)
+			require.NoError(t, err)
+
+			var expectedOutput any
+			state, err := terraform.ConvertState(ctx, modules, string(dotFileRaw), logger)
+			if err == nil {
+				sortResources(state.Resources)
+				sortExternalAuthProviders(state.ExternalAuthProviders)
+				deterministicAppIDs(state.Resources)
+				expectedOutput = state
+			} else {
+				// Write the error to the file then. Track errors as much as valid paths.
+				expectedOutput = err.Error()
+			}
+
+			expPath := filepath.Join(testDirectoryPath, "converted_state.golden")
+			if *updateGoldenFiles {
+				gotBytes, err := json.MarshalIndent(expectedOutput, "", "  ")
+				require.NoError(t, err, "marshaling converted state to JSON")
+				err = os.WriteFile(expPath, gotBytes, 0o600)
+				require.NoError(t, err)
+				return
+			}
+
+			gotBytes, err := json.Marshal(expectedOutput)
+			require.NoError(t, err, "marshaling converted state to JSON")
+
+			expBytes, err := os.ReadFile(expPath)
+			require.NoError(t, err)
+
+			require.JSONEq(t, string(expBytes), string(gotBytes), "converted state")
+		})
+	}
 }
 
 func TestConvertResources(t *testing.T) {
@@ -1668,4 +1761,19 @@ func sortExternalAuthProviders(providers []*proto.ExternalAuthProviderResource) 
 	sort.Slice(providers, func(i, j int) bool {
 		return strings.Compare(providers[i].Id, providers[j].Id) == -1
 	})
+}
+
+// deterministicAppIDs handles setting agent app ids to something deterministic.
+// In plan files, ids are not present. In state files, they are.
+// It is simpler for comparisons if we just set it to something deterministic.
+func deterministicAppIDs(resources []*proto.Resource) {
+	for _, resource := range resources {
+		for _, agent := range resource.Agents {
+			for _, app := range agent.Apps {
+				data := sha256.Sum256([]byte(app.Slug + app.DisplayName))
+				id, _ := uuid.FromBytes(data[:16])
+				app.Id = id.String()
+			}
+		}
+	}
 }
