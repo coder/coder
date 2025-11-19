@@ -3788,7 +3788,7 @@ Status Code **200**
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Invalidate prebuilt workspaces for template
+## Invalidate presets for template
 
 ### Code samples
 

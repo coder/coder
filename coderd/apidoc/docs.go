@@ -6015,7 +6015,7 @@ const docTemplate = `{
                 "tags": [
                     "Enterprise"
                 ],
-                "summary": "Invalidate prebuilt workspaces for template",
+                "summary": "Invalidate presets for template",
                 "operationId": "invalidate-prebuilt-workspaces-for-template",
                 "parameters": [
                     {
