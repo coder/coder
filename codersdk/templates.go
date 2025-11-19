@@ -515,6 +515,8 @@ func (c *Client) StarterTemplates(ctx context.Context) ([]TemplateExample, error
 }
 
 type InvalidatePrebuildsResponse struct {
+	TemplateName       string   `json:"template_name"`
+	TemplateVersion    string   `json:"template_version"`
 	InvalidatedPresets []string `json:"invalidated_presets"`
 }
 

@@ -379,6 +379,8 @@ func (api *API) postInvalidateTemplatePresets(rw http.ResponseWriter, r *http.Re
 	)
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.InvalidatePrebuildsResponse{
+		TemplateName:       template.Name,
+		TemplateVersion:    "TODO",
 		InvalidatedPresets: invalidatedPresets,
 	})
 }

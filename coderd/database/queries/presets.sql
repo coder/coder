@@ -113,7 +113,11 @@ SET
 	last_invalidated_at = @last_invalidated_at
 FROM
 	templates t
+	JOIN template_versions tv ON tv.id = t.active_version_id
 WHERE
 	t.id = @template_id
-	AND tvp.template_version_id = t.active_version_id
-RETURNING tvp.name;
+	AND tvp.template_version_id = tv.id
+RETURNING
+	t.name AS template_name,
+	tv.name AS template_version_name,
+	tvp.name AS template_version_preset_name;
