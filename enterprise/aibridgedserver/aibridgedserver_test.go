@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/aibridged/proto"
 	"github.com/coder/coder/v2/enterprise/aibridgedserver"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
 
 var requiredExperiments = []codersdk.Experiment{
@@ -169,16 +170,21 @@ func TestAuthorization(t *testing.T) {
 				tc.mocksFn(db, apiKey, user)
 			}
 
-			srv, err := aibridgedserver.NewServer(t.Context(), db, logger, "/", nil, requiredExperiments)
+			srv, err := aibridgedserver.NewServer(t.Context(), db, logger, "/", codersdk.AIBridgeConfig{}, nil, requiredExperiments)
 			require.NoError(t, err)
 			require.NotNil(t, srv)
 
-			_, err = srv.IsAuthorized(t.Context(), &proto.IsAuthorizedRequest{Key: tc.key})
+			resp, err := srv.IsAuthorized(t.Context(), &proto.IsAuthorizedRequest{Key: tc.key})
 			if tc.expectedErr != nil {
 				require.Error(t, err)
 				require.ErrorIs(t, err, tc.expectedErr)
 			} else {
+				expected := proto.IsAuthorizedResponse{
+					OwnerId:  user.ID.String(),
+					ApiKeyId: keyID,
+				}
 				require.NoError(t, err)
+				require.Equal(t, &expected, resp)
 			}
 		})
 	}
@@ -198,11 +204,12 @@ func TestGetMCPServerConfigs(t *testing.T) {
 	}
 
 	cases := []struct {
-		name                string
-		experiments         codersdk.Experiments
-		externalAuthConfigs []*externalauth.Config
-		expectCoderMCP      bool
-		expectedExternalMCP bool
+		name                     string
+		disableCoderMCPInjection bool
+		experiments              codersdk.Experiments
+		externalAuthConfigs      []*externalauth.Config
+		expectCoderMCP           bool
+		expectedExternalMCP      bool
 	}{
 		{
 			name:        "experiments not enabled",
@@ -233,6 +240,14 @@ func TestGetMCPServerConfigs(t *testing.T) {
 			expectCoderMCP:      true,
 			expectedExternalMCP: true,
 		},
+		{
+			name:                     "both internal & external MCP, but coder MCP tools not injected",
+			disableCoderMCPInjection: true,
+			experiments:              requiredExperiments,
+			externalAuthConfigs:      externalAuthCfgs,
+			expectCoderMCP:           false,
+			expectedExternalMCP:      true,
+		},
 	}
 
 	for _, tc := range cases {
@@ -244,7 +259,9 @@ func TestGetMCPServerConfigs(t *testing.T) {
 			logger := testutil.Logger(t)
 
 			accessURL := "https://my-cool-deployment.com"
-			srv, err := aibridgedserver.NewServer(t.Context(), db, logger, accessURL, tc.externalAuthConfigs, tc.experiments)
+			srv, err := aibridgedserver.NewServer(t.Context(), db, logger, accessURL, codersdk.AIBridgeConfig{
+				InjectCoderMCPTools: serpent.Bool(!tc.disableCoderMCPInjection),
+			}, tc.externalAuthConfigs, tc.experiments)
 			require.NoError(t, err)
 			require.NotNil(t, srv)
 
@@ -282,7 +299,7 @@ func TestGetMCPServerAccessTokensBatch(t *testing.T) {
 	logger := testutil.Logger(t)
 
 	// Given: 2 external auth configured with MCP and 1 without.
-	srv, err := aibridgedserver.NewServer(t.Context(), db, logger, "/", []*externalauth.Config{
+	srv, err := aibridgedserver.NewServer(t.Context(), db, logger, "/", codersdk.AIBridgeConfig{}, []*externalauth.Config{
 		{
 			ID:     "1",
 			MCPURL: "1.com/mcp",
@@ -355,6 +372,7 @@ func TestRecordInterception(t *testing.T) {
 				name: "valid interception",
 				request: &proto.RecordInterceptionRequest{
 					Id:          uuid.NewString(),
+					ApiKeyId:    uuid.NewString(),
 					InitiatorId: uuid.NewString(),
 					Provider:    "anthropic",
 					Model:       "claude-4-opus",
@@ -369,6 +387,7 @@ func TestRecordInterception(t *testing.T) {
 
 					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), database.InsertAIBridgeInterceptionParams{
 						ID:          interceptionID,
+						APIKeyID:    sql.NullString{String: req.ApiKeyId, Valid: true},
 						InitiatorID: initiatorID,
 						Provider:    req.GetProvider(),
 						Model:       req.GetModel(),
@@ -376,6 +395,7 @@ func TestRecordInterception(t *testing.T) {
 						StartedAt:   req.StartedAt.AsTime().UTC(),
 					}).Return(database.AIBridgeInterception{
 						ID:          interceptionID,
+						APIKeyID:    sql.NullString{String: req.ApiKeyId, Valid: true},
 						InitiatorID: initiatorID,
 						Provider:    req.GetProvider(),
 						Model:       req.GetModel(),
@@ -388,6 +408,7 @@ func TestRecordInterception(t *testing.T) {
 				request: &proto.RecordInterceptionRequest{
 					Id:          "not-a-uuid",
 					InitiatorId: uuid.NewString(),
+					ApiKeyId:    uuid.NewString(),
 					Provider:    "anthropic",
 					Model:       "claude-4-opus",
 					StartedAt:   timestamppb.Now(),
@@ -398,6 +419,7 @@ func TestRecordInterception(t *testing.T) {
 				name: "invalid initiator ID",
 				request: &proto.RecordInterceptionRequest{
 					Id:          uuid.NewString(),
+					ApiKeyId:    uuid.NewString(),
 					InitiatorId: "not-a-uuid",
 					Provider:    "anthropic",
 					Model:       "claude-4-opus",
@@ -406,9 +428,22 @@ func TestRecordInterception(t *testing.T) {
 				expectedErr: "invalid initiator ID",
 			},
 			{
+				name: "invalid interception no api key set",
+				request: &proto.RecordInterceptionRequest{
+					Id:          uuid.NewString(),
+					InitiatorId: uuid.NewString(),
+					Provider:    "anthropic",
+					Model:       "claude-4-opus",
+					Metadata:    metadataProto,
+					StartedAt:   timestamppb.Now(),
+				},
+				expectedErr: "empty API key ID",
+			},
+			{
 				name: "database error",
 				request: &proto.RecordInterceptionRequest{
 					Id:          uuid.NewString(),
+					ApiKeyId:    uuid.NewString(),
 					InitiatorId: uuid.NewString(),
 					Provider:    "anthropic",
 					Model:       "claude-4-opus",
@@ -771,7 +806,7 @@ func testRecordMethod[Req any, Resp any](
 			}
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			srv, err := aibridgedserver.NewServer(ctx, db, logger, "/", nil, requiredExperiments)
+			srv, err := aibridgedserver.NewServer(ctx, db, logger, "/", codersdk.AIBridgeConfig{}, nil, requiredExperiments)
 			require.NoError(t, err)
 
 			resp, err := callMethod(srv, ctx, tc.request)

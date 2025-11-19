@@ -1,15 +1,12 @@
 package dynamicparameters
 
 import (
-	"archive/tar"
 	"bytes"
 	"context"
 	_ "embed"
 	"encoding/json"
 	"fmt"
 	"io"
-	"path/filepath"
-	"slices"
 	"strings"
 	"text/template"
 	"time"
@@ -20,6 +17,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/scaletest/loadtestutil"
 	"github.com/coder/quartz"
 )
 
@@ -89,48 +87,6 @@ func GetModuleFiles() map[string][]byte {
 	}
 }
 
-func createTarFromFiles(files map[string][]byte) ([]byte, error) {
-	buf := new(bytes.Buffer)
-	writer := tar.NewWriter(buf)
-	dirs := []string{}
-	for name, content := range files {
-		// We need to add directories before any files that use them. But, we only need to do this
-		// once.
-		dir := filepath.Dir(name)
-		if dir != "." && !slices.Contains(dirs, dir) {
-			dirs = append(dirs, dir)
-			err := writer.WriteHeader(&tar.Header{
-				Name:     dir,
-				Mode:     0o755,
-				Typeflag: tar.TypeDir,
-			})
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		err := writer.WriteHeader(&tar.Header{
-			Name: name,
-			Size: int64(len(content)),
-			Mode: 0o644,
-		})
-		if err != nil {
-			return nil, err
-		}
-
-		_, err = writer.Write(content)
-		if err != nil {
-			return nil, err
-		}
-	}
-	// `writer.Close()` function flushes the writer buffer, and adds extra padding to create a legal tarball.
-	err := writer.Close()
-	if err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
-}
-
 func TemplateTarData() ([]byte, error) {
 	mainTF, err := TemplateContent()
 	if err != nil {
@@ -144,7 +100,7 @@ func TemplateTarData() ([]byte, error) {
 	for k, v := range moduleFiles {
 		files[k] = v
 	}
-	tarData, err := createTarFromFiles(files)
+	tarData, err := loadtestutil.CreateTarFromFiles(files)
 	if err != nil {
 		return nil, xerrors.Errorf("failed to create tarball: %w", err)
 	}

@@ -1,5 +1,5 @@
 # 1.86.0
-FROM rust:slim@sha256:e4ae8ab67883487c5545884d5aa5ebbe86b5f13c6df4a8e3e2f34c89cedb9f54 AS rust-utils
+FROM rust:slim@sha256:cef0ec962e08d8b5dcba05604189e5751c1bd3ec7d12db0a93e4215468d4ac4a AS rust-utils
 # Install rust helper programs
 ENV CARGO_INSTALL_ROOT=/tmp/
 # Use more reliable mirrors for Debian packages
@@ -8,11 +8,11 @@ RUN sed -i 's|http://deb.debian.org/debian|http://mirrors.edge.kernel.org/debian
 RUN apt-get update && apt-get install -y libssl-dev openssl pkg-config build-essential
 RUN cargo install jj-cli typos-cli watchexec-cli
 
-FROM ubuntu:jammy@sha256:4e0171b9275e12d375863f2b3ae9ce00a4c53ddda176bd55868df97ac6f21a6e AS go
+FROM ubuntu:jammy@sha256:104ae83764a5119017b8e8d6218fa0832b09df65aae7d5a6de29a85d813da2fb AS go
 
 # Install Go manually, so that we can control the version
-ARG GO_VERSION=1.24.6
-ARG GO_CHECKSUM="bbca37cc395c974ffa4893ee35819ad23ebb27426df87af92e93a9ec66ef8712"
+ARG GO_VERSION=1.24.10
+ARG GO_CHECKSUM="dd52b974e3d9c5a7bbfb222c685806def6be5d6f7efd10f9caa9ca1fa2f47955"
 
 # Boring Go is needed to build FIPS-compliant binaries.
 RUN apt-get update && \
@@ -102,7 +102,7 @@ RUN curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/d
 	unzip protoc.zip && \
 	rm protoc.zip
 
-FROM ubuntu:jammy@sha256:4e0171b9275e12d375863f2b3ae9ce00a4c53ddda176bd55868df97ac6f21a6e
+FROM ubuntu:jammy@sha256:104ae83764a5119017b8e8d6218fa0832b09df65aae7d5a6de29a85d813da2fb
 
 SHELL ["/bin/bash", "-c"]
 

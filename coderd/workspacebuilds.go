@@ -1190,11 +1190,6 @@ func (api *API) convertWorkspaceBuild(
 	if build.HasAITask.Valid {
 		hasAITask = &build.HasAITask.Bool
 	}
-	var taskAppID *uuid.UUID
-	if build.AITaskSidebarAppID.Valid {
-		taskAppID = &build.AITaskSidebarAppID.UUID
-	}
-
 	var hasExternalAgent *bool
 	if build.HasExternalAgent.Valid {
 		hasExternalAgent = &build.HasExternalAgent.Bool
@@ -1227,7 +1222,6 @@ func (api *API) convertWorkspaceBuild(
 		MatchedProvisioners:     &matchedProvisioners,
 		TemplateVersionPresetID: presetID,
 		HasAITask:               hasAITask,
-		AITaskSidebarAppID:      taskAppID,
 		HasExternalAgent:        hasExternalAgent,
 	}, nil
 }

@@ -14,6 +14,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/provisionersdk/tfpath"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/jobreaper"
@@ -102,7 +103,7 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 					slog.F("min_version", minTerraformVersion.String()))
 			}
 
-			binPath, err := Install(ctx, options.Logger, options.ExternalProvisioner, options.CachePath, TerraformVersion)
+			binPath, err := Install(ctx, options.Logger, options.ExternalProvisioner, options.CachePath, TerraformVersion, "")
 			if err != nil {
 				return xerrors.Errorf("install terraform: %w", err)
 			}
@@ -160,14 +161,14 @@ func (s *server) startTrace(ctx context.Context, name string, opts ...trace.Span
 	))...)
 }
 
-func (s *server) executor(workdir string, stage database.ProvisionerJobTimingStage) *executor {
+func (s *server) executor(files tfpath.Layouter, stage database.ProvisionerJobTimingStage) *executor {
 	return &executor{
 		server:        s,
 		mut:           s.execMut,
 		binaryPath:    s.binaryPath,
 		cachePath:     s.cachePath,
 		cliConfigPath: s.cliConfigPath,
-		workdir:       workdir,
+		files:         files,
 		logger:        s.logger.Named("executor"),
 		timings:       newTimingAggregator(stage),
 	}
