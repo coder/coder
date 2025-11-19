@@ -20,8 +20,8 @@ type timingKind string
 // We cannot reference these because they're in an internal package.
 const (
 	// Stage markers are used to denote the beginning and end of stages. Without
-	// these, only discrete events within stages can be measured, which may omit
-	// setup/teardown time or other unmeasured overhead.
+	// these, only discrete events (i.e. resource changes) within stages can be
+	// measured, which may omit setup/teardown time or other unmeasured overhead.
 	timingStageStart timingKind = "stage_start"
 	timingStageEnd   timingKind = "stage_end"
 	timingStageError timingKind = "stage_error"
