@@ -2201,6 +2201,6 @@ func TestInvalidateTemplatePrebuilds(t *testing.T) {
 	invalidated, err = templateAdminClient.InvalidateTemplatePrebuilds(ctx, template.ID)
 	require.NoError(t, err)
 
-	// Then
+	// Then: it should only invalidate the presets from the currently active version (preset2 and preset3)
 	require.Equal(t, []string{presetWithParameters2.Name, presetWithParameters3.Name}, invalidated.InvalidatedPresets)
 }
