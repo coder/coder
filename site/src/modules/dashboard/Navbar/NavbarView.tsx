@@ -35,7 +35,7 @@ interface NavbarViewProps {
 	canViewAuditLog: boolean;
 	canViewConnectionLog: boolean;
 	canViewHealth: boolean;
-	canViewAIGovernance: boolean;
+	canViewAIBridge: boolean;
 	proxyContextValue?: ProxyContextValue;
 }
 
@@ -56,7 +56,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 	canViewHealth,
 	canViewAuditLog,
 	canViewConnectionLog,
-	canViewAIGovernance,
+	canViewAIBridge,
 	proxyContextValue,
 }) => {
 	const webPush = useWebpushNotifications();
@@ -97,7 +97,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 						canViewDeployment={canViewDeployment}
 						canViewHealth={canViewHealth}
 						canViewConnectionLog={canViewConnectionLog}
-						canViewAIGovernance={canViewAIGovernance}
+						canViewAIBridge={canViewAIBridge}
 					/>
 				</div>
 
