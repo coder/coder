@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
@@ -40,8 +39,6 @@ func TestFilterAcceptableAgentLabels(t *testing.T) {
 	}
 }
 
-var sinkMetric prometheus.Metric
-
 func benchAsPrometheus(b *testing.B, base []string, extraN int) {
 	am := annotatedMetric{
 		Stats_Metric: &agentproto.Stats_Metric{
@@ -65,11 +62,10 @@ func benchAsPrometheus(b *testing.B, base []string, extraN int) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		m, err := ma.asPrometheus(&am)
+		_, err := ma.asPrometheus(&am)
 		if err != nil {
 			b.Fatal(err)
 		}
-		sinkMetric = m
 	}
 }
 

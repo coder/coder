@@ -37,6 +37,11 @@ const (
 
 var MetricLabelValueEncoder = strings.NewReplacer("\\", "\\\\", "|", "\\|", ",", "\\,", "=", "\\=")
 
+type descCacheEntry struct {
+    desc      *prometheus.Desc
+    lastUsed  time.Time
+}
+
 type MetricsAggregator struct {
 	store map[metricKey]annotatedMetric
 
@@ -51,7 +56,7 @@ type MetricsAggregator struct {
 	cleanupHistogram  prometheus.Histogram
 	aggregateByLabels []string
 	// per-aggregator cache of descriptors
-	descCache map[string]*prometheus.Desc
+	descCache map[string]descCacheEntry
 }
 
 type updateRequest struct {
@@ -352,6 +357,12 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 					}
 				}
 
+				for key, entry := range ma.descCache {
+					if time.Now().Sub(entry.lastUsed) > ma.metricsCleanupInterval {
+						delete(ma.descCache, key)
+					}
+				}
+
 				timer.ObserveDuration()
 				cleanupTicker.Reset(ma.metricsCleanupInterval)
 				ma.storeSizeGauge.Set(float64(len(ma.store)))
@@ -382,11 +393,11 @@ func cacheKeyForDesc(name string, baseLabelNames []string, extraLabels []*agentp
 	b.Grow(hint)
 	b.WriteString(name)
 	for _, ln := range baseLabelNames {
-		b.WriteByte("|"[0])
+		b.WriteByte('|')
 		b.WriteString(ln)
 	}
 	for _, l := range extraLabels {
-		b.WriteByte("|"[0])
+		b.WriteByte('|')
 		b.WriteString(l.Name)
 	}
 	return b.String()
@@ -396,11 +407,12 @@ func cacheKeyForDesc(name string, baseLabelNames []string, extraLabels []*agentp
 // labels and extra labels. If we do not, we create a new description and cache it.
 func (ma *MetricsAggregator) getOrCreateDesc(name string, help string, baseLabelNames []string, extraLabels []*agentproto.Stats_Metric_Label) *prometheus.Desc {
 	if ma.descCache == nil {
-		ma.descCache = make(map[string]*prometheus.Desc)
+		ma.descCache = make(map[string]descCacheEntry)
 	}
 	key := cacheKeyForDesc(name, baseLabelNames, extraLabels)
 	if d, ok := ma.descCache[key]; ok {
-		return d
+		d.lastUsed=time.Now()
+		return d.desc
 	}
 	nBase := len(baseLabelNames)
 	nExtra := len(extraLabels)
@@ -410,13 +422,12 @@ func (ma *MetricsAggregator) getOrCreateDesc(name string, help string, baseLabel
 		labels[nBase+i] = l.Name
 	}
 	d := prometheus.NewDesc(name, help, labels, nil)
-	ma.descCache[key] = d
+	ma.descCache[key] = descCacheEntry{d, time.Now()}
 	return d
 }
 
 // asPrometheus returns the annotatedMetric as a prometheus.Metric, it preallocates/fills by index, uses the aggregators
-//
-//	metric description cache, and a small stack buffer for values in order to reduce memory allocations.
+// metric description cache, and a small stack buffer for values in order to reduce memory allocations.
 func (ma *MetricsAggregator) asPrometheus(am *annotatedMetric) (prometheus.Metric, error) {
 	baseLabelNames := am.aggregateByLabels
 	extraLabels := am.Labels
