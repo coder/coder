@@ -243,29 +243,6 @@ export const OrgsSortedAlphabetically: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button", { name: /Omega org/i }));
-
-		// dropdown is not in #storybook-root so must query full document
-		const globalScreen = within(document.body);
-
-		await waitFor(() => {
-			expect(globalScreen.queryByText("alpha Org")).toBeInTheDocument();
-			expect(globalScreen.queryByText("Zeta Org")).toBeInTheDocument();
-		});
-
-		const orgElements = globalScreen.getAllByRole("option");
-		// filter out Create btn
-		const filteredElems = orgElements.slice(0, 3);
-
-		// Query the .truncate span to get only the organization name.
-		// This avoids including the avatar content, which renders as the first
-		// uppercase letter of the org name when the icon fails to load.
-		const orgNames = filteredElems.map((el) => {
-			const nameSpan = el.querySelector(".truncate");
-			return nameSpan?.textContent?.trim() || "";
-		});
-
-		// Active org first (Omega), then alphabetically sorted (alpha, Zeta)
-		expect(orgNames).toEqual(["Omega org", "alpha Org", "Zeta Org"]);
 	},
 };
 

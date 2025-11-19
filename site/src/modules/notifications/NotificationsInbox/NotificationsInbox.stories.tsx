@@ -123,9 +123,9 @@ export const MarkAllAsReadFailure: Story = {
 			name: /mark all as read/i,
 		});
 		await userEvent.click(markAllAsReadButton);
-		await expect(
-			body.findByText("Failed to mark all notifications as read"),
-		).resolves.toBeInTheDocument();
+		// There have been some flakes here, with the socket erroring with
+		// "Unable to retrieve latest inbox notifications. Please try refreshing the browser."
+		await body.findByText("Failed to mark all notifications as read")
 	},
 };
 
