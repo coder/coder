@@ -378,9 +378,7 @@ func (api *API) postInvalidateTemplatePresets(rw http.ResponseWriter, r *http.Re
 		slog.F("preset_count", len(invalidatedPresets)),
 	)
 
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.InvalidatePrebuildsResponse{
-		TemplateName:       template.Name,
-		TemplateVersion:    "TODO",
-		InvalidatedPresets: invalidatedPresets,
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.InvalidatePresetsResponse{
+		Invalidated: db2sdk.InvalidatedPresets(invalidatedPresets),
 	})
 }

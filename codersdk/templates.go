@@ -514,29 +514,33 @@ func (c *Client) StarterTemplates(ctx context.Context) ([]TemplateExample, error
 	return templateExamples, json.NewDecoder(res.Body).Decode(&templateExamples)
 }
 
-type InvalidatePrebuildsResponse struct {
-	TemplateName       string   `json:"template_name"`
-	TemplateVersion    string   `json:"template_version"`
-	InvalidatedPresets []string `json:"invalidated_presets"`
+type InvalidatePresetsResponse struct {
+	Invalidated []InvalidatedPreset `json:"invalidated"`
+}
+
+type InvalidatedPreset struct {
+	TemplateName        string `json:"template_name"`
+	TemplateVersionName string `json:"template_version_name"`
+	PresetName          string `json:"preset_name"`
 }
 
 // InvalidateTemplatePresets invalidates all presets for the
 // template's active version by setting last_invalidated_at timestamp.
 // The reconciler will then mark these prebuilds as expired and create new ones.
-func (c *Client) InvalidateTemplatePresets(ctx context.Context, template uuid.UUID) (InvalidatePrebuildsResponse, error) {
+func (c *Client) InvalidateTemplatePresets(ctx context.Context, template uuid.UUID) (InvalidatePresetsResponse, error) {
 	res, err := c.Request(ctx, http.MethodPost,
 		fmt.Sprintf("/api/v2/templates/%s/prebuilds/invalidate", template),
 		nil,
 	)
 	if err != nil {
-		return InvalidatePrebuildsResponse{}, err
+		return InvalidatePresetsResponse{}, err
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return InvalidatePrebuildsResponse{}, ReadBodyAsError(res)
+		return InvalidatePresetsResponse{}, ReadBodyAsError(res)
 	}
 
-	var response InvalidatePrebuildsResponse
+	var response InvalidatePresetsResponse
 	return response, json.NewDecoder(res.Body).Decode(&response)
 }
