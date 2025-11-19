@@ -35,6 +35,7 @@ import (
 // by querying the database if the request is missing a valid token.
 type DBTokenProvider struct {
 	Logger slog.Logger
+	ctx    context.Context
 
 	// DashboardURL is the main dashboard access URL for error pages.
 	DashboardURL                    *url.URL
@@ -50,7 +51,8 @@ type DBTokenProvider struct {
 
 var _ SignedTokenProvider = &DBTokenProvider{}
 
-func NewDBTokenProvider(log slog.Logger,
+func NewDBTokenProvider(ctx context.Context,
+	log slog.Logger,
 	accessURL *url.URL,
 	authz rbac.Authorizer,
 	connectionLogger *atomic.Pointer[connectionlog.ConnectionLogger],
@@ -70,6 +72,7 @@ func NewDBTokenProvider(log slog.Logger,
 
 	return &DBTokenProvider{
 		Logger:                          log,
+		ctx:                             ctx,
 		DashboardURL:                    accessURL,
 		Authorizer:                      authz,
 		ConnectionLogger:                connectionLogger,
@@ -94,7 +97,7 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 	//                 // permissions.
 	dangerousSystemCtx := dbauthz.AsSystemRestricted(ctx)
 
-	aReq, commitAudit := p.connLogInitRequest(ctx, rw, r)
+	aReq, commitAudit := p.connLogInitRequest(rw, r)
 	defer commitAudit()
 
 	appReq := issueReq.AppRequest.Normalize()
@@ -406,7 +409,7 @@ type connLogRequest struct {
 //
 // A session is unique to the agent, app, user and users IP. If any of these
 // values change, a new session and connect log is created.
-func (p *DBTokenProvider) connLogInitRequest(ctx context.Context, w http.ResponseWriter, r *http.Request) (aReq *connLogRequest, commit func()) {
+func (p *DBTokenProvider) connLogInitRequest(w http.ResponseWriter, r *http.Request) (aReq *connLogRequest, commit func()) {
 	// Get the status writer from the request context so we can figure
 	// out the HTTP status and autocommit the audit log.
 	sw, ok := w.(*tracing.StatusWriter)
@@ -422,6 +425,9 @@ func (p *DBTokenProvider) connLogInitRequest(ctx context.Context, w http.Respons
 	// this ensures that the status and response body are available.
 	var committed bool
 	return aReq, func() {
+		// We want to log/audit the connection attempt even if the request context has expired.
+		ctx, cancel := context.WithCancel(p.ctx)
+		defer cancel()
 		if committed {
 			return
 		}
