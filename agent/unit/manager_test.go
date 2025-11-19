@@ -53,7 +53,7 @@ func TestManager_Register(t *testing.T) {
 		err = manager.Register(unitA)
 
 		// Then: a descriptive error should be returned
-		require.ErrorContains(t, err, unit.ErrUnitAlreadyRegistered)
+		require.ErrorIs(t, err, unit.ErrUnitAlreadyRegistered)
 
 		// Then: the unit status should not be overwritten
 		u := manager.Unit(unitA)
@@ -139,7 +139,7 @@ func TestManager_AddDependency(t *testing.T) {
 
 		// Then: a descriptive error communicates that the dependency cannot be added
 		// because the dependent unit must be registered first.
-		require.ErrorContains(t, err, unit.ErrUnitNotFound)
+		require.ErrorIs(t, err, unit.ErrUnitNotFound)
 	})
 
 	t.Run("AddDependencyOnAnUnregisteredUnit", func(t *testing.T) {
@@ -206,7 +206,7 @@ func TestManager_AddDependency(t *testing.T) {
 
 		// Try to make D depend on A (creates indirect cycle)
 		err = manager.AddDependency(unitD, unitA, unit.StatusStarted)
-		require.ErrorContains(t, err, unit.ErrCycleDetected)
+		require.ErrorIs(t, err, unit.ErrCycleDetected)
 	})
 }
 
@@ -253,7 +253,7 @@ func TestManager_UpdateStatus(t *testing.T) {
 		err := manager.UpdateStatus(unitA, unit.StatusStarted)
 
 		// Then: a descriptive error communicates that the unit must be registered first.
-		require.ErrorContains(t, err, unit.ErrUnitNotFound)
+		require.ErrorIs(t, err, unit.ErrUnitNotFound)
 	})
 
 	t.Run("LinearChainDependencies", func(t *testing.T) {
@@ -392,7 +392,7 @@ func TestManager_GetUnmetDependencies(t *testing.T) {
 		unmet, err := manager.GetUnmetDependencies(unitA)
 
 		// Then: a descriptive error communicates that the unit must be registered first.
-		require.ErrorContains(t, err, unit.ErrUnitNotFound)
+		require.ErrorIs(t, err, unit.ErrUnitNotFound)
 		assert.Nil(t, unmet)
 	})
 }

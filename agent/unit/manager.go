@@ -1,6 +1,7 @@
 package unit
 
 import (
+	"errors"
 	"sync"
 
 	"golang.org/x/xerrors"
@@ -9,19 +10,19 @@ import (
 )
 
 var (
-	ErrUnitNotFound             = "unit not found"
-	ErrUnitAlreadyRegistered    = "unit already registered"
-	ErrCannotUpdateOtherUnit    = "cannot update other unit's status"
-	ErrDependenciesNotSatisfied = "unit dependencies not satisfied"
-	ErrSameStatusAlreadySet     = "same status already set"
-	ErrCycleDetected            = "cycle detected"
-	ErrFailedToAddDependency    = "failed to add dependency"
+	ErrUnitNotFound             = xerrors.New("unit not found")
+	ErrUnitAlreadyRegistered    = xerrors.New("unit already registered")
+	ErrCannotUpdateOtherUnit    = xerrors.New("cannot update other unit's status")
+	ErrDependenciesNotSatisfied = xerrors.New("unit dependencies not satisfied")
+	ErrSameStatusAlreadySet     = xerrors.New("same status already set")
+	ErrCycleDetected            = xerrors.New("cycle detected")
+	ErrFailedToAddDependency    = xerrors.New("failed to add dependency")
 )
 
 // Status represents the status of a unit.
 type Status string
 
-// Status constants for dependency tracking
+// Status constants for dependency tracking.
 const (
 	StatusNotRegistered Status = ""
 	StatusPending       Status = "pending"
@@ -46,11 +47,11 @@ type Unit struct {
 	ready bool
 }
 
-func (u *Unit) ID() ID {
+func (u Unit) ID() ID {
 	return u.id
 }
 
-func (u *Unit) Status() Status {
+func (u Unit) Status() Status {
 	return u.status
 }
 
@@ -91,7 +92,7 @@ func (m *Manager) Register(id ID) error {
 	defer m.mu.Unlock()
 
 	if m.registered(id) {
-		return xerrors.Errorf("%s: unit %q", ErrUnitAlreadyRegistered, id)
+		return xerrors.Errorf("registering unit %q: %w", id, ErrUnitAlreadyRegistered)
 	}
 
 	m.units[id] = Unit{
@@ -136,14 +137,14 @@ func (m *Manager) AddDependency(unit ID, dependsOn ID, requiredStatus Status) er
 	defer m.mu.Unlock()
 
 	if !m.registered(unit) {
-		return xerrors.Errorf("%s: unit %q", ErrUnitNotFound, unit)
+		return xerrors.Errorf("checking registration for unit %q: %w", unit, ErrUnitNotFound)
 	}
 
 	// Add the dependency edge to the graph
 	// The edge goes from unit to dependsOn, representing the dependency
 	err := m.graph.AddEdge(unit, dependsOn, requiredStatus)
 	if err != nil {
-		return xerrors.Errorf("%s: %w", ErrFailedToAddDependency, err)
+		return xerrors.Errorf("adding edge for unit %q: %w", unit, errors.Join(ErrFailedToAddDependency, err))
 	}
 
 	// Recalculate readiness for the unit since it now has a new dependency
@@ -157,40 +158,27 @@ func (m *Manager) UpdateStatus(unit ID, newStatus Status) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	u := m.units[unit]
 	if !m.registered(unit) {
-		return xerrors.Errorf("%s: unit %q", ErrUnitNotFound, unit)
+		return xerrors.Errorf("checking registration for unit %q: %w", unit, ErrUnitNotFound)
 	}
+
+	u := m.units[unit]
 	if u.status == newStatus {
-		return xerrors.Errorf("%s: unit %q", ErrSameStatusAlreadySet, unit)
+		return xerrors.Errorf("checking status for unit %q: %w", unit, ErrSameStatusAlreadySet)
 	}
 
 	u.status = newStatus
 	m.units[unit] = u
 
 	// Get all units that depend on this one (reverse adjacent vertices)
-	dependentEdges := m.graph.GetReverseAdjacentVertices(unit)
+	dependents := m.graph.GetReverseAdjacentVertices(unit)
 
 	// Recalculate readiness for all dependents
-	for _, edge := range dependentEdges {
-		m.recalculateReadinessUnsafe(edge.From)
+	for _, dependent := range dependents {
+		m.recalculateReadinessUnsafe(dependent.From)
 	}
 
 	return nil
-}
-
-// GetUnmetDependencies returns a list of unsatisfied dependencies for a unit.
-func (m *Manager) GetUnmetDependencies(unit ID) ([]Dependency, error) {
-	allDependencies, err := m.GetAllDependencies(unit)
-	if err != nil {
-		return nil, err
-	}
-
-	var unmetDependencies []Dependency = slice.Filter(allDependencies, func(dependency Dependency) bool {
-		return !dependency.IsSatisfied
-	})
-
-	return unmetDependencies, nil
 }
 
 // recalculateReadinessUnsafe recalculates the readiness state for a unit.
@@ -198,12 +186,6 @@ func (m *Manager) GetUnmetDependencies(unit ID) ([]Dependency, error) {
 func (m *Manager) recalculateReadinessUnsafe(unit ID) {
 	u := m.units[unit]
 	dependencies := m.graph.GetForwardAdjacentVertices(unit)
-
-	if len(dependencies) == 0 {
-		u.ready = true
-		m.units[unit] = u
-		return
-	}
 
 	allSatisfied := true
 	for _, dependency := range dependencies {
@@ -225,31 +207,22 @@ func (m *Manager) GetGraph() *Graph[Status, ID] {
 	return m.graph
 }
 
-// GetStatus returns the current status of a unit.
-func (m *Manager) GetStatus(unit ID) Status {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	u := m.units[unit]
-	return u.status
-}
-
 // GetAllDependencies returns all dependencies for a unit, both satisfied and unsatisfied.
 func (m *Manager) GetAllDependencies(unit ID) ([]Dependency, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	if !m.registered(unit) {
-		return nil, xerrors.Errorf("%s: unit %q", ErrUnitNotFound, unit)
+		return nil, xerrors.Errorf("checking registration for unit %q: %w", unit, ErrUnitNotFound)
 	}
 
-	forwardEdges := m.graph.GetForwardAdjacentVertices(unit)
+	dependencies := m.graph.GetForwardAdjacentVertices(unit)
 
 	var allDependencies []Dependency
 
-	for _, edge := range forwardEdges {
-		dependsOnUnit := m.units[edge.To]
-		requiredStatus := edge.Edge
+	for _, dependency := range dependencies {
+		dependsOnUnit := m.units[dependency.To]
+		requiredStatus := dependency.Edge
 		allDependencies = append(allDependencies, Dependency{
 			Unit:           unit,
 			DependsOn:      dependsOnUnit.id,
@@ -260,6 +233,20 @@ func (m *Manager) GetAllDependencies(unit ID) ([]Dependency, error) {
 	}
 
 	return allDependencies, nil
+}
+
+// GetUnmetDependencies returns a list of unsatisfied dependencies for a unit.
+func (m *Manager) GetUnmetDependencies(unit ID) ([]Dependency, error) {
+	allDependencies, err := m.GetAllDependencies(unit)
+	if err != nil {
+		return nil, err
+	}
+
+	var unmetDependencies []Dependency = slice.Filter(allDependencies, func(dependency Dependency) bool {
+		return !dependency.IsSatisfied
+	})
+
+	return unmetDependencies, nil
 }
 
 // ExportDOT exports the dependency graph to DOT format for visualization.
