@@ -11708,9 +11708,6 @@ const docTemplate = `{
                 },
                 "retention": {
                     "type": "integer"
-                },
-                "retention_limit": {
-                    "type": "integer"
                 }
             }
         },

@@ -92,12 +92,11 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 			}
 
 			deleteAIBridgeRecordsBefore := start.Add(-vals.AI.BridgeConfig.Retention.Value())
-			if err := tx.DeleteOldAIBridgeRecords(ctx, database.DeleteOldAIBridgeRecordsParams{
-				BeforeTime: deleteAIBridgeRecordsBefore,
-				LimitCount: int32(vals.AI.BridgeConfig.RetentionLimit.Value()),
-			}); err != nil {
+			count, err := tx.DeleteOldAIBridgeRecords(ctx, deleteAIBridgeRecordsBefore)
+			if err != nil {
 				return xerrors.Errorf("failed to delete old aibridge records: %w", err)
 			}
+			logger.Debug(ctx, "purged aibridge entries", slog.F("count", count), slog.F("since", deleteAIBridgeRecordsBefore.Format(time.RFC3339)))
 
 			logger.Debug(ctx, "purged old database entries", slog.F("duration", clk.Since(start)))
 

@@ -1774,14 +1774,3 @@ Whether to inject Coder's MCP tools into intercepted AIBridge requests (requires
 | Default     | <code>1440h</code>                     |
 
 Length of time to retain data such as interceptions and all related records (token, prompt, tool use).
-
-### --aibridge-retention-limit
-
-|             |                                              |
-|-------------|----------------------------------------------|
-| Type        | <code>int</code>                             |
-| Environment | <code>$CODER_AIBRIDGE_RETENTION_LIMIT</code> |
-| YAML        | <code>aibridge.retention_limit</code>        |
-| Default     | <code>12000</code>                           |
-
-Maximum number of records to purge per dbpurge cycle (10m). MUST be set higher than expected base rate of interceptions * 10m. For example, if you expect 50 interceptions per second you'll need a limit of 50*10*60=30000 for dbpurge to keep up with the rate of insertions. Setting a value that's too high may slow down purging of other tables.

@@ -324,29 +324,47 @@ func (q *sqlQuerier) CountAIBridgeInterceptions(ctx context.Context, arg CountAI
 	return count, err
 }
 
-const deleteOldAIBridgeRecords = `-- name: DeleteOldAIBridgeRecords :exec
+const deleteOldAIBridgeRecords = `-- name: DeleteOldAIBridgeRecords :one
 WITH
   -- We don't have FK relationships between the dependent tables and aibridge_interceptions, so we can't rely on DELETE CASCADE.
   to_delete AS (
     SELECT id FROM aibridge_interceptions
     WHERE started_at < $1::timestamp with time zone
-	LIMIT $2::int
   ),
-  -- CTEs are executed before the main statement, so all dependent records will delete before interceptions.
-  tool_usages AS (DELETE FROM aibridge_tool_usages WHERE interception_id IN (SELECT id FROM to_delete)),
-  token_usages AS (DELETE FROM aibridge_token_usages WHERE interception_id IN (SELECT id FROM to_delete)),
-  user_prompts AS (DELETE FROM aibridge_user_prompts WHERE interception_id IN (SELECT id FROM to_delete))
-DELETE FROM aibridge_interceptions WHERE id IN (SELECT id FROM to_delete)
+  -- CTEs are executed in order.
+  tool_usages AS (
+    DELETE FROM aibridge_tool_usages
+    WHERE interception_id IN (SELECT id FROM to_delete)
+    RETURNING 1
+  ),
+  token_usages AS (
+    DELETE FROM aibridge_token_usages
+    WHERE interception_id IN (SELECT id FROM to_delete)
+    RETURNING 1
+  ),
+  user_prompts AS (
+    DELETE FROM aibridge_user_prompts
+    WHERE interception_id IN (SELECT id FROM to_delete)
+    RETURNING 1
+  ),
+  interceptions AS (
+    DELETE FROM aibridge_interceptions
+    WHERE id IN (SELECT id FROM to_delete)
+    RETURNING 1
+  )
+SELECT
+  (SELECT COUNT(*) FROM tool_usages) +
+  (SELECT COUNT(*) FROM token_usages) +
+  (SELECT COUNT(*) FROM user_prompts) +
+  (SELECT COUNT(*) FROM interceptions) as total_deleted
 `
 
-type DeleteOldAIBridgeRecordsParams struct {
-	BeforeTime time.Time `db:"before_time" json:"before_time"`
-	LimitCount int32     `db:"limit_count" json:"limit_count"`
-}
-
-func (q *sqlQuerier) DeleteOldAIBridgeRecords(ctx context.Context, arg DeleteOldAIBridgeRecordsParams) error {
-	_, err := q.db.ExecContext(ctx, deleteOldAIBridgeRecords, arg.BeforeTime, arg.LimitCount)
-	return err
+// Cumulative count.
+func (q *sqlQuerier) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int32, error) {
+	row := q.db.QueryRowContext(ctx, deleteOldAIBridgeRecords, beforeTime)
+	var total_deleted int32
+	err := row.Scan(&total_deleted)
+	return total_deleted, err
 }
 
 const getAIBridgeInterceptionByID = `-- name: GetAIBridgeInterceptionByID :one

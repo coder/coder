@@ -755,10 +755,3 @@ aibridge:
   # (token, prompt, tool use).
   # (default: 1440h, type: duration)
   retention: 1440h0m0s
-  # Maximum number of records to purge per dbpurge cycle (10m). MUST be set higher
-  # than expected base rate of interceptions * 10m. For example, if you expect 50
-  # interceptions per second you'll need a limit of 50*10*60=30000 for dbpurge to
-  # keep up with the rate of insertions. Setting a value that's too high may slow
-  # down purging of other tables.
-  # (default: 12000, type: int)
-  retention_limit: 12000

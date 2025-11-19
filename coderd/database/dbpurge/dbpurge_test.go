@@ -849,8 +849,7 @@ func TestDeleteOldAIBridgeRecords(t *testing.T) {
 	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
 		AI: codersdk.AIConfig{
 			BridgeConfig: codersdk.AIBridgeConfig{
-				Retention:      serpent.Duration(retentionPeriod),
-				RetentionLimit: serpent.Int64(1000),
+				Retention: serpent.Duration(retentionPeriod),
 			},
 		},
 	}, clk)
@@ -890,54 +889,4 @@ func TestDeleteOldAIBridgeRecords(t *testing.T) {
 	_ = oldTokenUsage
 	_ = oldUserPrompt
 	_ = oldToolUsage
-}
-
-func TestDeleteOldAIBridgeRecordsLimit(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-
-	db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
-	user := dbgen.User(t, db, database.User{})
-	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
-
-	now := dbtime.Now()
-	retentionPeriod := 30 * 24 * time.Hour
-	threshold := now.Add(-retentionPeriod)
-
-	// Create 5 old AI Bridge interceptions
-	for i := range 5 {
-		startedAt := threshold.Add(-time.Duration(i+1) * time.Hour)
-		endedAt := startedAt.Add(1 * time.Minute)
-		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			ID:          uuid.New(),
-			APIKeyID:    sql.NullString{String: apiKey.ID, Valid: true},
-			InitiatorID: user.ID,
-			Provider:    "anthropic",
-			Model:       "claude-3-5-sonnet",
-			StartedAt:   startedAt,
-		}, &endedAt)
-	}
-
-	// Delete with limit of 1
-	err := db.DeleteOldAIBridgeRecords(ctx, database.DeleteOldAIBridgeRecordsParams{
-		BeforeTime: threshold,
-		LimitCount: 1,
-	})
-	require.NoError(t, err)
-
-	interceptions, err := db.GetAIBridgeInterceptions(ctx)
-	require.NoError(t, err)
-	require.Len(t, interceptions, 4, "should have 4 interceptions remaining after deleting 1")
-
-	// Delete with limit of 100 (should delete all remaining)
-	err = db.DeleteOldAIBridgeRecords(ctx, database.DeleteOldAIBridgeRecordsParams{
-		BeforeTime: threshold,
-		LimitCount: 100,
-	})
-	require.NoError(t, err)
-
-	interceptions, err = db.GetAIBridgeInterceptions(ctx)
-	require.NoError(t, err)
-	require.Len(t, interceptions, 0, "should have no interceptions remaining after deleting with high limit")
 }

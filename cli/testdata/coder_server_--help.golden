@@ -110,13 +110,6 @@ AIBRIDGE OPTIONS:
           Length of time to retain data such as interceptions and all related
           records (token, prompt, tool use).
 
-      --aibridge-retention-limit int, $CODER_AIBRIDGE_RETENTION_LIMIT (default: 12000)
-          Maximum number of records to purge per dbpurge cycle (10m). MUST be
-          set higher than expected base rate of interceptions * 10m. For
-          example, if you expect 50 interceptions per second you'll need a limit
-          of 50*10*60=30000 for dbpurge to keep up with the rate of insertions.
-          Setting a value that's too high may slow down purging of other tables.
-
       --aibridge-enabled bool, $CODER_AIBRIDGE_ENABLED (default: false)
           Whether to start an in-memory aibridged instance.
 

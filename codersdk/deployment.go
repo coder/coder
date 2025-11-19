@@ -3360,18 +3360,6 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "retention",
 		},
 		{
-			Name: "AIBridge Data Retention Purge Limit",
-			Description: "Maximum number of records to purge per dbpurge cycle (10m). MUST be set higher than expected base rate of interceptions * 10m. " +
-				"For example, if you expect 50 interceptions per second you'll need a limit of 50*10*60=30000 for dbpurge to keep up with the rate of insertions. " +
-				"Setting a value that's too high may slow down purging of other tables.",
-			Flag:    "aibridge-retention-limit",
-			Env:     "CODER_AIBRIDGE_RETENTION_LIMIT",
-			Value:   &c.AI.BridgeConfig.RetentionLimit,
-			Default: "12000", // Assuming 20 requests per second.
-			Group:   &deploymentGroupAIBridge,
-			YAML:    "retention_limit",
-		},
-		{
 			Name: "Enable Authorization Recordings",
 			Description: "All api requests will have a header including all authorization calls made during the request. " +
 				"This is used for debugging purposes and only available for dev builds.",
@@ -3396,7 +3384,6 @@ type AIBridgeConfig struct {
 	Bedrock             AIBridgeBedrockConfig   `json:"bedrock" typescript:",notnull"`
 	InjectCoderMCPTools serpent.Bool            `json:"inject_coder_mcp_tools" typescript:",notnull"`
 	Retention           serpent.Duration        `json:"retention" typescript:",notnull"`
-	RetentionLimit      serpent.Int64           `json:"retention_limit" typescript:",notnull"`
 }
 
 type AIBridgeOpenAIConfig struct {

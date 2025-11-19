@@ -180,8 +180,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
           "base_url": "string",
           "key": "string"
         },
-        "retention": 0,
-        "retention_limit": 0
+        "retention": 0
       }
     },
     "allow_workspace_renames": true,
