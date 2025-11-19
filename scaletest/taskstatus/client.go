@@ -34,6 +34,9 @@ type client interface {
 	// watchWorkspace watches for updates to a workspace.
 	watchWorkspace(ctx context.Context, workspaceID uuid.UUID) (<-chan codersdk.Workspace, error)
 
+	// deleteWorkspace deletes the workspace by creating a build with delete transition.
+	deleteWorkspace(ctx context.Context, workspaceID uuid.UUID) error
+
 	// initialize sets up the client with the provided logger, which is only available after Run() is called.
 	initialize(logger slog.Logger)
 }
@@ -99,6 +102,18 @@ func (c *sdkClient) createExternalWorkspace(ctx context.Context, req codersdk.Cr
 
 func (c *sdkClient) watchWorkspace(ctx context.Context, workspaceID uuid.UUID) (<-chan codersdk.Workspace, error) {
 	return c.coderClient.WatchWorkspace(ctx, workspaceID)
+}
+
+func (c *sdkClient) deleteWorkspace(ctx context.Context, workspaceID uuid.UUID) error {
+	// Create a build with delete transition to delete the workspace
+	_, err := c.coderClient.CreateWorkspaceBuild(ctx, workspaceID, codersdk.CreateWorkspaceBuildRequest{
+		Transition: codersdk.WorkspaceTransitionDelete,
+		Reason:     codersdk.CreateWorkspaceBuildReasonCLI,
+	})
+	if err != nil {
+		return xerrors.Errorf("create delete build: %w", err)
+	}
+	return nil
 }
 
 func (c *sdkClient) initialize(logger slog.Logger) {
