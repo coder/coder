@@ -132,6 +132,11 @@ test("create workspace and overwrite default parameters", async ({ page }) => {
 		richParameters,
 		buildParameters,
 	});
+
+	await page.waitForSelector("text=Workspace status: Running", {
+		state: "visible",
+	});
+
 	await verifyParameters(page, workspaceName, richParameters, buildParameters);
 });
 

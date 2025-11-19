@@ -19,6 +19,7 @@ import {
 } from "components/Tooltip/Tooltip";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FormikContextType, useFormik } from "formik";
+import { useDebouncedFunction } from "hooks/debounce";
 import type { ExternalAuthPollingState } from "hooks/useExternalAuth";
 import { ArrowLeft, CircleHelp, ExternalLinkIcon } from "lucide-react";
 import { useSyncFormParameters } from "modules/hooks/useSyncFormParameters";
@@ -203,7 +204,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 	);
 
 	// include any modified parameters and all touched parameters to the websocket request
-	const sendDynamicParamsRequest = useCallback(
+	const { debounced: sendDynamicParamsRequest } = useDebouncedFunction(
 		(
 			parameters: Array<{ parameter: PreviewParameter; value: string }>,
 			ownerId?: string,
@@ -229,7 +230,7 @@ export const CreateWorkspacePageViewExperimental: FC<
 
 			sendMessage(formInputs, ownerId);
 		},
-		[form.touched, form.values.rich_parameter_values, sendMessage],
+		500,
 	);
 
 	useEffect(() => {

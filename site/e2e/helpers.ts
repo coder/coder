@@ -881,7 +881,7 @@ data "coder_parameter" "${parameter.name}" {
 	description = ${JSON.stringify(parameter.description)}
 	mutable     = ${JSON.stringify(parameter.mutable)}`;
 
-		if (parameter.defaultValue) {
+		if (!parameter.required) {
 			tf += `
 	default     = ${JSON.stringify(parameter.defaultValue)}`;
 		}

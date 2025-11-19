@@ -263,7 +263,9 @@ const DebouncedParameterField: FC<DebouncedParameterFieldProps> = ({
 		value !== undefined ? value : validValue(parameter.value),
 	);
 	const [showMaskedInput, setShowMaskedInput] = useState(false);
-	const debouncedLocalValue = useDebouncedValue(localValue, 500);
+	// “This is for performance”
+	//                   - Asher
+	const debouncedLocalValue = useDebouncedValue(localValue, 0);
 	const onChangeEvent = useEffectEvent(onChange);
 	// prevDebouncedValueRef is to prevent calling the onChangeEvent on the initial render
 	const prevDebouncedValueRef = useRef<string | undefined>(undefined);
