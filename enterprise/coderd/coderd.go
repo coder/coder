@@ -464,7 +464,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				apiKeyMiddleware,
 				httpmw.ExtractTemplateParam(api.Database),
 			)
-			r.Post("/invalidate", api.postInvalidateTemplatePrebuilds)
+			r.Post("/invalidate", api.postInvalidateTemplatePresets)
 		})
 
 		r.Route("/groups", func(r chi.Router) {

@@ -518,7 +518,7 @@ type InvalidatePrebuildsResponse struct {
 	InvalidatedPresets []string `json:"invalidated_presets"`
 }
 
-// InvalidateTemplatePrebuilds invalidates all prebuilt workspaces for the
+// InvalidateTemplatePresets invalidates all presets for the
 // template's active version by setting last_invalidated_at timestamp.
 // The reconciler will then mark these prebuilds as expired and create new ones.
 func (c *Client) InvalidateTemplatePresets(ctx context.Context, template uuid.UUID) (InvalidatePrebuildsResponse, error) {

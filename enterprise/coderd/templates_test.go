@@ -2181,7 +2181,7 @@ func TestInvalidateTemplatePrebuilds(t *testing.T) {
 
 	// When
 	ctx := testutil.Context(t, testutil.WaitLong)
-	invalidated, err := templateAdminClient.InvalidateTemplatePrebuilds(ctx, template.ID)
+	invalidated, err := templateAdminClient.InvalidateTemplatePresets(ctx, template.ID)
 	require.NoError(t, err)
 
 	// Then
@@ -2198,7 +2198,7 @@ func TestInvalidateTemplatePrebuilds(t *testing.T) {
 	require.NoError(t, err)
 
 	// When
-	invalidated, err = templateAdminClient.InvalidateTemplatePrebuilds(ctx, template.ID)
+	invalidated, err = templateAdminClient.InvalidateTemplatePresets(ctx, template.ID)
 	require.NoError(t, err)
 
 	// Then: it should only invalidate the presets from the currently active version (preset2 and preset3)

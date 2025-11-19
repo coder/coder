@@ -14,7 +14,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac/acl"
@@ -342,7 +341,7 @@ func (api *API) RequireFeatureMW(feat codersdk.FeatureName) func(http.Handler) h
 	}
 }
 
-// @Summary Invalidate prebuilt workspaces for template
+// @Summary Invalidate presets for template
 // @ID invalidate-prebuilt-workspaces-for-template
 // @Security CoderSessionToken
 // @Produce json
@@ -350,7 +349,7 @@ func (api *API) RequireFeatureMW(feat codersdk.FeatureName) func(http.Handler) h
 // @Param template path string true "Template ID" format(uuid)
 // @Success 200 {object} codersdk.InvalidatePrebuildsResponse
 // @Router /templates/{template}/prebuilds/invalidate [post]
-func (api *API) postInvalidateTemplatePrebuilds(rw http.ResponseWriter, r *http.Request) {
+func (api *API) postInvalidateTemplatePresets(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	template := httpmw.TemplateParam(r)
 
