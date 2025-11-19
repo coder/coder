@@ -96,9 +96,9 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "AIBridge"
+                    "AI Bridge"
                 ],
-                "summary": "List AIBridge interceptions",
+                "summary": "List AI Bridge interceptions",
                 "operationId": "list-aibridge-interceptions",
                 "parameters": [
                     {

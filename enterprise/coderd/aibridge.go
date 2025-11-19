@@ -57,14 +57,14 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 	}
 }
 
-// aiBridgeListInterceptions returns all AIBridge interceptions a user can read.
+// aiBridgeListInterceptions returns all AI Bridge interceptions a user can read.
 // Optional filters with query params
 //
-// @Summary List AIBridge interceptions
+// @Summary List AI Bridge interceptions
 // @ID list-aibridge-interceptions
 // @Security CoderSessionToken
 // @Produce json
-// @Tags AIBridge
+// @Tags AI Bridge
 // @Param q query string false "Search query in the format `key:value`. Available keys are: initiator, provider, model, started_after, started_before."
 // @Param limit query int false "Page limit"
 // @Param after_id query string false "Cursor pagination after ID (cannot be used with offset)"

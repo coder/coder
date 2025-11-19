@@ -73,8 +73,8 @@
 					}
 				],
 				"produces": ["application/json"],
-				"tags": ["AIBridge"],
-				"summary": "List AIBridge interceptions",
+				"tags": ["AI Bridge"],
+				"summary": "List AI Bridge interceptions",
 				"operationId": "list-aibridge-interceptions",
 				"parameters": [
 					{
