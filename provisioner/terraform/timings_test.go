@@ -6,11 +6,13 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	terraform_internal "github.com/coder/coder/v2/provisioner/terraform/internal"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
@@ -95,6 +97,12 @@ func TestTimingsFromProvision(t *testing.T) {
 
 	// Sort the timings stably to keep reduce flakiness.
 	terraform_internal.StableSortTimings(t, timings)
+	// `coder_stage_` timings use `dbtime.Now()`, which makes them hard to compare to
+	// a static set of expected timings. Filter them out. This test is good for
+	// testing timings sourced from terraform logs, not internal coder timings.
+	timings = slice.Filter(timings, func(tim *proto.Timing) bool {
+		return !strings.HasPrefix(tim.Resource, "coder_stage_")
+	})
 
 	// Then: the received timings should match the expected values below.
 	// NOTE: These timings have been encoded to JSON format to make the tests more readable.

@@ -25,6 +25,8 @@ export const Navbar: FC = () => {
 		featureVisibility.audit_log && permissions.viewAnyAuditLog;
 	const canViewConnectionLog =
 		featureVisibility.connection_log && permissions.viewAnyConnectionLog;
+	const canViewAIBridge =
+		featureVisibility.aibridge && permissions.viewAnyAIBridgeInterception;
 
 	const uniqueLinks = new Map<string, LinkConfig>();
 	for (const link of appearance.support_links ?? []) {
@@ -44,6 +46,7 @@ export const Navbar: FC = () => {
 			canViewHealth={canViewHealth}
 			canViewAuditLog={canViewAuditLog}
 			canViewConnectionLog={canViewConnectionLog}
+			canViewAIBridge={canViewAIBridge}
 			proxyContextValue={proxyContextValue}
 		/>
 	);

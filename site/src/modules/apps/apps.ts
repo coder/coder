@@ -23,6 +23,7 @@ const ALLOWED_EXTERNAL_APP_PROTOCOLS = [
 	"jetbrains-gateway:",
 	"jetbrains:",
 	"kiro:",
+	"positron:",
 ];
 
 type GetVSCodeHrefParams = {

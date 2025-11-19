@@ -7,7 +7,6 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -15,6 +14,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/util/xio"
 	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/provisionersdk/tfpath"
 )
 
 const (
@@ -39,10 +39,6 @@ type modulesFile struct {
 	Modules []*module `json:"Modules"`
 }
 
-func getModulesFilePath(workdir string) string {
-	return filepath.Join(workdir, ".terraform", "modules", "modules.json")
-}
-
 func parseModulesFile(filePath string) ([]*proto.Module, error) {
 	modules := &modulesFile{}
 	data, err := os.ReadFile(filePath)
@@ -62,8 +58,8 @@ func parseModulesFile(filePath string) ([]*proto.Module, error) {
 // getModules returns the modules from the modules file if it exists.
 // It returns nil if the file does not exist.
 // Modules become available after terraform init.
-func getModules(workdir string) ([]*proto.Module, error) {
-	filePath := getModulesFilePath(workdir)
+func getModules(files tfpath.Layouter) ([]*proto.Module, error) {
+	filePath := files.ModulesFilePath()
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		return nil, nil
 	}
