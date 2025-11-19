@@ -115,7 +115,8 @@ func TestConvertStateGoldenFiles(t *testing.T) {
 				if *updateGoldenFiles {
 					gotBytes, err := json.MarshalIndent(expectedOutput, "", "  ")
 					require.NoError(t, err, "marshaling converted state to JSON")
-					err = os.WriteFile(expPath, gotBytes, 0o600)
+					// Newline at end of file for git purposes
+					err = os.WriteFile(expPath, append(gotBytes, '\n'), 0o600)
 					require.NoError(t, err)
 					return
 				}
