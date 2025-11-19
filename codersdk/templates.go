@@ -521,7 +521,7 @@ type InvalidatePrebuildsResponse struct {
 // InvalidateTemplatePrebuilds invalidates all prebuilt workspaces for the
 // template's active version by setting last_invalidated_at timestamp.
 // The reconciler will then mark these prebuilds as expired and create new ones.
-func (c *Client) InvalidateTemplatePrebuilds(ctx context.Context, template uuid.UUID) (InvalidatePrebuildsResponse, error) {
+func (c *Client) InvalidateTemplatePresets(ctx context.Context, template uuid.UUID) (InvalidatePrebuildsResponse, error) {
 	res, err := c.Request(ctx, http.MethodPost,
 		fmt.Sprintf("/api/v2/templates/%s/prebuilds/invalidate", template),
 		nil,
