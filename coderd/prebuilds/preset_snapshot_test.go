@@ -797,6 +797,8 @@ func TestExpiredPrebuilds(t *testing.T) {
 					prebuildCreateAt = prebuildCreateAt.Add(-ttlDuration - 10*time.Second)
 					invalidatedCount++
 				} else if invalidatedCount > 0 {
+					// Only `tc.invalidated` instances have been invalidated,
+					// so the next instance is assumed to be created after `invalidatedAt`.
 					prebuildCreateAt = invalidatedAt.Add(1 * time.Minute)
 				}
 
