@@ -2207,5 +2207,4 @@ func TestInvalidateTemplatePrebuilds(t *testing.T) {
 	require.Len(t, invalidated.Invalidated, 2)
 	require.Equal(t, codersdk.InvalidatedPreset{TemplateName: template.Name, TemplateVersionName: version2.Name, PresetName: presetWithParameters2.Name}, invalidated.Invalidated[0])
 	require.Equal(t, codersdk.InvalidatedPreset{TemplateName: template.Name, TemplateVersionName: version2.Name, PresetName: presetWithParameters3.Name}, invalidated.Invalidated[1])
-
 }

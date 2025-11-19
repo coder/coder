@@ -1319,7 +1319,7 @@ func (s *MethodTestSuite) TestTemplate() {
 		t1 := testutil.Fake(s.T(), faker, database.Template{})
 		arg := database.UpdatePresetsLastInvalidatedAtParams{LastInvalidatedAt: sql.NullTime{Valid: true, Time: dbtime.Now()}, TemplateID: t1.ID}
 		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()
-		dbm.EXPECT().UpdatePresetsLastInvalidatedAt(gomock.Any(), arg).Return([]string{}, nil).AnyTimes()
+		dbm.EXPECT().UpdatePresetsLastInvalidatedAt(gomock.Any(), arg).Return([]database.UpdatePresetsLastInvalidatedAtRow{}).AnyTimes()
 		check.Args(arg).Asserts(t1, policy.ActionUpdate)
 	}))
 }
