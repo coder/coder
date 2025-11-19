@@ -7,6 +7,7 @@ import {
 	MockTasks,
 	MockUserOwner,
 	MockWorkspace,
+	MockWorkspaceAgent,
 	MockWorkspaceAgentLogSource,
 	MockWorkspaceAgentReady,
 	MockWorkspaceAgentStarting,
@@ -208,6 +209,117 @@ export const WaitingStartupScripts: Story = {
 					].map((line, index) => ({
 						id: index,
 						level: "info",
+						output: line,
+						source_id: MockWorkspaceAgentLogSource.id,
+						created_at: new Date("2024-01-01T12:00:00Z").toISOString(),
+					})),
+				),
+			},
+		],
+	},
+};
+
+export const StartupScriptError: Story = {
+	decorators: [withWebSocket],
+	parameters: {
+		queries: [
+			{
+				key: ["tasks", MockTask.owner_name, MockTask.id],
+				data: {
+					...MockTask,
+					workspace_agent_lifecycle: "start_error",
+				},
+			},
+			{
+				key: [
+					"workspace",
+					MockTask.owner_name,
+					MockTask.workspace_name,
+					"settings",
+				],
+				data: {
+					...MockWorkspace,
+					latest_build: {
+						...MockWorkspace.latest_build,
+						has_ai_task: true,
+						resources: [
+							{
+								...MockWorkspaceResource,
+								agents: [MockWorkspaceAgent],
+							},
+						],
+					},
+				},
+			},
+		],
+		webSocket: [
+			{
+				event: "message",
+				data: JSON.stringify(
+					[
+						"Cloning Git repository...",
+						"Starting application...",
+						"\x1b[91mError: Failed to connect to database",
+						"\x1b[91mStartup script exited with code 1",
+					].map((line, index) => ({
+						id: index,
+						level: index >= 2 ? "error" : "info",
+						output: line,
+						source_id: MockWorkspaceAgentLogSource.id,
+						created_at: new Date("2024-01-01T12:00:00Z").toISOString(),
+					})),
+				),
+			},
+		],
+	},
+};
+
+export const StartupScriptTimeout: Story = {
+	decorators: [withWebSocket],
+	parameters: {
+		queries: [
+			{
+				key: ["tasks", MockTask.owner_name, MockTask.id],
+				data: {
+					...MockTask,
+					workspace_agent_lifecycle: "start_timeout",
+				},
+			},
+			{
+				key: [
+					"workspace",
+					MockTask.owner_name,
+					MockTask.workspace_name,
+					"settings",
+				],
+				data: {
+					...MockWorkspace,
+					latest_build: {
+						...MockWorkspace.latest_build,
+						has_ai_task: true,
+						resources: [
+							{
+								...MockWorkspaceResource,
+								agents: [MockWorkspaceAgent],
+							},
+						],
+					},
+				},
+			},
+		],
+		webSocket: [
+			{
+				event: "message",
+				data: JSON.stringify(
+					[
+						"Cloning Git repository...",
+						"Starting application...",
+						"Waiting for dependencies...",
+						"Still waiting...",
+						"\x1b[93mWarning: Startup script exceeded timeout limit",
+					].map((line, index) => ({
+						id: index,
+						level: index === 4 ? "warn" : "info",
 						output: line,
 						source_id: MockWorkspaceAgentLogSource.id,
 						created_at: new Date("2024-01-01T12:00:00Z").toISOString(),
