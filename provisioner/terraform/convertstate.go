@@ -16,8 +16,6 @@ import (
 
 	"github.com/coder/terraform-provider-coder/v2/provider"
 
-	tfaddr "github.com/hashicorp/go-terraform-address"
-
 	"github.com/coder/coder/v2/coderd/util/slice"
 	stringutil "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/codersdk"
@@ -26,187 +24,34 @@ import (
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
-type agentMetadata struct {
-	Key         string `mapstructure:"key"`
-	DisplayName string `mapstructure:"display_name"`
-	Script      string `mapstructure:"script"`
-	Interval    int64  `mapstructure:"interval"`
-	Timeout     int64  `mapstructure:"timeout"`
-	Order       int64  `mapstructure:"order"`
-}
+// stateConverter holds intermediate state for converting Terraform state to Coder resources.
+type stateConverter struct {
+	ctx    context.Context
+	logger slog.Logger
+	graph  *gographviz.Graph
 
-// A mapping of attributes on the "coder_agent" resource.
-type agentAttributes struct {
-	Auth            string            `mapstructure:"auth"`
-	OperatingSystem string            `mapstructure:"os"`
-	Architecture    string            `mapstructure:"arch"`
-	Directory       string            `mapstructure:"dir"`
-	ID              string            `mapstructure:"id"`
-	Token           string            `mapstructure:"token"`
-	APIKeyScope     string            `mapstructure:"api_key_scope"`
-	Env             map[string]string `mapstructure:"env"`
-	// Deprecated: but remains here for backwards compatibility.
-	StartupScript                string `mapstructure:"startup_script"`
-	StartupScriptBehavior        string `mapstructure:"startup_script_behavior"`
-	StartupScriptTimeoutSeconds  int32  `mapstructure:"startup_script_timeout"`
-	LoginBeforeReady             bool   `mapstructure:"login_before_ready"`
-	ShutdownScript               string `mapstructure:"shutdown_script"`
-	ShutdownScriptTimeoutSeconds int32  `mapstructure:"shutdown_script_timeout"`
+	// Indexed Terraform resources by their label (what "terraform graph" uses to reference nodes).
+	tfResourcesByLabel map[string]map[string]*tfjson.StateResource
 
-	ConnectionTimeoutSeconds int32                        `mapstructure:"connection_timeout"`
-	TroubleshootingURL       string                       `mapstructure:"troubleshooting_url"`
-	MOTDFile                 string                       `mapstructure:"motd_file"`
-	Metadata                 []agentMetadata              `mapstructure:"metadata"`
-	DisplayApps              []agentDisplayAppsAttributes `mapstructure:"display_apps"`
-	Order                    int64                        `mapstructure:"order"`
-	ResourcesMonitoring      []agentResourcesMonitoring   `mapstructure:"resources_monitoring"`
-}
+	// Categorized resources for processing.
+	tfResourcesRichParameters []*tfjson.StateResource
+	tfResourcesPresets        []*tfjson.StateResource
+	tfResourcesAITasks        []*tfjson.StateResource
 
-type agentDevcontainerAttributes struct {
-	AgentID         string `mapstructure:"agent_id"`
-	WorkspaceFolder string `mapstructure:"workspace_folder"`
-	ConfigPath      string `mapstructure:"config_path"`
-}
+	// Output state.
+	resources      []*proto.Resource
+	resourceAgents map[string][]*proto.Agent
 
-type agentResourcesMonitoring struct {
-	Memory  []agentMemoryResourceMonitor `mapstructure:"memory"`
-	Volumes []agentVolumeResourceMonitor `mapstructure:"volume"`
-}
-
-type agentMemoryResourceMonitor struct {
-	Enabled   bool  `mapstructure:"enabled"`
-	Threshold int32 `mapstructure:"threshold"`
-}
-
-type agentVolumeResourceMonitor struct {
-	Path      string `mapstructure:"path"`
-	Enabled   bool   `mapstructure:"enabled"`
-	Threshold int32  `mapstructure:"threshold"`
-}
-
-type agentDisplayAppsAttributes struct {
-	VSCode               bool `mapstructure:"vscode"`
-	VSCodeInsiders       bool `mapstructure:"vscode_insiders"`
-	WebTerminal          bool `mapstructure:"web_terminal"`
-	SSHHelper            bool `mapstructure:"ssh_helper"`
-	PortForwardingHelper bool `mapstructure:"port_forwarding_helper"`
-}
-
-// A mapping of attributes on the "coder_app" resource.
-type agentAppAttributes struct {
-	ID      string `mapstructure:"id"`
-	AgentID string `mapstructure:"agent_id"`
-	// Slug is required in terraform, but to avoid breaking existing users we
-	// will default to the resource name if it is not specified.
-	Slug        string `mapstructure:"slug"`
-	DisplayName string `mapstructure:"display_name"`
-	// Name is deprecated in favor of DisplayName.
-	Name        string                     `mapstructure:"name"`
-	Icon        string                     `mapstructure:"icon"`
-	URL         string                     `mapstructure:"url"`
-	External    bool                       `mapstructure:"external"`
-	Command     string                     `mapstructure:"command"`
-	Share       string                     `mapstructure:"share"`
-	Subdomain   bool                       `mapstructure:"subdomain"`
-	Healthcheck []appHealthcheckAttributes `mapstructure:"healthcheck"`
-	Order       int64                      `mapstructure:"order"`
-	Group       string                     `mapstructure:"group"`
-	Hidden      bool                       `mapstructure:"hidden"`
-	OpenIn      string                     `mapstructure:"open_in"`
-	Tooltip     string                     `mapstructure:"tooltip"`
-}
-
-type agentEnvAttributes struct {
-	AgentID string `mapstructure:"agent_id"`
-	Name    string `mapstructure:"name"`
-	Value   string `mapstructure:"value"`
-}
-
-type agentScriptAttributes struct {
-	AgentID          string `mapstructure:"agent_id"`
-	DisplayName      string `mapstructure:"display_name"`
-	Icon             string `mapstructure:"icon"`
-	Script           string `mapstructure:"script"`
-	Cron             string `mapstructure:"cron"`
-	LogPath          string `mapstructure:"log_path"`
-	StartBlocksLogin bool   `mapstructure:"start_blocks_login"`
-	RunOnStart       bool   `mapstructure:"run_on_start"`
-	RunOnStop        bool   `mapstructure:"run_on_stop"`
-	TimeoutSeconds   int32  `mapstructure:"timeout"`
-}
-
-// A mapping of attributes on the "healthcheck" resource.
-type appHealthcheckAttributes struct {
-	URL       string `mapstructure:"url"`
-	Interval  int32  `mapstructure:"interval"`
-	Threshold int32  `mapstructure:"threshold"`
-}
-
-// A mapping of attributes on the "coder_metadata" resource.
-type resourceMetadataAttributes struct {
-	ResourceID string                 `mapstructure:"resource_id"`
-	Hide       bool                   `mapstructure:"hide"`
-	Icon       string                 `mapstructure:"icon"`
-	DailyCost  int32                  `mapstructure:"daily_cost"`
-	Items      []resourceMetadataItem `mapstructure:"item"`
-}
-
-type resourceMetadataItem struct {
-	Key       string `mapstructure:"key"`
-	Value     string `mapstructure:"value"`
-	Sensitive bool   `mapstructure:"sensitive"`
-	IsNull    bool   `mapstructure:"is_null"`
-}
-
-type State struct {
-	Resources             []*proto.Resource
-	Parameters            []*proto.RichParameter
-	Presets               []*proto.Preset
-	ExternalAuthProviders []*proto.ExternalAuthProviderResource
-	AITasks               []*proto.AITask
-	HasAITasks            bool
-	HasExternalAgents     bool
-}
-
-var ErrInvalidTerraformAddr = xerrors.New("invalid terraform address")
-
-// hasAITaskResources is used to determine if a template has *any* `coder_ai_task` resources defined. During template
-// import, it's possible that none of these have `count=1` since count may be dependent on the value of a `coder_parameter`
-// or something else.
-// We need to know at template import if these resources exist to inform the frontend of their existence.
-func hasAITaskResources(graph *gographviz.Graph) bool {
-	for _, node := range graph.Nodes.Lookup {
-		// Check if this node is a coder_ai_task resource
-		if label, exists := node.Attrs["label"]; exists {
-			labelValue := strings.Trim(label, `"`)
-			// The first condition is for the case where the resource is in the root module.
-			// The second condition is for the case where the resource is in a child module.
-			if strings.HasPrefix(labelValue, "coder_ai_task.") || strings.Contains(labelValue, ".coder_ai_task.") {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func hasExternalAgentResources(graph *gographviz.Graph) bool {
-	for _, node := range graph.Nodes.Lookup {
-		if label, exists := node.Attrs["label"]; exists {
-			labelValue := strings.Trim(label, `"`)
-			// The first condition is for the case where the resource is in the root module.
-			// The second condition is for the case where the resource is in a child module.
-			if strings.HasPrefix(labelValue, "coder_external_agent.") || strings.Contains(labelValue, ".coder_external_agent.") {
-				return true
-			}
-		}
-	}
-	return false
+	// Resource metadata collected during processing.
+	resourceMetadata map[string][]*proto.Resource_Metadata
+	resourceHidden   map[string]bool
+	resourceIcon     map[string]string
+	resourceCost     map[string]int32
 }
 
 // ConvertState consumes Terraform state and a GraphViz representation
 // produced by `terraform graph` to produce resources consumable by Coder.
-// nolint:gocognit // This function makes more sense being large for now, until refactored.
-func ConvertState2(ctx context.Context, modules []*tfjson.StateModule, rawGraph string, logger slog.Logger) (*State, error) {
+func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph string, logger slog.Logger) (*State, error) {
 	parsedGraph, err := gographviz.ParseString(rawGraph)
 	if err != nil {
 		return nil, xerrors.Errorf("parse graph: %w", err)
@@ -216,74 +61,147 @@ func ConvertState2(ctx context.Context, modules []*tfjson.StateModule, rawGraph 
 		return nil, xerrors.Errorf("analyze graph: %w", err)
 	}
 
-	resources := make([]*proto.Resource, 0)
-	resourceAgents := map[string][]*proto.Agent{}
+	converter := &stateConverter{
+		ctx:                       ctx,
+		logger:                    logger,
+		graph:                     graph,
+		tfResourcesByLabel:        make(map[string]map[string]*tfjson.StateResource),
+		tfResourcesRichParameters: make([]*tfjson.StateResource, 0),
+		tfResourcesPresets:        make([]*tfjson.StateResource, 0),
+		tfResourcesAITasks:        make([]*tfjson.StateResource, 0),
+		resources:                 make([]*proto.Resource, 0),
+		resourceAgents:            make(map[string][]*proto.Agent),
+	}
 
-	// Indexes Terraform resources by their label.
-	// The label is what "terraform graph" uses to reference nodes.
-	tfResourcesByLabel := map[string]map[string]*tfjson.StateResource{}
+	// Index all resources from the state.
+	converter.indexTerraformResources(modules)
 
-	// Extra array to preserve the order of rich parameters.
-	tfResourcesRichParameters := make([]*tfjson.StateResource, 0)
-	tfResourcesPresets := make([]*tfjson.StateResource, 0)
-	tfResourcesAITasks := make([]*tfjson.StateResource, 0)
-	var findTerraformResources func(mod *tfjson.StateModule)
-	findTerraformResources = func(mod *tfjson.StateModule) {
+	// Process agents first, as they are referenced by other resources.
+	if err := converter.processAgents(); err != nil {
+		return nil, err
+	}
+
+	// Associate agent instance IDs.
+	converter.processAgentInstances()
+
+	// Associate agent-related resources.
+	if err := converter.processAgentApps(); err != nil {
+		return nil, err
+	}
+	if err := converter.processAgentEnvs(); err != nil {
+		return nil, err
+	}
+	if err := converter.processAgentScripts(); err != nil {
+		return nil, err
+	}
+	if err := converter.processAgentDevcontainers(); err != nil {
+		return nil, err
+	}
+
+	// Process resource metadata.
+	if err := converter.processResourceMetadata(); err != nil {
+		return nil, err
+	}
+
+	// Build the final resource list.
+	converter.buildResources()
+
+	// Process parameters and presets.
+	parameters, err := converter.processParameters()
+	if err != nil {
+		return nil, err
+	}
+	presets, err := converter.processPresets(parameters)
+	if err != nil {
+		return nil, err
+	}
+
+	// Process AI tasks.
+	aiTasks, err := converter.processAITasks()
+	if err != nil {
+		return nil, err
+	}
+
+	// Process external auth providers.
+	externalAuthProviders, err := converter.processExternalAuthProviders()
+	if err != nil {
+		return nil, err
+	}
+
+	return &State{
+		Resources:             converter.resources,
+		Parameters:            parameters,
+		Presets:               presets,
+		ExternalAuthProviders: externalAuthProviders,
+		HasAITasks:            hasAITaskResources(converter.graph),
+		AITasks:               aiTasks,
+		HasExternalAgents:     hasExternalAgentResources(converter.graph),
+	}, nil
+}
+
+// indexTerraformResources recursively indexes all Terraform resources by label and categorizes special types.
+func (c *stateConverter) indexTerraformResources(modules []*tfjson.StateModule) {
+	var indexModule func(mod *tfjson.StateModule)
+	indexModule = func(mod *tfjson.StateModule) {
 		for _, module := range mod.ChildModules {
-			findTerraformResources(module)
+			indexModule(module)
 		}
 		for _, resource := range mod.Resources {
-			if resource.Type == "coder_parameter" {
-				tfResourcesRichParameters = append(tfResourcesRichParameters, resource)
-			}
-			if resource.Type == "coder_workspace_preset" {
-				tfResourcesPresets = append(tfResourcesPresets, resource)
-			}
-			if resource.Type == "coder_ai_task" {
-				tfResourcesAITasks = append(tfResourcesAITasks, resource)
+			// Categorize special resource types.
+			switch resource.Type {
+			case "coder_parameter":
+				c.tfResourcesRichParameters = append(c.tfResourcesRichParameters, resource)
+			case "coder_workspace_preset":
+				c.tfResourcesPresets = append(c.tfResourcesPresets, resource)
+			case "coder_ai_task":
+				c.tfResourcesAITasks = append(c.tfResourcesAITasks, resource)
 			}
 
+			// Index by label for graph lookups.
 			label := convertAddressToLabel(resource.Address)
-			if tfResourcesByLabel[label] == nil {
-				tfResourcesByLabel[label] = map[string]*tfjson.StateResource{}
+			if c.tfResourcesByLabel[label] == nil {
+				c.tfResourcesByLabel[label] = make(map[string]*tfjson.StateResource)
 			}
-			tfResourcesByLabel[label][resource.Address] = resource
+			c.tfResourcesByLabel[label][resource.Address] = resource
 		}
 	}
-	for _, module := range modules {
-		findTerraformResources(module)
-	}
 
-	// Find all agents!
-	agentNames := map[string]struct{}{}
-	for _, tfResources := range tfResourcesByLabel {
+	for _, module := range modules {
+		indexModule(module)
+	}
+}
+
+// processAgents finds all coder_agent resources, validates them, and associates them with their parent resources via the graph.
+func (c *stateConverter) processAgents() error {
+	agentNames := make(map[string]struct{})
+	for _, tfResources := range c.tfResourcesByLabel {
 		for _, tfResource := range tfResources {
 			if tfResource.Type != "coder_agent" {
 				continue
 			}
 			var attrs agentAttributes
-			err = mapstructure.Decode(tfResource.AttributeValues, &attrs)
+			err := mapstructure.Decode(tfResource.AttributeValues, &attrs)
 			if err != nil {
-				return nil, xerrors.Errorf("decode agent attributes: %w", err)
+				return xerrors.Errorf("decode agent attributes: %w", err)
 			}
 
 			// Similar logic is duplicated in terraform/resources.go.
 			if tfResource.Name == "" {
-				return nil, xerrors.Errorf("agent name cannot be empty")
+				return xerrors.Errorf("agent name cannot be empty")
 			}
 			// In 2025-02 we removed support for underscores in agent names. To
 			// provide a nicer error message, we check the regex first and check
 			// for underscores if it fails.
 			if !provisioner.AgentNameRegex.MatchString(tfResource.Name) {
 				if strings.Contains(tfResource.Name, "_") {
-					return nil, xerrors.Errorf("agent name %q contains underscores which are no longer supported, please use hyphens instead (regex: %q)", tfResource.Name, provisioner.AgentNameRegex.String())
+					return xerrors.Errorf("agent name %q contains underscores which are no longer supported, please use hyphens instead (regex: %q)", tfResource.Name, provisioner.AgentNameRegex.String())
 				}
-				return nil, xerrors.Errorf("agent name %q does not match regex %q", tfResource.Name, provisioner.AgentNameRegex.String())
+				return xerrors.Errorf("agent name %q does not match regex %q", tfResource.Name, provisioner.AgentNameRegex.String())
 			}
 			// Agent names must be case-insensitive-unique, to be unambiguous in
 			// `coder_app`s and CoderVPN DNS names.
 			if _, ok := agentNames[strings.ToLower(tfResource.Name)]; ok {
-				return nil, xerrors.Errorf("duplicate agent name: %s", tfResource.Name)
+				return xerrors.Errorf("duplicate agent name: %s", tfResource.Name)
 			}
 			agentNames[strings.ToLower(tfResource.Name)] = struct{}{}
 
@@ -404,7 +322,7 @@ func ConvertState2(ctx context.Context, modules []*tfjson.StateModule, rawGraph 
 			agentLabel := convertAddressToLabel(tfResource.Address)
 
 			var agentNode *gographviz.Node
-			for _, node := range graph.Nodes.Lookup {
+			for _, node := range c.graph.Nodes.Lookup {
 				// The node attributes surround the label with quotes.
 				if strings.Trim(node.Attrs["label"], `"`) != agentLabel {
 					continue
@@ -413,11 +331,11 @@ func ConvertState2(ctx context.Context, modules []*tfjson.StateModule, rawGraph 
 				break
 			}
 			if agentNode == nil {
-				return nil, xerrors.Errorf("couldn't find node on graph: %q", agentLabel)
+				return xerrors.Errorf("couldn't find node on graph: %q", agentLabel)
 			}
 
 			var agentResource *graphResource
-			for _, resource := range findResourcesInGraph(graph, tfResourcesByLabel, agentNode.Name, 0, true) {
+			for _, resource := range findResourcesInGraph(c.graph, c.tfResourcesByLabel, agentNode.Name, 0, true) {
 				if agentResource == nil {
 					// Default to the first resource because we have nothing to compare!
 					agentResource = resource
@@ -438,17 +356,20 @@ func ConvertState2(ctx context.Context, modules []*tfjson.StateModule, rawGraph 
 				continue
 			}
 
-			agents, exists := resourceAgents[agentResource.Label]
+			agents, exists := c.resourceAgents[agentResource.Label]
 			if !exists {
 				agents = make([]*proto.Agent, 0, 1)
 			}
 			agents = append(agents, agent)
-			resourceAgents[agentResource.Label] = agents
+			c.resourceAgents[agentResource.Label] = agents
 		}
 	}
+	return nil
+}
 
-	// Manually associate agents with instance IDs.
-	for _, resources := range tfResourcesByLabel {
+// processAgentInstances associates instance IDs with agents that use instance-based authentication.
+func (c *stateConverter) processAgentInstances() {
+	for _, resources := range c.tfResourcesByLabel {
 		for _, resource := range resources {
 			if resource.Type != "coder_agent_instance" {
 				continue
@@ -470,7 +391,7 @@ func ConvertState2(ctx context.Context, modules []*tfjson.StateModule, rawGraph 
 				continue
 			}
 
-			for _, agents := range resourceAgents {
+			for _, agents := range c.resourceAgents {
 				for _, agent := range agents {
 					if agent.Id != agentID {
 						continue
@@ -490,19 +411,21 @@ func ConvertState2(ctx context.Context, modules []*tfjson.StateModule, rawGraph 
 			}
 		}
 	}
+}
 
-	// Associate Apps with agents.
+// processAgentApps associates coder_app resources with their agents.
+func (c *stateConverter) processAgentApps() error {
 	appSlugs := make(map[string]struct{})
-	for _, resources := range tfResourcesByLabel {
+	for _, resources := range c.tfResourcesByLabel {
 		for _, resource := range resources {
 			if resource.Type != "coder_app" {
 				continue
 			}
 
 			var attrs agentAppAttributes
-			err = mapstructure.Decode(resource.AttributeValues, &attrs)
+			err := mapstructure.Decode(resource.AttributeValues, &attrs)
 			if err != nil {
-				return nil, xerrors.Errorf("decode app attributes: %w", err)
+				return xerrors.Errorf("decode app attributes: %w", err)
 			}
 
 			// Default to the resource name if none is set!
@@ -522,11 +445,11 @@ func ConvertState2(ctx context.Context, modules []*tfjson.StateModule, rawGraph 
 			// Contrary to agent names above, app slugs were never permitted to
 			// contain uppercase letters or underscores.
 			if !provisioner.AppSlugRegex.MatchString(attrs.Slug) {
-				return nil, xerrors.Errorf("app slug %q does not match regex %q", attrs.Slug, provisioner.AppSlugRegex.String())
+				return xerrors.Errorf("app slug %q does not match regex %q", attrs.Slug, provisioner.AppSlugRegex.String())
 			}
 
 			if _, exists := appSlugs[attrs.Slug]; exists {
-				return nil, xerrors.Errorf("duplicate app slug, they must be unique per template: %q", attrs.Slug)
+				return xerrors.Errorf("duplicate app slug, they must be unique per template: %q", attrs.Slug)
 			}
 			appSlugs[attrs.Slug] = struct{}{}
 
@@ -557,11 +480,11 @@ func ConvertState2(ctx context.Context, modules []*tfjson.StateModule, rawGraph 
 				openIn = proto.AppOpenIn_TAB
 			}
 
-			for _, agents := range resourceAgents {
+			for _, agents := range c.resourceAgents {
 				for _, agent := range agents {
 					// Find agents with the matching ID and associate them!
 
-					if !dependsOnAgent(graph, agent, attrs.AgentID, resource) {
+					if !dependsOnAgent(c.graph, agent, attrs.AgentID, resource) {
 						continue
 					}
 
@@ -569,7 +492,7 @@ func ConvertState2(ctx context.Context, modules []*tfjson.StateModule, rawGraph 
 					if id == "" {
 						// This should never happen since the "id" attribute is set on creation:
 						// https://github.com/coder/terraform-provider-coder/blob/cfa101df4635e405e66094fa7779f9a89d92f400/provider/app.go#L37
-						logger.Warn(ctx, "coder_app's id was unexpectedly empty", slog.F("name", attrs.Name))
+						c.logger.Warn(c.ctx, "coder_app's id was unexpectedly empty", slog.F("name", attrs.Name))
 
 						id = uuid.NewString()
 					}
@@ -595,22 +518,25 @@ func ConvertState2(ctx context.Context, modules []*tfjson.StateModule, rawGraph 
 			}
 		}
 	}
+	return nil
+}
 
-	// Associate envs with agents.
-	for _, resources := range tfResourcesByLabel {
+// processAgentEnvs associates coder_env resources with their agents.
+func (c *stateConverter) processAgentEnvs() error {
+	for _, resources := range c.tfResourcesByLabel {
 		for _, resource := range resources {
 			if resource.Type != "coder_env" {
 				continue
 			}
 			var attrs agentEnvAttributes
-			err = mapstructure.Decode(resource.AttributeValues, &attrs)
+			err := mapstructure.Decode(resource.AttributeValues, &attrs)
 			if err != nil {
-				return nil, xerrors.Errorf("decode env attributes: %w", err)
+				return xerrors.Errorf("decode env attributes: %w", err)
 			}
-			for _, agents := range resourceAgents {
+			for _, agents := range c.resourceAgents {
 				for _, agent := range agents {
 					// Find agents with the matching ID and associate them!
-					if !dependsOnAgent(graph, agent, attrs.AgentID, resource) {
+					if !dependsOnAgent(c.graph, agent, attrs.AgentID, resource) {
 						continue
 					}
 					agent.ExtraEnvs = append(agent.ExtraEnvs, &proto.Env{
@@ -621,22 +547,25 @@ func ConvertState2(ctx context.Context, modules []*tfjson.StateModule, rawGraph 
 			}
 		}
 	}
+	return nil
+}
 
-	// Associate scripts with agents.
-	for _, resources := range tfResourcesByLabel {
+// processAgentScripts associates coder_script resources with their agents.
+func (c *stateConverter) processAgentScripts() error {
+	for _, resources := range c.tfResourcesByLabel {
 		for _, resource := range resources {
 			if resource.Type != "coder_script" {
 				continue
 			}
 			var attrs agentScriptAttributes
-			err = mapstructure.Decode(resource.AttributeValues, &attrs)
+			err := mapstructure.Decode(resource.AttributeValues, &attrs)
 			if err != nil {
-				return nil, xerrors.Errorf("decode script attributes: %w", err)
+				return xerrors.Errorf("decode script attributes: %w", err)
 			}
-			for _, agents := range resourceAgents {
+			for _, agents := range c.resourceAgents {
 				for _, agent := range agents {
 					// Find agents with the matching ID and associate them!
-					if !dependsOnAgent(graph, agent, attrs.AgentID, resource) {
+					if !dependsOnAgent(c.graph, agent, attrs.AgentID, resource) {
 						continue
 					}
 					agent.Scripts = append(agent.Scripts, &proto.Script{
@@ -654,22 +583,25 @@ func ConvertState2(ctx context.Context, modules []*tfjson.StateModule, rawGraph 
 			}
 		}
 	}
+	return nil
+}
 
-	// Associate Dev Containers with agents.
-	for _, resources := range tfResourcesByLabel {
+// processAgentDevcontainers associates coder_devcontainer resources with their agents.
+func (c *stateConverter) processAgentDevcontainers() error {
+	for _, resources := range c.tfResourcesByLabel {
 		for _, resource := range resources {
 			if resource.Type != "coder_devcontainer" {
 				continue
 			}
 			var attrs agentDevcontainerAttributes
-			err = mapstructure.Decode(resource.AttributeValues, &attrs)
+			err := mapstructure.Decode(resource.AttributeValues, &attrs)
 			if err != nil {
-				return nil, xerrors.Errorf("decode script attributes: %w", err)
+				return xerrors.Errorf("decode script attributes: %w", err)
 			}
-			for _, agents := range resourceAgents {
+			for _, agents := range c.resourceAgents {
 				for _, agent := range agents {
 					// Find agents with the matching ID and associate them!
-					if !dependsOnAgent(graph, agent, attrs.AgentID, resource) {
+					if !dependsOnAgent(c.graph, agent, attrs.AgentID, resource) {
 						continue
 					}
 					agent.Devcontainers = append(agent.Devcontainers, &proto.Devcontainer{
@@ -681,29 +613,32 @@ func ConvertState2(ctx context.Context, modules []*tfjson.StateModule, rawGraph 
 			}
 		}
 	}
+	return nil
+}
 
-	// Associate metadata blocks with resources.
-	resourceMetadata := map[string][]*proto.Resource_Metadata{}
-	resourceHidden := map[string]bool{}
-	resourceIcon := map[string]string{}
-	resourceCost := map[string]int32{}
+// processResourceMetadata associates coder_metadata resources with their target resources and collects metadata.
+func (c *stateConverter) processResourceMetadata() error {
+	resourceMetadata := make(map[string][]*proto.Resource_Metadata)
+	resourceHidden := make(map[string]bool)
+	resourceIcon := make(map[string]string)
+	resourceCost := make(map[string]int32)
 
-	metadataTargetLabels := map[string]bool{}
-	for _, resources := range tfResourcesByLabel {
+	metadataTargetLabels := make(map[string]bool)
+	for _, resources := range c.tfResourcesByLabel {
 		for _, resource := range resources {
 			if resource.Type != "coder_metadata" {
 				continue
 			}
 
 			var attrs resourceMetadataAttributes
-			err = mapstructure.Decode(resource.AttributeValues, &attrs)
+			err := mapstructure.Decode(resource.AttributeValues, &attrs)
 			if err != nil {
-				return nil, xerrors.Errorf("decode metadata attributes: %w", err)
+				return xerrors.Errorf("decode metadata attributes: %w", err)
 			}
 			resourceLabel := convertAddressToLabel(resource.Address)
 
 			var attachedNode *gographviz.Node
-			for _, node := range graph.Nodes.Lookup {
+			for _, node := range c.graph.Nodes.Lookup {
 				// The node attributes surround the label with quotes.
 				if strings.Trim(node.Attrs["label"], `"`) != resourceLabel {
 					continue
@@ -715,7 +650,7 @@ func ConvertState2(ctx context.Context, modules []*tfjson.StateModule, rawGraph 
 				continue
 			}
 			var attachedResource *graphResource
-			for _, resource := range findResourcesInGraph(graph, tfResourcesByLabel, attachedNode.Name, 0, false) {
+			for _, resource := range findResourcesInGraph(c.graph, c.tfResourcesByLabel, attachedNode.Name, 0, false) {
 				if attachedResource == nil {
 					// Default to the first resource because we have nothing to compare!
 					attachedResource = resource
@@ -737,7 +672,7 @@ func ConvertState2(ctx context.Context, modules []*tfjson.StateModule, rawGraph 
 			targetLabel := attachedResource.Label
 
 			if metadataTargetLabels[targetLabel] {
-				return nil, xerrors.Errorf("duplicate metadata resource: %s", targetLabel)
+				return xerrors.Errorf("duplicate metadata resource: %s", targetLabel)
 			}
 			metadataTargetLabels[targetLabel] = true
 
@@ -756,7 +691,17 @@ func ConvertState2(ctx context.Context, modules []*tfjson.StateModule, rawGraph 
 		}
 	}
 
-	for _, tfResources := range tfResourcesByLabel {
+	// Store metadata for use in buildResources.
+	c.resourceMetadata = resourceMetadata
+	c.resourceHidden = resourceHidden
+	c.resourceIcon = resourceIcon
+	c.resourceCost = resourceCost
+	return nil
+}
+
+// buildResources creates the final proto.Resource list from indexed resources and associated agents/metadata.
+func (c *stateConverter) buildResources() {
+	for _, tfResources := range c.tfResourcesByLabel {
 		for _, resource := range tfResources {
 			if resource.Mode == tfjson.DataResourceMode {
 				continue
@@ -777,33 +722,36 @@ func ConvertState2(ctx context.Context, modules []*tfjson.StateModule, rawGraph 
 				// indicates "this resource was created before module paths
 				// were tracked."
 				modulePath = fmt.Sprintf("%s", ErrInvalidTerraformAddr)
-				logger.Error(ctx, "failed to parse Terraform address", slog.F("address", resource.Address))
+				c.logger.Error(c.ctx, "failed to parse Terraform address", slog.F("address", resource.Address))
 			}
 
-			agents, exists := resourceAgents[label]
+			agents, exists := c.resourceAgents[label]
 			if exists {
 				applyAutomaticInstanceID(resource, agents)
 			}
 
-			resources = append(resources, &proto.Resource{
+			c.resources = append(c.resources, &proto.Resource{
 				Name:         resource.Name,
 				Type:         resource.Type,
 				Agents:       agents,
-				Metadata:     resourceMetadata[label],
-				Hide:         resourceHidden[label],
-				Icon:         resourceIcon[label],
-				DailyCost:    resourceCost[label],
+				Metadata:     c.resourceMetadata[label],
+				Hide:         c.resourceHidden[label],
+				Icon:         c.resourceIcon[label],
+				DailyCost:    c.resourceCost[label],
 				InstanceType: applyInstanceType(resource),
 				ModulePath:   modulePath,
 			})
 		}
 	}
+}
 
+// processParameters converts coder_parameter resources to proto.RichParameter.
+func (c *stateConverter) processParameters() ([]*proto.RichParameter, error) {
 	var duplicatedParamNames []string
 	parameters := make([]*proto.RichParameter, 0)
-	for _, resource := range tfResourcesRichParameters {
+	for _, resource := range c.tfResourcesRichParameters {
 		var param provider.Parameter
-		err = mapstructure.Decode(resource.AttributeValues, &param)
+		err := mapstructure.Decode(resource.AttributeValues, &param)
 		if err != nil {
 			return nil, xerrors.Errorf("decode map values for coder_parameter.%s: %w", resource.Name, err)
 		}
@@ -901,11 +849,16 @@ func ConvertState2(ctx context.Context, modules []*tfjson.StateModule, rawGraph 
 		)
 	}
 
+	return parameters, nil
+}
+
+// processPresets converts coder_workspace_preset resources to proto.Preset.
+func (c *stateConverter) processPresets(parameters []*proto.RichParameter) ([]*proto.Preset, error) {
 	var duplicatedPresetNames []string
 	presets := make([]*proto.Preset, 0)
-	for _, resource := range tfResourcesPresets {
+	for _, resource := range c.tfResourcesPresets {
 		var preset provider.WorkspacePreset
-		err = mapstructure.Decode(resource.AttributeValues, &preset)
+		err := mapstructure.Decode(resource.AttributeValues, &preset)
 		if err != nil {
 			return nil, xerrors.Errorf("decode preset attributes: %w", err)
 		}
@@ -946,16 +899,16 @@ func ConvertState2(ctx context.Context, modules []*tfjson.StateModule, rawGraph 
 		}
 
 		if len(nonExistentParameters) > 0 {
-			logger.Warn(
-				ctx,
+			c.logger.Warn(
+				c.ctx,
 				"coder_workspace_preset defines preset values for at least one parameter that is not defined by the template",
 				slog.F("parameters", stringutil.JoinWithConjunction(nonExistentParameters)),
 			)
 		}
 
 		if len(preset.Prebuilds) != 1 {
-			logger.Warn(
-				ctx,
+			c.logger.Warn(
+				c.ctx,
 				"coder_workspace_preset must have exactly one prebuild block",
 			)
 		}
@@ -1013,11 +966,16 @@ func ConvertState2(ctx context.Context, modules []*tfjson.StateModule, rawGraph 
 		return nil, xerrors.Errorf("a maximum of 1 coder_workspace_preset can be marked as default, but %d are set", defaultPresets)
 	}
 
+	return presets, nil
+}
+
+// processAITasks converts coder_ai_task resources to proto.AITask.
+func (c *stateConverter) processAITasks() ([]*proto.AITask, error) {
 	// This will only pick up resources which will actually be created.
-	aiTasks := make([]*proto.AITask, 0, len(tfResourcesAITasks))
-	for _, resource := range tfResourcesAITasks {
+	aiTasks := make([]*proto.AITask, 0, len(c.tfResourcesAITasks))
+	for _, resource := range c.tfResourcesAITasks {
 		var task provider.AITask
-		err = mapstructure.Decode(resource.AttributeValues, &task)
+		err := mapstructure.Decode(resource.AttributeValues, &task)
 		if err != nil {
 			return nil, xerrors.Errorf("decode coder_ai_task attributes: %w", err)
 		}
@@ -1036,9 +994,14 @@ func ConvertState2(ctx context.Context, modules []*tfjson.StateModule, rawGraph 
 		})
 	}
 
+	return aiTasks, nil
+}
+
+// processExternalAuthProviders collects coder_external_auth resources.
+func (c *stateConverter) processExternalAuthProviders() ([]*proto.ExternalAuthProviderResource, error) {
 	// A map is used to ensure we don't have duplicates!
-	externalAuthProvidersMap := map[string]*proto.ExternalAuthProviderResource{}
-	for _, tfResources := range tfResourcesByLabel {
+	externalAuthProvidersMap := make(map[string]*proto.ExternalAuthProviderResource)
+	for _, tfResources := range c.tfResourcesByLabel {
 		for _, resource := range tfResources {
 			// Checking for `coder_git_auth` is legacy!
 			if resource.Type != "coder_external_auth" && resource.Type != "coder_git_auth" {
@@ -1066,213 +1029,5 @@ func ConvertState2(ctx context.Context, modules []*tfjson.StateModule, rawGraph 
 		externalAuthProviders = append(externalAuthProviders, it)
 	}
 
-	hasAITasks := hasAITaskResources(graph)
-
-	return &State{
-		Resources:             resources,
-		Parameters:            parameters,
-		Presets:               presets,
-		ExternalAuthProviders: externalAuthProviders,
-		HasAITasks:            hasAITasks,
-		AITasks:               aiTasks,
-		HasExternalAgents:     hasExternalAgentResources(graph),
-	}, nil
-}
-
-func convertScheduling(scheduling provider.Scheduling) *proto.Scheduling {
-	return &proto.Scheduling{
-		Timezone: scheduling.Timezone,
-		Schedule: convertSchedules(scheduling.Schedule),
-	}
-}
-
-func convertSchedules(schedules []provider.Schedule) []*proto.Schedule {
-	protoSchedules := make([]*proto.Schedule, len(schedules))
-	for i, schedule := range schedules {
-		protoSchedules[i] = convertSchedule(schedule)
-	}
-
-	return protoSchedules
-}
-
-func convertSchedule(schedule provider.Schedule) *proto.Schedule {
-	return &proto.Schedule{
-		Cron:      schedule.Cron,
-		Instances: safeInt32Conversion(schedule.Instances),
-	}
-}
-
-func safeInt32Conversion(n int) int32 {
-	if n > math.MaxInt32 {
-		return math.MaxInt32
-	}
-	// #nosec G115 - Safe conversion, as we have explicitly checked that the number does not exceed math.MaxInt32.
-	return int32(n)
-}
-
-func PtrInt32(number int) *int32 {
-	// #nosec G115 - Safe conversion as the number is expected to be within int32 range
-	n := int32(number)
-	return &n
-}
-
-// convertAddressToLabel returns the Terraform address without the count
-// specifier.
-// eg. "module.ec2_dev.ec2_instance.dev[0]" becomes "module.ec2_dev.ec2_instance.dev"
-func convertAddressToLabel(address string) string {
-	cut, _, _ := strings.Cut(address, "[")
-	return cut
-}
-
-// convertAddressToModulePath returns the module path from a Terraform address.
-// eg. "module.ec2_dev.ec2_instance.dev[0]" becomes "module.ec2_dev".
-// Empty string is returned for the root module.
-//
-// Module paths are defined in the Terraform spec:
-// https://github.com/hashicorp/terraform/blob/ef071f3d0e49ba421ae931c65b263827a8af1adb/website/docs/internals/resource-addressing.html.markdown#module-path
-func convertAddressToModulePath(address string) (string, error) {
-	addr, err := tfaddr.NewAddress(address)
-	if err != nil {
-		return "", xerrors.Errorf("parse terraform address: %w", err)
-	}
-	return addr.ModulePath.String(), nil
-}
-
-func dependsOnAgent(graph *gographviz.Graph, agent *proto.Agent, resourceAgentID string, resource *tfjson.StateResource) bool {
-	// Plan: we need to find if there is edge between the agent and the resource.
-	if agent.Id == "" && resourceAgentID == "" {
-		resourceNodeSuffix := fmt.Sprintf(`] %s.%s (expand)"`, resource.Type, resource.Name)
-		agentNodeSuffix := fmt.Sprintf(`] coder_agent.%s (expand)"`, agent.Name)
-
-		// Traverse the graph to check if the coder_<resource_type> depends on coder_agent.
-		for _, dst := range graph.Edges.SrcToDsts {
-			for _, edges := range dst {
-				for _, edge := range edges {
-					if strings.HasSuffix(edge.Src, resourceNodeSuffix) &&
-						strings.HasSuffix(edge.Dst, agentNodeSuffix) {
-						return true
-					}
-				}
-			}
-		}
-		return false
-	}
-
-	// Provision: agent ID and child resource ID are present
-	return agent.Id == resourceAgentID
-}
-
-type graphResource struct {
-	Label string
-	Depth uint
-}
-
-// applyInstanceType sets the instance type on an agent if it matches
-// one of the special resource types that we track.
-func applyInstanceType(resource *tfjson.StateResource) string {
-	key, isValid := map[string]string{
-		"google_compute_instance":         "machine_type",
-		"aws_instance":                    "instance_type",
-		"aws_spot_instance_request":       "instance_type",
-		"azurerm_linux_virtual_machine":   "size",
-		"azurerm_windows_virtual_machine": "size",
-	}[resource.Type]
-	if !isValid {
-		return ""
-	}
-
-	instanceTypeRaw, isValid := resource.AttributeValues[key]
-	if !isValid {
-		return ""
-	}
-	instanceType, isValid := instanceTypeRaw.(string)
-	if !isValid {
-		return ""
-	}
-	return instanceType
-}
-
-// applyAutomaticInstanceID checks if the resource is one of a set of *magical* IDs
-// that automatically index their identifier for automatic authentication.
-func applyAutomaticInstanceID(resource *tfjson.StateResource, agents []*proto.Agent) {
-	// These resource types are for automatically associating an instance ID
-	// with an agent for authentication.
-	key, isValid := map[string]string{
-		"google_compute_instance":         "instance_id",
-		"aws_instance":                    "id",
-		"aws_spot_instance_request":       "spot_instance_id",
-		"azurerm_linux_virtual_machine":   "virtual_machine_id",
-		"azurerm_windows_virtual_machine": "virtual_machine_id",
-	}[resource.Type]
-	if !isValid {
-		return
-	}
-
-	// The resource type doesn't support
-	// automatically setting the instance ID.
-	instanceIDRaw, isValid := resource.AttributeValues[key]
-	if !isValid {
-		return
-	}
-	instanceID, isValid := instanceIDRaw.(string)
-	if !isValid {
-		return
-	}
-	for _, agent := range agents {
-		// Didn't use instance identity.
-		if agent.GetToken() != "" {
-			continue
-		}
-		if agent.GetInstanceId() != "" {
-			// If an instance ID is manually specified, do not override!
-			continue
-		}
-
-		agent.Auth = &proto.Agent_InstanceId{
-			InstanceId: instanceID,
-		}
-	}
-}
-
-// findResourcesInGraph traverses directionally in a graph until a resource is found,
-// then it stores the depth it was found at, and continues working up the tree.
-// nolint:revive
-func findResourcesInGraph(graph *gographviz.Graph, tfResourcesByLabel map[string]map[string]*tfjson.StateResource, nodeName string, currentDepth uint, up bool) []*graphResource {
-	graphResources := make([]*graphResource, 0)
-	mapping := graph.Edges.DstToSrcs
-	if !up {
-		mapping = graph.Edges.SrcToDsts
-	}
-	for destination := range mapping[nodeName] {
-		destinationNode := graph.Nodes.Lookup[destination]
-		// Work our way up the tree!
-		graphResources = append(graphResources, findResourcesInGraph(graph, tfResourcesByLabel, destinationNode.Name, currentDepth+1, up)...)
-
-		destinationLabel, exists := destinationNode.Attrs["label"]
-		if !exists {
-			continue
-		}
-		destinationLabel = strings.Trim(destinationLabel, `"`)
-		resources, exists := tfResourcesByLabel[destinationLabel]
-		if !exists {
-			continue
-		}
-		for _, resource := range resources {
-			// Data sources cannot be associated with agents for now!
-			if resource.Mode != tfjson.ManagedResourceMode {
-				continue
-			}
-			// Don't associate Coder resources with other Coder resources!
-			// Except for coder_external_agent, which is a special case.
-			if strings.HasPrefix(resource.Type, "coder_") && resource.Type != "coder_external_agent" {
-				continue
-			}
-			graphResources = append(graphResources, &graphResource{
-				Label: destinationLabel,
-				Depth: currentDepth,
-			})
-		}
-	}
-
-	return graphResources
+	return externalAuthProviders, nil
 }
