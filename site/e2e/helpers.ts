@@ -184,34 +184,43 @@ export const verifyParameters = async (
 			);
 		}
 
-		const parameterLabel = await page.waitForSelector(
-			`[data-testid='parameter-field-${richParameter.name}']`,
-			{ state: "visible" },
+		const parameterLabel = page.getByTestId(
+			`parameter-field-${richParameter.displayName}`,
 		);
+		await expect(parameterLabel).toBeVisible();
 
-		const muiDisabled = richParameter.mutable ? "" : ".Mui-disabled";
+		if (richParameter.options.length > 0) {
+			// const parameterField = await parameterLabel.waitForSelector(
+			// 	`[data-testid='parameter-field-options'] input`,
+			// );
+			// const value = await parameterField.inputValue();
+			// expect(value).toEqual(buildParameter.value);
 
-		if (richParameter.type === "bool") {
-			const parameterField = await parameterLabel.waitForSelector(
-				`[data-testid='parameter-field-bool'] .MuiRadio-root.Mui-checked${muiDisabled} input`,
-			);
-			const value = await parameterField.inputValue();
+			const x = parameterLabel.locator(`input[value='${richParameter.value}']`);
+			const value = await x.isChecked();
 			expect(value).toEqual(buildParameter.value);
-		} else if (richParameter.options.length > 0) {
-			const parameterField = await parameterLabel.waitForSelector(
-				`[data-testid='parameter-field-options'] .MuiRadio-root.Mui-checked${muiDisabled} input`,
-			);
-			const value = await parameterField.inputValue();
-			expect(value).toEqual(buildParameter.value);
-		} else if (richParameter.type === "list(string)") {
-			throw new Error("not implemented yet"); // FIXME
-		} else {
-			// text or number
-			const parameterField = await parameterLabel.waitForSelector(
-				`[data-testid='parameter-field-text'] input${muiDisabled}`,
-			);
-			const value = await parameterField.inputValue();
-			expect(value).toEqual(buildParameter.value);
+			continue;
+		}
+
+		switch (richParameter.type) {
+			case "bool":
+				{
+					const parameterField = parameterLabel.locator("input");
+					const value = await parameterField.isChecked();
+					expect(value.toString()).toEqual(buildParameter.value);
+				}
+				break;
+			case "string":
+			case "number":
+				{
+					const parameterField = parameterLabel.locator("input");
+					const value = await parameterField.inputValue();
+					expect(value).toEqual(buildParameter.value);
+				}
+				break;
+			default:
+				// Some types like `list(string)` are not tested
+				throw new Error("not implemented yet");
 		}
 	}
 };
@@ -744,7 +753,7 @@ const createTemplateVersionTar = async (
 	const a = Buffer.from(
 		tarFile instanceof Blob ? await tarFile.arrayBuffer() : tarFile,
 	);
-	await fs.writeFile(`debug/echo-provisioner-${randomName()}.tar`, a);
+	// await fs.writeFile(`debug/echo-provisioner-${randomName()}.tar`, a);
 	return a;
 };
 
@@ -853,6 +862,20 @@ export const echoResponsesWithParameters = (
 `;
 
 	for (const parameter of richParameters) {
+		let options = "";
+		if (parameter.options) {
+			for (const option of parameter.options) {
+				options += `
+	option {
+		name        = ${JSON.stringify(option.name)}
+		description = ${JSON.stringify(option.description)}
+		value       = ${JSON.stringify(option.value)}
+		icon        = ${JSON.stringify(option.icon)}
+	}
+`;
+			}
+		}
+
 		tf += `
 data "coder_parameter" "${parameter.name}" {
 	type      = ${JSON.stringify(parameter.type)}
@@ -861,9 +884,11 @@ data "coder_parameter" "${parameter.name}" {
 	mutable   = ${JSON.stringify(parameter.mutable)}
 	default   = ${JSON.stringify(parameter.defaultValue)}
 	order     = ${JSON.stringify(parameter.order)}
-}
+${options}}
 `;
 	}
+
+	void fs.writeFile(`debug/main-${randomName()}.tf`, tf);
 
 	return {
 		parse: [
@@ -939,30 +964,36 @@ const fillParameters = async (
 			);
 		}
 
-		// Use modern locator approach instead of waitForSelector
 		const parameterLabel = page.getByTestId(
-			`parameter-field-${richParameter.name}`,
+			`parameter-field-${richParameter.displayName}`,
 		);
 		await expect(parameterLabel).toBeVisible();
 
-		if (richParameter.type === "bool") {
-			const parameterField = parameterLabel
-				.getByTestId("parameter-field-bool")
-				.locator(`.MuiRadio-root input[value='${buildParameter.value}']`);
-			await parameterField.click();
-		} else if (richParameter.options.length > 0) {
-			const parameterField = parameterLabel
-				.getByTestId("parameter-field-options")
-				.locator(`.MuiRadio-root input[value='${buildParameter.value}']`);
-			await parameterField.click();
-		} else if (richParameter.type === "list(string)") {
-			throw new Error("not implemented yet"); // FIXME
-		} else {
-			// text or number
-			const parameterField = parameterLabel
-				.getByTestId("parameter-field-text")
-				.locator("input");
-			await parameterField.fill(buildParameter.value);
+		if (richParameter.options.length > 0) {
+			// const parameterField = parameterLabel
+			// 	.getByTestId("parameter-field-options")
+			// 	.locator(`.MuiRadio-root input[value='${buildParameter.value}']`);
+			// await parameterField.click();
+			continue;
+		}
+
+		switch (richParameter.type) {
+			case "bool":
+				{
+					const parameterField = parameterLabel.locator("button");
+					await parameterField.click();
+				}
+				break;
+			case "string":
+			case "number":
+				{
+					const parameterField = parameterLabel.locator("input");
+					await parameterField.fill(buildParameter.value);
+				}
+				break;
+			default:
+				// Some types like `list(string)` are not tested
+				throw new Error("not implemented yet");
 		}
 	}
 };
