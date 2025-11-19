@@ -2482,8 +2482,15 @@ export const InsightsReportIntervals: InsightsReportInterval[] = [
 ];
 
 // From codersdk/templates.go
-export interface InvalidatePrebuildsResponse {
-	readonly invalidated_presets: readonly string[];
+export interface InvalidatePresetsResponse {
+	readonly invalidated: readonly InvalidatedPreset[];
+}
+
+// From codersdk/templates.go
+export interface InvalidatedPreset {
+	readonly template_name: string;
+	readonly template_version_name: string;
+	readonly preset_name: string;
 }
 
 // From codersdk/workspaceagents.go

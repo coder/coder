@@ -3813,17 +3813,21 @@ curl -X POST http://coder-server:8080/api/v2/templates/{template}/prebuilds/inva
 
 ```json
 {
-  "invalidated_presets": [
-    "string"
+  "invalidated": [
+    {
+      "preset_name": "string",
+      "template_name": "string",
+      "template_version_name": "string"
+    }
   ]
 }
 ```
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                                 |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.InvalidatePrebuildsResponse](schemas.md#codersdkinvalidateprebuildsresponse) |
+| Status | Meaning                                                 | Description | Schema                                                                             |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.InvalidatePresetsResponse](schemas.md#codersdkinvalidatepresetsresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

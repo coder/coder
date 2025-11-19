@@ -4715,21 +4715,43 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `day`  |
 | `week` |
 
-## codersdk.InvalidatePrebuildsResponse
+## codersdk.InvalidatePresetsResponse
 
 ```json
 {
-  "invalidated_presets": [
-    "string"
+  "invalidated": [
+    {
+      "preset_name": "string",
+      "template_name": "string",
+      "template_version_name": "string"
+    }
   ]
 }
 ```
 
 ### Properties
 
-| Name                  | Type            | Required | Restrictions | Description |
-|-----------------------|-----------------|----------|--------------|-------------|
-| `invalidated_presets` | array of string | false    |              |             |
+| Name          | Type                                                              | Required | Restrictions | Description |
+|---------------|-------------------------------------------------------------------|----------|--------------|-------------|
+| `invalidated` | array of [codersdk.InvalidatedPreset](#codersdkinvalidatedpreset) | false    |              |             |
+
+## codersdk.InvalidatedPreset
+
+```json
+{
+  "preset_name": "string",
+  "template_name": "string",
+  "template_version_name": "string"
+}
+```
+
+### Properties
+
+| Name                    | Type   | Required | Restrictions | Description |
+|-------------------------|--------|----------|--------------|-------------|
+| `preset_name`           | string | false    |              |             |
+| `template_name`         | string | false    |              |             |
+| `template_version_name` | string | false    |              |             |
 
 ## codersdk.IssueReconnectingPTYSignedTokenRequest
 
