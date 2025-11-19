@@ -155,3 +155,18 @@ func printTimings(t *testing.T, timings []*proto.Timing) {
 		terraform_internal.PrintTiming(t, a)
 	}
 }
+
+func TestTimingStages(t *testing.T) {
+	t.Parallel()
+
+	agg := &timingAggregator{
+		stage:       database.ProvisionerJobTimingStageApply,
+		stateLookup: make(map[uint64]*timingSpan),
+	}
+
+	end := agg.startStage(database.ProvisionerJobTimingStageApply)
+	end(nil)
+
+	evts := agg.aggregate()
+	require.Len(t, evts, 1)
+}
