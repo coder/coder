@@ -3358,6 +3358,7 @@ Write out the current server config as YAML to stdout.`,
 			Default:     "1440h", // 60 days.
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "retention",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
 			Name: "Enable Authorization Recordings",

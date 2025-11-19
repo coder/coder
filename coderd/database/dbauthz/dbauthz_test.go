@@ -4650,7 +4650,7 @@ func (s *MethodTestSuite) TestAIBridge() {
 
 	s.Run("DeleteOldAIBridgeRecords", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		t := dbtime.Now()
-		db.EXPECT().DeleteOldAIBridgeRecords(gomock.Any(), t).Return(nil).AnyTimes()
+		db.EXPECT().DeleteOldAIBridgeRecords(gomock.Any(), t).Return(int32(0), nil).AnyTimes()
 		check.Args(t).Asserts(rbac.ResourceSystem, policy.ActionDelete)
 	}))
 }
