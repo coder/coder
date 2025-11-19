@@ -1,7 +1,7 @@
 import { test } from "@playwright/test";
 import { users } from "../../constants";
 import {
-	buildWorkspaceWithParameters,
+	startWorkspaceWithEphemeralParameters,
 	createTemplate,
 	createWorkspace,
 	echoResponsesWithParameters,
@@ -43,12 +43,15 @@ test("start workspace with ephemeral parameters", async ({ page }) => {
 		{ name: richParameters[1].name, value: "true" },
 	];
 
-	await buildWorkspaceWithParameters(
+	await startWorkspaceWithEphemeralParameters(
 		page,
 		workspaceName,
 		richParameters,
 		buildParameters,
 	);
+
+	// Stop the workspace
+	await stopWorkspace(page, workspaceName);
 
 	// Verify that build options are default (not selected).
 	await verifyParameters(page, workspaceName, richParameters, [
