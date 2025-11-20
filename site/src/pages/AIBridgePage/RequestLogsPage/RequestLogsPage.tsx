@@ -43,7 +43,7 @@ const RequestLogsPage: FC = () => {
 
 	return (
 		<>
-			<title>{pageTitle("Request Logs", "AI Governance")}</title>
+			<title>{pageTitle("Request Logs", "AI Bridge")}</title>
 
 			<RequestLogsPageView
 				isLoading={interceptionsQuery.isLoading}

@@ -756,6 +756,14 @@ jobs:
           path: ./site/test-results/**/*.webm
           retention-days: 7
 
+      - name: Upload debug log
+        if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: coderd-debug-logs${{ matrix.variant.premium && '-premium' || ''  }}
+          path: ./site/e2e/test-results/debug.log
+          retention-days: 7
+
       - name: Upload pprof dumps
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0

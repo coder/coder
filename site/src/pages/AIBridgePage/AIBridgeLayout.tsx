@@ -6,16 +6,16 @@ import {
 } from "components/PageHeader/PageHeader";
 import type { FC, PropsWithChildren } from "react";
 import { Outlet } from "react-router";
-import { AIGovernanceHelpTooltip } from "./AIGovernanceHelpTooltip";
+import { AIBridgeHelpTooltip } from "./AIBridgeHelpTooltip";
 
-const AIGovernanceLayout: FC<PropsWithChildren> = () => {
+const AIBridgeLayout: FC<PropsWithChildren> = () => {
 	return (
 		<Margins className="pb-12">
 			<PageHeader>
 				<PageHeaderTitle>
 					<div className="flex items-center gap-2">
-						<span>AI Governance</span>
-						<AIGovernanceHelpTooltip />
+						<span>AI Bridge</span>
+						<AIBridgeHelpTooltip />
 					</div>
 				</PageHeaderTitle>
 				<PageHeaderSubtitle>
@@ -27,4 +27,4 @@ const AIGovernanceLayout: FC<PropsWithChildren> = () => {
 	);
 };
 
-export default AIGovernanceLayout;
+export default AIBridgeLayout;
