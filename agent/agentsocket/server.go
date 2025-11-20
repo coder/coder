@@ -40,7 +40,7 @@ func NewServer(path string, logger slog.Logger) (*Server, error) {
 		path:   path,
 		service: &DRPCAgentSocketService{
 			logger:      logger,
-			unitManager: unit.NewManager[string](),
+			unitManager: unit.NewManager(),
 		},
 	}
 

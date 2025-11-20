@@ -19,7 +19,7 @@ var (
 )
 
 type DRPCAgentSocketService struct {
-	unitManager *unit.Manager[string]
+	unitManager *unit.Manager
 	logger      slog.Logger
 }
 
@@ -36,22 +36,20 @@ func (s *DRPCAgentSocketService) SyncStart(_ context.Context, req *proto.SyncSta
 		return &proto.SyncStartResponse{}, nil
 	}
 
-	if err := s.unitManager.Register(req.Unit); err != nil {
-		// If already registered, that's okay - we can still update status
+	unitID := unit.ID(req.Unit)
+
+	if err := s.unitManager.Register(unitID); err != nil {
 		if !errors.Is(err, unit.ErrUnitAlreadyRegistered) {
 			return &proto.SyncStartResponse{}, nil
 		}
 	}
 
-	isReady, err := s.unitManager.IsReady(req.Unit)
-	switch {
-	case err != nil:
-		return &proto.SyncStartResponse{}, xerrors.Errorf("failed to check readiness: %w", err)
-	case !isReady:
+	isReady := s.unitManager.IsReady(unitID)
+	if !isReady {
 		return &proto.SyncStartResponse{}, xerrors.Errorf("unit not ready: %q", req.Unit)
 	}
 
-	err = s.unitManager.UpdateStatus(req.Unit, unit.StatusStarted)
+	err := s.unitManager.UpdateStatus(unitID, unit.StatusStarted)
 	switch {
 	case errors.Is(err, unit.ErrSameStatusAlreadySet):
 		return &proto.SyncStartResponse{}, xerrors.Errorf("unit already started: %q", req.Unit)
@@ -71,19 +69,22 @@ func (s *DRPCAgentSocketService) SyncWant(_ context.Context, req *proto.SyncWant
 		return &proto.SyncWantResponse{}, nil
 	}
 
-	if err := s.unitManager.Register(req.Unit); err != nil {
+	unitID := unit.ID(req.Unit)
+	dependsOnID := unit.ID(req.DependsOn)
+
+	if err := s.unitManager.Register(unitID); err != nil {
 		if !errors.Is(err, unit.ErrUnitAlreadyRegistered) {
 			return &proto.SyncWantResponse{}, nil
 		}
 	}
 
-	if err := s.unitManager.Register(req.DependsOn); err != nil {
+	if err := s.unitManager.Register(dependsOnID); err != nil {
 		if !errors.Is(err, unit.ErrUnitAlreadyRegistered) {
 			return &proto.SyncWantResponse{}, nil
 		}
 	}
 
-	if err := s.unitManager.AddDependency(req.Unit, req.DependsOn, unit.StatusComplete); err != nil {
+	if err := s.unitManager.AddDependency(unitID, dependsOnID, unit.StatusComplete); err != nil {
 		return &proto.SyncWantResponse{}, nil
 	}
 
@@ -99,7 +100,9 @@ func (s *DRPCAgentSocketService) SyncComplete(_ context.Context, req *proto.Sync
 		return &proto.SyncCompleteResponse{}, nil
 	}
 
-	if err := s.unitManager.UpdateStatus(req.Unit, unit.StatusComplete); err != nil {
+	unitID := unit.ID(req.Unit)
+
+	if err := s.unitManager.UpdateStatus(unitID, unit.StatusComplete); err != nil {
 		return &proto.SyncCompleteResponse{}, nil
 	}
 
@@ -115,15 +118,13 @@ func (s *DRPCAgentSocketService) SyncReady(_ context.Context, req *proto.SyncRea
 		return &proto.SyncReadyResponse{}, nil
 	}
 
-	isReady, err := s.unitManager.IsReady(req.Unit)
-	switch {
-	case !isReady || errors.Is(err, unit.ErrUnitNotFound):
+	unitID := unit.ID(req.Unit)
+	isReady := s.unitManager.IsReady(unitID)
+	if !isReady {
 		return &proto.SyncReadyResponse{}, xerrors.Errorf("unit not ready: %q", req.Unit)
-	case err != nil:
-		return &proto.SyncReadyResponse{}, xerrors.Errorf("failed to check readiness: %w", err)
-	default:
-		return &proto.SyncReadyResponse{}, nil
 	}
+
+	return &proto.SyncReadyResponse{}, nil
 }
 
 func (s *DRPCAgentSocketService) SyncStatus(_ context.Context, req *proto.SyncStatusRequest) (*proto.SyncStatusResponse, error) {
@@ -141,23 +142,12 @@ func (s *DRPCAgentSocketService) SyncStatus(_ context.Context, req *proto.SyncSt
 		}, nil
 	}
 
-	status, err := s.unitManager.GetStatus(req.Unit)
-	if err != nil {
-		return &proto.SyncStatusResponse{
-			Success: false,
-			Message: "failed to get unit status: " + err.Error(),
-		}, nil
-	}
+	unitID := unit.ID(req.Unit)
 
-	isReady, err := s.unitManager.IsReady(req.Unit)
-	if err != nil {
-		return &proto.SyncStatusResponse{
-			Success: false,
-			Message: "failed to check readiness: " + err.Error(),
-		}, nil
-	}
+	status := s.unitManager.Unit(unitID).Status()
+	isReady := s.unitManager.IsReady(unitID)
 
-	dependencies, err := s.unitManager.GetAllDependencies(req.Unit)
+	dependencies, err := s.unitManager.GetAllDependencies(unitID)
 	if err != nil {
 		return &proto.SyncStatusResponse{
 			Success: false,
@@ -168,7 +158,7 @@ func (s *DRPCAgentSocketService) SyncStatus(_ context.Context, req *proto.SyncSt
 	var depInfos []*proto.DependencyInfo
 	for _, dep := range dependencies {
 		depInfos = append(depInfos, &proto.DependencyInfo{
-			DependsOn:      dep.DependsOn,
+			DependsOn:      string(dep.DependsOn),
 			RequiredStatus: string(dep.RequiredStatus),
 			CurrentStatus:  string(dep.CurrentStatus),
 			IsSatisfied:    dep.IsSatisfied,

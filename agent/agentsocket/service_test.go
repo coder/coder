@@ -18,6 +18,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/agent/agentsocket"
 	"github.com/coder/coder/v2/agent/agentsocket/proto"
+	"github.com/coder/coder/v2/agent/unit"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 )
 
@@ -300,7 +301,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 				Unit: "test-unit",
 			})
 			require.NoError(t, err)
-			require.Equal(t, "", status.Status)
+			require.Equal(t, string(unit.StatusPending), status.Status)
 			require.False(t, status.IsReady)
 		})
 	})
