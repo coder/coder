@@ -13,9 +13,7 @@ import (
 
 var _ proto.DRPCAgentSocketServer = (*DRPCAgentSocketService)(nil)
 
-var (
-	ErrUnitManagerNotAvailable = xerrors.New("unit manager not available")
-)
+var ErrUnitManagerNotAvailable = xerrors.New("unit manager not available")
 
 type DRPCAgentSocketService struct {
 	unitManager *unit.Manager
