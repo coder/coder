@@ -20,8 +20,8 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { API } from "api/api";
 import type { DynamicParametersResponse } from "api/typesGenerated";
-import CreateWorkspacePage from "./CreateWorkspacePage";
 import { act } from "react";
+import CreateWorkspacePage from "./CreateWorkspacePage";
 
 describe("CreateWorkspacePage", () => {
 	const renderCreateWorkspacePage = (
