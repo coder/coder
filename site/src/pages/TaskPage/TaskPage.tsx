@@ -19,7 +19,7 @@ import { Margins } from "components/Margins/Margins";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { Spinner } from "components/Spinner/Spinner";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
-import { ArrowLeftIcon, RotateCcwIcon } from "lucide-react";
+import { ArrowLeftIcon, PencilIcon, RotateCcwIcon } from "lucide-react";
 import { AgentLogs } from "modules/resources/AgentLogs/AgentLogs";
 import { useAgentLogs } from "modules/resources/useAgentLogs";
 import { getAllAppsWithAgent } from "modules/tasks/apps";
@@ -32,6 +32,7 @@ import {
 	type ReactNode,
 	useLayoutEffect,
 	useRef,
+	useState,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
@@ -42,6 +43,7 @@ import {
 	getActiveTransitionStats,
 	WorkspaceBuildProgress,
 } from "../WorkspacePage/WorkspaceBuildProgress";
+import { ModifyPromptDialog } from "./ModifyPromptDialog";
 import { TaskAppIFrame } from "./TaskAppIframe";
 import { TaskApps } from "./TaskApps";
 import { TaskTopbar } from "./TaskTopbar";
@@ -56,6 +58,7 @@ const TaskPageLayout: FC<PropsWithChildren> = ({ children }) => {
 };
 
 const TaskPage = () => {
+	const [isModifyDialogOpen, setIsModifyDialogOpen] = useState(false);
 	const { taskId, username } = useParams() as {
 		taskId: string;
 		username: string;
@@ -122,7 +125,12 @@ const TaskPage = () => {
 	const agent = selectAgent(workspace);
 
 	if (waitingStatuses.includes(workspace.latest_build.status)) {
-		content = <BuildingWorkspace workspace={workspace} />;
+		content = (
+			<BuildingWorkspace
+				workspace={workspace}
+				onEditPrompt={() => setIsModifyDialogOpen(true)}
+			/>
+		);
 	} else if (workspace.latest_build.status === "failed") {
 		content = (
 			<div className="w-full min-h-80 flex items-center justify-center">
@@ -186,6 +194,13 @@ const TaskPage = () => {
 
 			<TaskTopbar task={task} workspace={workspace} />
 			{content}
+
+			<ModifyPromptDialog
+				task={task}
+				workspace={workspace}
+				open={isModifyDialogOpen}
+				onOpenChange={setIsModifyDialogOpen}
+			/>
 		</TaskPageLayout>
 	);
 };
@@ -282,9 +297,15 @@ const WorkspaceNotRunning: FC<WorkspaceNotRunningProps> = ({ workspace }) => {
 	);
 };
 
-type BuildingWorkspaceProps = { workspace: Workspace };
+type BuildingWorkspaceProps = {
+	workspace: Workspace;
+	onEditPrompt: () => void;
+};
 
-const BuildingWorkspace: FC<BuildingWorkspaceProps> = ({ workspace }) => {
+const BuildingWorkspace: FC<BuildingWorkspaceProps> = ({
+	workspace,
+	onEditPrompt,
+}) => {
 	const { data: template } = useQuery(
 		templateQueryOptions(workspace.template_id),
 	);
@@ -343,6 +364,16 @@ const BuildingWorkspace: FC<BuildingWorkspaceProps> = ({ workspace }) => {
 								logs={buildLogs ?? []}
 							/>
 						</ScrollArea>
+
+						<div className="flex flex-col items-center gap-3 mt-4">
+							<p className="text-content-secondary text-sm m-0 max-w-md text-center">
+								You can edit the prompt while we prepare the environment
+							</p>
+							<Button onClick={onEditPrompt}>
+								<PencilIcon />
+								Edit Prompt
+							</Button>
+						</div>
 					</div>
 				</div>
 			</div>
