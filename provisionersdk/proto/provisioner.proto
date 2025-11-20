@@ -409,6 +409,16 @@ message PlanRequest {
   bool omit_module_files = 6;
 }
 
+// PreApplyPlanComplete is a cheaper version of PlanComplete when building
+// a workspace. A workspace build will run `terraform apply`, which contains
+// all the state information in `PlanComplete`. So when building a workspace,
+// the first plan can omit certain steps (like terraform graph).
+message PreApplyPlanComplete {
+  string error = 1;
+  bytes plan = 2;
+  // TODO: The rest (modules, timings, ...)
+}
+
 // PlanComplete indicates a request to plan completed.
 message PlanComplete {
   string error = 1;
@@ -486,6 +496,8 @@ message Response {
     ApplyComplete apply = 4;
     DataUpload data_upload = 5;
     ChunkPiece chunk_piece = 6;
+    // buildPlan is used for workspace builds, while plan is used for template imports/dry-runs.
+    PreApplyPlanComplete buildPlan = 7;
   }
 }
 

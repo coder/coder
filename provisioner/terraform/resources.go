@@ -203,6 +203,17 @@ func hasExternalAgentResources(graph *gographviz.Graph) bool {
 	return false
 }
 
+type PlanState struct {
+	DailyCost int32
+}
+
+// ConvertPlanState consumes a terraform plan json output and produces a thinner
+// version of `State` to be used before `terraform apply`. `ConvertState`
+// requires `terraform graph`, this does not.
+func ConvertPlanState(ctx context.Context, logger slog.Logger, modules []*tfjson.StateModule) (*PlanState, error) {
+	return &PlanState{}, nil
+}
+
 // ConvertState consumes Terraform state and a GraphViz representation
 // produced by `terraform graph` to produce resources consumable by Coder.
 // nolint:gocognit // This function makes more sense being large for now, until refactored.
