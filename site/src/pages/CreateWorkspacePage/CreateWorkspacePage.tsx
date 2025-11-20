@@ -238,6 +238,7 @@ const CreateWorkspacePageExperimental: FC = () => {
 
 	// `mode=auto` was set, but a prerequisite has failed, and so auto-mode should be abandoned.
 	if (
+		Boolean(realizedVersionId) &&
 		mode === "auto" &&
 		!isLoadingExternalAuth &&
 		!hasAllRequiredExternalAuth
@@ -254,7 +255,7 @@ const CreateWorkspacePageExperimental: FC = () => {
 				? "an external authentication provider that is"
 				: "external authentication providers that are";
 		setAutoCreateError({
-			message: `This template requires ${subject} not connected.`,
+			message: `This template requires ${subject} not connected. length: ${externalAuth?.length}`,
 			detail:
 				"Auto-creation has been disabled. Please connect all required external authentication providers before continuing.",
 		});
@@ -351,7 +352,7 @@ const useExternalAuth = (versionId: string | undefined) => {
 
 	const { data: externalAuth, isLoading: isLoadingExternalAuth } = useQuery({
 		...templateVersionExternalAuth(versionId ?? ""),
-		enabled: !!versionId,
+		enabled: Boolean(versionId),
 		refetchInterval: externalAuthPollingState === "polling" ? 1000 : false,
 	});
 
