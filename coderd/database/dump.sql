@@ -2170,7 +2170,8 @@ CREATE TABLE template_version_presets (
     scheduling_timezone text DEFAULT ''::text NOT NULL,
     is_default boolean DEFAULT false NOT NULL,
     description character varying(128) DEFAULT ''::character varying NOT NULL,
-    icon character varying(256) DEFAULT ''::character varying NOT NULL
+    icon character varying(256) DEFAULT ''::character varying NOT NULL,
+    last_invalidated_at timestamp with time zone
 );
 
 COMMENT ON COLUMN template_version_presets.description IS 'Short text describing the preset (max 128 characters).';

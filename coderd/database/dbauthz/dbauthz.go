@@ -4972,6 +4972,20 @@ func (q *querier) UpdatePresetPrebuildStatus(ctx context.Context, arg database.U
 	return q.db.UpdatePresetPrebuildStatus(ctx, arg)
 }
 
+func (q *querier) UpdatePresetsLastInvalidatedAt(ctx context.Context, arg database.UpdatePresetsLastInvalidatedAtParams) ([]database.UpdatePresetsLastInvalidatedAtRow, error) {
+	// Fetch template to check authorization
+	template, err := q.db.GetTemplateByID(ctx, arg.TemplateID)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, template); err != nil {
+		return nil, err
+	}
+
+	return q.db.UpdatePresetsLastInvalidatedAt(ctx, arg)
+}
+
 func (q *querier) UpdateProvisionerDaemonLastSeenAt(ctx context.Context, arg database.UpdateProvisionerDaemonLastSeenAtParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceProvisionerDaemon); err != nil {
 		return err
