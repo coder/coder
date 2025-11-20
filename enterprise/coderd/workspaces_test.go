@@ -3393,6 +3393,7 @@ func workspaceTagsTerraform(t *testing.T, tc testWorkspaceTagsTerraformCase, dyn
 // This uses the shared testutil caching infrastructure to avoid re-downloading
 // providers on every test run. It is the responsibility of the caller to set
 // TF_CLI_CONFIG_FILE.
+// On Windows, provider caching is not supported and an empty string is returned.
 func downloadProviders(t *testing.T, providersTf string) string {
 	t.Helper()
 
@@ -3401,7 +3402,9 @@ func downloadProviders(t *testing.T, providersTf string) string {
 	testName := "TestWorkspaceTagsTerraform"
 
 	cliConfigPath := testutil.CacheTFProviders(t, cacheRootDir, testName, templateFiles)
-	t.Logf("Set TF_CLI_CONFIG_FILE=%s", cliConfigPath)
+	if cliConfigPath != "" {
+		t.Logf("Set TF_CLI_CONFIG_FILE=%s", cliConfigPath)
+	}
 	return cliConfigPath
 }
 
