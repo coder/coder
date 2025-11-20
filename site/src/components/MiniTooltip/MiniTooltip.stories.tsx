@@ -27,3 +27,5 @@ export default meta;
 type Story = StoryObj<typeof MiniTooltip>;
 
 export const Default: Story = {};
+
+export const Arrow: Story = { args: { arrow: true } };
