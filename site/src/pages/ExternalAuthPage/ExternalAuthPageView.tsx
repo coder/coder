@@ -98,8 +98,7 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 					})}
 					&nbsp;
 					{externalAuth.installations.length} organization
-					{externalAuth.installations.length !== 1 &&
-						"s are"} authorized
+					{externalAuth.installations.length !== 1 && "s are"} authorized
 				</div>
 			)}
 
@@ -121,9 +120,7 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 							css={styles.link}
 						>
 							<ExternalLinkIcon className="size-icon-xs" />
-							{externalAuth.installations.length > 0
-								? "Configure"
-								: "Install"}{" "}
+							{externalAuth.installations.length > 0 ? "Configure" : "Install"}{" "}
 							the {externalAuth.display_name} App
 						</Link>
 					)}
