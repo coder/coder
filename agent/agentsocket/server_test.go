@@ -25,8 +25,7 @@ func TestServer(t *testing.T) {
 		logger := slog.Make().Leveled(slog.LevelDebug)
 		server, err := agentsocket.NewServer(socketPath, logger)
 		require.NoError(t, err)
-		require.NoError(t, server.Start())
-		require.NoError(t, server.Stop())
+		require.NoError(t, server.Close())
 	})
 
 	t.Run("AlreadyStarted", func(t *testing.T) {
@@ -34,10 +33,11 @@ func TestServer(t *testing.T) {
 
 		socketPath := filepath.Join(t.TempDir(), "test.sock")
 		logger := slog.Make().Leveled(slog.LevelDebug)
-		server, err := agentsocket.NewServer(socketPath, logger)
+		server1, err := agentsocket.NewServer(socketPath, logger)
 		require.NoError(t, err)
-		require.NoError(t, server.Start())
-		require.ErrorIs(t, server.Start(), agentsocket.ErrServerAlreadyStarted)
+		defer server1.Close()
+		_, err = agentsocket.NewServer(socketPath, logger)
+		require.ErrorContains(t, err, "create socket")
 	})
 
 	t.Run("AutoSocketPath", func(t *testing.T) {
@@ -47,7 +47,6 @@ func TestServer(t *testing.T) {
 		logger := slog.Make().Leveled(slog.LevelDebug)
 		server, err := agentsocket.NewServer(socketPath, logger)
 		require.NoError(t, err)
-		require.NoError(t, server.Start())
-		require.NoError(t, server.Stop())
+		require.NoError(t, server.Close())
 	})
 }

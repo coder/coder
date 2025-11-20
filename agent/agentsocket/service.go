@@ -28,28 +28,28 @@ func (*DRPCAgentSocketService) Ping(_ context.Context, _ *proto.PingRequest) (*p
 
 func (s *DRPCAgentSocketService) SyncStart(_ context.Context, req *proto.SyncStartRequest) (*proto.SyncStartResponse, error) {
 	if s.unitManager == nil {
-		return &proto.SyncStartResponse{}, xerrors.Errorf("SyncStart: %w", ErrUnitManagerNotAvailable)
+		return nil, xerrors.Errorf("SyncStart: %w", ErrUnitManagerNotAvailable)
 	}
 
 	unitID := unit.ID(req.Unit)
 
 	if err := s.unitManager.Register(unitID); err != nil {
 		if !errors.Is(err, unit.ErrUnitAlreadyRegistered) {
-			return &proto.SyncStartResponse{}, xerrors.Errorf("SyncStart: %w", err)
+			return nil, xerrors.Errorf("SyncStart: %w", err)
 		}
 	}
 
 	isReady, err := s.unitManager.IsReady(unitID)
 	if err != nil {
-		return &proto.SyncStartResponse{}, xerrors.Errorf("cannot check readiness: %w", err)
+		return nil, xerrors.Errorf("cannot check readiness: %w", err)
 	}
 	if !isReady {
-		return &proto.SyncStartResponse{}, xerrors.Errorf("cannot start unit %q: unit not ready", req.Unit)
+		return nil, xerrors.Errorf("cannot start unit %q: unit not ready", req.Unit)
 	}
 
 	err = s.unitManager.UpdateStatus(unitID, unit.StatusStarted)
 	if err != nil {
-		return &proto.SyncStartResponse{}, xerrors.Errorf("cannot start unit %q: %w", req.Unit, err)
+		return nil, xerrors.Errorf("cannot start unit %q: %w", req.Unit, err)
 	}
 
 	return &proto.SyncStartResponse{}, nil
@@ -57,18 +57,18 @@ func (s *DRPCAgentSocketService) SyncStart(_ context.Context, req *proto.SyncSta
 
 func (s *DRPCAgentSocketService) SyncWant(_ context.Context, req *proto.SyncWantRequest) (*proto.SyncWantResponse, error) {
 	if s.unitManager == nil {
-		return &proto.SyncWantResponse{}, xerrors.Errorf("cannot add dependency: %w", ErrUnitManagerNotAvailable)
+		return nil, xerrors.Errorf("cannot add dependency: %w", ErrUnitManagerNotAvailable)
 	}
 
 	unitID := unit.ID(req.Unit)
 	dependsOnID := unit.ID(req.DependsOn)
 
 	if err := s.unitManager.Register(unitID); err != nil && !errors.Is(err, unit.ErrUnitAlreadyRegistered) {
-		return &proto.SyncWantResponse{}, xerrors.Errorf("cannot add dependency: %w", err)
+		return nil, xerrors.Errorf("cannot add dependency: %w", err)
 	}
 
 	if err := s.unitManager.AddDependency(unitID, dependsOnID, unit.StatusComplete); err != nil {
-		return &proto.SyncWantResponse{}, xerrors.Errorf("cannot add dependency: %w", err)
+		return nil, xerrors.Errorf("cannot add dependency: %w", err)
 	}
 
 	return &proto.SyncWantResponse{}, nil
@@ -76,13 +76,13 @@ func (s *DRPCAgentSocketService) SyncWant(_ context.Context, req *proto.SyncWant
 
 func (s *DRPCAgentSocketService) SyncComplete(_ context.Context, req *proto.SyncCompleteRequest) (*proto.SyncCompleteResponse, error) {
 	if s.unitManager == nil {
-		return &proto.SyncCompleteResponse{}, xerrors.Errorf("cannot complete unit: %w", ErrUnitManagerNotAvailable)
+		return nil, xerrors.Errorf("cannot complete unit: %w", ErrUnitManagerNotAvailable)
 	}
 
 	unitID := unit.ID(req.Unit)
 
 	if err := s.unitManager.UpdateStatus(unitID, unit.StatusComplete); err != nil {
-		return &proto.SyncCompleteResponse{}, xerrors.Errorf("cannot complete unit %q: %w", req.Unit, err)
+		return nil, xerrors.Errorf("cannot complete unit %q: %w", req.Unit, err)
 	}
 
 	return &proto.SyncCompleteResponse{}, nil
@@ -90,41 +90,41 @@ func (s *DRPCAgentSocketService) SyncComplete(_ context.Context, req *proto.Sync
 
 func (s *DRPCAgentSocketService) SyncReady(_ context.Context, req *proto.SyncReadyRequest) (*proto.SyncReadyResponse, error) {
 	if s.unitManager == nil {
-		return &proto.SyncReadyResponse{}, xerrors.Errorf("cannot check readiness: %w", ErrUnitManagerNotAvailable)
+		return nil, xerrors.Errorf("cannot check readiness: %w", ErrUnitManagerNotAvailable)
 	}
 
 	unitID := unit.ID(req.Unit)
 	isReady, err := s.unitManager.IsReady(unitID)
 	if err != nil {
-		return &proto.SyncReadyResponse{}, xerrors.Errorf("cannot check readiness: %w", err)
-	}
-	if !isReady {
-		return &proto.SyncReadyResponse{}, xerrors.Errorf("unit not ready: %q", req.Unit)
+		return nil, xerrors.Errorf("cannot check readiness: %w", err)
 	}
 
-	return &proto.SyncReadyResponse{}, nil
+	return &proto.SyncReadyResponse{
+		Ready: isReady,
+	}, nil
 }
 
 func (s *DRPCAgentSocketService) SyncStatus(_ context.Context, req *proto.SyncStatusRequest) (*proto.SyncStatusResponse, error) {
 	if s.unitManager == nil {
-		return &proto.SyncStatusResponse{}, xerrors.Errorf("cannot get status for unit %q: %w", req.Unit, ErrUnitManagerNotAvailable)
+		return nil, xerrors.Errorf("cannot get status for unit %q: %w", req.Unit, ErrUnitManagerNotAvailable)
 	}
 
 	unitID := unit.ID(req.Unit)
 
 	isReady, err := s.unitManager.IsReady(unitID)
 	if err != nil {
-		return &proto.SyncStatusResponse{}, xerrors.Errorf("cannot check readiness: %w", err)
+		return nil, xerrors.Errorf("cannot check readiness: %w", err)
 	}
 
 	dependencies, err := s.unitManager.GetAllDependencies(unitID)
 	if err != nil {
-		return &proto.SyncStatusResponse{}, xerrors.Errorf("failed to get dependencies: %w", err)
+		return nil, xerrors.Errorf("failed to get dependencies: %w", err)
 	}
 
 	var depInfos []*proto.DependencyInfo
 	for _, dep := range dependencies {
 		depInfos = append(depInfos, &proto.DependencyInfo{
+			Unit:           string(dep.Unit),
 			DependsOn:      string(dep.DependsOn),
 			RequiredStatus: string(dep.RequiredStatus),
 			CurrentStatus:  string(dep.CurrentStatus),
@@ -132,22 +132,13 @@ func (s *DRPCAgentSocketService) SyncStatus(_ context.Context, req *proto.SyncSt
 		})
 	}
 
-	var dotStr string
-	if req.Recursive {
-		dotStr, err = s.unitManager.ExportDOT("dependency_graph")
-		if err != nil {
-			return &proto.SyncStatusResponse{}, xerrors.Errorf("failed to export DOT: %w", err)
-		}
-	}
-
 	u, err := s.unitManager.Unit(unitID)
 	if err != nil {
-		return &proto.SyncStatusResponse{}, xerrors.Errorf("cannot get status for unit %q: %w", req.Unit, err)
+		return nil, xerrors.Errorf("cannot get status for unit %q: %w", req.Unit, err)
 	}
 	return &proto.SyncStatusResponse{
 		Status:       string(u.Status()),
 		IsReady:      isReady,
 		Dependencies: depInfos,
-		Dot:          dotStr,
 	}, nil
 }

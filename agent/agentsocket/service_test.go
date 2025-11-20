@@ -47,7 +47,7 @@ func tempDirUnixSocket(t *testing.T) string {
 }
 
 // newSocketClient creates a DRPC client connected to the Unix socket at the given path.
-func newSocketClient(t *testing.T, socketPath string) (proto.DRPCAgentSocketClient, func()) {
+func newSocketClient(t *testing.T, socketPath string) proto.DRPCAgentSocketClient {
 	t.Helper()
 
 	conn, err := net.Dial("unix", socketPath)
@@ -60,12 +60,11 @@ func newSocketClient(t *testing.T, socketPath string) (proto.DRPCAgentSocketClie
 
 	client := proto.NewDRPCAgentSocketClient(drpcsdk.MultiplexedConn(session))
 
-	cleanup := func() {
+	t.Cleanup(func() {
 		_ = session.Close()
 		_ = conn.Close()
-	}
-
-	return client, cleanup
+	})
+	return client
 }
 
 func TestDRPCAgentSocketService(t *testing.T) {
@@ -85,13 +84,9 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			slog.Make().Leveled(slog.LevelDebug),
 		)
 		require.NoError(t, err)
+		defer server.Close()
 
-		err = server.Start()
-		require.NoError(t, err)
-		defer server.Stop()
-
-		client, cleanup := newSocketClient(t, socketPath)
-		defer cleanup()
+		client := newSocketClient(t, socketPath)
 
 		_, err = client.Ping(context.Background(), &proto.PingRequest{})
 		require.NoError(t, err)
@@ -109,12 +104,9 @@ func TestDRPCAgentSocketService(t *testing.T) {
 				slog.Make().Leveled(slog.LevelDebug),
 			)
 			require.NoError(t, err)
-			err = server.Start()
-			require.NoError(t, err)
-			defer server.Stop()
+			defer server.Close()
 
-			client, cleanup := newSocketClient(t, socketPath)
-			defer cleanup()
+			client := newSocketClient(t, socketPath)
 
 			_, err = client.SyncStart(context.Background(), &proto.SyncStartRequest{
 				Unit: "test-unit",
@@ -138,12 +130,9 @@ func TestDRPCAgentSocketService(t *testing.T) {
 				slog.Make().Leveled(slog.LevelDebug),
 			)
 			require.NoError(t, err)
-			err = server.Start()
-			require.NoError(t, err)
-			defer server.Stop()
+			defer server.Close()
 
-			client, cleanup := newSocketClient(t, socketPath)
-			defer cleanup()
+			client := newSocketClient(t, socketPath)
 
 			// First Start
 			_, err = client.SyncStart(context.Background(), &proto.SyncStartRequest{
@@ -179,12 +168,9 @@ func TestDRPCAgentSocketService(t *testing.T) {
 				slog.Make().Leveled(slog.LevelDebug),
 			)
 			require.NoError(t, err)
-			err = server.Start()
-			require.NoError(t, err)
-			defer server.Stop()
+			defer server.Close()
 
-			client, cleanup := newSocketClient(t, socketPath)
-			defer cleanup()
+			client := newSocketClient(t, socketPath)
 
 			// First start
 			_, err = client.SyncStart(context.Background(), &proto.SyncStartRequest{
@@ -233,12 +219,9 @@ func TestDRPCAgentSocketService(t *testing.T) {
 				slog.Make().Leveled(slog.LevelDebug),
 			)
 			require.NoError(t, err)
-			err = server.Start()
-			require.NoError(t, err)
-			defer server.Stop()
+			defer server.Close()
 
-			client, cleanup := newSocketClient(t, socketPath)
-			defer cleanup()
+			client := newSocketClient(t, socketPath)
 
 			_, err = client.SyncWant(context.Background(), &proto.SyncWantRequest{
 				Unit:      "test-unit",
@@ -273,12 +256,9 @@ func TestDRPCAgentSocketService(t *testing.T) {
 				slog.Make().Leveled(slog.LevelDebug),
 			)
 			require.NoError(t, err)
-			err = server.Start()
-			require.NoError(t, err)
-			defer server.Stop()
+			defer server.Close()
 
-			client, cleanup := newSocketClient(t, socketPath)
-			defer cleanup()
+			client := newSocketClient(t, socketPath)
 
 			// If dependency units are not registered, they are registered automatically
 			_, err = client.SyncWant(context.Background(), &proto.SyncWantRequest{
@@ -306,12 +286,9 @@ func TestDRPCAgentSocketService(t *testing.T) {
 				slog.Make().Leveled(slog.LevelDebug),
 			)
 			require.NoError(t, err)
-			err = server.Start()
-			require.NoError(t, err)
-			defer server.Stop()
+			defer server.Close()
 
-			client, cleanup := newSocketClient(t, socketPath)
-			defer cleanup()
+			client := newSocketClient(t, socketPath)
 
 			// Start the dependency unit
 			_, err = client.SyncStart(context.Background(), &proto.SyncStartRequest{
@@ -353,12 +330,9 @@ func TestDRPCAgentSocketService(t *testing.T) {
 				slog.Make().Leveled(slog.LevelDebug),
 			)
 			require.NoError(t, err)
-			err = server.Start()
-			require.NoError(t, err)
-			defer server.Stop()
+			defer server.Close()
 
-			client, cleanup := newSocketClient(t, socketPath)
-			defer cleanup()
+			client := newSocketClient(t, socketPath)
 
 			// Start the dependent unit
 			_, err = client.SyncStart(context.Background(), &proto.SyncStartRequest{
@@ -407,17 +381,15 @@ func TestDRPCAgentSocketService(t *testing.T) {
 				slog.Make().Leveled(slog.LevelDebug),
 			)
 			require.NoError(t, err)
-			err = server.Start()
-			require.NoError(t, err)
-			defer server.Stop()
+			defer server.Close()
 
-			client, cleanup := newSocketClient(t, socketPath)
-			defer cleanup()
+			client := newSocketClient(t, socketPath)
 
-			_, err = client.SyncReady(context.Background(), &proto.SyncReadyRequest{
+			response, err := client.SyncReady(context.Background(), &proto.SyncReadyRequest{
 				Unit: "unregistered-unit",
 			})
-			require.ErrorContains(t, err, "unit not ready")
+			require.NoError(t, err)
+			require.False(t, response.Ready)
 		})
 
 		t.Run("UnitNotReady", func(t *testing.T) {
@@ -430,12 +402,9 @@ func TestDRPCAgentSocketService(t *testing.T) {
 				slog.Make().Leveled(slog.LevelDebug),
 			)
 			require.NoError(t, err)
-			err = server.Start()
-			require.NoError(t, err)
-			defer server.Stop()
+			defer server.Close()
 
-			client, cleanup := newSocketClient(t, socketPath)
-			defer cleanup()
+			client := newSocketClient(t, socketPath)
 
 			// Register a unit with an unsatisfied dependency
 			_, err = client.SyncWant(context.Background(), &proto.SyncWantRequest{
@@ -445,10 +414,11 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			require.NoError(t, err)
 
 			// Check readiness - should be false because dependency is not satisfied
-			_, err = client.SyncReady(context.Background(), &proto.SyncReadyRequest{
+			response, err := client.SyncReady(context.Background(), &proto.SyncReadyRequest{
 				Unit: "test-unit",
 			})
-			require.ErrorContains(t, err, "unit not ready")
+			require.NoError(t, err)
+			require.False(t, response.Ready)
 		})
 
 		t.Run("UnitReady", func(t *testing.T) {
@@ -461,12 +431,9 @@ func TestDRPCAgentSocketService(t *testing.T) {
 				slog.Make().Leveled(slog.LevelDebug),
 			)
 			require.NoError(t, err)
-			err = server.Start()
-			require.NoError(t, err)
-			defer server.Stop()
+			defer server.Close()
 
-			client, cleanup := newSocketClient(t, socketPath)
-			defer cleanup()
+			client := newSocketClient(t, socketPath)
 
 			// Register a unit with no dependencies - should be ready immediately
 			_, err = client.SyncStart(context.Background(), &proto.SyncStartRequest{

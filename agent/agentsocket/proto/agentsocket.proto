@@ -30,25 +30,26 @@ message SyncReadyRequest {
 	string unit = 1;
 }
 
-message SyncReadyResponse {}
+message SyncReadyResponse {
+  bool ready = 1;
+}
 
 message SyncStatusRequest {
 	string unit = 1;
-	bool recursive = 2;
 }
 
 message DependencyInfo {
-	string depends_on = 1;
-	string required_status = 2;
-	string current_status = 3;
-	bool is_satisfied = 4;
+  string unit = 1;
+	string depends_on = 2;
+	string required_status = 3;
+	string current_status = 4;
+	bool is_satisfied = 5;
 }
 
 message SyncStatusResponse {
 	string status = 1;
 	bool is_ready = 2;
 	repeated DependencyInfo dependencies = 3;
-	string dot = 4;
 }
 
 // AgentSocket provides direct access to the agent over local IPC.

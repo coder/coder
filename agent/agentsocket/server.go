@@ -60,53 +60,38 @@ func NewServer(path string, logger slog.Logger) (*Server, error) {
 		},
 	})
 
-	return server, nil
-}
-
-var ErrServerAlreadyStarted = xerrors.New("server already started")
-
-func (s *Server) Start() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.listener != nil {
-		// use xerrors here for the stacktrace, but still wrap a public sentinel error for error checking.
-		return xerrors.Errorf("%w", ErrServerAlreadyStarted)
-	}
-
 	// This context is canceled by s.Stop() when the server is stopped.
 	// canceling it will close all connections.
-	s.ctx, s.cancel = context.WithCancel(context.Background())
+	server.ctx, server.cancel = context.WithCancel(context.Background())
 
-	if s.path == "" {
+	if server.path == "" {
 		var err error
-		s.path, err = getDefaultSocketPath()
+		server.path, err = getDefaultSocketPath()
 		if err != nil {
-			return xerrors.Errorf("get default socket path: %w", err)
+			return nil, xerrors.Errorf("get default socket path: %w", err)
 		}
 	}
 
-	listener, err := createSocket(s.path)
+	listener, err := createSocket(server.path)
 	if err != nil {
-		return xerrors.Errorf("create socket: %w", err)
+		return nil, xerrors.Errorf("create socket: %w", err)
 	}
 
-	s.listener = listener
+	server.listener = listener
 
-	s.logger.Info(s.ctx, "agent socket server started", slog.F("path", s.path))
+	server.logger.Info(server.ctx, "agent socket server started", slog.F("path", server.path))
 
-	s.wg.Add(1)
+	server.wg.Add(1)
 	go func() {
-		defer s.wg.Done()
-		s.acceptConnections()
+		defer server.wg.Done()
+		server.acceptConnections()
 	}()
 
-	return nil
+	return server, nil
 }
 
-func (s *Server) Stop() error {
+func (s *Server) Close() error {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 
 	if s.listener == nil {
 		return nil
@@ -120,6 +105,10 @@ func (s *Server) Stop() error {
 		s.logger.Warn(s.ctx, "error closing socket listener", slog.Error(err))
 	}
 
+	s.listener = nil
+
+	s.mu.Unlock()
+
 	// Wait for all connections to finish
 	s.wg.Wait()
 
@@ -127,7 +116,6 @@ func (s *Server) Stop() error {
 		s.logger.Warn(s.ctx, "error cleaning up socket file", slog.Error(err))
 	}
 
-	s.listener = nil
 	s.logger.Info(s.ctx, "agent socket server stopped")
 
 	return nil
@@ -154,9 +142,18 @@ func (s *Server) acceptConnections() {
 		conn, err := listener.Accept()
 		if err != nil {
 			s.logger.Warn(s.ctx, "error accepting connection", slog.Error(err))
+			continue
 		}
 
+		s.mu.Lock()
+		if s.listener == nil {
+			s.mu.Unlock()
+			_ = conn.Close()
+			return
+		}
 		s.wg.Add(1)
+		s.mu.Unlock()
+
 		go func() {
 			defer s.wg.Done()
 			s.handleConnection(conn)

@@ -3,7 +3,6 @@
 package agentsocket
 
 import (
-	"fmt"
 	"net"
 	"os"
 	"path/filepath"
@@ -46,9 +45,7 @@ func getDefaultSocketPath() (string, error) {
 		return filepath.Join(runtimeDir, "coder-agent.sock"), nil
 	}
 
-	// Fall back to /tmp with user-specific path
-	uid := os.Getuid()
-	return filepath.Join("/tmp", fmt.Sprintf("coder-agent-%d.sock", uid)), nil
+	return filepath.Join("/tmp", "coder-agent.sock"), nil
 }
 
 // CleanupSocket removes the socket file
