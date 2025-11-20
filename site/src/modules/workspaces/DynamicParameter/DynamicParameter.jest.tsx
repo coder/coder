@@ -101,7 +101,6 @@ describe("DynamicParameter", () => {
 			render(
 				<DynamicParameter
 					parameter={mockStringParameter}
-					value=""
 					onChange={mockOnChange}
 				/>,
 			);
@@ -113,7 +112,7 @@ describe("DynamicParameter", () => {
 			});
 
 			await waitFor(() => {
-				expect(mockOnChange).toHaveBeenCalledWith("new_value");
+				expect(mockOnChange).toHaveBeenLastCalledWith("new_value");
 			});
 		});
 
@@ -175,7 +174,6 @@ describe("DynamicParameter", () => {
 			render(
 				<DynamicParameter
 					parameter={mockTextareaParameter}
-					value=""
 					onChange={mockOnChange}
 				/>,
 			);
@@ -186,7 +184,7 @@ describe("DynamicParameter", () => {
 			});
 
 			await waitFor(() => {
-				expect(mockOnChange).toHaveBeenCalledWith("line1\nline2\nline3");
+				expect(mockOnChange).toHaveBeenLastCalledWith("line1\nline2\nline3");
 			});
 		});
 	});
