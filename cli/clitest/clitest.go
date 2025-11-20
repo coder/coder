@@ -41,11 +41,11 @@ func New(t testing.TB, args ...string) (*serpent.Invocation, config.Root) {
 	inv, cfg := NewWithCommand(t, cmd, args...)
 
 	// Inject a file-based backend for tests to avoid issues with parallel use
-	// of the OS keyring.
+	// of the OS keyring. With the deduplication fix in NewWithCommand, cfg is
+	// always the correct directory (either from args or a new temp dir).
 	root.WithSessionStorageBackend(sessionstore.NewFile(func() config.Root {
 		return cfg
 	}))
-	inv.Command = cmd
 
 	return inv, cfg
 }
@@ -70,15 +70,39 @@ func (l *logWriter) Write(p []byte) (n int, err error) {
 func NewWithCommand(
 	t testing.TB, cmd *serpent.Command, args ...string,
 ) (*serpent.Invocation, config.Root) {
-	configDir := config.Root(t.TempDir())
 	// I really would like to fail test on error logs, but realistically, turning on by default
 	// in all our CLI tests is going to create a lot of flaky noise.
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).
 		Leveled(slog.LevelDebug).
 		Named("cli")
+	
+	// Check if --global-config is already in args. If so, extract and use it.
+	// Otherwise, create a temp directory and prepend --global-config.
+	var configDir config.Root
+	finalArgs := args
+	hasGlobalConfig := false
+	
+	for i, arg := range args {
+		if arg == "--global-config" && i+1 < len(args) {
+			configDir = config.Root(args[i+1])
+			hasGlobalConfig = true
+			break
+		} else if strings.HasPrefix(arg, "--global-config=") {
+			configDir = config.Root(strings.TrimPrefix(arg, "--global-config="))
+			hasGlobalConfig = true
+			break
+		}
+	}
+	
+	if !hasGlobalConfig {
+		// Create a temp directory and prepend --global-config
+		configDir = config.Root(t.TempDir())
+		finalArgs = append([]string{"--global-config", string(configDir)}, args...)
+	}
+	
 	i := &serpent.Invocation{
 		Command: cmd,
-		Args:    append([]string{"--global-config", string(configDir)}, args...),
+		Args:    finalArgs,
 		Stdin:   io.LimitReader(nil, 0),
 		Stdout:  (&logWriter{prefix: "stdout", log: logger}),
 		Stderr:  (&logWriter{prefix: "stderr", log: logger}),
