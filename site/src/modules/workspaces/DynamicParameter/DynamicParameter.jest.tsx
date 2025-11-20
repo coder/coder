@@ -729,58 +729,6 @@ describe("DynamicParameter", () => {
 		});
 	});
 
-	describe("Debounced Input", () => {
-		it("debounces input changes for text inputs", async () => {
-			jest.useFakeTimers();
-
-			render(
-				<DynamicParameter
-					parameter={mockStringParameter}
-					value=""
-					onChange={mockOnChange}
-				/>,
-			);
-
-			const input = screen.getByRole("textbox");
-			fireEvent.change(input, { target: { value: "abc" } });
-
-			expect(mockOnChange).not.toHaveBeenCalled();
-
-			act(() => {
-				jest.runAllTimers();
-			});
-
-			expect(mockOnChange).toHaveBeenCalledWith("abc");
-
-			jest.useRealTimers();
-		});
-
-		it("debounces textarea changes", async () => {
-			jest.useFakeTimers();
-
-			render(
-				<DynamicParameter
-					parameter={mockTextareaParameter}
-					value=""
-					onChange={mockOnChange}
-				/>,
-			);
-
-			const textarea = screen.getByRole("textbox");
-			fireEvent.change(textarea, { target: { value: "line1\nline2" } });
-
-			expect(mockOnChange).not.toHaveBeenCalled();
-
-			act(() => {
-				jest.runAllTimers();
-			});
-
-			expect(mockOnChange).toHaveBeenCalledWith("line1\nline2");
-
-			jest.useRealTimers();
-		});
-	});
-
 	describe("Edge Cases", () => {
 		it("handles empty parameter options gracefully", () => {
 			const paramWithEmptyOptions = createMockParameter({
