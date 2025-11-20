@@ -36,15 +36,27 @@ const renderTerminal = async (
 const expectTerminalText = (container: HTMLElement, text: string) => {
 	return waitFor(
 		() => {
-			const elements = container.getElementsByClassName("xterm-rows");
-			if (elements.length === 0) {
-				throw new Error("no xterm-rows");
+			// Try xterm.js structure first
+			const xtermRows = container.getElementsByClassName("xterm-rows");
+			if (xtermRows.length > 0) {
+				const row = xtermRows[0] as HTMLDivElement;
+				if (!row.textContent) {
+					throw new Error("no text content in xterm-rows");
+				}
+				expect(row.textContent).toContain(text);
+				return;
 			}
-			const row = elements[0] as HTMLDivElement;
-			if (!row.textContent) {
-				throw new Error("no text content");
+
+			// Try ghostty-web structure (canvas + parent textContent)
+			// Note: ghostty-web renders to canvas, but terminal messages
+			// are still written as text to the parent for accessibility
+			const terminalDiv = container.querySelector('[data-testid="terminal"]');
+			if (terminalDiv?.textContent) {
+				expect(terminalDiv.textContent).toContain(text);
+				return;
 			}
-			expect(row.textContent).toContain(text);
+
+			throw new Error("no terminal element found");
 		},
 		{ timeout: 5_000 },
 	);

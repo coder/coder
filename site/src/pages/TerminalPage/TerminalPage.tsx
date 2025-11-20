@@ -9,6 +9,11 @@ import { Terminal } from "@xterm/xterm";
 import { deploymentConfig } from "api/queries/deployment";
 import { appearanceSettings } from "api/queries/users";
 import {
+	Terminal as GhosttyTerminal,
+	FitAddon as GhosttyFitAddon,
+} from "ghostty-web";
+import { useDashboard } from "modules/dashboard/useDashboard";
+import {
 	workspaceByOwnerAndName,
 	workspaceUsage,
 } from "api/queries/workspaces";
@@ -42,6 +47,16 @@ export const Language = {
 	websocketErrorMessagePrefix: "WebSocket failed: ",
 };
 
+/**
+ * TerminalPage provides a web-based terminal interface with automatic reconnection.
+ *
+ * The terminal implementation can be switched between xterm.js and ghostty-web via
+ * the "ghostty-web" experiment. ghostty-web provides better performance and standards
+ * compliance using Ghostty's VT100 parser via WebAssembly.
+ *
+ * When the experiment is disabled (default), xterm.js is used.
+ * When enabled, ghostty-web is used (renderer config is ignored).
+ */
 const TerminalPage: FC = () => {
 	// Maybe one day we'll support a light themed terminal, but terminal coloring
 	// is notably a pain because of assumptions certain programs might make about your
@@ -54,7 +69,7 @@ const TerminalPage: FC = () => {
 	const terminalWrapperRef = useRef<HTMLDivElement>(null);
 	// The terminal is maintained as a state to trigger certain effects when it
 	// updates.
-	const [terminal, setTerminal] = useState<Terminal>();
+	const [terminal, setTerminal] = useState<Terminal | GhosttyTerminal>();
 	const [connectionStatus, setConnectionStatus] =
 		useState<ConnectionStatus>("initializing");
 	const [searchParams] = useSearchParams();
@@ -80,6 +95,9 @@ const TerminalPage: FC = () => {
 
 	const config = useQuery(deploymentConfig());
 	const renderer = config.data?.config.web_terminal_renderer;
+
+	const { experiments } = useDashboard();
+	const useGhosttyWeb = experiments.includes("ghostty-web");
 
 	const { copyToClipboard } = useClipboard();
 
@@ -119,36 +137,63 @@ const TerminalPage: FC = () => {
 		appearanceSettingsQuery.data?.terminal_font || DEFAULT_TERMINAL_FONT;
 
 	// Create the terminal!
-	const fitAddonRef = useRef<FitAddon>(undefined);
+	const fitAddonRef = useRef<FitAddon | GhosttyFitAddon>(undefined);
 	useEffect(() => {
 		if (!terminalWrapperRef.current || config.isLoading) {
 			return;
 		}
-		const terminal = new Terminal({
-			allowProposedApi: true,
-			allowTransparency: true,
-			disableStdin: false,
-			fontFamily: terminalFonts[currentTerminalFont],
-			fontSize: 16,
-			theme: {
-				background: theme.palette.background.default,
-			},
-		});
-		if (renderer === "webgl") {
-			terminal.loadAddon(new WebglAddon());
-		} else if (renderer === "canvas") {
-			terminal.loadAddon(new CanvasAddon());
+
+		let terminal: Terminal | GhosttyTerminal;
+
+		if (useGhosttyWeb) {
+			// ====== GHOSTTY-WEB PATH ======
+			terminal = new GhosttyTerminal({
+				fontFamily: terminalFonts[currentTerminalFont],
+				fontSize: 16,
+				cursorBlink: true,
+				theme: {
+					background: theme.palette.background.default,
+				},
+			});
+
+			const fitAddon = new GhosttyFitAddon();
+			fitAddonRef.current = fitAddon;
+			terminal.loadAddon(fitAddon);
+
+			// Note: ghostty-web has built-in link detection via OSC 8
+			// We'll rely on browser's default link behavior or could override with
+			// DOM event listeners on the canvas after mount if needed
+		} else {
+			// ====== XTERM.JS PATH (existing code) ======
+			terminal = new Terminal({
+				allowProposedApi: true,
+				allowTransparency: true,
+				disableStdin: false,
+				fontFamily: terminalFonts[currentTerminalFont],
+				fontSize: 16,
+				theme: {
+					background: theme.palette.background.default,
+				},
+			});
+
+			// Apply renderer config (only for xterm.js)
+			if (renderer === "webgl") {
+				terminal.loadAddon(new WebglAddon());
+			} else if (renderer === "canvas") {
+				terminal.loadAddon(new CanvasAddon());
+			}
+
+			const fitAddon = new FitAddon();
+			fitAddonRef.current = fitAddon;
+			terminal.loadAddon(fitAddon);
+			terminal.loadAddon(new Unicode11Addon());
+			terminal.unicode.activeVersion = "11";
+			terminal.loadAddon(
+				new WebLinksAddon((_, uri) => {
+					handleWebLinkRef.current(uri);
+				}),
+			);
 		}
-		const fitAddon = new FitAddon();
-		fitAddonRef.current = fitAddon;
-		terminal.loadAddon(fitAddon);
-		terminal.loadAddon(new Unicode11Addon());
-		terminal.unicode.activeVersion = "11";
-		terminal.loadAddon(
-			new WebLinksAddon((_, uri) => {
-				handleWebLinkRef.current(uri);
-			}),
-		);
 
 		const isMac = navigator.platform.match("Mac");
 
@@ -159,34 +204,38 @@ const TerminalPage: FC = () => {
 			}
 		};
 
-		// There is no way to remove this handler, so we must attach it once and
-		// rely on a ref to send it to the current socket.
-		const escapedCarriageReturn = "\x1b\r";
-		terminal.attachCustomKeyEventHandler((ev) => {
-			// Make shift+enter send ^[^M (escaped carriage return).  Applications
-			// typically take this to mean to insert a literal newline.
-			if (ev.shiftKey && ev.key === "Enter") {
-				if (ev.type === "keydown") {
-					websocketRef.current?.send(
-						new TextEncoder().encode(
-							JSON.stringify({ data: escapedCarriageReturn }),
-						),
-					);
+		// Custom key event handler (only for xterm.js)
+		// ghostty-web handles key events differently
+		if (terminal instanceof Terminal) {
+			// There is no way to remove this handler, so we must attach it once and
+			// rely on a ref to send it to the current socket.
+			const escapedCarriageReturn = "\x1b\r";
+			terminal.attachCustomKeyEventHandler((ev) => {
+				// Make shift+enter send ^[^M (escaped carriage return).  Applications
+				// typically take this to mean to insert a literal newline.
+				if (ev.shiftKey && ev.key === "Enter") {
+					if (ev.type === "keydown") {
+						websocketRef.current?.send(
+							new TextEncoder().encode(
+								JSON.stringify({ data: escapedCarriageReturn }),
+							),
+						);
+					}
+					return false;
 				}
-				return false;
-			}
-			// Make ctrl+shift+c (command+shift+c on macOS) copy the selected text.
-			// By default this usually launches the browser dev tools, but users
-			// expect this keybinding to copy when in the context of the web terminal.
-			if ((isMac ? ev.metaKey : ev.ctrlKey) && ev.shiftKey && ev.key === "C") {
-				ev.preventDefault();
-				if (ev.type === "keydown") {
-					copySelection();
+				// Make ctrl+shift+c (command+shift+c on macOS) copy the selected text.
+				// By default this usually launches the browser dev tools, but users
+				// expect this keybinding to copy when in the context of the web terminal.
+				if ((isMac ? ev.metaKey : ev.ctrlKey) && ev.shiftKey && ev.key === "C") {
+					ev.preventDefault();
+					if (ev.type === "keydown") {
+						copySelection();
+					}
+					return false;
 				}
-				return false;
-			}
-			return true;
-		});
+				return true;
+			});
+		}
 
 		// Copy using the clipboard API on selection.  This selected text will go
 		// into the clipboard, not the primary selection, as the browser does not
@@ -205,19 +254,61 @@ const TerminalPage: FC = () => {
 			copySelection();
 		});
 
-		terminal.open(terminalWrapperRef.current);
+		// Open terminal (async for ghostty-web, sync for xterm.js)
+		const openTerminal = async () => {
+			if (useGhosttyWeb) {
+				await (terminal as GhosttyTerminal).open(terminalWrapperRef.current!);
 
-		// We have to fit twice here. It's unknown why, but the first fit will
-		// overflow slightly in some scenarios. Applying a second fit resolves this.
-		fitAddon.fit();
-		fitAddon.fit();
+				const escapedCarriageReturn = "\x1b\r";
+				const canvas = terminalWrapperRef.current?.querySelector("canvas");
+				if (canvas) {
+					// Handle special key combinations for ghostty-web via DOM events
+					canvas.addEventListener("keydown", (event: KeyboardEvent) => {
+						// Make shift+enter send ^[^M (escaped carriage return)
+						if (event.shiftKey && event.key === "Enter") {
+							event.preventDefault();
+							websocketRef.current?.send(
+								new TextEncoder().encode(
+									JSON.stringify({ data: escapedCarriageReturn }),
+								),
+							);
+						}
+						// Make ctrl+shift+c (command+shift+c on macOS) copy the selected text
+						else if ((isMac ? event.metaKey : event.ctrlKey) && event.shiftKey && event.key === "C") {
+							event.preventDefault();
+							copySelection();
+						}
+					});
+
+					// Intercept link clicks for port-forwarding
+					canvas.addEventListener("click", (event: MouseEvent) => {
+						const target = event.target as HTMLElement;
+						const computedStyle = window.getComputedStyle(target);
+						if (computedStyle.cursor === "pointer") {
+							event.preventDefault();
+							// ghostty-web handles most link clicks internally
+						}
+					});
+				}
+			} else {
+				(terminal as Terminal).open(terminalWrapperRef.current!);
+			}
+
+			// We have to fit twice here. It's unknown why, but the first fit will
+			// overflow slightly in some scenarios. Applying a second fit resolves this.
+			fitAddonRef.current?.fit();
+			fitAddonRef.current?.fit();
+
+			// Terminal is correctly sized and is ready to be used.
+			setTerminal(terminal);
+		};
+
+		// Use void to explicitly mark async function call
+		void openTerminal();
 
 		// This will trigger a resize event on the terminal.
-		const listener = () => fitAddon.fit();
+		const listener = () => fitAddonRef.current?.fit();
 		window.addEventListener("resize", listener);
-
-		// Terminal is correctly sized and is ready to be used.
-		setTerminal(terminal);
 
 		return () => {
 			window.removeEventListener("resize", listener);
@@ -226,6 +317,7 @@ const TerminalPage: FC = () => {
 	}, [
 		config.isLoading,
 		renderer,
+		useGhosttyWeb,
 		theme.palette.background.default,
 		currentTerminalFont,
 		copyToClipboard,
@@ -262,8 +354,10 @@ const TerminalPage: FC = () => {
 		// typing immediately.
 		terminal.focus();
 
-		// Disable input while we connect.
-		terminal.options.disableStdin = true;
+		// Disable input while we connect (only for xterm.js).
+		if (terminal instanceof Terminal) {
+			terminal.options.disableStdin = true;
+		}
 
 		// Show a message if we failed to find the workspace or agent.
 		if (workspace.isLoading) {
@@ -331,11 +425,13 @@ const TerminalPage: FC = () => {
 				websocket.binaryType = "arraybuffer";
 				websocketRef.current = websocket;
 				websocket.addEventListener(WebsocketEvent.open, () => {
-					// Now that we are connected, allow user input.
-					terminal.options = {
-						disableStdin: false,
-						windowsMode: workspaceAgent?.operating_system === "windows",
-					};
+					// Now that we are connected, allow user input (only for xterm.js).
+					if (terminal instanceof Terminal) {
+						terminal.options = {
+							disableStdin: false,
+							windowsMode: workspaceAgent?.operating_system === "windows",
+						};
+					}
 					// Send the initial size.
 					websocket?.send(
 						new TextEncoder().encode(
@@ -349,11 +445,15 @@ const TerminalPage: FC = () => {
 				});
 				websocket.addEventListener(WebsocketEvent.error, (_, event) => {
 					console.error("WebSocket error:", event);
-					terminal.options.disableStdin = true;
+					if (terminal instanceof Terminal) {
+						terminal.options.disableStdin = true;
+					}
 					setConnectionStatus("disconnected");
 				});
 				websocket.addEventListener(WebsocketEvent.close, () => {
-					terminal.options.disableStdin = true;
+					if (terminal instanceof Terminal) {
+						terminal.options.disableStdin = true;
+					}
 					setConnectionStatus("disconnected");
 				});
 				websocket.addEventListener(WebsocketEvent.message, (_, event) => {
@@ -459,6 +559,8 @@ const styles = {
 		overflow: "hidden",
 		backgroundColor: theme.palette.background.paper,
 		flex: 1,
+
+		// xterm.js styles (when experiment disabled)
 		// These styles attempt to mimic the VS Code scrollbar.
 		"& .xterm": {
 			padding: 4,
@@ -479,6 +581,13 @@ const styles = {
 		"& .xterm-viewport::-webkit-scrollbar-thumb": {
 			minHeight: 20,
 			backgroundColor: "rgba(255, 255, 255, 0.18)",
+		},
+
+		// ghostty-web styles (when experiment enabled)
+		// ghostty-web renders directly to canvas, no special classes needed
+		"& canvas": {
+			width: "100%",
+			height: "100%",
 		},
 	}),
 } satisfies Record<string, Interpolation<Theme>>;

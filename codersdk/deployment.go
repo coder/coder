@@ -3582,6 +3582,7 @@ const (
 	ExperimentMCPServerHTTP      Experiment = "mcp-server-http"      // Enables the MCP HTTP server functionality.
 	ExperimentWorkspaceSharing   Experiment = "workspace-sharing"    // Enables updating workspace ACLs for sharing with users and groups.
 	ExperimentAIBridge           Experiment = "aibridge"             // Enables AI Bridge functionality.
+	ExperimentGhosttyWeb         Experiment = "ghostty-web"          // Enables Ghostty web terminal emulator.
 )
 
 func (e Experiment) DisplayName() string {
@@ -3604,6 +3605,8 @@ func (e Experiment) DisplayName() string {
 		return "Workspace Sharing"
 	case ExperimentAIBridge:
 		return "AI Bridge"
+	case ExperimentGhosttyWeb:
+		return "Ghostty Web Terminal"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "web-push" -> "Web Push", "mcp-server-http" -> "Mcp Server Http"
@@ -3623,13 +3626,16 @@ var ExperimentsKnown = Experiments{
 	ExperimentMCPServerHTTP,
 	ExperimentWorkspaceSharing,
 	ExperimentAIBridge,
+	ExperimentGhosttyWeb,
 }
 
 // ExperimentsSafe should include all experiments that are safe for
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsSafe = Experiments{}
+var ExperimentsSafe = Experiments{
+	ExperimentGhosttyWeb,
+}
 
 // Experiments is a list of experiments.
 // Multiple experiments may be enabled at the same time.

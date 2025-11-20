@@ -1887,6 +1887,7 @@ export type Experiment =
 	| "aibridge"
 	| "auto-fill-parameters"
 	| "example"
+	| "ghostty-web"
 	| "mcp-server-http"
 	| "notifications"
 	| "oauth2"
@@ -1898,6 +1899,7 @@ export const Experiments: Experiment[] = [
 	"aibridge",
 	"auto-fill-parameters",
 	"example",
+	"ghostty-web",
 	"mcp-server-http",
 	"notifications",
 	"oauth2",

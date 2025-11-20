@@ -40,7 +40,8 @@ test("web terminal", async ({ context, page }) => {
 	const agent = await startAgent(page, token);
 	const terminal = await openTerminalWindow(page, context, workspaceName);
 
-	await terminal.waitForSelector("div.xterm-rows", {
+	// Wait for either xterm.js or ghostty-web terminal to be ready
+	await terminal.waitForSelector("div.xterm-rows, canvas", {
 		state: "visible",
 	});
 
@@ -55,8 +56,10 @@ test("web terminal", async ({ context, page }) => {
 	// Check if "echo" command was executed
 	// try-catch is used temporarily to find the root cause: https://github.com/coder/coder/actions/runs/6176958762/job/16767089943
 	try {
+		// ghostty-web renders to canvas, so text might not be in DOM
+		// Check the terminal container's textContent or xterm-rows for xterm.js
 		await terminal.waitForSelector(
-			'div.xterm-rows span:text-matches("hello123456")',
+			'div.xterm-rows span:text-matches("hello123456"), [data-testid="terminal"]:has-text("hello123456")',
 			{
 				state: "visible",
 				timeout: 10 * 1000,

@@ -23,6 +23,7 @@ if (process.env.STATS !== undefined) {
 export default defineConfig({
 	plugins,
 	publicDir: path.resolve(__dirname, "./static"),
+	assetsInclude: ["**/*.wasm"],
 	build: {
 		outDir: path.resolve(__dirname, "./out"),
 		emptyOutDir: false, // We need to keep the /bin folder and GITKEEP files
@@ -47,11 +48,15 @@ export default defineConfig({
 					if (id.includes("@emotion")) return "emotion";
 					if (id.includes("monaco-editor")) return "monaco";
 					if (id.includes("@xterm")) return "xterm";
+					if (id.includes("ghostty-web")) return "ghostty";
 					if (id.includes("emoji-mart")) return "emoji-mart";
 					if (id.includes("radix-ui")) return "radix-ui";
 				},
 			},
 		},
+	},
+	optimizeDeps: {
+		exclude: ["ghostty-web"],
 	},
 	define: {
 		"process.env": {

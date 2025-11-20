@@ -72,7 +72,8 @@ func CSPHeaders(telemetry bool, proxyHosts func() []*proxyhealth.ProxyHost, stat
 				CSPDirectiveConnectSrc: {"'self'"},
 				CSPDirectiveChildSrc:   {"'self'"},
 				// https://github.com/suren-atoyan/monaco-react/issues/168
-				CSPDirectiveScriptSrc: {"'self'"},
+				// 'wasm-unsafe-eval' allows WebAssembly instantiation (required for ghostty-web terminal)
+				CSPDirectiveScriptSrc: {"'self' 'wasm-unsafe-eval'"},
 				CSPDirectiveStyleSrc:  {"'self' 'unsafe-inline'"},
 				// data: is used by monaco editor on FE for Syntax Highlight
 				CSPDirectiveFontSrc:   {"'self' data:"},

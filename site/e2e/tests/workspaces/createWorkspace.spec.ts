@@ -209,8 +209,9 @@ test.skip("create docker workspace", async ({ context, page }) => {
 		workspaceName,
 		"main",
 	);
+	// Both xterm.js and ghostty-web create a textarea for clipboard
 	await terminal.waitForSelector(
-		`//textarea[contains(@class,"xterm-helper-textarea")]`,
+		`//textarea[contains(@class,"xterm-helper-textarea") or @aria-label="Terminal input"]`,
 		{ state: "visible" },
 	);
 });
