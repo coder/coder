@@ -21,6 +21,7 @@ import userEvent from "@testing-library/user-event";
 import { API } from "api/api";
 import type { DynamicParametersResponse } from "api/typesGenerated";
 import CreateWorkspacePage from "./CreateWorkspacePage";
+import { act } from "react";
 
 describe("CreateWorkspacePage", () => {
 	const renderCreateWorkspacePage = (
@@ -141,6 +142,8 @@ describe("CreateWorkspacePage", () => {
 			});
 			expect(instanceTypeSelect).toBeInTheDocument();
 
+			jest.useFakeTimers();
+
 			await waitFor(async () => {
 				await userEvent.click(instanceTypeSelect);
 			});
@@ -155,9 +158,15 @@ describe("CreateWorkspacePage", () => {
 				await userEvent.click(mediumOption!);
 			});
 
+			act(() => {
+				jest.runAllTimers();
+			});
+
 			expect(mockWebSocket.send).toHaveBeenCalledWith(
 				expect.stringContaining('"instance_type":"t3.medium"'),
 			);
+
+			jest.useRealTimers();
 		});
 
 		it("handles WebSocket error gracefully", async () => {
@@ -434,14 +443,14 @@ describe("CreateWorkspacePage", () => {
 				.mockResolvedValue([MockTemplateVersionExternalAuthGithub]);
 
 			renderCreateWorkspacePage(
-				`/templates/${MockTemplate.name}/workspace?mode=auto`,
+				`/templates/${MockTemplate.name}/workspace?mode=auto&version=${MockTemplate.id}`,
 			);
 			await waitForLoaderToBeRemoved();
 
 			await waitFor(() => {
 				expect(
 					screen.getByText(
-						/external authentication providers that are not connected/i,
+						/external authentication provider that is not connected/i,
 					),
 				).toBeInTheDocument();
 				expect(

@@ -255,7 +255,7 @@ const CreateWorkspacePageExperimental: FC = () => {
 				? "an external authentication provider that is"
 				: "external authentication providers that are";
 		setAutoCreateError({
-			message: `This template requires ${subject} not connected. length: ${externalAuth?.length}`,
+			message: `This template requires ${subject} not connected.`,
 			detail:
 				"Auto-creation has been disabled. Please connect all required external authentication providers before continuing.",
 		});
