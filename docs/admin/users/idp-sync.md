@@ -519,8 +519,7 @@ Steps to troubleshoot.
 
 ### Active Directory Federation Services (ADFS)
 
-> [!NOTE]
-> Tested on ADFS 4.0, Windows Server 2019
+Tested on ADFS 4.0, Windows Server 2019
 
 1. In your Federation Server, create a new application group for Coder.
    Follow the steps as described in the [Windows Server documentation]
