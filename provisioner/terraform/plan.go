@@ -15,12 +15,12 @@ import (
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
-type planAction func(ctx, killCtx context.Context, env, vars []string, logr logSink, req *proto.PlanRequest) (T, error)
+type planAction[T planComplete] func(ctx, killCtx context.Context, env, vars []string, logr logSink, req *proto.PlanRequest) (T, error)
 type genericPlanHelpers[T planComplete] struct {
 	New           func() T
 	AppendTimings func(c T, timings []*proto.Timing) T
 	AppendModules func(c T, mods []*proto.Module) T
-	Plan          func(e *executor) planAction
+	Plan          func(e *executor) planAction[T]
 }
 
 type planComplete interface {
@@ -118,7 +118,7 @@ func genericPlan[T planComplete](helper genericPlanHelpers[T], s *server, sess *
 		return nil, xerrors.Errorf("plan vars: %w", err)
 	}
 
-	resp, err := helper.Plan(ctx, killCtx, env, vars, sess, request)
+	resp, err := helper.Plan(e)(ctx, killCtx, env, vars, sess, request)
 	if err != nil {
 		return nil, xerrors.Errorf("plan: %w", err)
 	}

@@ -940,10 +940,10 @@ func (r *Runner) buildWorkspace(ctx context.Context, stage string, req *sdkproto
 	}
 }
 
-func (r *Runner) commitQuota(ctx context.Context, resources []*sdkproto.Resource) *proto.FailedJob {
-	cost := sumDailyCost(resources)
+func (r *Runner) commitQuota(ctx context.Context, cost int32) *proto.FailedJob {
+	//cost := sumDailyCost(resources)
 	r.logger.Debug(ctx, "committing quota",
-		slog.F("resources", resourceNames(resources)),
+		//slog.F("resources", resourceNames(resources)),
 		slog.F("cost", cost),
 	)
 	if cost == 0 {
@@ -1034,6 +1034,7 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 				PreviousParameterValues: r.job.GetWorkspaceBuild().PreviousParameterValues,
 				VariableValues:          r.job.GetWorkspaceBuild().VariableValues,
 				ExternalAuthProviders:   r.job.GetWorkspaceBuild().ExternalAuthProviders,
+				WorkspaceBuild:          ptr.Ref(true),
 			},
 		},
 	})
@@ -1057,17 +1058,18 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 			},
 		}
 	}
-	if len(planComplete.AiTasks) > 1 {
-		return nil, r.failedWorkspaceBuildf("only one 'coder_ai_task' resource can be provisioned per template")
-	}
+	// TODO: Put back aiTasks
+	//if len(planComplete.AiTasks) > 1 {
+	//	return nil, r.failedWorkspaceBuildf("only one 'coder_ai_task' resource can be provisioned per template")
+	//}
 
-	r.logger.Info(context.Background(), "plan request successful",
-		slog.F("resource_count", len(planComplete.Resources)),
-		slog.F("resources", resourceNames(planComplete.Resources)),
-	)
+	r.logger.Info(context.Background(), "plan request successful") // TODO: Probably handle these logs a bit differently.
+	//slog.F("resource_count", len(planComplete.Resources)),
+	//slog.F("resources", resourceNames(planComplete.Resources)),
+
 	r.flushQueuedLogs(ctx)
 	if commitQuota {
-		failed = r.commitQuota(ctx, planComplete.Resources)
+		failed = r.commitQuota(ctx, planComplete.DailyCost)
 		r.flushQueuedLogs(ctx)
 		if failed != nil {
 			return nil, failed

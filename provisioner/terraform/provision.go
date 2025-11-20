@@ -79,7 +79,7 @@ func (s *server) BuildPlan(
 			c.Modules = append(c.Modules, mods...)
 			return c
 		},
-		Plan: func(e *executor) planAction { return e.buildPlan },
+		Plan: func(e *executor) planAction[*proto.PreApplyPlanComplete] { return e.buildPlan },
 	}, s, sess, request, canceledOrComplete)
 	if err != nil {
 		return provisionersdk.BuildPlanErrorf("%s", err.Error())
@@ -100,7 +100,7 @@ func (s *server) Plan(
 			c.Modules = append(c.Modules, mods...)
 			return c
 		},
-		Plan: func(e *executor) planAction { return e.templatePlan },
+		Plan: func(e *executor) planAction[*proto.PlanComplete] { return e.templatePlan },
 	}, s, sess, request, canceledOrComplete)
 	if err != nil {
 		return provisionersdk.PlanErrorf("%s", err.Error())
