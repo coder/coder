@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Button } from "components/Button/Button";
-import MiniTooltip from "./MiniTooltip";
 import { expect, screen, userEvent, waitFor } from "storybook/test";
+import MiniTooltip from "./MiniTooltip";
 
 const title = "Add to library";
 const triggerText = "Hover";
