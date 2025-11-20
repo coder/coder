@@ -28,9 +28,11 @@ import (
 	"github.com/coder/serpent"
 )
 
-// New creates a CLI instance with a configuration pointed to a
-// temporary testing directory. On Windows/macOS where keyring is mandatory,
-// it injects a file-based mock backend to avoid accessing the OS keyring.
+// New creates a CLI instance with a configuration pointed to a temporary
+// testing directory, unless the --global-config argument is present in args.
+// It always injects a file-based session token storage backend to avoid
+// accessing the OS keyring in tests that don't explicitly need to exercise
+// the keyring.
 func New(t testing.TB, args ...string) (*serpent.Invocation, config.Root) {
 	var root cli.RootCmd
 
@@ -45,7 +47,6 @@ func New(t testing.TB, args ...string) (*serpent.Invocation, config.Root) {
 	root.WithSessionStorageBackend(sessionstore.NewFile(func() config.Root {
 		return cfg
 	}))
-	inv.Command = cmd
 
 	return inv, cfg
 }
@@ -70,15 +71,36 @@ func (l *logWriter) Write(p []byte) (n int, err error) {
 func NewWithCommand(
 	t testing.TB, cmd *serpent.Command, args ...string,
 ) (*serpent.Invocation, config.Root) {
-	configDir := config.Root(t.TempDir())
 	// I really would like to fail test on error logs, but realistically, turning on by default
 	// in all our CLI tests is going to create a lot of flaky noise.
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).
 		Leveled(slog.LevelDebug).
 		Named("cli")
+
+	// Check if --global-config is already in args. If so, extract and use it.
+	// Otherwise, create a temp directory and prepend --global-config.
+	configDir := ""
+	finalArgs := args
+	for i, arg := range args {
+		if arg == "--global-config" && i+1 < len(args) {
+			// Format: --global-config /path
+			configDir = args[i+1]
+			break
+		} else if strings.HasPrefix(arg, "--global-config=") {
+			// Format: --global-config=/path
+			configDir = strings.TrimPrefix(arg, "--global-config=")
+			break
+		}
+	}
+
+	if configDir == "" {
+		configDir = t.TempDir()
+		finalArgs = append([]string{"--global-config", configDir}, args...)
+	}
+
 	i := &serpent.Invocation{
 		Command: cmd,
-		Args:    append([]string{"--global-config", string(configDir)}, args...),
+		Args:    finalArgs,
 		Stdin:   io.LimitReader(nil, 0),
 		Stdout:  (&logWriter{prefix: "stdout", log: logger}),
 		Stderr:  (&logWriter{prefix: "stderr", log: logger}),
@@ -87,7 +109,7 @@ func NewWithCommand(
 	t.Logf("invoking command: %s %s", cmd.Name(), strings.Join(i.Args, " "))
 
 	// These can be overridden by the test.
-	return i, configDir
+	return i, config.Root(configDir)
 }
 
 // SetupConfig applies the URL and SessionToken of the client to the config.

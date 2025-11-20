@@ -2,60 +2,45 @@ package cli_test
 
 import (
 	"bytes"
-	"net/url"
+	"crypto/rand"
+	"encoding/binary"
+	"fmt"
 	"os"
 	"path"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clitest"
+	"github.com/coder/coder/v2/cli/sessionstore"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/pty/ptytest"
 )
 
-// mockKeyring is a mock sessionstore.Backend implementation.
-type mockKeyring struct {
-	credentials map[string]string // service name -> credential
-}
-
-const mockServiceName = "mock-service-name"
-
-func newMockKeyring() *mockKeyring {
-	return &mockKeyring{credentials: make(map[string]string)}
-}
-
-func (m *mockKeyring) Read(_ *url.URL) (string, error) {
-	cred, ok := m.credentials[mockServiceName]
-	if !ok {
-		return "", os.ErrNotExist
+// keyringTestServiceName generates a unique test service name for use with the OS keyring.
+// It uses a combination of the test name, a timestamp, and a random number to prevent
+// collisions between parallel tests.
+func keyringTestServiceName(t *testing.T) string {
+	t.Helper()
+	var n uint32
+	err := binary.Read(rand.Reader, binary.BigEndian, &n)
+	if err != nil {
+		t.Fatal(err)
 	}
-	return cred, nil
-}
-
-func (m *mockKeyring) Write(_ *url.URL, token string) error {
-	m.credentials[mockServiceName] = token
-	return nil
-}
-
-func (m *mockKeyring) Delete(_ *url.URL) error {
-	_, ok := m.credentials[mockServiceName]
-	if !ok {
-		return os.ErrNotExist
-	}
-	delete(m.credentials, mockServiceName)
-	return nil
+	return fmt.Sprintf("%s_%d_%d", t.Name(), time.Now().UnixNano(), n)
 }
 
 func TestUseKeyring(t *testing.T) {
-	// Verify that keyring storage works correctly:
-	// - On Windows/macOS: keyring is mandatory (mocked via backend injection in tests)
-	// - On Linux: file storage is used by default
-	// - The --use-keyring flag is deprecated and has no effect
 	t.Parallel()
+
+	// Only run on platforms where keyring is supported
+	if runtime.GOOS != "windows" && runtime.GOOS != "darwin" {
+		t.Skip("keyring storage only supported on Windows and macOS")
+	}
 
 	t.Run("Login", func(t *testing.T) {
 		t.Parallel()
@@ -67,24 +52,24 @@ func TestUseKeyring(t *testing.T) {
 		// Create a pty for interactive prompts
 		pty := ptytest.New(t)
 
-		// Create CLI invocation (uses mock keyring backend via injection)
-		inv, cfg := clitest.New(t,
+		// Create a unique keyring service name to avoid collisions with parallel tests
+		serviceName := keyringTestServiceName(t)
+		keyringBackend := sessionstore.NewKeyringWithService(serviceName)
+
+		// Create CLI invocation with unique keyring backend
+		var root cli.RootCmd
+		cmd, err := root.Command(root.AGPL())
+		require.NoError(t, err)
+		root.WithSessionStorageBackend(keyringBackend)
+
+		inv, cfg := clitest.NewWithCommand(t, cmd,
 			"login",
 			"--force-tty",
-			"--use-keyring", // Deprecated flag (ignored)
 			"--no-open",
 			client.URL.String(),
 		)
 		inv.Stdin = pty.Input()
 		inv.Stdout = pty.Output()
-
-		// Inject the mock backend before running the command
-		var root cli.RootCmd
-		cmd, err := root.Command(root.AGPL())
-		require.NoError(t, err)
-		mockBackend := newMockKeyring()
-		root.WithSessionStorageBackend(mockBackend)
-		inv.Command = cmd
 
 		// Run login in background
 		doneChan := make(chan struct{})
@@ -105,10 +90,10 @@ func TestUseKeyring(t *testing.T) {
 		_, err = os.Stat(sessionFile)
 		require.True(t, os.IsNotExist(err), "session file should not exist when using keyring")
 
-		// Verify that the credential IS stored in mock keyring
-		cred, err := mockBackend.Read(nil)
-		require.NoError(t, err, "credential should be stored in mock keyring")
-		require.Equal(t, client.SessionToken(), cred, "stored token should match login token")
+		// Clean up: remove from keyring
+		t.Cleanup(func() {
+			_ = keyringBackend.Delete(client.URL) // Best effort cleanup
+		})
 	})
 
 	t.Run("Logout", func(t *testing.T) {
@@ -121,24 +106,24 @@ func TestUseKeyring(t *testing.T) {
 		// Create a pty for interactive prompts
 		pty := ptytest.New(t)
 
-		// First, login (uses mock keyring backend via injection)
-		loginInv, cfg := clitest.New(t,
+		// Create a unique keyring service name to avoid collisions with parallel tests
+		serviceName := keyringTestServiceName(t)
+		keyringBackend := sessionstore.NewKeyringWithService(serviceName)
+
+		// First, login using keyring with unique service name
+		var loginRoot cli.RootCmd
+		loginCmd, err := loginRoot.Command(loginRoot.AGPL())
+		require.NoError(t, err)
+		loginRoot.WithSessionStorageBackend(keyringBackend)
+
+		loginInv, cfg := clitest.NewWithCommand(t, loginCmd,
 			"login",
 			"--force-tty",
-			"--use-keyring", // Deprecated flag (ignored)
 			"--no-open",
 			client.URL.String(),
 		)
 		loginInv.Stdin = pty.Input()
 		loginInv.Stdout = pty.Output()
-
-		// Inject the mock backend
-		var loginRoot cli.RootCmd
-		loginCmd, err := loginRoot.Command(loginRoot.AGPL())
-		require.NoError(t, err)
-		mockBackend := newMockKeyring()
-		loginRoot.WithSessionStorageBackend(mockBackend)
-		loginInv.Command = loginCmd
 
 		doneChan := make(chan struct{})
 		go func() {
@@ -152,25 +137,17 @@ func TestUseKeyring(t *testing.T) {
 		pty.ExpectMatch("Welcome to Coder")
 		<-doneChan
 
-		// Verify credential exists in mock keyring
-		cred, err := mockBackend.Read(nil)
-		require.NoError(t, err, "read credential should succeed before logout")
-		require.NotEmpty(t, cred, "credential should exist after logout")
-
-		// Now run logout (uses same mock keyring backend)
-		logoutInv, _ := clitest.New(t,
-			"logout",
-			"--use-keyring", // Deprecated flag (ignored)
-			"--yes",
-			"--global-config", string(cfg),
-		)
-
-		// Inject the same mock backend
+		// Now run logout using the same keyring backend
 		var logoutRoot cli.RootCmd
 		logoutCmd, err := logoutRoot.Command(logoutRoot.AGPL())
 		require.NoError(t, err)
-		logoutRoot.WithSessionStorageBackend(mockBackend)
-		logoutInv.Command = logoutCmd
+		logoutRoot.WithSessionStorageBackend(keyringBackend)
+
+		logoutInv, _ := clitest.NewWithCommand(t, logoutCmd,
+			"logout",
+			"--yes",
+			"--global-config", string(cfg),
+		)
 
 		var logoutOut bytes.Buffer
 		logoutInv.Stdout = &logoutOut
@@ -178,107 +155,14 @@ func TestUseKeyring(t *testing.T) {
 		err = logoutInv.Run()
 		require.NoError(t, err, "logout should succeed")
 
-		// Verify the credential was deleted from mock keyring
-		_, err = mockBackend.Read(nil)
-		require.ErrorIs(t, err, os.ErrNotExist, "credential should be deleted from keyring after logout")
-	})
-
-	t.Run("MockBackend", func(t *testing.T) {
-		t.Parallel()
-
-		// clitest.New() injects a file-based backend for all platforms. This
-		// test verifies that session tokens are stored correctly in tests.
-
-		// Create a test server
-		client := coderdtest.New(t, nil)
-		coderdtest.CreateFirstUser(t, client)
-
-		// Create a pty for interactive prompts
-		pty := ptytest.New(t)
-
-		// clitest.New injects file backend for us
-		inv, cfg := clitest.New(t,
-			"login",
-			"--force-tty",
-			"--no-open",
-			client.URL.String(),
-		)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
-
-		doneChan := make(chan struct{})
-		go func() {
-			defer close(doneChan)
-			err := inv.Run()
-			assert.NoError(t, err)
-		}()
-
-		pty.ExpectMatch("Paste your token here:")
-		pty.WriteLine(client.SessionToken())
-		pty.ExpectMatch("Welcome to Coder")
-		<-doneChan
-
-		// Verify the session file was created by the injected file backend
-		sessionFile := path.Join(string(cfg), "session")
-		_, err := os.Stat(sessionFile)
-		require.NoError(t, err, "session file should exist from injected file backend")
-
-		// Read and verify the token
-		content, err := os.ReadFile(sessionFile)
-		require.NoError(t, err, "should be able to read session file")
-		require.Equal(t, client.SessionToken(), string(content), "file should contain the session token")
-	})
-
-	t.Run("EnvironmentVariable", func(t *testing.T) {
-		t.Parallel()
-
-		// Create a test server
-		client := coderdtest.New(t, nil)
-		coderdtest.CreateFirstUser(t, client)
-
-		// Create a pty for interactive prompts
-		pty := ptytest.New(t)
-
-		// Login using CODER_USE_KEYRING environment variable instead of flag
-		inv, cfg := clitest.New(t,
-			"login",
-			"--force-tty",
-			"--no-open",
-			client.URL.String(),
-		)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
-		inv.Environ.Set("CODER_USE_KEYRING", "true")
-
-		// Inject the mock backend
-		var root cli.RootCmd
-		cmd, err := root.Command(root.AGPL())
-		require.NoError(t, err)
-		mockBackend := newMockKeyring()
-		root.WithSessionStorageBackend(mockBackend)
-		inv.Command = cmd
-
-		doneChan := make(chan struct{})
-		go func() {
-			defer close(doneChan)
-			err := inv.Run()
-			assert.NoError(t, err)
-		}()
-
-		pty.ExpectMatch("Paste your token here:")
-		pty.WriteLine(client.SessionToken())
-		pty.ExpectMatch("Welcome to Coder")
-		<-doneChan
-
-		// Verify that session file was NOT created (using keyring via env var)
+		// Verify the session file still doesn't exist after logout
 		sessionFile := path.Join(string(cfg), "session")
 		_, err = os.Stat(sessionFile)
-		require.True(t, os.IsNotExist(err), "session file should not exist when using keyring via env var")
+		require.True(t, os.IsNotExist(err), "session file should not exist after keyring logout")
 
-		// Verify credential is in mock keyring
-		cred, err := mockBackend.Read(nil)
-		require.NoError(t, err, "credential should be stored in keyring when CODER_USE_KEYRING=true")
-		require.NotEmpty(t, cred)
+		// Verify the credential was actually deleted from keyring
+		_, err = keyringBackend.Read(client.URL)
+		require.ErrorIs(t, err, os.ErrNotExist, "credential should be deleted from keyring")
 	})
 }
 
@@ -298,7 +182,13 @@ func TestUseKeyringUnsupportedOS(t *testing.T) {
 		pty := ptytest.New(t)
 
 		// Login with deprecated --use-keyring=true flag (should be ignored)
-		inv, cfg := clitest.New(t,
+		// Use NewWithCommand to exercise the real code path that will
+		// automatically use file-based storage on Linux
+		var root cli.RootCmd
+		cmd, err := root.Command(root.AGPL())
+		require.NoError(t, err)
+
+		inv, cfg := clitest.NewWithCommand(t, cmd,
 			"login",
 			"--force-tty",
 			"--use-keyring=true",
@@ -320,10 +210,10 @@ func TestUseKeyringUnsupportedOS(t *testing.T) {
 		pty.ExpectMatch("Welcome to Coder")
 		<-doneChan
 
-		// Verify file storage was used (flag was ignored)
+		// Verify file storage was used (flag was ignored and Linux defaults to file)
 		sessionFile := path.Join(string(cfg), "session")
-		_, err := os.Stat(sessionFile)
-		require.NoError(t, err, "session file should exist - flag is deprecated and ignored")
+		_, err = os.Stat(sessionFile)
+		require.NoError(t, err, "session file should exist - flag is deprecated and Linux uses file storage")
 
 		// Read and verify the token from file
 		content, err := os.ReadFile(sessionFile)

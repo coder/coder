@@ -1,6 +1,8 @@
 package sessionstore_test
 
 import (
+	"crypto/rand"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,11 +24,17 @@ type storedCredentials map[string]struct {
 	APIToken string `json:"api_token"`
 }
 
-// Generate a test service name for use with the OS keyring. It uses a combination
-// of the test name and a nanosecond timestamp to prevent collisions.
+// keyringTestServiceName generates a unique test service name for use with the OS keyring.
+// It uses a combination of the test name, a timestamp, and a random number to prevent
+// collisions between parallel tests.
 func keyringTestServiceName(t *testing.T) string {
 	t.Helper()
-	return t.Name() + "_" + fmt.Sprintf("%v", time.Now().UnixNano())
+	var n uint32
+	err := binary.Read(rand.Reader, binary.BigEndian, &n)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return fmt.Sprintf("%s_%d_%d", t.Name(), time.Now().UnixNano(), n)
 }
 
 func TestKeyring(t *testing.T) {
