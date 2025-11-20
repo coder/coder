@@ -149,7 +149,7 @@ use only the `coder_devcontainer` resource for explicit configuration.
 
 ### CODER_AGENT_DEVCONTAINERS_DISCOVERY_AUTOSTART_ENABLE
 
-**Default: `false`** • **Added in: v2.26.0**
+**Default: `false`** • **Added in: v2.25.0**
 
 Automatically starts dev containers discovered via project discovery.
 
