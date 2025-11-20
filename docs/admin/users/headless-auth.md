@@ -16,7 +16,7 @@ You must have the User Admin role or above to create headless users.
 coder users create \
   --email="coder-bot@coder.com" \
   --username="coder-bot" \
-  --login-type="none \
+  --login-type="none" \
 ```
 
 ## UI

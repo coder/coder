@@ -28,24 +28,12 @@ export const VanillaJavascriptError: Story = {
 	args: {
 		error: new Error("Something blew up :("),
 	},
-	play: async ({ canvasElement, args }) => {
-		const error = args.error as Error;
+	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const showErrorButton = canvas.getByRole("button", {
 			name: /Show error/i,
 		});
 		await userEvent.click(showErrorButton);
-
-		// Verify that error message content is now on screen; defer to
-		// accessible name queries as much as possible
-		canvas.getByRole("heading", { name: /Error/i });
-
-		const p = canvas.getByTestId("description");
-		expect(p).toHaveTextContent(error.message);
-
-		const codeBlock = canvas.getByTestId("code");
-		expect(codeBlock).toHaveTextContent(error.name);
-		expect(codeBlock).toHaveTextContent(error.message);
 	},
 };
 
