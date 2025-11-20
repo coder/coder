@@ -820,6 +820,44 @@ func TestTasks(t *testing.T) {
 			require.NoError(t, err)
 		})
 
+		t.Run("EmptyPrompt", func(t *testing.T) {
+			t.Parallel()
+
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			template := createAITemplate(t, client, user)
+
+			// Create a task with workspace
+			exp := codersdk.NewExperimentalClient(client)
+			task, err := exp.CreateTask(ctx, codersdk.Me, codersdk.CreateTaskRequest{
+				TemplateVersionID: template.ActiveVersionID,
+				Input:             "initial prompt",
+			})
+			require.NoError(t, err)
+			require.True(t, task.WorkspaceID.Valid)
+
+			// Wait for workspace to be running
+			workspace, err := client.Workspace(ctx, task.WorkspaceID.UUID)
+			require.NoError(t, err)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+			// Stop the workspace so we can test the empty prompt validation
+			build := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
+
+			// Attempt to update with empty prompt should fail with 400 Bad Request
+			err = exp.UpdateTaskInput(ctx, task.OwnerName, task.ID, codersdk.UpdateTaskInputRequest{
+				Input: "",
+			})
+			require.Error(t, err)
+			var apiErr *codersdk.Error
+			require.ErrorAs(t, err, &apiErr)
+			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+			require.Contains(t, apiErr.Message, "required")
+		})
+
 		t.Run("Running", func(t *testing.T) {
 			t.Parallel()
 

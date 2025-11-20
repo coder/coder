@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -619,6 +620,13 @@ func (api *API) taskUpdateInput(rw http.ResponseWriter, r *http.Request) {
 
 	var req codersdk.UpdateTaskInputRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	if strings.TrimSpace(req.Input) == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Input is required, and should not be empty.",
+		})
 		return
 	}
 
