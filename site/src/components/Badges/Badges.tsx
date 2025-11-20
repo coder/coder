@@ -1,5 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import Tooltip from "@mui/material/Tooltip";
+import MiniTooltip from "components/MiniTooltip/MiniTooltip";
 import { Stack } from "components/Stack/Stack";
 import {
 	type FC,
@@ -69,17 +69,17 @@ export const NotHealthyBadge: FC = () => {
 
 export const NotRegisteredBadge: FC = () => {
 	return (
-		<Tooltip title="Workspace Proxy has never come online and needs to be started.">
+		<MiniTooltip title="Workspace Proxy has never come online and needs to be started.">
 			<span css={[styles.badge, styles.warnBadge]}>Never seen</span>
-		</Tooltip>
+		</MiniTooltip>
 	);
 };
 
 export const NotReachableBadge: FC = () => {
 	return (
-		<Tooltip title="Workspace Proxy not responding to http(s) requests.">
+		<MiniTooltip title="Workspace Proxy not responding to http(s) requests.">
 			<span css={[styles.badge, styles.warnBadge]}>Not reachable</span>
-		</Tooltip>
+		</MiniTooltip>
 	);
 };
 
