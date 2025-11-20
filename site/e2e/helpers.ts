@@ -189,15 +189,9 @@ export const verifyParameters = async (
 		await expect(parameterLabel).toBeVisible();
 
 		if (richParameter.options.length > 0) {
-			// const parameterField = await parameterLabel.waitForSelector(
-			// 	`[data-testid='parameter-field-options'] input`,
-			// );
-			// const value = await parameterField.inputValue();
-			// expect(value).toEqual(buildParameter.value);
-
-			// const x = parameterLabel.locator(`input[value='${richParameter.value}']`);
-			// const value = await x.isChecked();
-			// expect(value).toEqual(buildParameter.value);
+			const parameterValue = parameterLabel.getByLabel(buildParameter.value);
+			const value = await parameterValue.isChecked();
+			expect(value).toBe(true);
 			continue;
 		}
 
@@ -970,10 +964,10 @@ const fillParameters = async (
 		await expect(parameterLabel).toBeVisible();
 
 		if (richParameter.options.length > 0) {
-			// const parameterField = parameterLabel
-			// 	.getByTestId("parameter-field-options")
-			// 	.locator(`.MuiRadio-root input[value='${buildParameter.value}']`);
-			// await parameterField.click();
+			const parameterValue = parameterLabel.getByRole("button", {
+				name: buildParameter.value,
+			});
+			await parameterValue.click();
 			continue;
 		}
 
