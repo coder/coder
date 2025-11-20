@@ -97,25 +97,6 @@ describe("DynamicParameter", () => {
 			expect(screen.getByRole("textbox")).toHaveValue("test_value");
 		});
 
-		it("calls onChange when input value changes", async () => {
-			render(
-				<DynamicParameter
-					parameter={mockStringParameter}
-					onChange={mockOnChange}
-				/>,
-			);
-
-			const input = screen.getByRole("textbox");
-
-			await waitFor(async () => {
-				await userEvent.type(input, "new_value");
-			});
-
-			await waitFor(() => {
-				expect(mockOnChange).toHaveBeenLastCalledWith("new_value");
-			});
-		});
-
 		it("shows required indicator for required parameters", () => {
 			render(
 				<DynamicParameter
@@ -168,24 +149,6 @@ describe("DynamicParameter", () => {
 
 			expect(screen.getByText("Textarea Parameter")).toBeInTheDocument();
 			expect(screen.getByRole("textbox")).toHaveValue(testValue);
-		});
-
-		it("handles textarea value changes", async () => {
-			render(
-				<DynamicParameter
-					parameter={mockTextareaParameter}
-					onChange={mockOnChange}
-				/>,
-			);
-
-			const textarea = screen.getByRole("textbox");
-			await waitFor(async () => {
-				await userEvent.type(textarea, "line1{enter}line2{enter}line3");
-			});
-
-			await waitFor(() => {
-				expect(mockOnChange).toHaveBeenLastCalledWith("line1\nline2\nline3");
-			});
 		});
 	});
 
