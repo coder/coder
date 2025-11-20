@@ -33,10 +33,12 @@ func ctxAndLogger(t *testing.T) (context.Context, slog.Logger) {
 	return context.Background(), testutil.Logger(t)
 }
 
-// TestConvertStateGoldenFiles compares the output of ConvertState to a golden
+// TestConvertStateGolden compares the output of ConvertState to a golden
 // file to prevent regressions. If the logic changes, update the golden files
 // accordingly.
-func TestConvertStateGoldenFiles(t *testing.T) {
+//
+// This was created to aid in refactoring `ConvertState`.
+func TestConvertStateGolden(t *testing.T) {
 	t.Parallel()
 
 	testResourceDirectories := filepath.Join("testdata", "resources")
@@ -51,22 +53,28 @@ func TestConvertStateGoldenFiles(t *testing.T) {
 		testFiles, err := os.ReadDir(filepath.Join(testResourceDirectories, testDirectory.Name()))
 		require.NoError(t, err)
 
+		// ConvertState works on both a plan file and a state file.
+		// The test should create a golden file for both.
 		for _, step := range []string{"plan", "state"} {
-			planIdx := slices.IndexFunc(testFiles, func(entry os.DirEntry) bool {
+			srcIdc := slices.IndexFunc(testFiles, func(entry os.DirEntry) bool {
 				return strings.HasSuffix(entry.Name(), fmt.Sprintf(".tf%s.json", step))
 			})
 			dotIdx := slices.IndexFunc(testFiles, func(entry os.DirEntry) bool {
 				return strings.HasSuffix(entry.Name(), fmt.Sprintf(".tf%s.dot", step))
 			})
 
-			if planIdx == -1 || dotIdx == -1 {
+			// If the directory is missing these files, we cannot run ConvertState
+			// on it. So it's skipped.
+			if srcIdc == -1 || dotIdx == -1 {
 				continue
 			}
 
 			t.Run(step+"_"+testDirectory.Name(), func(t *testing.T) {
+				// Load the paths before t.Parallel()
 				testDirectoryPath := filepath.Join(testResourceDirectories, testDirectory.Name())
-				planFile := filepath.Join(testDirectoryPath, testFiles[planIdx].Name())
+				planFile := filepath.Join(testDirectoryPath, testFiles[srcIdc].Name())
 				dotFile := filepath.Join(testDirectoryPath, testFiles[dotIdx].Name())
+
 				t.Parallel()
 				ctx := testutil.Context(t, testutil.WaitMedium)
 				logger := slogtest.Make(t, nil)
@@ -99,6 +107,8 @@ func TestConvertStateGoldenFiles(t *testing.T) {
 				dotFileRaw, err := os.ReadFile(dotFile)
 				require.NoError(t, err)
 
+				// expectedOutput is `any` to support errors too. If `ConvertState` returns an
+				// error, that error is the golden file output.
 				var expectedOutput any
 				state, err := terraform.ConvertState(ctx, modules, string(dotFileRaw), logger)
 				if err == nil {
