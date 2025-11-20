@@ -45,13 +45,10 @@ message DependencyInfo {
 }
 
 message SyncStatusResponse {
-	bool success = 1;
-	string message = 2;
-	string unit = 3;
-	string status = 4;
-	bool is_ready = 5;
-	repeated DependencyInfo dependencies = 6;
-	string dot = 7;
+	string status = 1;
+	bool is_ready = 2;
+	repeated DependencyInfo dependencies = 3;
+	string dot = 4;
 }
 
 // AgentSocket provides direct access to the agent over local IPC.

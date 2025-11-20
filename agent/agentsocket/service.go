@@ -136,10 +136,7 @@ func (s *DRPCAgentSocketService) SyncStatus(_ context.Context, req *proto.SyncSt
 	if req.Recursive {
 		dotStr, err = s.unitManager.ExportDOT("dependency_graph")
 		if err != nil {
-			return &proto.SyncStatusResponse{
-				Success: false,
-				Message: "failed to export DOT: " + err.Error(),
-			}, nil
+			return &proto.SyncStatusResponse{}, xerrors.Errorf("failed to export DOT: %w", err)
 		}
 	}
 
@@ -148,9 +145,6 @@ func (s *DRPCAgentSocketService) SyncStatus(_ context.Context, req *proto.SyncSt
 		return &proto.SyncStatusResponse{}, xerrors.Errorf("cannot get status for unit %q: %w", req.Unit, err)
 	}
 	return &proto.SyncStatusResponse{
-		Success:      true,
-		Message:      "unit status retrieved successfully",
-		Unit:         req.Unit,
 		Status:       string(u.Status()),
 		IsReady:      isReady,
 		Dependencies: depInfos,
