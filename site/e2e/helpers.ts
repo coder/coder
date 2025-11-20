@@ -1,6 +1,5 @@
 import { type ChildProcess, exec, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import * as fs from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";
 import { Duplex } from "node:stream";
@@ -747,11 +746,9 @@ const createTemplateVersionTar = async (
 		);
 	});
 	const tarFile = await tar.write();
-	const a = Buffer.from(
+	return Buffer.from(
 		tarFile instanceof Blob ? await tarFile.arrayBuffer() : tarFile,
 	);
-	// await fs.writeFile(`debug/echo-provisioner-${randomName()}.tar`, a);
-	return a;
 };
 
 export const randomName = (annotation?: string) => {
@@ -892,8 +889,6 @@ data "coder_parameter" "${parameter.name}" {
 ${options}}
 `;
 	}
-
-	void fs.writeFile(`debug/main-${randomName()}.tf`, tf);
 
 	return {
 		parse: [
