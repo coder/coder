@@ -482,6 +482,7 @@ const MaskableInput: FC<MaskableInputProps> = ({
 	disabled,
 	required,
 	placeholder,
+	type,
 	...inputProps
 }) => {
 	const [showMaskedInput, setShowMaskedInput] = useState(false);
@@ -490,6 +491,7 @@ const MaskableInput: FC<MaskableInputProps> = ({
 		<Stack direction="row" spacing={0} alignItems="center">
 			<Input
 				id={id}
+				type={masked && showMaskedInput ? "text" : type}
 				value={value}
 				onChange={(e) => {
 					onChange(e.target.value);
