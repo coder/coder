@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -67,108 +66,45 @@ func (s *server) setupContexts(parent context.Context, canceledOrComplete <-chan
 	return ctx, cancel, killCtx, kill
 }
 
+func (s *server) BuildPlan(
+	sess *provisionersdk.Session, request *proto.PlanRequest, canceledOrComplete <-chan struct{},
+) *proto.PreApplyPlanComplete {
+	resp, err := genericPlan(genericPlanHelpers[*proto.PreApplyPlanComplete]{
+		New: func() *proto.PreApplyPlanComplete { return &proto.PreApplyPlanComplete{} },
+		AppendTimings: func(c *proto.PreApplyPlanComplete, timings []*proto.Timing) *proto.PreApplyPlanComplete {
+			c.Timings = append(c.Timings, timings...)
+			return c
+		},
+		AppendModules: func(c *proto.PreApplyPlanComplete, mods []*proto.Module) *proto.PreApplyPlanComplete {
+			c.Modules = append(c.Modules, mods...)
+			return c
+		},
+		Plan: func(e *executor) planAction { return e.buildPlan },
+	}, s, sess, request, canceledOrComplete)
+	if err != nil {
+		return provisionersdk.BuildPlanErrorf("%s", err.Error())
+	}
+	return resp
+}
+
 func (s *server) Plan(
 	sess *provisionersdk.Session, request *proto.PlanRequest, canceledOrComplete <-chan struct{},
 ) *proto.PlanComplete {
-	ctx, span := s.startTrace(sess.Context(), tracing.FuncName())
-	defer span.End()
-	ctx, cancel, killCtx, kill := s.setupContexts(ctx, canceledOrComplete)
-	defer cancel()
-	defer kill()
-
-	e := s.executor(sess.Files, database.ProvisionerJobTimingStagePlan)
-	if err := e.checkMinVersion(ctx); err != nil {
-		return provisionersdk.PlanErrorf("%s", err.Error())
-	}
-	logTerraformEnvVars(sess)
-
-	// If we're destroying, exit early if there's no state. This is necessary to
-	// avoid any cases where a workspace is "locked out" of terraform due to
-	// e.g. bad template param values and cannot be deleted. This is just for
-	// contingency, in the future we will try harder to prevent workspaces being
-	// broken this hard.
-	if request.Metadata.GetWorkspaceTransition() == proto.WorkspaceTransition_DESTROY && len(sess.Config.State) == 0 {
-		sess.ProvisionLog(proto.LogLevel_INFO, "The terraform state does not exist, there is nothing to do")
-		return &proto.PlanComplete{}
-	}
-
-	statefilePath := sess.Files.StateFilePath()
-	if len(sess.Config.State) > 0 {
-		err := os.WriteFile(statefilePath, sess.Config.State, 0o600)
-		if err != nil {
-			return provisionersdk.PlanErrorf("write statefile %q: %s", statefilePath, err)
-		}
-	}
-
-	err := CleanStaleTerraformPlugins(sess.Context(), s.cachePath, afero.NewOsFs(), time.Now(), s.logger)
-	if err != nil {
-		return provisionersdk.PlanErrorf("unable to clean stale Terraform plugins: %s", err)
-	}
-
-	s.logger.Debug(ctx, "running initialization")
-
-	// The JSON output of `terraform init` doesn't include discrete fields for capturing timings of each plugin,
-	// so we capture the whole init process.
-	initTimings := newTimingAggregator(database.ProvisionerJobTimingStageInit)
-	endStage := initTimings.startStage(database.ProvisionerJobTimingStageInit)
-
-	err = e.init(ctx, killCtx, sess)
-	endStage(err)
-	if err != nil {
-		s.logger.Debug(ctx, "init failed", slog.Error(err))
-
-		// Special handling for "text file busy" c.f. https://github.com/coder/coder/issues/14726
-		// We believe this might be due to some race condition that prevents the
-		// terraform-provider-coder process from exiting.  When terraform tries to install the
-		// provider during this init, it copies over the local cache. Normally this isn't an issue,
-		// but if the terraform-provider-coder process is still running from a previous build, Linux
-		// returns "text file busy" error when attempting to open the file.
-		//
-		// Capturing the stack trace from the process should help us figure out why it has not
-		// exited.  We'll drop these diagnostics in a CRITICAL log so that operators are likely to
-		// notice, and also because it indicates this provisioner could be permanently broken and
-		// require a restart.
-		var errTFB *textFileBusyError
-		if xerrors.As(err, &errTFB) {
-			stacktrace := tryGettingCoderProviderStacktrace(sess)
-			s.logger.Critical(ctx, "init: text file busy",
-				slog.Error(errTFB),
-				slog.F("stderr", errTFB.stderr),
-				slog.F("provider_coder_stacktrace", stacktrace),
-			)
-		}
-		return provisionersdk.PlanErrorf("initialize terraform: %s", err)
-	}
-
-	modules, err := getModules(sess.Files)
-	if err != nil {
-		// We allow getModules to fail, as the result is used only
-		// for telemetry purposes now.
-		s.logger.Error(ctx, "failed to get modules from disk", slog.Error(err))
-	}
-
-	s.logger.Debug(ctx, "ran initialization")
-
-	env, err := provisionEnv(sess.Config, request.Metadata, request.PreviousParameterValues, request.RichParameterValues, request.ExternalAuthProviders)
-	if err != nil {
-		return provisionersdk.PlanErrorf("setup env: %s", err)
-	}
-	env = otelEnvInject(ctx, env)
-
-	vars, err := planVars(request)
-	if err != nil {
-		return provisionersdk.PlanErrorf("plan vars: %s", err)
-	}
-
-	resp, err := e.plan(ctx, killCtx, env, vars, sess, request)
+	resp, err := genericPlan(genericPlanHelpers[*proto.PlanComplete]{
+		New: func() *proto.PlanComplete { return &proto.PlanComplete{} },
+		AppendTimings: func(c *proto.PlanComplete, timings []*proto.Timing) *proto.PlanComplete {
+			c.Timings = append(c.Timings, timings...)
+			return c
+		},
+		AppendModules: func(c *proto.PlanComplete, mods []*proto.Module) *proto.PlanComplete {
+			c.Modules = append(c.Modules, mods...)
+			return c
+		},
+		Plan: func(e *executor) planAction { return e.templatePlan },
+	}, s, sess, request, canceledOrComplete)
 	if err != nil {
 		return provisionersdk.PlanErrorf("%s", err.Error())
 	}
-
-	// Prepend init timings since they occur prior to plan timings.
-	// Order is irrelevant; this is merely indicative.
-	resp.Timings = append(initTimings.aggregate(), resp.Timings...) // mergeInitTimings(initTimings.aggregate(), resp.Timings)
-	resp.Modules = modules
 	return resp
 }
 

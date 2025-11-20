@@ -14,6 +14,10 @@ func PlanErrorf(format string, args ...any) *proto.PlanComplete {
 	return &proto.PlanComplete{Error: fmt.Sprintf(format, args...)}
 }
 
+func BuildPlanErrorf(format string, args ...any) *proto.PreApplyPlanComplete {
+	return &proto.PreApplyPlanComplete{Error: fmt.Sprintf(format, args...)}
+}
+
 func ApplyErrorf(format string, args ...any) *proto.ApplyComplete {
 	return &proto.ApplyComplete{Error: fmt.Sprintf(format, args...)}
 }

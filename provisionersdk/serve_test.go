@@ -145,6 +145,10 @@ func (unimplementedServer) Plan(_ *provisionersdk.Session, _ *proto.PlanRequest,
 	return &proto.PlanComplete{}
 }
 
+func (unimplementedServer) BuildPlan(_ *provisionersdk.Session, _ *proto.PlanRequest, _ <-chan struct{}) *proto.PreApplyPlanComplete {
+	return &proto.PreApplyPlanComplete{}
+}
+
 func (unimplementedServer) Apply(_ *provisionersdk.Session, _ *proto.ApplyRequest, _ <-chan struct{}) *proto.ApplyComplete {
 	return &proto.ApplyComplete{Error: "unimplemented"}
 }

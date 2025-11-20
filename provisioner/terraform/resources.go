@@ -210,8 +210,27 @@ type PlanState struct {
 // ConvertPlanState consumes a terraform plan json output and produces a thinner
 // version of `State` to be used before `terraform apply`. `ConvertState`
 // requires `terraform graph`, this does not.
-func ConvertPlanState(ctx context.Context, logger slog.Logger, modules []*tfjson.StateModule) (*PlanState, error) {
-	return &PlanState{}, nil
+func ConvertPlanState(ctx context.Context, logger slog.Logger, root *tfjson.StateModule) (*PlanState, error) {
+	var dailyCost int32
+	err := forEachResource(root, func(res *tfjson.StateResource) error {
+		switch res.Type {
+		case "coder_metadata":
+			var attrs resourceMetadataAttributes
+			err := mapstructure.Decode(res.AttributeValues, &attrs)
+			if err != nil {
+				return xerrors.Errorf("decode metadata attributes: %w", err)
+			}
+			dailyCost += attrs.DailyCost
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("parse plan: %w", err)
+	}
+
+	return &PlanState{
+		DailyCost: dailyCost,
+	}, nil
 }
 
 // ConvertState consumes Terraform state and a GraphViz representation
@@ -1286,4 +1305,21 @@ func findResourcesInGraph(graph *gographviz.Graph, tfResourcesByLabel map[string
 	}
 
 	return graphResources
+}
+
+func forEachResource(input *tfjson.StateModule, do func(res *tfjson.StateResource) error) error {
+	for _, res := range input.Resources {
+		err := do(res)
+		if err != nil {
+			return xerrors.Errorf("in module %s: %w", input.Address, err)
+		}
+	}
+
+	for _, mod := range input.ChildModules {
+		err := forEachResource(mod, do)
+		if err != nil {
+			return xerrors.Errorf("in module %s: %w", mod.Address, err)
+		}
+	}
+	return nil
 }

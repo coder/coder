@@ -407,6 +407,9 @@ message PlanRequest {
   // backwards compatibility reasons, the zero value should be the previous
   // behavior of downloading the module files.
   bool omit_module_files = 6;
+  // workspace_build indicates that the provisioner that this is during a workspace
+  // build. This can skip `terraform graph`
+  optional bool workspace_build = 7;
 }
 
 // PreApplyPlanComplete is a cheaper version of PlanComplete when building
@@ -416,7 +419,10 @@ message PlanRequest {
 message PreApplyPlanComplete {
   string error = 1;
   bytes plan = 2;
-  // TODO: The rest (modules, timings, ...)
+  repeated ResourceReplacement resource_replacements = 3;
+  int32 dailyCost = 4;
+  repeated Timing timings = 5;
+  repeated Module modules = 6;
 }
 
 // PlanComplete indicates a request to plan completed.

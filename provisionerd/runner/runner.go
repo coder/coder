@@ -1040,7 +1040,7 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 	if failed != nil {
 		return nil, failed
 	}
-	planComplete := resp.GetPlan()
+	planComplete := resp.GetBuildPlan()
 	if planComplete == nil {
 		return nil, r.failedWorkspaceBuildf("invalid message type %T received from provisioner", resp.Type)
 	}

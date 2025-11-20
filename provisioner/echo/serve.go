@@ -197,6 +197,20 @@ func (*echo) Plan(sess *provisionersdk.Session, req *proto.PlanRequest, canceled
 	return provisionersdk.PlanErrorf("canceled")
 }
 
+func (e *echo) BuildPlan(sess *provisionersdk.Session, req *proto.PlanRequest, canceledOrComplete <-chan struct{}) *proto.PreApplyPlanComplete {
+	resp := e.Plan(sess, req, canceledOrComplete)
+	var dailyCost int32
+	for _, res := range resp.Resources {
+		dailyCost += res.DailyCost
+	}
+	return &proto.PreApplyPlanComplete{
+		Error:                resp.Error,
+		Plan:                 resp.Plan,
+		ResourceReplacements: resp.ResourceReplacements,
+		DailyCost:            dailyCost,
+	}
+}
+
 // Apply reads requests from the provided directory to stream responses.
 func (*echo) Apply(sess *provisionersdk.Session, req *proto.ApplyRequest, canceledOrComplete <-chan struct{}) *proto.ApplyComplete {
 	responses, err := readResponses(
