@@ -10,15 +10,15 @@ import {
 import type { FC } from "react";
 import { docs } from "utils/docs";
 
-export const AIGovernanceHelpTooltip: FC = () => {
+export const AIBridgeHelpTooltip: FC = () => {
 	return (
 		<HelpTooltip>
 			<HelpTooltipIconTrigger />
 
 			<HelpTooltipContent>
-				<HelpTooltipTitle>What is AI Governance?</HelpTooltipTitle>
+				<HelpTooltipTitle>What is AI Bridge?</HelpTooltipTitle>
 				<HelpTooltipText>
-					AI Governance is a proxy that unifies and audits LLM usage across your
+					AI Bridge is a proxy that unifies and audits LLM usage across your
 					organization.
 				</HelpTooltipText>
 				<HelpTooltipLinksGroup>
