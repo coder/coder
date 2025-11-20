@@ -245,6 +245,10 @@ const ParameterField: FC<ParameterFieldProps> = ({
 	disabled,
 	id,
 }) => {
+	if (value === undefined && parameter.value.valid) { 
+		value = parameter.value.value;
+	}
+	
 	switch (parameter.form_type) {
 		case "textarea": {
 			const maskInput = parameter.styling?.mask_input ?? false;
