@@ -1,11 +1,11 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import Link from "@mui/material/Link";
-import Tooltip from "@mui/material/Tooltip";
 import type { ApiErrorResponse } from "api/errors";
 import type { ExternalAuth, ExternalAuthDevice } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { Avatar } from "components/Avatar/Avatar";
 import { GitDeviceAuth } from "components/GitDeviceAuth/GitDeviceAuth";
+import MiniTooltip from "components/MiniTooltip/MiniTooltip";
 import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Welcome } from "components/Welcome/Welcome";
 import { ExternalLinkIcon, RotateCwIcon } from "lucide-react";
@@ -82,7 +82,7 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 							return;
 						}
 						return (
-							<Tooltip key={install.id} title={install.account.login}>
+							<MiniTooltip key={install.id} title={install.account.login}>
 								<Link
 									href={install.account.profile_url}
 									target="_blank"
@@ -93,12 +93,13 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 										fallback={install.account.login}
 									/>
 								</Link>
-							</Tooltip>
+							</MiniTooltip>
 						);
 					})}
 					&nbsp;
 					{externalAuth.installations.length} organization
-					{externalAuth.installations.length !== 1 && "s are"} authorized
+					{externalAuth.installations.length !== 1 &&
+						"s are"} authorized
 				</div>
 			)}
 
@@ -120,7 +121,9 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 							css={styles.link}
 						>
 							<ExternalLinkIcon className="size-icon-xs" />
-							{externalAuth.installations.length > 0 ? "Configure" : "Install"}{" "}
+							{externalAuth.installations.length > 0
+								? "Configure"
+								: "Install"}{" "}
 							the {externalAuth.display_name} App
 						</Link>
 					)}

@@ -1,6 +1,5 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import IconButton from "@mui/material/IconButton";
-import Tooltip from "@mui/material/Tooltip";
 import { getErrorDetail, getErrorMessage } from "api/errors";
 import type {
 	ProvisionerJobLog,
@@ -23,6 +22,7 @@ import {
 } from "components/FullPageLayout/Topbar";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
+import MiniTooltip from "components/MiniTooltip/MiniTooltip";
 import {
 	ChevronLeftIcon,
 	ExternalLinkIcon,
@@ -217,11 +217,11 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 					data-testid="topbar"
 				>
 					<div>
-						<Tooltip title="Back to the template">
+						<MiniTooltip title="Back to the template">
 							<TopbarIconButton component={RouterLink} to={templateLink}>
 								<ChevronLeftIcon className="size-icon-sm" />
 							</TopbarIconButton>
-						</Tooltip>
+						</MiniTooltip>
 					</div>
 
 					<TopbarData>
@@ -367,7 +367,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 									},
 								}}
 							>
-								<Tooltip title="Create File" placement="top">
+								<MiniTooltip title="Create File" side="top">
 									<IconButton
 										aria-label="Create File"
 										onClick={(event) => {
@@ -377,7 +377,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 									>
 										<PlusIcon className="size-icon-xs" />
 									</IconButton>
-								</Tooltip>
+								</MiniTooltip>
 							</div>
 							<CreateFileDialog
 								fileTree={fileTree}

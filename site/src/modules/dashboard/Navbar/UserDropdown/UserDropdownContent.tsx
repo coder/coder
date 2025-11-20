@@ -6,10 +6,10 @@ import {
 } from "@emotion/react";
 import Divider from "@mui/material/Divider";
 import MenuItem from "@mui/material/MenuItem";
-import Tooltip from "@mui/material/Tooltip";
 import { PopoverClose } from "@radix-ui/react-popover";
 import type * as TypesGen from "api/typesGenerated";
 import { CopyButton } from "components/CopyButton/CopyButton";
+import MiniTooltip from "components/MiniTooltip/MiniTooltip";
 import { Stack } from "components/Stack/Stack";
 import {
 	CircleUserIcon,
@@ -102,7 +102,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 			<Divider css={{ marginBottom: "0 !important" }} />
 
 			<Stack css={styles.info} spacing={0}>
-				<Tooltip title="Browse the source code">
+				<MiniTooltip title="Browse the source code">
 					<a
 						css={[styles.footerText, styles.buildInfo]}
 						href={buildInfo?.external_url}
@@ -111,15 +111,15 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 					>
 						{buildInfo?.version} <SquareArrowOutUpRightIcon />
 					</a>
-				</Tooltip>
+				</MiniTooltip>
 
 				{buildInfo?.deployment_id && (
 					<div className="flex items-center text-xs">
-						<Tooltip title="Deployment Identifier">
+						<MiniTooltip title="Deployment Identifier">
 							<span className="whitespace-nowrap overflow-hidden text-ellipsis">
 								{buildInfo.deployment_id}
 							</span>
-						</Tooltip>
+						</MiniTooltip>
 						<CopyButton
 							text={buildInfo.deployment_id}
 							label="Copy deployment ID"

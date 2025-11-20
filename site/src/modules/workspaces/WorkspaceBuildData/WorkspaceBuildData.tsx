@@ -1,8 +1,8 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import Skeleton from "@mui/material/Skeleton";
-import Tooltip from "@mui/material/Tooltip";
 import type { WorkspaceBuild } from "api/typesGenerated";
 import { BuildIcon } from "components/BuildIcon/BuildIcon";
+import MiniTooltip from "components/MiniTooltip/MiniTooltip";
 import { InfoIcon } from "lucide-react";
 import { createDayString } from "utils/createDayString";
 import {
@@ -45,14 +45,14 @@ export const WorkspaceBuildData = ({ build }: { build: WorkspaceBuild }) => {
 					</span>
 					{!systemBuildReasons.includes(build.reason) &&
 						build.transition === "start" && (
-							<Tooltip title={buildReasonLabels[build.reason]}>
+							<MiniTooltip title={buildReasonLabels[build.reason]}>
 								<InfoIcon
 									css={(theme) => ({
 										color: theme.palette.info.light,
 									})}
 									className="size-icon-xs -mt-px"
 								/>
-							</Tooltip>
+							</MiniTooltip>
 						)}
 				</div>
 				<div

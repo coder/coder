@@ -1,6 +1,6 @@
 import { useTheme } from "@emotion/react";
-import Tooltip from "@mui/material/Tooltip";
 import type { HealthMessage, ProvisionerDaemon } from "api/typesGenerated";
+import MiniTooltip from "components/MiniTooltip/MiniTooltip";
 import { Pill } from "components/Pill/Pill";
 import { Building2Icon, UserIcon } from "lucide-react";
 import type { FC } from "react";
@@ -74,7 +74,7 @@ export const Provisioner: FC<ProvisionerProps> = ({
 						justifyContent: "right",
 					}}
 				>
-					<Tooltip title="Scope">
+					<MiniTooltip title="Scope">
 						<Pill size="lg" icon={iconScope}>
 							<span
 								css={{
@@ -84,7 +84,7 @@ export const Provisioner: FC<ProvisionerProps> = ({
 								{daemonScope}
 							</span>
 						</Pill>
-					</Tooltip>
+					</MiniTooltip>
 					{extraTags.map(([key, value]) => (
 						<ProvisionerTag key={key} tagName={key} tagValue={value} />
 					))}

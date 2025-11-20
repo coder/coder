@@ -1,7 +1,7 @@
 import { css, type Interpolation, type Theme } from "@emotion/react";
 import IconButton from "@mui/material/IconButton";
-import Tooltip from "@mui/material/Tooltip";
 import { CopyableValue } from "components/CopyableValue/CopyableValue";
+import MiniTooltip from "components/MiniTooltip/MiniTooltip";
 import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { type FC, useState } from "react";
 
@@ -38,7 +38,7 @@ export const SensitiveValue: FC<SensitiveValueProps> = ({ value }) => {
 			>
 				{displayValue}
 			</CopyableValue>
-			<Tooltip title={buttonLabel}>
+			<MiniTooltip title={buttonLabel}>
 				<IconButton
 					css={styles.button}
 					onClick={() => {
@@ -49,13 +49,13 @@ export const SensitiveValue: FC<SensitiveValueProps> = ({ value }) => {
 				>
 					{icon}
 				</IconButton>
-			</Tooltip>
+			</MiniTooltip>
 		</div>
 	);
 };
 
 const styles = {
 	button: css`
-    color: inherit;
-  `,
+		color: inherit;
+	`,
 } satisfies Record<string, Interpolation<Theme>>;

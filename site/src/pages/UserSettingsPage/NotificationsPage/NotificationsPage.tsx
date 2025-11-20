@@ -6,7 +6,6 @@ import ListItem from "@mui/material/ListItem";
 import ListItemIcon from "@mui/material/ListItemIcon";
 import ListItemText, { listItemTextClasses } from "@mui/material/ListItemText";
 import Switch from "@mui/material/Switch";
-import Tooltip from "@mui/material/Tooltip";
 import {
 	customNotificationTemplates,
 	disableNotification,
@@ -22,6 +21,7 @@ import type {
 } from "api/typesGenerated";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
+import MiniTooltip from "components/MiniTooltip/MiniTooltip";
 import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "hooks";
 import {
@@ -199,9 +199,9 @@ const NotificationsPage: FC = () => {
 															css={styles.listItemEndIcon}
 															aria-label="Delivery method"
 														>
-															<Tooltip title={`Delivery via ${label}`}>
+															<MiniTooltip title={`Delivery via ${label}`}>
 																<Icon aria-label={label} />
-															</Tooltip>
+															</MiniTooltip>
 														</ListItemIcon>
 													</ListItem>
 													{!isLastItem && <Divider />}

@@ -1,7 +1,7 @@
 import { useTheme } from "@emotion/react";
-import Tooltip from "@mui/material/Tooltip";
 import type { HealthcheckReport } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
+import MiniTooltip from "components/MiniTooltip/MiniTooltip";
 import { GlobeIcon, HashIcon } from "lucide-react";
 import type { FC } from "react";
 import { useOutletContext } from "react-router";
@@ -106,18 +106,18 @@ const WorkspaceProxyPage: FC = () => {
 
 								<div css={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
 									{region.wildcard_hostname && (
-										<Tooltip title="Wildcard Hostname">
+										<MiniTooltip title="Wildcard Hostname">
 											<Pill icon={<GlobeIcon />}>
 												{region.wildcard_hostname}
 											</Pill>
-										</Tooltip>
+										</MiniTooltip>
 									)}
 									{region.version && (
-										<Tooltip title="Version">
+										<MiniTooltip title="Version">
 											<Pill icon={<HashIcon className="size-icon-sm" />}>
 												{region.version}
 											</Pill>
-										</Tooltip>
+										</MiniTooltip>
 									)}
 									{region.derp_enabled && (
 										<BooleanPill value={region.derp_enabled}>
