@@ -1,5 +1,6 @@
 import {
 	Tooltip,
+	TooltipArrow,
 	TooltipContent,
 	type TooltipContentProps,
 	TooltipProvider,
@@ -10,10 +11,11 @@ import { cn } from "utils/cn";
 
 type MiniTooltipProps = TooltipContentProps & {
 	title: string;
+	arrow?: boolean;
 };
 
 const MiniTooltip: FC<MiniTooltipProps> = (props) => {
-	const { title, children, ...contentProps } = props;
+	const { title, children, arrow, ...contentProps } = props;
 
 	return (
 		<TooltipProvider>
@@ -31,6 +33,7 @@ const MiniTooltip: FC<MiniTooltipProps> = (props) => {
 					)}
 				>
 					{title}
+					{arrow && <TooltipArrow className="fill-surface-quaternary" />}
 				</TooltipContent>
 			</Tooltip>
 		</TooltipProvider>
