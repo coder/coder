@@ -3,10 +3,10 @@ import IconButton from "@mui/material/IconButton";
 import InputAdornment from "@mui/material/InputAdornment";
 import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
-import Tooltip from "@mui/material/Tooltip";
 import { CopyableValue } from "components/CopyableValue/CopyableValue";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Margins } from "components/Margins/Margins";
+import MiniTooltip from "components/MiniTooltip/MiniTooltip";
 import {
 	PageHeader,
 	PageHeaderSubtitle,
@@ -75,21 +75,15 @@ const IconsPage: FC = () => {
 			<Margins>
 				<PageHeader
 					actions={
-						<Tooltip
-							placement="bottom-end"
-							title={
-								<p className="p-2 leading-6 text-sm">
-									You can suggest a new icon by submitting a Pull Request to our
-									public GitHub repository. Just keep in mind that it should be
-									relevant to many Coder users, and redistributable under a
-									permissive license.
-								</p>
-							}
+						<MiniTooltip
+							side="bottom"
+							align="end"
+							title="You can suggest a new icon by submitting a Pull Request to our public GitHub repository. Just keep in mind that it should be relevant to many Coder users, and redistributable under a permissive license."
 						>
 							<Link href="https://github.com/coder/coder/tree/main/site/static/icon">
 								Suggest an icon
 							</Link>
-						</Tooltip>
+						</MiniTooltip>
 					}
 				>
 					<PageHeaderTitle>Icons</PageHeaderTitle>
@@ -122,14 +116,14 @@ const IconsPage: FC = () => {
 						),
 						endAdornment: searchInputText && (
 							<InputAdornment position="end">
-								<Tooltip title="Clear filter">
+								<MiniTooltip title="Clear filter">
 									<IconButton
 										size="small"
 										onClick={() => setSearchInputText("")}
 									>
 										<XIcon className="size-icon-xs" />
 									</IconButton>
-								</Tooltip>
+								</MiniTooltip>
 							</InputAdornment>
 						),
 					}}
