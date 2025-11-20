@@ -735,8 +735,8 @@ func TestTasks(t *testing.T) {
 		})
 	})
 
-	t.Run("UpdatePrompt", func(t *testing.T) {
-		t.Run("Stopped", func(t *testing.T) {
+	t.Run("UpdateInput", func(t *testing.T) {
+		t.Run("WhenPaused", func(t *testing.T) {
 			t.Parallel()
 
 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
@@ -768,6 +768,11 @@ func TestTasks(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, codersdk.WorkspaceStatusStopped, build.Status)
 
+			// Verify task status is "Paused"
+			task, err = exp.TaskByID(ctx, task.ID)
+			require.NoError(t, err)
+			require.Equal(t, codersdk.TaskStatusPaused, task.Status)
+
 			// Now update prompt should succeed
 			err = exp.UpdateTaskInput(ctx, task.OwnerName, task.ID, codersdk.UpdateTaskInputRequest{
 				Input: "Updated prompt after stop",
@@ -775,7 +780,7 @@ func TestTasks(t *testing.T) {
 			require.NoError(t, err)
 		})
 
-		t.Run("Canceled", func(t *testing.T) {
+		t.Run("WhenError", func(t *testing.T) {
 			t.Parallel()
 
 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
@@ -812,6 +817,11 @@ func TestTasks(t *testing.T) {
 			startBuild, err = client.WorkspaceBuild(ctx, startBuild.ID)
 			require.NoError(t, err)
 			require.Equal(t, codersdk.WorkspaceStatusCanceled, startBuild.Status)
+
+			// Verify task status is "Error"
+			task, err = exp.TaskByID(ctx, task.ID)
+			require.NoError(t, err)
+			require.Equal(t, codersdk.TaskStatusError, task.Status)
 
 			// Now update prompt should succeed
 			err = exp.UpdateTaskInput(ctx, task.OwnerName, task.ID, codersdk.UpdateTaskInputRequest{
@@ -858,7 +868,7 @@ func TestTasks(t *testing.T) {
 			require.Contains(t, apiErr.Message, "required")
 		})
 
-		t.Run("Running", func(t *testing.T) {
+		t.Run("WhenInitializing", func(t *testing.T) {
 			t.Parallel()
 
 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
@@ -887,6 +897,11 @@ func TestTasks(t *testing.T) {
 			require.Equal(t, codersdk.WorkspaceStatusRunning, workspace.LatestBuild.Status)
 			require.Equal(t, codersdk.WorkspaceTransitionStart, workspace.LatestBuild.Transition)
 
+			// Verify task status is "Active"
+			task, err = exp.TaskByID(ctx, task.ID)
+			require.NoError(t, err)
+			require.Equal(t, codersdk.TaskStatusInitializing, task.Status)
+
 			// Attempt to update prompt should fail with 409 Conflict
 			err = exp.UpdateTaskInput(ctx, task.OwnerName, task.ID, codersdk.UpdateTaskInputRequest{
 				Input: "Should fail",
@@ -909,6 +924,43 @@ func TestTasks(t *testing.T) {
 
 			// Attempt to update prompt for non-existent task
 			err := exp.UpdateTaskInput(ctx, user.UserID.String(), uuid.New(), codersdk.UpdateTaskInputRequest{
+				Input: "Should fail",
+			})
+			require.Error(t, err)
+			var apiErr *codersdk.Error
+			require.ErrorAs(t, err, &apiErr)
+			require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+		})
+
+		t.Run("DeletedTask", func(t *testing.T) {
+			t.Parallel()
+
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			template := createAITemplate(t, client, user)
+
+			// Create a task with workspace
+			exp := codersdk.NewExperimentalClient(client)
+			task, err := exp.CreateTask(ctx, codersdk.Me, codersdk.CreateTaskRequest{
+				TemplateVersionID: template.ActiveVersionID,
+				Input:             "initial prompt",
+			})
+			require.NoError(t, err)
+			require.True(t, task.WorkspaceID.Valid)
+
+			// Wait for workspace to be running
+			workspace, err := client.Workspace(ctx, task.WorkspaceID.UUID)
+			require.NoError(t, err)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+			// Delete the task
+			err = exp.DeleteTask(ctx, codersdk.Me, task.ID)
+			require.NoError(t, err)
+
+			// Attempt to update prompt for deleted task
+			err = exp.UpdateTaskInput(ctx, user.UserID.String(), uuid.New(), codersdk.UpdateTaskInputRequest{
 				Input: "Should fail",
 			})
 			require.Error(t, err)
