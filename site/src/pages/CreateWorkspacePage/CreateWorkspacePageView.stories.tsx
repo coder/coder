@@ -25,6 +25,7 @@ const meta: Meta<typeof CreateWorkspacePageView> = {
 		autofillParameters: [],
 		template: MockTemplate,
 		parameters: [],
+		presets: [],
 		externalAuth: [],
 		hasAllRequiredExternalAuth: true,
 		mode: "form",
