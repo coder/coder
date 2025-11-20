@@ -58,8 +58,10 @@ export const useAppLink = (
 			const openAppExternallyFailedTimeout = 500;
 			const openAppExternallyFailed = setTimeout(() => {
 				// Check if this is a JetBrains IDE app
-				const isJetBrainsGateway = app.url?.startsWith("jetbrains-gateway:"); // starts with "jetbrains-gateway://connect#type=coder" (from https://registry.coder.com/modules/coder/jetbrains-gateway)
-				const isJetBrainsToolbox = app.url?.startsWith("jetbrains:"); // starts with "jetbrains://gateway/coder" (from https://registry.coder.com/modules/coder/jetbrains)
+				// starts with "jetbrains-gateway://connect#type=coder" (from https://registry.coder.com/modules/coder/jetbrains-gateway)
+				const isJetBrainsGateway = app.url?.startsWith("jetbrains-gateway:");
+				// starts with "jetbrains://gateway/coder" (from https://registry.coder.com/modules/coder/jetbrains)
+				const isJetBrainsToolbox = app.url?.startsWith("jetbrains:");
 
 				// Check if this is a coder:// URL
 				const isCoderApp = app.url?.startsWith("coder:");
