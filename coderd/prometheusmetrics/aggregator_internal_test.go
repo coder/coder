@@ -1,18 +1,17 @@
 package prometheusmetrics
 
 import (
-	"testing"
 	"context"
+	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/v2/coderd/agentmetrics"
 	agentproto "github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/coderd/agentmetrics"
 	"github.com/coder/coder/v2/testutil"
-
 )
 
 func TestDescCache_DescExpire(t *testing.T) {
@@ -23,7 +22,7 @@ func TestDescCache_DescExpire(t *testing.T) {
 		testTemplateName  = "main-template"
 	)
 
-	var testLabels = AgentMetricLabels{
+	testLabels := AgentMetricLabels{
 		Username:      testUsername,
 		WorkspaceName: testWorkspaceName,
 		AgentName:     testAgentName,
@@ -47,7 +46,7 @@ func TestDescCache_DescExpire(t *testing.T) {
 		{Name: "a_counter_one", Type: agentproto.Stats_Metric_COUNTER, Value: 1},
 	}
 
-	ma.asPrometheus(&annotatedMetric{
+	_, err = ma.asPrometheus(&annotatedMetric{
 		given[0],
 		testLabels.Username,
 		testLabels.WorkspaceName,
@@ -57,6 +56,7 @@ func TestDescCache_DescExpire(t *testing.T) {
 		time.Now(),
 		[]string{},
 	})
+	require.NoError(t, err)
 
 	// when
 	// metricsAggregator.Update(ctx, testLabels, given)

@@ -38,8 +38,8 @@ const (
 var MetricLabelValueEncoder = strings.NewReplacer("\\", "\\\\", "|", "\\|", ",", "\\,", "=", "\\=")
 
 type descCacheEntry struct {
-    desc      *prometheus.Desc
-    lastUsed  time.Time
+	desc     *prometheus.Desc
+	lastUsed time.Time
 }
 
 type MetricsAggregator struct {
@@ -358,7 +358,7 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 				}
 
 				for key, entry := range ma.descCache {
-					if time.Now().Sub(entry.lastUsed) > ma.metricsCleanupInterval {
+					if time.Since(entry.lastUsed) > ma.metricsCleanupInterval {
 						delete(ma.descCache, key)
 					}
 				}
@@ -411,7 +411,7 @@ func (ma *MetricsAggregator) getOrCreateDesc(name string, help string, baseLabel
 	}
 	key := cacheKeyForDesc(name, baseLabelNames, extraLabels)
 	if d, ok := ma.descCache[key]; ok {
-		d.lastUsed=time.Now()
+		d.lastUsed = time.Now()
 		return d.desc
 	}
 	nBase := len(baseLabelNames)
