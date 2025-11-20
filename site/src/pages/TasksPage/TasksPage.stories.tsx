@@ -51,6 +51,21 @@ export const LoadingTemplates: Story = {
 	},
 };
 
+export const EmptyTemplates: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["templates", { q: "has-ai-task:true" }],
+				data: [],
+			},
+			{
+				key: ["tasks", { owner: MockUserOwner.username }],
+				data: [],
+			},
+		],
+	},
+};
+
 export const LoadingTemplatesError: Story = {
 	beforeEach: () => {
 		spyOn(API, "getTemplates").mockRejectedValue(
