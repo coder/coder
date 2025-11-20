@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net"
 	"sync"
-	"time"
 
 	"golang.org/x/xerrors"
 
@@ -71,7 +70,8 @@ func (s *Server) Start() error {
 	defer s.mu.Unlock()
 
 	if s.listener != nil {
-		return ErrServerAlreadyStarted
+		// use xerrors here for the stacktrace, but still wrap a public sentinel error for error checking.
+		return xerrors.Errorf("%w", ErrServerAlreadyStarted)
 	}
 
 	// This context is canceled by s.Stop() when the server is stopped.
@@ -134,6 +134,16 @@ func (s *Server) Stop() error {
 }
 
 func (s *Server) acceptConnections() {
+	// In an edge case, Stop() might race with acceptConnections() and set s.listener to nil.
+	// Therefore, we grab a copy of the listener under a lock. We might still get a nil listener,
+	// but then we know close has already run and we can return early.
+	s.mu.Lock()
+	listener := s.listener
+	s.mu.Unlock()
+	if listener == nil {
+		return
+	}
+
 	for {
 		select {
 		case <-s.ctx.Done():
@@ -141,15 +151,9 @@ func (s *Server) acceptConnections() {
 		default:
 		}
 
-		conn, err := s.listener.Accept()
+		conn, err := listener.Accept()
 		if err != nil {
-			select {
-			case <-s.ctx.Done():
-				return
-			default:
-				s.logger.Warn(s.ctx, "error accepting connection", slog.Error(err))
-				continue
-			}
+			s.logger.Warn(s.ctx, "error accepting connection", slog.Error(err))
 		}
 
 		s.wg.Add(1)
@@ -163,14 +167,11 @@ func (s *Server) acceptConnections() {
 func (s *Server) handleConnection(conn net.Conn) {
 	defer conn.Close()
 
-	if err := conn.SetDeadline(time.Now().Add(30 * time.Second)); err != nil {
-		s.logger.Warn(s.ctx, "failed to set connection deadline", slog.Error(err))
-	}
-
 	s.logger.Debug(s.ctx, "new connection accepted", slog.F("remote_addr", conn.RemoteAddr()))
 
 	config := yamux.DefaultConfig()
-	config.Logger = nil
+	config.LogOutput = nil
+	config.Logger = slog.Stdlib(s.ctx, s.logger.Named("agentsocket-yamux"), slog.LevelInfo)
 	session, err := yamux.Server(conn, config)
 	if err != nil {
 		s.logger.Warn(s.ctx, "failed to create yamux session", slog.Error(err))
