@@ -1,14 +1,8 @@
 # Dev Containers Integration
 
-> [!NOTE]
->
-> The Coder dev containers integration is an [early access](../../install/releases/feature-stages.md) feature.
->
-> While functional for testing and feedback, it may change significantly before general availability.
-
-The dev containers integration is an early access feature that enables seamless
-creation and management of dev containers in Coder workspaces. This feature
-leverages the [`@devcontainers/cli`](https://github.com/devcontainers/cli) and
+The dev containers integration enables seamless creation and management of dev
+containers in Coder workspaces. This feature leverages the
+[`@devcontainers/cli`](https://github.com/devcontainers/cli) and
 [Docker](https://www.docker.com) to provide a streamlined development
 experience.
 
@@ -18,8 +12,9 @@ offering.
 
 ## Prerequisites
 
-- Coder version 2.22.0 or later
-- Coder CLI version 2.22.0 or later
+- Coder version 2.24.0 or later
+- Coder CLI version 2.24.0 or later
+- **Linux or macOS workspace** - Dev containers are not supported on Windows
 - A template with:
   - Dev containers integration enabled
   - A Docker-compatible workspace image
@@ -50,32 +45,25 @@ When a workspace with the dev containers integration starts:
 
 - Automatic dev container detection from repositories
 - Seamless dev container startup during workspace initialization
+- Dev container change detection and dirty state indicators
+- On-demand dev container recreation via rebuild button
 - Integrated IDE experience in dev containers with VS Code
 - Direct service access in dev containers
-- Limited SSH access to dev containers
+- SSH access to dev containers
+- Automatic port detection for container ports
 
-### Coming Soon
+## Limitations
 
-- Dev container change detection
-- On-demand dev container recreation
-- Support for automatic port forwarding inside the container
-- Full native SSH support to dev containers
+The dev containers integration has the following limitations:
 
-## Limitations during Early Access
-
-During the early access phase, the dev containers integration has the following
-limitations:
-
+- **Not supported on Windows** - Dev containers require a Linux or macOS workspace
 - Changes to the `devcontainer.json` file require manual container recreation
-- Automatic port forwarding only works for ports specified in `appPort`
-- SSH access requires using the `--container` flag
+  using the rebuild button
 - Some devcontainer features may not work as expected
-
-These limitations will be addressed in future updates as the feature matures.
 
 ## Comparison with Envbuilder-based Dev Containers
 
-| Feature        | Dev Containers (Early Access)          | Envbuilder Dev Containers                    |
+| Feature        | Dev Containers Integration             | Envbuilder Dev Containers                    |
 |----------------|----------------------------------------|----------------------------------------------|
 | Implementation | Direct `@devcontainers/cli` and Docker | Coder's Envbuilder                           |
 | Target users   | Individual developers                  | Platform teams and administrators            |
