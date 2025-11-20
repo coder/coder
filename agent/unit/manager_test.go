@@ -16,6 +16,37 @@ const (
 	unitD unit.ID = "serviceD"
 )
 
+func TestManager_UnitValidation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Empty Unit Name", func(t *testing.T) {
+		t.Parallel()
+
+		manager := unit.NewManager()
+
+		err := manager.Register("")
+		require.ErrorIs(t, err, unit.ErrUnitIDRequired)
+		err = manager.AddDependency("", unitA, unit.StatusStarted)
+		require.ErrorIs(t, err, unit.ErrUnitIDRequired)
+		err = manager.AddDependency(unitA, "", unit.StatusStarted)
+		require.ErrorIs(t, err, unit.ErrUnitIDRequired)
+		dependencies, err := manager.GetAllDependencies("")
+		require.ErrorIs(t, err, unit.ErrUnitIDRequired)
+		require.Len(t, dependencies, 0)
+		unmetDependencies, err := manager.GetUnmetDependencies("")
+		require.ErrorIs(t, err, unit.ErrUnitIDRequired)
+		require.Len(t, unmetDependencies, 0)
+		err = manager.UpdateStatus("", unit.StatusStarted)
+		require.ErrorIs(t, err, unit.ErrUnitIDRequired)
+		isReady, err := manager.IsReady("")
+		require.ErrorIs(t, err, unit.ErrUnitIDRequired)
+		require.False(t, isReady)
+		u, err := manager.Unit("")
+		require.ErrorIs(t, err, unit.ErrUnitIDRequired)
+		assert.Equal(t, unit.Unit{}, u)
+	})
+}
+
 func TestManager_Register(t *testing.T) {
 	t.Parallel()
 
@@ -29,10 +60,13 @@ func TestManager_Register(t *testing.T) {
 		require.NoError(t, err)
 
 		// Then: the unit should be ready (no dependencies)
-		u := manager.Unit(unitA)
+		u, err := manager.Unit(unitA)
+		require.NoError(t, err)
 		assert.Equal(t, unitA, u.ID())
 		assert.Equal(t, unit.StatusPending, u.Status())
-		assert.True(t, manager.IsReady(unitA))
+		isReady, err := manager.IsReady(unitA)
+		require.NoError(t, err)
+		assert.True(t, isReady)
 	})
 
 	t.Run("RegisterDuplicateUnit", func(t *testing.T) {
@@ -56,9 +90,12 @@ func TestManager_Register(t *testing.T) {
 		require.ErrorIs(t, err, unit.ErrUnitAlreadyRegistered)
 
 		// Then: the unit status should not be overwritten
-		u := manager.Unit(unitA)
+		u, err := manager.Unit(unitA)
+		require.NoError(t, err)
 		assert.Equal(t, unit.StatusStarted, u.Status())
-		assert.True(t, manager.IsReady(unitA))
+		isReady, err := manager.IsReady(unitA)
+		require.NoError(t, err)
+		assert.True(t, isReady)
 	})
 
 	t.Run("RegisterMultipleUnits", func(t *testing.T) {
@@ -75,9 +112,12 @@ func TestManager_Register(t *testing.T) {
 
 		// Then: all units should be ready initially
 		for _, unitID := range unitIDs {
-			u := manager.Unit(unitID)
+			u, err := manager.Unit(unitID)
+			require.NoError(t, err)
 			assert.Equal(t, unit.StatusPending, u.Status())
-			assert.True(t, manager.IsReady(unitID))
+			isReady, err := manager.IsReady(unitID)
+			require.NoError(t, err)
+			assert.True(t, isReady)
 		}
 	})
 }
@@ -101,28 +141,38 @@ func TestManager_AddDependency(t *testing.T) {
 		require.NoError(t, err)
 
 		// Then: Unit A should not be ready (depends on B)
-		u := manager.Unit(unitA)
+		u, err := manager.Unit(unitA)
+		require.NoError(t, err)
 		assert.Equal(t, unit.StatusPending, u.Status())
-		assert.False(t, manager.IsReady(unitA))
+		isReady, err := manager.IsReady(unitA)
+		require.NoError(t, err)
+		assert.False(t, isReady)
 
 		// Then: Unit B should still be ready (no dependencies)
-		u = manager.Unit(unitB)
+		u, err = manager.Unit(unitB)
+		require.NoError(t, err)
 		assert.Equal(t, unit.StatusPending, u.Status())
-		assert.True(t, manager.IsReady(unitB))
+		isReady, err = manager.IsReady(unitB)
+		require.NoError(t, err)
+		assert.True(t, isReady)
 
 		// When: Unit B is started
 		err = manager.UpdateStatus(unitB, unit.StatusStarted)
 		require.NoError(t, err)
 
 		// Then: Unit A should be ready, because its dependency is now in the desired state.
-		assert.True(t, manager.IsReady(unitA))
+		isReady, err = manager.IsReady(unitA)
+		require.NoError(t, err)
+		assert.True(t, isReady)
 
 		// When: Unit B is stopped
 		err = manager.UpdateStatus(unitB, unit.StatusPending)
 		require.NoError(t, err)
 
 		// Then: Unit A should no longer be ready, because its dependency is not in the desired state.
-		assert.False(t, manager.IsReady(unitA))
+		isReady, err = manager.IsReady(unitA)
+		require.NoError(t, err)
+		assert.False(t, isReady)
 	})
 
 	t.Run("AddDependencyByAnUnregisteredDependentUnit", func(t *testing.T) {
@@ -156,11 +206,22 @@ func TestManager_AddDependency(t *testing.T) {
 		err = manager.AddDependency(unitA, unitB, unit.StatusStarted)
 		require.NoError(t, err)
 
-		u := manager.Unit(unitB)
+		// Then: The dependency should be visible in Unit A's status
+		dependencies, err := manager.GetAllDependencies(unitA)
+		require.NoError(t, err)
+		require.Len(t, dependencies, 1)
+		assert.Equal(t, unitB, dependencies[0].DependsOn)
+		assert.Equal(t, unit.StatusStarted, dependencies[0].RequiredStatus)
+		assert.False(t, dependencies[0].IsSatisfied)
+
+		u, err := manager.Unit(unitB)
+		require.NoError(t, err)
 		assert.Equal(t, unit.StatusNotRegistered, u.Status())
 
 		// Then: Unit A should not be ready, because it depends on Unit B
-		assert.False(t, manager.IsReady(unitA))
+		isReady, err := manager.IsReady(unitA)
+		require.NoError(t, err)
+		assert.False(t, isReady)
 
 		// When: Unit B is registered
 		err = manager.Register(unitB)
@@ -168,14 +229,18 @@ func TestManager_AddDependency(t *testing.T) {
 
 		// Then: Unit A should still not be ready.
 		// Unit B is not registered, but it has not been started as required by the dependency.
-		assert.False(t, manager.IsReady(unitA))
+		isReady, err = manager.IsReady(unitA)
+		require.NoError(t, err)
+		assert.False(t, isReady)
 
 		// When: Unit B is started
 		err = manager.UpdateStatus(unitB, unit.StatusStarted)
 		require.NoError(t, err)
 
 		// Then: Unit A should be ready, because its dependency is now in the desired state.
-		assert.True(t, manager.IsReady(unitA))
+		isReady, err = manager.IsReady(unitA)
+		require.NoError(t, err)
+		assert.True(t, isReady)
 	})
 
 	t.Run("AddDependencyCreatesACyclicDependency", func(t *testing.T) {
@@ -229,18 +294,24 @@ func TestManager_UpdateStatus(t *testing.T) {
 		require.NoError(t, err)
 
 		// Then: Unit A should not be ready (depends on B)
-		u := manager.Unit(unitA)
+		u, err := manager.Unit(unitA)
+		require.NoError(t, err)
 		assert.Equal(t, unit.StatusPending, u.Status())
-		assert.False(t, manager.IsReady(unitA))
+		isReady, err := manager.IsReady(unitA)
+		require.NoError(t, err)
+		assert.False(t, isReady)
 
 		// When: Unit B is started
 		err = manager.UpdateStatus(unitB, unit.StatusStarted)
 		require.NoError(t, err)
 
 		// Then: Unit A should be ready, because its dependency is now in the desired state.
-		u = manager.Unit(unitA)
+		u, err = manager.Unit(unitA)
+		require.NoError(t, err)
 		assert.Equal(t, unit.StatusPending, u.Status())
-		assert.True(t, manager.IsReady(unitA))
+		isReady, err = manager.IsReady(unitA)
+		require.NoError(t, err)
+		assert.True(t, isReady)
 	})
 
 	t.Run("UpdateStatusWithUnregisteredUnit", func(t *testing.T) {
@@ -276,43 +347,64 @@ func TestManager_UpdateStatus(t *testing.T) {
 		require.NoError(t, err)
 
 		// Then: only Unit C should be ready (no dependencies)
-		u := manager.Unit(unitC)
+		u, err := manager.Unit(unitC)
+		require.NoError(t, err)
 		assert.Equal(t, unit.StatusPending, u.Status())
-		assert.True(t, manager.IsReady(unitC))
+		isReady, err := manager.IsReady(unitC)
+		require.NoError(t, err)
+		assert.True(t, isReady)
 
-		u = manager.Unit(unitB)
+		u, err = manager.Unit(unitB)
+		require.NoError(t, err)
 		assert.Equal(t, unit.StatusPending, u.Status())
-		assert.False(t, manager.IsReady(unitB))
+		isReady, err = manager.IsReady(unitB)
+		require.NoError(t, err)
+		assert.False(t, isReady)
 
-		u = manager.Unit(unitA)
+		u, err = manager.Unit(unitA)
+		require.NoError(t, err)
 		assert.Equal(t, unit.StatusPending, u.Status())
-		assert.False(t, manager.IsReady(unitA))
+		isReady, err = manager.IsReady(unitA)
+		require.NoError(t, err)
+		assert.False(t, isReady)
 
 		// When: Unit C is completed
 		err = manager.UpdateStatus(unitC, unit.StatusComplete)
 		require.NoError(t, err)
 
 		// Then: Unit B should be ready, because its dependency is now in the desired state.
-		u = manager.Unit(unitB)
+		u, err = manager.Unit(unitB)
+		require.NoError(t, err)
 		assert.Equal(t, unit.StatusPending, u.Status())
-		assert.True(t, manager.IsReady(unitB))
+		isReady, err = manager.IsReady(unitB)
+		require.NoError(t, err)
+		assert.True(t, isReady)
 
-		u = manager.Unit(unitA)
+		u, err = manager.Unit(unitA)
+		require.NoError(t, err)
 		assert.Equal(t, unit.StatusPending, u.Status())
-		assert.False(t, manager.IsReady(unitA))
+		isReady, err = manager.IsReady(unitA)
+		require.NoError(t, err)
+		assert.False(t, isReady)
 
-		u = manager.Unit(unitB)
+		u, err = manager.Unit(unitB)
+		require.NoError(t, err)
 		assert.Equal(t, unit.StatusPending, u.Status())
-		assert.True(t, manager.IsReady(unitB))
+		isReady, err = manager.IsReady(unitB)
+		require.NoError(t, err)
+		assert.True(t, isReady)
 
 		// When: Unit B is started
 		err = manager.UpdateStatus(unitB, unit.StatusStarted)
 		require.NoError(t, err)
 
 		// Then: Unit A should be ready, because its dependency is now in the desired state.
-		u = manager.Unit(unitA)
+		u, err = manager.Unit(unitA)
+		require.NoError(t, err)
 		assert.Equal(t, unit.StatusPending, u.Status())
-		assert.True(t, manager.IsReady(unitA))
+		isReady, err = manager.IsReady(unitA)
+		require.NoError(t, err)
+		assert.True(t, isReady)
 	})
 }
 
@@ -419,19 +511,25 @@ func TestManager_MultipleDependencies(t *testing.T) {
 		require.NoError(t, err)
 
 		// A should not be ready (depends on both B and C)
-		assert.False(t, manager.IsReady(unitA))
+		isReady, err := manager.IsReady(unitA)
+		require.NoError(t, err)
+		assert.False(t, isReady)
 
 		// Update B to unit.StatusStarted - A should still not be ready (needs C too)
 		err = manager.UpdateStatus(unitB, unit.StatusStarted)
 		require.NoError(t, err)
 
-		assert.False(t, manager.IsReady(unitA))
+		isReady, err = manager.IsReady(unitA)
+		require.NoError(t, err)
+		assert.False(t, isReady)
 
 		// Update C to "started" - A should now be ready
 		err = manager.UpdateStatus(unitC, unit.StatusStarted)
 		require.NoError(t, err)
 
-		assert.True(t, manager.IsReady(unitA))
+		isReady, err = manager.IsReady(unitA)
+		require.NoError(t, err)
+		assert.True(t, isReady)
 	})
 
 	t.Run("ComplexDependencyChain", func(t *testing.T) {
@@ -460,30 +558,48 @@ func TestManager_MultipleDependencies(t *testing.T) {
 		require.NoError(t, err)
 
 		// Initially only D is ready
-		assert.True(t, manager.IsReady(unitD))
-		assert.False(t, manager.IsReady(unitB))
-		assert.False(t, manager.IsReady(unitC))
-		assert.False(t, manager.IsReady(unitA))
+		isReady, err := manager.IsReady(unitD)
+		require.NoError(t, err)
+		assert.True(t, isReady)
+		isReady, err = manager.IsReady(unitB)
+		require.NoError(t, err)
+		assert.False(t, isReady)
+		isReady, err = manager.IsReady(unitC)
+		require.NoError(t, err)
+		assert.False(t, isReady)
+		isReady, err = manager.IsReady(unitA)
+		require.NoError(t, err)
+		assert.False(t, isReady)
 
 		// Update D to "completed" - B and C should become ready
 		err = manager.UpdateStatus(unitD, unit.StatusComplete)
 		require.NoError(t, err)
 
-		assert.True(t, manager.IsReady(unitB))
-		assert.True(t, manager.IsReady(unitC))
-		assert.False(t, manager.IsReady(unitA))
+		isReady, err = manager.IsReady(unitB)
+		require.NoError(t, err)
+		assert.True(t, isReady)
+		isReady, err = manager.IsReady(unitC)
+		require.NoError(t, err)
+		assert.True(t, isReady)
+		isReady, err = manager.IsReady(unitA)
+		require.NoError(t, err)
+		assert.False(t, isReady)
 
 		// Update B to unit.StatusStarted - A should still not be ready (needs C)
 		err = manager.UpdateStatus(unitB, unit.StatusStarted)
 		require.NoError(t, err)
 
-		assert.False(t, manager.IsReady(unitA))
+		isReady, err = manager.IsReady(unitA)
+		require.NoError(t, err)
+		assert.False(t, isReady)
 
 		// Update C to "started" - A should now be ready
 		err = manager.UpdateStatus(unitC, unit.StatusStarted)
 		require.NoError(t, err)
 
-		assert.True(t, manager.IsReady(unitA))
+		isReady, err = manager.IsReady(unitA)
+		require.NoError(t, err)
+		assert.True(t, isReady)
 	})
 
 	t.Run("DifferentStatusTypes", func(t *testing.T) {
@@ -512,14 +628,18 @@ func TestManager_MultipleDependencies(t *testing.T) {
 
 		// Then: Unit A should not be ready, because only one of its dependencies is in the desired state.
 		// It still requires Unit C to be completed.
-		assert.False(t, manager.IsReady(unitA))
+		isReady, err := manager.IsReady(unitA)
+		require.NoError(t, err)
+		assert.False(t, isReady)
 
 		// When: Unit C is completed
 		err = manager.UpdateStatus(unitC, unit.StatusComplete)
 		require.NoError(t, err)
 
 		// Then: Unit A should be ready, because both of its dependencies are in the desired state.
-		assert.True(t, manager.IsReady(unitA))
+		isReady, err = manager.IsReady(unitA)
+		require.NoError(t, err)
+		assert.True(t, isReady)
 	})
 }
 
@@ -532,10 +652,13 @@ func TestManager_IsReady(t *testing.T) {
 		manager := unit.NewManager()
 
 		// Given: a unit is not registered
-		u := manager.Unit(unitA)
+		u, err := manager.Unit(unitA)
+		require.NoError(t, err)
 		assert.Equal(t, unit.StatusNotRegistered, u.Status())
 		// Then: the unit is not ready
-		assert.False(t, manager.IsReady(unitA))
+		isReady, err := manager.IsReady(unitA)
+		require.NoError(t, err)
+		assert.False(t, isReady)
 	})
 }
 

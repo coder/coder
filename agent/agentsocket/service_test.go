@@ -75,52 +75,6 @@ func TestDRPCAgentSocketService(t *testing.T) {
 		t.Skip("agentsocket is not supported on Windows")
 	}
 
-	t.Run("Empty Unit Name", func(t *testing.T) {
-		t.Parallel()
-
-		socketPath := filepath.Join(tempDirUnixSocket(t), "test.sock")
-
-		server, err := agentsocket.NewServer(
-			socketPath,
-			slog.Make().Leveled(slog.LevelDebug),
-		)
-		require.NoError(t, err)
-		err = server.Start()
-		require.NoError(t, err)
-		defer server.Stop()
-
-		client, cleanup := newSocketClient(t, socketPath)
-		defer cleanup()
-
-		_, err = client.SyncStart(context.Background(), &proto.SyncStartRequest{
-			Unit: "",
-		})
-		require.NoError(t, err)
-
-		_, err = client.SyncWant(context.Background(), &proto.SyncWantRequest{
-			Unit:      "",
-			DependsOn: "dependency-unit",
-		})
-		require.NoError(t, err)
-
-		_, err = client.SyncComplete(context.Background(), &proto.SyncCompleteRequest{
-			Unit: "",
-		})
-		require.NoError(t, err)
-
-		_, err = client.SyncReady(context.Background(), &proto.SyncReadyRequest{
-			Unit: "",
-		})
-		require.NoError(t, err)
-
-		respStatus, err := client.SyncStatus(context.Background(), &proto.SyncStatusRequest{
-			Unit: "",
-		})
-		require.NoError(t, err)
-		require.False(t, respStatus.Success)
-		require.Contains(t, respStatus.Message, agentsocket.ErrUnitNameRequired.Error())
-	})
-
 	t.Run("Ping", func(t *testing.T) {
 		t.Parallel()
 
@@ -206,7 +160,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			_, err = client.SyncStart(context.Background(), &proto.SyncStartRequest{
 				Unit: "test-unit",
 			})
-			require.ErrorContains(t, err, "unit already started")
+			require.ErrorContains(t, err, unit.ErrSameStatusAlreadySet.Error())
 
 			status, err = client.SyncStatus(context.Background(), &proto.SyncStatusRequest{
 				Unit: "test-unit",
@@ -326,7 +280,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			client, cleanup := newSocketClient(t, socketPath)
 			defer cleanup()
 
-			// If units are not registered, they are registered automatically
+			// If dependency units are not registered, they are registered automatically
 			_, err = client.SyncWant(context.Background(), &proto.SyncWantRequest{
 				Unit:      "test-unit",
 				DependsOn: "dependency-unit",
@@ -337,6 +291,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 				Unit: "test-unit",
 			})
 			require.NoError(t, err)
+			require.Len(t, status.Dependencies, 1)
 			require.Equal(t, "dependency-unit", status.Dependencies[0].DependsOn)
 			require.Equal(t, "completed", status.Dependencies[0].RequiredStatus)
 		})

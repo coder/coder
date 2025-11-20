@@ -34,7 +34,7 @@ type Server struct {
 }
 
 func NewServer(path string, logger slog.Logger) (*Server, error) {
-	logger = logger.Named("agentsocket")
+	logger = logger.Named("agentsocket-server")
 	server := &Server{
 		logger: logger,
 		path:   path,
