@@ -610,6 +610,7 @@ func New(options *Options) *API {
 		dbRolluper: options.DatabaseRolluper,
 	}
 	api.WorkspaceAppsProvider = workspaceapps.NewDBTokenProvider(
+		ctx,
 		options.Logger.Named("workspaceapps"),
 		options.AccessURL,
 		options.Authorizer,

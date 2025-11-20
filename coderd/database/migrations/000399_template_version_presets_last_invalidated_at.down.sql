@@ -1,0 +1,1 @@
+ALTER TABLE template_version_presets DROP COLUMN last_invalidated_at;
