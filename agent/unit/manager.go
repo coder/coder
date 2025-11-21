@@ -10,6 +10,7 @@ import (
 )
 
 var (
+	ErrUnitIDRequired           = xerrors.New("unit name is required")
 	ErrUnitNotFound             = xerrors.New("unit not found")
 	ErrUnitAlreadyRegistered    = xerrors.New("unit already registered")
 	ErrCannotUpdateOtherUnit    = xerrors.New("cannot update other unit's status")
@@ -91,6 +92,10 @@ func (m *Manager) Register(id ID) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	if id == "" {
+		return xerrors.Errorf("registering unit %q: %w", id, ErrUnitIDRequired)
+	}
+
 	if m.registered(id) {
 		return xerrors.Errorf("registering unit %q: %w", id, ErrUnitAlreadyRegistered)
 	}
@@ -112,22 +117,30 @@ func (m *Manager) registered(id ID) bool {
 // Unit fetches a unit from the manager. If the unit does not exist,
 // it returns the Unit zero-value as a placeholder unit, because
 // units may depend on other units that have not yet been created.
-func (m *Manager) Unit(id ID) Unit {
+func (m *Manager) Unit(id ID) (Unit, error) {
+	if id == "" {
+		return Unit{}, xerrors.Errorf("unit ID cannot be empty: %w", ErrUnitIDRequired)
+	}
+
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	return m.units[id]
+	return m.units[id], nil
 }
 
-func (m *Manager) IsReady(id ID) bool {
+func (m *Manager) IsReady(id ID) (bool, error) {
+	if id == "" {
+		return false, xerrors.Errorf("unit ID cannot be empty: %w", ErrUnitIDRequired)
+	}
+
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
 	if !m.registered(id) {
-		return false
+		return false, nil
 	}
 
-	return m.units[id].ready
+	return m.units[id].ready, nil
 }
 
 // AddDependency adds a dependency relationship between units.
@@ -136,8 +149,13 @@ func (m *Manager) AddDependency(unit ID, dependsOn ID, requiredStatus Status) er
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if !m.registered(unit) {
-		return xerrors.Errorf("checking registration for unit %q: %w", unit, ErrUnitNotFound)
+	switch {
+	case unit == "":
+		return xerrors.Errorf("dependent name cannot be empty: %w", ErrUnitIDRequired)
+	case dependsOn == "":
+		return xerrors.Errorf("dependency name cannot be empty: %w", ErrUnitIDRequired)
+	case !m.registered(unit):
+		return xerrors.Errorf("dependent unit %q must be registered first: %w", unit, ErrUnitNotFound)
 	}
 
 	// Add the dependency edge to the graph
@@ -158,8 +176,11 @@ func (m *Manager) UpdateStatus(unit ID, newStatus Status) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if !m.registered(unit) {
-		return xerrors.Errorf("checking registration for unit %q: %w", unit, ErrUnitNotFound)
+	switch {
+	case unit == "":
+		return xerrors.Errorf("updating status for unit %q: %w", unit, ErrUnitIDRequired)
+	case !m.registered(unit):
+		return xerrors.Errorf("unit %q must be registered first: %w", unit, ErrUnitNotFound)
 	}
 
 	u := m.units[unit]
@@ -212,6 +233,10 @@ func (m *Manager) GetAllDependencies(unit ID) ([]Dependency, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
+	if unit == "" {
+		return nil, xerrors.Errorf("unit ID cannot be empty: %w", ErrUnitIDRequired)
+	}
+
 	if !m.registered(unit) {
 		return nil, xerrors.Errorf("checking registration for unit %q: %w", unit, ErrUnitNotFound)
 	}
@@ -225,7 +250,7 @@ func (m *Manager) GetAllDependencies(unit ID) ([]Dependency, error) {
 		requiredStatus := dependency.Edge
 		allDependencies = append(allDependencies, Dependency{
 			Unit:           unit,
-			DependsOn:      dependsOnUnit.id,
+			DependsOn:      dependency.To,
 			RequiredStatus: requiredStatus,
 			CurrentStatus:  dependsOnUnit.status,
 			IsSatisfied:    dependsOnUnit.status == requiredStatus,
