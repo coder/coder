@@ -4033,6 +4033,136 @@ func TestDevcontainerPrebuildSupport(t *testing.T) {
 	require.Equal(t, userAppURL, secondApp.URL)
 }
 
+
+
+func TestHandleDevcontainerDeleteAndRecreate(t *testing.T) {
+	t.Parallel()
+
+	// This test validates that after deleting a devcontainer, if the container
+	// reappears (e.g., manually recreated or discovered), the updater loop will
+	// detect it and recreate the devcontainer entry.
+
+	devcontainerID := uuid.New()
+	workspaceFolder := "/workspace/test-recreate"
+	configPath := workspaceFolder + "/.devcontainer/devcontainer.json"
+
+	// Create a container that represents a devcontainer
+	devContainer := codersdk.WorkspaceAgentContainer{
+		ID:           "container-recreate-1",
+		FriendlyName: "test-container-recreate",
+		Running:      true,
+		Labels: map[string]string{
+			agentcontainers.DevcontainerLocalFolderLabel: workspaceFolder,
+			agentcontainers.DevcontainerConfigFileLabel:  configPath,
+		},
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	mClock := quartz.NewMock(t)
+	mClock.Set(time.Now()).MustWait(ctx)
+
+	// Set up updater ticker trap to control when the updater loop runs
+	updaterTickerTrap := mClock.Trap().TickerFunc("updaterLoop")
+	defer updaterTickerTrap.Close()
+
+	// Create a fake container CLI that initially has the devcontainer
+	fakeLister := &fakeContainerCLI{
+		containers: codersdk.WorkspaceAgentListContainersResponse{
+			Containers: []codersdk.WorkspaceAgentContainer{devContainer},
+		},
+		arch: "<none>", // Unsupported architecture, don't inject subagent.
+	}
+
+	// Setup router and API with the initial devcontainer
+	r := chi.NewRouter()
+	api := agentcontainers.NewAPI(
+		logger,
+		agentcontainers.WithClock(mClock),
+		agentcontainers.WithContainerCLI(fakeLister),
+		agentcontainers.WithDevcontainerCLI(&fakeDevcontainerCLI{}),
+		agentcontainers.WithWatcher(watcher.NewNoop()),
+		agentcontainers.WithDevcontainers([]codersdk.WorkspaceAgentDevcontainer{
+			{
+				ID:              devcontainerID,
+				Name:            "test-devcontainer",
+				WorkspaceFolder: workspaceFolder,
+				ConfigPath:      configPath,
+				Status:          codersdk.WorkspaceAgentDevcontainerStatusRunning,
+				Container:       &devContainer,
+			},
+		}, nil),
+	)
+
+	api.Start()
+	defer api.Close()
+	r.Mount("/", api.Routes())
+
+	// Wait for the updater loop to be ready
+	updaterTickerTrap.MustWait(ctx).MustRelease(ctx)
+
+	// STEP 1: Verify the devcontainer exists
+	req := httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code, "initial list request should succeed")
+
+	var initialResp codersdk.WorkspaceAgentListContainersResponse
+	err := json.NewDecoder(rec.Body).Decode(&initialResp)
+	require.NoError(t, err, "unmarshal initial response failed")
+	require.Len(t, initialResp.Devcontainers, 1, "should have one devcontainer initially")
+	require.Equal(t, devcontainerID, initialResp.Devcontainers[0].ID, "devcontainer ID should match")
+
+	// STEP 2: Delete the devcontainer
+	req = httptest.NewRequest(http.MethodDelete, "/devcontainers/"+devcontainerID.String(), nil).
+		WithContext(ctx)
+	rec = httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code, "delete request should succeed")
+	assert.Contains(t, rec.Body.String(), "Devcontainer deleted successfully", "delete response body mismatch")
+
+	// STEP 3: Verify the devcontainer is gone
+	req = httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
+	rec = httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code, "list after delete should succeed")
+
+	var afterDeleteResp codersdk.WorkspaceAgentListContainersResponse
+	err = json.NewDecoder(rec.Body).Decode(&afterDeleteResp)
+	require.NoError(t, err, "unmarshal after delete response failed")
+	require.Len(t, afterDeleteResp.Devcontainers, 0, "devcontainer should be removed after deletion")
+
+	// STEP 4: Simulate the container reappearing (e.g., manually recreated)
+	// Update the fake lister to return the container again
+	fakeLister.containers = codersdk.WorkspaceAgentListContainersResponse{
+		Containers: []codersdk.WorkspaceAgentContainer{devContainer},
+	}
+
+	// STEP 5: Trigger the updater loop to discover the container again
+	_, aw := mClock.AdvanceNext()
+	aw.MustWait(ctx)
+
+	// STEP 6: Verify the devcontainer has been recreated
+	req = httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
+	rec = httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code, "list after recreate should succeed")
+
+	var afterRecreateResp codersdk.WorkspaceAgentListContainersResponse
+	err = json.NewDecoder(rec.Body).Decode(&afterRecreateResp)
+	require.NoError(t, err, "unmarshal after recreate response failed")
+	require.Len(t, afterRecreateResp.Devcontainers, 1, "devcontainer should be rediscovered after updater loop")
+
+	// The ID will be different since it's a new devcontainer entry
+	require.NotEqual(t, devcontainerID, afterRecreateResp.Devcontainers[0].ID,
+		"recreated devcontainer should have a new ID")
+	require.Equal(t, workspaceFolder, afterRecreateResp.Devcontainers[0].WorkspaceFolder,
+		"workspace folder should match")
+	require.Equal(t, configPath, afterRecreateResp.Devcontainers[0].ConfigPath,
+		"config path should match")
+	require.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusRunning, afterRecreateResp.Devcontainers[0].Status,
+		"recreated devcontainer should be running")
+}
 func TestHandleDevcontainerDelete(t *testing.T) {
 	t.Parallel()
 
@@ -4131,6 +4261,10 @@ func TestHandleDevcontainerDelete(t *testing.T) {
 			mClock := quartz.NewMock(t)
 			mClock.Set(time.Now()).MustWait(ctx)
 
+			// Set up updater ticker trap to prevent automatic updates
+			updaterTickerTrap := mClock.Trap().TickerFunc("updaterLoop")
+			defer updaterTickerTrap.Close()
+
 			// Setup router with the handler under test.
 			r := chi.NewRouter()
 
@@ -4146,6 +4280,9 @@ func TestHandleDevcontainerDelete(t *testing.T) {
 			api.Start()
 			defer api.Close()
 			r.Mount("/", api.Routes())
+
+			// Wait for the updater loop to be ready, then hold it so it doesn't interfere
+			updaterTickerTrap.MustWait(ctx).MustRelease(ctx)
 
 			// Simulate HTTP DELETE request to the delete endpoint.
 			req := httptest.NewRequest(http.MethodDelete, "/devcontainers/"+tt.devcontainerID, nil).
