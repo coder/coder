@@ -13,7 +13,7 @@ There are two approaches to configuring dev containers in Coder:
 
 ### Manual Configuration
 
-Use the `coder_devcontainer` Terraform resource to explicitly define which dev
+Use the [`coder_devcontainer`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/devcontainer) Terraform resource to explicitly define which dev
 containers should be started in your workspace. This approach provides:
 
 - Predictable behavior and explicit control
