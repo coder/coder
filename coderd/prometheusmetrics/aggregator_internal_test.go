@@ -1,7 +1,6 @@
 package prometheusmetrics
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -56,4 +55,35 @@ func TestDescCache_DescExpire(t *testing.T) {
 		ma.cleanupDescCache()
 		return len(ma.descCache) == 0
 	}, testutil.WaitShort, testutil.IntervalFast)
+}
+
+// TestDescCacheTimestampUpdate ensures that the timestamp update in getOrCreateDesc
+// updates the map entry because d is a copy, not a pointer.
+func TestDescCacheTimestampUpdate(t *testing.T) {
+	t.Parallel()
+
+	registry := prometheus.NewRegistry()
+	ma, err := NewMetricsAggregator(slogtest.Make(t, nil), registry, time.Hour, nil)
+	require.NoError(t, err)
+
+	baseLabelNames := []string{"label1", "label2"}
+	extraLabels := []*agentproto.Stats_Metric_Label{
+		{Name: "extra1", Value: "value1"},
+	}
+
+	desc1 := ma.getOrCreateDesc("test_metric", "help text", baseLabelNames, extraLabels)
+	require.NotNil(t, desc1)
+
+	key := cacheKeyForDesc("test_metric", baseLabelNames, extraLabels)
+	initialEntry := ma.descCache[key]
+	initialTime := initialEntry.lastUsed
+
+	desc2 := ma.getOrCreateDesc("test_metric", "help text", baseLabelNames, extraLabels)
+	require.NotNil(t, desc2)
+
+	updatedEntry := ma.descCache[key]
+	updatedTime := updatedEntry.lastUsed
+
+	require.NotEqual(t, initialTime, updatedTime,
+		"Timestamp was NOT updated in map when accessing a metric description that should be cached")
 }

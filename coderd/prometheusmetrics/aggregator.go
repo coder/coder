@@ -408,6 +408,7 @@ func (ma *MetricsAggregator) getOrCreateDesc(name string, help string, baseLabel
 	key := cacheKeyForDesc(name, baseLabelNames, extraLabels)
 	if d, ok := ma.descCache[key]; ok {
 		d.lastUsed = time.Now()
+		ma.descCache[key] = d
 		return d.desc
 	}
 	nBase := len(baseLabelNames)
