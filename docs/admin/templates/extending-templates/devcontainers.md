@@ -28,7 +28,7 @@ This is the recommended approach for most use cases.
 Enable automatic discovery of dev containers in git repositories using
 environment variables. This approach:
 
-- Automatically scans for `.devcontainer/devcontainer.json` files
+- Automatically scans for `.devcontainer/devcontainer.json` or `.devcontainer.json` files
 - Can auto-start discovered containers
 - Useful for dynamic development environments
 - Respects `.gitignore` patterns
