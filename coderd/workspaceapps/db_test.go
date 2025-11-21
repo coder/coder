@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/quartz"
 	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -1140,7 +1141,13 @@ func Test_ResolveRequest(t *testing.T) {
 	t.Run("ConnectionLogging", func(t *testing.T) {
 		t.Parallel()
 
+		// Create a mock clock to control time in the audit session logic.
+		mClock := quartz.NewMock(t)
+		signedTokenProvider := signedTokenProviderWithClock(t, api.WorkspaceAppsProvider, mClock)
+
 		for _, app := range allApps {
+			mClock.Set(time.Now())
+
 			req := (workspaceapps.Request{
 				AccessMethod:      workspaceapps.AccessMethodPath,
 				BasePath:          "/app",
@@ -1163,7 +1170,7 @@ func Test_ResolveRequest(t *testing.T) {
 
 			_, ok := workspaceappsResolveRequest(t, connLogger, rw, r, workspaceapps.ResolveRequestOptions{
 				Logger:              api.Logger,
-				SignedTokenProvider: api.WorkspaceAppsProvider,
+				SignedTokenProvider: signedTokenProvider,
 				DashboardURL:        api.AccessURL,
 				PathAppBaseURL:      api.AccessURL,
 				AppHostname:         api.AppHostname,
@@ -1173,6 +1180,8 @@ func Test_ResolveRequest(t *testing.T) {
 			assertConnLogContains(t, rw, r, connLogger, workspace, agentName, app, database.ConnectionTypeWorkspaceApp, me.ID)
 			require.Len(t, connLogger.ConnectionLogs(), 1)
 
+			mClock.Advance(time.Second)
+
 			// Second request, no audit log because the session is active.
 			rw = httptest.NewRecorder()
 			r = httptest.NewRequest("GET", "/app", nil)
@@ -1181,7 +1190,7 @@ func Test_ResolveRequest(t *testing.T) {
 
 			_, ok = workspaceappsResolveRequest(t, connLogger, rw, r, workspaceapps.ResolveRequestOptions{
 				Logger:              api.Logger,
-				SignedTokenProvider: api.WorkspaceAppsProvider,
+				SignedTokenProvider: signedTokenProvider,
 				DashboardURL:        api.AccessURL,
 				PathAppBaseURL:      api.AccessURL,
 				AppHostname:         api.AppHostname,
@@ -1190,13 +1199,16 @@ func Test_ResolveRequest(t *testing.T) {
 			require.True(t, ok)
 			require.Len(t, connLogger.ConnectionLogs(), 1, "single connection log, previous session active")
 
-			// Third request, session timed out, new audit log.
+			// Advance time by 2 minutes to bypass the 1-minute CTE filter.
+			mClock.Advance(2 * time.Minute)
+
+			// Third request, session timed out (stale_interval_ms=0), new audit log.
 			rw = httptest.NewRecorder()
 			r = httptest.NewRequest("GET", "/app", nil)
 			r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
 			r.RemoteAddr = auditableIP
 
-			sessionTimeoutTokenProvider := signedTokenProviderWithConnLogger(t, api.WorkspaceAppsProvider, connLogger, 0)
+			sessionTimeoutTokenProvider := signedTokenProviderWithConnLogger(t, signedTokenProvider, connLogger, 0)
 			_, ok = workspaceappsResolveRequest(t, nil, rw, r, workspaceapps.ResolveRequestOptions{
 				Logger:              api.Logger,
 				SignedTokenProvider: sessionTimeoutTokenProvider,
@@ -1209,7 +1221,9 @@ func Test_ResolveRequest(t *testing.T) {
 			assertConnLogContains(t, rw, r, connLogger, workspace, agentName, app, database.ConnectionTypeWorkspaceApp, me.ID)
 			require.Len(t, connLogger.ConnectionLogs(), 2, "two connection logs, session timed out")
 
-			// Fourth request, new IP produces new audit log.
+			mClock.Advance(time.Second)
+
+			// Fourth request, new IP produces new audit log (different unique constraint).
 			auditableIP = testutil.RandomIPv6(t)
 			rw = httptest.NewRecorder()
 			r = httptest.NewRequest("GET", "/app", nil)
@@ -1218,7 +1232,7 @@ func Test_ResolveRequest(t *testing.T) {
 
 			_, ok = workspaceappsResolveRequest(t, connLogger, rw, r, workspaceapps.ResolveRequestOptions{
 				Logger:              api.Logger,
-				SignedTokenProvider: api.WorkspaceAppsProvider,
+				SignedTokenProvider: signedTokenProvider,
 				DashboardURL:        api.AccessURL,
 				PathAppBaseURL:      api.AccessURL,
 				AppHostname:         api.AppHostname,
@@ -1226,7 +1240,7 @@ func Test_ResolveRequest(t *testing.T) {
 			})
 			require.True(t, ok)
 			assertConnLogContains(t, rw, r, connLogger, workspace, agentName, app, database.ConnectionTypeWorkspaceApp, me.ID)
-			require.Len(t, connLogger.ConnectionLogs(), 3, "three connection logs, new IP")
+			require.Len(t, connLogger.ConnectionLogs(), 3, "three connection logs, new IP creates new session")
 		}
 	})
 }
@@ -1253,6 +1267,16 @@ func workspaceappsResolveRequest(t testing.TB, connLogger connectionlog.Connecti
 	})).ServeHTTP(w, r)
 
 	return token, ok
+}
+
+func signedTokenProviderWithClock(t testing.TB, provider workspaceapps.SignedTokenProvider, clock quartz.Clock) workspaceapps.SignedTokenProvider {
+	t.Helper()
+	p, ok := provider.(*workspaceapps.DBTokenProvider)
+	require.True(t, ok, "provider is not a DBTokenProvider")
+
+	shallowCopy := *p
+	shallowCopy.Clock = clock
+	return &shallowCopy
 }
 
 func signedTokenProviderWithConnLogger(t testing.TB, provider workspaceapps.SignedTokenProvider, connLogger connectionlog.ConnectionLogger, sessionTimeout time.Duration) workspaceapps.SignedTokenProvider {
