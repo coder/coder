@@ -273,6 +273,32 @@ func TestManager_AddDependency(t *testing.T) {
 		err = manager.AddDependency(unitD, unitA, unit.StatusStarted)
 		require.ErrorIs(t, err, unit.ErrCycleDetected)
 	})
+
+	t.Run("UpdatingADependency", func(t *testing.T) {
+		t.Parallel()
+
+		manager := unit.NewManager()
+
+		// Given units A and B are registered
+		err := manager.Register(unitA)
+		require.NoError(t, err)
+		err = manager.Register(unitB)
+		require.NoError(t, err)
+
+		// Given Unit A depends on Unit B being unit.StatusStarted
+		err = manager.AddDependency(unitA, unitB, unit.StatusStarted)
+		require.NoError(t, err)
+
+		// When: The dependency is updated to unit.StatusComplete
+		err = manager.AddDependency(unitA, unitB, unit.StatusComplete)
+		require.NoError(t, err)
+
+		// Then: Unit A should only have one dependency, and it should be unit.StatusComplete
+		dependencies, err := manager.GetAllDependencies(unitA)
+		require.NoError(t, err)
+		require.Len(t, dependencies, 1)
+		assert.Equal(t, unit.StatusComplete, dependencies[0].RequiredStatus)
+	})
 }
 
 func TestManager_UpdateStatus(t *testing.T) {
