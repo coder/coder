@@ -13,6 +13,7 @@ import { Loader } from "components/Loader/Loader";
 import {
 	Tooltip,
 	TooltipContent,
+	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { useEffectEvent } from "hooks/hookPolyfills";
@@ -210,24 +211,26 @@ const WorkspaceParametersPageExperimental: FC = () => {
 				<span className="flex flex-row items-center gap-2 justify-between w-full">
 					<span className="flex flex-row items-center gap-2">
 						<h1 className="text-3xl m-0">Workspace parameters</h1>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<CircleHelp className="size-icon-xs text-content-secondary" />
-							</TooltipTrigger>
-							<TooltipContent className="max-w-xs text-sm">
-								Dynamic Parameters enhances Coder's existing parameter system
-								with real-time validation, conditional parameter behavior, and
-								richer input types.
-								<br />
-								<Link
-									href={docs(
-										"/admin/templates/extending-templates/dynamic-parameters",
-									)}
-								>
-									View docs
-								</Link>
-							</TooltipContent>
-						</Tooltip>
+						<TooltipProvider delayDuration={100}>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<CircleHelp className="size-icon-xs text-content-secondary" />
+								</TooltipTrigger>
+								<TooltipContent className="max-w-xs text-sm">
+									Dynamic Parameters enhances Coder's existing parameter system
+									with real-time validation, conditional parameter behavior, and
+									richer input types.
+									<br />
+									<Link
+										href={docs(
+											"/admin/templates/extending-templates/dynamic-parameters",
+										)}
+									>
+										View docs
+									</Link>
+								</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
 					</span>
 				</span>
 			</header>

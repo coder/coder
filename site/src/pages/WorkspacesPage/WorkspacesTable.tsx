@@ -40,6 +40,7 @@ import {
 import {
 	Tooltip,
 	TooltipContent,
+	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { useAuthenticated } from "hooks";
@@ -602,20 +603,22 @@ const PrimaryAction: FC<PrimaryActionProps> = ({
 	children,
 }) => {
 	return (
-		<Tooltip>
-			<TooltipTrigger asChild>
-				<Button
-					variant="outline"
-					size="icon-lg"
-					onClick={onClick}
-					disabled={isLoading}
-				>
-					<Spinner loading={isLoading}>{children}</Spinner>
-					<span className="sr-only">{label}</span>
-				</Button>
-			</TooltipTrigger>
-			<TooltipContent>{label}</TooltipContent>
-		</Tooltip>
+		<TooltipProvider>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<Button
+						variant="outline"
+						size="icon-lg"
+						onClick={onClick}
+						disabled={isLoading}
+					>
+						<Spinner loading={isLoading}>{children}</Spinner>
+						<span className="sr-only">{label}</span>
+					</Button>
+				</TooltipTrigger>
+				<TooltipContent>{label}</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
 	);
 };
 
@@ -806,24 +809,26 @@ const BaseIconLink: FC<BaseIconLinkProps> = ({
 	onClick,
 }) => {
 	return (
-		<Tooltip>
-			<TooltipTrigger asChild>
-				<Button variant="outline" size="icon-lg" asChild>
-					<a
-						target={target}
-						className={isLoading ? "animate-pulse" : ""}
-						href={href}
-						onClick={(e) => {
-							e.stopPropagation();
-							onClick?.(e);
-						}}
-					>
-						{children}
-						<span className="sr-only">{label}</span>
-					</a>
-				</Button>
-			</TooltipTrigger>
-			<TooltipContent>{label}</TooltipContent>
-		</Tooltip>
+		<TooltipProvider>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<Button variant="outline" size="icon-lg" asChild>
+						<a
+							target={target}
+							className={isLoading ? "animate-pulse" : ""}
+							href={href}
+							onClick={(e) => {
+								e.stopPropagation();
+								onClick?.(e);
+							}}
+						>
+							{children}
+							<span className="sr-only">{label}</span>
+						</a>
+					</Button>
+				</TooltipTrigger>
+				<TooltipContent>{label}</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
 	);
 };
