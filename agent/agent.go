@@ -375,12 +375,6 @@ func (a *agent) initSocketServer() {
 		return
 	}
 
-	err = server.Start()
-	if err != nil {
-		a.logger.Warn(a.hardCtx, "failed to start socket server", slog.Error(err))
-		return
-	}
-
 	a.socketServer = server
 	a.logger.Debug(a.hardCtx, "socket server started", slog.F("path", a.socketPath))
 }
@@ -1954,7 +1948,7 @@ func (a *agent) Close() error {
 	}
 
 	if a.socketServer != nil {
-		if err := a.socketServer.Stop(); err != nil {
+		if err := a.socketServer.Close(); err != nil {
 			a.logger.Error(a.hardCtx, "socket server close", slog.Error(err))
 		}
 	}
