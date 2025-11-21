@@ -36,7 +36,7 @@ func (r *AccessURLReport) Run(ctx context.Context, opts *AccessURLReportOptions)
 	r.AccessURL = opts.AccessURL.String()
 
 	if opts.Client == nil {
-		opts.Client = http.DefaultClient
+		opts.Client = &http.Client{}
 	}
 
 	accessURL, err := opts.AccessURL.Parse("/healthz")

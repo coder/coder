@@ -147,10 +147,11 @@ func (r *RootCmd) proxyServer() *serpent.Command {
 			notifyCtx, notifyStop := inv.SignalNotifyContext(ctx, cli.StopSignals...)
 			defer notifyStop()
 
-			// Clean up idle connections at the end, e.g.
-			// embedded-postgres can leave an idle connection
-			// which is caught by goleaks.
+			//nolint:forbidigo // Clean up idle connections at the end, e.g.
+			// embedded-postgres can leave an idle connection which is caught
+			// by goleak.
 			defer http.DefaultClient.CloseIdleConnections()
+			//nolint:forbidigo
 			closers.Add(http.DefaultClient.CloseIdleConnections)
 
 			tracer, _, closeTracing := cli.ConfigureTraceProvider(ctx, logger, cfg)
