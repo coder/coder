@@ -247,9 +247,7 @@ Examples:
 A good rule of thumb for writing good commit messages is to recite:
 [If applied, this commit will ...](https://reflectoring.io/meaningful-commit-messages/).
 
-**Note:** We lint PR titles to ensure they follow the Conventional Commits
-specification, however, it's still possible to merge PRs on GitHub with a badly
-formatted title. Take care when merging single-commit PRs as GitHub may prefer
+**Note:** Take care when merging single-commit PRs as GitHub may prefer
 to use the original commit title instead of the PR title.
 
 ### Breaking changes
