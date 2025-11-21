@@ -4161,6 +4161,7 @@ func TestHandleDevcontainerDeleteAndRecreate(t *testing.T) {
 	require.Equal(t, codersdk.WorkspaceAgentDevcontainerStatusRunning, afterRecreateResp.Devcontainers[0].Status,
 		"recreated devcontainer should be running")
 }
+
 func TestHandleDevcontainerDelete(t *testing.T) {
 	t.Parallel()
 
