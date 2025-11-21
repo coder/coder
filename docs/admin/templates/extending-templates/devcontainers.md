@@ -25,13 +25,7 @@ This is the recommended approach for most use cases.
 
 ### Project Discovery
 
-Enable automatic discovery of dev containers in git repositories using
-environment variables. This approach:
-
-- Automatically scans for `.devcontainer/devcontainer.json` or `.devcontainer.json` files
-- Can auto-start discovered containers
-- Useful for dynamic development environments
-- Respects `.gitignore` patterns
+Enable automatic discovery of dev containers in git repositories. Project discovery automatically scans git repositories for `.devcontainer/devcontainer.json` or `.devcontainer.json` files and surfaces them in the Coder UI. See the [Environment Variables](#environment-variables) section for detailed configuration options.
 
 ## Install the Dev Containers CLI
 
