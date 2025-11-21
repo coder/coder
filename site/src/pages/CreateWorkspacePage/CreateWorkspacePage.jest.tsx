@@ -1,367 +1,609 @@
 import {
+	MockDropdownParameter,
+	MockDynamicParametersResponse,
+	MockDynamicParametersResponseWithError,
+	MockPermissions,
+	MockSliderParameter,
 	MockTemplate,
 	MockTemplateVersionExternalAuthGithub,
 	MockTemplateVersionExternalAuthGithubAuthenticated,
-	MockTemplateVersionParameter1,
-	MockTemplateVersionParameter2,
-	MockTemplateVersionParameter3,
 	MockUserOwner,
+	MockValidationParameter,
 	MockWorkspace,
-	MockWorkspaceQuota,
-	MockWorkspaceRequest,
-	MockWorkspaceRichParametersRequest,
 } from "testHelpers/entities";
 import {
 	renderWithAuth,
 	waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { createMockWebSocket } from "testHelpers/websockets";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { API } from "api/api";
+import type { DynamicParametersResponse } from "api/typesGenerated";
+import { act } from "react";
 import CreateWorkspacePage from "./CreateWorkspacePage";
-import { Language } from "./CreateWorkspacePageView";
-
-const nameLabelText = "Workspace Name";
-const createWorkspaceText = "Create workspace";
-const validationNumberNotInRangeText = "Value must be between 1 and 3.";
-
-const renderCreateWorkspacePage = () => {
-	return renderWithAuth(<CreateWorkspacePage />, {
-		route: `/templates/${MockTemplate.name}/workspace`,
-		path: "/templates/:template/workspace",
-	});
-};
 
 describe("CreateWorkspacePage", () => {
-	it("succeeds with default owner", async () => {
-		jest
-			.spyOn(API, "getUsers")
-			.mockResolvedValueOnce({ users: [MockUserOwner], count: 1 });
-		jest
-			.spyOn(API, "getWorkspaceQuota")
-			.mockResolvedValueOnce(MockWorkspaceQuota);
-		jest.spyOn(API, "createWorkspace").mockResolvedValueOnce(MockWorkspace);
-		jest
-			.spyOn(API, "getTemplateVersionRichParameters")
-			.mockResolvedValueOnce([MockTemplateVersionParameter1]);
-
-		renderCreateWorkspacePage();
-
-		const nameField = await screen.findByLabelText(nameLabelText);
-
-		// have to use fireEvent b/c userEvent isn't cleaning up properly between tests
-		fireEvent.change(nameField, {
-			target: { value: "test" },
-		});
-
-		const submitButton = screen.getByText(createWorkspaceText);
-		await userEvent.click(submitButton);
-
-		await waitFor(() =>
-			expect(API.createWorkspace).toBeCalledWith(
-				MockUserOwner.id,
-				expect.objectContaining({
-					...MockWorkspaceRichParametersRequest,
-				}),
-			),
-		);
-	});
-
-	it("uses default rich param values passed from the URL", async () => {
-		const param = "first_parameter";
-		const paramValue = "It works!";
-		jest
-			.spyOn(API, "getTemplateVersionRichParameters")
-			.mockResolvedValueOnce([MockTemplateVersionParameter1]);
-
-		renderWithAuth(<CreateWorkspacePage />, {
-			route: `/templates/${MockTemplate.name}/workspace?param.${param}=${paramValue}`,
+	const renderCreateWorkspacePage = (
+		route = `/templates/${MockTemplate.name}/workspace`,
+	) => {
+		return renderWithAuth(<CreateWorkspacePage />, {
+			route,
 			path: "/templates/:template/workspace",
+			extraRoutes: [
+				{
+					path: "/:username/:workspace",
+					element: <div>Workspace Page</div>,
+				},
+			],
 		});
+	};
 
-		await screen.findByDisplayValue(paramValue);
+	beforeEach(() => {
+		jest.clearAllMocks();
+
+		jest.spyOn(API, "getTemplate").mockResolvedValue(MockTemplate);
+		jest.spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([]);
+		jest.spyOn(API, "getTemplateVersionPresets").mockResolvedValue([]);
+		jest.spyOn(API, "createWorkspace").mockResolvedValue(MockWorkspace);
+		jest.spyOn(API, "checkAuthorization").mockResolvedValue(MockPermissions);
+
+		jest
+			.spyOn(API, "templateVersionDynamicParameters")
+			.mockImplementation((_versionId, _ownerId, callbacks) => {
+				const [mockWebSocket, publisher] = createMockWebSocket("ws://test");
+
+				mockWebSocket.addEventListener("message", (event) => {
+					callbacks.onMessage(JSON.parse(event.data));
+				});
+				mockWebSocket.addEventListener("error", () => {
+					callbacks.onError(
+						new Error("Connection for dynamic parameters failed."),
+					);
+				});
+				mockWebSocket.addEventListener("close", () => {
+					callbacks.onClose();
+				});
+
+				publisher.publishOpen(new Event("open"));
+				publisher.publishMessage(
+					new MessageEvent("message", {
+						data: JSON.stringify(MockDynamicParametersResponse),
+					}),
+				);
+
+				return mockWebSocket;
+			});
 	});
 
-	it("rich parameter: number validation fails", async () => {
-		jest
-			.spyOn(API, "getTemplateVersionRichParameters")
-			.mockResolvedValueOnce([
-				MockTemplateVersionParameter1,
-				MockTemplateVersionParameter2,
-			]);
-
-		renderCreateWorkspacePage();
-		await waitForLoaderToBeRemoved();
-
-		const element = await screen.findByText(createWorkspaceText);
-		expect(element).toBeDefined();
-		const secondParameter = await screen.findByText(
-			MockTemplateVersionParameter2.description,
-		);
-		expect(secondParameter).toBeDefined();
-
-		const secondParameterField = await screen.findByLabelText(
-			MockTemplateVersionParameter2.name,
-			{ exact: false },
-		);
-		expect(secondParameterField).toBeDefined();
-
-		fireEvent.change(secondParameterField, {
-			target: { value: "4" },
-		});
-		fireEvent.submit(secondParameter);
-
-		const validationError = await screen.findByText(
-			validationNumberNotInRangeText,
-		);
-		expect(validationError).toBeDefined();
+	afterEach(() => {
+		jest.restoreAllMocks();
 	});
 
-	it("rich parameter: string validation fails", async () => {
-		jest
-			.spyOn(API, "getTemplateVersionRichParameters")
-			.mockResolvedValueOnce([
-				MockTemplateVersionParameter1,
-				MockTemplateVersionParameter3,
-			]);
+	describe("WebSocket Integration", () => {
+		it("establishes WebSocket connection and receives initial parameters", async () => {
+			renderCreateWorkspacePage();
 
-		renderCreateWorkspacePage();
-		await waitForLoaderToBeRemoved();
+			await waitForLoaderToBeRemoved();
 
-		const element = await screen.findByText(createWorkspaceText);
-		expect(element).toBeDefined();
-		const thirdParameter = await screen.findByText(
-			MockTemplateVersionParameter3.description,
-		);
-		expect(thirdParameter).toBeDefined();
-
-		const thirdParameterField = await screen.findByLabelText(
-			MockTemplateVersionParameter3.name,
-			{ exact: false },
-		);
-		expect(thirdParameterField).toBeDefined();
-		fireEvent.change(thirdParameterField, {
-			target: { value: "1234" },
-		});
-		fireEvent.submit(thirdParameterField);
-
-		const validationError = await screen.findByText(
-			MockTemplateVersionParameter3.validation_error as string,
-		);
-		expect(validationError).toBeInTheDocument();
-	});
-
-	it("rich parameter: number validation fails with custom error", async () => {
-		jest.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce([
-			MockTemplateVersionParameter1,
-			{
-				...MockTemplateVersionParameter2,
-				validation_error: "These are values: {min}, {max}, and {value}.",
-				validation_monotonic: undefined, // only needs min-max rules
-			},
-		]);
-
-		renderCreateWorkspacePage();
-		await waitForLoaderToBeRemoved();
-
-		const secondParameterField = await screen.findByLabelText(
-			MockTemplateVersionParameter2.name,
-			{ exact: false },
-		);
-		expect(secondParameterField).toBeDefined();
-		fireEvent.change(secondParameterField, {
-			target: { value: "4" },
-		});
-		fireEvent.submit(secondParameterField);
-
-		const validationError = await screen.findByText(
-			"These are values: 1, 3, and 4.",
-		);
-		expect(validationError).toBeInTheDocument();
-	});
-
-	it("external auth authenticates and succeeds", async () => {
-		jest
-			.spyOn(API, "getWorkspaceQuota")
-			.mockResolvedValueOnce(MockWorkspaceQuota);
-		jest
-			.spyOn(API, "getUsers")
-			.mockResolvedValueOnce({ users: [MockUserOwner], count: 1 });
-		jest.spyOn(API, "createWorkspace").mockResolvedValueOnce(MockWorkspace);
-		jest
-			.spyOn(API, "getTemplateVersionExternalAuth")
-			.mockResolvedValue([MockTemplateVersionExternalAuthGithub]);
-
-		renderCreateWorkspacePage();
-		await waitForLoaderToBeRemoved();
-
-		const nameField = await screen.findByLabelText(nameLabelText);
-		// have to use fireEvent b/c userEvent isn't cleaning up properly between tests
-		fireEvent.change(nameField, {
-			target: { value: "test" },
-		});
-
-		const githubButton = await screen.findByText("Login with GitHub");
-		await userEvent.click(githubButton);
-
-		jest
-			.spyOn(API, "getTemplateVersionExternalAuth")
-			.mockResolvedValue([MockTemplateVersionExternalAuthGithubAuthenticated]);
-
-		await screen.findByText(
-			"Authenticated",
-			{},
-			{ interval: 500, timeout: 5000 },
-		);
-
-		const submitButton = screen.getByText(createWorkspaceText);
-		await userEvent.click(submitButton);
-
-		await waitFor(() =>
-			expect(API.createWorkspace).toBeCalledWith(
+			expect(API.templateVersionDynamicParameters).toHaveBeenCalledWith(
+				MockTemplate.active_version_id,
 				MockUserOwner.id,
 				expect.objectContaining({
-					...MockWorkspaceRequest,
+					onMessage: expect.any(Function),
+					onError: expect.any(Function),
+					onClose: expect.any(Function),
 				}),
-			),
-		);
-	});
+			);
 
-	it("optional external auth is optional", async () => {
-		jest
-			.spyOn(API, "getWorkspaceQuota")
-			.mockResolvedValueOnce(MockWorkspaceQuota);
-		jest
-			.spyOn(API, "getUsers")
-			.mockResolvedValueOnce({ users: [MockUserOwner], count: 1 });
-		jest.spyOn(API, "createWorkspace").mockResolvedValueOnce(MockWorkspace);
-		jest
-			.spyOn(API, "getTemplateVersionExternalAuth")
-			.mockResolvedValue([
-				{ ...MockTemplateVersionExternalAuthGithub, optional: true },
-			]);
-
-		renderCreateWorkspacePage();
-		await waitForLoaderToBeRemoved();
-
-		const nameField = await screen.findByLabelText(nameLabelText);
-		// have to use fireEvent b/c userEvent isn't cleaning up properly between tests
-		fireEvent.change(nameField, {
-			target: { value: "test" },
+			await waitFor(() => {
+				expect(screen.getByText(/instance type/i)).toBeInTheDocument();
+				expect(screen.getByText("CPU Count")).toBeInTheDocument();
+				expect(screen.getByText("Enable Monitoring")).toBeInTheDocument();
+				expect(screen.getByText("Tags")).toBeInTheDocument();
+			});
 		});
 
-		// Ensure we're not logged in
-		await screen.findByText("Login with GitHub");
+		it("sends parameter updates via WebSocket when form values change", async () => {
+			const [mockWebSocket, publisher] = createMockWebSocket("ws://test");
 
-		const submitButton = screen.getByText(createWorkspaceText);
-		await userEvent.click(submitButton);
+			jest
+				.spyOn(API, "templateVersionDynamicParameters")
+				.mockImplementation((_versionId, _ownerId, callbacks) => {
+					mockWebSocket.addEventListener("message", (event) => {
+						callbacks.onMessage(JSON.parse(event.data));
+					});
+					mockWebSocket.addEventListener("error", () => {
+						callbacks.onError(
+							new Error("Connection for dynamic parameters failed."),
+						);
+					});
+					mockWebSocket.addEventListener("close", () => {
+						callbacks.onClose();
+					});
 
-		await waitFor(() =>
-			expect(API.createWorkspace).toBeCalledWith(
-				MockUserOwner.id,
-				expect.objectContaining({
-					...MockWorkspaceRequest,
-				}),
-			),
-		);
-	});
-
-	it("auto create a workspace if uses mode=auto", async () => {
-		const param = "first_parameter";
-		const paramValue = "It works!";
-		const createWorkspaceSpy = jest.spyOn(API, "createWorkspace");
-
-		renderWithAuth(<CreateWorkspacePage />, {
-			route: `/templates/default/${MockTemplate.name}/workspace?param.${param}=${paramValue}&mode=auto`,
-			path: "/templates/:organization/:template/workspace",
-		});
-
-		await waitFor(() => {
-			expect(createWorkspaceSpy).toBeCalledWith(
-				"me",
-				expect.objectContaining({
-					template_version_id: MockTemplate.active_version_id,
-					rich_parameter_values: [
-						expect.objectContaining({
-							name: param,
-							source: "url",
-							value: paramValue,
+					publisher.publishOpen(new Event("open"));
+					publisher.publishMessage(
+						new MessageEvent("message", {
+							data: JSON.stringify(MockDynamicParametersResponse),
 						}),
-					],
-				}),
+					);
+
+					return mockWebSocket;
+				});
+
+			renderCreateWorkspacePage();
+			await waitForLoaderToBeRemoved();
+
+			expect(screen.getByText(/instance type/i)).toBeInTheDocument();
+
+			const instanceTypeSelect = screen.getByRole("button", {
+				name: /instance type/i,
+			});
+			expect(instanceTypeSelect).toBeInTheDocument();
+
+			jest.useFakeTimers();
+
+			await waitFor(async () => {
+				await userEvent.click(instanceTypeSelect);
+			});
+
+			let mediumOption: Element | null = null;
+			await waitFor(() => {
+				mediumOption = screen.queryByRole("option", { name: /t3\.medium/i });
+				expect(mediumOption).toBeTruthy();
+			});
+
+			await waitFor(async () => {
+				await userEvent.click(mediumOption!);
+			});
+
+			act(() => {
+				jest.runAllTimers();
+			});
+
+			expect(mockWebSocket.send).toHaveBeenCalledWith(
+				expect.stringContaining('"instance_type":"t3.medium"'),
+			);
+
+			jest.useRealTimers();
+		});
+
+		it("handles WebSocket error gracefully", async () => {
+			const [mockWebSocket, mockPublisher] = createMockWebSocket("ws://test");
+
+			jest
+				.spyOn(API, "templateVersionDynamicParameters")
+				.mockImplementation((_versionId, _ownerId, callbacks) => {
+					mockWebSocket.addEventListener("error", () => {
+						callbacks.onError(new Error("Connection failed"));
+					});
+
+					return mockWebSocket;
+				});
+
+			renderCreateWorkspacePage();
+
+			await waitFor(() => {
+				expect(mockPublisher).toBeDefined();
+				mockPublisher.publishError(new Event("Connection failed"));
+				expect(screen.getByText(/connection failed/i)).toBeInTheDocument();
+			});
+		});
+
+		it("handles WebSocket close event", async () => {
+			const [mockWebSocket, mockPublisher] = createMockWebSocket("ws://test");
+
+			jest
+				.spyOn(API, "templateVersionDynamicParameters")
+				.mockImplementation((_versionId, _ownerId, callbacks) => {
+					mockWebSocket.addEventListener("close", () => {
+						callbacks.onClose();
+					});
+
+					return mockWebSocket;
+				});
+
+			renderCreateWorkspacePage();
+
+			await waitFor(() => {
+				expect(mockPublisher).toBeDefined();
+				mockPublisher.publishClose(new Event("close") as CloseEvent);
+				expect(
+					screen.getByText(/websocket connection.*unexpectedly closed/i),
+				).toBeInTheDocument();
+			});
+		});
+
+		it("only parameters from latest response are displayed", async () => {
+			const [mockWebSocket, mockPublisher] = createMockWebSocket("ws://test");
+			jest
+				.spyOn(API, "templateVersionDynamicParameters")
+				.mockImplementation((_versionId, _ownerId, callbacks) => {
+					mockWebSocket.addEventListener("message", (event) => {
+						callbacks.onMessage(JSON.parse(event.data));
+					});
+
+					mockPublisher.publishOpen(new Event("open"));
+					mockPublisher.publishMessage(
+						new MessageEvent("message", {
+							data: JSON.stringify({
+								id: 0,
+								parameters: [MockDropdownParameter],
+								diagnostics: [],
+							}),
+						}),
+					);
+
+					return mockWebSocket;
+				});
+
+			renderCreateWorkspacePage();
+			await waitForLoaderToBeRemoved();
+
+			const response1: DynamicParametersResponse = {
+				id: 1,
+				parameters: [MockDropdownParameter],
+				diagnostics: [],
+			};
+			const response2: DynamicParametersResponse = {
+				id: 4,
+				parameters: [MockSliderParameter],
+				diagnostics: [],
+			};
+
+			await waitFor(() => {
+				mockPublisher.publishMessage(
+					new MessageEvent("message", { data: JSON.stringify(response1) }),
+				);
+
+				mockPublisher.publishMessage(
+					new MessageEvent("message", { data: JSON.stringify(response2) }),
+				);
+			});
+
+			expect(screen.queryByText("CPU Count")).toBeInTheDocument();
+			expect(screen.queryByText("Instance Type")).not.toBeInTheDocument();
+		});
+	});
+
+	describe("Dynamic Parameter Types", () => {
+		it("displays parameter validation errors", async () => {
+			jest
+				.spyOn(API, "templateVersionDynamicParameters")
+				.mockImplementation((_versionId, _ownerId, callbacks) => {
+					const [mockWebSocket, publisher] = createMockWebSocket("ws://test");
+
+					mockWebSocket.addEventListener("message", (event) => {
+						callbacks.onMessage(JSON.parse(event.data));
+					});
+
+					publisher.publishMessage(
+						new MessageEvent("message", {
+							data: JSON.stringify(MockDynamicParametersResponseWithError),
+						}),
+					);
+
+					return mockWebSocket;
+				});
+
+			renderCreateWorkspacePage();
+			await waitForLoaderToBeRemoved();
+
+			await waitFor(() => {
+				expect(screen.getByText("Validation failed")).toBeInTheDocument();
+				expect(
+					screen.getByText(
+						"The selected instance type is not available in this region",
+					),
+				).toBeInTheDocument();
+			});
+		});
+
+		it("displays parameter validation errors for min/max constraints", async () => {
+			const mockResponseInitial: DynamicParametersResponse = {
+				id: 1,
+				parameters: [MockValidationParameter],
+				diagnostics: [],
+			};
+
+			const mockResponseWithError: DynamicParametersResponse = {
+				id: 2,
+				parameters: [
+					{
+						...MockValidationParameter,
+						value: { value: "200", valid: false },
+						diagnostics: [
+							{
+								severity: "error",
+								summary:
+									"Invalid parameter value according to 'validation' block",
+								detail: "value 200 is more than the maximum 100",
+								extra: {
+									code: "",
+								},
+							},
+						],
+					},
+				],
+				diagnostics: [],
+			};
+
+			jest
+				.spyOn(API, "templateVersionDynamicParameters")
+				.mockImplementation((_versionId, _ownerId, callbacks) => {
+					const [mockWebSocket, publisher] = createMockWebSocket("ws://test");
+
+					mockWebSocket.addEventListener("message", (event) => {
+						callbacks.onMessage(JSON.parse(event.data));
+					});
+
+					publisher.publishOpen(new Event("open"));
+
+					publisher.publishMessage(
+						new MessageEvent("message", {
+							data: JSON.stringify(mockResponseInitial),
+						}),
+					);
+
+					const originalSend = mockWebSocket.send;
+					mockWebSocket.send = jest.fn((data) => {
+						originalSend.call(mockWebSocket, data);
+
+						if (typeof data === "string" && data.includes('"200"')) {
+							publisher.publishMessage(
+								new MessageEvent("message", {
+									data: JSON.stringify(mockResponseWithError),
+								}),
+							);
+						}
+					});
+
+					return mockWebSocket;
+				});
+
+			renderCreateWorkspacePage();
+			await waitForLoaderToBeRemoved();
+
+			await waitFor(() => {
+				expect(screen.getByText("Invalid Parameter")).toBeInTheDocument();
+			});
+
+			const numberInput = screen.getByDisplayValue("50");
+			expect(numberInput).toBeInTheDocument();
+
+			await waitFor(async () => {
+				await userEvent.clear(numberInput);
+				await userEvent.type(numberInput, "200");
+			});
+
+			await waitFor(() => {
+				expect(screen.getByDisplayValue("200")).toBeInTheDocument();
+			});
+
+			await waitFor(() => {
+				expect(
+					screen.getByText(
+						"Invalid parameter value according to 'validation' block",
+					),
+				).toBeInTheDocument();
+			});
+
+			await waitFor(() => {
+				expect(
+					screen.getByText("value 200 is more than the maximum 100"),
+				).toBeInTheDocument();
+			});
+
+			const errorElement = screen.getByText(
+				"value 200 is more than the maximum 100",
+			);
+			expect(errorElement.closest("div")).toHaveClass(
+				"text-content-destructive",
 			);
 		});
 	});
 
-	it("disables mode=auto if a required external auth provider is not connected", async () => {
-		const param = "first_parameter";
-		const paramValue = "It works!";
-		const createWorkspaceSpy = jest.spyOn(API, "createWorkspace");
+	describe("External Authentication", () => {
+		it("displays external auth providers", async () => {
+			jest
+				.spyOn(API, "getTemplateVersionExternalAuth")
+				.mockResolvedValue([MockTemplateVersionExternalAuthGithub]);
 
-		const externalAuthSpy = jest
-			.spyOn(API, "getTemplateVersionExternalAuth")
-			.mockResolvedValue([MockTemplateVersionExternalAuthGithub]);
+			renderCreateWorkspacePage();
+			await waitForLoaderToBeRemoved();
 
-		renderWithAuth(<CreateWorkspacePage />, {
-			route: `/templates/default/${MockTemplate.name}/workspace?param.${param}=${paramValue}&mode=auto`,
-			path: "/templates/:organization/:template/workspace",
-		});
-		await waitForLoaderToBeRemoved();
-
-		const warning =
-			"This template requires an external authentication provider that is not connected.";
-		expect(await screen.findByText(warning)).toBeInTheDocument();
-		expect(createWorkspaceSpy).not.toBeCalled();
-
-		// We don't need to do this on any other tests out of hundreds of very, very,
-		// very similar tests, and yet here, I find it to be absolutely necessary for
-		// some reason that I certainly do not understand. - Kayla
-		externalAuthSpy.mockReset();
-	});
-
-	it("auto create a workspace if uses mode=auto and version=version-id", async () => {
-		const param = "first_parameter";
-		const paramValue = "It works!";
-		const createWorkspaceSpy = jest.spyOn(API, "createWorkspace");
-
-		renderWithAuth(<CreateWorkspacePage />, {
-			route: `/templates/default/${MockTemplate.name}/workspace?param.${param}=${paramValue}&mode=auto&version=test-template-version`,
-			path: "/templates/:organization/:template/workspace",
+			await waitFor(() => {
+				expect(screen.getByText("GitHub")).toBeInTheDocument();
+				expect(
+					screen.getByRole("button", { name: /login with github/i }),
+				).toBeInTheDocument();
+			});
 		});
 
-		await waitFor(() => {
-			expect(createWorkspaceSpy).toBeCalledWith(
-				"me",
-				expect.objectContaining({
-					template_version_id: MockTemplate.active_version_id,
-					rich_parameter_values: [
-						expect.objectContaining({ name: param, value: paramValue }),
-					],
-				}),
+		it("shows authenticated state for connected providers", async () => {
+			jest
+				.spyOn(API, "getTemplateVersionExternalAuth")
+				.mockResolvedValue([
+					MockTemplateVersionExternalAuthGithubAuthenticated,
+				]);
+
+			renderCreateWorkspacePage();
+			await waitForLoaderToBeRemoved();
+
+			await waitFor(() => {
+				expect(screen.getByText("GitHub")).toBeInTheDocument();
+				expect(screen.getByText(/authenticated/i)).toBeInTheDocument();
+			});
+		});
+
+		it("prevents auto-creation when required external auth is missing", async () => {
+			jest
+				.spyOn(API, "getTemplateVersionExternalAuth")
+				.mockResolvedValue([MockTemplateVersionExternalAuthGithub]);
+
+			renderCreateWorkspacePage(
+				`/templates/${MockTemplate.name}/workspace?mode=auto&version=${MockTemplate.id}`,
 			);
+			await waitForLoaderToBeRemoved();
+
+			await waitFor(() => {
+				expect(
+					screen.getByText(
+						/external authentication provider that is not connected/i,
+					),
+				).toBeInTheDocument();
+				expect(
+					screen.getByText(/auto-creation has been disabled/i),
+				).toBeInTheDocument();
+			});
 		});
 	});
 
-	it("Detects when a workspace is being created with the 'duplicate' mode", async () => {
-		const params = new URLSearchParams({
-			mode: "duplicate",
-			name: `${MockWorkspace.name}-copy`,
-			version: MockWorkspace.template_active_version_id,
+	describe("Auto-creation Mode", () => {
+		it("falls back to form mode when auto-creation fails", async () => {
+			jest
+				.spyOn(API, "getTemplateVersionExternalAuth")
+				.mockResolvedValue([
+					MockTemplateVersionExternalAuthGithubAuthenticated,
+				]);
+			jest
+				.spyOn(API, "createWorkspace")
+				.mockRejectedValue(new Error("Auto-creation failed"));
+
+			renderCreateWorkspacePage(
+				`/templates/${MockTemplate.name}/workspace?mode=auto`,
+			);
+
+			await waitForLoaderToBeRemoved();
+
+			expect(screen.getByText(/instance type/i)).toBeInTheDocument();
+
+			await waitFor(() => {
+				expect(screen.getByText("Create workspace")).toBeInTheDocument();
+				expect(
+					screen.getByRole("button", { name: /create workspace/i }),
+				).toBeInTheDocument();
+			});
+		});
+	});
+
+	describe("Form Submission", () => {
+		it("creates workspace with correct parameters", async () => {
+			renderCreateWorkspacePage();
+			await waitForLoaderToBeRemoved();
+
+			expect(screen.getByText(/instance type/i)).toBeInTheDocument();
+
+			const nameInput = screen.getByRole("textbox", {
+				name: /workspace name/i,
+			});
+			await waitFor(async () => {
+				await userEvent.clear(nameInput);
+				await userEvent.type(nameInput, "my-test-workspace");
+			});
+
+			const createButton = screen.getByRole("button", {
+				name: /create workspace/i,
+			});
+			await waitFor(async () => {
+				await userEvent.click(createButton);
+			});
+
+			await waitFor(() => {
+				expect(API.createWorkspace).toHaveBeenCalledWith(
+					"test-user",
+					expect.objectContaining({
+						name: "my-test-workspace",
+						template_version_id: MockTemplate.active_version_id,
+						template_id: undefined,
+						rich_parameter_values: [
+							expect.objectContaining({ name: "instance_type", value: "" }),
+							expect.objectContaining({ name: "cpu_count", value: "2" }),
+							expect.objectContaining({
+								name: "enable_monitoring",
+								value: "true",
+							}),
+							expect.objectContaining({ name: "tags", value: "[]" }),
+							expect.objectContaining({ name: "ides", value: "[]" }),
+						],
+					}),
+				);
+			});
+		});
+	});
+
+	describe("URL Parameters", () => {
+		it("pre-fills parameters from URL", async () => {
+			renderCreateWorkspacePage(
+				`/templates/${MockTemplate.name}/workspace?param.instance_type=t3.large&param.cpu_count=4`,
+			);
+			await waitForLoaderToBeRemoved();
+
+			expect(screen.getByText(/instance type/i)).toBeInTheDocument();
+			expect(screen.getByText("CPU Count")).toBeInTheDocument();
 		});
 
-		renderWithAuth(<CreateWorkspacePage />, {
-			path: "/templates/:organization/:template/workspace",
-			route: `/templates/default/${
-				MockWorkspace.name
-			}/workspace?${params.toString()}`,
+		it("uses custom template version when specified", async () => {
+			const customVersionId = "custom-version-123";
+
+			renderCreateWorkspacePage(
+				`/templates/${MockTemplate.name}/workspace?version=${customVersionId}`,
+			);
+
+			await waitFor(() => {
+				expect(API.templateVersionDynamicParameters).toHaveBeenCalledWith(
+					customVersionId,
+					MockUserOwner.id,
+					expect.any(Object),
+				);
+			});
 		});
 
-		const warningMessage = await screen.findByTestId("duplication-warning");
-		const nameInput = await screen.findByRole("textbox", {
-			name: "Workspace Name",
-		});
+		it("pre-fills workspace name from URL", async () => {
+			const workspaceName = "my-custom-workspace";
 
-		expect(warningMessage).toHaveTextContent(Language.duplicationWarning);
-		expect(nameInput).toHaveValue(`${MockWorkspace.name}-copy`);
+			renderCreateWorkspacePage(
+				`/templates/${MockTemplate.name}/workspace?name=${workspaceName}`,
+			);
+			await waitForLoaderToBeRemoved();
+
+			await waitFor(() => {
+				const nameInput = screen.getByRole("textbox", {
+					name: /workspace name/i,
+				});
+				expect(nameInput).toHaveValue(workspaceName);
+			});
+		});
+	});
+
+	describe("Navigation", () => {
+		it("navigates to workspace after successful creation", async () => {
+			const { router } = renderCreateWorkspacePage();
+			await waitForLoaderToBeRemoved();
+
+			const nameInput = screen.getByRole("textbox", {
+				name: /workspace name/i,
+			});
+
+			await waitFor(async () => {
+				await userEvent.clear(nameInput);
+				await userEvent.type(nameInput, "my-test-workspace");
+			});
+
+			// Submit form
+			const createButton = screen.getByRole("button", {
+				name: /create workspace/i,
+			});
+			await waitFor(async () => {
+				await userEvent.click(createButton);
+			});
+
+			await waitFor(() => {
+				expect(router.state.location.pathname).toBe(
+					`/@${MockWorkspace.owner_name}/${MockWorkspace.name}`,
+				);
+			});
+		});
 	});
 });

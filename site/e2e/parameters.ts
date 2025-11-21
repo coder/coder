@@ -53,6 +53,7 @@ export const thirdParameter: RichParameter = {
 	...emptyParameter,
 
 	name: "third_parameter",
+	displayName: "Third parameter",
 	type: "string",
 	description: "This is third parameter.",
 	defaultValue: "",
@@ -65,6 +66,7 @@ export const fourthParameter: RichParameter = {
 	...emptyParameter,
 
 	name: "fourth_parameter",
+	displayName: "Fourth parameter",
 	type: "bool",
 	description: "This is fourth parameter.",
 	defaultValue: "true",

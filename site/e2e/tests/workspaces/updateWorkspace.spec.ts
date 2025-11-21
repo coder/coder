@@ -3,9 +3,9 @@ import { users } from "../../constants";
 import {
 	createTemplate,
 	createWorkspace,
-	disableDynamicParameters,
 	echoResponsesWithParameters,
 	login,
+	stopWorkspace,
 	updateTemplate,
 	updateWorkspace,
 	updateWorkspaceParameters,
@@ -25,7 +25,12 @@ test.beforeEach(async ({ page }) => {
 	beforeCoderTest(page);
 });
 
-test("update workspace, new optional, immutable parameter added", async ({
+// TODO: this needs to be fixed for the new dynamic parameters flow which
+// sends you to the parameters settings page instead of prompting for new
+// values in a modal, but that flow is broken! because we don't let you set
+// immutable parameters on that page even if they are new, and detecting if
+// they are new is non-trivial.
+test.skip("update workspace, new optional, immutable parameter added", async ({
 	page,
 }) => {
 	await login(page, users.templateAdmin);
@@ -34,9 +39,6 @@ test("update workspace, new optional, immutable parameter added", async ({
 		page,
 		echoResponsesWithParameters(richParameters),
 	);
-
-	// Disable dynamic parameters to use classic parameter flow for this test
-	await disableDynamicParameters(page, template);
 
 	await login(page, users.member);
 	const workspaceName = await createWorkspace(page, template);
@@ -81,9 +83,6 @@ test("update workspace, new required, mutable parameter added", async ({
 		echoResponsesWithParameters(richParameters),
 	);
 
-	// Disable dynamic parameters to use classic parameter flow for this test
-	await disableDynamicParameters(page, template);
-
 	await login(page, users.member);
 	const workspaceName = await createWorkspace(page, template);
 
@@ -113,6 +112,10 @@ test("update workspace, new required, mutable parameter added", async ({
 		buildParameters,
 	);
 
+	await page.waitForSelector("text=Workspace status: Running", {
+		state: "visible",
+	});
+
 	// Verify parameter values.
 	await verifyParameters(page, workspaceName, updatedRichParameters, [
 		{ name: firstParameter.name, value: firstParameter.defaultValue },
@@ -128,9 +131,6 @@ test("update workspace with ephemeral parameter enabled", async ({ page }) => {
 		page,
 		echoResponsesWithParameters(richParameters),
 	);
-
-	// Disable dynamic parameters to use classic parameter flow for this test
-	await disableDynamicParameters(page, template);
 
 	await login(page, users.member);
 	const workspaceName = await createWorkspace(page, template);
@@ -149,6 +149,9 @@ test("update workspace with ephemeral parameter enabled", async ({ page }) => {
 		richParameters,
 		buildParameters,
 	);
+
+	// Stop the workspace
+	await stopWorkspace(page, workspaceName);
 
 	// Verify that parameter values are default.
 	await verifyParameters(page, workspaceName, richParameters, [

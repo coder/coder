@@ -76,7 +76,10 @@ export const EphemeralParametersDialog: FC<EphemeralParametersDialogProps> = ({
 					<Button onClick={onContinue} variant="outline">
 						Continue
 					</Button>
-					<Button onClick={handleGoToParameters}>
+					<Button
+						data-testid="workspace-parameters"
+						onClick={handleGoToParameters}
+					>
 						Go to workspace parameters
 					</Button>
 				</DialogFooter>
