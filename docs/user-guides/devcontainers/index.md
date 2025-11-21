@@ -14,7 +14,7 @@ offering.
 
 - Coder version 2.24.0 or later
 - Coder CLI version 2.24.0 or later
-- **Linux or macOS workspace** - Dev containers are not supported on Windows
+- **Linux or macOS workspace**, Dev containers are not supported on Windows
 - A template with:
   - Dev containers integration enabled
   - A Docker-compatible workspace image
@@ -56,7 +56,7 @@ When a workspace with the dev containers integration starts:
 
 The dev containers integration has the following limitations:
 
-- **Not supported on Windows** - Dev containers require a Linux or macOS workspace
+- **Not supported on Windows**
 - Changes to the `devcontainer.json` file require manual container recreation
   using the rebuild button
 - Some devcontainer features may not work as expected
