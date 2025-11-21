@@ -4134,6 +4134,8 @@ type ProvisionerJobTiming struct {
 	Source    string                    `db:"source" json:"source"`
 	Action    string                    `db:"action" json:"action"`
 	Resource  string                    `db:"resource" json:"resource"`
+	// Distinguish repeated runs of the same stage within a single build job.
+	StageSeq int32 `db:"stage_seq" json:"stage_seq"`
 }
 
 type ProvisionerKey struct {

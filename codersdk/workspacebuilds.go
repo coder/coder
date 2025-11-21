@@ -231,13 +231,14 @@ const (
 )
 
 type ProvisionerTiming struct {
-	JobID     uuid.UUID   `json:"job_id" format:"uuid"`
-	StartedAt time.Time   `json:"started_at" format:"date-time"`
-	EndedAt   time.Time   `json:"ended_at" format:"date-time"`
-	Stage     TimingStage `json:"stage"`
-	Source    string      `json:"source"`
-	Action    string      `json:"action"`
-	Resource  string      `json:"resource"`
+	JobID         uuid.UUID   `json:"job_id" format:"uuid"`
+	StartedAt     time.Time   `json:"started_at" format:"date-time"`
+	EndedAt       time.Time   `json:"ended_at" format:"date-time"`
+	Stage         TimingStage `json:"stage"`
+	StageSequence int32       `json:"stage_sequence"`
+	Source        string      `json:"source"`
+	Action        string      `json:"action"`
+	Resource      string      `json:"resource"`
 }
 
 type AgentScriptTiming struct {
