@@ -37,6 +37,11 @@ const (
 
 var MetricLabelValueEncoder = strings.NewReplacer("\\", "\\\\", "|", "\\|", ",", "\\,", "=", "\\=")
 
+type descCacheEntry struct {
+	desc     *prometheus.Desc
+	lastUsed time.Time
+}
+
 type MetricsAggregator struct {
 	store map[metricKey]annotatedMetric
 
@@ -50,6 +55,8 @@ type MetricsAggregator struct {
 	updateHistogram   prometheus.Histogram
 	cleanupHistogram  prometheus.Histogram
 	aggregateByLabels []string
+	// per-aggregator cache of descriptors
+	descCache map[string]descCacheEntry
 }
 
 type updateRequest struct {
@@ -106,42 +113,6 @@ func hashKey(req *updateRequest, m *agentproto.Stats_Metric) metricKey {
 }
 
 var _ prometheus.Collector = new(MetricsAggregator)
-
-func (am *annotatedMetric) asPrometheus() (prometheus.Metric, error) {
-	var (
-		baseLabelNames  = am.aggregateByLabels
-		baseLabelValues []string
-		extraLabels     = am.Labels
-	)
-
-	for _, label := range baseLabelNames {
-		val, err := am.getFieldByLabel(label)
-		if err != nil {
-			return nil, err
-		}
-
-		baseLabelValues = append(baseLabelValues, val)
-	}
-
-	labels := make([]string, 0, len(baseLabelNames)+len(extraLabels))
-	labelValues := make([]string, 0, len(baseLabelNames)+len(extraLabels))
-
-	labels = append(labels, baseLabelNames...)
-	labelValues = append(labelValues, baseLabelValues...)
-
-	for _, l := range extraLabels {
-		labels = append(labels, l.Name)
-		labelValues = append(labelValues, l.Value)
-	}
-
-	desc := prometheus.NewDesc(am.Name, metricHelpForAgent, labels, nil)
-	valueType, err := asPrometheusValueType(am.Type)
-	if err != nil {
-		return nil, err
-	}
-
-	return prometheus.MustNewConstMetric(desc, valueType, am.Value, labelValues...), nil
-}
 
 // getFieldByLabel returns the related field value for a given label
 func (am *annotatedMetric) getFieldByLabel(label string) (string, error) {
@@ -364,7 +335,7 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 				}
 
 				for _, m := range input {
-					promMetric, err := m.asPrometheus()
+					promMetric, err := ma.asPrometheus(&m)
 					if err != nil {
 						ma.log.Error(ctx, "can't convert Prometheus value type", slog.F("name", m.Name), slog.F("type", m.Type), slog.F("value", m.Value), slog.Error(err))
 						continue
@@ -386,6 +357,8 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 					}
 				}
 
+				ma.cleanupDescCache()
+
 				timer.ObserveDuration()
 				cleanupTicker.Reset(ma.metricsCleanupInterval)
 				ma.storeSizeGauge.Set(float64(len(ma.store)))
@@ -405,6 +378,86 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 // Describe function does not have any knowledge about the metrics schema,
 // so it does not emit anything.
 func (*MetricsAggregator) Describe(_ chan<- *prometheus.Desc) {
+}
+
+// cacheKeyForDesc is used to determine the cache key for a set of labels/extra labels. Used with the aggregators description cache.
+// for strings.Builder returned errors from these functions are always nil.
+// nolint:revive
+func cacheKeyForDesc(name string, baseLabelNames []string, extraLabels []*agentproto.Stats_Metric_Label) string {
+	var b strings.Builder
+	hint := len(name) + (len(baseLabelNames)+len(extraLabels))*8
+	b.Grow(hint)
+	b.WriteString(name)
+	for _, ln := range baseLabelNames {
+		b.WriteByte('|')
+		b.WriteString(ln)
+	}
+	for _, l := range extraLabels {
+		b.WriteByte('|')
+		b.WriteString(l.Name)
+	}
+	return b.String()
+}
+
+// getOrCreateDec checks if we already have a metric description in the aggregators cache for a given combination of base
+// labels and extra labels. If we do not, we create a new description and cache it.
+func (ma *MetricsAggregator) getOrCreateDesc(name string, help string, baseLabelNames []string, extraLabels []*agentproto.Stats_Metric_Label) *prometheus.Desc {
+	if ma.descCache == nil {
+		ma.descCache = make(map[string]descCacheEntry)
+	}
+	key := cacheKeyForDesc(name, baseLabelNames, extraLabels)
+	if d, ok := ma.descCache[key]; ok {
+		d.lastUsed = time.Now()
+		ma.descCache[key] = d
+		return d.desc
+	}
+	nBase := len(baseLabelNames)
+	nExtra := len(extraLabels)
+	labels := make([]string, nBase+nExtra)
+	copy(labels, baseLabelNames)
+	for i, l := range extraLabels {
+		labels[nBase+i] = l.Name
+	}
+	d := prometheus.NewDesc(name, help, labels, nil)
+	ma.descCache[key] = descCacheEntry{d, time.Now()}
+	return d
+}
+
+// asPrometheus returns the annotatedMetric as a prometheus.Metric, it preallocates/fills by index, uses the aggregators
+// metric description cache, and a small stack buffer for values in order to reduce memory allocations.
+func (ma *MetricsAggregator) asPrometheus(am *annotatedMetric) (prometheus.Metric, error) {
+	baseLabelNames := am.aggregateByLabels
+	extraLabels := am.Labels
+
+	nBase := len(baseLabelNames)
+	nExtra := len(extraLabels)
+	nTotal := nBase + nExtra
+
+	var scratch [16]string
+	var labelValues []string
+	if nTotal <= len(scratch) {
+		labelValues = scratch[:nTotal]
+	} else {
+		labelValues = make([]string, nTotal)
+	}
+
+	for i, label := range baseLabelNames {
+		val, err := am.getFieldByLabel(label)
+		if err != nil {
+			return nil, err
+		}
+		labelValues[i] = val
+	}
+	for i, l := range extraLabels {
+		labelValues[nBase+i] = l.Value
+	}
+
+	desc := ma.getOrCreateDesc(am.Name, metricHelpForAgent, baseLabelNames, extraLabels)
+	valueType, err := asPrometheusValueType(am.Type)
+	if err != nil {
+		return nil, err
+	}
+	return prometheus.MustNewConstMetric(desc, valueType, am.Value, labelValues...), nil
 }
 
 var defaultAgentMetricsLabels = []string{agentmetrics.LabelUsername, agentmetrics.LabelWorkspaceName, agentmetrics.LabelAgentName, agentmetrics.LabelTemplateName}
@@ -450,6 +503,16 @@ func (ma *MetricsAggregator) Update(ctx context.Context, labels AgentMetricLabel
 		ma.log.Debug(ctx, "update request is canceled")
 	default:
 		ma.log.Error(ctx, "update queue is full")
+	}
+}
+
+// Move to a function for testability
+func (ma *MetricsAggregator) cleanupDescCache() {
+	now := time.Now()
+	for key, entry := range ma.descCache {
+		if now.Sub(entry.lastUsed) > ma.metricsCleanupInterval {
+			delete(ma.descCache, key)
+		}
 	}
 }
 
