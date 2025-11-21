@@ -278,6 +278,7 @@ func (a *API) refreshCachedWorkspace(ctx context.Context) {
 	ws, err := a.opts.Database.GetWorkspaceByID(ctx, a.opts.WorkspaceID)
 	if err != nil {
 		a.opts.Log.Warn(ctx, "failed to refresh cached workspace fields", slog.Error(err))
+		a.cachedWorkspaceFields.Clear()
 		return
 	}
 
