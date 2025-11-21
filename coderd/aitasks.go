@@ -12,8 +12,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-
+	aiagentapi "github.com/coder/agentapi-sdk-go"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -26,9 +25,8 @@ import (
 	"github.com/coder/coder/v2/coderd/taskname"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	strutil "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/codersdk"
-
-	aiagentapi "github.com/coder/agentapi-sdk-go"
 )
 
 // @Summary Create a new AI task
@@ -110,19 +108,11 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	displayName := ""
 	if taskName == "" {
-		taskName = taskname.GenerateFallback()
-
-		if anthropicAPIKey := taskname.GetAnthropicAPIKeyFromEnv(); anthropicAPIKey != "" {
-			anthropicModel := taskname.GetAnthropicModelFromEnv()
-
-			generatedName, err := taskname.Generate(ctx, req.Input, taskname.WithAPIKey(anthropicAPIKey), taskname.WithModel(anthropicModel))
-			if err != nil {
-				api.Logger.Error(ctx, "unable to generate task name", slog.Error(err))
-			} else {
-				taskName = generatedName
-			}
-		}
+		generatedTaskName := taskname.Generate(ctx, req.Input)
+		taskName = generatedTaskName.Name
+		displayName = generatedTaskName.DisplayName
 	}
 
 	// Check if the template defines the AI Prompt parameter.
@@ -214,6 +204,7 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 				OrganizationID:     templateVersion.OrganizationID,
 				OwnerID:            owner.ID,
 				Name:               taskName,
+				DisplayName:        displayName,
 				WorkspaceID:        uuid.NullUUID{}, // Will be set after workspace creation.
 				TemplateVersionID:  templateVersion.ID,
 				TemplateParameters: []byte("{}"),
@@ -296,6 +287,13 @@ func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) cod
 
 	currentState := deriveTaskCurrentState(dbTask, ws, taskAgentLifecycle, taskAppHealth)
 
+	displayName := dbTask.DisplayName
+	if displayName == "" {
+		// Fallback for tasks created before display_name column was added.
+		// Use the prompt as display name, truncated to match display name limits.
+		displayName = strutil.Truncate(dbTask.Prompt, 64, strutil.TruncateWithFullWords, strutil.TruncateWithEllipsis)
+	}
+
 	return codersdk.Task{
 		ID:                      dbTask.ID,
 		OrganizationID:          dbTask.OrganizationID,
@@ -303,6 +301,7 @@ func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) cod
 		OwnerName:               dbTask.OwnerUsername,
 		OwnerAvatarURL:          dbTask.OwnerAvatarUrl,
 		Name:                    dbTask.Name,
+		DisplayName:             displayName,
 		TemplateID:              ws.TemplateID,
 		TemplateVersionID:       dbTask.TemplateVersionID,
 		TemplateName:            ws.TemplateName,

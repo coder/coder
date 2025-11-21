@@ -7805,6 +7805,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
     "timestamp": "2019-08-24T14:15:22Z",
     "uri": "string"
   },
+  "display_name": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "initial_prompt": "string",
   "name": "string",
@@ -7848,6 +7849,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 |-----------------------------|----------------------------------------------------------------------|----------|--------------|-------------|
 | `created_at`                | string                                                               | false    |              |             |
 | `current_state`             | [codersdk.TaskStateEntry](#codersdktaskstateentry)                   | false    |              |             |
+| `display_name`              | string                                                               | false    |              |             |
 | `id`                        | string                                                               | false    |              |             |
 | `initial_prompt`            | string                                                               | false    |              |             |
 | `name`                      | string                                                               | false    |              |             |
@@ -8032,6 +8034,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
         "timestamp": "2019-08-24T14:15:22Z",
         "uri": "string"
       },
+      "display_name": "string",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "initial_prompt": "string",
       "name": "string",

@@ -189,6 +189,7 @@ func Test_TaskStatus(t *testing.T) {
   "owner_id": "00000000-0000-0000-0000-000000000000",
   "owner_name": "me",
   "name": "exists",
+  "display_name": "Task exists",
   "template_id": "00000000-0000-0000-0000-000000000000",
   "template_version_id": "00000000-0000-0000-0000-000000000000",
   "template_name": "",
@@ -220,9 +221,10 @@ func Test_TaskStatus(t *testing.T) {
 					switch r.URL.Path {
 					case "/api/experimental/tasks/me/exists":
 						httpapi.Write(ctx, w, http.StatusOK, codersdk.Task{
-							ID:        uuid.MustParse("11111111-1111-1111-1111-111111111111"),
-							Name:      "exists",
-							OwnerName: "me",
+							ID:          uuid.MustParse("11111111-1111-1111-1111-111111111111"),
+							Name:        "exists",
+							DisplayName: "Task exists",
+							OwnerName:   "me",
 							WorkspaceAgentHealth: &codersdk.WorkspaceAgentHealth{
 								Healthy: true,
 							},

@@ -15,42 +15,51 @@ const (
 	anthropicEnvVar = "ANTHROPIC_API_KEY"
 )
 
-func TestGenerateFallback(t *testing.T) {
-	t.Parallel()
-
-	name := taskname.GenerateFallback()
-	err := codersdk.NameValid(name)
-	require.NoErrorf(t, err, "expected fallback to be valid workspace name, instead found %s", name)
-}
-
-func TestGenerateTaskName(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Fallback", func(t *testing.T) {
-		t.Parallel()
+func TestGenerate(t *testing.T) {
+	t.Run("FromPrompt", func(t *testing.T) {
+		// Ensure no API key in env for this test
+		t.Setenv("ANTHROPIC_API_KEY", "")
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		name, err := taskname.Generate(ctx, "Some random prompt")
-		require.ErrorIs(t, err, taskname.ErrNoAPIKey)
-		require.Equal(t, "", name)
+		taskName := taskname.Generate(ctx, "Create a finance planning app")
+
+		// Should succeed via prompt sanitization
+		require.NoError(t, codersdk.NameValid(taskName.Name))
+		require.Contains(t, taskName.Name, "create-a-finance-planning-")
+		require.NotEmpty(t, taskName.DisplayName)
+		require.Equal(t, "Create a finance planning app", taskName.DisplayName)
 	})
 
-	t.Run("Anthropic", func(t *testing.T) {
-		t.Parallel()
-
+	t.Run("FromAnthropic", func(t *testing.T) {
 		apiKey := os.Getenv(anthropicEnvVar)
 		if apiKey == "" {
 			t.Skipf("Skipping test as %s not set", anthropicEnvVar)
 		}
 
+		// Set API key for this test
+		t.Setenv("ANTHROPIC_API_KEY", apiKey)
+
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		name, err := taskname.Generate(ctx, "Create a finance planning app", taskname.WithAPIKey(apiKey))
-		require.NoError(t, err)
-		require.NotEqual(t, "", name)
+		taskName := taskname.Generate(ctx, "Create a finance planning app")
 
-		err = codersdk.NameValid(name)
-		require.NoError(t, err, "name should be valid")
+		// Should succeed with Claude-generated names
+		require.NoError(t, codersdk.NameValid(taskName.Name))
+		require.NotEmpty(t, taskName.DisplayName)
+	})
+
+	t.Run("Fallback", func(t *testing.T) {
+		// Ensure no API key
+		t.Setenv("ANTHROPIC_API_KEY", "")
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Use a prompt that can't be sanitized (only special chars)
+		taskName := taskname.Generate(ctx, "!@#$%^&*()")
+
+		// Should fall back to random name
+		require.NoError(t, codersdk.NameValid(taskName.Name))
+		require.NotEmpty(t, taskName.DisplayName)
 	})
 }

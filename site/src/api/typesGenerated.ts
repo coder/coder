@@ -4732,6 +4732,7 @@ export interface Task {
 	readonly owner_name: string;
 	readonly owner_avatar_url?: string;
 	readonly name: string;
+	readonly display_name: string;
 	readonly template_id: string;
 	readonly template_version_id: string;
 	readonly template_name: string;

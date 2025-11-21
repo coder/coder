@@ -13151,7 +13151,7 @@ SET
 WHERE
 	id = $2::uuid
 	AND deleted_at IS NULL
-RETURNING id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at
+RETURNING id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, display_name
 `
 
 type DeleteTaskParams struct {
@@ -13173,12 +13173,13 @@ func (q *sqlQuerier) DeleteTask(ctx context.Context, arg DeleteTaskParams) (Task
 		&i.Prompt,
 		&i.CreatedAt,
 		&i.DeletedAt,
+		&i.DisplayName,
 	)
 	return i, err
 }
 
 const getTaskByID = `-- name: GetTaskByID :one
-SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, status, status_debug, workspace_build_number, workspace_agent_id, workspace_app_id, workspace_agent_lifecycle_state, workspace_app_health, owner_username, owner_name, owner_avatar_url FROM tasks_with_status WHERE id = $1::uuid
+SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, display_name, status, status_debug, workspace_build_number, workspace_agent_id, workspace_app_id, workspace_agent_lifecycle_state, workspace_app_health, owner_username, owner_name, owner_avatar_url FROM tasks_with_status WHERE id = $1::uuid
 `
 
 func (q *sqlQuerier) GetTaskByID(ctx context.Context, id uuid.UUID) (Task, error) {
@@ -13195,6 +13196,7 @@ func (q *sqlQuerier) GetTaskByID(ctx context.Context, id uuid.UUID) (Task, error
 		&i.Prompt,
 		&i.CreatedAt,
 		&i.DeletedAt,
+		&i.DisplayName,
 		&i.Status,
 		&i.StatusDebug,
 		&i.WorkspaceBuildNumber,
@@ -13210,7 +13212,7 @@ func (q *sqlQuerier) GetTaskByID(ctx context.Context, id uuid.UUID) (Task, error
 }
 
 const getTaskByOwnerIDAndName = `-- name: GetTaskByOwnerIDAndName :one
-SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, status, status_debug, workspace_build_number, workspace_agent_id, workspace_app_id, workspace_agent_lifecycle_state, workspace_app_health, owner_username, owner_name, owner_avatar_url FROM tasks_with_status
+SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, display_name, status, status_debug, workspace_build_number, workspace_agent_id, workspace_app_id, workspace_agent_lifecycle_state, workspace_app_health, owner_username, owner_name, owner_avatar_url FROM tasks_with_status
 WHERE
 	owner_id = $1::uuid
 	AND deleted_at IS NULL
@@ -13236,6 +13238,7 @@ func (q *sqlQuerier) GetTaskByOwnerIDAndName(ctx context.Context, arg GetTaskByO
 		&i.Prompt,
 		&i.CreatedAt,
 		&i.DeletedAt,
+		&i.DisplayName,
 		&i.Status,
 		&i.StatusDebug,
 		&i.WorkspaceBuildNumber,
@@ -13251,7 +13254,7 @@ func (q *sqlQuerier) GetTaskByOwnerIDAndName(ctx context.Context, arg GetTaskByO
 }
 
 const getTaskByWorkspaceID = `-- name: GetTaskByWorkspaceID :one
-SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, status, status_debug, workspace_build_number, workspace_agent_id, workspace_app_id, workspace_agent_lifecycle_state, workspace_app_health, owner_username, owner_name, owner_avatar_url FROM tasks_with_status WHERE workspace_id = $1::uuid
+SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, display_name, status, status_debug, workspace_build_number, workspace_agent_id, workspace_app_id, workspace_agent_lifecycle_state, workspace_app_health, owner_username, owner_name, owner_avatar_url FROM tasks_with_status WHERE workspace_id = $1::uuid
 `
 
 func (q *sqlQuerier) GetTaskByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (Task, error) {
@@ -13268,6 +13271,7 @@ func (q *sqlQuerier) GetTaskByWorkspaceID(ctx context.Context, workspaceID uuid.
 		&i.Prompt,
 		&i.CreatedAt,
 		&i.DeletedAt,
+		&i.DisplayName,
 		&i.Status,
 		&i.StatusDebug,
 		&i.WorkspaceBuildNumber,
@@ -13284,10 +13288,10 @@ func (q *sqlQuerier) GetTaskByWorkspaceID(ctx context.Context, workspaceID uuid.
 
 const insertTask = `-- name: InsertTask :one
 INSERT INTO tasks
-	(id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at)
+	(id, organization_id, owner_id, name, display_name, workspace_id, template_version_id, template_parameters, prompt, created_at)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9)
-RETURNING id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+RETURNING id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, display_name
 `
 
 type InsertTaskParams struct {
@@ -13295,6 +13299,7 @@ type InsertTaskParams struct {
 	OrganizationID     uuid.UUID       `db:"organization_id" json:"organization_id"`
 	OwnerID            uuid.UUID       `db:"owner_id" json:"owner_id"`
 	Name               string          `db:"name" json:"name"`
+	DisplayName        string          `db:"display_name" json:"display_name"`
 	WorkspaceID        uuid.NullUUID   `db:"workspace_id" json:"workspace_id"`
 	TemplateVersionID  uuid.UUID       `db:"template_version_id" json:"template_version_id"`
 	TemplateParameters json.RawMessage `db:"template_parameters" json:"template_parameters"`
@@ -13308,6 +13313,7 @@ func (q *sqlQuerier) InsertTask(ctx context.Context, arg InsertTaskParams) (Task
 		arg.OrganizationID,
 		arg.OwnerID,
 		arg.Name,
+		arg.DisplayName,
 		arg.WorkspaceID,
 		arg.TemplateVersionID,
 		arg.TemplateParameters,
@@ -13326,12 +13332,13 @@ func (q *sqlQuerier) InsertTask(ctx context.Context, arg InsertTaskParams) (Task
 		&i.Prompt,
 		&i.CreatedAt,
 		&i.DeletedAt,
+		&i.DisplayName,
 	)
 	return i, err
 }
 
 const listTasks = `-- name: ListTasks :many
-SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, status, status_debug, workspace_build_number, workspace_agent_id, workspace_app_id, workspace_agent_lifecycle_state, workspace_app_health, owner_username, owner_name, owner_avatar_url FROM tasks_with_status tws
+SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, display_name, status, status_debug, workspace_build_number, workspace_agent_id, workspace_app_id, workspace_agent_lifecycle_state, workspace_app_health, owner_username, owner_name, owner_avatar_url FROM tasks_with_status tws
 WHERE tws.deleted_at IS NULL
 AND CASE WHEN $1::UUID != '00000000-0000-0000-0000-000000000000' THEN tws.owner_id = $1::UUID ELSE TRUE END
 AND CASE WHEN $2::UUID != '00000000-0000-0000-0000-000000000000' THEN tws.organization_id = $2::UUID ELSE TRUE END
@@ -13365,6 +13372,7 @@ func (q *sqlQuerier) ListTasks(ctx context.Context, arg ListTasksParams) ([]Task
 			&i.Prompt,
 			&i.CreatedAt,
 			&i.DeletedAt,
+			&i.DisplayName,
 			&i.Status,
 			&i.StatusDebug,
 			&i.WorkspaceBuildNumber,
@@ -13406,7 +13414,7 @@ WHERE
 	AND w.id = $2
 	AND tv.id = tasks.template_version_id
 RETURNING
-	tasks.id, tasks.organization_id, tasks.owner_id, tasks.name, tasks.workspace_id, tasks.template_version_id, tasks.template_parameters, tasks.prompt, tasks.created_at, tasks.deleted_at
+	tasks.id, tasks.organization_id, tasks.owner_id, tasks.name, tasks.workspace_id, tasks.template_version_id, tasks.template_parameters, tasks.prompt, tasks.created_at, tasks.deleted_at, tasks.display_name
 `
 
 type UpdateTaskWorkspaceIDParams struct {
@@ -13428,6 +13436,7 @@ func (q *sqlQuerier) UpdateTaskWorkspaceID(ctx context.Context, arg UpdateTaskWo
 		&i.Prompt,
 		&i.CreatedAt,
 		&i.DeletedAt,
+		&i.DisplayName,
 	)
 	return i, err
 }
