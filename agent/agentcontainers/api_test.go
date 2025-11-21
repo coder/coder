@@ -4033,8 +4033,6 @@ func TestDevcontainerPrebuildSupport(t *testing.T) {
 	require.Equal(t, userAppURL, secondApp.URL)
 }
 
-
-
 func TestHandleDevcontainerDeleteAndRecreate(t *testing.T) {
 	t.Parallel()
 
