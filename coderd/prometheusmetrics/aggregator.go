@@ -357,11 +357,7 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 					}
 				}
 
-				for key, entry := range ma.descCache {
-					if time.Since(entry.lastUsed) > ma.metricsCleanupInterval {
-						delete(ma.descCache, key)
-					}
-				}
+				ma.cleanupDescCache()
 
 				timer.ObserveDuration()
 				cleanupTicker.Reset(ma.metricsCleanupInterval)
@@ -506,6 +502,16 @@ func (ma *MetricsAggregator) Update(ctx context.Context, labels AgentMetricLabel
 		ma.log.Debug(ctx, "update request is canceled")
 	default:
 		ma.log.Error(ctx, "update queue is full")
+	}
+}
+
+// Move to a function for testability
+func (ma *MetricsAggregator) cleanupDescCache() {
+	now := time.Now()
+	for key, entry := range ma.descCache {
+		if now.Sub(entry.lastUsed) > ma.metricsCleanupInterval {
+			delete(ma.descCache, key)
+		}
 	}
 }
 

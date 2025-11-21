@@ -36,12 +36,6 @@ func TestDescCache_DescExpire(t *testing.T) {
 	ma, err := NewMetricsAggregator(slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), registry, time.Millisecond, agentmetrics.LabelAll)
 	require.NoError(t, err)
 
-	ctx, cancelFunc := context.WithCancel(context.Background())
-	t.Cleanup(cancelFunc)
-
-	closeFunc := ma.Run(ctx)
-	t.Cleanup(closeFunc)
-
 	given := []*agentproto.Stats_Metric{
 		{Name: "a_counter_one", Type: agentproto.Stats_Metric_COUNTER, Value: 1},
 	}
@@ -58,14 +52,8 @@ func TestDescCache_DescExpire(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// when
-	// metricsAggregator.Update(ctx, testLabels, given)
-	// ma.getOrCreateDec(given[0].Name, "a_counter_one counts some thing", testLabels, nil)
-
-	time.Sleep(time.Millisecond * 10) // Ensure that metric is expired
-
-	// then
 	require.Eventually(t, func() bool {
+		ma.cleanupDescCache()
 		return len(ma.descCache) == 0
 	}, testutil.WaitShort, testutil.IntervalFast)
 }
