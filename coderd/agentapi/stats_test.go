@@ -52,6 +52,15 @@ func TestUpdateStates(t *testing.T) {
 			ID:   uuid.New(),
 			Name: "abc",
 		}
+		workspaceAsCacheFields = agentapi.CachedWorkspaceFields{
+			ID:                workspace.ID,
+			OwnerID:           workspace.OwnerID,
+			OwnerUsername:     workspace.OwnerUsername,
+			TemplateID:        workspace.TemplateID,
+			Name:              workspace.Name,
+			TemplateName:      workspace.TemplateName,
+			AutostartSchedule: workspace.AutostartSchedule,
+		}
 	)
 
 	t.Run("OK", func(t *testing.T) {
@@ -111,7 +120,8 @@ func TestUpdateStates(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			Database: dbM,
+			Workspace: &workspaceAsCacheFields,
+			Database:  dbM,
 			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
 				Database:              dbM,
 				Pubsub:                ps,
@@ -135,9 +145,6 @@ func TestUpdateStates(t *testing.T) {
 			},
 		}
 		defer wut.Close()
-
-		// Workspace gets fetched.
-		dbM.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(workspace, nil)
 
 		// We expect an activity bump because ConnectionCount > 0.
 		dbM.EXPECT().ActivityBumpWorkspace(gomock.Any(), database.ActivityBumpWorkspaceParams{
@@ -223,7 +230,8 @@ func TestUpdateStates(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			Database: dbM,
+			Workspace: &workspaceAsCacheFields,
+			Database:  dbM,
 			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
 				Database:              dbM,
 				Pubsub:                ps,
@@ -238,9 +246,6 @@ func TestUpdateStates(t *testing.T) {
 				return now
 			},
 		}
-
-		// Workspace gets fetched.
-		dbM.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(workspace, nil)
 
 		_, err := api.UpdateStats(context.Background(), req)
 		require.NoError(t, err)
@@ -260,7 +265,8 @@ func TestUpdateStates(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			Database: dbM,
+			Workspace: &workspaceAsCacheFields,
+			Database:  dbM,
 			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
 				Database:              dbM,
 				Pubsub:                ps,
@@ -333,11 +339,17 @@ func TestUpdateStates(t *testing.T) {
 				},
 			}
 		)
+		// need to overwrite the cached fields for this test, but the struct has a lock
+		ws := agentapi.CachedWorkspaceFields{}
+		ws.UpdateValues(workspace)
+		ws.AutostartSchedule = workspace.AutostartSchedule
+
 		api := agentapi.StatsAPI{
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			Database: dbM,
+			Workspace: &ws,
+			Database:  dbM,
 			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
 				Database:              dbM,
 				Pubsub:                ps,
@@ -361,9 +373,6 @@ func TestUpdateStates(t *testing.T) {
 			},
 		}
 		defer wut.Close()
-
-		// Workspace gets fetched.
-		dbM.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(workspace, nil)
 
 		// We expect an activity bump because ConnectionCount > 0. However, the
 		// next autostart time will be set on the bump.
@@ -451,7 +460,8 @@ func TestUpdateStates(t *testing.T) {
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			Database: dbM,
+			Workspace: &workspaceAsCacheFields,
+			Database:  dbM,
 			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
 				Database:              dbM,
 				Pubsub:                ps,
@@ -477,9 +487,6 @@ func TestUpdateStates(t *testing.T) {
 				codersdk.ExperimentWorkspaceUsage,
 			},
 		}
-
-		// Workspace gets fetched.
-		dbM.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(workspace, nil)
 
 		// We expect an activity bump because ConnectionCount > 0.
 		dbM.EXPECT().ActivityBumpWorkspace(gomock.Any(), database.ActivityBumpWorkspaceParams{

@@ -17,6 +17,7 @@ import (
 
 type StatsAPI struct {
 	AgentFn                   func(context.Context) (database.WorkspaceAgent, error)
+	Workspace                 *CachedWorkspaceFields
 	Database                  database.Store
 	Log                       slog.Logger
 	StatsReporter             *workspacestats.Reporter
@@ -46,14 +47,20 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 	if err != nil {
 		return nil, err
 	}
-	getWorkspaceAgentByIDRow, err := a.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
-	if err != nil {
-		return nil, xerrors.Errorf("get workspace by agent ID %q: %w", workspaceAgent.ID, err)
+
+	// If cache is empty (prebuild or invalid), fall back to DB
+	var ws database.Workspace
+	var ok bool
+	if ws, ok = a.Workspace.AsDatabaseWorkspace(); !ok {
+		ws, err = a.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
+		if err != nil {
+			return nil, xerrors.Errorf("get workspace by agent ID %q: %w", workspaceAgent.ID, err)
+		}
 	}
-	workspace := getWorkspaceAgentByIDRow
+
 	a.Log.Debug(ctx, "read stats report",
 		slog.F("interval", a.AgentStatsRefreshInterval),
-		slog.F("workspace_id", workspace.ID),
+		slog.F("workspace_id", a.Workspace.ID),
 		slog.F("payload", req),
 	)
 
@@ -70,9 +77,9 @@ func (a *StatsAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsR
 	err = a.StatsReporter.ReportAgentStats(
 		ctx,
 		a.now(),
-		workspace,
+		ws,
 		workspaceAgent,
-		getWorkspaceAgentByIDRow.TemplateName,
+		ws.TemplateName,
 		req.Stats,
 		false,
 	)
