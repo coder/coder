@@ -660,10 +660,6 @@ func TestWorkspaceQuota(t *testing.T) {
 func TestWorkspaceSerialization(t *testing.T) {
 	t.Parallel()
 
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("Serialization errors only occur in postgres")
-	}
-
 	db, _ := dbtestutil.NewDB(t)
 
 	user := dbgen.User(t, db, database.User{})

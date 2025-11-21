@@ -30,6 +30,7 @@ curl -X GET http://coder-server:8080/api/v2/.well-known/oauth-authorization-serv
   "response_types_supported": [
     "string"
   ],
+  "revocation_endpoint": "string",
   "scopes_supported": [
     "string"
   ],
@@ -120,6 +121,7 @@ curl -X GET http://coder-server:8080/api/v2/appearance \
   "support_links": [
     {
       "icon": "bug",
+      "location": "navbar",
       "name": "string",
       "target": "string"
     }
@@ -808,7 +810,8 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps \
     "endpoints": {
       "authorization": "string",
       "device_authorization": "string",
-      "token": "string"
+      "token": "string",
+      "token_revoke": "string"
     },
     "icon": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
@@ -835,6 +838,7 @@ Status Code **200**
 | `»» authorization`        | string                                                               | false    |              |                                                                                                                                                                                                         |
 | `»» device_authorization` | string                                                               | false    |              | Device authorization is optional.                                                                                                                                                                       |
 | `»» token`                | string                                                               | false    |              |                                                                                                                                                                                                         |
+| `»» token_revoke`         | string                                                               | false    |              |                                                                                                                                                                                                         |
 | `» icon`                  | string                                                               | false    |              |                                                                                                                                                                                                         |
 | `» id`                    | string(uuid)                                                         | false    |              |                                                                                                                                                                                                         |
 | `» name`                  | string                                                               | false    |              |                                                                                                                                                                                                         |
@@ -881,7 +885,8 @@ curl -X POST http://coder-server:8080/api/v2/oauth2-provider/apps \
   "endpoints": {
     "authorization": "string",
     "device_authorization": "string",
-    "token": "string"
+    "token": "string",
+    "token_revoke": "string"
   },
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
@@ -926,7 +931,8 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
   "endpoints": {
     "authorization": "string",
     "device_authorization": "string",
-    "token": "string"
+    "token": "string",
+    "token_revoke": "string"
   },
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
@@ -983,7 +989,8 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2-provider/apps/{app} \
   "endpoints": {
     "authorization": "string",
     "device_authorization": "string",
-    "token": "string"
+    "token": "string",
+    "token_revoke": "string"
   },
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
@@ -1268,7 +1275,9 @@ curl -X GET http://coder-server:8080/api/v2/oauth2/clients/{client_id} \
   "redirect_uris": [
     "string"
   ],
-  "registration_access_token": "string",
+  "registration_access_token": [
+    0
+  ],
   "registration_client_uri": "string",
   "response_types": [
     "string"
@@ -1362,7 +1371,9 @@ curl -X PUT http://coder-server:8080/api/v2/oauth2/clients/{client_id} \
   "redirect_uris": [
     "string"
   ],
-  "registration_access_token": "string",
+  "registration_access_token": [
+    0
+  ],
   "registration_client_uri": "string",
   "response_types": [
     "string"
@@ -1498,6 +1509,42 @@ curl -X POST http://coder-server:8080/api/v2/oauth2/register \
 | Status | Meaning                                                      | Description | Schema                                                                                           |
 |--------|--------------------------------------------------------------|-------------|--------------------------------------------------------------------------------------------------|
 | 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.OAuth2ClientRegistrationResponse](schemas.md#codersdkoauth2clientregistrationresponse) |
+
+## Revoke OAuth2 tokens (RFC 7009)
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/oauth2/revoke \
+
+```
+
+`POST /oauth2/revoke`
+
+> Body parameter
+
+```yaml
+client_id: string
+token: string
+token_type_hint: string
+
+```
+
+### Parameters
+
+| Name                | In   | Type   | Required | Description                                           |
+|---------------------|------|--------|----------|-------------------------------------------------------|
+| `body`              | body | object | true     |                                                       |
+| `» client_id`       | body | string | true     | Client ID for authentication                          |
+| `» token`           | body | string | true     | The token to revoke                                   |
+| `» token_type_hint` | body | string | false    | Hint about token type (access_token or refresh_token) |
+
+### Responses
+
+| Status | Meaning                                                 | Description                | Schema |
+|--------|---------------------------------------------------------|----------------------------|--------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | Token successfully revoked |        |
 
 ## OAuth2 token exchange
 
@@ -3738,6 +3785,49 @@ Status Code **200**
 | `status`     | `suspended` |
 | `source`     | `user`      |
 | `source`     | `oidc`      |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Invalidate presets for template
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/templates/{template}/prebuilds/invalidate \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /templates/{template}/prebuilds/invalidate`
+
+### Parameters
+
+| Name       | In   | Type         | Required | Description |
+|------------|------|--------------|----------|-------------|
+| `template` | path | string(uuid) | true     | Template ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "invalidated": [
+    {
+      "preset_name": "string",
+      "template_name": "string",
+      "template_version_name": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                             |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.InvalidatePresetsResponse](schemas.md#codersdkinvalidatepresetsresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

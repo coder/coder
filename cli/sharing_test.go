@@ -54,6 +54,7 @@ func TestSharingShare(t *testing.T) {
 			MinimalUser: codersdk.MinimalUser{
 				ID:        toShareWithUser.ID,
 				Username:  toShareWithUser.Username,
+				Name:      toShareWithUser.Name,
 				AvatarURL: toShareWithUser.AvatarURL,
 			},
 			Role: codersdk.WorkspaceRole("use"),
@@ -103,6 +104,7 @@ func TestSharingShare(t *testing.T) {
 			MinimalUser: codersdk.MinimalUser{
 				ID:        toShareWithUser1.ID,
 				Username:  toShareWithUser1.Username,
+				Name:      toShareWithUser1.Name,
 				AvatarURL: toShareWithUser1.AvatarURL,
 			},
 			Role: codersdk.WorkspaceRoleUse,
@@ -111,6 +113,7 @@ func TestSharingShare(t *testing.T) {
 			MinimalUser: codersdk.MinimalUser{
 				ID:        toShareWithUser2.ID,
 				Username:  toShareWithUser2.Username,
+				Name:      toShareWithUser2.Name,
 				AvatarURL: toShareWithUser2.AvatarURL,
 			},
 			Role: codersdk.WorkspaceRoleUse,
@@ -155,6 +158,7 @@ func TestSharingShare(t *testing.T) {
 			MinimalUser: codersdk.MinimalUser{
 				ID:        toShareWithUser.ID,
 				Username:  toShareWithUser.Username,
+				Name:      toShareWithUser.Name,
 				AvatarURL: toShareWithUser.AvatarURL,
 			},
 			Role: codersdk.WorkspaceRoleAdmin,

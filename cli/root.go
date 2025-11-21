@@ -37,6 +37,7 @@ import (
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/cli/gitauth"
+	"github.com/coder/coder/v2/cli/sessionstore"
 	"github.com/coder/coder/v2/cli/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -54,6 +55,8 @@ var (
 	// ErrSilent is a sentinel error that tells the command handler to just exit with a non-zero error, but not print
 	// anything.
 	ErrSilent = xerrors.New("silent error")
+
+	errKeyringNotSupported = xerrors.New("keyring storage is not supported on this operating system; remove the --use-keyring flag to use file-based storage")
 )
 
 const (
@@ -68,12 +71,14 @@ const (
 	varVerbose                 = "verbose"
 	varDisableDirect           = "disable-direct-connections"
 	varDisableNetworkTelemetry = "disable-network-telemetry"
+	varUseKeyring              = "use-keyring"
 
 	notLoggedInMessage = "You are not logged in. Try logging in using '%s login <url>'."
 
 	envNoVersionCheck   = "CODER_NO_VERSION_WARNING"
 	envNoFeatureWarning = "CODER_NO_FEATURE_WARNING"
 	envSessionToken     = "CODER_SESSION_TOKEN"
+	envUseKeyring       = "CODER_USE_KEYRING"
 	//nolint:gosec
 	envAgentToken = "CODER_AGENT_TOKEN"
 	//nolint:gosec
@@ -145,6 +150,7 @@ func (r *RootCmd) AGPLExperimental() []*serpent.Command {
 		r.promptExample(),
 		r.rptyCommand(),
 		r.tasksCommand(),
+		r.boundary(),
 	}
 }
 
@@ -474,6 +480,15 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 			Group:       globalGroup,
 		},
 		{
+			Flag: varUseKeyring,
+			Env:  envUseKeyring,
+			Description: "Store and retrieve session tokens using the operating system " +
+				"keyring. Currently only supported on Windows. By default, tokens are " +
+				"stored in plain text files.",
+			Value: serpent.BoolOf(&r.useKeyring),
+			Group: globalGroup,
+		},
+		{
 			Flag:        "debug-http",
 			Description: "Debug codersdk HTTP requests.",
 			Value:       serpent.BoolOf(&r.debugHTTP),
@@ -507,6 +522,7 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 type RootCmd struct {
 	clientURL     *url.URL
 	token         string
+	tokenBackend  sessionstore.Backend
 	globalConfig  string
 	header        []string
 	headerCommand string
@@ -521,6 +537,7 @@ type RootCmd struct {
 	disableNetworkTelemetry bool
 	noVersionCheck          bool
 	noFeatureWarning        bool
+	useKeyring              bool
 }
 
 // InitClient creates and configures a new client with authentication, telemetry,
@@ -548,13 +565,18 @@ func (r *RootCmd) InitClient(inv *serpent.Invocation) (*codersdk.Client, error) 
 			return nil, err
 		}
 	}
-	// Read the token stored on disk.
 	if r.token == "" {
-		r.token, err = conf.Session().Read()
+		tok, err := r.ensureTokenBackend().Read(r.clientURL)
 		// Even if there isn't a token, we don't care.
 		// Some API routes can be unauthenticated.
-		if err != nil && !os.IsNotExist(err) {
+		if err != nil && !xerrors.Is(err, os.ErrNotExist) {
+			if xerrors.Is(err, sessionstore.ErrNotImplemented) {
+				return nil, errKeyringNotSupported
+			}
 			return nil, err
+		}
+		if tok != "" {
+			r.token = tok
 		}
 	}
 
@@ -587,7 +609,6 @@ func (r *RootCmd) InitClient(inv *serpent.Invocation) (*codersdk.Client, error) 
 // This allows commands to run without requiring authentication, but still use auth if available.
 func (r *RootCmd) TryInitClient(inv *serpent.Invocation) (*codersdk.Client, error) {
 	conf := r.createConfig()
-	var err error
 	// Read the client URL stored on disk.
 	if r.clientURL == nil || r.clientURL.String() == "" {
 		rawURL, err := conf.URL().Read()
@@ -604,13 +625,18 @@ func (r *RootCmd) TryInitClient(inv *serpent.Invocation) (*codersdk.Client, erro
 			}
 		}
 	}
-	// Read the token stored on disk.
 	if r.token == "" {
-		r.token, err = conf.Session().Read()
+		tok, err := r.ensureTokenBackend().Read(r.clientURL)
 		// Even if there isn't a token, we don't care.
 		// Some API routes can be unauthenticated.
-		if err != nil && !os.IsNotExist(err) {
+		if err != nil && !xerrors.Is(err, os.ErrNotExist) {
+			if xerrors.Is(err, sessionstore.ErrNotImplemented) {
+				return nil, errKeyringNotSupported
+			}
 			return nil, err
+		}
+		if tok != "" {
+			r.token = tok
 		}
 	}
 
@@ -685,6 +711,24 @@ func (r *RootCmd) createUnauthenticatedClient(ctx context.Context, serverURL *ur
 	}
 	client := codersdk.New(serverURL, codersdk.WithHTTPClient(httpClient))
 	return client, nil
+}
+
+// ensureTokenBackend returns the session token storage backend, creating it if necessary.
+// This must be called after flags are parsed so we can respect the value of the --use-keyring
+// flag.
+func (r *RootCmd) ensureTokenBackend() sessionstore.Backend {
+	if r.tokenBackend == nil {
+		if r.useKeyring {
+			r.tokenBackend = sessionstore.NewKeyring()
+		} else {
+			r.tokenBackend = sessionstore.NewFile(r.createConfig)
+		}
+	}
+	return r.tokenBackend
+}
+
+func (r *RootCmd) WithSessionStorageBackend(backend sessionstore.Backend) {
+	r.tokenBackend = backend
 }
 
 type AgentAuth struct {

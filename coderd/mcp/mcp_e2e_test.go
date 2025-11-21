@@ -141,7 +141,8 @@ func TestMCPHTTP_E2E_UnauthenticatedAccess(t *testing.T) {
 	require.NoError(t, err, "Should be able to create HTTP request")
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	require.NoError(t, err, "Should be able to make HTTP request")
 	defer resp.Body.Close()
 
@@ -613,7 +614,7 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 		require.NoError(t, err)
 		tokenReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-		tokenResp, err := http.DefaultClient.Do(tokenReq)
+		tokenResp, err := client.Do(tokenReq)
 		require.NoError(t, err)
 		defer tokenResp.Body.Close()
 
@@ -711,7 +712,7 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 		require.NoError(t, err)
 		refreshReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-		refreshResp, err := http.DefaultClient.Do(refreshReq)
+		refreshResp, err := client.Do(refreshReq)
 		require.NoError(t, err)
 		defer refreshResp.Body.Close()
 
@@ -846,7 +847,7 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 		regReq.Header.Set("Content-Type", "application/json")
 
 		// Dynamic client registration should not require authentication (public endpoint)
-		regResp, err := http.DefaultClient.Do(regReq)
+		regResp, err := client.Do(regReq)
 		require.NoError(t, err)
 		defer regResp.Body.Close()
 
@@ -936,7 +937,7 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 		require.NoError(t, err)
 		tokenReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-		tokenResp, err := http.DefaultClient.Do(tokenReq)
+		tokenResp, err := client.Do(tokenReq)
 		require.NoError(t, err)
 		defer tokenResp.Body.Close()
 
@@ -1037,7 +1038,7 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 		require.NoError(t, err)
 		refreshReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-		refreshResp, err := http.DefaultClient.Do(refreshReq)
+		refreshResp, err := client.Do(refreshReq)
 		require.NoError(t, err)
 		defer refreshResp.Body.Close()
 
@@ -1151,7 +1152,8 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 		require.NoError(t, err)
 		regReq1.Header.Set("Content-Type", "application/json")
 
-		regResp1, err := http.DefaultClient.Do(regReq1)
+		client := &http.Client{}
+		regResp1, err := client.Do(regReq1)
 		require.NoError(t, err)
 		defer regResp1.Body.Close()
 
@@ -1181,7 +1183,7 @@ func TestMCPHTTP_E2E_OAuth2_EndToEnd(t *testing.T) {
 		require.NoError(t, err)
 		regReq2.Header.Set("Content-Type", "application/json")
 
-		regResp2, err := http.DefaultClient.Do(regReq2)
+		regResp2, err := client.Do(regReq2)
 		require.NoError(t, err)
 		defer regResp2.Body.Close()
 

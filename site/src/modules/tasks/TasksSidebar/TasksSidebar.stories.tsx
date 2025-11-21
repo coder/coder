@@ -17,6 +17,19 @@ const meta: Meta<typeof TasksSidebar> = {
 		permissions: {
 			viewAllUsers: true,
 		},
+		reactRouter: reactRouterParameters({
+			location: {
+				path: `/tasks/${MockTasks[0].owner_name}/${MockTasks[0].id}`,
+				pathParams: {
+					owner_name: MockTasks[0].owner_name,
+					taskId: MockTasks[0].id,
+				},
+			},
+			routing: [
+				{ path: "/tasks/:username/:taskId", useStoryElement: true },
+				{ path: "/tasks", element: <div>Tasks Index Page</div> },
+			],
+		}),
 	},
 	beforeEach: () => {
 		spyOn(API, "getUsers").mockResolvedValue({
@@ -49,16 +62,6 @@ export const Loaded: Story = {
 	beforeEach: () => {
 		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
 	},
-	parameters: {
-		reactRouter: reactRouterParameters({
-			location: {
-				pathParams: {
-					workspace: MockTasks[0].workspace.name,
-				},
-			},
-			routing: { path: "/tasks/:workspace" },
-		}),
-	},
 };
 
 export const Empty: Story = {
@@ -71,19 +74,44 @@ export const Closed: Story = {
 	beforeEach: () => {
 		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
 	},
-	parameters: {
-		reactRouter: reactRouterParameters({
-			location: {
-				pathParams: {
-					workspace: MockTasks[0].workspace.name,
-				},
-			},
-			routing: { path: "/tasks/:workspace" },
-		}),
-	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const button = canvas.getByRole("button", { name: /close sidebar/i });
 		await userEvent.click(button);
+	},
+};
+
+export const OpenOptionsMenu: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const optionButtons = await canvas.findAllByRole("button", {
+			name: /task options/i,
+		});
+		await userEvent.click(optionButtons[0]);
+	},
+};
+
+export const OpenDeleteDialog: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getTasks").mockResolvedValue(MockTasks);
+	},
+	play: async ({ canvasElement, step }) => {
+		await step("Open menu", async () => {
+			const canvas = within(canvasElement);
+			const optionButtons = await canvas.findAllByRole("button", {
+				name: /task options/i,
+			});
+			await userEvent.click(optionButtons[0]);
+		});
+		await step("Open delete dialog", async () => {
+			const body = within(canvasElement.ownerDocument.body);
+			const deleteButton = await body.findByRole("menuitem", {
+				name: /delete/i,
+			});
+			await userEvent.click(deleteButton);
+		});
 	},
 };

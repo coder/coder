@@ -10,8 +10,12 @@ install_devcontainer_cli() {
 
 install_ssh_config() {
 	echo "🔑 Installing SSH configuration..."
-	rsync -a /mnt/home/coder/.ssh/ ~/.ssh/
-	chmod 0700 ~/.ssh
+	if [ -d /mnt/home/coder/.ssh ]; then
+		rsync -a /mnt/home/coder/.ssh/ ~/.ssh/
+		chmod 0700 ~/.ssh
+	else
+		echo "⚠️ SSH directory not found."
+	fi
 }
 
 install_git_config() {

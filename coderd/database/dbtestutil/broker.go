@@ -6,6 +6,8 @@ import (
 	_ "embed"
 	"fmt"
 	"os"
+	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -45,6 +47,8 @@ func (b *Broker) Create(t TBSubset, opts ...OpenOption) (ConnectionParams, error
 		host     = defaultConnectionParams.Host
 		port     = defaultConnectionParams.Port
 	)
+	packageName := getTestPackageName(t)
+	testName := t.Name()
 
 	// Use a time-based prefix to make it easier to find the database
 	// when debugging.
@@ -55,9 +59,9 @@ func (b *Broker) Create(t TBSubset, opts ...OpenOption) (ConnectionParams, error
 	}
 	dbName := now + "_" + dbSuffix
 
-	// TODO: add package and test name
 	_, err = b.coderTestingDB.Exec(
-		"INSERT INTO test_databases (name, process_uuid) VALUES ($1, $2)", dbName, b.uuid)
+		"INSERT INTO test_databases (name, process_uuid, test_package, test_name) VALUES ($1, $2, $3, $4)",
+		dbName, b.uuid, packageName, testName)
 	if err != nil {
 		return ConnectionParams{}, xerrors.Errorf("insert test_database row: %w", err)
 	}
@@ -104,10 +108,10 @@ func (b *Broker) clean(t TBSubset, dbName string) func() {
 func (b *Broker) init(t TBSubset) error {
 	b.Lock()
 	defer b.Unlock()
-	b.refCount++
-	t.Cleanup(b.decRef)
 	if b.coderTestingDB != nil {
 		// already initialized
+		b.refCount++
+		t.Cleanup(b.decRef)
 		return nil
 	}
 
@@ -124,8 +128,8 @@ func (b *Broker) init(t TBSubset) error {
 		return xerrors.Errorf("open postgres connection: %w", err)
 	}
 
-	// creating the db can succeed even if the database doesn't exist. Ping it to find out.
-	err = coderTestingDB.Ping()
+	// coderTestingSQLInit is idempotent, so we can run it every time.
+	_, err = coderTestingDB.Exec(coderTestingSQLInit)
 	var pqErr *pq.Error
 	if xerrors.As(err, &pqErr) && pqErr.Code == "3D000" {
 		// database does not exist.
@@ -145,12 +149,14 @@ func (b *Broker) init(t TBSubset) error {
 		return xerrors.Errorf("ping '%s' database: %w", CoderTestingDBName, err)
 	}
 	b.coderTestingDB = coderTestingDB
+	b.refCount++
+	t.Cleanup(b.decRef)
 
 	if b.uuid == uuid.Nil {
 		b.uuid = uuid.New()
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
-		b.cleanerFD, err = startCleaner(ctx, b.uuid, coderTestingParams.DSN())
+		b.cleanerFD, err = startCleaner(ctx, t, b.uuid, coderTestingParams.DSN())
 		if err != nil {
 			return xerrors.Errorf("start test db cleaner: %w", err)
 		}
@@ -185,4 +191,43 @@ func (b *Broker) decRef() {
 		_ = b.coderTestingDB.Close()
 		b.coderTestingDB = nil
 	}
+}
+
+// getTestPackageName returns the package name of the test that called it.
+func getTestPackageName(t TBSubset) string {
+	packageName := "unknown"
+	// Ask runtime.Callers for up to 100 program counters, including runtime.Callers itself.
+	pc := make([]uintptr, 100)
+	n := runtime.Callers(0, pc)
+	if n == 0 {
+		// No PCs available. This can happen if the first argument to
+		// runtime.Callers is large.
+		//
+		// Return now to avoid processing the zero Frame that would
+		// otherwise be returned by frames.Next below.
+		t.Logf("could not determine test package name: no PCs available")
+		return packageName
+	}
+
+	pc = pc[:n] // pass only valid pcs to runtime.CallersFrames
+	frames := runtime.CallersFrames(pc)
+
+	// Loop to get frames.
+	// A fixed number of PCs can expand to an indefinite number of Frames.
+	for {
+		frame, more := frames.Next()
+
+		if strings.HasPrefix(frame.Function, "github.com/coder/coder/v2/") {
+			packageName = strings.SplitN(strings.TrimPrefix(frame.Function, "github.com/coder/coder/v2/"), ".", 2)[0]
+		}
+		if strings.HasPrefix(frame.Function, "testing") {
+			break
+		}
+
+		// Check whether there are more frames to process after this one.
+		if !more {
+			break
+		}
+	}
+	return packageName
 }

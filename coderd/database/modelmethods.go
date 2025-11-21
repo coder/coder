@@ -132,6 +132,20 @@ func (w ConnectionLog) RBACObject() rbac.Object {
 	return obj
 }
 
+func (t Task) RBACObject() rbac.Object {
+	return rbac.ResourceTask.
+		WithID(t.ID).
+		WithOwner(t.OwnerID.String()).
+		InOrg(t.OrganizationID)
+}
+
+func (t TaskTable) RBACObject() rbac.Object {
+	return rbac.ResourceTask.
+		WithID(t.ID).
+		WithOwner(t.OwnerID.String()).
+		InOrg(t.OrganizationID)
+}
+
 func (s APIKeyScope) ToRBAC() rbac.ScopeName {
 	switch s {
 	case ApiKeyScopeCoderAll:
@@ -145,24 +159,30 @@ func (s APIKeyScope) ToRBAC() rbac.ScopeName {
 	}
 }
 
-// APIKeyScopes allows expanding multiple API key scopes into a single
-// RBAC scope for authorization. This implements rbac.ExpandableScope so
-// callers can pass the list directly without deriving a single scope.
+// APIKeyScopes represents a collection of individual API key scope names as
+// stored in the database. Helper methods on this type are used to derive the
+// RBAC scope that should be authorized for the key.
 type APIKeyScopes []APIKeyScope
 
-var _ rbac.ExpandableScope = APIKeyScopes{}
+// WithAllowList wraps the scopes with a database allow list, producing an
+// ExpandableScope that always enforces the allow list overlay when expanded.
+func (s APIKeyScopes) WithAllowList(list AllowList) APIKeyScopeSet {
+	return APIKeyScopeSet{Scopes: s, AllowList: list}
+}
 
 // Has returns true if the slice contains the provided scope.
 func (s APIKeyScopes) Has(target APIKeyScope) bool {
 	return slices.Contains(s, target)
 }
 
-// Expand merges the permissions of all scopes in the list into a single scope.
-// If the list is empty, it defaults to rbac.ScopeAll.
-func (s APIKeyScopes) Expand() (rbac.Scope, error) {
+// expandRBACScope merges the permissions of all scopes in the list into a
+// single RBAC scope. If the list is empty, it defaults to rbac.ScopeAll for
+// backward compatibility. This method is internal; use ScopeSet() to combine
+// scopes with the API key's allow list for authorization.
+func (s APIKeyScopes) expandRBACScope() (rbac.Scope, error) {
 	// Default to ScopeAll for backward compatibility when no scopes provided.
 	if len(s) == 0 {
-		return rbac.ScopeAll.Expand()
+		return rbac.Scope{}, xerrors.New("no scopes provided")
 	}
 
 	var merged rbac.Scope
@@ -170,13 +190,12 @@ func (s APIKeyScopes) Expand() (rbac.Scope, error) {
 		// Identifier is informational; not used in policy evaluation.
 		Identifier: rbac.RoleIdentifier{Name: "Scope_Multiple"},
 		Site:       nil,
-		Org:        map[string][]rbac.Permission{},
 		User:       nil,
+		ByOrgID:    map[string]rbac.OrgPermissions{},
 	}
 
-	// Track allow list union, collapsing to wildcard if any child is wildcard.
-	allowAll := false
-	allowSet := make(map[string]rbac.AllowListElement)
+	// Collect allow lists for a union after expanding all scopes.
+	allowLists := make([][]rbac.AllowListElement, 0, len(s))
 
 	for _, s := range s {
 		expanded, err := s.ToRBAC().Expand()
@@ -186,38 +205,31 @@ func (s APIKeyScopes) Expand() (rbac.Scope, error) {
 
 		// Merge role permissions: union by simple concatenation.
 		merged.Site = append(merged.Site, expanded.Site...)
-		for orgID, perms := range expanded.Org {
-			merged.Org[orgID] = append(merged.Org[orgID], perms...)
+		for orgID, perms := range expanded.ByOrgID {
+			orgPerms := merged.ByOrgID[orgID]
+			orgPerms.Org = append(orgPerms.Org, perms.Org...)
+			orgPerms.Member = append(orgPerms.Member, perms.Member...)
+			merged.ByOrgID[orgID] = orgPerms
 		}
 		merged.User = append(merged.User, expanded.User...)
 
-		// Merge allow lists.
-		for _, e := range expanded.AllowIDList {
-			if e.ID == policy.WildcardSymbol && e.Type == policy.WildcardSymbol {
-				allowAll = true
-				// No need to track other entries once wildcard is present.
-				continue
-			}
-			key := e.String()
-			allowSet[key] = e
-		}
+		allowLists = append(allowLists, expanded.AllowIDList)
 	}
 
 	// De-duplicate permissions across Site/Org/User
 	merged.Site = rbac.DeduplicatePermissions(merged.Site)
-	for orgID, perms := range merged.Org {
-		merged.Org[orgID] = rbac.DeduplicatePermissions(perms)
-	}
 	merged.User = rbac.DeduplicatePermissions(merged.User)
-
-	if allowAll || len(allowSet) == 0 {
-		merged.AllowIDList = []rbac.AllowListElement{rbac.AllowListAll()}
-	} else {
-		merged.AllowIDList = make([]rbac.AllowListElement, 0, len(allowSet))
-		for _, v := range allowSet {
-			merged.AllowIDList = append(merged.AllowIDList, v)
-		}
+	for orgID, perms := range merged.ByOrgID {
+		perms.Org = rbac.DeduplicatePermissions(perms.Org)
+		perms.Member = rbac.DeduplicatePermissions(perms.Member)
+		merged.ByOrgID[orgID] = perms
 	}
+
+	union, err := rbac.UnionAllowLists(allowLists...)
+	if err != nil {
+		return rbac.Scope{}, err
+	}
+	merged.AllowIDList = union
 
 	return merged, nil
 }
@@ -233,6 +245,37 @@ func (s APIKeyScopes) Name() rbac.RoleIdentifier {
 		names = append(names, string(s))
 	}
 	return rbac.RoleIdentifier{Name: "scopes[" + strings.Join(names, "+") + "]"}
+}
+
+// APIKeyScopeSet merges expanded scopes with the API key's DB allow_list. If
+// the DB allow_list is a wildcard or empty, the merged scope's allow list is
+// unchanged. Otherwise, the DB allow_list overrides the merged AllowIDList to
+// enforce the token's resource scoping consistently across all permissions.
+type APIKeyScopeSet struct {
+	Scopes    APIKeyScopes
+	AllowList AllowList
+}
+
+var _ rbac.ExpandableScope = APIKeyScopeSet{}
+
+func (s APIKeyScopeSet) Name() rbac.RoleIdentifier { return s.Scopes.Name() }
+
+func (s APIKeyScopeSet) Expand() (rbac.Scope, error) {
+	merged, err := s.Scopes.expandRBACScope()
+	if err != nil {
+		return rbac.Scope{}, err
+	}
+	merged.AllowIDList = rbac.IntersectAllowLists(merged.AllowIDList, s.AllowList)
+	return merged, nil
+}
+
+// ScopeSet returns the scopes combined with the database allow list. It is the
+// canonical way to expose an API key's effective scope for authorization.
+func (k APIKey) ScopeSet() APIKeyScopeSet {
+	return APIKeyScopeSet{
+		Scopes:    k.Scopes,
+		AllowList: k.AllowList,
+	}
 }
 
 func (k APIKey) RBACObject() rbac.Object {
@@ -619,6 +662,7 @@ func ConvertWorkspaceRows(rows []GetWorkspacesRow) []Workspace {
 			TemplateIcon:            r.TemplateIcon,
 			TemplateDescription:     r.TemplateDescription,
 			NextStartAt:             r.NextStartAt,
+			TaskID:                  r.TaskID,
 		}
 	}
 

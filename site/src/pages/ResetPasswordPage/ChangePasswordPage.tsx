@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import MUIButton from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
 import { isApiValidationError } from "api/errors";
 import { changePasswordWithOTP } from "api/queries/users";
@@ -119,15 +118,9 @@ const ChangePasswordPage: FC<ChangePasswordChangeProps> = ({ redirect }) => {
 										<Spinner loading={form.isSubmitting} />
 										Reset password
 									</Button>
-									<MUIButton
-										component={RouterLink}
-										size="large"
-										fullWidth
-										variant="text"
-										to="/login"
-									>
-										Back to login
-									</MUIButton>
+									<Button size="lg" className="w-full" variant="subtle" asChild>
+										<RouterLink to="/login">Back to login</RouterLink>
+									</Button>
 								</Stack>
 							</Stack>
 						</fieldset>

@@ -1,6 +1,9 @@
 name: AI Triage Automation
 
 on:
+  issues:
+    types:
+      - labeled
   workflow_dispatch:
     inputs:
       issue_url:
@@ -10,12 +13,12 @@ on:
       template_name:
         description: "Coder template to use for workspace"
         required: true
-        default: "traiage"
+        default: "coder"
         type: string
       template_preset:
         description: "Template preset to use"
-        required: true
-        default: "Default"
+        required: false
+        default: ""
         type: string
       prefix:
         description: "Prefix for workspace name"
@@ -27,138 +30,161 @@ jobs:
   traiage:
     name: Triage GitHub Issue with Claude Code
     runs-on: ubuntu-latest
+    if: github.event.label.name == 'traiage' || github.event_name == 'workflow_dispatch'
     timeout-minutes: 30
     env:
       CODER_URL: ${{ secrets.TRAIAGE_CODER_URL }}
       CODER_SESSION_TOKEN: ${{ secrets.TRAIAGE_CODER_SESSION_TOKEN }}
-      TEMPLATE_NAME: ${{ inputs.template_name }}
     permissions:
       contents: read
       issues: write
       actions: write
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-          fetch-depth: 0
+      # This is only required for testing locally using nektos/act, so leaving commented out.
+      # An alternative is to use a larger or custom image.
+      # - name: Install Github CLI
+      #   id: install-gh
+      #   run: |
+      #     (type -p wget >/dev/null || (sudo apt update && sudo apt install wget -y)) \
+      #     && sudo mkdir -p -m 755 /etc/apt/keyrings \
+      #     && out=$(mktemp) && wget -nv -O$out https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+      #     && cat $out | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
+      #     && sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+      #     && sudo mkdir -p -m 755 /etc/apt/sources.list.d \
+      #     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+      #     && sudo apt update \
+      #     && sudo apt install gh -y
 
-      - name: Extract context key from issue
+      - name: Determine Inputs
+        id: determine-inputs
+        if: always()
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_EVENT_ISSUE_HTML_URL: ${{ github.event.issue.html_url }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_EVENT_USER_ID: ${{ github.event.sender.id }}
+          GITHUB_EVENT_USER_LOGIN: ${{ github.event.sender.login }}
+          INPUTS_ISSUE_URL: ${{ inputs.issue_url }}
+          INPUTS_TEMPLATE_NAME: ${{ inputs.template_name || 'coder' }}
+          INPUTS_TEMPLATE_PRESET: ${{ inputs.template_preset || ''}}
+          INPUTS_PREFIX: ${{ inputs.prefix || 'traiage' }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "Using template name: ${INPUTS_TEMPLATE_NAME}"
+          echo "template_name=${INPUTS_TEMPLATE_NAME}" >> "${GITHUB_OUTPUT}"
+
+          echo "Using template preset: ${INPUTS_TEMPLATE_PRESET}"
+          echo "template_preset=${INPUTS_TEMPLATE_PRESET}" >> "${GITHUB_OUTPUT}"
+
+          echo "Using prefix: ${INPUTS_PREFIX}"
+          echo "prefix=${INPUTS_PREFIX}" >> "${GITHUB_OUTPUT}"
+
+          # For workflow_dispatch, use the actor who triggered it
+          # For issues events, use the issue author.
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            if ! GITHUB_USER_ID=$(gh api "users/${GITHUB_ACTOR}" --jq '.id'); then
+              echo "::error::Failed to get GitHub user ID for actor ${GITHUB_ACTOR}"
+              exit 1
+            fi
+            echo "Using workflow_dispatch actor: ${GITHUB_ACTOR} (ID: ${GITHUB_USER_ID})"
+            echo "github_user_id=${GITHUB_USER_ID}" >> "${GITHUB_OUTPUT}"
+            echo "github_username=${GITHUB_ACTOR}" >> "${GITHUB_OUTPUT}"
+
+            echo "Using issue URL: ${INPUTS_ISSUE_URL}"
+            echo "issue_url=${INPUTS_ISSUE_URL}" >> "${GITHUB_OUTPUT}"
+
+            exit 0
+          elif [[ "${GITHUB_EVENT_NAME}" == "issues" ]]; then
+            GITHUB_USER_ID=${GITHUB_EVENT_USER_ID}
+            echo "Using issue author: ${GITHUB_EVENT_USER_LOGIN} (ID: ${GITHUB_USER_ID})"
+            echo "github_user_id=${GITHUB_USER_ID}" >> "${GITHUB_OUTPUT}"
+            echo "github_username=${GITHUB_EVENT_USER_LOGIN}" >> "${GITHUB_OUTPUT}"
+
+            echo "Using issue URL: ${GITHUB_EVENT_ISSUE_HTML_URL}"
+            echo "issue_url=${GITHUB_EVENT_ISSUE_HTML_URL}" >> "${GITHUB_OUTPUT}"
+
+            exit 0
+          else
+            echo "::error::Unsupported event type: ${GITHUB_EVENT_NAME}"
+            exit 1
+          fi
+
+      - name: Verify push access
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_USERNAME: ${{ steps.determine-inputs.outputs.github_username }}
+          GITHUB_USER_ID: ${{ steps.determine-inputs.outputs.github_user_id }}
+        run: |
+          # Query the actor’s permission on this repo
+          can_push="$(gh api "/repos/${GITHUB_REPOSITORY}/collaborators/${GITHUB_USERNAME}/permission" --jq '.user.permissions.push')"
+          if [[ "${can_push}" != "true" ]]; then
+            echo "::error title=Access Denied::${GITHUB_USERNAME} does not have push access to ${GITHUB_REPOSITORY}"
+            exit 1
+          fi
+
+      - name: Extract context key and description from issue
         id: extract-context
         env:
-          ISSUE_URL: ${{ inputs.issue_url }}
-          GITHUB_TOKEN: ${{ github.token }}
+          ISSUE_URL: ${{ steps.determine-inputs.outputs.issue_url }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           issue_number="$(gh issue view "${ISSUE_URL}" --json number --jq '.number')"
           context_key="gh-${issue_number}"
-          echo "context_key=${context_key}" >> "${GITHUB_OUTPUT}"
-          echo "CONTEXT_KEY=${context_key}" >> "${GITHUB_ENV}"
 
-      - name: Download and install Coder binary
-        shell: bash
-        env:
-          CODER_URL: ${{ secrets.TRAIAGE_CODER_URL }}
-        run: |
-          if [ "${{ runner.arch }}" == "ARM64" ]; then
-            ARCH="arm64"
-          else
-            ARCH="amd64"
-          fi
-          mkdir -p "${HOME}/.local/bin"
-          curl -fsSL --compressed "$CODER_URL/bin/coder-linux-${ARCH}" -o "${HOME}/.local/bin/coder"
-          chmod +x "${HOME}/.local/bin/coder"
-          export PATH="$HOME/.local/bin:$PATH"
-          coder version
-          coder whoami
-          echo "$HOME/.local/bin" >> "${GITHUB_PATH}"
+          TASK_PROMPT=$(cat <<EOF
+          Fix ${ISSUE_URL}
 
-      # TODO(Cian): this is a good use-case for 'recipes'
-      - name: Create Coder task
-        id: create-task
-        env:
-          CONTEXT_KEY: ${{ steps.extract-context.outputs.context_key }}
-          GITHUB_TOKEN: ${{ github.token }}
-          ISSUE_URL: ${{ inputs.issue_url }}
-          PREFIX: ${{ inputs.prefix }}
-          RUN_ID: ${{ github.run_id }}
-          TEMPLATE_PARAMETERS: ${{ secrets.TRAIAGE_TEMPLATE_PARAMETERS }}
-          TEMPLATE_PRESET: ${{ inputs.template_preset }}
-          # TODO: replace with coder exp task command
-          APP_SLUG: ccw
-        run: |
-          # Fetch issue description using `gh` CLI
-          issue_description=$(gh issue view "${ISSUE_URL}")
+            1. Use the gh CLI to read the issue description and comments.
+            2. Think carefully and try to understand the root cause. If the issue is unclear or not well defined, ask me to clarify and provide more information.
+            3. Write a proposed implementation plan to PLAN.md for me to review before starting implementation. Your plan should use TDD and only make the minimal changes necessary to fix the root cause.
+            4. When I approve your plan, start working on it. If you encounter issues with the plan, ask me for clarification and update the plan as required.
+            5. When you have finished implementation according to the plan, commit and push your changes, and create a PR using the gh CLI for me to review.
 
-          # Write a prompt to PROMPT_FILE
-          PROMPT=$(cat <<EOF
-          Analyze the below GitHub issue description, understand the root cause, and make appropriate changes to resolve the issue.
-
-          ISSUE URL: ${ISSUE_URL}
-          ISSUE DESCRIPTION BELOW:
-
-          ${issue_description}
           EOF
           )
-          export PROMPT
 
-          export TASK_NAME="${PREFIX}-${CONTEXT_KEY}-${RUN_ID}"
-          echo "Creating task: $TASK_NAME"
-          ./scripts/traiage.sh create
-          ./scripts/traiage.sh wait
-          echo "TASK_NAME=${TASK_NAME}" >> "${GITHUB_OUTPUT}"
-          echo "TASK_NAME=${TASK_NAME}" >> "${GITHUB_ENV}"
-
-      - name: Create and upload archive
-        id: create-archive
-        env:
-          BUCKET_PREFIX: "gs://coder-traiage-outputs/traiage"
-        run: |
-          echo "Creating archive for workspace: $TASK_NAME"
-          ./scripts/traiage.sh archive
-          echo "archive_url=${BUCKET_PREFIX%%/}/$TASK_NAME.tar.gz" >> "${GITHUB_OUTPUT}"
-
-      - name: Generate a summary of the changes and post a comment on GitHub.
-        id: generate-summary
-        env:
-          ARCHIVE_URL: ${{ steps.create-archive.outputs.archive_url }}
-          APP_SLUG: ccw
-          BUCKET_PREFIX: "gs://coder-traiage-outputs/traiage"
-          CONTEXT_KEY: ${{ steps.extract-context.outputs.context_key }}
-          GITHUB_TOKEN: ${{ github.token }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          ISSUE_URL: ${{ inputs.issue_url }}
-          TASK_NAME: ${{ steps.create-task.outputs.TASK_NAME }}
-        run: |
-          SUMMARY_FILE=$(mktemp)
-          trap 'rm -f "${SUMMARY_FILE}"' EXIT
-          AUTO_SUMMARY=$(./scripts/traiage.sh summary)
+          echo "context_key=${context_key}" >> "${GITHUB_OUTPUT}"
           {
-            echo "## TrAIage Results"
-            echo "- **Issue URL:** ${ISSUE_URL}"
-            echo "- **Context Key:** ${CONTEXT_KEY}"
-            echo "- **Workspace:** ${TASK_NAME}"
-            echo "- **Archive URL:** ${ARCHIVE_URL}"
-            echo
-            echo "${AUTO_SUMMARY}"
-            echo
-            echo "To fetch the output to your own workspace:"
-            echo
-            echo '```bash'
-            echo "BUCKET_PREFIX=${BUCKET_PREFIX} TASK_NAME=${TASK_NAME} ./scripts/traiage.sh resume"
-            echo '```'
-            echo
-          } >> "${SUMMARY_FILE}"
+            echo "TASK_PROMPT<<EOF"
+            echo "${TASK_PROMPT}"
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
 
-          if [[ "${ISSUE_URL}" == "https://github.com/${GITHUB_REPOSITORY}"* ]]; then
-            gh issue comment "${ISSUE_URL}" --body-file "${SUMMARY_FILE}" --create-if-none --edit-last
-          else
-            echo "Skipping comment on other repo."
-          fi
-          cat "${SUMMARY_FILE}" >> "${GITHUB_STEP_SUMMARY}"
+      - name: Checkout repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          fetch-depth: 1
+          path: ./.github/actions/create-task-action
+          persist-credentials: false
+          ref: main
+          repository: coder/create-task-action
 
-      - name: Cleanup task
-        if: steps.create-task.outputs.TASK_NAME != '' && steps.create-archive.outputs.archive_url != ''
+      - name: Create Coder Task
+        id: create_task
+        uses: ./.github/actions/create-task-action
+        with:
+          coder-url: ${{ secrets.TRAIAGE_CODER_URL }}
+          coder-token: ${{ secrets.TRAIAGE_CODER_SESSION_TOKEN }}
+          coder-organization: "default"
+          coder-template-name: coder
+          coder-template-preset: ${{ steps.determine-inputs.outputs.template_preset }}
+          coder-task-name-prefix: gh-coder
+          coder-task-prompt: ${{ steps.extract-context.outputs.task_prompt }}
+          github-user-id: ${{ steps.determine-inputs.outputs.github_user_id }}
+          github-token: ${{ github.token }}
+          github-issue-url: ${{ steps.determine-inputs.outputs.issue_url }}
+          comment-on-issue: ${{ startsWith(steps.determine-inputs.outputs.issue_url, format('{0}/{1}', github.server_url, github.repository)) }}
+
+      - name: Write outputs
+        env:
+          TASK_CREATED: ${{ steps.create_task.outputs.task-created }}
+          TASK_NAME: ${{ steps.create_task.outputs.task-name }}
+          TASK_URL: ${{ steps.create_task.outputs.task-url }}
         run: |
-          echo "Cleaning up task: $TASK_NAME"
-          ./scripts/traiage.sh delete || true
+          {
+            echo "**Task created:** ${TASK_CREATED}"
+            echo "**Task name:**    ${TASK_NAME}"
+            echo "**Task URL**:     ${TASK_URL}"
+          } >> "${GITHUB_STEP_SUMMARY}"

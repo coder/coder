@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestMain(m *testing.M) {
@@ -44,6 +45,7 @@ func TestTelemetry(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
+		now := dbtime.Now()
 
 		org, err := db.GetDefaultOrganization(ctx)
 		require.NoError(t, err)
@@ -143,13 +145,26 @@ func TestTelemetry(t *testing.T) {
 			AgentID:      taskWsAgent.ID,
 		})
 		taskWB := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-			Transition:         database.WorkspaceTransitionStart,
-			Reason:             database.BuildReasonAutostart,
-			WorkspaceID:        taskWs.ID,
-			TemplateVersionID:  tv.ID,
-			JobID:              taskJob.ID,
-			HasAITask:          sql.NullBool{Valid: true, Bool: true},
-			AITaskSidebarAppID: uuid.NullUUID{Valid: true, UUID: taskWsApp.ID},
+			Transition:        database.WorkspaceTransitionStart,
+			Reason:            database.BuildReasonAutostart,
+			WorkspaceID:       taskWs.ID,
+			TemplateVersionID: tv.ID,
+			JobID:             taskJob.ID,
+			HasAITask:         sql.NullBool{Valid: true, Bool: true},
+		})
+		task := dbgen.Task(t, db, database.TaskTable{
+			OwnerID:            user.ID,
+			OrganizationID:     org.ID,
+			WorkspaceID:        uuid.NullUUID{Valid: true, UUID: taskWs.ID},
+			TemplateVersionID:  taskTV.ID,
+			Prompt:             "example prompt",
+			TemplateParameters: json.RawMessage(`{"foo": "bar"}`),
+		})
+		taskWA := dbgen.TaskWorkspaceApp(t, db, database.TaskWorkspaceApp{
+			TaskID:               task.ID,
+			WorkspaceAgentID:     uuid.NullUUID{Valid: true, UUID: taskWsAgent.ID},
+			WorkspaceAppID:       uuid.NullUUID{Valid: true, UUID: taskWsApp.ID},
+			WorkspaceBuildNumber: taskWB.BuildNumber,
 		})
 
 		group := dbgen.Group(t, db, database.Group{
@@ -194,12 +209,88 @@ func TestTelemetry(t *testing.T) {
 			AgentID: wsagent.ID,
 		})
 
-		_, snapshot := collectSnapshot(ctx, t, db, nil)
+		previousAIBridgeInterceptionPeriod := now.Truncate(time.Hour)
+		user2 := dbgen.User(t, db, database.User{})
+		aiBridgeInterception1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: user.ID,
+			Provider:    "anthropic",
+			Model:       "deanseek",
+			StartedAt:   previousAIBridgeInterceptionPeriod.Add(-30 * time.Minute),
+		}, nil)
+		_ = dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID: aiBridgeInterception1.ID,
+			InputTokens:    100,
+			OutputTokens:   200,
+			Metadata:       json.RawMessage(`{"cache_read_input":300,"cache_creation_input":400}`),
+		})
+		_ = dbgen.AIBridgeUserPrompt(t, db, database.InsertAIBridgeUserPromptParams{
+			InterceptionID: aiBridgeInterception1.ID,
+		})
+		_ = dbgen.AIBridgeToolUsage(t, db, database.InsertAIBridgeToolUsageParams{
+			InterceptionID:  aiBridgeInterception1.ID,
+			Injected:        true,
+			InvocationError: sql.NullString{String: "error1", Valid: true},
+		})
+		_, err = db.UpdateAIBridgeInterceptionEnded(ctx, database.UpdateAIBridgeInterceptionEndedParams{
+			ID:      aiBridgeInterception1.ID,
+			EndedAt: aiBridgeInterception1.StartedAt.Add(1 * time.Minute), // 1 minute duration
+		})
+		require.NoError(t, err)
+		aiBridgeInterception2 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: user2.ID,
+			Provider:    aiBridgeInterception1.Provider,
+			Model:       aiBridgeInterception1.Model,
+			StartedAt:   aiBridgeInterception1.StartedAt,
+		}, nil)
+		_ = dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID: aiBridgeInterception2.ID,
+			InputTokens:    100,
+			OutputTokens:   200,
+			Metadata:       json.RawMessage(`{"cache_read_input":300,"cache_creation_input":400}`),
+		})
+		_ = dbgen.AIBridgeUserPrompt(t, db, database.InsertAIBridgeUserPromptParams{
+			InterceptionID: aiBridgeInterception2.ID,
+		})
+		_ = dbgen.AIBridgeToolUsage(t, db, database.InsertAIBridgeToolUsageParams{
+			InterceptionID: aiBridgeInterception2.ID,
+			Injected:       false,
+		})
+		_, err = db.UpdateAIBridgeInterceptionEnded(ctx, database.UpdateAIBridgeInterceptionEndedParams{
+			ID:      aiBridgeInterception2.ID,
+			EndedAt: aiBridgeInterception2.StartedAt.Add(2 * time.Minute), // 2 minute duration
+		})
+		require.NoError(t, err)
+		aiBridgeInterception3 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: user2.ID,
+			Provider:    "openai",
+			Model:       "gpt-5",
+			StartedAt:   aiBridgeInterception1.StartedAt,
+		}, nil)
+		_, err = db.UpdateAIBridgeInterceptionEnded(ctx, database.UpdateAIBridgeInterceptionEndedParams{
+			ID:      aiBridgeInterception3.ID,
+			EndedAt: aiBridgeInterception3.StartedAt.Add(3 * time.Minute), // 3 minute duration
+		})
+		require.NoError(t, err)
+		_ = dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: user2.ID,
+			Provider:    "openai",
+			Model:       "gpt-5",
+			StartedAt:   aiBridgeInterception1.StartedAt,
+		}, nil)
+		// not ended, so it should not affect summaries
+
+		clock := quartz.NewMock(t)
+		clock.Set(now)
+
+		_, snapshot := collectSnapshot(ctx, t, db, func(opts telemetry.Options) telemetry.Options {
+			opts.Clock = clock
+			return opts
+		})
 		require.Len(t, snapshot.ProvisionerJobs, 2)
 		require.Len(t, snapshot.Licenses, 1)
 		require.Len(t, snapshot.Templates, 2)
 		require.Len(t, snapshot.TemplateVersions, 3)
-		require.Len(t, snapshot.Users, 1)
+		require.Len(t, snapshot.Users, 2)
 		require.Len(t, snapshot.Groups, 2)
 		// 1 member in the everyone group + 1 member in the custom group
 		require.Len(t, snapshot.GroupMembers, 2)
@@ -220,6 +311,22 @@ func TestTelemetry(t *testing.T) {
 		require.Len(t, wsa.Subsystems, 2)
 		require.Equal(t, string(database.WorkspaceAgentSubsystemEnvbox), wsa.Subsystems[0])
 		require.Equal(t, string(database.WorkspaceAgentSubsystemExectrace), wsa.Subsystems[1])
+		require.Len(t, snapshot.Tasks, 1)
+		for _, snapTask := range snapshot.Tasks {
+			assert.Equal(t, task.ID.String(), snapTask.ID)
+			assert.Equal(t, task.OrganizationID.String(), snapTask.OrganizationID)
+			assert.Equal(t, task.OwnerID.String(), snapTask.OwnerID)
+			assert.Equal(t, task.Name, snapTask.Name)
+			if assert.True(t, task.WorkspaceID.Valid) {
+				assert.Equal(t, task.WorkspaceID.UUID.String(), *snapTask.WorkspaceID)
+			}
+			assert.EqualValues(t, taskWA.WorkspaceBuildNumber, *snapTask.WorkspaceBuildNumber)
+			assert.Equal(t, taskWA.WorkspaceAgentID.UUID.String(), *snapTask.WorkspaceAgentID)
+			assert.Equal(t, taskWA.WorkspaceAppID.UUID.String(), *snapTask.WorkspaceAppID)
+			assert.Equal(t, task.TemplateVersionID.String(), snapTask.TemplateVersionID)
+			assert.Equal(t, "e196fe22e61cfa32d8c38749e0ce348108bb4cae29e2c36cdcce7e77faa9eb5f", snapTask.PromptHash)
+			assert.Equal(t, task.CreatedAt.UTC(), snapTask.CreatedAt.UTC())
+		}
 
 		require.True(t, slices.ContainsFunc(snapshot.TemplateVersions, func(ttv telemetry.TemplateVersion) bool {
 			if ttv.ID != taskTV.ID {
@@ -257,6 +364,53 @@ func TestTelemetry(t *testing.T) {
 		for _, entity := range snapshot.Templates {
 			require.Equal(t, entity.OrganizationID, org.ID)
 		}
+
+		// 2 unique provider + model + client combinations
+		require.Len(t, snapshot.AIBridgeInterceptionsSummaries, 2)
+		snapshot1 := snapshot.AIBridgeInterceptionsSummaries[0]
+		snapshot2 := snapshot.AIBridgeInterceptionsSummaries[1]
+		if snapshot1.Provider != aiBridgeInterception1.Provider {
+			snapshot1, snapshot2 = snapshot2, snapshot1
+		}
+
+		require.Equal(t, snapshot1.Provider, aiBridgeInterception1.Provider)
+		require.Equal(t, snapshot1.Model, aiBridgeInterception1.Model)
+		require.Equal(t, snapshot1.Client, "unknown") // no client info yet
+		require.EqualValues(t, snapshot1.InterceptionCount, 2)
+		require.EqualValues(t, snapshot1.InterceptionsByRoute, map[string]int64{}) // no route info yet
+		require.EqualValues(t, snapshot1.InterceptionDurationMillis.P50, 90_000)
+		require.EqualValues(t, snapshot1.InterceptionDurationMillis.P90, 114_000)
+		require.EqualValues(t, snapshot1.InterceptionDurationMillis.P95, 117_000)
+		require.EqualValues(t, snapshot1.InterceptionDurationMillis.P99, 119_400)
+		require.EqualValues(t, snapshot1.UniqueInitiatorCount, 2)
+		require.EqualValues(t, snapshot1.UserPromptsCount, 2)
+		require.EqualValues(t, snapshot1.TokenUsagesCount, 2)
+		require.EqualValues(t, snapshot1.TokenCount.Input, 200)
+		require.EqualValues(t, snapshot1.TokenCount.Output, 400)
+		require.EqualValues(t, snapshot1.TokenCount.CachedRead, 600)
+		require.EqualValues(t, snapshot1.TokenCount.CachedWritten, 800)
+		require.EqualValues(t, snapshot1.ToolCallsCount.Injected, 1)
+		require.EqualValues(t, snapshot1.ToolCallsCount.NonInjected, 1)
+		require.EqualValues(t, snapshot1.InjectedToolCallErrorCount, 1)
+
+		require.Equal(t, snapshot2.Provider, aiBridgeInterception3.Provider)
+		require.Equal(t, snapshot2.Model, aiBridgeInterception3.Model)
+		require.Equal(t, snapshot2.Client, "unknown") // no client info yet
+		require.EqualValues(t, snapshot2.InterceptionCount, 1)
+		require.EqualValues(t, snapshot2.InterceptionsByRoute, map[string]int64{}) // no route info yet
+		require.EqualValues(t, snapshot2.InterceptionDurationMillis.P50, 180_000)
+		require.EqualValues(t, snapshot2.InterceptionDurationMillis.P90, 180_000)
+		require.EqualValues(t, snapshot2.InterceptionDurationMillis.P95, 180_000)
+		require.EqualValues(t, snapshot2.InterceptionDurationMillis.P99, 180_000)
+		require.EqualValues(t, snapshot2.UniqueInitiatorCount, 1)
+		require.EqualValues(t, snapshot2.UserPromptsCount, 0)
+		require.EqualValues(t, snapshot2.TokenUsagesCount, 0)
+		require.EqualValues(t, snapshot2.TokenCount.Input, 0)
+		require.EqualValues(t, snapshot2.TokenCount.Output, 0)
+		require.EqualValues(t, snapshot2.TokenCount.CachedRead, 0)
+		require.EqualValues(t, snapshot2.TokenCount.CachedWritten, 0)
+		require.EqualValues(t, snapshot2.ToolCallsCount.Injected, 0)
+		require.EqualValues(t, snapshot2.ToolCallsCount.NonInjected, 0)
 	})
 	t.Run("HashedEmail", func(t *testing.T) {
 		t.Parallel()

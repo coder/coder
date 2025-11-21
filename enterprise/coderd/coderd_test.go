@@ -79,10 +79,6 @@ func TestEntitlements(t *testing.T) {
 		require.Equal(t, fmt.Sprintf("%p", api.Entitlements), fmt.Sprintf("%p", api.AGPL.Entitlements))
 	})
 	t.Run("FullLicense", func(t *testing.T) {
-		// PGCoordinator requires a real postgres
-		if !dbtestutil.WillUsePostgres() {
-			t.Skip("test only with postgres")
-		}
 		t.Parallel()
 		adminClient, _ := coderdenttest.New(t, &coderdenttest.Options{
 			AuditLogging:   true,
@@ -595,6 +591,7 @@ func TestSCIMDisabled(t *testing.T) {
 		"/scim/v2/random/path/that/is/long.txt",
 	}
 
+	client := &http.Client{}
 	for _, p := range checkPaths {
 		t.Run(p, func(t *testing.T) {
 			t.Parallel()
@@ -605,7 +602,7 @@ func TestSCIMDisabled(t *testing.T) {
 			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, u.String(), nil)
 			require.NoError(t, err)
 
-			resp, err := http.DefaultClient.Do(req)
+			resp, err := client.Do(req)
 			require.NoError(t, err)
 			defer resp.Body.Close()
 			require.Equal(t, http.StatusNotFound, resp.StatusCode)
@@ -738,8 +735,8 @@ func testDBAuthzRole(ctx context.Context) context.Context {
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceWildcard.Type: {policy.WildcardSymbol},
 				}),
-				Org:  map[string][]rbac.Permission{},
-				User: []rbac.Permission{},
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
 			},
 		}),
 		Scope: rbac.ScopeAll,
@@ -880,10 +877,6 @@ func (s *restartableTestServer) startWithFirstUser(t *testing.T) (client *coders
 // This test uses a real server and real clients.
 func TestConn_CoordinatorRollingRestart(t *testing.T) {
 	t.Parallel()
-
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("test only with postgres")
-	}
 
 	// Although DERP will have connection issues until the connection is
 	// reestablished, any open connections should be maintained.

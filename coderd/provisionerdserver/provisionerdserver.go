@@ -43,6 +43,7 @@ import (
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/coder/v2/coderd/usage/usagetypes"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
@@ -120,6 +121,7 @@ type server struct {
 	NotificationsEnqueuer       notifications.Enqueuer
 	PrebuildsOrchestrator       *atomic.Pointer[prebuilds.ReconciliationOrchestrator]
 	UsageInserter               *atomic.Pointer[usage.Inserter]
+	Experiments                 codersdk.Experiments
 
 	OIDCConfig promoauth.OAuth2Config
 
@@ -181,6 +183,7 @@ func NewServer(
 	enqueuer notifications.Enqueuer,
 	prebuildsOrchestrator *atomic.Pointer[prebuilds.ReconciliationOrchestrator],
 	metrics *Metrics,
+	experiments codersdk.Experiments,
 ) (proto.DRPCProvisionerDaemonServer, error) {
 	// Fail-fast if pointers are nil
 	if lifecycleCtx == nil {
@@ -252,6 +255,7 @@ func NewServer(
 		PrebuildsOrchestrator:       prebuildsOrchestrator,
 		UsageInserter:               usageInserter,
 		metrics:                     metrics,
+		Experiments:                 experiments,
 	}
 
 	if s.heartbeatFn == nil {
@@ -597,6 +601,11 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			return nil, failJob(fmt.Sprintf("get workspace build parameters: %s", err))
 		}
 
+		task, err := s.Database.GetTaskByWorkspaceID(ctx, workspaceBuild.WorkspaceID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return nil, xerrors.Errorf("get task by workspace id: %w", err)
+		}
+
 		dbExternalAuthProviders := []database.ExternalAuthProvider{}
 		err = json.Unmarshal(templateVersion.ExternalAuthProviders, &dbExternalAuthProviders)
 		if err != nil {
@@ -690,6 +699,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			}
 		}
 
+		activeVersion := template.ActiveVersionID == templateVersion.ID
 		protoJob.Type = &proto.AcquiredJob_WorkspaceBuild_{
 			WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
 				WorkspaceBuildId:        workspaceBuild.ID.String(),
@@ -699,6 +709,12 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 				PreviousParameterValues: convertRichParameterValues(lastWorkspaceBuildParameters),
 				VariableValues:          asVariableValues(templateVariables),
 				ExternalAuthProviders:   externalAuthProviders,
+				// If active and experiment is enabled, allow workspace reuse existing TF
+				// workspaces (directories) for a faster startup.
+				ExpReuseTerraformWorkspace: ptr.Ref(s.Experiments.Enabled(codersdk.ExperimentTerraformWorkspace) && // Experiment required
+					template.UseTerraformWorkspaceCache && // Template setting
+					activeVersion, // Only for active versions
+				),
 				Metadata: &sdkproto.Metadata{
 					CoderUrl:                      s.AccessURL.String(),
 					WorkspaceTransition:           transition,
@@ -712,6 +728,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					WorkspaceOwnerId:              owner.ID.String(),
 					TemplateId:                    template.ID.String(),
 					TemplateName:                  template.Name,
+					TemplateVersionId:             templateVersion.ID.String(),
 					TemplateVersion:               templateVersion.Name,
 					WorkspaceOwnerSessionToken:    sessionToken,
 					WorkspaceOwnerSshPublicKey:    ownerSSHPublicKey,
@@ -721,6 +738,8 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					WorkspaceOwnerRbacRoles:       ownerRbacRoles,
 					RunningAgentAuthTokens:        runningAgentAuthTokens,
 					PrebuiltWorkspaceBuildStage:   input.PrebuiltWorkspaceBuildStage,
+					TaskId:                        task.ID.String(),
+					TaskPrompt:                    task.Prompt,
 				},
 				LogLevel: input.LogLevel,
 			},
@@ -766,6 +785,11 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			return nil, failJob(err.Error())
 		}
 
+		templateID := ""
+		if input.TemplateID.Valid {
+			templateID = input.TemplateID.UUID.String()
+		}
+
 		protoJob.Type = &proto.AcquiredJob_TemplateImport_{
 			TemplateImport: &proto.AcquiredJob_TemplateImport{
 				UserVariableValues: convertVariableValues(userVariableValues),
@@ -774,6 +798,8 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					// There is no owner for a template import, but we can assume
 					// the "Everyone" group as a placeholder.
 					WorkspaceOwnerGroups: []string{database.EveryoneGroup},
+					TemplateId:           templateID,
+					TemplateVersionId:    input.TemplateVersionID.String(),
 				},
 			},
 		}
@@ -1954,18 +1980,41 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		}
 
 		appIDs := make([]string, 0)
+		agentIDByAppID := make(map[string]uuid.UUID)
 		agentTimeouts := make(map[time.Duration]bool) // A set of agent timeouts.
 		// This could be a bulk insert to improve performance.
 		for _, protoResource := range jobType.WorkspaceBuild.Resources {
-			for _, protoAgent := range protoResource.Agents {
+			for _, protoAgent := range protoResource.GetAgents() {
+				if protoAgent == nil {
+					continue
+				}
+				// By default InsertWorkspaceResource ignores the protoAgent.Id
+				// and generates a new one, but we will insert these using the
+				// InsertWorkspaceResourceWithAgentIDsFromProto option so that
+				// we can properly map agent IDs to app IDs. This is needed for
+				// task linking.
+				agentID := uuid.New()
+				protoAgent.Id = agentID.String()
+
 				dur := time.Duration(protoAgent.GetConnectionTimeoutSeconds()) * time.Second
 				agentTimeouts[dur] = true
 				for _, app := range protoAgent.GetApps() {
 					appIDs = append(appIDs, app.GetId())
+					agentIDByAppID[app.GetId()] = agentID
 				}
 			}
 
-			err = InsertWorkspaceResource(ctx, db, job.ID, workspaceBuild.Transition, protoResource, telemetrySnapshot)
+			err = InsertWorkspaceResource(
+				ctx,
+				db,
+				job.ID,
+				workspaceBuild.Transition,
+				protoResource,
+				telemetrySnapshot,
+				// Ensure that the agent IDs we set previously
+				// are written to the database.
+				InsertWorkspaceResourceWithAgentIDsFromProto(),
+			)
 			if err != nil {
 				return xerrors.Errorf("insert provisioner job: %w", err)
 			}
@@ -1976,68 +2025,51 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			}
 		}
 
-		var sidebarAppID uuid.NullUUID
-		var hasAITask bool
-		var warnUnknownSidebarAppID bool
+		var (
+			hasAITask    bool
+			unknownAppID string
+			taskAppID    uuid.NullUUID
+			taskAgentID  uuid.NullUUID
+		)
 		if tasks := jobType.WorkspaceBuild.GetAiTasks(); len(tasks) > 0 {
 			hasAITask = true
 			task := tasks[0]
-			if task == nil || task.GetSidebarApp() == nil || len(task.GetSidebarApp().GetId()) == 0 {
-				return xerrors.Errorf("update ai task: sidebar app is nil or empty")
+			if task == nil {
+				return xerrors.Errorf("update ai task: task is nil")
 			}
 
-			sidebarTaskID := task.GetSidebarApp().GetId()
-			if !slices.Contains(appIDs, sidebarTaskID) {
-				warnUnknownSidebarAppID = true
+			appID := task.GetAppId()
+			if appID == "" && task.GetSidebarApp() != nil {
+				appID = task.GetSidebarApp().GetId()
+			}
+			if appID == "" {
+				return xerrors.Errorf("update ai task: app id is empty")
 			}
 
-			id, err := uuid.Parse(task.GetSidebarApp().GetId())
-			if err != nil {
-				return xerrors.Errorf("parse sidebar app id: %w", err)
-			}
-
-			sidebarAppID = uuid.NullUUID{UUID: id, Valid: true}
-		}
-
-		// This is a hacky workaround for the issue with tasks 'disappearing' on stop:
-		// reuse has_ai_task and sidebar_app_id from the previous build.
-		// This workaround should be removed as soon as possible.
-		if workspaceBuild.Transition == database.WorkspaceTransitionStop && workspaceBuild.BuildNumber > 1 {
-			if prevBuild, err := s.Database.GetWorkspaceBuildByWorkspaceIDAndBuildNumber(ctx, database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams{
-				WorkspaceID: workspaceBuild.WorkspaceID,
-				BuildNumber: workspaceBuild.BuildNumber - 1,
-			}); err == nil {
-				hasAITask = prevBuild.HasAITask.Bool
-				sidebarAppID = prevBuild.AITaskSidebarAppID
-				warnUnknownSidebarAppID = false
-				s.Logger.Debug(ctx, "task workaround: reused has_ai_task and sidebar_app_id from previous build to keep track of task",
-					slog.F("job_id", job.ID.String()),
-					slog.F("build_number", prevBuild.BuildNumber),
-					slog.F("workspace_id", workspace.ID),
-					slog.F("workspace_build_id", workspaceBuild.ID),
-					slog.F("transition", string(workspaceBuild.Transition)),
-					slog.F("sidebar_app_id", sidebarAppID.UUID),
-					slog.F("has_ai_task", hasAITask),
-				)
+			if !slices.Contains(appIDs, appID) {
+				unknownAppID = appID
+				hasAITask = false
 			} else {
-				s.Logger.Error(ctx, "task workaround: tracking via has_ai_task and sidebar_app from previous build failed",
-					slog.Error(err),
-					slog.F("job_id", job.ID.String()),
-					slog.F("workspace_id", workspace.ID),
-					slog.F("workspace_build_id", workspaceBuild.ID),
-					slog.F("transition", string(workspaceBuild.Transition)),
-				)
+				// Only parse for valid app and agent to avoid fk violation.
+				id, err := uuid.Parse(appID)
+				if err != nil {
+					return xerrors.Errorf("parse app id: %w", err)
+				}
+				taskAppID = uuid.NullUUID{UUID: id, Valid: true}
+
+				agentID, ok := agentIDByAppID[appID]
+				taskAgentID = uuid.NullUUID{UUID: agentID, Valid: ok}
 			}
 		}
 
-		if warnUnknownSidebarAppID {
+		if unknownAppID != "" && workspaceBuild.Transition == database.WorkspaceTransitionStart {
 			// Ref: https://github.com/coder/coder/issues/18776
 			// This can happen for a number of reasons:
 			// 1. Misconfigured template
 			// 2. Count=0 on the agent due to stop transition, meaning the associated coder_app was not inserted.
 			// Failing the build at this point is not ideal, so log a warning instead.
-			s.Logger.Warn(ctx, "unknown ai_task_sidebar_app_id",
-				slog.F("ai_task_sidebar_app_id", sidebarAppID.UUID.String()),
+			s.Logger.Warn(ctx, "unknown ai_task_app_id",
+				slog.F("ai_task_app_id", unknownAppID),
 				slog.F("job_id", job.ID.String()),
 				slog.F("workspace_id", workspace.ID),
 				slog.F("workspace_build_id", workspaceBuild.ID),
@@ -2051,22 +2083,19 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 				Level:     []database.LogLevel{database.LogLevelWarn, database.LogLevelWarn, database.LogLevelWarn, database.LogLevelWarn},
 				Stage:     []string{"Cleaning Up", "Cleaning Up", "Cleaning Up", "Cleaning Up"},
 				Output: []string{
-					fmt.Sprintf("Unknown ai_task_sidebar_app_id %q. This workspace will be unable to run AI tasks. This may be due to a template configuration issue, please check with the template author.", sidebarAppID.UUID.String()),
+					fmt.Sprintf("Unknown ai_task_app_id %q. This workspace will be unable to run AI tasks. This may be due to a template configuration issue, please check with the template author.", taskAppID.UUID.String()),
 					"Template author: double-check the following:",
 					"  - You have associated the coder_ai_task with a valid coder_app in your template (ref: https://registry.terraform.io/providers/coder/coder/latest/docs/resources/ai_task).",
 					"  - You have associated the coder_agent with at least one other compute resource. Agents with no other associated resources are not inserted into the database.",
 				},
 			}); err != nil {
-				s.Logger.Error(ctx, "insert provisioner job log for ai task sidebar app id warning",
+				s.Logger.Error(ctx, "insert provisioner job log for ai task app id warning",
 					slog.F("job_id", jobID),
 					slog.F("workspace_id", workspace.ID),
 					slog.F("workspace_build_id", workspaceBuild.ID),
 					slog.F("transition", string(workspaceBuild.Transition)),
 				)
 			}
-			// Important: reset hasAITask and sidebarAppID so that we don't run into a fk constraint violation.
-			hasAITask = false
-			sidebarAppID = uuid.NullUUID{}
 		}
 
 		if hasAITask && workspaceBuild.Transition == database.WorkspaceTransitionStart {
@@ -2083,16 +2112,30 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			}
 		}
 
-		hasExternalAgent := false
-		for _, resource := range jobType.WorkspaceBuild.Resources {
-			if resource.Type == "coder_external_agent" {
-				hasExternalAgent = true
-				break
+		if task, err := db.GetTaskByWorkspaceID(ctx, workspace.ID); err == nil {
+			// Irrespective of whether the agent or sidebar app is present,
+			// perform the upsert to ensure a link between the task and
+			// workspace build. Linking the task to the build is typically
+			// already established by wsbuilder.
+			_, err = db.UpsertTaskWorkspaceApp(
+				ctx,
+				database.UpsertTaskWorkspaceAppParams{
+					TaskID:               task.ID,
+					WorkspaceBuildNumber: workspaceBuild.BuildNumber,
+					WorkspaceAgentID:     taskAgentID,
+					WorkspaceAppID:       taskAppID,
+				},
+			)
+			if err != nil {
+				return xerrors.Errorf("upsert task workspace app: %w", err)
 			}
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("get task by workspace id: %w", err)
 		}
 
-		// Regardless of whether there is an AI task or not, update the field to indicate one way or the other since it
-		// always defaults to nil. ONLY if has_ai_task=true MUST ai_task_sidebar_app_id be set.
+		_, hasExternalAgent := slice.Find(jobType.WorkspaceBuild.Resources, func(resource *sdkproto.Resource) bool {
+			return resource.Type == "coder_external_agent"
+		})
 		if err := db.UpdateWorkspaceBuildFlagsByID(ctx, database.UpdateWorkspaceBuildFlagsByIDParams{
 			ID: workspaceBuild.ID,
 			HasAITask: sql.NullBool{
@@ -2103,8 +2146,7 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 				Bool:  hasExternalAgent,
 				Valid: true,
 			},
-			SidebarAppID: sidebarAppID,
-			UpdatedAt:    now,
+			UpdatedAt: now,
 		}); err != nil {
 			return xerrors.Errorf("update workspace build ai tasks and external agent flag: %w", err)
 		}
@@ -2133,6 +2175,12 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 				continue
 			}
 
+			// Scan does not guarantee validity
+			if !stg.Valid() {
+				s.Logger.Warn(ctx, "invalid stage, will fail insert based one enum", slog.F("value", t.Stage))
+				continue
+			}
+
 			params.Stage = append(params.Stage, stg)
 			params.Source = append(params.Source, t.Source)
 			params.Resource = append(params.Resource, t.Resource)
@@ -2142,8 +2190,11 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		}
 		_, err = db.InsertProvisionerJobTimings(ctx, params)
 		if err != nil {
-			// Log error but don't fail the whole transaction for non-critical data
+			// A database error here will "fail" this transaction. Making this error fatal.
+			// If this error is seen, add checks above to validate the insert parameters. In
+			// production, timings should not be a fatal error.
 			s.Logger.Warn(ctx, "failed to update provisioner job timings", slog.F("job_id", jobID), slog.Error(err))
+			return xerrors.Errorf("update provisioner job timings: %w", err)
 		}
 
 		// On start, we want to ensure that workspace agents timeout statuses
@@ -2216,6 +2267,14 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		if err != nil {
 			return xerrors.Errorf("update workspace deleted: %w", err)
 		}
+		if workspace.TaskID.Valid {
+			if _, err := db.DeleteTask(ctx, database.DeleteTaskParams{
+				ID:        workspace.TaskID.UUID,
+				DeletedAt: dbtime.Now(),
+			}); err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return xerrors.Errorf("delete task related to workspace: %w", err)
+			}
+		}
 
 		return nil
 	}, nil)
@@ -2286,40 +2345,42 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 	}
 
 	// Update workspace (regular and prebuild) timing metrics
-	if s.metrics != nil {
-		// Only consider 'start' workspace builds
-		if workspaceBuild.Transition == database.WorkspaceTransitionStart {
-			// Get the updated job to report the metrics with correct data
-			updatedJob, err := s.Database.GetProvisionerJobByID(ctx, jobID)
-			if err != nil {
-				s.Logger.Error(ctx, "get updated job from database", slog.Error(err))
-			} else
-			// Only consider 'succeeded' provisioner jobs
-			if updatedJob.JobStatus == database.ProvisionerJobStatusSucceeded {
-				presetName := ""
-				if workspaceBuild.TemplateVersionPresetID.Valid {
-					preset, err := s.Database.GetPresetByID(ctx, workspaceBuild.TemplateVersionPresetID.UUID)
-					if err != nil {
-						if !errors.Is(err, sql.ErrNoRows) {
-							s.Logger.Error(ctx, "get preset by ID for workspace timing metrics", slog.Error(err))
-						}
-					} else {
-						presetName = preset.Name
+	// Only consider 'start' workspace builds
+	if s.metrics != nil && workspaceBuild.Transition == database.WorkspaceTransitionStart {
+		// Get the updated job to report the metrics with correct data
+		updatedJob, err := s.Database.GetProvisionerJobByID(ctx, jobID)
+		if err != nil {
+			s.Logger.Error(ctx, "get updated job from database", slog.Error(err))
+		} else
+		// Only consider 'succeeded' provisioner jobs
+		if updatedJob.JobStatus == database.ProvisionerJobStatusSucceeded {
+			presetName := ""
+			if workspaceBuild.TemplateVersionPresetID.Valid {
+				preset, err := s.Database.GetPresetByID(ctx, workspaceBuild.TemplateVersionPresetID.UUID)
+				if err != nil {
+					if !errors.Is(err, sql.ErrNoRows) {
+						s.Logger.Error(ctx, "get preset by ID for workspace timing metrics", slog.Error(err))
 					}
+				} else {
+					presetName = preset.Name
 				}
+			}
 
-				buildTime := updatedJob.CompletedAt.Time.Sub(updatedJob.StartedAt.Time).Seconds()
+			buildTime := updatedJob.CompletedAt.Time.Sub(updatedJob.StartedAt.Time).Seconds()
+			flags := WorkspaceTimingFlags{
+				// Is a prebuilt workspace creation build
+				IsPrebuild: input.PrebuiltWorkspaceBuildStage.IsPrebuild(),
+				// Is a prebuilt workspace claim build
+				IsClaim: input.PrebuiltWorkspaceBuildStage.IsPrebuiltWorkspaceClaim(),
+				// Is a regular workspace creation build
+				// Only consider the first build number for regular workspaces
+				IsFirstBuild: workspaceBuild.BuildNumber == 1,
+			}
+			// Only track metrics for prebuild creation, prebuild claims and workspace creation
+			if flags.IsTrackable() {
 				s.metrics.UpdateWorkspaceTimingsMetrics(
 					ctx,
-					WorkspaceTimingFlags{
-						// Is a prebuilt workspace creation build
-						IsPrebuild: input.PrebuiltWorkspaceBuildStage.IsPrebuild(),
-						// Is a prebuilt workspace claim build
-						IsClaim: input.PrebuiltWorkspaceBuildStage.IsPrebuiltWorkspaceClaim(),
-						// Is a regular workspace creation build
-						// Only consider the first build number for regular workspaces
-						IsFirstBuild: workspaceBuild.BuildNumber == 1,
-					},
+					flags,
 					workspace.OrganizationName,
 					workspace.TemplateName,
 					presetName,
@@ -2520,6 +2581,7 @@ func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, 
 			IsDefault:           protoPreset.GetDefault(),
 			Description:         protoPreset.Description,
 			Icon:                protoPreset.Icon,
+			LastInvalidatedAt:   sql.NullTime{},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert preset: %w", err)
@@ -2561,7 +2623,28 @@ func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, 
 	return nil
 }
 
-func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.UUID, transition database.WorkspaceTransition, protoResource *sdkproto.Resource, snapshot *telemetry.Snapshot) error {
+type insertWorkspaceResourceOptions struct {
+	useAgentIDsFromProto bool
+}
+
+// InsertWorkspaceResourceOption represents a functional option for
+// InsertWorkspaceResource.
+type InsertWorkspaceResourceOption func(*insertWorkspaceResourceOptions)
+
+// InsertWorkspaceResourceWithAgentIDsFromProto allows inserting agents into the
+// database using the agent IDs defined in the proto resource.
+func InsertWorkspaceResourceWithAgentIDsFromProto() InsertWorkspaceResourceOption {
+	return func(opts *insertWorkspaceResourceOptions) {
+		opts.useAgentIDsFromProto = true
+	}
+}
+
+func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.UUID, transition database.WorkspaceTransition, protoResource *sdkproto.Resource, snapshot *telemetry.Snapshot, opt ...InsertWorkspaceResourceOption) error {
+	opts := &insertWorkspaceResourceOptions{}
+	for _, o := range opt {
+		o(opts)
+	}
+
 	resource, err := db.InsertWorkspaceResource(ctx, database.InsertWorkspaceResourceParams{
 		ID:         uuid.New(),
 		CreatedAt:  dbtime.Now(),
@@ -2658,6 +2741,12 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		}
 
 		agentID := uuid.New()
+		if opts.useAgentIDsFromProto {
+			agentID, err = uuid.Parse(prAgent.Id)
+			if err != nil {
+				return xerrors.Errorf("invalid agent ID format; must be uuid: %w", err)
+			}
+		}
 		dbAgent, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
 			ID:                       agentID,
 			ParentID:                 uuid.NullUUID{},
@@ -3152,6 +3241,10 @@ func auditActionFromTransition(transition database.WorkspaceTransition) database
 }
 
 type TemplateVersionImportJob struct {
+	// TemplateID is not guaranteed to be set. Template versions can be created
+	// without being associated with a template. Resulting in a template id of
+	// `uuid.Nil`
+	TemplateID         uuid.NullUUID            `json:"template_id"`
 	TemplateVersionID  uuid.UUID                `json:"template_version_id"`
 	UserVariableValues []codersdk.VariableValue `json:"user_variable_values"`
 }

@@ -89,17 +89,13 @@ func TestBlockNonBrowser(t *testing.T) {
 func TestReinitializeAgent(t *testing.T) {
 	t.Parallel()
 
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("dbmem cannot currently claim a workspace")
-	}
-
 	if runtime.GOOS == "windows" {
 		t.Skip("test startup script is not supported on windows")
 	}
 
 	// Ensure that workspace agents can reinitialize against claimed prebuilds in non-default organizations:
 	for _, useDefaultOrg := range []bool{true, false} {
-		t.Run("", func(t *testing.T) {
+		t.Run(fmt.Sprintf("useDefaultOrg=%t", useDefaultOrg), func(t *testing.T) {
 			t.Parallel()
 
 			tempAgentLog := testutil.CreateTemp(t, "", "testReinitializeAgent")

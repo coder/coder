@@ -11,7 +11,7 @@ import { UserDropdownContent } from "./UserDropdownContent";
 interface UserDropdownProps {
 	user: TypesGen.User;
 	buildInfo?: TypesGen.BuildInfoResponse;
-	supportLinks?: readonly TypesGen.LinkConfig[];
+	supportLinks: readonly TypesGen.LinkConfig[];
 	onSignOut: () => void;
 }
 
@@ -35,6 +35,7 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 			<PopoverContent
 				align="end"
 				className="min-w-auto w-[260px] bg-surface-secondary border-surface-quaternary"
+				onOpenAutoFocus={(e) => e.preventDefault()}
 			>
 				<UserDropdownContent
 					user={user}

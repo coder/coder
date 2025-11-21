@@ -17,6 +17,7 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 	var (
 		orgContext = NewOrganizationContext()
 
+		ownerArg            string
 		taskName            string
 		templateName        string
 		templateVersionName string
@@ -28,6 +29,28 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "create [input]",
 		Short: "Create an experimental task",
+		Long: FormatExamples(
+			Example{
+				Description: "Create a task with direct input",
+				Command:     "coder exp task create \"Add authentication to the user service\"",
+			},
+			Example{
+				Description: "Create a task with stdin input",
+				Command:     "echo \"Add authentication to the user service\" | coder exp task create",
+			},
+			Example{
+				Description: "Create a task with a specific name",
+				Command:     "coder exp task create --name task1 \"Add authentication to the user service\"",
+			},
+			Example{
+				Description: "Create a task from a specific template / preset",
+				Command:     "coder exp task create --template backend-dev --preset \"My Preset\" \"Add authentication to the user service\"",
+			},
+			Example{
+				Description: "Create a task for another user (requires appropriate permissions)",
+				Command:     "coder exp task create --owner user@example.com \"Add authentication to the user service\"",
+			},
+		),
 		Middleware: serpent.Chain(
 			serpent.RequireRangeArgs(0, 1),
 		),
@@ -39,6 +62,14 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 				Value:       serpent.StringOf(&taskName),
 				Required:    false,
 				Default:     "",
+			},
+			{
+				Name:        "owner",
+				Flag:        "owner",
+				Description: "Specify the owner of the task. Defaults to the current user.",
+				Value:       serpent.StringOf(&ownerArg),
+				Required:    false,
+				Default:     codersdk.Me,
 			},
 			{
 				Name:  "template",
@@ -177,7 +208,7 @@ func (r *RootCmd) taskCreate() *serpent.Command {
 				templateVersionPresetID = preset.ID
 			}
 
-			task, err := expClient.CreateTask(ctx, codersdk.Me, codersdk.CreateTaskRequest{
+			task, err := expClient.CreateTask(ctx, ownerArg, codersdk.CreateTaskRequest{
 				Name:                    taskName,
 				TemplateVersionID:       templateVersionID,
 				TemplateVersionPresetID: templateVersionPresetID,

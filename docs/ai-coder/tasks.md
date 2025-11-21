@@ -39,19 +39,23 @@ Try prompts such as:
 - "document the project structure"
 - "change the primary color theme to purple"
 
-To import the template and begin configuring it, follow the [documentation in the Coder Registry](https://registry.coder.com/templates/coder-labs/tasks-docker)
-
-> [!NOTE]
-> The Tasks tab will appear automatically after you add a Tasks-compatible template and refresh the page.
+To import the template and begin configuring it, import the example [Run Coder Tasks on Docker](https://github.com/coder/coder/tree/main/examples/templates/tasks-docker) template.
 
 ### Option 2&rpar; Create or Duplicate Your Own Template
 
-A template becomes a Task template if it defines a `coder_ai_task` resource and a `coder_parameter` named `"AI Prompt"`. Coder analyzes template files during template version import to determine if these requirements are met. Try adding this terraform block to an existing template where you'll add our Claude Code module. Note: the `coder_ai_task` resource is defined within the [Claude Code Module](https://registry.coder.com/modules/coder/claude-code?tab=readme), so it's not defined within this block.
+A template becomes a Task-capable template if it defines a `coder_ai_task` resource. Coder analyzes template files during template version import to determine if these requirements are met. Try adding this terraform block to an existing template where you'll add our Claude Code module.
+
+> [!NOTE]
+> The `coder_ai_task` resource is not defined within the [Claude Code Module](https://registry.coder.com/modules/coder/claude-code?tab=readme). You need to define it yourself.
 
 ```hcl
-data "coder_parameter" "ai_prompt" {
-    name = "AI Prompt"
-    type = "string"
+terraform {
+  required_providers {
+    coder = {
+      source = "coder/coder"
+      version = ">= 2.13"
+    }
+  }
 }
 
 data "coder_parameter" "setup_script" {
@@ -64,48 +68,66 @@ data "coder_parameter" "setup_script" {
   default      = ""
 }
 
-# The Claude Code module does the automatic task reporting
-# Other agent modules: https://registry.coder.com/modules?search=agent
-# Or use a custom agent:  
-module "claude-code" {
-  count               = data.coder_workspace.me.start_count
-  source              = "registry.coder.com/coder/claude-code/coder"
-  version             = "2.2.0"
-  agent_id            = coder_agent.main.id
-  folder              = "/home/coder/projects"
-  install_claude_code = true
-  claude_code_version = "latest"
-  order               = 999
+data "coder_task" "me" {}
 
-  # experiment_post_install_script = data.coder_parameter.setup_script.value
-
-  # This enables Coder Tasks
-  experiment_report_tasks = true
+resource "coder_ai_task" "task" {
+  app_id = module.claude-code.task_app_id
 }
 
+# The Claude Code module does the automatic task reporting
+# Other agent modules: https://registry.coder.com/modules?search=agent
+# Or use a custom agent:
+module "claude-code" {
+  source   = "registry.coder.com/coder/claude-code/coder"
+  version  = "4.0.0"
+  agent_id = coder_agent.example.id
+  workdir  = "/home/coder/project"
+
+  claude_api_key = var.anthropic_api_key
+  # OR
+  # claude_code_oauth_token = var.anthropic_oauth_token
+
+  claude_code_version = "1.0.82" # Pin to a specific version
+  agentapi_version    = "v0.6.1"
+
+  ai_prompt = data.coder_task.me.prompt
+  model     = "sonnet"
+
+  # Optional: run your pre-flight script
+  # pre_install_script = data.coder_parameter.setup_script.value
+
+  permission_mode = "plan"
+
+  mcp = <<-EOF
+  {
+    "mcpServers": {
+      "my-custom-tool": {
+        "command": "my-tool-server",
+        "args": ["--port", "8080"]
+      }
+    }
+  }
+  EOF
+}
+
+# Rename to `anthropic_oauth_token` if using the Oauth Token
 variable "anthropic_api_key" {
   type        = string
   description = "Generate one at: https://console.anthropic.com/settings/keys"
   sensitive   = true
 }
-
-resource "coder_env" "anthropic_api_key" {
-  agent_id = coder_agent.main.id
-  name     = "CODER_MCP_CLAUDE_API_KEY"
-  value    = var.anthropic_api_key
-}
 ```
-
-> [!NOTE]
-> This definition is not final and may change while Tasks is in beta. After any changes, we guarantee backwards compatibility for one minor Coder version. After that, you may need to update your template to continue using it with Tasks.
 
 Because Tasks run unpredictable AI agents, often for background tasks, we recommend creating a separate template for Coder Tasks with limited permissions. You can always duplicate your existing template, then apply separate network policies/firewalls/permissions to the template. From there, follow the docs for one of our [built-in modules for agents](https://registry.coder.com/modules?search=tag%3Atasks) in order to add it to your template, configure your LLM provider.
 
 Alternatively, follow our guide for [custom agents](./custom-agents.md).
 
+> [!IMPORTANT]
+> Upgrading from Coder v2.27 or earlier? See the [Tasks Migration Guide](./tasks-migration.md) for breaking changes in v2.28.0.
+
 ## Customizing the Task UI
 
-The Task UI displays all workspace apps declared in a Task template. You can customize the app shown in the sidebar using the `sidebar_app.id` field on the `coder_ai_task` resource.
+The Task UI displays all workspace apps declared in a Task template. You can customize the app shown in the sidebar using the `app_id` field on the `coder_ai_task` resource.
 
 If a workspace app has the special `"preview"` slug, a navbar will appear above it. This is intended for templates that let users preview a web app they’re working on.
 
@@ -118,6 +140,10 @@ Coder can automatically generate a name your tasks if you set the `ANTHROPIC_API
 ## Opting out of Tasks
 
 If you tried Tasks and decided you don't want to use it, you can hide the Tasks tab by starting `coder server` with the `CODER_HIDE_AI_TASKS=true` environment variable or the `--hide-ai-tasks` flag.
+
+## Command Line Interface
+
+See [Tasks CLI](./cli.md).
 
 ## Next Steps
 

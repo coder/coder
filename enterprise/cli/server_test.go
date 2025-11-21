@@ -43,13 +43,14 @@ func TestServer_Single(t *testing.T) {
 	)
 	clitest.Start(t, inv.WithContext(ctx))
 	accessURL := waitAccessURL(t, cfg)
+	client := &http.Client{}
 	require.Eventually(t, func() bool {
 		reqCtx := testutil.Context(t, testutil.IntervalMedium)
 		req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, accessURL.String()+"/healthz", nil)
 		if err != nil {
 			panic(err)
 		}
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := client.Do(req)
 		if err != nil {
 			t.Log("/healthz not ready yet")
 			return false

@@ -1807,11 +1807,12 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 
 			//nolint:dogsled
 			conn, agentClient, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
+			idConnectionReport := uuid.New()
 			id := uuid.New()
 
 			// Test that the connection is reported. This must be tested in the
 			// first connection because we care about verifying all of these.
-			netConn0, err := conn.ReconnectingPTY(ctx, id, 80, 80, "bash --norc")
+			netConn0, err := conn.ReconnectingPTY(ctx, idConnectionReport, 80, 80, "bash --norc")
 			require.NoError(t, err)
 			_ = netConn0.Close()
 			assertConnectionReport(t, agentClient, proto.Connection_RECONNECTING_PTY, 0, "")
@@ -2027,7 +2028,8 @@ func runSubAgentMain() int {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	req = req.WithContext(ctx)
-	resp, err := http.DefaultClient.Do(req)
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "agent connection failed: %v\n", err)
 		return 11
@@ -3460,11 +3462,7 @@ func TestAgent_Metrics_SSH(t *testing.T) {
 	registry := prometheus.NewRegistry()
 
 	//nolint:dogsled
-	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{
-		// Make sure we always get a DERP connection for
-		// currently_reachable_peers.
-		DisableDirectConnections: true,
-	}, 0, func(_ *agenttest.Client, o *agent.Options) {
+	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0, func(_ *agenttest.Client, o *agent.Options) {
 		o.PrometheusRegistry = registry
 	})
 
@@ -3479,16 +3477,31 @@ func TestAgent_Metrics_SSH(t *testing.T) {
 	err = session.Shell()
 	require.NoError(t, err)
 
-	expected := []*proto.Stats_Metric{
+	expected := []struct {
+		Name    string
+		Type    proto.Stats_Metric_Type
+		CheckFn func(float64) error
+		Labels  []*proto.Stats_Metric_Label
+	}{
 		{
-			Name:  "agent_reconnecting_pty_connections_total",
-			Type:  proto.Stats_Metric_COUNTER,
-			Value: 0,
+			Name: "agent_reconnecting_pty_connections_total",
+			Type: proto.Stats_Metric_COUNTER,
+			CheckFn: func(v float64) error {
+				if v == 0 {
+					return nil
+				}
+				return xerrors.Errorf("expected 0, got %f", v)
+			},
 		},
 		{
-			Name:  "agent_sessions_total",
-			Type:  proto.Stats_Metric_COUNTER,
-			Value: 1,
+			Name: "agent_sessions_total",
+			Type: proto.Stats_Metric_COUNTER,
+			CheckFn: func(v float64) error {
+				if v == 1 {
+					return nil
+				}
+				return xerrors.Errorf("expected 1, got %f", v)
+			},
 			Labels: []*proto.Stats_Metric_Label{
 				{
 					Name:  "magic_type",
@@ -3501,24 +3514,44 @@ func TestAgent_Metrics_SSH(t *testing.T) {
 			},
 		},
 		{
-			Name:  "agent_ssh_server_failed_connections_total",
-			Type:  proto.Stats_Metric_COUNTER,
-			Value: 0,
+			Name: "agent_ssh_server_failed_connections_total",
+			Type: proto.Stats_Metric_COUNTER,
+			CheckFn: func(v float64) error {
+				if v == 0 {
+					return nil
+				}
+				return xerrors.Errorf("expected 0, got %f", v)
+			},
 		},
 		{
-			Name:  "agent_ssh_server_sftp_connections_total",
-			Type:  proto.Stats_Metric_COUNTER,
-			Value: 0,
+			Name: "agent_ssh_server_sftp_connections_total",
+			Type: proto.Stats_Metric_COUNTER,
+			CheckFn: func(v float64) error {
+				if v == 0 {
+					return nil
+				}
+				return xerrors.Errorf("expected 0, got %f", v)
+			},
 		},
 		{
-			Name:  "agent_ssh_server_sftp_server_errors_total",
-			Type:  proto.Stats_Metric_COUNTER,
-			Value: 0,
+			Name: "agent_ssh_server_sftp_server_errors_total",
+			Type: proto.Stats_Metric_COUNTER,
+			CheckFn: func(v float64) error {
+				if v == 0 {
+					return nil
+				}
+				return xerrors.Errorf("expected 0, got %f", v)
+			},
 		},
 		{
-			Name:  "coderd_agentstats_currently_reachable_peers",
-			Type:  proto.Stats_Metric_GAUGE,
-			Value: 1,
+			Name: "coderd_agentstats_currently_reachable_peers",
+			Type: proto.Stats_Metric_GAUGE,
+			CheckFn: func(float64) error {
+				// We can't reliably ping a peer here, and networking is out of
+				// scope of this test, so we just test that the metric exists
+				// with the correct labels.
+				return nil
+			},
 			Labels: []*proto.Stats_Metric_Label{
 				{
 					Name:  "connection_type",
@@ -3527,9 +3560,11 @@ func TestAgent_Metrics_SSH(t *testing.T) {
 			},
 		},
 		{
-			Name:  "coderd_agentstats_currently_reachable_peers",
-			Type:  proto.Stats_Metric_GAUGE,
-			Value: 0,
+			Name: "coderd_agentstats_currently_reachable_peers",
+			Type: proto.Stats_Metric_GAUGE,
+			CheckFn: func(float64) error {
+				return nil
+			},
 			Labels: []*proto.Stats_Metric_Label{
 				{
 					Name:  "connection_type",
@@ -3538,9 +3573,20 @@ func TestAgent_Metrics_SSH(t *testing.T) {
 			},
 		},
 		{
-			Name:  "coderd_agentstats_startup_script_seconds",
-			Type:  proto.Stats_Metric_GAUGE,
-			Value: 1,
+			Name: "coderd_agentstats_startup_script_seconds",
+			Type: proto.Stats_Metric_GAUGE,
+			CheckFn: func(f float64) error {
+				if f >= 0 {
+					return nil
+				}
+				return xerrors.Errorf("expected >= 0, got %f", f)
+			},
+			Labels: []*proto.Stats_Metric_Label{
+				{
+					Name:  "success",
+					Value: "true",
+				},
+			},
 		},
 	}
 
@@ -3562,11 +3608,10 @@ func TestAgent_Metrics_SSH(t *testing.T) {
 		for _, m := range mf.GetMetric() {
 			assert.Equal(t, expected[i].Name, mf.GetName())
 			assert.Equal(t, expected[i].Type.String(), mf.GetType().String())
-			// Value is max expected
 			if expected[i].Type == proto.Stats_Metric_GAUGE {
-				assert.GreaterOrEqualf(t, expected[i].Value, m.GetGauge().GetValue(), "expected %s to be greater than or equal to %f, got %f", expected[i].Name, expected[i].Value, m.GetGauge().GetValue())
+				assert.NoError(t, expected[i].CheckFn(m.GetGauge().GetValue()), "check fn for %s failed", expected[i].Name)
 			} else if expected[i].Type == proto.Stats_Metric_COUNTER {
-				assert.GreaterOrEqualf(t, expected[i].Value, m.GetCounter().GetValue(), "expected %s to be greater than or equal to %f, got %f", expected[i].Name, expected[i].Value, m.GetCounter().GetValue())
+				assert.NoError(t, expected[i].CheckFn(m.GetCounter().GetValue()), "check fn for %s failed", expected[i].Name)
 			}
 			for j, lbl := range expected[i].Labels {
 				assert.Equal(t, m.GetLabel()[j], &promgo.LabelPair{

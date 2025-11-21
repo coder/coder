@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - release/*
 
   pull_request:
   workflow_dispatch:
@@ -34,7 +35,7 @@ jobs:
       tailnet-integration: ${{ steps.filter.outputs.tailnet-integration }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
         with:
           egress-policy: audit
 
@@ -156,7 +157,7 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
         with:
           egress-policy: audit
 
@@ -180,7 +181,7 @@ jobs:
           echo "LINT_CACHE_DIR=$dir" >> "$GITHUB_ENV"
 
       - name: golangci-lint cache
-        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ${{ env.LINT_CACHE_DIR }}
@@ -190,7 +191,7 @@ jobs:
 
       # Check for any typos
       - name: Check for typos
-        uses: crate-ci/typos@85f62a8a84f939ae994ab3763f01a0296d61a7ee # v1.36.2
+        uses: crate-ci/typos@626c4bedb751ce0b7f03262ca97ddda9a076ae1c # v1.39.2
         with:
           config: .github/workflows/typos.toml
 
@@ -229,12 +230,12 @@ jobs:
         shell: bash
 
   gen:
-    timeout-minutes: 8
+    timeout-minutes: 20
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     if: ${{ !cancelled() }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
         with:
           egress-policy: audit
 
@@ -270,6 +271,7 @@ jobs:
           popd
 
       - name: make gen
+        timeout-minutes: 8
         run: |
           # Remove golden files to detect discrepancy in generated files.
           make clean/golden-files
@@ -287,10 +289,10 @@ jobs:
     needs: changes
     if: needs.changes.outputs.offlinedocs-only == 'false' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
-    timeout-minutes: 7
+    timeout-minutes: 20
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
         with:
           egress-policy: audit
 
@@ -314,6 +316,7 @@ jobs:
         run: go install mvdan.cc/sh/v3/cmd/shfmt@v3.7.0
 
       - name: make fmt
+        timeout-minutes: 7
         run: |
           PATH="${PATH}:$(go env GOPATH)/bin" \
             make --output-sync -j -B fmt
@@ -340,7 +343,7 @@ jobs:
           - windows-2022
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
         with:
           egress-policy: audit
 
@@ -375,13 +378,6 @@ jobs:
         id: go-paths
         uses: ./.github/actions/setup-go-paths
 
-      - name: Download Go Build Cache
-        id: download-go-build-cache
-        uses: ./.github/actions/test-cache/download
-        with:
-          key-prefix: test-go-build-${{ runner.os }}-${{ runner.arch }}
-          cache-path: ${{ steps.go-paths.outputs.cached-dirs }}
-
       - name: Setup Go
         uses: ./.github/actions/setup-go
         with:
@@ -389,8 +385,7 @@ jobs:
           # download the toolchain configured in go.mod, so we don't
           # need to reinstall it. It's faster on Windows runners.
           use-preinstalled-go: ${{ runner.os == 'Windows' }}
-          # Cache is already downloaded above
-          use-cache: false
+          use-cache: true
 
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
@@ -499,16 +494,10 @@ jobs:
           make test
 
       - name: Upload failed test db dumps
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: failed-test-db-dump-${{matrix.os}}
           path: "**/*.test.sql"
-
-      - name: Upload Go Build Cache
-        uses: ./.github/actions/test-cache/upload
-        with:
-          cache-key: ${{ steps.download-go-build-cache.outputs.cache-key }}
-          cache-path: ${{ steps.go-paths.outputs.cached-dirs }}
 
       - name: Upload Test Cache
         uses: ./.github/actions/test-cache/upload
@@ -543,7 +532,7 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
         with:
           egress-policy: audit
 
@@ -592,7 +581,7 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
         with:
           egress-policy: audit
 
@@ -652,7 +641,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
         with:
           egress-policy: audit
 
@@ -679,7 +668,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
         with:
           egress-policy: audit
 
@@ -712,7 +701,7 @@ jobs:
     name: ${{ matrix.variant.name }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
         with:
           egress-policy: audit
 
@@ -761,15 +750,23 @@ jobs:
 
       - name: Upload Playwright Failed Tests
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: failed-test-videos${{ matrix.variant.premium && '-premium' || '' }}
           path: ./site/test-results/**/*.webm
           retention-days: 7
 
+      - name: Upload debug log
+        if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: coderd-debug-logs${{ matrix.variant.premium && '-premium' || ''  }}
+          path: ./site/e2e/test-results/debug.log
+          retention-days: 7
+
       - name: Upload pprof dumps
         if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: debug-pprof-dumps${{ matrix.variant.premium && '-premium' || ''  }}
           path: ./site/test-results/**/debug-pprof-*.txt
@@ -784,7 +781,7 @@ jobs:
     if: needs.changes.outputs.site == 'true' || needs.changes.outputs.ci == 'true'
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
         with:
           egress-policy: audit
 
@@ -805,7 +802,7 @@ jobs:
       # the check to pass. This is desired in PRs, but not in mainline.
       - name: Publish to Chromatic (non-mainline)
         if: github.ref != 'refs/heads/main' && github.repository_owner == 'coder'
-        uses: chromaui/action@20c7e42e1b2f6becd5d188df9acb02f3e2f51519 # v13.2.0
+        uses: chromaui/action@ac86f2ff0a458ffbce7b40698abd44c0fa34d4b6 # v13.3.3
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
           STORYBOOK: true
@@ -837,7 +834,7 @@ jobs:
       # infinitely "in progress" in mainline unless we re-review each build.
       - name: Publish to Chromatic (mainline)
         if: github.ref == 'refs/heads/main' && github.repository_owner == 'coder'
-        uses: chromaui/action@20c7e42e1b2f6becd5d188df9acb02f3e2f51519 # v13.2.0
+        uses: chromaui/action@ac86f2ff0a458ffbce7b40698abd44c0fa34d4b6 # v13.3.3
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
           STORYBOOK: true
@@ -865,7 +862,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
         with:
           egress-policy: audit
 
@@ -919,6 +916,7 @@ jobs:
   required:
     runs-on: ubuntu-latest
     needs:
+      - changes
       - fmt
       - lint
       - gen
@@ -935,13 +933,14 @@ jobs:
     if: always()
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
         with:
           egress-policy: audit
 
       - name: Ensure required checks
         run: | # zizmor: ignore[template-injection] We're just reading needs.x.result here, no risk of injection
           echo "Checking required checks"
+          echo "- changes: ${{ needs.changes.result }}"
           echo "- fmt: ${{ needs.fmt.result }}"
           echo "- lint: ${{ needs.lint.result }}"
           echo "- gen: ${{ needs.gen.result }}"
@@ -967,7 +966,7 @@ jobs:
     needs: changes
     # We always build the dylibs on Go changes to verify we're not merging unbuildable code,
     # but they need only be signed and uploaded on coder/coder main.
-    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
+    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-macos-latest' || 'macos-latest' }}
     steps:
       # Harden Runner doesn't work on macOS
@@ -995,7 +994,7 @@ jobs:
         uses: ./.github/actions/setup-go
 
       - name: Install rcodesign
-        if: ${{ github.repository_owner == 'coder' && github.ref == 'refs/heads/main' }}
+        if: ${{ github.repository_owner == 'coder' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) }}
         run: |
           set -euo pipefail
           wget -O /tmp/rcodesign.tar.gz https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F0.22.0/apple-codesign-0.22.0-macos-universal.tar.gz
@@ -1006,7 +1005,7 @@ jobs:
           rm /tmp/rcodesign.tar.gz
 
       - name: Setup Apple Developer certificate and API key
-        if: ${{ github.repository_owner == 'coder' && github.ref == 'refs/heads/main' }}
+        if: ${{ github.repository_owner == 'coder' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) }}
         run: |
           set -euo pipefail
           touch /tmp/{apple_cert.p12,apple_cert_password.txt,apple_apikey.p8}
@@ -1027,13 +1026,13 @@ jobs:
           make gen/mark-fresh
           make build/coder-dylib
         env:
-          CODER_SIGN_DARWIN: ${{ github.ref == 'refs/heads/main' && '1' || '0' }}
+          CODER_SIGN_DARWIN: ${{ (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) && '1' || '0' }}
           AC_CERTIFICATE_FILE: /tmp/apple_cert.p12
           AC_CERTIFICATE_PASSWORD_FILE: /tmp/apple_cert_password.txt
 
       - name: Upload build artifacts
-        if: ${{ github.repository_owner == 'coder' && github.ref == 'refs/heads/main' }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ github.repository_owner == 'coder' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) }}
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: dylibs
           path: |
@@ -1042,7 +1041,7 @@ jobs:
           retention-days: 7
 
       - name: Delete Apple Developer certificate and API key
-        if: ${{ github.repository_owner == 'coder' && github.ref == 'refs/heads/main' }}
+        if: ${{ github.repository_owner == 'coder' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) }}
         run: rm -f /tmp/{apple_cert.p12,apple_cert_password.txt,apple_apikey.p8}
 
   check-build:
@@ -1054,7 +1053,7 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
         with:
           egress-policy: audit
 
@@ -1092,7 +1091,7 @@ jobs:
     needs:
       - changes
       - build-dylib
-    if: github.ref == 'refs/heads/main' && needs.changes.outputs.docs-only == 'false' && !github.event.pull_request.head.repo.fork
+    if: (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) && needs.changes.outputs.docs-only == 'false' && !github.event.pull_request.head.repo.fork
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-22.04' }}
     permissions:
       # Necessary to push docker images to ghcr.io.
@@ -1109,7 +1108,7 @@ jobs:
       IMAGE: ghcr.io/coder/coder-preview:${{ steps.build-docker.outputs.tag }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
         with:
           egress-policy: audit
 
@@ -1120,7 +1119,7 @@ jobs:
           persist-credentials: false
 
       - name: GHCR Login
-        uses: docker/login-action@184bdaa0721073962dff0199f1fb9940f07167d1 # v3.5.0
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -1198,7 +1197,7 @@ jobs:
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
       - name: Download dylibs
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
           name: dylibs
           path: ./build
@@ -1245,40 +1244,45 @@ jobs:
         id: build-docker
         env:
           CODER_IMAGE_BASE: ghcr.io/coder/coder-preview
-          CODER_IMAGE_TAG_PREFIX: main
           DOCKER_CLI_EXPERIMENTAL: "enabled"
         run: |
           set -euxo pipefail
 
           # build Docker images for each architecture
           version="$(./scripts/version.sh)"
-          tag="main-${version//+/-}"
+          tag="${version//+/-}"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
           # build images for each architecture
           # note: omitting the -j argument to avoid race conditions when pushing
           make build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
 
-          # only push if we are on main branch
-          if [ "${GITHUB_REF}" == "refs/heads/main" ]; then
+          # only push if we are on main branch or release branch
+          if [[ "${GITHUB_REF}" == "refs/heads/main" || "${GITHUB_REF}" == refs/heads/release/* ]]; then
             # build and push multi-arch manifest, this depends on the other images
             # being pushed so will automatically push them
             # note: omitting the -j argument to avoid race conditions when pushing
             make push/build/coder_"$version"_linux_{amd64,arm64,armv7}.tag
 
             # Define specific tags
-            tags=("$tag" "main" "latest")
+            tags=("$tag")
+            if [ "${GITHUB_REF}" == "refs/heads/main" ]; then
+              tags+=("main" "latest")
+            elif [[ "${GITHUB_REF}" == refs/heads/release/* ]]; then
+              tags+=("release-${GITHUB_REF#refs/heads/release/}")
+            fi
 
             # Create and push a multi-arch manifest for each tag
             # we are adding `latest` tag and keeping `main` for backward
             # compatibality
             for t in "${tags[@]}"; do
-                # shellcheck disable=SC2046
-                ./scripts/build_docker_multiarch.sh \
-                    --push \
-                    --target "ghcr.io/coder/coder-preview:$t" \
-                    --version "$version" \
-                    $(cat build/coder_"$version"_linux_{amd64,arm64,armv7}.tag)
+              echo "Pushing multi-arch manifest for tag: $t"
+              # shellcheck disable=SC2046
+              ./scripts/build_docker_multiarch.sh \
+                  --push \
+                  --target "ghcr.io/coder/coder-preview:$t" \
+                  --version "$version" \
+                  $(cat build/coder_"$version"_linux_{amd64,arm64,armv7}.tag)
             done
           fi
 
@@ -1460,7 +1464,7 @@ jobs:
 
       - name: Upload build artifacts
         if: github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: coder
           path: |
@@ -1469,112 +1473,28 @@ jobs:
             ./build/*.deb
           retention-days: 7
 
+  # Deploy is handled in deploy.yaml so we can apply concurrency limits.
   deploy:
-    name: "deploy"
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
     needs:
       - changes
       - build
     if: |
-      github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
+      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/'))
       && needs.changes.outputs.docs-only == 'false'
+      && !github.event.pull_request.head.repo.fork
+    uses: ./.github/workflows/deploy.yaml
+    with:
+      image: ${{ needs.build.outputs.IMAGE }}
     permissions:
       contents: read
       id-token: write
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
-        with:
-          egress-policy: audit
-
-      - name: Checkout
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
-        with:
-          workload_identity_provider: ${{ vars.GCP_WORKLOAD_ID_PROVIDER }}
-          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
-
-      - name: Set up Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
-
-      - name: Set up Flux CLI
-        uses: fluxcd/flux2/action@6bf37f6a560fd84982d67f853162e4b3c2235edb # v2.6.4
-        with:
-          # Keep this and the github action up to date with the version of flux installed in dogfood cluster
-          version: "2.5.1"
-
-      - name: Get Cluster Credentials
-        uses: google-github-actions/get-gke-credentials@3da1e46a907576cefaa90c484278bb5b259dd395 # v3.0.0
-        with:
-          cluster_name: dogfood-v2
-          location: us-central1-a
-          project_id: coder-dogfood-v2
-
-      - name: Reconcile Flux
-        run: |
-          set -euxo pipefail
-          flux --namespace flux-system reconcile source git flux-system
-          flux --namespace flux-system reconcile source git coder-main
-          flux --namespace flux-system reconcile kustomization flux-system
-          flux --namespace flux-system reconcile kustomization coder
-          flux --namespace flux-system reconcile source chart coder-coder
-          flux --namespace flux-system reconcile source chart coder-coder-provisioner
-          flux --namespace coder reconcile helmrelease coder
-          flux --namespace coder reconcile helmrelease coder-provisioner
-
-      # Just updating Flux is usually not enough. The Helm release may get
-      # redeployed, but unless something causes the Deployment to update the
-      # pods won't be recreated. It's important that the pods get recreated,
-      # since we use `imagePullPolicy: Always` to ensure we're running the
-      # latest image.
-      - name: Rollout Deployment
-        run: |
-          set -euxo pipefail
-          kubectl --namespace coder rollout restart deployment/coder
-          kubectl --namespace coder rollout status deployment/coder
-          kubectl --namespace coder rollout restart deployment/coder-provisioner
-          kubectl --namespace coder rollout status deployment/coder-provisioner
-          kubectl --namespace coder rollout restart deployment/coder-provisioner-tagged
-          kubectl --namespace coder rollout status deployment/coder-provisioner-tagged
-
-  deploy-wsproxies:
-    runs-on: ubuntu-latest
-    needs: build
-    if: github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
-        with:
-          egress-policy: audit
-
-      - name: Checkout
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Setup flyctl
-        uses: superfly/flyctl-actions/setup-flyctl@fc53c09e1bc3be6f54706524e3b82c4f462f77be # v1.5
-
-      - name: Deploy workspace proxies
-        run: |
-          flyctl deploy --image "$IMAGE" --app paris-coder --config ./.github/fly-wsproxies/paris-coder.toml --env "CODER_PROXY_SESSION_TOKEN=$TOKEN_PARIS" --yes
-          flyctl deploy --image "$IMAGE" --app sydney-coder --config ./.github/fly-wsproxies/sydney-coder.toml --env "CODER_PROXY_SESSION_TOKEN=$TOKEN_SYDNEY" --yes
-          flyctl deploy --image "$IMAGE" --app sao-paulo-coder --config ./.github/fly-wsproxies/sao-paulo-coder.toml --env "CODER_PROXY_SESSION_TOKEN=$TOKEN_SAO_PAULO" --yes
-          flyctl deploy --image "$IMAGE" --app jnb-coder --config ./.github/fly-wsproxies/jnb-coder.toml --env "CODER_PROXY_SESSION_TOKEN=$TOKEN_JNB" --yes
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-          IMAGE: ${{ needs.build.outputs.IMAGE }}
-          TOKEN_PARIS: ${{ secrets.FLY_PARIS_CODER_PROXY_SESSION_TOKEN }}
-          TOKEN_SYDNEY: ${{ secrets.FLY_SYDNEY_CODER_PROXY_SESSION_TOKEN }}
-          TOKEN_SAO_PAULO: ${{ secrets.FLY_SAO_PAULO_CODER_PROXY_SESSION_TOKEN }}
-          TOKEN_JNB: ${{ secrets.FLY_JNB_CODER_PROXY_SESSION_TOKEN }}
+      packages: write # to retag image as dogfood
+    secrets:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      FLY_PARIS_CODER_PROXY_SESSION_TOKEN: ${{ secrets.FLY_PARIS_CODER_PROXY_SESSION_TOKEN }}
+      FLY_SYDNEY_CODER_PROXY_SESSION_TOKEN: ${{ secrets.FLY_SYDNEY_CODER_PROXY_SESSION_TOKEN }}
+      FLY_SAO_PAULO_CODER_PROXY_SESSION_TOKEN: ${{ secrets.FLY_SAO_PAULO_CODER_PROXY_SESSION_TOKEN }}
+      FLY_JNB_CODER_PROXY_SESSION_TOKEN: ${{ secrets.FLY_JNB_CODER_PROXY_SESSION_TOKEN }}
 
   # sqlc-vet runs a postgres docker container, runs Coder migrations, and then
   # runs sqlc-vet to ensure all queries are valid. This catches any mistakes
@@ -1585,7 +1505,7 @@ jobs:
     if: needs.changes.outputs.db == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
+        uses: step-security/harden-runner@95d9a5deda9de15063e7595e9719c11c38c90ae2 # v2.13.2
         with:
           egress-policy: audit
 
@@ -1613,7 +1533,7 @@ jobs:
     steps:
       - name: Send Slack notification
         run: |
-          ESCAPED_PROMPT=$(printf "%s" "<@U08TJ4YNCA3> $BLINK_CI_FAILURE_PROMPT" | jq -Rsa .)
+          ESCAPED_PROMPT=$(printf "%s" "<@U09LQ75AHKR> $BLINK_CI_FAILURE_PROMPT" | jq -Rsa .)
           curl -X POST -H 'Content-type: application/json' \
           --data '{
             "blocks": [

@@ -1242,7 +1242,8 @@ func TestSSH(t *testing.T) {
 				// true exits the loop.
 				return true
 			}
-			resp, err := http.DefaultClient.Do(req)
+			client := &http.Client{}
+			resp, err := client.Do(req)
 			if err != nil {
 				t.Logf("HTTP GET http://localhost:8222/ %s", err)
 				return false
@@ -2445,4 +2446,100 @@ func tempDirUnixSocket(t *testing.T) string {
 	}
 
 	return t.TempDir()
+}
+
+func TestSSH_Completion(t *testing.T) {
+	t.Parallel()
+
+	t.Run("SingleAgent", func(t *testing.T) {
+		t.Parallel()
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		_ = agenttest.New(t, client.URL, agentToken)
+		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+		var stdout bytes.Buffer
+		inv, root := clitest.New(t, "ssh", "")
+		inv.Stdout = &stdout
+		inv.Environ.Set("COMPLETION_MODE", "1")
+		clitest.SetupConfig(t, client, root)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+		defer cancel()
+
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		// For single-agent workspaces, the only completion should be the
+		// bare workspace name.
+		output := stdout.String()
+		t.Logf("Completion output: %q", output)
+		require.Contains(t, output, workspace.Name)
+	})
+
+	t.Run("MultiAgent", func(t *testing.T) {
+		t.Parallel()
+
+		client, store := coderdtest.NewWithDatabase(t, nil)
+		first := coderdtest.CreateFirstUser(t, client)
+		userClient, user := coderdtest.CreateAnotherUserMutators(t, client, first.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
+			r.Username = "multiuser"
+		})
+
+		r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+			Name:           "multiworkspace",
+			OrganizationID: first.OrganizationID,
+			OwnerID:        user.ID,
+		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+			return []*proto.Agent{
+				{
+					Name: "agent1",
+					Auth: &proto.Agent_Token{},
+				},
+				{
+					Name: "agent2",
+					Auth: &proto.Agent_Token{},
+				},
+			}
+		}).Do()
+
+		var stdout bytes.Buffer
+		inv, root := clitest.New(t, "ssh", "")
+		inv.Stdout = &stdout
+		inv.Environ.Set("COMPLETION_MODE", "1")
+		clitest.SetupConfig(t, userClient, root)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+		defer cancel()
+
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		// For multi-agent workspaces, completions should include the
+		// workspace.agent format but NOT the bare workspace name.
+		output := stdout.String()
+		t.Logf("Completion output: %q", output)
+		lines := strings.Split(strings.TrimSpace(output), "\n")
+		require.NotContains(t, lines, r.Workspace.Name)
+		require.Contains(t, output, r.Workspace.Name+".agent1")
+		require.Contains(t, output, r.Workspace.Name+".agent2")
+	})
+
+	t.Run("NetworkError", func(t *testing.T) {
+		t.Parallel()
+
+		var stdout bytes.Buffer
+		inv, _ := clitest.New(t, "ssh", "")
+		inv.Stdout = &stdout
+		inv.Environ.Set("COMPLETION_MODE", "1")
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		output := stdout.String()
+		require.Empty(t, output)
+	})
 }

@@ -35,7 +35,7 @@ export const templateByName = (organization: string, name: string) => {
 	} satisfies QueryOptions<Template>;
 };
 
-const getTemplatesQueryKey = (
+export const getTemplatesQueryKey = (
 	options?: GetTemplatesOptions | GetTemplatesQuery,
 ) => ["templates", options];
 
@@ -249,9 +249,15 @@ export const templateVersionLogs = (versionId: string) => {
 	};
 };
 
+export const richParametersKey = (versionId: string) => [
+	templateVersionRoot,
+	versionId,
+	"richParameters",
+];
+
 export const richParameters = (versionId: string) => {
 	return {
-		queryKey: [templateVersionRoot, versionId, "richParameters"],
+		queryKey: richParametersKey(versionId),
 		queryFn: () => API.getTemplateVersionRichParameters(versionId),
 	};
 };

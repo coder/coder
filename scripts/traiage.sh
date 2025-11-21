@@ -19,19 +19,19 @@ usage() {
 }
 
 create() {
-	requiredenvs CODER_URL CODER_SESSION_TOKEN TASK_NAME TEMPLATE_NAME TEMPLATE_PRESET PROMPT
+	requiredenvs CODER_URL CODER_SESSION_TOKEN CODER_USERNAME TASK_NAME TEMPLATE_NAME TEMPLATE_PRESET PROMPT
 	# Check if a task already exists
 	set +e
 	task_json=$("${CODER_BIN}" \
 		--url "${CODER_URL}" \
 		--token "${CODER_SESSION_TOKEN}" \
-		exp tasks status "${TASK_NAME}" \
+		exp tasks status "${CODER_USERNAME}/${TASK_NAME}" \
 		--output json)
 	set -e
 
 	if [[ "${TASK_NAME}" == $(jq -r '.name' <<<"${task_json}") ]]; then
-		# TODO(Cian): Send PROMPT to the agent in the existing workspace.
-		echo "Task \"${TASK_NAME}\" already exists."
+		echo "Task \"${CODER_USERNAME}/${TASK_NAME}\" already exists. Sending prompt to existing task."
+		prompt
 		exit 0
 	fi
 
@@ -43,6 +43,7 @@ create() {
 		--template "${TEMPLATE_NAME}" \
 		--preset "${TEMPLATE_PRESET}" \
 		--org coder \
+		--owner "${CODER_USERNAME}" \
 		--stdin <<<"${PROMPT}"
 	exit 0
 }
@@ -67,193 +68,55 @@ ssh_config() {
 }
 
 prompt() {
-	requiredenvs CODER_URL CODER_SESSION_TOKEN TASK_NAME APP_SLUG PROMPT
+	requiredenvs CODER_URL CODER_SESSION_TOKEN TASK_NAME PROMPT
 
-	wait_agentapi_stable
+	${CODER_BIN} \
+		--url "${CODER_URL}" \
+		--token "${CODER_SESSION_TOKEN}" \
+		exp tasks status "${TASK_NAME}" \
+		--watch >/dev/null
 
-	username=$(curl \
-		--fail \
-		--header "Coder-Session-Token: ${CODER_SESSION_TOKEN}" \
-		--location \
-		--show-error \
-		--silent \
-		"${CODER_URL}/api/v2/users/me" | jq -r '.username')
+	${CODER_BIN} \
+		--url "${CODER_URL}" \
+		--token "${CODER_SESSION_TOKEN}" \
+		exp tasks send "${TASK_NAME}" \
+		--stdin \
+		<<<"${PROMPT}"
 
-	payload="{
-		\"content\": \"${PROMPT}\",
-		\"type\": \"user\"
-	}"
+	${CODER_BIN} \
+		--url "${CODER_URL}" \
+		--token "${CODER_SESSION_TOKEN}" \
+		exp tasks status "${TASK_NAME}" \
+		--watch >/dev/null
 
-	response=$(curl \
-		--data-raw "${payload}" \
-		--fail \
-		--header "Content-Type: application/json" \
-		--header "Coder-Session-Token: ${CODER_SESSION_TOKEN}" \
-		--location \
-		--request POST \
-		--show-error \
-		--silent \
-		"${CODER_URL}/@${username}/${TASK_NAME}/apps/${APP_SLUG}/message" | jq -r '.ok')
-	if [[ "${response}" != "true" ]]; then
-		echo "Failed to send prompt"
-		exit 1
-	fi
-
-	# Wait for agentapi to process the response and return the last agent message
-	wait_agentapi_stable
-
-	CODER_USERNAME="${username}" last_message
+	last_message
 }
 
 last_message() {
-	requiredenvs CODER_URL CODER_SESSION_TOKEN CODER_USERNAME TASK_NAME APP_SLUG PROMPT
-	last_msg=$(curl \
-		--fail \
-		--header "Content-Type: application/json" \
-		--header "Coder-Session-Token: ${CODER_SESSION_TOKEN}" \
-		--location \
-		--show-error \
-		--silent \
-		"${CODER_URL}/@${CODER_USERNAME}/${TASK_NAME}/apps/${APP_SLUG}/messages" |
-		jq -r 'last(.messages[] | select(.role=="agent") | [.])')
+	requiredenvs CODER_URL CODER_SESSION_TOKEN TASK_NAME PROMPT
 
+	last_msg_json=$(
+		${CODER_BIN} \
+			--url "${CODER_URL}" \
+			--token "${CODER_SESSION_TOKEN}" \
+			exp tasks logs "${TASK_NAME}" \
+			--output json
+	)
+	last_output_msg=$(jq -r 'last(.[] | select(.type=="output")) | .content' <<<"${last_msg_json}")
+	# HACK: agentapi currently doesn't split multiple messages, so you can end up with tool
+	# call responses in the output.
+	last_msg=$(tac <<<"${last_output_msg}" | sed '/^● /q' | tr -d '●' | tac)
 	echo "${last_msg}"
 }
 
 wait_agentapi_stable() {
-	requiredenvs CODER_URL CODER_SESSION_TOKEN TASK_NAME APP_SLUG
-	username=$(curl \
-		--fail \
-		--header "Coder-Session-Token: ${CODER_SESSION_TOKEN}" \
-		--location \
-		--show-error \
-		--silent \
-		"${CODER_URL}/api/v2/users/me" | jq -r '.username')
+	requiredenvs CODER_URL CODER_SESSION_TOKEN TASK_NAME
 
-	for attempt in {1..120}; do
-		# First wait for task to start
-		set +o pipefail
-		task_status=$("${CODER_BIN}" \
-			--url "${CODER_URL}" \
-			--token "${CODER_SESSION_TOKEN}" \
-			exp tasks status "${TASK_NAME}" \
-			--output json |
-			jq -r '.status')
-		set -o pipefail
-		echo "Task status is ${task_status}"
-		if [[ "${task_status}" == "running" ]]; then
-			echo "Task is running"
-			break
-		fi
-		echo "Waiting for task status to be running (attempt ${attempt}/120)"
-		sleep 5
-	done
-
-	for attempt in {1..120}; do
-		# Workspace agent must be healthy
-		set +o pipefail
-		healthy=$("${CODER_BIN}" \
-			--url "${CODER_URL}" \
-			--token "${CODER_SESSION_TOKEN}" \
-			exp tasks status "${TASK_NAME}" \
-			--output json |
-			jq -r '.workspace_agent_health.healthy')
-		set -o pipefail
-		if [[ "${healthy}" == "true" ]]; then
-			echo "Workspace agent is healthy"
-			break
-		fi
-		echo "Workspace agent not yet healthy (attempt ${attempt}/120)"
-		sleep 5
-	done
-
-	for attempt in {1..120}; do
-		# AgentAPI application should not be 404'ing
-		agentapi_app_status_code=$(curl \
-			--header "Content-Type: application/json" \
-			--header "Coder-Session-Token: ${CODER_SESSION_TOKEN}" \
-			--location \
-			--request GET \
-			--show-error \
-			--silent \
-			--output /dev/null \
-			--write-out '%{http_code}' \
-			"${CODER_URL}/@${username}/${TASK_NAME}/apps/${APP_SLUG}/status")
-		echo "Workspace app ${APP_SLUG} returned ${agentapi_app_status_code}"
-		if [[ "${agentapi_app_status_code}" == "200" ]]; then
-			echo "AgentAPI is running"
-			break
-		fi
-		echo "AgentAPI not yet running (attempt ${attempt}/120)"
-		sleep 5
-	done
-
-	for attempt in {1..120}; do
-		# AgentAPI must be stable
-		set +o pipefail
-		agentapi_status=$(curl \
-			--header "Content-Type: application/json" \
-			--header "Coder-Session-Token: ${CODER_SESSION_TOKEN}" \
-			--location \
-			--request GET \
-			--show-error \
-			--silent \
-			"${CODER_URL}/@${username}/${TASK_NAME}/apps/${APP_SLUG}/status" | jq -r '.status')
-		set -o pipefail
-		if [[ "${agentapi_status}" == "stable" ]]; then
-			echo "AgentAPI stable"
-			break
-		fi
-		echo "Waiting for AgentAPI to report stable status (attempt ${attempt}/120)"
-		sleep 5
-	done
-
-	# At this point the task is running, the workspace agent is healthy,
-	# the AgentAPI app is running and the AgentAPI reports stable status.
-	# Now we wait for the Task Agent to report 'idle', 'complete', or 'failure'.
-	for attempt in {1..120}; do
-		task_json=$(${CODER_BIN} \
-			--url "${CODER_URL}" \
-			--token "${CODER_SESSION_TOKEN}" \
-			exp tasks status "${TASK_NAME}" \
-			--output json)
-		set +o pipefail
-		current_state=$(jq -r '.current_state.state' <<<"${task_json}")
-		current_message=$(jq -r '.current_state.message' <<<"${task_json}")
-		set -o pipefail
-
-		# The current_state or current_message may be null if the Task Agent
-		# has not yet reported its status.
-		if [[ -z "${current_state}" ]] || [[ -z "${current_message}" ]]; then
-			echo "Waiting for Task Agent to report state (attempt ${attempt}/120)"
-			sleep 5
-			continue
-		fi
-		break
-	done
-
-	# Finally, wait for the Task Agent to report 'idle', 'complete', or 'failure'. This is unbounded, as we don't know how long the agent will take.
-	while true; do
-		task_json=$(${CODER_BIN} \
-			--url "${CODER_URL}" \
-			--token "${CODER_SESSION_TOKEN}" \
-			exp tasks status "${TASK_NAME}" \
-			--output json)
-		set +o pipefail
-
-		current_state=$(jq -r '.current_state.state' <<<"${task_json}")
-		current_message=$(jq -r '.current_state.message' <<<"${task_json}")
-		set -o pipefail
-		if [[ "${current_state}" == "working" ]]; then
-			echo "Task Agent is ${current_state} and reports: \"${current_message}\""
-			echo "Waiting for Task Agent to report idle state (attempt ${attempt}/120)"
-			sleep 5
-			continue
-		else
-			echo "Task Agent is ${current_state} and reports: \"${current_message}\""
-			break
-		fi
-	done
+	${CODER_BIN} \
+		--url "${CODER_URL}" \
+		--token "${CODER_SESSION_TOKEN}" \
+		exp tasks status "${TASK_NAME}" \
+		--watch
 }
 
 archive() {
@@ -287,7 +150,7 @@ archive() {
 }
 
 summary() {
-	requiredenvs CODER_URL CODER_SESSION_TOKEN TASK_NAME APP_SLUG
+	requiredenvs CODER_URL CODER_SESSION_TOKEN TASK_NAME
 	ssh_config
 
 	# We want the heredoc to be expanded locally and not remotely.

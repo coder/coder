@@ -9,7 +9,8 @@ INSERT INTO template_version_presets (
 	scheduling_timezone,
 	is_default,
 	description,
-	icon
+	icon,
+	last_invalidated_at
 )
 VALUES (
 	@id,
@@ -21,7 +22,8 @@ VALUES (
 	@scheduling_timezone,
 	@is_default,
 	@description,
-	@icon
+	@icon,
+	@last_invalidated_at
 ) RETURNING *;
 
 -- name: InsertPresetParameters :many
@@ -103,3 +105,19 @@ WHERE
 	tv.id = t.active_version_id
 	AND NOT t.deleted
 	AND t.deprecated = '';
+
+-- name: UpdatePresetsLastInvalidatedAt :many
+UPDATE
+	template_version_presets tvp
+SET
+	last_invalidated_at = @last_invalidated_at
+FROM
+	templates t
+	JOIN template_versions tv ON tv.id = t.active_version_id
+WHERE
+	t.id = @template_id
+	AND tvp.template_version_id = tv.id
+RETURNING
+	t.name AS template_name,
+	tv.name AS template_version_name,
+	tvp.name AS template_version_preset_name;

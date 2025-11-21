@@ -1,8 +1,7 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import Button from "@mui/material/Button";
 import Skeleton from "@mui/material/Skeleton";
 import type { AssignableRoles, Role } from "api/typesGenerated";
-import { Button as ShadcnButton } from "components/Button/Button";
+import { Button, Button as ShadcnButton } from "components/Button/Button";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import {
 	DropdownMenu,
@@ -72,12 +71,11 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 					</span>
 				</span>
 				{canCreateOrgRole && isCustomRolesEnabled && (
-					<Button
-						component={RouterLink}
-						startIcon={<PlusIcon className="size-icon-sm" />}
-						to="create"
-					>
-						Create custom role
+					<Button variant="outline" asChild>
+						<RouterLink to="create">
+							<PlusIcon />
+							Create custom role
+						</RouterLink>
 					</Button>
 				)}
 			</Stack>
@@ -157,13 +155,11 @@ const RoleTable: FC<RoleTableProps> = ({
 									cta={
 										canCreateOrgRole &&
 										isCustomRolesEnabled && (
-											<Button
-												component={RouterLink}
-												to="create"
-												startIcon={<PlusIcon className="size-icon-sm" />}
-												variant="contained"
-											>
-												Create custom role
+											<Button asChild>
+												<RouterLink to="create">
+													<PlusIcon />
+													Create custom role
+												</RouterLink>
 											</Button>
 										)
 									}

@@ -6,16 +6,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/v2/testutil"
-
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/quartz"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/prebuilds"
+	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 type options struct {
@@ -86,7 +84,7 @@ func TestNoPrebuilds(t *testing.T) {
 		preset(true, 0, current),
 	}
 
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, nil, nil, clock, testutil.Logger(t))
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, nil, nil, nil, clock, testutil.Logger(t))
 	ps, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
@@ -108,7 +106,7 @@ func TestNetNew(t *testing.T) {
 		preset(true, 1, current),
 	}
 
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, nil, nil, clock, testutil.Logger(t))
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, nil, nil, nil, clock, testutil.Logger(t))
 	ps, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
@@ -150,7 +148,7 @@ func TestOutdatedPrebuilds(t *testing.T) {
 	var inProgress []database.CountInProgressPrebuildsRow
 
 	// WHEN: calculating the outdated preset's state.
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil, quartz.NewMock(t), testutil.Logger(t))
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil, nil, quartz.NewMock(t), testutil.Logger(t))
 	ps, err := snapshot.FilterByPreset(outdated.presetID)
 	require.NoError(t, err)
 
@@ -216,7 +214,7 @@ func TestDeleteOutdatedPrebuilds(t *testing.T) {
 	}
 
 	// WHEN: calculating the outdated preset's state.
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil, quartz.NewMock(t), testutil.Logger(t))
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil, nil, quartz.NewMock(t), testutil.Logger(t))
 	ps, err := snapshot.FilterByPreset(outdated.presetID)
 	require.NoError(t, err)
 
@@ -236,6 +234,74 @@ func TestDeleteOutdatedPrebuilds(t *testing.T) {
 			DeleteIDs:  []uuid.UUID{outdated.prebuiltWorkspaceID},
 		},
 	}, actions)
+}
+
+func TestCancelPendingPrebuilds(t *testing.T) {
+	t.Parallel()
+
+	// Setup
+	current := opts[optionSet3]
+	clock := quartz.NewMock(t)
+
+	t.Run("CancelPendingPrebuildsNonActiveVersion", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: a preset from a non-active version
+		defaultPreset := preset(false, 0, current)
+		presets := []database.GetTemplatePresetsWithPrebuildsRow{
+			defaultPreset,
+		}
+
+		// Given: 2 pending prebuilt workspaces for the preset
+		pending := []database.CountPendingNonActivePrebuildsRow{{
+			PresetID: uuid.NullUUID{
+				UUID:  defaultPreset.ID,
+				Valid: true,
+			},
+			Count: 2,
+		}}
+
+		// When: calculating the current preset's state
+		snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, pending, nil, nil, clock, testutil.Logger(t))
+		ps, err := snapshot.FilterByPreset(current.presetID)
+		require.NoError(t, err)
+
+		// Then: it should create a cancel reconciliation action
+		actions, err := ps.CalculateActions(backoffInterval)
+		require.NoError(t, err)
+		expectedAction := []*prebuilds.ReconciliationActions{{ActionType: prebuilds.ActionTypeCancelPending}}
+		require.Equal(t, expectedAction, actions)
+	})
+
+	t.Run("NotCancelPendingPrebuildsActiveVersion", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: a preset from an active version
+		defaultPreset := preset(true, 0, current)
+		presets := []database.GetTemplatePresetsWithPrebuildsRow{
+			defaultPreset,
+		}
+
+		// Given: 2 pending prebuilt workspaces for the preset
+		pending := []database.CountPendingNonActivePrebuildsRow{{
+			PresetID: uuid.NullUUID{
+				UUID:  defaultPreset.ID,
+				Valid: true,
+			},
+			Count: 2,
+		}}
+
+		// When: calculating the current preset's state
+		snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, nil, pending, nil, nil, clock, testutil.Logger(t))
+		ps, err := snapshot.FilterByPreset(current.presetID)
+		require.NoError(t, err)
+
+		// Then: it should not create a cancel reconciliation action
+		actions, err := ps.CalculateActions(backoffInterval)
+		require.NoError(t, err)
+		var expectedAction []*prebuilds.ReconciliationActions
+		require.Equal(t, expectedAction, actions)
+	})
 }
 
 // A new template version is created with a preset with prebuilds configured; while a prebuild is provisioning up or down,
@@ -460,7 +526,7 @@ func TestInProgressActions(t *testing.T) {
 			}
 
 			// WHEN: calculating the current preset's state.
-			snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil, quartz.NewMock(t), testutil.Logger(t))
+			snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil, nil, quartz.NewMock(t), testutil.Logger(t))
 			ps, err := snapshot.FilterByPreset(current.presetID)
 			require.NoError(t, err)
 
@@ -503,7 +569,7 @@ func TestExtraneous(t *testing.T) {
 	var inProgress []database.CountInProgressPrebuildsRow
 
 	// WHEN: calculating the current preset's state.
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil, quartz.NewMock(t), testutil.Logger(t))
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil, nil, quartz.NewMock(t), testutil.Logger(t))
 	ps, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
@@ -534,6 +600,9 @@ func TestExpiredPrebuilds(t *testing.T) {
 		running int32
 		desired int32
 		expired int32
+
+		invalidated int32
+
 		checkFn func(runningPrebuilds []database.GetRunningPrebuiltWorkspacesRow, state prebuilds.ReconciliationState, actions []*prebuilds.ReconciliationActions)
 	}{
 		// With 2 running prebuilds, none of which are expired, and the desired count is met,
@@ -646,6 +715,52 @@ func TestExpiredPrebuilds(t *testing.T) {
 				validateActions(t, expectedActions, actions)
 			},
 		},
+		{
+			name:        "preset has been invalidated - both instances expired",
+			running:     2,
+			desired:     2,
+			expired:     0,
+			invalidated: 2,
+			checkFn: func(runningPrebuilds []database.GetRunningPrebuiltWorkspacesRow, state prebuilds.ReconciliationState, actions []*prebuilds.ReconciliationActions) {
+				expectedState := prebuilds.ReconciliationState{Actual: 2, Desired: 2, Expired: 2}
+				expectedActions := []*prebuilds.ReconciliationActions{
+					{
+						ActionType: prebuilds.ActionTypeDelete,
+						DeleteIDs:  []uuid.UUID{runningPrebuilds[0].ID, runningPrebuilds[1].ID},
+					},
+					{
+						ActionType: prebuilds.ActionTypeCreate,
+						Create:     2,
+					},
+				}
+
+				validateState(t, expectedState, state)
+				validateActions(t, expectedActions, actions)
+			},
+		},
+		{
+			name:        "preset has been invalidated, but one prebuild instance is newer",
+			running:     2,
+			desired:     2,
+			expired:     0,
+			invalidated: 1,
+			checkFn: func(runningPrebuilds []database.GetRunningPrebuiltWorkspacesRow, state prebuilds.ReconciliationState, actions []*prebuilds.ReconciliationActions) {
+				expectedState := prebuilds.ReconciliationState{Actual: 2, Desired: 2, Expired: 1}
+				expectedActions := []*prebuilds.ReconciliationActions{
+					{
+						ActionType: prebuilds.ActionTypeDelete,
+						DeleteIDs:  []uuid.UUID{runningPrebuilds[0].ID},
+					},
+					{
+						ActionType: prebuilds.ActionTypeCreate,
+						Create:     1,
+					},
+				}
+
+				validateState(t, expectedState, state)
+				validateActions(t, expectedActions, actions)
+			},
+		},
 	}
 
 	for _, tc := range cases {
@@ -653,7 +768,17 @@ func TestExpiredPrebuilds(t *testing.T) {
 			t.Parallel()
 
 			// GIVEN: a preset.
-			defaultPreset := preset(true, tc.desired, current)
+			now := time.Now()
+			invalidatedAt := now.Add(1 * time.Minute)
+
+			var muts []func(row database.GetTemplatePresetsWithPrebuildsRow) database.GetTemplatePresetsWithPrebuildsRow
+			if tc.invalidated > 0 {
+				muts = append(muts, func(row database.GetTemplatePresetsWithPrebuildsRow) database.GetTemplatePresetsWithPrebuildsRow {
+					row.LastInvalidatedAt = sql.NullTime{Valid: true, Time: invalidatedAt}
+					return row
+				})
+			}
+			defaultPreset := preset(true, tc.desired, current, muts...)
 			presets := []database.GetTemplatePresetsWithPrebuildsRow{
 				defaultPreset,
 			}
@@ -661,11 +786,22 @@ func TestExpiredPrebuilds(t *testing.T) {
 			// GIVEN: running prebuilt workspaces for the preset.
 			running := make([]database.GetRunningPrebuiltWorkspacesRow, 0, tc.running)
 			expiredCount := 0
+			invalidatedCount := 0
 			ttlDuration := time.Duration(defaultPreset.Ttl.Int32)
 			for range tc.running {
 				name, err := prebuilds.GenerateName()
 				require.NoError(t, err)
+
 				prebuildCreateAt := time.Now()
+				if int(tc.invalidated) > invalidatedCount {
+					prebuildCreateAt = prebuildCreateAt.Add(-ttlDuration - 10*time.Second)
+					invalidatedCount++
+				} else if invalidatedCount > 0 {
+					// Only `tc.invalidated` instances have been invalidated,
+					// so the next instance is assumed to be created after `invalidatedAt`.
+					prebuildCreateAt = invalidatedAt.Add(1 * time.Minute)
+				}
+
 				if int(tc.expired) > expiredCount {
 					// Update the prebuild workspace createdAt to exceed its TTL (5 seconds)
 					prebuildCreateAt = prebuildCreateAt.Add(-ttlDuration - 10*time.Second)
@@ -683,7 +819,7 @@ func TestExpiredPrebuilds(t *testing.T) {
 			}
 
 			// WHEN: calculating the current preset's state.
-			snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, nil, nil, nil, clock, testutil.Logger(t))
+			snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, nil, nil, nil, nil, clock, testutil.Logger(t))
 			ps, err := snapshot.FilterByPreset(current.presetID)
 			require.NoError(t, err)
 
@@ -719,7 +855,7 @@ func TestDeprecated(t *testing.T) {
 	var inProgress []database.CountInProgressPrebuildsRow
 
 	// WHEN: calculating the current preset's state.
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil, quartz.NewMock(t), testutil.Logger(t))
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, nil, nil, quartz.NewMock(t), testutil.Logger(t))
 	ps, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
@@ -772,7 +908,7 @@ func TestLatestBuildFailed(t *testing.T) {
 	}
 
 	// WHEN: calculating the current preset's state.
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, backoffs, nil, clock, testutil.Logger(t))
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, running, inProgress, nil, backoffs, nil, clock, testutil.Logger(t))
 	psCurrent, err := snapshot.FilterByPreset(current.presetID)
 	require.NoError(t, err)
 
@@ -865,7 +1001,7 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 		},
 	}
 
-	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, inProgress, nil, nil, clock, testutil.Logger(t))
+	snapshot := prebuilds.NewGlobalSnapshot(presets, nil, nil, inProgress, nil, nil, nil, clock, testutil.Logger(t))
 
 	// Nothing has to be created for preset 1.
 	{
@@ -985,7 +1121,7 @@ func TestPrebuildScheduling(t *testing.T) {
 				schedule(presets[1].ID, "* 14-16 * * 1-5", 5),
 			}
 
-			snapshot := prebuilds.NewGlobalSnapshot(presets, schedules, nil, nil, nil, nil, clock, testutil.Logger(t))
+			snapshot := prebuilds.NewGlobalSnapshot(presets, schedules, nil, nil, nil, nil, nil, clock, testutil.Logger(t))
 
 			// Check 1st preset.
 			{
@@ -1093,6 +1229,7 @@ func TestCalculateDesiredInstances(t *testing.T) {
 			nil,
 			nil,
 			nil,
+			0,
 			nil,
 			false,
 			quartz.NewMock(t),

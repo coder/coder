@@ -36,7 +36,7 @@ func TestExternalScopeNames(t *testing.T) {
 			expected, ok := CompositeSitePermissions(ScopeName(name))
 			require.Truef(t, ok, "expected composite scope definition: %s", name)
 			require.ElementsMatchf(t, expected, s.Site, "unexpected expanded permissions for %s", name)
-			require.Empty(t, s.Org)
+			require.Empty(t, s.ByOrgID)
 			require.Empty(t, s.User)
 			continue
 		}
@@ -50,7 +50,7 @@ func TestExternalScopeNames(t *testing.T) {
 		require.Len(t, s.Site, 1)
 		require.Equal(t, res, s.Site[0].ResourceType)
 		require.Equal(t, act, s.Site[0].Action)
-		require.Empty(t, s.Org)
+		require.Empty(t, s.ByOrgID)
 		require.Empty(t, s.User)
 	}
 }

@@ -149,14 +149,12 @@ export const OrganizationMembersPageView: FC<
 											isLoading={isUpdatingMemberRoles}
 											canEditUsers={canEditMembers}
 											onEditRoles={async (roles) => {
+												// React doesn't mind uncaught errors in event handlers,
+												// but testing-library does.
 												try {
 													await updateMemberRoles(member, roles);
 													displaySuccess("Roles updated successfully.");
-												} catch (error) {
-													displayError(
-														getErrorMessage(error, "Failed to update roles."),
-													);
-												}
+												} catch {}
 											}}
 										/>
 										<UserGroupsCell userGroups={member.groups} />

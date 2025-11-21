@@ -3,6 +3,7 @@ package database
 import (
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -38,7 +39,7 @@ func TestAPIKeyScopesExpand(t *testing.T) {
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
-				s, err := tc.scopes.Expand()
+				s, err := tc.scopes.expandRBACScope()
 				require.NoError(t, err)
 				tc.want(t, s)
 			})
@@ -59,7 +60,7 @@ func TestAPIKeyScopesExpand(t *testing.T) {
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
-				s, err := tc.scopes.Expand()
+				s, err := tc.scopes.expandRBACScope()
 				require.NoError(t, err)
 				requirePermission(t, s, tc.res, tc.act)
 				requireAllowAll(t, s)
@@ -70,7 +71,7 @@ func TestAPIKeyScopesExpand(t *testing.T) {
 	t.Run("merge", func(t *testing.T) {
 		t.Parallel()
 		scopes := APIKeyScopes{ApiKeyScopeCoderApplicationConnect, ApiKeyScopeCoderAll, ApiKeyScopeWorkspaceRead}
-		s, err := scopes.Expand()
+		s, err := scopes.expandRBACScope()
 		require.NoError(t, err)
 		requirePermission(t, s, rbac.ResourceWildcard.Type, policy.Action(policy.WildcardSymbol))
 		requirePermission(t, s, rbac.ResourceWorkspace.Type, policy.ActionApplicationConnect)
@@ -78,12 +79,67 @@ func TestAPIKeyScopesExpand(t *testing.T) {
 		requireAllowAll(t, s)
 	})
 
-	t.Run("empty_defaults_to_all", func(t *testing.T) {
+	t.Run("effective_scope_keep_types", func(t *testing.T) {
 		t.Parallel()
-		s, err := (APIKeyScopes{}).Expand()
+		workspaceID := uuid.New()
+
+		effective := APIKeyScopeSet{
+			Scopes: APIKeyScopes{ApiKeyScopeWorkspaceRead},
+			AllowList: AllowList{
+				{Type: rbac.ResourceWorkspace.Type, ID: workspaceID.String()},
+			},
+		}
+
+		expanded, err := effective.Expand()
 		require.NoError(t, err)
-		requirePermission(t, s, rbac.ResourceWildcard.Type, policy.Action(policy.WildcardSymbol))
+		require.Len(t, expanded.AllowIDList, 1)
+		require.Equal(t, "workspace", expanded.AllowIDList[0].Type)
+		require.Equal(t, workspaceID.String(), expanded.AllowIDList[0].ID)
+	})
+
+	t.Run("empty_rejected", func(t *testing.T) {
+		t.Parallel()
+		_, err := (APIKeyScopes{}).expandRBACScope()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "no scopes provided")
+	})
+
+	t.Run("allow_list_overrides", func(t *testing.T) {
+		t.Parallel()
+		allowID := uuid.NewString()
+		set := APIKeyScopes{ApiKeyScopeWorkspaceRead}.WithAllowList(AllowList{
+			{Type: rbac.ResourceWorkspace.Type, ID: allowID},
+		})
+		s, err := set.Expand()
+		require.NoError(t, err)
+		require.Len(t, s.AllowIDList, 1)
+		require.Equal(t, rbac.AllowListElement{Type: rbac.ResourceWorkspace.Type, ID: allowID}, s.AllowIDList[0])
+	})
+
+	t.Run("allow_list_wildcard_keeps_merged", func(t *testing.T) {
+		t.Parallel()
+		set := APIKeyScopes{ApiKeyScopeWorkspaceRead}.WithAllowList(AllowList{
+			{Type: policy.WildcardSymbol, ID: policy.WildcardSymbol},
+		})
+		s, err := set.Expand()
+		require.NoError(t, err)
+		requirePermission(t, s, rbac.ResourceWorkspace.Type, policy.ActionRead)
 		requireAllowAll(t, s)
+	})
+
+	t.Run("scope_set_helper", func(t *testing.T) {
+		t.Parallel()
+		allowID := uuid.NewString()
+		key := APIKey{
+			Scopes: APIKeyScopes{ApiKeyScopeWorkspaceRead},
+			AllowList: AllowList{
+				{Type: rbac.ResourceWorkspace.Type, ID: allowID},
+			},
+		}
+		s, err := key.ScopeSet().Expand()
+		require.NoError(t, err)
+		require.Len(t, s.AllowIDList, 1)
+		require.Equal(t, rbac.AllowListElement{Type: rbac.ResourceWorkspace.Type, ID: allowID}, s.AllowIDList[0])
 	})
 }
 

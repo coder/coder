@@ -187,7 +187,7 @@ func BenchmarkRBACAuthorizeGroups(b *testing.B) {
 		uuid.MustParse("0632b012-49e0-4d70-a5b3-f4398f1dcd52"),
 		uuid.MustParse("70dbaa7a-ea9c-4f68-a781-97b08af8461d"),
 	)
-	authorizer := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+	authorizer := rbac.NewAuthorizer(prometheus.NewRegistry())
 
 	// Same benchmark cases, but this time groups will be used to match.
 	// Some '*' permissions will still match, but using a fake action reduces

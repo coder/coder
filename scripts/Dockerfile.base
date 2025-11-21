@@ -1,7 +1,7 @@
 # This is the base image used for Coder images. It's a multi-arch image that is
 # built in depot.dev for all supported architectures. Since it's built on real
 # hardware and not cross-compiled, it can have "RUN" commands.
-FROM alpine:3.21.3@sha256:a8560b36e8b8210634f77d9f7f9efd7ffa463e380b75e2e74aff4511df3ef88c
+FROM alpine:3.22.2@sha256:4b7ce07002c69e8f3d704a9c5d6fd3053be500b7f1c69fc0d80990c2ad8dd412
 
 # We use a single RUN command to reduce the number of layers in the image.
 # NOTE: Keep the Terraform version in sync with minTerraformVersion and
@@ -12,7 +12,8 @@ RUN apk add --no-cache \
 		bash \
 		git \
 		openssl \
-		openssh-client && \
+		openssh-client \
+		tzdata && \
 	addgroup \
 		-g 1000 \
 		coder && \
@@ -26,7 +27,7 @@ RUN apk add --no-cache \
 # Terraform was disabled in the edge repo due to a build issue.
 # https://gitlab.alpinelinux.org/alpine/aports/-/commit/f3e263d94cfac02d594bef83790c280e045eba35
 # Using wget for now. Note that busybox unzip doesn't support streaming.
-RUN ARCH="$(arch)"; if [ "${ARCH}" == "x86_64" ]; then ARCH="amd64"; elif [ "${ARCH}" == "aarch64" ]; then ARCH="arm64"; elif [ "${ARCH}" == "armv7l" ]; then ARCH="arm"; fi; wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.13.0/terraform_1.13.0_linux_${ARCH}.zip" && \
+RUN ARCH="$(arch)"; if [ "${ARCH}" == "x86_64" ]; then ARCH="amd64"; elif [ "${ARCH}" == "aarch64" ]; then ARCH="arm64"; elif [ "${ARCH}" == "armv7l" ]; then ARCH="arm"; fi; wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.13.4/terraform_1.13.4_linux_${ARCH}.zip" && \
 		busybox unzip /tmp/terraform.zip -d /usr/local/bin && \
 		rm -f /tmp/terraform.zip && \
 		chmod +x /usr/local/bin/terraform && \

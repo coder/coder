@@ -1,5 +1,3 @@
-import CheckOutlined from "@mui/icons-material/CheckOutlined";
-import FileCopyOutlined from "@mui/icons-material/FileCopyOutlined";
 import { API } from "api/api";
 import { DetailedError } from "api/errors";
 import type {
@@ -18,6 +16,7 @@ import { Skeleton } from "components/Skeleton/Skeleton";
 import { useAuthenticated } from "hooks";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { useClipboard } from "hooks/useClipboard";
+import { CheckIcon, CopyIcon } from "lucide-react";
 import {
 	Diagnostics,
 	DynamicParameter,
@@ -289,14 +288,7 @@ interface ButtonPreviewProps {
 }
 
 const ButtonPreview: FC<ButtonPreviewProps> = ({ template, buttonValues }) => {
-	const clipboard = useClipboard({
-		textToCopy: getClipboardCopyContent(
-			template.name,
-			template.organization_name,
-			buttonValues,
-		),
-	});
-
+	const clipboard = useClipboard();
 	return (
 		<div
 			className="sticky top-10 flex gap-16 h-96 flex-1 flex-col items-center justify-center
@@ -305,11 +297,18 @@ const ButtonPreview: FC<ButtonPreviewProps> = ({ template, buttonValues }) => {
 			<img src="/open-in-coder.svg" alt="Open in Coder button" />
 			<Button
 				variant="default"
-				onClick={clipboard.copyToClipboard}
 				disabled={clipboard.showCopiedSuccess}
+				onClick={() => {
+					const textToCopy = getClipboardCopyContent(
+						template.name,
+						template.organization_name,
+						buttonValues,
+					);
+					clipboard.copyToClipboard(textToCopy);
+				}}
 			>
-				{clipboard.showCopiedSuccess ? <CheckOutlined /> : <FileCopyOutlined />}{" "}
-				Copy button code
+				{clipboard.showCopiedSuccess ? <CheckIcon /> : <CopyIcon />} Copy button
+				code
 			</Button>
 		</div>
 	);

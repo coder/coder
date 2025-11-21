@@ -23,9 +23,6 @@ import (
 //	            +--------+
 func TestPGCoordinator_MultiAgent(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("test only with postgres")
-	}
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	store, ps := dbtestutil.NewDB(t)
@@ -60,9 +57,6 @@ func TestPGCoordinator_MultiAgent(t *testing.T) {
 
 func TestPGCoordinator_MultiAgent_CoordClose(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("test only with postgres")
-	}
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	store, ps := dbtestutil.NewDB(t)
@@ -90,9 +84,6 @@ func TestPGCoordinator_MultiAgent_CoordClose(t *testing.T) {
 //	            +--------+
 func TestPGCoordinator_MultiAgent_UnsubscribeRace(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("test only with postgres")
-	}
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	store, ps := dbtestutil.NewDB(t)
@@ -135,9 +126,6 @@ func TestPGCoordinator_MultiAgent_UnsubscribeRace(t *testing.T) {
 //	            +--------+
 func TestPGCoordinator_MultiAgent_Unsubscribe(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("test only with postgres")
-	}
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	store, ps := dbtestutil.NewDB(t)
@@ -197,9 +185,6 @@ func TestPGCoordinator_MultiAgent_Unsubscribe(t *testing.T) {
 //	            +--------+
 func TestPGCoordinator_MultiAgent_MultiCoordinator(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("test only with postgres")
-	}
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	store, ps := dbtestutil.NewDB(t)
@@ -247,9 +232,6 @@ func TestPGCoordinator_MultiAgent_MultiCoordinator(t *testing.T) {
 //	            +--------+
 func TestPGCoordinator_MultiAgent_MultiCoordinator_UpdateBeforeSubscribe(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("test only with postgres")
-	}
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	store, ps := dbtestutil.NewDB(t)
@@ -299,9 +281,6 @@ func TestPGCoordinator_MultiAgent_MultiCoordinator_UpdateBeforeSubscribe(t *test
 //	            +--------+
 func TestPGCoordinator_MultiAgent_TwoAgents(t *testing.T) {
 	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("test only with postgres")
-	}
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	store, ps := dbtestutil.NewDB(t)

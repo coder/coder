@@ -348,9 +348,6 @@ func TestServer(t *testing.T) {
 
 		runGitHubProviderTest := func(t *testing.T, tc testCase) {
 			t.Parallel()
-			if !dbtestutil.WillUsePostgres() {
-				t.Skip("test requires postgres")
-			}
 
 			ctx, cancelFunc := context.WithCancel(testutil.Context(t, testutil.WaitLong))
 			defer cancelFunc()
@@ -1254,8 +1251,9 @@ func TestServer(t *testing.T) {
 					t.Logf("error creating request: %s", err.Error())
 					return false
 				}
+				client := &http.Client{}
 				// nolint:bodyclose
-				res, err := http.DefaultClient.Do(req)
+				res, err := client.Do(req)
 				if err != nil {
 					t.Logf("error hitting prometheus endpoint: %s", err.Error())
 					return false
@@ -1316,8 +1314,9 @@ func TestServer(t *testing.T) {
 					t.Logf("error creating request: %s", err.Error())
 					return false
 				}
+				client := &http.Client{}
 				// nolint:bodyclose
-				res, err := http.DefaultClient.Do(req)
+				res, err := client.Do(req)
 				if err != nil {
 					t.Logf("error hitting prometheus endpoint: %s", err.Error())
 					return false
@@ -2140,10 +2139,6 @@ func TestServerYAMLConfig(t *testing.T) {
 func TestConnectToPostgres(t *testing.T) {
 	t.Parallel()
 
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("this test does not make sense without postgres")
-	}
-
 	t.Run("Migrate", func(t *testing.T) {
 		t.Parallel()
 
@@ -2253,10 +2248,6 @@ type runServerOpts struct {
 
 func TestServer_TelemetryDisabled_FinalReport(t *testing.T) {
 	t.Parallel()
-
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("this test requires postgres")
-	}
 
 	telemetryServerURL, deployment, snapshot := mockTelemetryServer(t)
 	dbConnURL, err := dbtestutil.Open(t)

@@ -22,6 +22,8 @@ var (
 	inputSimple []byte
 	//go:embed testdata/timings-aggregation/init.txtar
 	inputInit []byte
+	//go:embed testdata/timings-aggregation/initupgrade.txtar
+	inputInitUpgrade []byte
 	//go:embed testdata/timings-aggregation/error.txtar
 	inputError []byte
 	//go:embed testdata/timings-aggregation/complete.txtar
@@ -44,6 +46,10 @@ func TestAggregation(t *testing.T) {
 		{
 			name:  "init",
 			input: inputInit,
+		},
+		{
+			name:  "initupgrade",
+			input: inputInitUpgrade,
 		},
 		{
 			name:  "simple",
@@ -148,4 +154,19 @@ func printTimings(t *testing.T, timings []*proto.Timing) {
 	for _, a := range timings {
 		terraform_internal.PrintTiming(t, a)
 	}
+}
+
+func TestTimingStages(t *testing.T) {
+	t.Parallel()
+
+	agg := &timingAggregator{
+		stage:       database.ProvisionerJobTimingStageApply,
+		stateLookup: make(map[uint64]*timingSpan),
+	}
+
+	end := agg.startStage(database.ProvisionerJobTimingStageApply)
+	end(nil)
+
+	evts := agg.aggregate()
+	require.Len(t, evts, 1)
 }

@@ -34,6 +34,9 @@ const (
 
 	// ActionTypeBackoff indicates that prebuild creation should be delayed.
 	ActionTypeBackoff
+
+	// ActionTypeCancelPending indicates that pending prebuilds should be canceled.
+	ActionTypeCancelPending
 )
 
 // PresetSnapshot is a filtered view of GlobalSnapshot focused on a single preset.
@@ -49,6 +52,7 @@ type PresetSnapshot struct {
 	Running           []database.GetRunningPrebuiltWorkspacesRow
 	Expired           []database.GetRunningPrebuiltWorkspacesRow
 	InProgress        []database.CountInProgressPrebuildsRow
+	PendingCount      int
 	Backoff           *database.GetPresetsBackoffRow
 	IsHardLimited     bool
 	clock             quartz.Clock
@@ -61,6 +65,7 @@ func NewPresetSnapshot(
 	running []database.GetRunningPrebuiltWorkspacesRow,
 	expired []database.GetRunningPrebuiltWorkspacesRow,
 	inProgress []database.CountInProgressPrebuildsRow,
+	pendingCount int,
 	backoff *database.GetPresetsBackoffRow,
 	isHardLimited bool,
 	clock quartz.Clock,
@@ -72,6 +77,7 @@ func NewPresetSnapshot(
 		Running:           running,
 		Expired:           expired,
 		InProgress:        inProgress,
+		PendingCount:      pendingCount,
 		Backoff:           backoff,
 		IsHardLimited:     isHardLimited,
 		clock:             clock,
@@ -115,7 +121,7 @@ type ReconciliationActions struct {
 }
 
 func (ra *ReconciliationActions) IsNoop() bool {
-	return ra.Create == 0 && len(ra.DeleteIDs) == 0 && ra.BackoffUntil.IsZero()
+	return ra.ActionType != ActionTypeCancelPending && ra.Create == 0 && len(ra.DeleteIDs) == 0 && ra.BackoffUntil.IsZero()
 }
 
 // MatchesCron interprets a cron spec as a continuous time range,
@@ -345,18 +351,30 @@ func (p PresetSnapshot) handleActiveTemplateVersion() (actions []*Reconciliation
 	return actions, nil
 }
 
-// handleInactiveTemplateVersion deletes all running prebuilds except those already being deleted
-// to avoid duplicate deletion attempts.
-func (p PresetSnapshot) handleInactiveTemplateVersion() ([]*ReconciliationActions, error) {
-	prebuildsToDelete := len(p.Running)
-	deleteIDs := p.getOldestPrebuildIDs(prebuildsToDelete)
+// handleInactiveTemplateVersion handles prebuilds from inactive template versions:
+//  1. If the preset has pending prebuild jobs from an inactive template version, create a cancel reconciliation action.
+//     This cancels all pending prebuild jobs for this preset's template version.
+//  2. If the preset has prebuilt workspaces currently running from an inactive template version,
+//     create a delete reconciliation action to remove all running prebuilt workspaces.
+func (p PresetSnapshot) handleInactiveTemplateVersion() (actions []*ReconciliationActions, err error) {
+	// Cancel pending initial prebuild jobs from inactive version
+	if p.PendingCount > 0 {
+		actions = append(actions,
+			&ReconciliationActions{
+				ActionType: ActionTypeCancelPending,
+			})
+	}
 
-	return []*ReconciliationActions{
-		{
-			ActionType: ActionTypeDelete,
-			DeleteIDs:  deleteIDs,
-		},
-	}, nil
+	// Delete prebuilds running in inactive version
+	deleteIDs := p.getOldestPrebuildIDs(len(p.Running))
+	if len(deleteIDs) > 0 {
+		actions = append(actions,
+			&ReconciliationActions{
+				ActionType: ActionTypeDelete,
+				DeleteIDs:  deleteIDs,
+			})
+	}
+	return actions, nil
 }
 
 // needsBackoffPeriod checks if we should delay prebuild creation due to recent failures.

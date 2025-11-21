@@ -80,6 +80,9 @@ updates:
       mui:
         patterns:
           - "@mui*"
+      radix:
+        patterns:
+          - "@radix-ui/*"
       react:
         patterns:
           - "react"
@@ -104,6 +107,7 @@ updates:
       - dependency-name: "*"
         update-types:
           - version-update:semver-major
+      - dependency-name: "@playwright/test"
     open-pull-requests-limit: 15
 
   - package-ecosystem: "terraform"

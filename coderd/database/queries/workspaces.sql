@@ -117,7 +117,6 @@ SELECT
 	latest_build.error as latest_build_error,
 	latest_build.transition as latest_build_transition,
 	latest_build.job_status as latest_build_status,
-	latest_build.has_ai_task as latest_build_has_ai_task,
 	latest_build.has_external_agent as latest_build_has_external_agent
 FROM
 	workspaces_expanded as workspaces
@@ -351,25 +350,19 @@ WHERE
 			  (latest_build.template_version_id = template.active_version_id) = sqlc.narg('using_active') :: boolean
 		  ELSE true
 	END
-	-- Filter by has_ai_task in latest build
+	-- Filter by has_ai_task, checks if this is a task workspace.
 	AND CASE
-		WHEN sqlc.narg('has_ai_task') :: boolean IS NOT NULL THEN
-			(COALESCE(latest_build.has_ai_task, false) OR (
-				-- If the build has no AI task, it means that the provisioner job is in progress
-				-- and we don't know if it has an AI task yet. In this case, we optimistically
-				-- assume that it has an AI task if the AI Prompt parameter is not empty. This
-				-- lets the AI Task frontend spawn a task and see it immediately after instead of
-				-- having to wait for the build to complete.
-				latest_build.has_ai_task IS NULL AND
-				latest_build.completed_at IS NULL AND
-				EXISTS (
-					SELECT 1
-					FROM workspace_build_parameters
-					WHERE workspace_build_parameters.workspace_build_id = latest_build.id
-					AND workspace_build_parameters.name = 'AI Prompt'
-					AND workspace_build_parameters.value != ''
-				)
-			)) = (sqlc.narg('has_ai_task') :: boolean)
+		WHEN sqlc.narg('has_ai_task')::boolean IS NOT NULL
+		THEN sqlc.narg('has_ai_task')::boolean = EXISTS (
+			SELECT
+				1
+			FROM
+				tasks
+			WHERE
+				-- Consider all tasks, deleting a task does not turn the
+				-- workspace into a non-task workspace.
+				tasks.workspace_id = workspaces.id
+		)
 		ELSE true
 	END
 	-- Filter by has_external_agent in latest build
@@ -457,6 +450,7 @@ WHERE
 		'', -- template_display_name
 		'', -- template_icon
 		'', -- template_description
+		'00000000-0000-0000-0000-000000000000'::uuid, -- task_id
 		-- Extra columns added to `filtered_workspaces`
 		'00000000-0000-0000-0000-000000000000'::uuid, -- template_version_id
 		'', -- template_version_name
@@ -465,7 +459,6 @@ WHERE
 		'', -- latest_build_error
 		'start'::workspace_transition, -- latest_build_transition
 		'unknown'::provisioner_job_status, -- latest_build_status
-		false, -- latest_build_has_ai_task
 		false -- latest_build_has_external_agent
 	WHERE
 		@with_summary :: boolean = true
@@ -983,3 +976,23 @@ WHERE
 	AND fsb.initiator_id != 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid
 GROUP BY t.name, COALESCE(tvp.name, ''), o.name
 ORDER BY t.name, preset_name, o.name;
+
+-- name: GetWorkspacesForWorkspaceMetrics :many
+SELECT
+    u.username as owner_username,
+    t.name as template_name,
+    tv.name as template_version_name,
+    pj.job_status as latest_build_status,
+    wb.transition as latest_build_transition
+FROM workspaces w
+JOIN users u ON w.owner_id = u.id
+JOIN templates t ON w.template_id = t.id
+JOIN workspace_builds wb ON w.id = wb.workspace_id
+JOIN provisioner_jobs pj ON wb.job_id = pj.id
+LEFT JOIN template_versions tv ON wb.template_version_id = tv.id
+WHERE w.deleted = false
+AND wb.build_number = (
+    SELECT MAX(wb2.build_number)
+    FROM workspace_builds wb2
+    WHERE wb2.workspace_id = w.id
+);

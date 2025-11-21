@@ -27,10 +27,14 @@ interface LinkProps
 	extends React.AnchorHTMLAttributes<HTMLAnchorElement>,
 		VariantProps<typeof linkVariants> {
 	asChild?: boolean;
+	showExternalIcon?: boolean;
 }
 
 export const Link = forwardRef<HTMLAnchorElement, LinkProps>(
-	({ className, children, size, asChild, ...props }, ref) => {
+	(
+		{ className, children, size, asChild, showExternalIcon = true, ...props },
+		ref,
+	) => {
 		const Comp = asChild ? Slot : "a";
 		return (
 			<Comp
@@ -39,7 +43,7 @@ export const Link = forwardRef<HTMLAnchorElement, LinkProps>(
 				{...props}
 			>
 				<Slottable>{children}</Slottable>
-				<SquareArrowOutUpRightIcon aria-hidden="true" />
+				{showExternalIcon && <SquareArrowOutUpRightIcon aria-hidden="true" />}
 			</Comp>
 		);
 	},

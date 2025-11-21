@@ -1,0 +1,124 @@
+syntax = "proto3";
+option go_package = "github.com/coder/coder/v2/aibridged/proto";
+
+package proto;
+
+import "google/protobuf/any.proto";
+import "google/protobuf/timestamp.proto";
+
+// Recorder is responsible for persisting AI usage records along with their related interception.
+service Recorder {
+  // RecordInterception creates a new interception record to which all other sub-resources
+  // (token, prompt, tool uses) will be related.
+  rpc RecordInterception(RecordInterceptionRequest) returns (RecordInterceptionResponse);
+  rpc RecordInterceptionEnded(RecordInterceptionEndedRequest) returns (RecordInterceptionEndedResponse);
+  rpc RecordTokenUsage(RecordTokenUsageRequest) returns (RecordTokenUsageResponse);
+  rpc RecordPromptUsage(RecordPromptUsageRequest) returns (RecordPromptUsageResponse);
+  rpc RecordToolUsage(RecordToolUsageRequest) returns (RecordToolUsageResponse);
+}
+
+// MCPConfigurator is responsible for retrieving any relevant data required for configuring MCP clients
+// against remote servers.
+service MCPConfigurator {
+  // GetMCPServerConfigs will retrieve MCP server configurations.
+  rpc GetMCPServerConfigs(GetMCPServerConfigsRequest) returns (GetMCPServerConfigsResponse);
+  // GetMCPServerAccessTokensBatch will retrieve an access token for a given list of MCP servers, which may involve
+  // acquiring, validating, or refreshing tokens synchronously. The server should make every effort to
+  // parallelise this work.
+  rpc GetMCPServerAccessTokensBatch(GetMCPServerAccessTokensBatchRequest) returns (GetMCPServerAccessTokensBatchResponse);
+}
+
+// Authorizer handles all Coder-related authorization functions.
+service Authorizer {
+  // IsAuthorized validates that a given Coder key is valid and the user is authorized to use AI Bridge.
+  // TODO: add authorization; currently only key validation takes place.
+  rpc IsAuthorized(IsAuthorizedRequest) returns (IsAuthorizedResponse);
+}
+
+message RecordInterceptionRequest {
+  string id = 1; // UUID.
+  string initiator_id = 2; // UUID.
+  string provider = 3;
+  string model = 4;
+  map<string, google.protobuf.Any> metadata = 5;
+  google.protobuf.Timestamp started_at = 6;
+  string api_key_id = 7;
+}
+
+message RecordInterceptionResponse {}
+
+message RecordInterceptionEndedRequest {
+  string id = 1; // UUID.
+  google.protobuf.Timestamp ended_at = 2;
+}
+
+message RecordInterceptionEndedResponse {}
+
+message RecordTokenUsageRequest {
+  string interception_id = 1; // UUID.
+  string msg_id = 2; // ID provided by provider.
+  int64 input_tokens = 3;
+  int64 output_tokens = 4;
+  map<string, google.protobuf.Any> metadata = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+message RecordTokenUsageResponse {}
+
+message RecordPromptUsageRequest {
+  string interception_id = 1; // UUID.
+  string msg_id = 2; // ID provided by provider.
+  string prompt = 3;
+  map<string, google.protobuf.Any> metadata = 4;
+  google.protobuf.Timestamp created_at = 5;
+}
+message RecordPromptUsageResponse {}
+
+message RecordToolUsageRequest {
+  string interception_id = 1; // UUID.
+  string msg_id = 2; // ID provided by provider.
+  optional string server_url = 3; // The URL of the MCP server.
+  string tool = 4;
+  string input = 5;
+  bool injected = 6;
+  optional string invocation_error = 7; // Only injected tools are invoked.
+  map<string, google.protobuf.Any> metadata = 8;
+  google.protobuf.Timestamp created_at = 9;
+}
+message RecordToolUsageResponse {}
+
+message GetMCPServerConfigsRequest {
+  string user_id = 1; // UUID. // Not used yet, will be necessary for later RBAC purposes.
+}
+
+message GetMCPServerConfigsResponse {
+  MCPServerConfig coder_mcp_config = 1;
+  repeated MCPServerConfig external_auth_mcp_configs = 2;
+}
+
+message MCPServerConfig {
+  string id = 1; // Maps to the ID of the External Auth; this ID is unique.
+  string url = 2;
+  string tool_allow_regex = 3;
+  string tool_deny_regex = 4;
+}
+
+message GetMCPServerAccessTokensBatchRequest {
+  string user_id = 1; // UUID.
+  repeated string mcp_server_config_ids = 2;
+}
+
+// GetMCPServerAccessTokensBatchResponse returns a map for resulting tokens or errors, indexed
+// by server ID.
+message GetMCPServerAccessTokensBatchResponse{
+  map<string, string> access_tokens = 1;
+  map<string, string> errors = 2;
+}
+
+message IsAuthorizedRequest {
+  string key = 1;
+}
+
+message IsAuthorizedResponse {
+  string owner_id = 1;
+  string api_key_id = 2;
+}

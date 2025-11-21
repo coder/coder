@@ -186,6 +186,8 @@ type LicenseOptions struct {
 	// past.
 	IssuedAt time.Time
 	Features license.Features
+
+	AllowEmpty bool
 }
 
 func (opts *LicenseOptions) WithIssuedAt(now time.Time) *LicenseOptions {
@@ -276,10 +278,10 @@ func GenerateLicense(t *testing.T, options LicenseOptions) string {
 		issuedAt = time.Now().Add(-time.Minute)
 	}
 
-	if options.AccountType == "" {
+	if !options.AllowEmpty && options.AccountType == "" {
 		options.AccountType = license.AccountTypeSalesforce
 	}
-	if options.AccountID == "" {
+	if !options.AllowEmpty && options.AccountID == "" {
 		options.AccountID = "test-account-id"
 	}
 
@@ -412,6 +414,7 @@ func newExternalProvisionerDaemon(t testing.TB, client *codersdk.Client, org uui
 				ServeOptions: &provisionersdk.ServeOptions{
 					Listener:      provisionerSrv,
 					WorkDirectory: t.TempDir(),
+					Experiments:   codersdk.Experiments{},
 				},
 			}))
 		}()

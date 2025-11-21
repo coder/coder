@@ -2,12 +2,14 @@ package terraform
 
 import (
 	"encoding/json"
+	"os"
 	"testing"
 
 	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/testutil"
 )
 
 type mockLogger struct {
@@ -170,4 +172,47 @@ func TestOnlyDataResources(t *testing.T) {
 			require.Equal(t, string(expected), string(got))
 		})
 	}
+}
+
+func TestChecksumFileCRC32(t *testing.T) {
+	t.Parallel()
+
+	t.Run("file exists", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		logger := testutil.Logger(t)
+
+		tmpfile, err := os.CreateTemp("", "lockfile-*.hcl")
+		require.NoError(t, err)
+		defer os.Remove(tmpfile.Name())
+
+		content := []byte("provider \"aws\" { version = \"5.0.0\" }")
+		_, err = tmpfile.Write(content)
+		require.NoError(t, err)
+		tmpfile.Close()
+
+		// Calculate checksum - expected value for this specific content
+		expectedChecksum := uint32(0x08f39f51)
+		checksum := checksumFileCRC32(ctx, logger, tmpfile.Name())
+		require.Equal(t, expectedChecksum, checksum)
+
+		// Modify file
+		err = os.WriteFile(tmpfile.Name(), []byte("modified content"), 0o600)
+		require.NoError(t, err)
+
+		// Checksum should be different
+		modifiedChecksum := checksumFileCRC32(ctx, logger, tmpfile.Name())
+		require.NotEqual(t, expectedChecksum, modifiedChecksum)
+	})
+
+	t.Run("file does not exist", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		logger := testutil.Logger(t)
+
+		checksum := checksumFileCRC32(ctx, logger, "/nonexistent/file.hcl")
+		require.Zero(t, checksum)
+	})
 }

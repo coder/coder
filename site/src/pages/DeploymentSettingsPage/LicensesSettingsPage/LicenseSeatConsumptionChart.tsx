@@ -28,7 +28,7 @@ import { docs } from "utils/docs";
 const chartConfig = {
 	users: {
 		label: "Users",
-		color: "hsl(var(--highlight-green))",
+		color: "hsl(var(--highlight-purple))",
 	},
 } satisfies ChartConfig;
 
@@ -207,7 +207,7 @@ export const LicenseSeatConsumptionChart: FC<
 
 									<Area
 										dataKey="users"
-										type="natural"
+										type="linear"
 										fill="url(#fillUsers)"
 										fillOpacity={0.4}
 										stroke="var(--color-users)"

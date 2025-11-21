@@ -1,0 +1,2 @@
+-- No-op: enum values remain to avoid churn. Removing enum values requires
+-- doing a create/cast/drop cycle which is intentionally omitted here.

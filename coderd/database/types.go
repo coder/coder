@@ -163,9 +163,7 @@ func (m StringMapOfInt) Value() (driver.Value, error) {
 
 type CustomRolePermissions []CustomRolePermission
 
-// APIKeyScopes implements sql.Scanner and driver.Valuer so it can be read from
-// and written to the Postgres api_key_scope[] enum array column.
-func (s *APIKeyScopes) Scan(src interface{}) error {
+func (s *APIKeyScopes) Scan(src any) error {
 	var arr []string
 	if err := pq.Array(&arr).Scan(src); err != nil {
 		return err
@@ -314,36 +312,11 @@ func ParseIP(ipStr string) pqtype.Inet {
 	}
 }
 
-// AllowListTarget represents a single scope allow-list entry.
-// It encodes a resource tuple (type, id) and provides helpers for
-// consistent string and JSON representations across the codebase.
-type AllowListTarget struct {
-	Type string `json:"type"`
-	ID   string `json:"id"`
-}
-
-// String returns the canonical database representation "type:id".
-func (t AllowListTarget) String() string {
-	return t.Type + ":" + t.ID
-}
-
-// ParseAllowListTarget parses the canonical string form "type:id".
-func ParseAllowListTarget(s string) (AllowListTarget, error) {
-	targetType, id, ok := rbac.ParseResourceAction(s)
-	if !ok {
-		return AllowListTarget{}, xerrors.Errorf("invalid allow list target: %q", s)
-	}
-	return AllowListTarget{Type: targetType, ID: id}, nil
-}
-
-// AllowListWildcard returns the wildcard allow-list entry {"*","*"}.
-func AllowListWildcard() AllowListTarget { return AllowListTarget{Type: "*", ID: "*"} }
-
 // AllowList is a typed wrapper around a list of AllowListTarget entries.
 // It implements sql.Scanner and driver.Valuer so it can be stored in and
 // loaded from a Postgres text[] column that stores each entry in the
 // canonical form "type:id".
-type AllowList []AllowListTarget
+type AllowList []rbac.AllowListElement
 
 // Scan implements sql.Scanner. It supports inputs that pq.Array can decode
 // into []string, and then converts each element to an AllowListTarget.
@@ -352,13 +325,13 @@ func (a *AllowList) Scan(src any) error {
 	if err := pq.Array(&raw).Scan(src); err != nil {
 		return err
 	}
-	out := make([]AllowListTarget, len(raw))
+	out := make([]rbac.AllowListElement, len(raw))
 	for i, s := range raw {
-		t, err := ParseAllowListTarget(s)
+		e, err := rbac.ParseAllowListEntry(s)
 		if err != nil {
 			return err
 		}
-		out[i] = t
+		out[i] = e
 	}
 	*a = out
 	return nil

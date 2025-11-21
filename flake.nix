@@ -84,6 +84,31 @@
           vendorHash = null;
         };
 
+        # Custom sqlc build from coder/sqlc fork to fix ambiguous column bug, see:
+        # - https://github.com/coder/sqlc/pull/1
+        # - https://github.com/sqlc-dev/sqlc/pull/4159
+        #
+        # To update hashes:
+        # 1. Run: `nix --extra-experimental-features 'nix-command flakes' build .#devShells.x86_64-linux.default`
+        # 2. Nix will fail with the correct sha256 hash for src
+        # 3. Update the sha256 and run again
+        # 4. Nix will fail with the correct vendorHash
+        # 5. Update the vendorHash
+        sqlc-custom = unstablePkgs.buildGo124Module {
+          pname = "sqlc";
+          version = "coder-fork-aab4e865a51df0c43e1839f81a9d349b41d14f05";
+
+          src = pkgs.fetchFromGitHub {
+            owner = "coder";
+            repo = "sqlc";
+            rev = "aab4e865a51df0c43e1839f81a9d349b41d14f05";
+            sha256 = "sha256-zXjTypEFWDOkoZMKHMMRtAz2coNHSCkQ+nuZ8rOnzZ8=";
+          };
+
+          subPackages = [ "cmd/sqlc" ];
+          vendorHash = "sha256-69kg3qkvEWyCAzjaCSr3a73MNonub9sZTYyGaCW+UTI=";
+        };
+
         # Packages required to build the frontend
         frontendPackages =
           with pkgs;
@@ -163,7 +188,8 @@
             ripgrep
             shellcheck
             (pinnedPkgs.shfmt)
-            sqlc
+            # sqlc
+            sqlc-custom
             syft
             unstablePkgs.terraform
             typos

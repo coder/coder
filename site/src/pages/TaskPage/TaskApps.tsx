@@ -1,3 +1,4 @@
+import type { Task, Workspace } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
 	DropdownMenu,
@@ -9,36 +10,43 @@ import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
 import { Link } from "components/Link/Link";
 import { ScrollArea, ScrollBar } from "components/ScrollArea/ScrollArea";
-import { ChevronDownIcon, LayoutGridIcon } from "lucide-react";
+import { ChevronDownIcon, LayoutGridIcon, TerminalIcon } from "lucide-react";
+import { getTerminalHref } from "modules/apps/apps";
 import { useAppLink } from "modules/apps/useAppLink";
 import {
-	getTaskApps,
-	type Task,
+	getAllAppsWithAgent,
 	type WorkspaceAppWithAgent,
-} from "modules/tasks/tasks";
-import type React from "react";
+} from "modules/tasks/apps";
 import { type FC, useState } from "react";
-import { Link as RouterLink } from "react-router";
+import { type LinkProps, Link as RouterLink } from "react-router";
 import { cn } from "utils/cn";
 import { docs } from "utils/docs";
-import { TaskAppIFrame } from "./TaskAppIframe";
+import { TaskAppIFrame, TaskIframe } from "./TaskAppIframe";
 
 type TaskAppsProps = {
 	task: Task;
+	workspace: Workspace;
 };
 
-export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
-	const apps = getTaskApps(task).filter(
+const TERMINAL_TAB_ID = "terminal";
+
+export const TaskApps: FC<TaskAppsProps> = ({ task, workspace }) => {
+	const apps = getAllAppsWithAgent(workspace).filter(
 		// The Chat UI app will be displayed in the sidebar, so we don't want to
 		// show it as a web app.
-		(app) =>
-			app.id !== task.workspace.latest_build.ai_task_sidebar_app_id &&
-			app.health !== "disabled",
+		(app) => app.id !== task.workspace_app_id && app.health !== "disabled",
 	);
 	const [embeddedApps, externalApps] = splitEmbeddedAndExternalApps(apps);
 	const [activeAppId, setActiveAppId] = useState(embeddedApps.at(0)?.id);
 	const hasAvailableAppsToDisplay =
 		embeddedApps.length > 0 || externalApps.length > 0;
+	const taskAgent = apps.at(0)?.agent;
+	const terminalHref = getTerminalHref({
+		username: task.owner_name,
+		workspace: task.workspace_name,
+		agent: taskAgent?.name,
+	});
+	const isTerminalActive = activeAppId === TERMINAL_TAB_ID;
 
 	return (
 		<main className="flex flex-col h-full">
@@ -49,7 +57,7 @@ export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 							{embeddedApps.map((app) => (
 								<TaskAppTab
 									key={app.id}
-									task={task}
+									workspace={workspace}
 									app={app}
 									active={app.id === activeAppId}
 									onClick={(e) => {
@@ -58,12 +66,26 @@ export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 									}}
 								/>
 							))}
+							<TaskTab
+								to={terminalHref}
+								active={isTerminalActive}
+								onClick={(e) => {
+									e.preventDefault();
+									setActiveAppId(TERMINAL_TAB_ID);
+								}}
+							>
+								<TerminalIcon />
+								Terminal
+							</TaskTab>
 						</div>
 						<ScrollBar orientation="horizontal" className="h-2" />
 					</ScrollArea>
 
 					{externalApps.length > 0 && (
-						<ExternalAppsDropdown task={task} externalApps={externalApps} />
+						<ExternalAppsDropdown
+							workspace={workspace}
+							externalApps={externalApps}
+						/>
 					)}
 				</div>
 			)}
@@ -75,9 +97,17 @@ export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 							key={app.id}
 							active={activeAppId === app.id}
 							app={app}
-							task={task}
+							workspace={workspace}
 						/>
 					))}
+
+					<TaskIframe
+						src={terminalHref}
+						title="Terminal"
+						className={cn({
+							hidden: !isTerminalActive,
+						})}
+					/>
 				</div>
 			) : (
 				<div className="mx-auto my-auto flex flex-col items-center">
@@ -102,12 +132,12 @@ export const TaskApps: FC<TaskAppsProps> = ({ task }) => {
 };
 
 type ExternalAppsDropdownProps = {
-	task: Task;
+	workspace: Workspace;
 	externalApps: WorkspaceAppWithAgent[];
 };
 
 const ExternalAppsDropdown: FC<ExternalAppsDropdownProps> = ({
-	task,
+	workspace,
 	externalApps,
 }) => {
 	return (
@@ -121,7 +151,7 @@ const ExternalAppsDropdown: FC<ExternalAppsDropdownProps> = ({
 				</DropdownMenuTrigger>
 				<DropdownMenuContent>
 					{externalApps.map((app) => (
-						<ExternalAppMenuItem key={app.id} app={app} task={task} />
+						<ExternalAppMenuItem key={app.id} app={app} workspace={workspace} />
 					))}
 				</DropdownMenuContent>
 			</DropdownMenu>
@@ -131,11 +161,11 @@ const ExternalAppsDropdown: FC<ExternalAppsDropdownProps> = ({
 
 const ExternalAppMenuItem: FC<{
 	app: WorkspaceAppWithAgent;
-	task: Task;
-}> = ({ app, task }) => {
+	workspace: Workspace;
+}> = ({ app, workspace }) => {
 	const link = useAppLink(app, {
 		agent: app.agent,
-		workspace: task.workspace,
+		workspace,
 	});
 
 	return (
@@ -149,23 +179,47 @@ const ExternalAppMenuItem: FC<{
 };
 
 type TaskAppTabProps = {
-	task: Task;
+	workspace: Workspace;
 	app: WorkspaceAppWithAgent;
 	active: boolean;
 	onClick: (e: React.MouseEvent<HTMLAnchorElement>) => void;
 };
 
-const TaskAppTab: FC<TaskAppTabProps> = ({ task, app, active, onClick }) => {
+const TaskAppTab: FC<TaskAppTabProps> = ({
+	workspace,
+	app,
+	active,
+	onClick,
+}) => {
 	const link = useAppLink(app, {
 		agent: app.agent,
-		workspace: task.workspace,
+		workspace,
 	});
 
+	return (
+		<TaskTab active={active} to={link.href} onClick={onClick}>
+			{app.icon ? <ExternalImage src={app.icon} /> : <LayoutGridIcon />}
+			{link.label}
+			{app.health === "unhealthy" && (
+				<InfoTooltip
+					title="This app is unhealthy."
+					message="The health check failed."
+					type="warning"
+				/>
+			)}
+		</TaskTab>
+	);
+};
+
+type TaskTabProps = LinkProps & {
+	active: boolean;
+};
+
+const TaskTab: FC<TaskTabProps> = ({ active, ...routerLinkProps }) => {
 	return (
 		<Button
 			size="sm"
 			variant="subtle"
-			key={app.id}
 			asChild
 			className={cn([
 				"px-3",
@@ -176,17 +230,7 @@ const TaskAppTab: FC<TaskAppTabProps> = ({ task, app, active, onClick }) => {
 				{ "opacity-75 hover:opacity-100": !active },
 			])}
 		>
-			<RouterLink to={link.href} onClick={onClick}>
-				{app.icon ? <ExternalImage src={app.icon} /> : <LayoutGridIcon />}
-				{link.label}
-				{app.health === "unhealthy" && (
-					<InfoTooltip
-						title="This app is unhealthy."
-						message="The health check failed."
-						type="warning"
-					/>
-				)}
-			</RouterLink>
+			<RouterLink {...routerLinkProps} />
 		</Button>
 	);
 };

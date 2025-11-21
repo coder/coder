@@ -8,13 +8,8 @@ import {
 	MockAuditLogWithWorkspaceBuild,
 	MockUserOwner,
 } from "testHelpers/entities";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { Table, TableBody } from "components/Table/Table";
 import { AuditLogRow } from "./AuditLogRow";
 
 const meta: Meta<typeof AuditLogRow> = {
@@ -22,18 +17,11 @@ const meta: Meta<typeof AuditLogRow> = {
 	component: AuditLogRow,
 	decorators: [
 		(Story) => (
-			<TableContainer>
-				<Table>
-					<TableHead>
-						<TableRow>
-							<TableCell style={{ paddingLeft: 32 }}>Logs</TableCell>
-						</TableRow>
-					</TableHead>
-					<TableBody>
-						<Story />
-					</TableBody>
-				</Table>
-			</TableContainer>
+			<Table>
+				<TableBody>
+					<Story />
+				</TableBody>
+			</Table>
 		),
 	],
 };

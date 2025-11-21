@@ -13,11 +13,13 @@ import (
 
 type AIBridgeInterception struct {
 	ID          uuid.UUID            `json:"id" format:"uuid"`
-	InitiatorID uuid.UUID            `json:"initiator_id" format:"uuid"`
+	APIKeyID    *string              `json:"api_key_id"`
+	Initiator   MinimalUser          `json:"initiator"`
 	Provider    string               `json:"provider"`
 	Model       string               `json:"model"`
 	Metadata    map[string]any       `json:"metadata"`
 	StartedAt   time.Time            `json:"started_at" format:"date-time"`
+	EndedAt     *time.Time           `json:"ended_at" format:"date-time"`
 	TokenUsages []AIBridgeTokenUsage `json:"token_usages"`
 	UserPrompts []AIBridgeUserPrompt `json:"user_prompts"`
 	ToolUsages  []AIBridgeToolUsage  `json:"tool_usages"`
@@ -56,6 +58,7 @@ type AIBridgeToolUsage struct {
 }
 
 type AIBridgeListInterceptionsResponse struct {
+	Count   int64                  `json:"count"`
 	Results []AIBridgeInterception `json:"results"`
 }
 
@@ -111,8 +114,8 @@ func (f AIBridgeListInterceptionsFilter) asRequestOption() RequestOption {
 
 // AIBridgeListInterceptions returns AIBridge interceptions with the given
 // filter.
-func (c *ExperimentalClient) AIBridgeListInterceptions(ctx context.Context, filter AIBridgeListInterceptionsFilter) (AIBridgeListInterceptionsResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/aibridge/interceptions", nil, filter.asRequestOption(), filter.Pagination.asRequestOption(), filter.Pagination.asRequestOption())
+func (c *Client) AIBridgeListInterceptions(ctx context.Context, filter AIBridgeListInterceptionsFilter) (AIBridgeListInterceptionsResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/aibridge/interceptions", nil, filter.asRequestOption(), filter.Pagination.asRequestOption(), filter.Pagination.asRequestOption())
 	if err != nil {
 		return AIBridgeListInterceptionsResponse{}, err
 	}

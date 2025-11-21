@@ -5,24 +5,15 @@ import type { FC, HTMLAttributes, PropsWithChildren } from "react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 
 export const OptionName: FC<PropsWithChildren> = ({ children }) => {
-	return <span css={{ display: "block" }}>{children}</span>;
-};
-
-export const OptionDescription: FC<PropsWithChildren> = ({ children }) => {
-	const theme = useTheme();
-
 	return (
-		<span
-			css={{
-				display: "block",
-				color: theme.palette.text.secondary,
-				fontSize: 14,
-				marginTop: 4,
-			}}
-		>
+		<span className="block text-sm font-medium text-content-primary">
 			{children}
 		</span>
 	);
+};
+
+export const OptionDescription: FC<PropsWithChildren> = ({ children }) => {
+	return <span className="text-sm font-normal">{children}</span>;
 };
 
 interface OptionValueProps {

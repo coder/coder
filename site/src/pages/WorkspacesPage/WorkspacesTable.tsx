@@ -17,6 +17,7 @@ import type {
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
+import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
@@ -65,10 +66,9 @@ import { useAppLink } from "modules/apps/useAppLink";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { abilitiesByWorkspaceStatus } from "modules/workspaces/actions";
 import { WorkspaceBuildCancelDialog } from "modules/workspaces/WorkspaceBuildCancelDialog/WorkspaceBuildCancelDialog";
-import { WorkspaceDormantBadge } from "modules/workspaces/WorkspaceDormantBadge/WorkspaceDormantBadge";
 import { WorkspaceMoreActions } from "modules/workspaces/WorkspaceMoreActions/WorkspaceMoreActions";
 import { WorkspaceOutdatedTooltip } from "modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
-import { WorkspaceStatusIndicator } from "modules/workspaces/WorkspaceStatusIndicator/WorkspaceStatusIndicator";
+import { WorkspaceStatus } from "modules/workspaces/WorkspaceStatus/WorkspaceStatus";
 import {
 	useWorkspaceUpdate,
 	WorkspaceUpdateDialogs,
@@ -83,10 +83,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
 import { cn } from "utils/cn";
-import {
-	getDisplayWorkspaceTemplateName,
-	lastUsedMessage,
-} from "utils/workspace";
+import { getDisplayWorkspaceTemplateName } from "utils/workspace";
 import { WorkspacesEmpty } from "./WorkspacesEmpty";
 
 interface WorkspacesTableProps {
@@ -211,6 +208,11 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 												{workspace.outdated && (
 													<WorkspaceOutdatedTooltip workspace={workspace} />
 												)}
+												{workspace.task_id && (
+													<Badge size="xs" variant="default">
+														Task
+													</Badge>
+												)}
 											</Stack>
 										}
 										subtitle={
@@ -256,7 +258,9 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 								/>
 							</TableCell>
 
-							<WorkspaceStatusCell workspace={workspace} />
+							<TableCell>
+								<WorkspaceStatus workspace={workspace} />
+							</TableCell>
 
 							<WorkspaceActionsCell
 								workspace={workspace}
@@ -352,27 +356,6 @@ const TableLoader: FC<TableLoaderProps> = ({ canCheckWorkspaces }) => {
 
 const cantBeChecked = (workspace: Workspace) => {
 	return ["deleting", "pending"].includes(workspace.latest_build.status);
-};
-
-type WorkspaceStatusCellProps = {
-	workspace: Workspace;
-};
-
-const WorkspaceStatusCell: FC<WorkspaceStatusCellProps> = ({ workspace }) => {
-	return (
-		<TableCell>
-			<div className="flex flex-col">
-				<WorkspaceStatusIndicator workspace={workspace}>
-					{workspace.dormant_at && (
-						<WorkspaceDormantBadge workspace={workspace} />
-					)}
-				</WorkspaceStatusIndicator>
-				<span className="text-xs font-medium text-content-secondary ml-6 whitespace-nowrap">
-					{lastUsedMessage(workspace.last_used_at)}
-				</span>
-			</div>
-		</TableCell>
-	);
 };
 
 type WorkspaceActionsCellProps = {

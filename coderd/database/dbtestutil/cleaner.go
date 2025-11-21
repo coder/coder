@@ -22,35 +22,42 @@ const (
 	cleanerRespOK        = "OK"
 	envCleanerParentUUID = "DB_CLEANER_PARENT_UUID"
 	envCleanerDSN        = "DB_CLEANER_DSN"
-)
-
-var (
-	originalWorkingDir   string
-	errGettingWorkingDir error
+	envCleanerMagic      = "DB_CLEANER_MAGIC"
+	envCleanerMagicValue = "XEHdJqWehWek8AaWwopy" // 20 random characters to make this collision resistant
 )
 
 func init() {
-	// We expect our tests to run from somewhere in the project tree where `go run` below in `startCleaner` will
-	// be able to resolve the command package. However, some of the tests modify the working directory during the run.
-	// So, we grab the working directory during package init, before tests are run, and then set that work dir on the
-	// subcommand process before it starts.
-	originalWorkingDir, errGettingWorkingDir = os.Getwd()
+	// We are hijacking the init() function here to do something very non-standard.
+	//
+	// We want to be able to run the cleaner as a subprocess of the test process so that it can outlive the test binary
+	// and still clean up, even if the test process times out or is killed. So, what we do is in startCleaner() below,
+	// which is called in the parent process, we exec our own binary and set a collision-resistant environment variable.
+	// Then here in the init(), which will run before main() and therefore before executing tests, we check for the
+	// environment variable, and if present we know this is the child process and we exec the cleaner. Instead of
+	// returning normally from init() we call os.Exit(). This prevents tests from being re-run in the child process (and
+	// recursion).
+	//
+	// If the magic value is not present, we know we are the parent process and init() returns normally.
+	magicValue := os.Getenv(envCleanerMagic)
+	if magicValue == envCleanerMagicValue {
+		RunCleaner()
+		os.Exit(0)
+	}
 }
 
 // startCleaner starts the cleaner in a subprocess. holdThis is an opaque reference that needs to be kept from being
 // garbage collected until we are done with all test databases (e.g. the end of the process).
-func startCleaner(ctx context.Context, parentUUID uuid.UUID, dsn string) (holdThis any, err error) {
-	cmd := exec.Command("go", "run", "github.com/coder/coder/v2/coderd/database/dbtestutil/cleanercmd")
+func startCleaner(ctx context.Context, _ TBSubset, parentUUID uuid.UUID, dsn string) (holdThis any, err error) {
+	bin, err := os.Executable()
+	if err != nil {
+		return nil, xerrors.Errorf("could not get executable path: %w", err)
+	}
+	cmd := exec.Command(bin)
 	cmd.Env = append(os.Environ(),
 		fmt.Sprintf("%s=%s", envCleanerParentUUID, parentUUID.String()),
 		fmt.Sprintf("%s=%s", envCleanerDSN, dsn),
+		fmt.Sprintf("%s=%s", envCleanerMagic, envCleanerMagicValue),
 	)
-
-	// c.f. comment on `func init()` in this file.
-	if errGettingWorkingDir != nil {
-		return nil, xerrors.Errorf("failed to get working directory during init: %w", errGettingWorkingDir)
-	}
-	cmd.Dir = originalWorkingDir
 
 	// Here we don't actually use the reference to the stdin pipe, because we never write anything to it. When this
 	// process exits, the pipe is closed by the OS and this triggers the cleaner to do its cleaning work. But, we do
@@ -178,8 +185,7 @@ func (c *cleaner) waitAndClean() {
 }
 
 // RunCleaner runs the test database cleaning process. It takes no arguments but uses stdio and environment variables
-// for its operation. It is designed to be launched as the only task of a `main()` process, but is included in this
-// package to share constants with the parent code that launches it above.
+// for its operation.
 //
 // The cleaner is designed to run in a separate process from the main test suite, connected over stdio. If the main test
 // process ends (panics, times out, or is killed) without explicitly discarding the databases it clones, the cleaner

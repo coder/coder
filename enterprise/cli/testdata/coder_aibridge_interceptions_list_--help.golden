@@ -1,0 +1,37 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder aibridge interceptions list [flags]
+
+  List AIBridge interceptions as JSON.
+
+OPTIONS:
+      --after-id string
+          The ID of the last result on the previous page to use as a pagination
+          cursor.
+
+      --initiator string
+          Only return interceptions initiated by this user. Accepts a user ID,
+          username, or "me".
+
+      --limit int (default: 100)
+          The limit of results to return. Must be between 1 and 1000.
+
+      --model string
+          Only return interceptions from this model.
+
+      --provider string
+          Only return interceptions from this provider.
+
+      --started-after string
+          Only return interceptions started after this time. Must be before
+          'started-before' if set. Accepts a time in the RFC 3339 format, e.g.
+          "====[timestamp]=====07:00".
+
+      --started-before string
+          Only return interceptions started before this time. Must be after
+          'started-after' if set. Accepts a time in the RFC 3339 format, e.g.
+          "====[timestamp]=====07:00".
+
+———
+Run `coder --help` for a list of global options.

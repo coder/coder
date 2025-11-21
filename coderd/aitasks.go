@@ -1,27 +1,22 @@
 package coderd
 
 import (
-	"bytes"
 	"context"
-	"database/sql"
-	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"net/url"
-	"path"
 	"slices"
-	"strings"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -29,92 +24,77 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/taskname"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
+
+	aiagentapi "github.com/coder/agentapi-sdk-go"
 )
 
-// This endpoint is experimental and not guaranteed to be stable, so we're not
-// generating public-facing documentation for it.
-func (api *API) aiTasksPrompts(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	buildIDsParam := r.URL.Query().Get("build_ids")
-	if buildIDsParam == "" {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "build_ids query parameter is required",
-		})
-		return
-	}
-
-	// Parse build IDs
-	buildIDStrings := strings.Split(buildIDsParam, ",")
-	buildIDs := make([]uuid.UUID, 0, len(buildIDStrings))
-	for _, idStr := range buildIDStrings {
-		id, err := uuid.Parse(strings.TrimSpace(idStr))
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: fmt.Sprintf("Invalid build ID format: %s", idStr),
-				Detail:  err.Error(),
-			})
-			return
-		}
-		buildIDs = append(buildIDs, id)
-	}
-
-	parameters, err := api.Database.GetWorkspaceBuildParametersByBuildIDs(ctx, buildIDs)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace build parameters.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	promptsByBuildID := make(map[string]string, len(parameters))
-	for _, param := range parameters {
-		if param.Name != codersdk.AITaskPromptParameterName {
-			continue
-		}
-		buildID := param.WorkspaceBuildID.String()
-		promptsByBuildID[buildID] = param.Value
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AITasksPromptsResponse{
-		Prompts: promptsByBuildID,
-	})
-}
-
-// This endpoint is experimental and not guaranteed to be stable, so we're not
-// generating public-facing documentation for it.
+// @Summary Create a new AI task
+// @Description: EXPERIMENTAL: this endpoint is experimental and not guaranteed to be stable.
+// @ID create-task
+// @Security CoderSessionToken
+// @Tags Experimental
+// @Param user path string true "Username, user ID, or 'me' for the authenticated user"
+// @Param request body codersdk.CreateTaskRequest true "Create task request"
+// @Success 201 {object} codersdk.Task
+// @Router /api/experimental/tasks/{user} [post]
+//
+// EXPERIMENTAL: This endpoint is experimental and not guaranteed to be stable.
+// This endpoint creates a new task for the given user.
 func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx     = r.Context()
-		apiKey  = httpmw.APIKey(r)
-		auditor = api.Auditor.Load()
-		mems    = httpmw.OrganizationMembersParam(r)
+		ctx              = r.Context()
+		apiKey           = httpmw.APIKey(r)
+		auditor          = api.Auditor.Load()
+		mems             = httpmw.OrganizationMembersParam(r)
+		taskResourceInfo = audit.AdditionalFields{}
 	)
+
+	if mems.User != nil {
+		taskResourceInfo.WorkspaceOwner = mems.User.Username
+	}
+
+	aReq, commitAudit := audit.InitRequest[database.TaskTable](rw, &audit.RequestParams{
+		Audit:            *auditor,
+		Log:              api.Logger,
+		Request:          r,
+		Action:           database.AuditActionCreate,
+		AdditionalFields: taskResourceInfo,
+	})
+
+	defer commitAudit()
 
 	var req codersdk.CreateTaskRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 
-	hasAITask, err := api.Database.GetTemplateVersionHasAITask(ctx, req.TemplateVersionID)
+	// Fetch the template version to verify access and whether or not it has an
+	// AI task.
+	templateVersion, err := api.Database.GetTemplateVersionByID(ctx, req.TemplateVersionID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) || rbac.IsUnauthorizedError(err) {
-			httpapi.ResourceNotFound(rw)
+		if httpapi.Is404Error(err) {
+			// Avoid using httpapi.ResourceNotFound() here because this is an
+			// input error and 404 would be confusing.
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Template version not found or you do not have access to this resource",
+			})
 			return
 		}
-
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching whether the template version has an AI task.",
+			Message: "Internal error fetching template version.",
 			Detail:  err.Error(),
 		})
 		return
 	}
-	if !hasAITask {
+
+	aReq.UpdateOrganizationID(templateVersion.OrganizationID)
+
+	if !templateVersion.HasAITask.Valid || !templateVersion.HasAITask.Bool {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf(`Template does not have required parameter %q`, codersdk.AITaskPromptParameterName),
+			Message: `Template does not have a valid "coder_ai_task" resource.`,
 		})
 		return
 	}
@@ -145,13 +125,31 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Check if the template defines the AI Prompt parameter.
+	templateParams, err := api.Database.GetTemplateVersionParameters(ctx, req.TemplateVersionID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching template parameters.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	var richParams []codersdk.WorkspaceBuildParameter
+	if _, hasAIPromptParam := slice.Find(templateParams, func(param database.TemplateVersionParameter) bool {
+		return param.Name == codersdk.AITaskPromptParameterName
+	}); hasAIPromptParam {
+		// Only add the AI Prompt parameter if the template defines it.
+		richParams = []codersdk.WorkspaceBuildParameter{
+			{Name: codersdk.AITaskPromptParameterName, Value: req.Input},
+		}
+	}
+
 	createReq := codersdk.CreateWorkspaceRequest{
 		Name:                    taskName,
 		TemplateVersionID:       req.TemplateVersionID,
 		TemplateVersionPresetID: req.TemplateVersionPresetID,
-		RichParameterValues: []codersdk.WorkspaceBuildParameter{
-			{Name: codersdk.AITaskPromptParameterName, Value: req.Input},
-		},
+		RichParameterValues:     richParams,
 	}
 
 	var owner workspaceOwner
@@ -169,23 +167,12 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 	} else {
 		// A task can still be created if the caller can read the organization
 		// member. The organization is required, which can be sourced from the
-		// template.
+		// templateVersion.
 		//
-		// TODO: This code gets called twice for each workspace build request.
-		//   This is inefficient and costs at most 2 extra RTTs to the DB.
-		//   This can be optimized. It exists as it is now for code simplicity.
-		//   The most common case is to create a workspace for 'Me'. Which does
-		//   not enter this code branch.
-		template, err := requestTemplate(ctx, createReq, api.Database)
-		if err != nil {
-			httperror.WriteResponseError(ctx, rw, err)
-			return
-		}
-
 		// If the caller can find the organization membership in the same org
 		// as the template, then they can continue.
 		orgIndex := slices.IndexFunc(mems.Memberships, func(mem httpmw.OrganizationMember) bool {
-			return mem.OrganizationID == template.OrganizationID
+			return mem.OrganizationID == templateVersion.OrganizationID
 		})
 		if orgIndex == -1 {
 			httpapi.ResourceNotFound(rw)
@@ -198,57 +185,160 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 			Username:  member.Username,
 			AvatarURL: member.AvatarURL,
 		}
+
+		// Update workspace owner information for audit in case it changed.
+		taskResourceInfo.WorkspaceOwner = owner.Username
 	}
 
-	aReq, commitAudit := audit.InitRequest[database.WorkspaceTable](rw, &audit.RequestParams{
-		Audit:   *auditor,
-		Log:     api.Logger,
-		Request: r,
-		Action:  database.AuditActionCreate,
-		AdditionalFields: audit.AdditionalFields{
-			WorkspaceOwner: owner.Username,
+	// Track insert from preCreateInTX.
+	var dbTaskTable database.TaskTable
+
+	// Ensure an audit log is created for the workspace creation event.
+	aReqWS, commitAuditWS := audit.InitRequest[database.WorkspaceTable](rw, &audit.RequestParams{
+		Audit:            *auditor,
+		Log:              api.Logger,
+		Request:          r,
+		Action:           database.AuditActionCreate,
+		AdditionalFields: taskResourceInfo,
+		OrganizationID:   templateVersion.OrganizationID,
+	})
+	defer commitAuditWS()
+
+	workspace, err := createWorkspace(ctx, aReqWS, apiKey.UserID, api, owner, createReq, r, &createWorkspaceOptions{
+		// Before creating the workspace, ensure that this task can be created.
+		preCreateInTX: func(ctx context.Context, tx database.Store) error {
+			// Create task record in the database before creating the workspace so that
+			// we can request that the workspace be linked to it after creation.
+			dbTaskTable, err = tx.InsertTask(ctx, database.InsertTaskParams{
+				ID:                 uuid.New(),
+				OrganizationID:     templateVersion.OrganizationID,
+				OwnerID:            owner.ID,
+				Name:               taskName,
+				WorkspaceID:        uuid.NullUUID{}, // Will be set after workspace creation.
+				TemplateVersionID:  templateVersion.ID,
+				TemplateParameters: []byte("{}"),
+				Prompt:             req.Input,
+				CreatedAt:          dbtime.Time(api.Clock.Now()),
+			})
+			if err != nil {
+				return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
+					Message: "Internal error creating task.",
+					Detail:  err.Error(),
+				})
+			}
+			return nil
+		},
+		// After the workspace is created, ensure that the task is linked to it.
+		postCreateInTX: func(ctx context.Context, tx database.Store, workspace database.Workspace) error {
+			// Update the task record with the workspace ID after creation.
+			dbTaskTable, err = tx.UpdateTaskWorkspaceID(ctx, database.UpdateTaskWorkspaceIDParams{
+				ID: dbTaskTable.ID,
+				WorkspaceID: uuid.NullUUID{
+					UUID:  workspace.ID,
+					Valid: true,
+				},
+			})
+			if err != nil {
+				return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
+					Message: "Internal error updating task.",
+					Detail:  err.Error(),
+				})
+			}
+			return nil
 		},
 	})
-	defer commitAudit()
-	w, err := createWorkspace(ctx, aReq, apiKey.UserID, api, owner, createReq, r)
 	if err != nil {
 		httperror.WriteResponseError(ctx, rw, err)
 		return
 	}
 
-	task := taskFromWorkspace(w, req.Input)
-	httpapi.Write(ctx, rw, http.StatusCreated, task)
+	aReq.New = dbTaskTable
+
+	// Fetch the task to get the additional columns from the view.
+	dbTask, err := api.Database.GetTaskByID(ctx, dbTaskTable.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching task.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusCreated, taskFromDBTaskAndWorkspace(dbTask, workspace))
 }
 
-func taskFromWorkspace(ws codersdk.Workspace, initialPrompt string) codersdk.Task {
-	// TODO(DanielleMaywood):
-	// This just picks up the first agent it discovers.
-	// This approach _might_ break when a task has multiple agents,
-	// depending on which agent was found first.
-	//
-	// We explicitly do not have support for running tasks
-	// inside of a sub agent at the moment, so we can be sure
-	// that any sub agents are not the agent we're looking for.
-	var taskAgentID uuid.NullUUID
+// taskFromDBTaskAndWorkspace creates a codersdk.Task response from the task
+// database record and workspace.
+func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) codersdk.Task {
 	var taskAgentLifecycle *codersdk.WorkspaceAgentLifecycle
 	var taskAgentHealth *codersdk.WorkspaceAgentHealth
-	for _, resource := range ws.LatestBuild.Resources {
-		for _, agent := range resource.Agents {
-			if agent.ParentID.Valid {
-				continue
-			}
+	var taskAppHealth *codersdk.WorkspaceAppHealth
 
-			taskAgentID = uuid.NullUUID{Valid: true, UUID: agent.ID}
-			taskAgentLifecycle = &agent.LifecycleState
-			taskAgentHealth = &agent.Health
-			break
+	if dbTask.WorkspaceAgentLifecycleState.Valid {
+		taskAgentLifecycle = ptr.Ref(codersdk.WorkspaceAgentLifecycle(dbTask.WorkspaceAgentLifecycleState.WorkspaceAgentLifecycleState))
+	}
+	if dbTask.WorkspaceAppHealth.Valid {
+		taskAppHealth = ptr.Ref(codersdk.WorkspaceAppHealth(dbTask.WorkspaceAppHealth.WorkspaceAppHealth))
+	}
+
+	// If we have an agent ID from the task, find the agent health info
+	if dbTask.WorkspaceAgentID.Valid {
+	findTaskAgentLoop:
+		for _, resource := range ws.LatestBuild.Resources {
+			for _, agent := range resource.Agents {
+				if agent.ID == dbTask.WorkspaceAgentID.UUID {
+					taskAgentHealth = &agent.Health
+					break findTaskAgentLoop
+				}
+			}
 		}
 	}
 
-	// Ignore 'latest app status' if it is older than the latest build and the latest build is a 'start' transition.
-	// This ensures that you don't show a stale app status from a previous build.
-	// For stop transitions, there is still value in showing the latest app status.
+	currentState := deriveTaskCurrentState(dbTask, ws, taskAgentLifecycle, taskAppHealth)
+
+	return codersdk.Task{
+		ID:                      dbTask.ID,
+		OrganizationID:          dbTask.OrganizationID,
+		OwnerID:                 dbTask.OwnerID,
+		OwnerName:               dbTask.OwnerUsername,
+		OwnerAvatarURL:          dbTask.OwnerAvatarUrl,
+		Name:                    dbTask.Name,
+		TemplateID:              ws.TemplateID,
+		TemplateVersionID:       dbTask.TemplateVersionID,
+		TemplateName:            ws.TemplateName,
+		TemplateDisplayName:     ws.TemplateDisplayName,
+		TemplateIcon:            ws.TemplateIcon,
+		WorkspaceID:             dbTask.WorkspaceID,
+		WorkspaceName:           ws.Name,
+		WorkspaceBuildNumber:    dbTask.WorkspaceBuildNumber.Int32,
+		WorkspaceStatus:         ws.LatestBuild.Status,
+		WorkspaceAgentID:        dbTask.WorkspaceAgentID,
+		WorkspaceAgentLifecycle: taskAgentLifecycle,
+		WorkspaceAgentHealth:    taskAgentHealth,
+		WorkspaceAppID:          dbTask.WorkspaceAppID,
+		InitialPrompt:           dbTask.Prompt,
+		Status:                  codersdk.TaskStatus(dbTask.Status),
+		CurrentState:            currentState,
+		CreatedAt:               dbTask.CreatedAt,
+		UpdatedAt:               ws.UpdatedAt,
+	}
+}
+
+// deriveTaskCurrentState determines the current state of a task based on the
+// workspace's latest app status and initialization phase.
+// Returns nil if no valid state can be determined.
+func deriveTaskCurrentState(
+	dbTask database.Task,
+	ws codersdk.Workspace,
+	taskAgentLifecycle *codersdk.WorkspaceAgentLifecycle,
+	taskAppHealth *codersdk.WorkspaceAppHealth,
+) *codersdk.TaskStateEntry {
 	var currentState *codersdk.TaskStateEntry
+
+	// Ignore 'latest app status' if it is older than the latest build and the
+	// latest build is a 'start' transition. This ensures that you don't show a
+	// stale app status from a previous build. For stop transitions, there is
+	// still value in showing the latest app status.
 	if ws.LatestAppStatus != nil {
 		if ws.LatestBuild.Transition != codersdk.WorkspaceTransitionStart || ws.LatestAppStatus.CreatedAt.After(ws.LatestBuild.CreatedAt) {
 			currentState = &codersdk.TaskStateEntry{
@@ -260,192 +350,183 @@ func taskFromWorkspace(ws codersdk.Workspace, initialPrompt string) codersdk.Tas
 		}
 	}
 
-	return codersdk.Task{
-		ID:                      ws.ID,
-		OrganizationID:          ws.OrganizationID,
-		OwnerID:                 ws.OwnerID,
-		OwnerName:               ws.OwnerName,
-		Name:                    ws.Name,
-		TemplateID:              ws.TemplateID,
-		TemplateName:            ws.TemplateName,
-		TemplateDisplayName:     ws.TemplateDisplayName,
-		TemplateIcon:            ws.TemplateIcon,
-		WorkspaceID:             uuid.NullUUID{Valid: true, UUID: ws.ID},
-		WorkspaceAgentID:        taskAgentID,
-		WorkspaceAgentLifecycle: taskAgentLifecycle,
-		WorkspaceAgentHealth:    taskAgentHealth,
-		CreatedAt:               ws.CreatedAt,
-		UpdatedAt:               ws.UpdatedAt,
-		InitialPrompt:           initialPrompt,
-		Status:                  ws.LatestBuild.Status,
-		CurrentState:            currentState,
-	}
-}
+	// If no valid agent state was found for the current build and the task is initializing,
+	// provide a descriptive initialization message.
+	if currentState == nil && dbTask.Status == database.TaskStatusInitializing {
+		message := "Initializing workspace"
 
-// tasksFromWorkspaces converts a slice of API workspaces into tasks, fetching
-// prompts and mapping status/state. This method enforces that only AI task
-// workspaces are given.
-func (api *API) tasksFromWorkspaces(ctx context.Context, apiWorkspaces []codersdk.Workspace) ([]codersdk.Task, error) {
-	// Fetch prompts for each workspace build and map by build ID.
-	buildIDs := make([]uuid.UUID, 0, len(apiWorkspaces))
-	for _, ws := range apiWorkspaces {
-		buildIDs = append(buildIDs, ws.LatestBuild.ID)
-	}
-	parameters, err := api.Database.GetWorkspaceBuildParametersByBuildIDs(ctx, buildIDs)
-	if err != nil {
-		return nil, err
-	}
-	promptsByBuildID := make(map[uuid.UUID]string, len(parameters))
-	for _, p := range parameters {
-		if p.Name == codersdk.AITaskPromptParameterName {
-			promptsByBuildID[p.WorkspaceBuildID] = p.Value
+		switch {
+		case ws.LatestBuild.Status == codersdk.WorkspaceStatusPending ||
+			ws.LatestBuild.Status == codersdk.WorkspaceStatusStarting:
+			message = fmt.Sprintf("Workspace is %s", ws.LatestBuild.Status)
+		case taskAgentLifecycle != nil:
+			switch {
+			case *taskAgentLifecycle == codersdk.WorkspaceAgentLifecycleCreated:
+				message = "Agent is connecting"
+			case *taskAgentLifecycle == codersdk.WorkspaceAgentLifecycleStarting:
+				message = "Agent is starting"
+			case *taskAgentLifecycle == codersdk.WorkspaceAgentLifecycleReady:
+				if taskAppHealth != nil && *taskAppHealth == codersdk.WorkspaceAppHealthInitializing {
+					message = "App is initializing"
+				} else {
+					// In case the workspace app is not initializing,
+					// the overall task status should be updated accordingly
+					message = "Initializing workspace applications"
+				}
+			default:
+				// In case the workspace agent is not initializing,
+				// the overall task status should be updated accordingly
+				message = "Initializing workspace agent"
+			}
+		}
+
+		currentState = &codersdk.TaskStateEntry{
+			Timestamp: ws.LatestBuild.CreatedAt,
+			State:     codersdk.TaskStateWorking,
+			Message:   message,
+			URI:       "",
 		}
 	}
 
-	tasks := make([]codersdk.Task, 0, len(apiWorkspaces))
-	for _, ws := range apiWorkspaces {
-		tasks = append(tasks, taskFromWorkspace(ws, promptsByBuildID[ws.LatestBuild.ID]))
-	}
-
-	return tasks, nil
+	return currentState
 }
 
-// tasksListResponse wraps a list of experimental tasks.
+// @Summary List AI tasks
+// @Description: EXPERIMENTAL: this endpoint is experimental and not guaranteed to be stable.
+// @ID list-tasks
+// @Security CoderSessionToken
+// @Tags Experimental
+// @Param q query string false "Search query for filtering tasks. Supports: owner:<username/uuid/me>, organization:<org-name/uuid>, status:<status>"
+// @Success 200 {object} codersdk.TasksListResponse
+// @Router /api/experimental/tasks [get]
 //
-// Experimental: Response shape is experimental and may change.
-type tasksListResponse struct {
-	Tasks []codersdk.Task `json:"tasks"`
-	Count int             `json:"count"`
-}
-
-// tasksList is an experimental endpoint to list AI tasks by mapping
-// workspaces to a task-shaped response.
+// EXPERIMENTAL: This endpoint is experimental and not guaranteed to be stable.
+// tasksList is an experimental endpoint to list tasks.
 func (api *API) tasksList(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 
-	// Support standard pagination/filters for workspaces.
-	page, ok := ParsePagination(rw, r)
-	if !ok {
-		return
-	}
+	// Parse query parameters for filtering tasks.
 	queryStr := r.URL.Query().Get("q")
-	filter, errs := searchquery.Workspaces(ctx, api.Database, queryStr, page, api.AgentInactiveDisconnectTimeout)
+	filter, errs := searchquery.Tasks(ctx, api.Database, queryStr, apiKey.UserID)
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message:     "Invalid workspace search query.",
+			Message:     "Invalid task search query.",
 			Validations: errs,
 		})
 		return
 	}
 
-	// Ensure that we only include AI task workspaces in the results.
-	filter.HasAITask = sql.NullBool{Valid: true, Bool: true}
-
-	if filter.OwnerUsername == "me" {
-		filter.OwnerID = apiKey.UserID
-		filter.OwnerUsername = ""
-	}
-
-	prepared, err := api.HTTPAuth.AuthorizeSQLFilter(r, policy.ActionRead, rbac.ResourceWorkspace.Type)
+	// Fetch all tasks matching the filters from the database.
+	dbTasks, err := api.Database.ListTasks(ctx, filter)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error preparing sql filter.",
+			Message: "Internal error fetching tasks.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	// Order with requester's favorites first, include summary row.
-	filter.RequesterID = apiKey.UserID
-	filter.WithSummary = true
-
-	workspaceRows, err := api.Database.GetAuthorizedWorkspaces(ctx, filter, prepared)
+	tasks, err := api.convertTasks(ctx, apiKey.UserID, dbTasks)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspaces.",
+			Message: "Internal error converting tasks.",
 			Detail:  err.Error(),
 		})
 		return
 	}
-	if len(workspaceRows) == 0 {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspaces.",
-			Detail:  "Workspace summary row is missing.",
-		})
-		return
-	}
-	if len(workspaceRows) == 1 {
-		httpapi.Write(ctx, rw, http.StatusOK, tasksListResponse{
-			Tasks: []codersdk.Task{},
-			Count: 0,
-		})
-		return
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.TasksListResponse{
+		Tasks: tasks,
+		Count: len(tasks),
+	})
+}
+
+// convertTasks converts database tasks to API tasks, enriching them with
+// workspace information.
+func (api *API) convertTasks(ctx context.Context, requesterID uuid.UUID, dbTasks []database.Task) ([]codersdk.Task, error) {
+	if len(dbTasks) == 0 {
+		return []codersdk.Task{}, nil
 	}
 
-	// Skip summary row.
-	workspaceRows = workspaceRows[:len(workspaceRows)-1]
+	// Prepare to batch fetch workspaces.
+	workspaceIDs := make([]uuid.UUID, 0, len(dbTasks))
+	for _, task := range dbTasks {
+		if !task.WorkspaceID.Valid {
+			return nil, xerrors.New("task has no workspace ID")
+		}
+		workspaceIDs = append(workspaceIDs, task.WorkspaceID.UUID)
+	}
+
+	// Fetch workspaces for tasks that have workspaces.
+	workspaceRows, err := api.Database.GetWorkspaces(ctx, database.GetWorkspacesParams{
+		WorkspaceIds: workspaceIDs,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("fetch workspaces: %w", err)
+	}
 
 	workspaces := database.ConvertWorkspaceRows(workspaceRows)
 
 	// Gather associated data and convert to API workspaces.
 	data, err := api.workspaceData(ctx, workspaces)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace resources.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	apiWorkspaces, err := convertWorkspaces(apiKey.UserID, workspaces, data)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error converting workspaces.",
-			Detail:  err.Error(),
-		})
-		return
+		return nil, xerrors.Errorf("fetch workspace data: %w", err)
 	}
 
-	tasks, err := api.tasksFromWorkspaces(ctx, apiWorkspaces)
+	apiWorkspaces, err := convertWorkspaces(requesterID, workspaces, data)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching task prompts and states.",
-			Detail:  err.Error(),
-		})
-		return
+		return nil, xerrors.Errorf("convert workspaces: %w", err)
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, tasksListResponse{
-		Tasks: tasks,
-		Count: len(tasks),
-	})
+	workspacesByID := make(map[uuid.UUID]codersdk.Workspace)
+	for _, ws := range apiWorkspaces {
+		workspacesByID[ws.ID] = ws
+	}
+
+	// Convert tasks to SDK format.
+	result := make([]codersdk.Task, 0, len(dbTasks))
+	for _, dbTask := range dbTasks {
+		task := taskFromDBTaskAndWorkspace(dbTask, workspacesByID[dbTask.WorkspaceID.UUID])
+		result = append(result, task)
+	}
+
+	return result, nil
 }
 
+// @Summary Get AI task by ID
+// @Description: EXPERIMENTAL: this endpoint is experimental and not guaranteed to be stable.
+// @ID get-task
+// @Security CoderSessionToken
+// @Tags Experimental
+// @Param user path string true "Username, user ID, or 'me' for the authenticated user"
+// @Param task path string true "Task ID" format(uuid)
+// @Success 200 {object} codersdk.Task
+// @Router /api/experimental/tasks/{user}/{task} [get]
+//
+// EXPERIMENTAL: This endpoint is experimental and not guaranteed to be stable.
 // taskGet is an experimental endpoint to fetch a single AI task by ID
 // (workspace ID). It returns a synthesized task response including
 // prompt and status.
 func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
+	task := httpmw.TaskParam(r)
 
-	idStr := chi.URLParam(r, "id")
-	taskID, err := uuid.Parse(idStr)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Invalid UUID %q for task ID.", idStr),
+	if !task.WorkspaceID.Valid {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching task.",
+			Detail:  "Task workspace ID is invalid.",
 		})
 		return
 	}
 
-	// For now, taskID = workspaceID, once we have a task data model in
-	// the DB, we can change this lookup.
-	workspaceID := taskID
-	workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceID)
-	if httpapi.Is404Error(err) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
+	workspace, err := api.Database.GetWorkspaceByID(ctx, task.WorkspaceID.UUID)
 	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace.",
 			Detail:  err.Error(),
@@ -464,34 +545,6 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 	if len(data.builds) == 0 || len(data.templates) == 0 {
 		httpapi.ResourceNotFound(rw)
 		return
-	}
-	if data.builds[0].HasAITask == nil || !*data.builds[0].HasAITask {
-		// TODO(DanielleMaywood):
-		// This is a temporary workaround. When a task has just been created, but
-		// not yet provisioned, the workspace build will not have `HasAITask` set.
-		//
-		// When we reach this code flow, it is _either_ because the workspace is
-		// not a task, or it is a task that has not yet been provisioned. This
-		// endpoint should rarely be called with a non-task workspace so we
-		// should be fine with this extra database call to check if it has the
-		// special "AI Task" parameter.
-		parameters, err := api.Database.GetWorkspaceBuildParameters(ctx, data.builds[0].ID)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error fetching workspace build parameters.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-
-		_, hasAITask := slice.Find(parameters, func(t database.WorkspaceBuildParameter) bool {
-			return t.Name == codersdk.AITaskPromptParameterName
-		})
-
-		if !hasAITask {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
 	}
 
 	appStatus := codersdk.WorkspaceAppStatus{}
@@ -515,107 +568,102 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tasks, err := api.tasksFromWorkspaces(ctx, []codersdk.Workspace{ws})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching task prompt and state.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, tasks[0])
+	taskResp := taskFromDBTaskAndWorkspace(task, ws)
+	httpapi.Write(ctx, rw, http.StatusOK, taskResp)
 }
 
-// taskDelete is an experimental endpoint to delete a task by ID (workspace ID).
+// @Summary Delete AI task by ID
+// @Description: EXPERIMENTAL: this endpoint is experimental and not guaranteed to be stable.
+// @ID delete-task
+// @Security CoderSessionToken
+// @Tags Experimental
+// @Param user path string true "Username, user ID, or 'me' for the authenticated user"
+// @Param task path string true "Task ID" format(uuid)
+// @Success 202 "Task deletion initiated"
+// @Router /api/experimental/tasks/{user}/{task} [delete]
+//
+// EXPERIMENTAL: This endpoint is experimental and not guaranteed to be stable.
+// taskDelete is an experimental endpoint to delete a task by ID.
 // It creates a delete workspace build and returns 202 Accepted if the build was
 // created.
 func (api *API) taskDelete(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
+	task := httpmw.TaskParam(r)
 
-	idStr := chi.URLParam(r, "id")
-	taskID, err := uuid.Parse(idStr)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Invalid UUID %q for task ID.", idStr),
-		})
-		return
+	now := api.Clock.Now()
+
+	if task.WorkspaceID.Valid {
+		workspace, err := api.Database.GetWorkspaceByID(ctx, task.WorkspaceID.UUID)
+		if err != nil {
+			if httpapi.Is404Error(err) {
+				httpapi.ResourceNotFound(rw)
+				return
+			}
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching task workspace before deleting task.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		// Construct a request to the workspace build creation handler to
+		// initiate deletion.
+		buildReq := codersdk.CreateWorkspaceBuildRequest{
+			Transition: codersdk.WorkspaceTransitionDelete,
+			Reason:     "Deleted via tasks API",
+		}
+
+		_, err = api.postWorkspaceBuildsInternal(
+			ctx,
+			apiKey,
+			workspace,
+			buildReq,
+			func(action policy.Action, object rbac.Objecter) bool {
+				return api.Authorize(r, action, object)
+			},
+			audit.WorkspaceBuildBaggageFromRequest(r),
+		)
+		if err != nil {
+			httperror.WriteWorkspaceBuildError(ctx, rw, err)
+			return
+		}
 	}
 
-	// For now, taskID = workspaceID, once we have a task data model in
-	// the DB, we can change this lookup.
-	workspaceID := taskID
-	workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceID)
-	if httpapi.Is404Error(err) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
+	_, err := api.Database.DeleteTask(ctx, database.DeleteTaskParams{
+		ID:        task.ID,
+		DeletedAt: dbtime.Time(now),
+	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace.",
+			Message: "Failed to delete task",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	data, err := api.workspaceData(ctx, []database.Workspace{workspace})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace resources.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if len(data.builds) == 0 || len(data.templates) == 0 {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-	if data.builds[0].HasAITask == nil || !*data.builds[0].HasAITask {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
-	// Construct a request to the workspace build creation handler to
-	// initiate deletion.
-	buildReq := codersdk.CreateWorkspaceBuildRequest{
-		Transition: codersdk.WorkspaceTransitionDelete,
-		Reason:     "Deleted via tasks API",
-	}
-
-	_, err = api.postWorkspaceBuildsInternal(
-		ctx,
-		apiKey,
-		workspace,
-		buildReq,
-		func(action policy.Action, object rbac.Objecter) bool {
-			return api.Authorize(r, action, object)
-		},
-		audit.WorkspaceBuildBaggageFromRequest(r),
-	)
-	if err != nil {
-		httperror.WriteWorkspaceBuildError(ctx, rw, err)
-		return
-	}
-
-	// Delete build created successfully.
+	// Task deleted and delete build created successfully.
 	rw.WriteHeader(http.StatusAccepted)
 }
 
-// taskSend submits task input to the tasks sidebar app by dialing the agent
+// @Summary Send input to AI task
+// @Description: EXPERIMENTAL: this endpoint is experimental and not guaranteed to be stable.
+// @ID send-task-input
+// @Security CoderSessionToken
+// @Tags Experimental
+// @Param user path string true "Username, user ID, or 'me' for the authenticated user"
+// @Param task path string true "Task ID" format(uuid)
+// @Param request body codersdk.TaskSendRequest true "Task input request"
+// @Success 204 "Input sent successfully"
+// @Router /api/experimental/tasks/{user}/{task}/send [post]
+//
+// EXPERIMENTAL: This endpoint is experimental and not guaranteed to be stable.
+// taskSend submits task input to the task app by dialing the agent
 // directly over the tailnet. We enforce ApplicationConnect RBAC on the
-// workspace and validate the sidebar app health.
+// workspace and validate the task app health.
 func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
-	idStr := chi.URLParam(r, "id")
-	taskID, err := uuid.Parse(idStr)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Invalid UUID %q for task ID.", idStr),
-		})
-		return
-	}
+	task := httpmw.TaskParam(r)
 
 	var req codersdk.TaskSendRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
@@ -628,62 +676,38 @@ func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err = api.authAndDoWithTaskSidebarAppClient(r, taskID, func(ctx context.Context, client *http.Client, appURL *url.URL) error {
-		status, err := agentapiDoStatusRequest(ctx, client, appURL)
+	if err := api.authAndDoWithTaskAppClient(r, task, func(ctx context.Context, client *http.Client, appURL *url.URL) error {
+		agentAPIClient, err := aiagentapi.NewClient(appURL.String(), aiagentapi.WithHTTPClient(client))
 		if err != nil {
-			return err
+			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
+				Message: "Failed to create agentapi client.",
+				Detail:  err.Error(),
+			})
 		}
 
-		if status != "stable" {
+		statusResp, err := agentAPIClient.GetStatus(ctx)
+		if err != nil {
+			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
+				Message: "Failed to get status from task app.",
+				Detail:  err.Error(),
+			})
+		}
+
+		if statusResp.Status != aiagentapi.StatusStable {
 			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
 				Message: "Task app is not ready to accept input.",
-				Detail:  fmt.Sprintf("Status: %s", status),
+				Detail:  fmt.Sprintf("Status: %s", statusResp.Status),
 			})
 		}
 
-		var reqBody struct {
-			Content string `json:"content"`
-			Type    string `json:"type"`
-		}
-		reqBody.Content = req.Input
-		reqBody.Type = "user"
-
-		req, err := agentapiNewRequest(ctx, http.MethodPost, appURL, "message", reqBody)
-		if err != nil {
-			return err
-		}
-
-		resp, err := client.Do(req)
+		_, err = agentAPIClient.PostMessage(ctx, aiagentapi.PostMessageParams{
+			Content: req.Input,
+			Type:    aiagentapi.MessageTypeUser,
+		})
 		if err != nil {
 			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
-				Message: "Failed to reach task app endpoint.",
-				Detail:  err.Error(),
-			})
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			body, _ := io.ReadAll(io.LimitReader(resp.Body, 128))
-			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
 				Message: "Task app rejected the message.",
-				Detail:  fmt.Sprintf("Upstream status: %d; Body: %s", resp.StatusCode, body),
-			})
-		}
-
-		// {"$schema":"http://localhost:3284/schemas/MessageResponseBody.json","ok":true}
-		// {"$schema":"http://localhost:3284/schemas/ErrorModel.json","title":"Unprocessable Entity","status":422,"detail":"validation failed","errors":[{"location":"body.type","value":"oof"}]}
-		var respBody map[string]any
-		if err := json.NewDecoder(resp.Body).Decode(&respBody); err != nil {
-			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
-				Message: "Failed to decode task app response body.",
 				Detail:  err.Error(),
-			})
-		}
-
-		if v, ok := respBody["ok"].(bool); !ok || !v {
-			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
-				Message: "Task app rejected the message.",
-				Detail:  fmt.Sprintf("Upstream response: %v", respBody),
 			})
 		}
 
@@ -696,65 +720,48 @@ func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// @Summary Get AI task logs
+// @Description: EXPERIMENTAL: this endpoint is experimental and not guaranteed to be stable.
+// @ID get-task-logs
+// @Security CoderSessionToken
+// @Tags Experimental
+// @Param user path string true "Username, user ID, or 'me' for the authenticated user"
+// @Param task path string true "Task ID" format(uuid)
+// @Success 200 {object} codersdk.TaskLogsResponse
+// @Router /api/experimental/tasks/{user}/{task}/logs [get]
+//
+// EXPERIMENTAL: This endpoint is experimental and not guaranteed to be stable.
+// taskLogs reads task output by dialing the agent directly over the tailnet.
+// We enforce ApplicationConnect RBAC on the workspace and validate the task app health.
 func (api *API) taskLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
-	idStr := chi.URLParam(r, "id")
-	taskID, err := uuid.Parse(idStr)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Invalid UUID %q for task ID.", idStr),
-		})
-		return
-	}
+	task := httpmw.TaskParam(r)
 
 	var out codersdk.TaskLogsResponse
-	if err := api.authAndDoWithTaskSidebarAppClient(r, taskID, func(ctx context.Context, client *http.Client, appURL *url.URL) error {
-		req, err := agentapiNewRequest(ctx, http.MethodGet, appURL, "messages", nil)
-		if err != nil {
-			return err
-		}
-
-		resp, err := client.Do(req)
+	if err := api.authAndDoWithTaskAppClient(r, task, func(ctx context.Context, client *http.Client, appURL *url.URL) error {
+		agentAPIClient, err := aiagentapi.NewClient(appURL.String(), aiagentapi.WithHTTPClient(client))
 		if err != nil {
 			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
-				Message: "Failed to reach task app endpoint.",
-				Detail:  err.Error(),
-			})
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			body, _ := io.ReadAll(io.LimitReader(resp.Body, 128))
-			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
-				Message: "Task app rejected the request.",
-				Detail:  fmt.Sprintf("Upstream status: %d; Body: %s", resp.StatusCode, body),
-			})
-		}
-
-		// {"$schema":"http://localhost:3284/schemas/MessagesResponseBody.json","messages":[]}
-		var respBody struct {
-			Messages []struct {
-				ID      int       `json:"id"`
-				Content string    `json:"content"`
-				Role    string    `json:"role"`
-				Time    time.Time `json:"time"`
-			} `json:"messages"`
-		}
-		if err := json.NewDecoder(resp.Body).Decode(&respBody); err != nil {
-			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
-				Message: "Failed to decode task app response body.",
+				Message: "Failed to create agentapi client.",
 				Detail:  err.Error(),
 			})
 		}
 
-		logs := make([]codersdk.TaskLogEntry, 0, len(respBody.Messages))
-		for _, m := range respBody.Messages {
+		messagesResp, err := agentAPIClient.GetMessages(ctx)
+		if err != nil {
+			return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
+				Message: "Failed to get messages from task app.",
+				Detail:  err.Error(),
+			})
+		}
+
+		logs := make([]codersdk.TaskLogEntry, 0, len(messagesResp.Messages))
+		for _, m := range messagesResp.Messages {
 			var typ codersdk.TaskLogType
-			switch strings.ToLower(m.Role) {
-			case "user":
+			switch m.Role {
+			case aiagentapi.RoleUser:
 				typ = codersdk.TaskLogTypeInput
-			case "agent":
+			case aiagentapi.RoleAgent:
 				typ = codersdk.TaskLogTypeOutput
 			default:
 				return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
@@ -763,7 +770,7 @@ func (api *API) taskLogs(rw http.ResponseWriter, r *http.Request) {
 				})
 			}
 			logs = append(logs, codersdk.TaskLogEntry{
-				ID:      m.ID,
+				ID:      int(m.Id),
 				Content: m.Content,
 				Type:    typ,
 				Time:    m.Time,
@@ -779,24 +786,40 @@ func (api *API) taskLogs(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, out)
 }
 
-// authAndDoWithTaskSidebarAppClient centralizes the shared logic to:
+// authAndDoWithTaskAppClient centralizes the shared logic to:
 //
 //   - Fetch the task workspace
 //   - Authorize ApplicationConnect on the workspace
-//   - Validate the AI task and sidebar app health
+//   - Validate the AI task and task app health
 //   - Dial the agent and construct an HTTP client to the apps loopback URL
 //
 // The provided callback receives the context, an HTTP client that dials via the
 // agent, and the base app URL (as a value URL) to perform any request.
-func (api *API) authAndDoWithTaskSidebarAppClient(
+func (api *API) authAndDoWithTaskAppClient(
 	r *http.Request,
-	taskID uuid.UUID,
+	task database.Task,
 	do func(ctx context.Context, client *http.Client, appURL *url.URL) error,
 ) error {
 	ctx := r.Context()
 
-	workspaceID := taskID
-	workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceID)
+	if task.Status != database.TaskStatusActive {
+		return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
+			Message: "Task status must be active.",
+			Detail:  fmt.Sprintf("Task status is %q, it must be %q to interact with the task.", task.Status, codersdk.TaskStatusActive),
+		})
+	}
+	if !task.WorkspaceID.Valid {
+		return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
+			Message: "Task does not have a workspace.",
+		})
+	}
+	if !task.WorkspaceAppID.Valid {
+		return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
+			Message: "Task does not have a workspace app.",
+		})
+	}
+
+	workspace, err := api.Database.GetWorkspaceByID(ctx, task.WorkspaceID.UUID)
 	if err != nil {
 		if httpapi.Is404Error(err) {
 			return httperror.ErrResourceNotFound
@@ -812,65 +835,30 @@ func (api *API) authAndDoWithTaskSidebarAppClient(
 		return httperror.ErrResourceNotFound
 	}
 
-	data, err := api.workspaceData(ctx, []database.Workspace{workspace})
+	apps, err := api.Database.GetWorkspaceAppsByAgentID(ctx, task.WorkspaceAgentID.UUID)
 	if err != nil {
 		return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace resources.",
 			Detail:  err.Error(),
 		})
 	}
-	if len(data.builds) == 0 || len(data.templates) == 0 {
-		return httperror.ErrResourceNotFound
-	}
-	build := data.builds[0]
-	if build.HasAITask == nil || !*build.HasAITask || build.AITaskSidebarAppID == nil || *build.AITaskSidebarAppID == uuid.Nil {
-		return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
-			Message: "Task is not configured with a sidebar app.",
-		})
-	}
 
-	// Find the sidebar app details to get the URL and validate app health.
-	sidebarAppID := *build.AITaskSidebarAppID
-	agentID, sidebarApp, ok := func() (uuid.UUID, codersdk.WorkspaceApp, bool) {
-		for _, res := range build.Resources {
-			for _, agent := range res.Agents {
-				for _, app := range agent.Apps {
-					if app.ID == sidebarAppID {
-						return agent.ID, app, true
-					}
-				}
-			}
+	var app *database.WorkspaceApp
+	for _, a := range apps {
+		if a.ID == task.WorkspaceAppID.UUID {
+			app = &a
+			break
 		}
-		return uuid.Nil, codersdk.WorkspaceApp{}, false
-	}()
-	if !ok {
-		return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
-			Message: "Task sidebar app not found in latest build.",
-		})
-	}
-
-	// Return an informative error if the app isn't healthy rather than trying
-	// and failing.
-	switch sidebarApp.Health {
-	case codersdk.WorkspaceAppHealthDisabled:
-		// No health check, pass through.
-	case codersdk.WorkspaceAppHealthInitializing:
-		return httperror.NewResponseError(http.StatusServiceUnavailable, codersdk.Response{
-			Message: "Task sidebar app is initializing. Try again shortly.",
-		})
-	case codersdk.WorkspaceAppHealthUnhealthy:
-		return httperror.NewResponseError(http.StatusServiceUnavailable, codersdk.Response{
-			Message: "Task sidebar app is unhealthy.",
-		})
 	}
 
 	// Build the direct app URL and dial the agent.
-	if sidebarApp.URL == "" {
+	appURL := app.Url.String
+	if appURL == "" {
 		return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
-			Message: "Task sidebar app URL is not configured.",
+			Message: "Task app URL is not configured.",
 		})
 	}
-	parsedURL, err := url.Parse(sidebarApp.URL)
+	parsedURL, err := url.Parse(appURL)
 	if err != nil {
 		return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error parsing task app URL.",
@@ -885,7 +873,7 @@ func (api *API) authAndDoWithTaskSidebarAppClient(
 
 	dialCtx, dialCancel := context.WithTimeout(ctx, time.Second*30)
 	defer dialCancel()
-	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, agentID)
+	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, task.WorkspaceAgentID.UUID)
 	if err != nil {
 		return httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
 			Message: "Failed to reach task app endpoint.",
@@ -902,70 +890,4 @@ func (api *API) authAndDoWithTaskSidebarAppClient(
 		},
 	}
 	return do(ctx, client, parsedURL)
-}
-
-func agentapiNewRequest(ctx context.Context, method string, appURL *url.URL, appURLPath string, body any) (*http.Request, error) {
-	u := *appURL
-	u.Path = path.Join(appURL.Path, appURLPath)
-
-	var bodyReader io.Reader
-	if body != nil {
-		b, err := json.Marshal(body)
-		if err != nil {
-			return nil, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
-				Message: "Failed to marshal task app request body.",
-				Detail:  err.Error(),
-			})
-		}
-		bodyReader = bytes.NewReader(b)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, method, u.String(), bodyReader)
-	if err != nil {
-		return nil, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
-			Message: "Failed to create task app request.",
-			Detail:  err.Error(),
-		})
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-
-	return req, nil
-}
-
-func agentapiDoStatusRequest(ctx context.Context, client *http.Client, appURL *url.URL) (string, error) {
-	req, err := agentapiNewRequest(ctx, http.MethodGet, appURL, "status", nil)
-	if err != nil {
-		return "", err
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
-			Message: "Failed to reach task app endpoint.",
-			Detail:  err.Error(),
-		})
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return "", httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
-			Message: "Task app status returned an error.",
-			Detail:  fmt.Sprintf("Status code: %d", resp.StatusCode),
-		})
-	}
-
-	// {"$schema":"http://localhost:3284/schemas/StatusResponseBody.json","status":"stable"}
-	var respBody struct {
-		Status string `json:"status"`
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&respBody); err != nil {
-		return "", httperror.NewResponseError(http.StatusBadGateway, codersdk.Response{
-			Message: "Failed to decode task app status response body.",
-			Detail:  err.Error(),
-		})
-	}
-
-	return respBody.Status, nil
 }

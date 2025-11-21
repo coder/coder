@@ -1,9 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import GitHub from "@mui/icons-material/GitHub";
-import HideSourceOutlined from "@mui/icons-material/HideSourceOutlined";
-import KeyOutlined from "@mui/icons-material/KeyOutlined";
-import PasswordOutlined from "@mui/icons-material/PasswordOutlined";
-import ShieldOutlined from "@mui/icons-material/ShieldOutlined";
 import Skeleton from "@mui/material/Skeleton";
 import type { GroupsByUserId } from "api/queries/groups";
 import type * as TypesGen from "api/typesGenerated";
@@ -20,6 +15,7 @@ import {
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
 import { EmptyState } from "components/EmptyState/EmptyState";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { LastSeen } from "components/LastSeen/LastSeen";
 import { TableCell, TableRow } from "components/Table/Table";
 import {
@@ -28,7 +24,14 @@ import {
 } from "components/TableLoader/TableLoader";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
-import { EllipsisVertical, TrashIcon } from "lucide-react";
+import {
+	BanIcon,
+	EllipsisVertical,
+	KeyIcon,
+	ShieldIcon,
+	TrashIcon,
+	UserLockIcon,
+} from "lucide-react";
 import type { FC } from "react";
 import { UserRoleCell } from "../../OrganizationSettingsPage/UserTable/UserRoleCell";
 import { UserGroupsCell } from "./UserGroupsCell";
@@ -260,22 +263,22 @@ const LoginType: FC<LoginTypeProps> = ({ authMethods, value }) => {
 
 	if (value === "password") {
 		displayName = "Password";
-		icon = <PasswordOutlined css={styles.icon} />;
+		icon = <UserLockIcon css={styles.icon} />;
 	} else if (value === "none") {
 		displayName = "None";
-		icon = <HideSourceOutlined css={styles.icon} />;
+		icon = <BanIcon css={styles.icon} />;
 	} else if (value === "github") {
 		displayName = "GitHub";
-		icon = <GitHub css={styles.icon} />;
+		icon = <ExternalImage src="/icon/github.svg" css={styles.icon} />;
 	} else if (value === "token") {
 		displayName = "Token";
-		icon = <KeyOutlined css={styles.icon} />;
+		icon = <KeyIcon css={styles.icon} />;
 	} else if (value === "oidc") {
 		displayName =
 			authMethods.oidc.signInText === "" ? "OIDC" : authMethods.oidc.signInText;
 		icon =
 			authMethods.oidc.iconUrl === "" ? (
-				<ShieldOutlined css={styles.icon} />
+				<ShieldIcon css={styles.icon} />
 			) : (
 				<img
 					alt="Open ID Connect icon"

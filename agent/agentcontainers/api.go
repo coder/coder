@@ -682,8 +682,6 @@ func (api *API) updaterLoop() {
 			} else {
 				prevErr = nil
 			}
-		default:
-			api.logger.Debug(api.ctx, "updater loop ticker skipped, update in progress")
 		}
 
 		return nil // Always nil to keep the ticker going.

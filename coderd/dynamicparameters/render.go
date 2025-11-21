@@ -300,6 +300,7 @@ func WorkspaceOwner(ctx context.Context, db database.Store, org uuid.UUID, owner
 			OrganizationID: org,
 			UserID:         ownerID,
 			IncludeSystem:  true,
+			GithubUserID:   0,
 		}))
 		if err != nil {
 			return nil, xerrors.Errorf("fetch user: %w", err)

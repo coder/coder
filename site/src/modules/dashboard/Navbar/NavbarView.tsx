@@ -21,19 +21,21 @@ import { cn } from "utils/cn";
 import { DeploymentDropdown } from "./DeploymentDropdown";
 import { MobileMenu } from "./MobileMenu";
 import { ProxyMenu } from "./ProxyMenu";
+import { SupportIcon } from "./SupportIcon";
 import { UserDropdown } from "./UserDropdown/UserDropdown";
 
 interface NavbarViewProps {
 	logo_url?: string;
 	user: TypesGen.User;
 	buildInfo?: TypesGen.BuildInfoResponse;
-	supportLinks?: readonly TypesGen.LinkConfig[];
+	supportLinks: readonly TypesGen.LinkConfig[];
 	onSignOut: () => void;
 	canViewDeployment: boolean;
 	canViewOrganizations: boolean;
 	canViewAuditLog: boolean;
 	canViewConnectionLog: boolean;
 	canViewHealth: boolean;
+	canViewAIBridge: boolean;
 	proxyContextValue?: ProxyContextValue;
 }
 
@@ -54,6 +56,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 	canViewHealth,
 	canViewAuditLog,
 	canViewConnectionLog,
+	canViewAIBridge,
 	proxyContextValue,
 }) => {
 	const webPush = useWebpushNotifications();
@@ -71,6 +74,16 @@ export const NavbarView: FC<NavbarViewProps> = ({
 			<NavItems className="ml-4" user={user} />
 
 			<div className="flex items-center gap-3 ml-auto">
+				{supportLinks.filter(isNavbarLink).map((link) => (
+					<div key={link.name} className="hidden md:block">
+						<SupportButton
+							name={link.name}
+							target={link.target}
+							icon={link.icon}
+						/>
+					</div>
+				))}
+
 				{proxyContextValue && (
 					<div className="hidden md:block">
 						<ProxyMenu proxyContextValue={proxyContextValue} />
@@ -84,6 +97,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 						canViewDeployment={canViewDeployment}
 						canViewHealth={canViewHealth}
 						canViewConnectionLog={canViewConnectionLog}
+						canViewAIBridge={canViewAIBridge}
 					/>
 				</div>
 
@@ -121,7 +135,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 					<UserDropdown
 						user={user}
 						buildInfo={buildInfo}
-						supportLinks={supportLinks}
+						supportLinks={supportLinks?.filter((link) => !isNavbarLink(link))}
 						onSignOut={onSignOut}
 					/>
 				</div>
@@ -189,8 +203,8 @@ const TasksNavItem: FC<TasksNavItemProps> = ({ user }) => {
 			process.env.NODE_ENV === "development" ||
 			process.env.STORYBOOK,
 	);
-	const filter = {
-		username: user.username,
+	const filter: TypesGen.TasksFilter = {
+		owner: user.username,
 	};
 	const { data: idleCount } = useQuery({
 		queryKey: ["tasks", filter],
@@ -200,8 +214,7 @@ const TasksNavItem: FC<TasksNavItemProps> = ({ user }) => {
 		refetchOnWindowFocus: true,
 		initialData: [],
 		select: (data) =>
-			data.filter((task) => task.workspace.latest_app_status?.state === "idle")
-				.length,
+			data.filter((task) => task.current_state?.state === "idle").length,
 	});
 
 	if (!canSeeTasks) {
@@ -240,3 +253,36 @@ const TasksNavItem: FC<TasksNavItemProps> = ({ user }) => {
 function idleTasksLabel(count: number) {
 	return `You have ${count} ${count === 1 ? "task" : "tasks"} waiting for input`;
 }
+
+function isNavbarLink(link: TypesGen.LinkConfig): boolean {
+	return link.location === "navbar";
+}
+
+interface SupportButtonProps {
+	name: string;
+	target: string;
+	icon: string;
+	location?: string;
+}
+
+const SupportButton: FC<SupportButtonProps> = ({ name, target, icon }) => {
+	return (
+		<Button asChild variant="outline">
+			<a
+				href={target}
+				target="_blank"
+				rel="noreferrer"
+				className="inline-block"
+			>
+				{icon && (
+					<SupportIcon
+						icon={icon}
+						className={"size-5 text-content-secondary"}
+					/>
+				)}
+				{name}
+				<span className="sr-only"> (link opens in new tab)</span>
+			</a>
+		</Button>
+	);
+};

@@ -400,6 +400,78 @@ foo   <nil>      10  [a, b, c]  foo1               11  foo2        12         fo
 			})
 		})
 	})
+
+	t.Run("EmptyNil", func(t *testing.T) {
+		t.Parallel()
+
+		type emptyNilTest struct {
+			Name           string  `table:"name,default_sort"`
+			EmptyOnNil     *string `table:"empty_on_nil,empty_nil"`
+			NormalBehavior *string `table:"normal_behavior"`
+		}
+
+		value := "value"
+		in := []emptyNilTest{
+			{
+				Name:           "has_value",
+				EmptyOnNil:     &value,
+				NormalBehavior: &value,
+			},
+			{
+				Name:           "has_nil",
+				EmptyOnNil:     nil,
+				NormalBehavior: nil,
+			},
+		}
+
+		expected := `
+NAME       EMPTY ON NIL  NORMAL BEHAVIOR
+has_nil                  <nil>
+has_value  value         value
+		`
+
+		out, err := cliui.DisplayTable(in, "", nil)
+		log.Println("rendered table:\n" + out)
+		require.NoError(t, err)
+		compareTables(t, expected, out)
+	})
+
+	t.Run("EmptyNilWithRecursiveInline", func(t *testing.T) {
+		t.Parallel()
+
+		type nestedData struct {
+			Name string `table:"name"`
+		}
+
+		type inlineTest struct {
+			Nested *nestedData `table:"ignored,recursive_inline,empty_nil"`
+			Count  int         `table:"count,default_sort"`
+		}
+
+		in := []inlineTest{
+			{
+				Nested: &nestedData{
+					Name: "alice",
+				},
+				Count: 1,
+			},
+			{
+				Nested: nil,
+				Count:  2,
+			},
+		}
+
+		expected := `
+NAME   COUNT
+alice  1
+       2
+		`
+
+		out, err := cliui.DisplayTable(in, "", nil)
+		log.Println("rendered table:\n" + out)
+		require.NoError(t, err)
+		compareTables(t, expected, out)
+	})
 }
 
 // compareTables normalizes the incoming table lines

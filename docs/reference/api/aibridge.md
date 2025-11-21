@@ -6,12 +6,12 @@
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/api/experimental/aibridge/interceptions \
+curl -X GET http://coder-server:8080/api/v2/aibridge/interceptions \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /api/experimental/aibridge/interceptions`
+`GET /aibridge/interceptions`
 
 ### Parameters
 
@@ -19,7 +19,8 @@ curl -X GET http://coder-server:8080/api/v2/api/experimental/aibridge/intercepti
 |------------|-------|---------|----------|------------------------------------------------------------------------------------------------------------------------|
 | `q`        | query | string  | false    | Search query in the format `key:value`. Available keys are: initiator, provider, model, started_after, started_before. |
 | `limit`    | query | integer | false    | Page limit                                                                                                             |
-| `after_id` | query | string  | false    | Cursor pagination after ID                                                                                             |
+| `after_id` | query | string  | false    | Cursor pagination after ID (cannot be used with offset)                                                                |
+| `offset`   | query | integer | false    | Offset pagination (cannot be used with after_id)                                                                       |
 
 ### Example responses
 
@@ -27,10 +28,18 @@ curl -X GET http://coder-server:8080/api/v2/api/experimental/aibridge/intercepti
 
 ```json
 {
+  "count": 0,
   "results": [
     {
+      "api_key_id": "string",
+      "ended_at": "2019-08-24T14:15:22Z",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
+      "initiator": {
+        "avatar_url": "http://example.com",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string",
+        "username": "string"
+      },
       "metadata": {
         "property1": null,
         "property2": null

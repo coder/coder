@@ -1,3 +1,4 @@
+import type { Task, Workspace } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import {
 	Tooltip,
@@ -13,14 +14,14 @@ import {
 	LaptopMinimalIcon,
 	TerminalIcon,
 } from "lucide-react";
-import type { Task } from "modules/tasks/tasks";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
+import { TaskStartupWarningButton } from "./TaskStartupWarningButton";
 import { TaskStatusLink } from "./TaskStatusLink";
 
-type TaskTopbarProps = { task: Task };
+type TaskTopbarProps = { task: Task; workspace: Workspace };
 
-export const TaskTopbar: FC<TaskTopbarProps> = ({ task }) => {
+export const TaskTopbar: FC<TaskTopbarProps> = ({ task, workspace }) => {
 	return (
 		<header className="flex flex-shrink-0 items-center p-3 border-solid border-border border-0 border-b">
 			<TooltipProvider>
@@ -37,17 +38,19 @@ export const TaskTopbar: FC<TaskTopbarProps> = ({ task }) => {
 				</Tooltip>
 			</TooltipProvider>
 
-			<h1 className="m-0 pl-2 text-base font-medium truncate">
-				{task.workspace.name}
-			</h1>
+			<h1 className="m-0 pl-2 text-base font-medium truncate">{task.name}</h1>
 
-			{task.workspace.latest_app_status?.uri && (
+			{task.current_state?.uri && (
 				<div className="flex items-center gap-2 flex-wrap ml-4">
-					<TaskStatusLink uri={task.workspace.latest_app_status.uri} />
+					<TaskStatusLink uri={task.current_state.uri} />
 				</div>
 			)}
 
 			<div className="ml-auto gap-2 flex items-center">
+				<TaskStartupWarningButton
+					lifecycleState={task.workspace_agent_lifecycle}
+				/>
+
 				<TooltipProvider delayDuration={250}>
 					<Tooltip>
 						<TooltipTrigger asChild>
@@ -58,17 +61,15 @@ export const TaskTopbar: FC<TaskTopbarProps> = ({ task }) => {
 						</TooltipTrigger>
 						<TooltipContent className="max-w-xs bg-surface-secondary p-4">
 							<p className="m-0 mb-2 select-all text-sm font-normal text-content-primary leading-snug">
-								{task.prompt}
+								{task.initial_prompt}
 							</p>
-							<CopyPromptButton prompt={task.prompt} />
+							<CopyPromptButton prompt={task.initial_prompt} />
 						</TooltipContent>
 					</Tooltip>
 				</TooltipProvider>
 
 				<Button asChild variant="outline" size="sm">
-					<RouterLink
-						to={`/@${task.workspace.owner_name}/${task.workspace.name}`}
-					>
+					<RouterLink to={`/@${workspace.owner_name}/${workspace.name}`}>
 						<LaptopMinimalIcon />
 						Workspace
 					</RouterLink>
@@ -81,14 +82,11 @@ export const TaskTopbar: FC<TaskTopbarProps> = ({ task }) => {
 type CopyPromptButtonProps = { prompt: string };
 
 const CopyPromptButton: FC<CopyPromptButtonProps> = ({ prompt }) => {
-	const { copyToClipboard, showCopiedSuccess } = useClipboard({
-		textToCopy: prompt,
-	});
-
+	const { copyToClipboard, showCopiedSuccess } = useClipboard();
 	return (
 		<Button
 			disabled={showCopiedSuccess}
-			onClick={copyToClipboard}
+			onClick={() => copyToClipboard(prompt)}
 			size="sm"
 			variant="subtle"
 			className="p-0 min-w-0"

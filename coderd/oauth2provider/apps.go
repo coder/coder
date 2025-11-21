@@ -110,7 +110,7 @@ func CreateApp(db database.Store, accessURL *url.URL, auditor *audit.Auditor, lo
 			Jwks:                    pqtype.NullRawMessage{},
 			SoftwareID:              sql.NullString{},
 			SoftwareVersion:         sql.NullString{},
-			RegistrationAccessToken: sql.NullString{},
+			RegistrationAccessToken: nil,
 			RegistrationClientUri:   sql.NullString{},
 		})
 		if err != nil {

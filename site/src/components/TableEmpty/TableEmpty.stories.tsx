@@ -1,8 +1,6 @@
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableContainer from "@mui/material/TableContainer";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { CodeExample } from "components/CodeExample/CodeExample";
+import { Table, TableBody } from "components/Table/Table";
 import { TableEmpty } from "./TableEmpty";
 
 const meta: Meta<typeof TableEmpty> = {
@@ -13,13 +11,11 @@ const meta: Meta<typeof TableEmpty> = {
 	},
 	decorators: [
 		(Story) => (
-			<TableContainer>
-				<Table>
-					<TableBody>
-						<Story />
-					</TableBody>
-				</Table>
-			</TableContainer>
+			<Table>
+				<TableBody>
+					<Story />
+				</TableBody>
+			</Table>
 		),
 	],
 };

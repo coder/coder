@@ -210,6 +210,11 @@
 							"path": "./user-guides/workspace-access/vscode.md"
 						},
 						{
+							"title": "Web Terminal",
+							"description": "Use the browser-based terminal to access your workspace",
+							"path": "./user-guides/workspace-access/web-terminal.md"
+						},
+						{
 							"title": "JetBrains IDEs",
 							"description": "Use JetBrains IDEs with Coder",
 							"path": "./user-guides/workspace-access/jetbrains/index.md",
@@ -426,6 +431,11 @@
 									"title": "Google",
 									"description": "Configure Google as an OIDC provider",
 									"path": "./admin/users/oidc-auth/google.md"
+								},
+								{
+									"title": "Microsoft",
+									"description": "Configure Microsoft Entra ID as an OIDC provider",
+									"path": "./admin/users/oidc-auth/microsoft.md"
 								},
 								{
 									"title": "Configure OIDC refresh tokens",
@@ -884,9 +894,21 @@
 					"state": ["beta"],
 					"children": [
 						{
+							"title": "Understanding Coder Tasks",
+							"description": "Core principles and concepts behind Coder Tasks",
+							"path": "./ai-coder/tasks-core-principles.md",
+							"state": ["beta"]
+						},
+						{
 							"title": "Custom Agents",
 							"description": "Run custom agents with Coder Tasks",
 							"path": "./ai-coder/custom-agents.md",
+							"state": ["beta"]
+						},
+						{
+							"title": "Tasks Migration Guide",
+							"description": "Changes to Coder Tasks made in v2.28",
+							"path": "./ai-coder/tasks-migration.md",
 							"state": ["beta"]
 						},
 						{
@@ -900,6 +922,54 @@
 					"title": "MCP Server",
 					"description": "Connect to agents Coder with a MCP server",
 					"path": "./ai-coder/mcp-server.md",
+					"state": ["beta"]
+				},
+				{
+					"title": "Agent Boundaries",
+					"description": "Understanding Agent Boundaries in Coder Tasks",
+					"path": "./ai-coder/agent-boundary.md",
+					"state": ["early access"]
+				},
+				{
+					"title": "AI Bridge",
+					"description": "Centralized LLM and MCP proxy for platform teams",
+					"path": "./ai-coder/ai-bridge/index.md",
+					"icon_path": "./images/icons/api.svg",
+					"state": ["premium", "early access"],
+					"children": [
+						{
+							"title": "Setup",
+							"description": "How to set up and configure AI Bridge",
+							"path": "./ai-coder/ai-bridge/setup.md"
+						},
+						{
+							"title": "Client Configuration",
+							"description": "How to configure your AI coding tools to use AI Bridge",
+							"path": "./ai-coder/ai-bridge/client-config.md"
+						},
+						{
+							"title": "MCP Tools Injection",
+							"description": "How to configure MCP servers for tools injection through AI Bridge",
+							"path": "./ai-coder/ai-bridge/mcp.md",
+							"state": ["early access"]
+						},
+						{
+							"title": "Monitoring",
+							"description": "How to monitor AI Bridge",
+							"path": "./ai-coder/ai-bridge/monitoring.md"
+						},
+						{
+							"title": "Reference",
+							"description": "Technical reference for AI Bridge",
+							"path": "./ai-coder/ai-bridge/reference.md"
+						}
+					]
+				},
+				{
+					"title": "Tasks CLI",
+					"description": "Coder CLI for managing tasks programmatically",
+					"path": "./ai-coder/cli.md",
+					"icon_path": "./images/icons/api.svg",
 					"state": ["beta"]
 				}
 			]
@@ -1144,6 +1214,21 @@
 					"path": "./reference/cli/index.md",
 					"icon_path": "./images/icons/terminal.svg",
 					"children": [
+						{
+							"title": "aibridge",
+							"description": "Manage AIBridge.",
+							"path": "reference/cli/aibridge.md"
+						},
+						{
+							"title": "aibridge interceptions",
+							"description": "Manage AIBridge interceptions.",
+							"path": "reference/cli/aibridge_interceptions.md"
+						},
+						{
+							"title": "aibridge interceptions list",
+							"description": "List AIBridge interceptions as JSON.",
+							"path": "reference/cli/aibridge_interceptions_list.md"
+						},
 						{
 							"title": "autoupdate",
 							"description": "Toggle auto-update policy for a workspace",
@@ -1761,6 +1846,11 @@
 							"title": "tokens remove",
 							"description": "Delete a token",
 							"path": "reference/cli/tokens_remove.md"
+						},
+						{
+							"title": "tokens view",
+							"description": "Display detailed information about a token",
+							"path": "reference/cli/tokens_view.md"
 						},
 						{
 							"title": "unfavorite",

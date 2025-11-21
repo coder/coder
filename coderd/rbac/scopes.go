@@ -18,6 +18,7 @@ type WorkspaceAgentScopeParams struct {
 	OwnerID       uuid.UUID
 	TemplateID    uuid.UUID
 	VersionID     uuid.UUID
+	TaskID        uuid.NullUUID
 	BlockUserData bool
 }
 
@@ -42,6 +43,15 @@ func WorkspaceAgentScope(params WorkspaceAgentScopeParams) Scope {
 		panic("failed to expand scope, this should never happen")
 	}
 
+	// Include task in the allow list if the workspace has an associated task.
+	var extraAllowList []AllowListElement
+	if params.TaskID.Valid {
+		extraAllowList = append(extraAllowList, AllowListElement{
+			Type: ResourceTask.Type,
+			ID:   params.TaskID.UUID.String(),
+		})
+	}
+
 	return Scope{
 		// TODO: We want to limit the role too to be extra safe.
 		// Even though the allowlist blocks anything else, it is still good
@@ -52,12 +62,12 @@ func WorkspaceAgentScope(params WorkspaceAgentScopeParams) Scope {
 		// Limit the agent to only be able to access the singular workspace and
 		// the template/version it was created from. Add additional resources here
 		// as needed, but do not add more workspace or template resource ids.
-		AllowIDList: []AllowListElement{
+		AllowIDList: append([]AllowListElement{
 			{Type: ResourceWorkspace.Type, ID: params.WorkspaceID.String()},
 			{Type: ResourceTemplate.Type, ID: params.TemplateID.String()},
 			{Type: ResourceTemplate.Type, ID: params.VersionID.String()},
 			{Type: ResourceUser.Type, ID: params.OwnerID.String()},
-		},
+		}, extraAllowList...),
 	}
 }
 
@@ -78,8 +88,8 @@ var builtinScopes = map[ScopeName]Scope{
 			Site: Permissions(map[string][]policy.Action{
 				ResourceWildcard.Type: {policy.WildcardSymbol},
 			}),
-			Org:  map[string][]Permission{},
-			User: []Permission{},
+			User:    []Permission{},
+			ByOrgID: map[string]OrgPermissions{},
 		},
 		AllowIDList: []AllowListElement{AllowListAll()},
 	},
@@ -91,8 +101,8 @@ var builtinScopes = map[ScopeName]Scope{
 			Site: Permissions(map[string][]policy.Action{
 				ResourceWorkspace.Type: {policy.ActionApplicationConnect},
 			}),
-			Org:  map[string][]Permission{},
-			User: []Permission{},
+			User:    []Permission{},
+			ByOrgID: map[string]OrgPermissions{},
 		},
 		AllowIDList: []AllowListElement{AllowListAll()},
 	},
@@ -102,8 +112,8 @@ var builtinScopes = map[ScopeName]Scope{
 			Identifier:  RoleIdentifier{Name: fmt.Sprintf("Scope_%s", ScopeNoUserData)},
 			DisplayName: "Scope without access to user data",
 			Site:        allPermsExcept(ResourceUser),
-			Org:         map[string][]Permission{},
 			User:        []Permission{},
+			ByOrgID:     map[string]OrgPermissions{},
 		},
 		AllowIDList: []AllowListElement{AllowListAll()},
 	},
@@ -232,11 +242,11 @@ func ExpandScope(scope ScopeName) (Scope, error) {
 				Identifier:  RoleIdentifier{Name: fmt.Sprintf("Scope_%s", scope)},
 				DisplayName: string(scope),
 				Site:        site,
-				Org:         map[string][]Permission{},
 				User:        []Permission{},
+				ByOrgID:     map[string]OrgPermissions{},
 			},
 			// Composites are site-level; allow-list empty by default
-			AllowIDList: []AllowListElement{},
+			AllowIDList: []AllowListElement{{Type: policy.WildcardSymbol, ID: policy.WildcardSymbol}},
 		}, nil
 	}
 	if res, act, ok := parseLowLevelScope(scope); ok {
@@ -289,10 +299,10 @@ func expandLowLevel(resource string, action policy.Action) Scope {
 			Identifier:  RoleIdentifier{Name: fmt.Sprintf("Scope_%s:%s", resource, action)},
 			DisplayName: fmt.Sprintf("%s:%s", resource, action),
 			Site:        []Permission{{ResourceType: resource, Action: action}},
-			Org:         map[string][]Permission{},
 			User:        []Permission{},
+			ByOrgID:     map[string]OrgPermissions{},
 		},
-		// Low-level scopes intentionally return an empty allow list.
-		AllowIDList: []AllowListElement{},
+		// Low-level scopes intentionally return a wildcard allow list.
+		AllowIDList: []AllowListElement{{Type: policy.WildcardSymbol, ID: policy.WildcardSymbol}},
 	}
 }

@@ -199,6 +199,7 @@ export const createCustomRole = async (
 			},
 		],
 		user_permissions: [],
+		organization_member_permissions: [],
 	});
 	return role;
 };
@@ -213,7 +214,7 @@ export async function verifyConfigFlagBoolean(
 	const value = opt.value ? "Enabled" : "Disabled";
 
 	const configOption = page.locator(
-		`div.options-table .option-${flag} .${type}`,
+		`table.options-table .option-${flag} .${type}`,
 	);
 	await expect(configOption).toHaveText(value);
 }
@@ -225,7 +226,7 @@ export async function verifyConfigFlagNumber(
 ) {
 	const opt = findConfigOption(config, flag);
 	const configOption = page.locator(
-		`div.options-table .option-${flag} .option-value-number`,
+		`table.options-table .option-${flag} .option-value-number`,
 	);
 	await expect(configOption).toHaveText(String(opt.value));
 }
@@ -238,7 +239,7 @@ export async function verifyConfigFlagString(
 	const opt = findConfigOption(config, flag);
 
 	const configOption = page.locator(
-		`div.options-table .option-${flag} .option-value-string`,
+		`table.options-table .option-${flag} .option-value-string`,
 	);
 	// biome-ignore lint/suspicious/noExplicitAny: opt.value is any
 	await expect(configOption).toHaveText(opt.value as any);
@@ -251,7 +252,7 @@ export async function verifyConfigFlagArray(
 ) {
 	const opt = findConfigOption(config, flag);
 	const configOption = page.locator(
-		`div.options-table .option-${flag} .option-array`,
+		`table.options-table .option-${flag} .option-array`,
 	);
 
 	// Verify array of options with simple dots
@@ -268,7 +269,7 @@ export async function verifyConfigFlagEntries(
 ) {
 	const opt = findConfigOption(config, flag);
 	const configOption = page.locator(
-		`div.options-table .option-${flag} .option-array`,
+		`table.options-table .option-${flag} .option-array`,
 	);
 
 	// Verify array of options with green marks.
@@ -296,7 +297,7 @@ export async function verifyConfigFlagDuration(
 		);
 	}
 	const configOption = page.locator(
-		`div.options-table .option-${flag} .option-value-string`,
+		`table.options-table .option-${flag} .option-value-string`,
 	);
 	await expect(configOption).toHaveText(humanDuration(opt.value / 1e6));
 }

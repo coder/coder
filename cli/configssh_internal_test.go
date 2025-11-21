@@ -135,11 +135,13 @@ func Test_sshConfigSplitOnCoderSection(t *testing.T) {
 	}
 }
 
-// This test tries to mimic the behavior of OpenSSH
-// when executing e.g. a ProxyCommand.
-// nolint:tparallel
+// This test tries to mimic the behavior of OpenSSH when executing e.g. a ProxyCommand.
+// nolint:paralleltest
 func Test_sshConfigProxyCommandEscape(t *testing.T) {
-	t.Parallel()
+	// Don't run this test, or any of its subtests in parallel. The test works by writing a file and then immediately
+	// executing it.  Other tests might also exec a subprocess, and if they do in parallel, there is a small race
+	// condition where our file is open when they fork, and remains open while we attempt to execute it, causing
+	// a "text file busy" error.
 
 	tests := []struct {
 		name    string

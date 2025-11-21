@@ -37,13 +37,18 @@ type ReconciliationOrchestrator interface {
 	TrackResourceReplacement(ctx context.Context, workspaceID, buildID uuid.UUID, replacements []*sdkproto.ResourceReplacement)
 }
 
+// ReconcileStats contains statistics about a reconciliation cycle.
+type ReconcileStats struct {
+	Elapsed time.Duration
+}
+
 type Reconciler interface {
 	StateSnapshotter
 
 	// ReconcileAll orchestrates the reconciliation of all prebuilds across all templates.
 	// It takes a global snapshot of the system state and then reconciles each preset
 	// in parallel, creating or deleting prebuilds as needed to reach their desired states.
-	ReconcileAll(ctx context.Context) error
+	ReconcileAll(ctx context.Context) (ReconcileStats, error)
 }
 
 // StateSnapshotter defines the operations necessary to capture workspace prebuilds state.
@@ -66,5 +71,4 @@ type Claimer interface {
 		nextStartAt sql.NullTime,
 		ttl sql.NullInt64,
 	) (*uuid.UUID, error)
-	Initiator() uuid.UUID
 }

@@ -420,6 +420,14 @@ func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.Get
 			api.Logger.Error(ctx, "unable to fetch oauth2 app secret", slog.Error(err))
 		}
 		return false
+	case database.ResourceTypeTask:
+		task, err := api.Database.GetTaskByID(ctx, alog.AuditLog.ResourceID)
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return true
+		} else if err != nil {
+			api.Logger.Error(ctx, "unable to fetch task", slog.Error(err))
+		}
+		return task.DeletedAt.Valid && task.DeletedAt.Time.Before(time.Now())
 	default:
 		return false
 	}
@@ -495,6 +503,17 @@ func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAudit
 			return ""
 		}
 		return fmt.Sprintf("/deployment/oauth2-provider/apps/%s", secret.AppID)
+
+	case database.ResourceTypeTask:
+		task, err := api.Database.GetTaskByID(ctx, alog.AuditLog.ResourceID)
+		if err != nil {
+			return ""
+		}
+		user, err := api.Database.GetUserByID(ctx, task.OwnerID)
+		if err != nil {
+			return ""
+		}
+		return fmt.Sprintf("/tasks/%s/%s", user.Username, task.ID)
 
 	default:
 		return ""

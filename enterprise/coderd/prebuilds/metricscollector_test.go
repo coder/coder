@@ -30,10 +30,6 @@ import (
 func TestMetricsCollector(t *testing.T) {
 	t.Parallel()
 
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("this test requires postgres")
-	}
-
 	type metricCheck struct {
 		name      string
 		value     *float64
@@ -298,10 +294,6 @@ func TestMetricsCollector(t *testing.T) {
 func TestMetricsCollector_DuplicateTemplateNames(t *testing.T) {
 	t.Parallel()
 
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("this test requires postgres")
-	}
-
 	type metricCheck struct {
 		name      string
 		value     *float64
@@ -478,10 +470,6 @@ func findAllMetricSeries(metricsFamilies []*prometheus_client.MetricFamily, labe
 func TestMetricsCollector_ReconciliationPausedMetric(t *testing.T) {
 	t.Parallel()
 
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("this test requires postgres")
-	}
-
 	t.Run("reconciliation_not_paused", func(t *testing.T) {
 		t.Parallel()
 
@@ -497,7 +485,7 @@ func TestMetricsCollector_ReconciliationPausedMetric(t *testing.T) {
 		require.NoError(t, err)
 
 		// Run reconciliation to update the metric
-		err = reconciler.ReconcileAll(ctx)
+		_, err = reconciler.ReconcileAll(ctx)
 		require.NoError(t, err)
 
 		// Check that the metric shows reconciliation is not paused
@@ -526,7 +514,7 @@ func TestMetricsCollector_ReconciliationPausedMetric(t *testing.T) {
 		require.NoError(t, err)
 
 		// Run reconciliation to update the metric
-		err = reconciler.ReconcileAll(ctx)
+		_, err = reconciler.ReconcileAll(ctx)
 		require.NoError(t, err)
 
 		// Check that the metric shows reconciliation is paused
@@ -555,7 +543,7 @@ func TestMetricsCollector_ReconciliationPausedMetric(t *testing.T) {
 		require.NoError(t, err)
 
 		// Run reconciliation to update the metric
-		err = reconciler.ReconcileAll(ctx)
+		_, err = reconciler.ReconcileAll(ctx)
 		require.NoError(t, err)
 
 		// Check that the metric shows reconciliation is not paused

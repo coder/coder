@@ -170,6 +170,50 @@ func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
 	return filter, parser.Errors
 }
 
+func Members(query string, organizationID uuid.UUID) (database.OrganizationMembersParams, []codersdk.ValidationError) {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return database.OrganizationMembersParams{
+			OrganizationID: organizationID,
+			UserID:         uuid.Nil,
+			IncludeSystem:  false,
+			GithubUserID:   0,
+		}, nil
+	}
+	values, errors := searchTerms(query, func(term string, values url.Values) error {
+		switch term {
+		case "user_id":
+			values.Set("user_id", "")
+		case "github_user_id":
+			values.Set("github_user_id", "")
+		case "include_system":
+			values.Set("include_system", "")
+		default:
+			return xerrors.Errorf("invalid search term: %s", term)
+		}
+		return nil
+	})
+	if len(errors) > 0 {
+		return database.OrganizationMembersParams{
+			OrganizationID: organizationID,
+			UserID:         uuid.Nil,
+			IncludeSystem:  false,
+			GithubUserID:   0,
+		}, errors
+	}
+
+	parser := httpapi.NewQueryParamParser()
+	params := database.OrganizationMembersParams{
+		OrganizationID: organizationID,
+		UserID:         parser.UUID(values, uuid.Nil, "user_id"),
+		IncludeSystem:  parser.Boolean(values, false, "include_system"),
+		GithubUserID:   parser.Int64(values, 0, "github_user_id"),
+	}
+	parser.ErrorExcessParams(values)
+
+	return params, parser.Errors
+}
+
 func Workspaces(ctx context.Context, db database.Store, query string, page codersdk.Pagination, agentInactiveDisconnectTimeout time.Duration) (database.GetWorkspacesParams, []codersdk.ValidationError) {
 	filter := database.GetWorkspacesParams{
 		AgentInactiveDisconnectTimeoutSeconds: int64(agentInactiveDisconnectTimeout.Seconds()),
@@ -311,6 +355,8 @@ func AIBridgeInterceptions(ctx context.Context, db database.Store, query string,
 		AfterID: page.AfterID,
 		// #nosec G115 - Safe conversion for pagination limit which is expected to be within int32 range
 		Limit: int32(page.Limit),
+		// #nosec G115 - Safe conversion for pagination offset which is expected to be within int32 range
+		Offset: int32(page.Offset),
 	}
 
 	if query == "" {
@@ -319,7 +365,7 @@ func AIBridgeInterceptions(ctx context.Context, db database.Store, query string,
 
 	values, errors := searchTerms(query, func(term string, values url.Values) error {
 		// Default to the initiating user
-		values.Add("user", term)
+		values.Add("initiator", term)
 		return nil
 	})
 	if len(errors) > 0 {
@@ -340,6 +386,43 @@ func AIBridgeInterceptions(ctx context.Context, db database.Store, query string,
 			Detail: `Query param "started_before" has invalid value: "started_before" must be after "started_after" if set`,
 		})
 	}
+
+	parser.ErrorExcessParams(values)
+	return filter, parser.Errors
+}
+
+// Tasks parses a search query for tasks.
+//
+// Supported query parameters:
+//   - owner: string (username, UUID, or 'me' for current user)
+//   - organization: string (organization UUID or name)
+//   - status: string (pending, initializing, active, paused, error, unknown)
+func Tasks(ctx context.Context, db database.Store, query string, actorID uuid.UUID) (database.ListTasksParams, []codersdk.ValidationError) {
+	filter := database.ListTasksParams{
+		OwnerID:        uuid.Nil,
+		OrganizationID: uuid.Nil,
+		Status:         "",
+	}
+
+	if query == "" {
+		return filter, nil
+	}
+
+	// Always lowercase for all searches.
+	query = strings.ToLower(query)
+	values, errors := searchTerms(query, func(term string, values url.Values) error {
+		// Default unqualified terms to owner
+		values.Add("owner", term)
+		return nil
+	})
+	if len(errors) > 0 {
+		return filter, errors
+	}
+
+	parser := httpapi.NewQueryParamParser()
+	filter.OwnerID = parseUser(ctx, db, parser, values, "owner", actorID)
+	filter.OrganizationID = parseOrganization(ctx, db, parser, values, "organization")
+	filter.Status = parser.String(values, "", "status")
 
 	parser.ErrorExcessParams(values)
 	return filter, parser.Errors

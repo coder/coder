@@ -753,6 +753,14 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(ctx, rw, r, &params) {
 		return
 	}
+
+	// If caller wants to update user's username, they need "update_users" permission.
+	// This is restricted to user admins only.
+	if params.Username != user.Username && !api.Authorize(r, policy.ActionUpdate, user) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
 	existentUser, err := api.Database.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
 		Username: params.Username,
 	})
@@ -1236,6 +1244,7 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 		UserID:         user.ID,
 		OrganizationID: uuid.Nil,
 		IncludeSystem:  false,
+		GithubUserID:   0,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1528,21 +1537,13 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 
 // findUserAdmins fetches all users with user admin permission including owners.
 func findUserAdmins(ctx context.Context, store database.Store) ([]database.GetUsersRow, error) {
-	// Notice: we can't scrape the user information in parallel as pq
-	// fails with: unexpected describe rows response: 'D'
-	owners, err := store.GetUsers(ctx, database.GetUsersParams{
-		RbacRole: []string{codersdk.RoleOwner},
+	userAdmins, err := store.GetUsers(ctx, database.GetUsersParams{
+		RbacRole: []string{codersdk.RoleOwner, codersdk.RoleUserAdmin},
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("get owners: %w", err)
 	}
-	userAdmins, err := store.GetUsers(ctx, database.GetUsersParams{
-		RbacRole: []string{codersdk.RoleUserAdmin},
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("get user admins: %w", err)
-	}
-	return append(owners, userAdmins...), nil
+	return userAdmins, nil
 }
 
 func convertUsers(users []database.User, organizationIDsByUserID map[uuid.UUID][]uuid.UUID) []codersdk.User {
@@ -1599,5 +1600,6 @@ func convertAPIKey(k database.APIKey) codersdk.APIKey {
 		Scopes:          scopes,
 		LifetimeSeconds: k.LifetimeSeconds,
 		TokenName:       k.TokenName,
+		AllowList:       db2sdk.List(k.AllowList, db2sdk.APIAllowListTarget),
 	}
 }

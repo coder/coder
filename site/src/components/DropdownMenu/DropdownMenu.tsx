@@ -20,7 +20,7 @@ export const DropdownMenu = DropdownMenuPrimitive.Root;
 
 export const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
 
-const _DropdownMenuGroup = DropdownMenuPrimitive.Group;
+export const DropdownMenuGroup = DropdownMenuPrimitive.Group;
 
 const _DropdownMenuPortal = DropdownMenuPrimitive.Portal;
 

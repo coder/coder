@@ -12,6 +12,9 @@ node_modules/
 vendor/
 yarn-error.log
 
+# Test output files
+test-output/
+
 # VSCode settings.
 **/.vscode/*
 # Allow VSCode recommendations and default settings in project root.
@@ -86,3 +89,8 @@ result
 __debug_bin*
 
 **/.claude/settings.local.json
+
+/.env
+
+# Ignore plans written by AI agents.
+PLAN.md

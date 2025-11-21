@@ -1,0 +1,1411 @@
+{
+	"__inputs": [
+		{
+			"name": "DS_CODER-OBSERVABILITY-RO",
+			"label": "coder-observability-ro",
+			"description": "",
+			"type": "datasource",
+			"pluginId": "grafana-postgresql-datasource",
+			"pluginName": "PostgreSQL"
+		},
+		{
+			"name": "DS_LITELLM-PRICING-DATA",
+			"label": "litellm-pricing-data",
+			"description": "",
+			"type": "datasource",
+			"pluginId": "yesoreyeram-infinity-datasource",
+			"pluginName": "Infinity"
+		}
+	],
+	"__elements": {},
+	"__requires": [
+		{
+			"type": "panel",
+			"id": "barchart",
+			"name": "Bar chart",
+			"version": ""
+		},
+		{
+			"type": "grafana",
+			"id": "grafana",
+			"name": "Grafana",
+			"version": "12.1.0"
+		},
+		{
+			"type": "datasource",
+			"id": "grafana-postgresql-datasource",
+			"name": "PostgreSQL",
+			"version": "12.1.0"
+		},
+		{
+			"type": "panel",
+			"id": "stat",
+			"name": "Stat",
+			"version": ""
+		},
+		{
+			"type": "panel",
+			"id": "table",
+			"name": "Table",
+			"version": ""
+		},
+		{
+			"type": "datasource",
+			"id": "yesoreyeram-infinity-datasource",
+			"name": "Infinity",
+			"version": "3.6.0"
+		}
+	],
+	"annotations": {
+		"list": [
+			{
+				"builtIn": 1,
+				"datasource": {
+					"type": "grafana",
+					"uid": "-- Grafana --"
+				},
+				"enable": true,
+				"hide": true,
+				"iconColor": "rgba(0, 211, 255, 1)",
+				"name": "Annotations & Alerts",
+				"type": "dashboard"
+			}
+		]
+	},
+	"editable": true,
+	"fiscalYearStartMonth": 0,
+	"graphTooltip": 0,
+	"id": null,
+	"links": [],
+	"panels": [
+		{
+			"collapsed": false,
+			"gridPos": {
+				"h": 1,
+				"w": 24,
+				"x": 0,
+				"y": 0
+			},
+			"id": 11,
+			"panels": [],
+			"title": "Usage leaderboards",
+			"type": "row"
+		},
+		{
+			"datasource": {
+				"type": "grafana-postgresql-datasource",
+				"uid": "${DS_CODER-OBSERVABILITY-RO}"
+			},
+			"fieldConfig": {
+				"defaults": {
+					"color": {
+						"mode": "thresholds"
+					},
+					"custom": {
+						"axisBorderShow": false,
+						"axisCenteredZero": false,
+						"axisColorMode": "text",
+						"axisLabel": "",
+						"axisPlacement": "auto",
+						"fillOpacity": 80,
+						"gradientMode": "none",
+						"hideFrom": {
+							"legend": false,
+							"tooltip": false,
+							"viz": false
+						},
+						"lineWidth": 1,
+						"scaleDistribution": {
+							"type": "linear"
+						},
+						"thresholdsStyle": {
+							"mode": "off"
+						}
+					},
+					"mappings": [],
+					"thresholds": {
+						"mode": "absolute",
+						"steps": [
+							{
+								"color": "green",
+								"value": 0
+							}
+						]
+					},
+					"unit": "short"
+				},
+				"overrides": [
+					{
+						"matcher": {
+							"id": "byName",
+							"options": "output"
+						},
+						"properties": [
+							{
+								"id": "color",
+								"value": {
+									"fixedColor": "yellow",
+									"mode": "fixed"
+								}
+							}
+						]
+					},
+					{
+						"matcher": {
+							"id": "byName",
+							"options": "Cache Read"
+						},
+						"properties": [
+							{
+								"id": "color",
+								"value": {
+									"fixedColor": "green",
+									"mode": "fixed"
+								}
+							}
+						]
+					},
+					{
+						"matcher": {
+							"id": "byName",
+							"options": "Input"
+						},
+						"properties": [
+							{
+								"id": "color",
+								"value": {
+									"fixedColor": "orange",
+									"mode": "fixed"
+								}
+							}
+						]
+					},
+					{
+						"matcher": {
+							"id": "byName",
+							"options": "Cache Write"
+						},
+						"properties": [
+							{
+								"id": "color",
+								"value": {
+									"fixedColor": "light-red",
+									"mode": "fixed"
+								}
+							}
+						]
+					}
+				]
+			},
+			"gridPos": {
+				"h": 12,
+				"w": 20,
+				"x": 0,
+				"y": 1
+			},
+			"id": 1,
+			"options": {
+				"barRadius": 0,
+				"barWidth": 0.97,
+				"fullHighlight": false,
+				"groupWidth": 0.7,
+				"legend": {
+					"calcs": [],
+					"displayMode": "list",
+					"placement": "bottom",
+					"showLegend": true
+				},
+				"orientation": "auto",
+				"showValue": "auto",
+				"stacking": "none",
+				"tooltip": {
+					"hideZeros": false,
+					"mode": "single",
+					"sort": "none"
+				},
+				"xTickLabelRotation": 0,
+				"xTickLabelSpacing": 0
+			},
+			"pluginVersion": "12.1.0",
+			"targets": [
+				{
+					"datasource": {
+						"type": "grafana-postgresql-datasource",
+						"uid": "${DS_CODER-OBSERVABILITY-RO}"
+					},
+					"editorMode": "code",
+					"format": "table",
+					"rawQuery": true,
+					"rawSql": "select u.username, sum(t.input_tokens) as input,\nsum(t.output_tokens) as output,\nsum(\n  COALESCE(\n    t.metadata->>'cache_read_input', -- Anthropic\n    t.metadata->>'prompt_cached'     -- OpenAI\n  )::int\n) AS cache_read_input,\nsum((t.metadata->>'cache_creation_input')::int) AS cache_creation_input -- Anthropic\nfrom aibridge_token_usages t\njoin aibridge_interceptions i on t.interception_id = i.id\njoin users u on i.initiator_id = u.id\nwhere $__timeFilter(i.started_at)\n  AND u.username ~ '${username:regex}'\n  AND i.provider ~ '${provider:regex}'\n  AND i.model ~ '${model:regex}'\ngroup by u.username\norder by input desc",
+					"refId": "A",
+					"sql": {
+						"columns": [
+							{
+								"parameters": [],
+								"type": "function"
+							}
+						],
+						"groupBy": [
+							{
+								"property": {
+									"type": "string"
+								},
+								"type": "groupBy"
+							}
+						],
+						"limit": 50
+					}
+				}
+			],
+			"title": "Leaderboard per user",
+			"transformations": [
+				{
+					"id": "organize",
+					"options": {
+						"excludeByName": {},
+						"includeByName": {},
+						"indexByName": {},
+						"renameByName": {
+							"cache_creation_input": "Cache Write",
+							"cache_read_input": "Cache Read",
+							"input": "Input",
+							"output": "Output",
+							"username": ""
+						}
+					}
+				}
+			],
+			"type": "barchart"
+		},
+		{
+			"datasource": {
+				"type": "grafana-postgresql-datasource",
+				"uid": "${DS_CODER-OBSERVABILITY-RO}"
+			},
+			"fieldConfig": {
+				"defaults": {
+					"color": {
+						"mode": "thresholds"
+					},
+					"mappings": [],
+					"thresholds": {
+						"mode": "absolute",
+						"steps": [
+							{
+								"color": "text",
+								"value": 0
+							}
+						]
+					},
+					"unit": "short"
+				},
+				"overrides": []
+			},
+			"gridPos": {
+				"h": 12,
+				"w": 4,
+				"x": 20,
+				"y": 1
+			},
+			"id": 3,
+			"options": {
+				"colorMode": "value",
+				"graphMode": "area",
+				"justifyMode": "auto",
+				"orientation": "auto",
+				"percentChangeColorMode": "standard",
+				"reduceOptions": {
+					"calcs": ["lastNotNull"],
+					"fields": "",
+					"values": false
+				},
+				"showPercentChange": false,
+				"textMode": "auto",
+				"wideLayout": true
+			},
+			"pluginVersion": "12.1.0",
+			"targets": [
+				{
+					"datasource": {
+						"type": "grafana-postgresql-datasource",
+						"uid": "${DS_CODER-OBSERVABILITY-RO}"
+					},
+					"editorMode": "code",
+					"format": "table",
+					"rawQuery": true,
+					"rawSql": "select sum(t.input_tokens) as input,\nsum(t.output_tokens) as output,\nsum(\n  COALESCE(\n    t.metadata->>'cache_read_input', -- Anthropic\n    t.metadata->>'prompt_cached'     -- OpenAI\n  )::int\n) AS cache_read_input,\nsum((t.metadata->>'cache_creation_input')::int) AS cache_creation_input -- Anthropic\nfrom aibridge_token_usages t\njoin aibridge_interceptions i on t.interception_id = i.id\njoin users u on i.initiator_id = u.id\nwhere $__timeFilter(i.started_at)\n  AND u.username ~ '${username:regex}'\n  AND i.provider ~ '${provider:regex}'\n  AND i.model ~ '${model:regex}'\norder by input desc",
+					"refId": "A",
+					"sql": {
+						"columns": [
+							{
+								"parameters": [],
+								"type": "function"
+							}
+						],
+						"groupBy": [
+							{
+								"property": {
+									"type": "string"
+								},
+								"type": "groupBy"
+							}
+						],
+						"limit": 50
+					}
+				}
+			],
+			"title": "Total usage for $username",
+			"transformations": [
+				{
+					"id": "organize",
+					"options": {
+						"excludeByName": {},
+						"includeByName": {},
+						"indexByName": {
+							"cache_creation_input": 3,
+							"cache_read_input": 2,
+							"input": 0,
+							"output": 1
+						},
+						"renameByName": {
+							"cache_creation_input": "Cache Write",
+							"cache_read_input": "Cache Read",
+							"input": "Input",
+							"output": "Output"
+						}
+					}
+				}
+			],
+			"type": "stat"
+		},
+		{
+			"datasource": {
+				"type": "datasource",
+				"uid": "-- Mixed --"
+			},
+			"fieldConfig": {
+				"defaults": {
+					"color": {
+						"mode": "thresholds"
+					},
+					"custom": {
+						"align": "auto",
+						"cellOptions": {
+							"type": "auto"
+						},
+						"inspect": false
+					},
+					"mappings": [],
+					"thresholds": {
+						"mode": "absolute",
+						"steps": [
+							{
+								"color": "green",
+								"value": 0
+							},
+							{
+								"color": "red",
+								"value": 80
+							}
+						]
+					},
+					"unit": "short"
+				},
+				"overrides": [
+					{
+						"matcher": {
+							"id": "byRegexp",
+							"options": "/.*Cost.*/"
+						},
+						"properties": [
+							{
+								"id": "unit",
+								"value": "currencyUSD"
+							},
+							{
+								"id": "decimals",
+								"value": 2
+							}
+						]
+					}
+				]
+			},
+			"gridPos": {
+				"h": 9,
+				"w": 24,
+				"x": 0,
+				"y": 13
+			},
+			"id": 12,
+			"options": {
+				"cellHeight": "sm",
+				"footer": {
+					"countRows": false,
+					"fields": "",
+					"reducer": ["sum"],
+					"show": true
+				},
+				"frameIndex": 0,
+				"showHeader": true,
+				"sortBy": [
+					{
+						"desc": true,
+						"displayName": "Total Cost"
+					}
+				]
+			},
+			"pluginVersion": "12.1.0",
+			"targets": [
+				{
+					"columns": [],
+					"computed_columns": [],
+					"datasource": {
+						"type": "yesoreyeram-infinity-datasource",
+						"uid": "${DS_LITELLM-PRICING-DATA}"
+					},
+					"filterExpression": "",
+					"filters": [],
+					"format": "table",
+					"global_query_id": "",
+					"hide": false,
+					"pagination_mode": "none",
+					"parser": "backend",
+					"refId": "A",
+					"root_selector": "$ ~> $each(function($v, $k) {\n  {\n    \"model\": $k,\n    \"input_cost_per_token\": $v.input_cost_per_token ? $v.input_cost_per_token : 0,\n    \"output_cost_per_token\": $v.output_cost_per_token ? $v.output_cost_per_token : 0,\n    \"cache_creation_input_token_cost\": $v.cache_creation_input_token_cost ? $v.cache_creation_input_token_cost : 0,\n    \"cache_read_input_token_cost\": $v.cache_read_input_token_cost ? $v.cache_read_input_token_cost : 0\n  }\n})",
+					"source": "url",
+					"type": "json",
+					"url": "",
+					"url_options": {
+						"data": "",
+						"method": "GET"
+					}
+				},
+				{
+					"datasource": {
+						"type": "grafana-postgresql-datasource",
+						"uid": "${DS_CODER-OBSERVABILITY-RO}"
+					},
+					"editorMode": "code",
+					"format": "table",
+					"hide": false,
+					"rawQuery": true,
+					"rawSql": "select i.provider, i.model,\nsum(t.input_tokens) as input,\nsum(t.output_tokens) as output,\nsum(\n  COALESCE(\n    t.metadata->>'cache_read_input', -- Anthropic\n    t.metadata->>'prompt_cached'     -- OpenAI\n  )::int\n) AS cache_read_input,\nsum((t.metadata->>'cache_creation_input')::int) AS cache_creation_input -- Anthropic\nfrom aibridge_token_usages t\njoin aibridge_interceptions i on t.interception_id = i.id\njoin users u on i.initiator_id = u.id\nwhere $__timeFilter(i.started_at)\n  AND u.username ~ '${username:regex}'\n  AND i.provider ~ '${provider:regex}'\n  AND i.model ~ '${model:regex}'\ngroup by i.provider, i.model\norder by input desc",
+					"refId": "B",
+					"sql": {
+						"columns": [
+							{
+								"parameters": [],
+								"type": "function"
+							}
+						],
+						"groupBy": [
+							{
+								"property": {
+									"type": "string"
+								},
+								"type": "groupBy"
+							}
+						],
+						"limit": 50
+					}
+				}
+			],
+			"title": "Approximate Cost",
+			"transformations": [
+				{
+					"id": "joinByField",
+					"options": {
+						"byField": "model",
+						"mode": "inner"
+					}
+				},
+				{
+					"id": "calculateField",
+					"options": {
+						"alias": "Input Cost",
+						"binary": {
+							"left": {
+								"matcher": {
+									"id": "byName",
+									"options": "input_cost_per_token A"
+								}
+							},
+							"operator": "*",
+							"right": {
+								"matcher": {
+									"id": "byName",
+									"options": "input"
+								}
+							}
+						},
+						"mode": "binary",
+						"reduce": {
+							"include": ["input_cost_per_token A", "input"],
+							"reducer": "sum"
+						}
+					}
+				},
+				{
+					"id": "calculateField",
+					"options": {
+						"alias": "Output Cost",
+						"binary": {
+							"left": {
+								"matcher": {
+									"id": "byName",
+									"options": "output_cost_per_token A"
+								}
+							},
+							"operator": "*",
+							"right": {
+								"matcher": {
+									"id": "byName",
+									"options": "output"
+								}
+							}
+						},
+						"mode": "binary",
+						"reduce": {
+							"reducer": "sum"
+						}
+					}
+				},
+				{
+					"id": "calculateField",
+					"options": {
+						"alias": "Cache Read Cost",
+						"binary": {
+							"left": {
+								"matcher": {
+									"id": "byName",
+									"options": "cache_read_input_token_cost A"
+								}
+							},
+							"operator": "*",
+							"right": {
+								"matcher": {
+									"id": "byName",
+									"options": "cache_read_input"
+								}
+							}
+						},
+						"mode": "binary",
+						"reduce": {
+							"reducer": "sum"
+						}
+					}
+				},
+				{
+					"id": "calculateField",
+					"options": {
+						"alias": "Cache Write Cost",
+						"binary": {
+							"left": {
+								"matcher": {
+									"id": "byName",
+									"options": "cache_creation_input_token_cost A"
+								}
+							},
+							"operator": "*",
+							"right": {
+								"matcher": {
+									"id": "byName",
+									"options": "cache_creation_input"
+								}
+							}
+						},
+						"mode": "binary",
+						"reduce": {
+							"reducer": "sum"
+						}
+					}
+				},
+				{
+					"id": "calculateField",
+					"options": {
+						"alias": "Total Cost",
+						"binary": {
+							"left": {
+								"matcher": {
+									"id": "byType",
+									"options": "number"
+								}
+							},
+							"right": {
+								"fixed": ""
+							}
+						},
+						"cumulative": {
+							"field": "Input Cost",
+							"reducer": "sum"
+						},
+						"mode": "reduceRow",
+						"reduce": {
+							"include": [
+								"Input Cost",
+								"Output Cost",
+								"Cache Read Cost",
+								"Cache Write Cost"
+							],
+							"reducer": "sum"
+						}
+					}
+				},
+				{
+					"id": "organize",
+					"options": {
+						"excludeByName": {
+							"cache_creation_input": false,
+							"cache_creation_input_token_cost A": true,
+							"cache_read_input": false,
+							"cache_read_input_token_cost A": true,
+							"input": false,
+							"input_cost_per_token A": true,
+							"output": false,
+							"output_cost_per_token A": true
+						},
+						"includeByName": {},
+						"indexByName": {
+							"Cache Read Cost": 12,
+							"Cache Write Cost": 13,
+							"Input Cost": 10,
+							"Output Cost": 11,
+							"Total Cost": 14,
+							"cache_creation_input": 9,
+							"cache_creation_input_token_cost A": 2,
+							"cache_read_input": 8,
+							"cache_read_input_token_cost A": 3,
+							"input": 6,
+							"input_cost_per_token A": 4,
+							"model": 1,
+							"output": 7,
+							"output_cost_per_token A": 5,
+							"provider": 0
+						},
+						"renameByName": {
+							"cache_creation_input": "Cache Write",
+							"cache_read_input": "Cache Read",
+							"input": "Input",
+							"model": "Model",
+							"output": "Output",
+							"provider": "Provider"
+						}
+					}
+				}
+			],
+			"type": "table"
+		},
+		{
+			"collapsed": false,
+			"gridPos": {
+				"h": 1,
+				"w": 24,
+				"x": 0,
+				"y": 22
+			},
+			"id": 10,
+			"panels": [],
+			"title": "Interceptions",
+			"type": "row"
+		},
+		{
+			"datasource": {
+				"type": "grafana-postgresql-datasource",
+				"uid": "${DS_CODER-OBSERVABILITY-RO}"
+			},
+			"fieldConfig": {
+				"defaults": {
+					"color": {
+						"mode": "palette-classic"
+					},
+					"custom": {
+						"axisBorderShow": false,
+						"axisCenteredZero": false,
+						"axisColorMode": "text",
+						"axisLabel": "",
+						"axisPlacement": "auto",
+						"fillOpacity": 80,
+						"gradientMode": "none",
+						"hideFrom": {
+							"legend": false,
+							"tooltip": false,
+							"viz": false
+						},
+						"lineWidth": 1,
+						"scaleDistribution": {
+							"type": "linear"
+						},
+						"thresholdsStyle": {
+							"mode": "off"
+						}
+					},
+					"fieldMinMax": false,
+					"mappings": [],
+					"thresholds": {
+						"mode": "absolute",
+						"steps": [
+							{
+								"color": "green",
+								"value": 0
+							}
+						]
+					},
+					"unit": "short"
+				},
+				"overrides": [
+					{
+						"matcher": {
+							"id": "byName",
+							"options": "output"
+						},
+						"properties": [
+							{
+								"id": "color",
+								"value": {
+									"fixedColor": "orange",
+									"mode": "fixed"
+								}
+							}
+						]
+					}
+				]
+			},
+			"gridPos": {
+				"h": 12,
+				"w": 20,
+				"x": 0,
+				"y": 23
+			},
+			"id": 4,
+			"maxDataPoints": 30,
+			"options": {
+				"barRadius": 0,
+				"barWidth": 0.97,
+				"fullHighlight": false,
+				"groupWidth": 0.7,
+				"legend": {
+					"calcs": [],
+					"displayMode": "list",
+					"placement": "bottom",
+					"showLegend": true
+				},
+				"orientation": "auto",
+				"showValue": "auto",
+				"stacking": "normal",
+				"text": {
+					"valueSize": 10
+				},
+				"tooltip": {
+					"hideZeros": false,
+					"mode": "single",
+					"sort": "none"
+				},
+				"xTickLabelRotation": -45,
+				"xTickLabelSpacing": 0
+			},
+			"pluginVersion": "12.1.0",
+			"targets": [
+				{
+					"datasource": {
+						"type": "grafana-postgresql-datasource",
+						"uid": "${DS_CODER-OBSERVABILITY-RO}"
+					},
+					"editorMode": "code",
+					"format": "time_series",
+					"rawQuery": true,
+					"rawSql": "SELECT\n$__timeGroupAlias(i.started_at, $__interval, NULL),\ncount(i.id) AS value,\nu.username AS metric\nFROM aibridge_interceptions i\njoin users u ON i.initiator_id = u.id\nWHERE\n$__timeFilter(i.started_at)\nAND u.username ~ '${username:regex}'\nAND i.provider ~ '${provider:regex}'\nAND i.model ~ '${model:regex}'\nGROUP BY u.username, $__timeGroup(i.started_at, $__interval)\nORDER BY $__timeGroup(i.started_at, $__interval)",
+					"refId": "A",
+					"sql": {
+						"columns": [
+							{
+								"name": "COUNT",
+								"parameters": [
+									{
+										"name": "id",
+										"type": "functionParameter"
+									}
+								],
+								"type": "function"
+							}
+						],
+						"groupBy": [
+							{
+								"property": {
+									"name": "started_at",
+									"type": "string"
+								},
+								"type": "groupBy"
+							}
+						],
+						"limit": 50
+					},
+					"table": "aibridge_interceptions"
+				}
+			],
+			"title": "Interceptions over time by user",
+			"type": "barchart"
+		},
+		{
+			"datasource": {
+				"type": "grafana-postgresql-datasource",
+				"uid": "${DS_CODER-OBSERVABILITY-RO}"
+			},
+			"fieldConfig": {
+				"defaults": {
+					"color": {
+						"mode": "thresholds"
+					},
+					"mappings": [],
+					"thresholds": {
+						"mode": "absolute",
+						"steps": [
+							{
+								"color": "green",
+								"value": 0
+							}
+						]
+					},
+					"unit": "short"
+				},
+				"overrides": [
+					{
+						"matcher": {
+							"id": "byName",
+							"options": "output"
+						},
+						"properties": [
+							{
+								"id": "color",
+								"value": {
+									"fixedColor": "orange",
+									"mode": "fixed"
+								}
+							}
+						]
+					}
+				]
+			},
+			"gridPos": {
+				"h": 12,
+				"w": 4,
+				"x": 20,
+				"y": 23
+			},
+			"id": 5,
+			"interval": "1m",
+			"maxDataPoints": 500,
+			"options": {
+				"colorMode": "value",
+				"graphMode": "area",
+				"justifyMode": "auto",
+				"orientation": "auto",
+				"percentChangeColorMode": "standard",
+				"reduceOptions": {
+					"calcs": ["lastNotNull"],
+					"fields": "",
+					"values": false
+				},
+				"showPercentChange": false,
+				"textMode": "auto",
+				"wideLayout": true
+			},
+			"pluginVersion": "12.1.0",
+			"targets": [
+				{
+					"datasource": {
+						"type": "grafana-postgresql-datasource",
+						"uid": "${DS_CODER-OBSERVABILITY-RO}"
+					},
+					"editorMode": "code",
+					"format": "table",
+					"rawQuery": true,
+					"rawSql": "select count(*) from aibridge_interceptions\nWHERE started_at > $__timeFrom() AND started_at <= $__timeTo()\nAND provider ~ '${provider:regex}'\nAND model ~ '${model:regex}'",
+					"refId": "A",
+					"sql": {
+						"columns": [
+							{
+								"name": "COUNT",
+								"parameters": [
+									{
+										"name": "id",
+										"type": "functionParameter"
+									}
+								],
+								"type": "function"
+							}
+						],
+						"groupBy": [
+							{
+								"property": {
+									"name": "started_at",
+									"type": "string"
+								},
+								"type": "groupBy"
+							}
+						],
+						"limit": 50
+					},
+					"table": "aibridge_interceptions"
+				}
+			],
+			"title": "Total interceptions",
+			"type": "stat"
+		},
+		{
+			"collapsed": false,
+			"gridPos": {
+				"h": 1,
+				"w": 24,
+				"x": 0,
+				"y": 35
+			},
+			"id": 9,
+			"panels": [],
+			"title": "Prompts & tool calls details",
+			"type": "row"
+		},
+		{
+			"datasource": {
+				"type": "grafana-postgresql-datasource",
+				"uid": "${DS_CODER-OBSERVABILITY-RO}"
+			},
+			"fieldConfig": {
+				"defaults": {
+					"color": {
+						"mode": "thresholds"
+					},
+					"custom": {
+						"align": "auto",
+						"cellOptions": {
+							"type": "auto",
+							"wrapText": false
+						},
+						"inspect": true
+					},
+					"mappings": [],
+					"thresholds": {
+						"mode": "absolute",
+						"steps": [
+							{
+								"color": "green",
+								"value": 0
+							},
+							{
+								"color": "red",
+								"value": 80
+							}
+						]
+					}
+				},
+				"overrides": [
+					{
+						"matcher": {
+							"id": "byName",
+							"options": "Interception ID"
+						},
+						"properties": [
+							{
+								"id": "custom.width",
+								"value": 357
+							}
+						]
+					},
+					{
+						"matcher": {
+							"id": "byName",
+							"options": "Model"
+						},
+						"properties": [
+							{
+								"id": "custom.width",
+								"value": 240
+							}
+						]
+					},
+					{
+						"matcher": {
+							"id": "byName",
+							"options": "Provider"
+						},
+						"properties": [
+							{
+								"id": "custom.width",
+								"value": 157
+							}
+						]
+					},
+					{
+						"matcher": {
+							"id": "byName",
+							"options": "Username"
+						},
+						"properties": [
+							{
+								"id": "custom.width",
+								"value": 188
+							}
+						]
+					}
+				]
+			},
+			"gridPos": {
+				"h": 14,
+				"w": 24,
+				"x": 0,
+				"y": 36
+			},
+			"id": 7,
+			"options": {
+				"cellHeight": "sm",
+				"footer": {
+					"countRows": false,
+					"fields": "",
+					"reducer": ["sum"],
+					"show": false
+				},
+				"showHeader": true,
+				"sortBy": [
+					{
+						"desc": true,
+						"displayName": "Created At"
+					}
+				]
+			},
+			"pluginVersion": "12.1.0",
+			"targets": [
+				{
+					"datasource": {
+						"type": "grafana-postgresql-datasource",
+						"uid": "${DS_CODER-OBSERVABILITY-RO}"
+					},
+					"editorMode": "code",
+					"format": "table",
+					"rawQuery": true,
+					"rawSql": "SELECT i.id,\n       u.username,\n       i.provider,\n       i.model,\n       p.prompt,\n       p.created_at\nFROM aibridge_user_prompts p\nJOIN aibridge_interceptions i ON p.interception_id = i.id\nJOIN users u ON i.initiator_id = u.id\nWHERE $__timeFilter(i.started_at)\n  AND u.username ~ '${username:regex}'\n  AND i.provider ~ '${provider:regex}'\n  AND i.model ~ '${model:regex}'\nORDER BY p.created_at DESC;",
+					"refId": "A",
+					"sql": {
+						"columns": [
+							{
+								"parameters": [],
+								"type": "function"
+							}
+						],
+						"groupBy": [
+							{
+								"property": {
+									"type": "string"
+								},
+								"type": "groupBy"
+							}
+						],
+						"limit": 50
+					}
+				}
+			],
+			"title": "User Prompts",
+			"transformations": [
+				{
+					"id": "organize",
+					"options": {
+						"excludeByName": {},
+						"includeByName": {},
+						"indexByName": {},
+						"renameByName": {
+							"created_at": "Created At",
+							"id": "Interception ID",
+							"input": "Tool Input",
+							"invocation_error": "Tool Error",
+							"model": "Model",
+							"prompt": "Prompt",
+							"provider": "Provider",
+							"server_url": "MCP Server",
+							"tool": "Tool Name",
+							"username": "Username"
+						}
+					}
+				}
+			],
+			"type": "table"
+		},
+		{
+			"datasource": {
+				"type": "grafana-postgresql-datasource",
+				"uid": "${DS_CODER-OBSERVABILITY-RO}"
+			},
+			"fieldConfig": {
+				"defaults": {
+					"color": {
+						"mode": "thresholds"
+					},
+					"custom": {
+						"align": "auto",
+						"cellOptions": {
+							"type": "auto",
+							"wrapText": false
+						},
+						"inspect": true
+					},
+					"mappings": [],
+					"thresholds": {
+						"mode": "absolute",
+						"steps": [
+							{
+								"color": "green",
+								"value": 0
+							},
+							{
+								"color": "red",
+								"value": 80
+							}
+						]
+					}
+				},
+				"overrides": [
+					{
+						"matcher": {
+							"id": "byName",
+							"options": "Tool Name"
+						},
+						"properties": [
+							{
+								"id": "custom.width",
+								"value": 342
+							}
+						]
+					},
+					{
+						"matcher": {
+							"id": "byName",
+							"options": "invocation_error"
+						},
+						"properties": [
+							{
+								"id": "custom.cellOptions",
+								"value": {
+									"applyToRow": true,
+									"type": "color-background",
+									"wrapText": false
+								}
+							},
+							{
+								"id": "noValue"
+							},
+							{
+								"id": "mappings",
+								"value": [
+									{
+										"options": {
+											"match": "null",
+											"result": {
+												"color": "green",
+												"index": 0
+											}
+										},
+										"type": "special"
+									},
+									{
+										"options": {
+											"pattern": ".+",
+											"result": {
+												"color": "red",
+												"index": 1
+											}
+										},
+										"type": "regex"
+									}
+								]
+							}
+						]
+					},
+					{
+						"matcher": {
+							"id": "byName",
+							"options": "Tool Input"
+						},
+						"properties": [
+							{
+								"id": "custom.width",
+								"value": 309
+							}
+						]
+					},
+					{
+						"matcher": {
+							"id": "byName",
+							"options": "Interception ID"
+						},
+						"properties": [
+							{
+								"id": "custom.width",
+								"value": 357
+							}
+						]
+					},
+					{
+						"matcher": {
+							"id": "byName",
+							"options": "Model"
+						},
+						"properties": [
+							{
+								"id": "custom.width",
+								"value": 240
+							}
+						]
+					}
+				]
+			},
+			"gridPos": {
+				"h": 14,
+				"w": 24,
+				"x": 0,
+				"y": 50
+			},
+			"id": 6,
+			"options": {
+				"cellHeight": "sm",
+				"footer": {
+					"countRows": false,
+					"fields": "",
+					"reducer": ["sum"],
+					"show": false
+				},
+				"showHeader": true,
+				"sortBy": [
+					{
+						"desc": true,
+						"displayName": "Created At"
+					}
+				]
+			},
+			"pluginVersion": "12.1.0",
+			"targets": [
+				{
+					"datasource": {
+						"type": "grafana-postgresql-datasource",
+						"uid": "${DS_CODER-OBSERVABILITY-RO}"
+					},
+					"editorMode": "code",
+					"format": "table",
+					"rawQuery": true,
+					"rawSql": "select i.id, u.username, i.provider, i.model, t.server_url, t.tool, t.input, t.invocation_error, t.created_at FROM aibridge_tool_usages t\njoin aibridge_interceptions i ON t.interception_id = i.id\njoin users u on i.initiator_id = u.id\nwhere $__timeFilter(i.started_at)\nAND u.username ~ '${username:regex}'\nAND i.provider ~ '${provider:regex}'\nAND i.model ~ '${model:regex}'\norder by t.created_at desc",
+					"refId": "A",
+					"sql": {
+						"columns": [
+							{
+								"parameters": [],
+								"type": "function"
+							}
+						],
+						"groupBy": [
+							{
+								"property": {
+									"type": "string"
+								},
+								"type": "groupBy"
+							}
+						],
+						"limit": 50
+					}
+				}
+			],
+			"title": "Tool Calls",
+			"transformations": [
+				{
+					"id": "organize",
+					"options": {
+						"excludeByName": {},
+						"includeByName": {},
+						"indexByName": {},
+						"renameByName": {
+							"created_at": "Created At",
+							"id": "Interception ID",
+							"input": "Tool Input",
+							"invocation_error": "Tool Error",
+							"model": "Model",
+							"provider": "Provider",
+							"server_url": "MCP Server",
+							"tool": "Tool Name",
+							"username": "Username"
+						}
+					}
+				}
+			],
+			"type": "table"
+		}
+	],
+	"refresh": "1m",
+	"schemaVersion": 41,
+	"tags": [],
+	"templating": {
+		"list": [
+			{
+				"allValue": ".+",
+				"current": {},
+				"datasource": {
+					"type": "grafana-postgresql-datasource",
+					"uid": "${DS_CODER-OBSERVABILITY-RO}"
+				},
+				"definition": "select username from users where deleted=false;",
+				"description": "",
+				"includeAll": true,
+				"multi": true,
+				"name": "username",
+				"options": [],
+				"query": "select username from users where deleted=false;",
+				"refresh": 1,
+				"regex": "",
+				"sort": 1,
+				"type": "query"
+			},
+			{
+				"allValue": ".+",
+				"current": {},
+				"datasource": {
+					"type": "grafana-postgresql-datasource",
+					"uid": "${DS_CODER-OBSERVABILITY-RO}"
+				},
+				"definition": "SELECT DISTINCT provider FROM aibridge_interceptions WHERE provider IS NOT NULL ORDER BY 1;",
+				"description": "",
+				"includeAll": true,
+				"multi": true,
+				"name": "provider",
+				"options": [],
+				"query": "SELECT DISTINCT provider FROM aibridge_interceptions WHERE provider IS NOT NULL ORDER BY 1;",
+				"refresh": 1,
+				"regex": "",
+				"sort": 1,
+				"type": "query"
+			},
+			{
+				"allValue": ".+",
+				"current": {},
+				"datasource": {
+					"type": "grafana-postgresql-datasource",
+					"uid": "${DS_CODER-OBSERVABILITY-RO}"
+				},
+				"definition": "SELECT DISTINCT model FROM aibridge_interceptions WHERE model IS NOT NULL AND provider ~ '${provider:regex}' ORDER BY 1;",
+				"description": "",
+				"includeAll": true,
+				"multi": true,
+				"name": "model",
+				"options": [],
+				"query": "SELECT DISTINCT model FROM aibridge_interceptions WHERE model IS NOT NULL AND provider ~ '${provider:regex}' ORDER BY 1;",
+				"refresh": 1,
+				"regex": "",
+				"sort": 1,
+				"type": "query"
+			}
+		]
+	},
+	"time": {
+		"from": "now-7d",
+		"to": "now"
+	},
+	"timepicker": {},
+	"timezone": "utc",
+	"title": "aibridge",
+	"uid": "0c61d33f-c809-4184-9e88-cb27e2d9d224",
+	"version": 43,
+	"weekStart": ""
+}

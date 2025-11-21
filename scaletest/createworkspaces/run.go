@@ -87,23 +87,17 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	workspaceBuildConfig.OrganizationID = r.cfg.User.OrganizationID
 	workspaceBuildConfig.UserID = user.ID.String()
 	r.workspacebuildRunner = workspacebuild.NewRunner(client, workspaceBuildConfig)
-	err = r.workspacebuildRunner.Run(ctx, id, logs)
+	slimWorkspace, err := r.workspacebuildRunner.RunReturningWorkspace(ctx, id, logs)
 	if err != nil {
 		return xerrors.Errorf("create workspace: %w", err)
+	}
+	workspace, err := client.Workspace(ctx, slimWorkspace.ID)
+	if err != nil {
+		return xerrors.Errorf("get full workspace info: %w", err)
 	}
 
 	if r.cfg.Workspace.NoWaitForAgents {
 		return nil
-	}
-
-	// Get the workspace.
-	workspaceID, err := r.workspacebuildRunner.WorkspaceID()
-	if err != nil {
-		return xerrors.Errorf("get workspace ID: %w", err)
-	}
-	workspace, err := client.Workspace(ctx, workspaceID)
-	if err != nil {
-		return xerrors.Errorf("get workspace %q: %w", workspaceID.String(), err)
 	}
 
 	// Find the first agent.
@@ -116,7 +110,7 @@ resourceLoop:
 		}
 	}
 	if agent.ID == uuid.Nil {
-		return xerrors.Errorf("no agents found for workspace %q", workspaceID.String())
+		return xerrors.Errorf("no agents found for workspace %q", workspace.ID.String())
 	}
 
 	eg, egCtx := errgroup.WithContext(ctx)

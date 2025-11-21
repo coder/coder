@@ -8,6 +8,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
@@ -67,8 +68,30 @@ func (r *RootCmd) taskList() *serpent.Command {
 	)
 
 	cmd := &serpent.Command{
-		Use:     "list",
-		Short:   "List experimental tasks",
+		Use:   "list",
+		Short: "List experimental tasks",
+		Long: FormatExamples(
+			Example{
+				Description: "List tasks for the current user.",
+				Command:     "coder exp task list",
+			},
+			Example{
+				Description: "List tasks for a specific user.",
+				Command:     "coder exp task list --user someone-else",
+			},
+			Example{
+				Description: "List all tasks you can view.",
+				Command:     "coder exp task list --all",
+			},
+			Example{
+				Description: "List all your running tasks.",
+				Command:     "coder exp task list --status running",
+			},
+			Example{
+				Description: "As above, but only show IDs.",
+				Command:     "coder exp task list --status running --quiet",
+			},
+		),
 		Aliases: []string{"ls"},
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(0),
@@ -76,10 +99,10 @@ func (r *RootCmd) taskList() *serpent.Command {
 		Options: serpent.OptionSet{
 			{
 				Name:        "status",
-				Description: "Filter by task status (e.g. running, failed, etc).",
+				Description: "Filter by task status.",
 				Flag:        "status",
 				Default:     "",
-				Value:       serpent.StringOf(&statusFilter),
+				Value:       serpent.EnumOf(&statusFilter, slice.ToStrings(codersdk.AllTaskStatuses())...),
 			},
 			{
 				Name:          "all",
@@ -121,7 +144,7 @@ func (r *RootCmd) taskList() *serpent.Command {
 
 			tasks, err := exp.Tasks(ctx, &codersdk.TasksFilter{
 				Owner:  targetUser,
-				Status: statusFilter,
+				Status: codersdk.TaskStatus(statusFilter),
 			})
 			if err != nil {
 				return xerrors.Errorf("list tasks: %w", err)

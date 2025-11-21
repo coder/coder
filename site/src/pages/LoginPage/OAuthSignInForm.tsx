@@ -1,15 +1,10 @@
-import GitHubIcon from "@mui/icons-material/GitHub";
-import KeyIcon from "@mui/icons-material/VpnKey";
-import Button from "@mui/material/Button";
 import { visuallyHidden } from "@mui/utils";
 import type { AuthMethods } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
+import { KeyIcon } from "lucide-react";
 import { type FC, useId } from "react";
 import { Language } from "./Language";
-
-const iconStyles = {
-	width: 16,
-	height: 16,
-};
 
 type OAuthSignInFormProps = {
 	isSigningIn: boolean;
@@ -26,41 +21,45 @@ export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
 		<div css={{ display: "grid", gap: "16px" }}>
 			{authMethods?.github.enabled && (
 				<Button
-					component="a"
-					href={`/api/v2/users/oauth2/github/callback?redirect=${encodeURIComponent(
-						redirectTo,
-					)}`}
-					variant="contained"
-					startIcon={<GitHubIcon css={iconStyles} />}
+					variant="outline"
+					asChild
 					disabled={isSigningIn}
-					fullWidth
+					className="w-full"
 					type="submit"
-					size="xlarge"
+					size="lg"
 				>
-					{Language.githubSignIn}
+					<a
+						href={`/api/v2/users/oauth2/github/callback?redirect=${encodeURIComponent(
+							redirectTo,
+						)}`}
+					>
+						<ExternalImage src="/icon/github.svg" />
+						{Language.githubSignIn}
+					</a>
 				</Button>
 			)}
 
 			{authMethods?.oidc.enabled && (
 				<Button
-					component="a"
-					href={`/api/v2/users/oidc/callback?redirect=${encodeURIComponent(
-						redirectTo,
-					)}`}
-					variant="contained"
-					size="xlarge"
-					startIcon={
-						authMethods.oidc.iconUrl ? (
-							<OidcIcon iconUrl={authMethods.oidc.iconUrl} />
-						) : (
-							<KeyIcon css={iconStyles} />
-						)
-					}
+					variant="outline"
+					asChild
+					className="w-full"
+					size="lg"
 					disabled={isSigningIn}
-					fullWidth
 					type="submit"
 				>
-					{authMethods.oidc.signInText || Language.oidcSignIn}
+					<a
+						href={`/api/v2/users/oidc/callback?redirect=${encodeURIComponent(
+							redirectTo,
+						)}`}
+					>
+						{authMethods.oidc.iconUrl ? (
+							<OidcIcon iconUrl={authMethods.oidc.iconUrl} />
+						) : (
+							<KeyIcon />
+						)}
+						{authMethods.oidc.signInText || Language.oidcSignIn}
+					</a>
 				</Button>
 			)}
 		</div>
@@ -80,7 +79,7 @@ const OidcIcon: FC<OidcIconProps> = ({ iconUrl }) => {
 	// if that happens, but also still need a way to inject accessible text
 	return (
 		<>
-			<img alt="" src={iconUrl} css={iconStyles} aria-labelledby={oidcId} />
+			<img alt="" src={iconUrl} aria-labelledby={oidcId} />
 			<div id={oidcId} css={{ ...visuallyHidden }}>
 				Open ID Connect
 			</div>

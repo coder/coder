@@ -2,8 +2,11 @@ package toolsdk_test
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -20,16 +23,20 @@ import (
 
 	"github.com/coder/aisdk-go"
 
+	agentapi "github.com/coder/agentapi-sdk-go"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/toolsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -100,8 +107,9 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("ReportTask", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitShort)
 		tb, err := toolsdk.NewDeps(memberClient, toolsdk.WithTaskReporter(func(args toolsdk.ReportTaskArgs) error {
-			return agentClient.PatchAppStatus(setupCtx, agentsdk.PatchAppStatus{
+			return agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
 				AppSlug: "some-agent-app",
 				Message: args.Summary,
 				URI:     args.Link,
@@ -120,12 +128,32 @@ func TestTools(t *testing.T) {
 	t.Run("GetWorkspace", func(t *testing.T) {
 		tb, err := toolsdk.NewDeps(memberClient)
 		require.NoError(t, err)
-		result, err := testTool(t, toolsdk.GetWorkspace, tb, toolsdk.GetWorkspaceArgs{
-			WorkspaceID: r.Workspace.ID.String(),
-		})
 
-		require.NoError(t, err)
-		require.Equal(t, r.Workspace.ID, result.ID, "expected the workspace ID to match")
+		tests := []struct {
+			name      string
+			workspace string
+		}{
+			{
+				name:      "ByID",
+				workspace: r.Workspace.ID.String(),
+			},
+			{
+				name:      "ByName",
+				workspace: r.Workspace.Name,
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				result, err := testTool(t, toolsdk.GetWorkspace, tb, toolsdk.GetWorkspaceArgs{
+					WorkspaceID: tt.workspace,
+				})
+				require.NoError(t, err)
+				require.Equal(t, r.Workspace.ID, result.ID, "expected the workspace ID to match")
+			})
+		}
 	})
 
 	t.Run("ListTemplates", func(t *testing.T) {
@@ -787,6 +815,808 @@ func TestTools(t *testing.T) {
 				} else {
 					require.NoError(t, err)
 					require.Equal(t, fmt.Sprintf(tt.expect, client.URL.Scheme, client.URL.Port()), res.URL)
+				}
+			})
+		}
+	})
+
+	t.Run("CreateTask", func(t *testing.T) {
+		t.Parallel()
+
+		presetID := uuid.New()
+		// nolint:gocritic // This is in a test package and does not end up in the build
+		aiTV := dbfake.TemplateVersion(t, store).Seed(database.TemplateVersion{
+			OrganizationID: owner.OrganizationID,
+			CreatedBy:      member.ID,
+			HasAITask: sql.NullBool{
+				Bool:  true,
+				Valid: true,
+			},
+		}).Preset(database.TemplateVersionPreset{
+			ID: presetID,
+			DesiredInstances: sql.NullInt32{
+				Int32: 1,
+				Valid: true,
+			},
+		}).Do()
+
+		tests := []struct {
+			name  string
+			args  toolsdk.CreateTaskArgs
+			error string
+		}{
+			{
+				name: "OK",
+				args: toolsdk.CreateTaskArgs{
+					TemplateVersionID: aiTV.TemplateVersion.ID.String(),
+					Input:             "do a barrel roll",
+					User:              "me",
+				},
+			},
+			{
+				name: "NoUser",
+				args: toolsdk.CreateTaskArgs{
+					TemplateVersionID: aiTV.TemplateVersion.ID.String(),
+					Input:             "do another barrel roll",
+				},
+			},
+			{
+				name: "NoInput",
+				args: toolsdk.CreateTaskArgs{
+					TemplateVersionID: aiTV.TemplateVersion.ID.String(),
+				},
+				error: "input is required",
+			},
+			{
+				name: "NotTaskTemplate",
+				args: toolsdk.CreateTaskArgs{
+					TemplateVersionID: r.TemplateVersion.ID.String(),
+					Input:             "do yet another barrel roll",
+				},
+				error: "Template does not have a valid \"coder_ai_task\" resource.",
+			},
+			{
+				name: "WithPreset",
+				args: toolsdk.CreateTaskArgs{
+					TemplateVersionID:       r.TemplateVersion.ID.String(),
+					TemplateVersionPresetID: presetID.String(),
+					Input:                   "not enough barrel rolls",
+				},
+				error: "Template does not have a valid \"coder_ai_task\" resource.",
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				tb, err := toolsdk.NewDeps(memberClient)
+				require.NoError(t, err)
+
+				_, err = testTool(t, toolsdk.CreateTask, tb, tt.args)
+				if tt.error != "" {
+					require.Error(t, err)
+					require.ErrorContains(t, err, tt.error)
+				} else {
+					require.NoError(t, err)
+				}
+			})
+		}
+	})
+
+	t.Run("DeleteTask", func(t *testing.T) {
+		t.Parallel()
+
+		// nolint:gocritic // This is in a test package and does not end up in the build
+		aiTV := dbfake.TemplateVersion(t, store).Seed(database.TemplateVersion{
+			OrganizationID: owner.OrganizationID,
+			CreatedBy:      member.ID,
+			HasAITask: sql.NullBool{
+				Bool:  true,
+				Valid: true,
+			},
+		}).Do()
+
+		build1 := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+			Name:           "delete-task-workspace-1",
+			OrganizationID: owner.OrganizationID,
+			OwnerID:        member.ID,
+			TemplateID:     aiTV.Template.ID,
+		}).WithTask(database.TaskTable{
+			Name:   "delete-task-1",
+			Prompt: "delete task 1",
+		}, nil).Do()
+		task1 := build1.Task
+
+		build2 := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+			Name:           "delete-task-workspace-2",
+			OrganizationID: owner.OrganizationID,
+			OwnerID:        member.ID,
+			TemplateID:     aiTV.Template.ID,
+		}).WithTask(database.TaskTable{
+			Name:   "delete-task-2",
+			Prompt: "delete task 2",
+		}, nil).Do()
+		task2 := build2.Task
+
+		tests := []struct {
+			name  string
+			args  toolsdk.DeleteTaskArgs
+			error string
+		}{
+			{
+				name: "ByUUID",
+				args: toolsdk.DeleteTaskArgs{
+					TaskID: task1.ID.String(),
+				},
+			},
+			{
+				name: "ByIdentifier",
+				args: toolsdk.DeleteTaskArgs{
+					TaskID: task2.Name,
+				},
+			},
+			{
+				name:  "NoID",
+				args:  toolsdk.DeleteTaskArgs{},
+				error: "task_id is required",
+			},
+			{
+				name: "NoTaskByID",
+				args: toolsdk.DeleteTaskArgs{
+					TaskID: uuid.New().String(),
+				},
+				error: "Resource not found",
+			},
+			{
+				name: "NoTaskByWorkspaceIdentifier",
+				args: toolsdk.DeleteTaskArgs{
+					TaskID: "non-existent",
+				},
+				error: "Resource not found",
+			},
+			{
+				name: "ExistsButNotATask",
+				args: toolsdk.DeleteTaskArgs{
+					TaskID: r.Workspace.ID.String(),
+				},
+				error: "Resource not found",
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				tb, err := toolsdk.NewDeps(memberClient)
+				require.NoError(t, err)
+
+				_, err = testTool(t, toolsdk.DeleteTask, tb, tt.args)
+				if tt.error != "" {
+					require.Error(t, err)
+					require.ErrorContains(t, err, tt.error)
+				} else {
+					require.NoError(t, err)
+				}
+			})
+		}
+	})
+
+	t.Run("ListTasks", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		_, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		taskClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		// Create a template with AI task support using the proper flow.
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ApplyComplete,
+			ProvisionPlan: []*proto.Response{
+				{Type: &proto.Response_Plan{Plan: &proto.PlanComplete{
+					Parameters: []*proto.RichParameter{{Name: "AI Prompt", Type: "string"}},
+					HasAiTasks: true,
+				}}},
+			},
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		expClient := codersdk.NewExperimentalClient(client)
+		taskExpClient := codersdk.NewExperimentalClient(taskClient)
+
+		// This task should not show up since listing is user-scoped.
+		_, err := expClient.CreateTask(ctx, member.Username, codersdk.CreateTaskRequest{
+			TemplateVersionID: template.ActiveVersionID,
+			Input:             "task for member",
+			Name:              "list-task-workspace-member",
+		})
+		require.NoError(t, err)
+
+		// Create tasks for taskUser. These should show up in the list.
+		for i := range 5 {
+			taskName := fmt.Sprintf("list-task-workspace-%d", i)
+			task, err := taskExpClient.CreateTask(ctx, codersdk.Me, codersdk.CreateTaskRequest{
+				TemplateVersionID: template.ActiveVersionID,
+				Input:             fmt.Sprintf("task %d", i),
+				Name:              taskName,
+			})
+			require.NoError(t, err)
+			require.True(t, task.WorkspaceID.Valid, "task should have workspace ID")
+
+			// For the first task, stop the workspace to make it paused.
+			if i == 0 {
+				ws, err := taskClient.Workspace(ctx, task.WorkspaceID.UUID)
+				require.NoError(t, err)
+				coderdtest.AwaitWorkspaceBuildJobCompleted(t, taskClient, ws.LatestBuild.ID)
+
+				// Stop the workspace to set task status to paused.
+				build, err := taskClient.CreateWorkspaceBuild(ctx, task.WorkspaceID.UUID, codersdk.CreateWorkspaceBuildRequest{
+					Transition: codersdk.WorkspaceTransitionStop,
+				})
+				require.NoError(t, err)
+				coderdtest.AwaitWorkspaceBuildJobCompleted(t, taskClient, build.ID)
+			}
+		}
+
+		tests := []struct {
+			name     string
+			args     toolsdk.ListTasksArgs
+			expected []string
+			error    string
+		}{
+			{
+				name: "ListAllOwned",
+				args: toolsdk.ListTasksArgs{},
+				expected: []string{
+					"list-task-workspace-0",
+					"list-task-workspace-1",
+					"list-task-workspace-2",
+					"list-task-workspace-3",
+					"list-task-workspace-4",
+				},
+			},
+			{
+				name: "ListFiltered",
+				args: toolsdk.ListTasksArgs{
+					Status: codersdk.TaskStatusPaused,
+				},
+				expected: []string{
+					"list-task-workspace-0",
+				},
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				tb, err := toolsdk.NewDeps(taskClient)
+				require.NoError(t, err)
+
+				res, err := testTool(t, toolsdk.ListTasks, tb, tt.args)
+				if tt.error != "" {
+					require.Error(t, err)
+					require.ErrorContains(t, err, tt.error)
+				} else {
+					require.NoError(t, err)
+					require.Len(t, res.Tasks, len(tt.expected))
+					for _, task := range res.Tasks {
+						require.Contains(t, tt.expected, task.Name)
+					}
+				}
+			})
+		}
+	})
+
+	t.Run("GetTask", func(t *testing.T) {
+		t.Parallel()
+
+		// nolint:gocritic // This is in a test package and does not end up in the build
+		aiTV := dbfake.TemplateVersion(t, store).Seed(database.TemplateVersion{
+			OrganizationID: owner.OrganizationID,
+			CreatedBy:      member.ID,
+			HasAITask: sql.NullBool{
+				Bool:  true,
+				Valid: true,
+			},
+		}).Do()
+
+		build := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+			Name:           "get-task-workspace-1",
+			OrganizationID: owner.OrganizationID,
+			OwnerID:        member.ID,
+			TemplateID:     aiTV.Template.ID,
+		}).WithTask(database.TaskTable{
+			Name:   "get-task-1",
+			Prompt: "get task",
+		}, nil).Do()
+		task := build.Task
+
+		tests := []struct {
+			name     string
+			args     toolsdk.GetTaskStatusArgs
+			expected codersdk.TaskStatus
+			error    string
+		}{
+			{
+				name: "ByUUID",
+				args: toolsdk.GetTaskStatusArgs{
+					TaskID: task.ID.String(),
+				},
+				expected: codersdk.TaskStatusInitializing,
+			},
+			{
+				name: "ByIdentifier",
+				args: toolsdk.GetTaskStatusArgs{
+					TaskID: task.Name,
+				},
+				expected: codersdk.TaskStatusInitializing,
+			},
+			{
+				name:  "NoID",
+				args:  toolsdk.GetTaskStatusArgs{},
+				error: "task_id is required",
+			},
+			{
+				name: "NoTaskByID",
+				args: toolsdk.GetTaskStatusArgs{
+					TaskID: uuid.New().String(),
+				},
+				error: "Resource not found",
+			},
+			{
+				name: "NoTaskByWorkspaceIdentifier",
+				args: toolsdk.GetTaskStatusArgs{
+					TaskID: "non-existent",
+				},
+				error: "Resource not found",
+			},
+			{
+				name: "ExistsButNotATask",
+				args: toolsdk.GetTaskStatusArgs{
+					TaskID: r.Workspace.ID.String(),
+				},
+				error: "Resource not found",
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				tb, err := toolsdk.NewDeps(memberClient)
+				require.NoError(t, err)
+
+				res, err := testTool(t, toolsdk.GetTaskStatus, tb, tt.args)
+				if tt.error != "" {
+					require.Error(t, err)
+					require.ErrorContains(t, err, tt.error)
+				} else {
+					require.NoError(t, err)
+					require.Equal(t, tt.expected, res.Status)
+				}
+			})
+		}
+	})
+
+	t.Run("WorkspaceListApps", func(t *testing.T) {
+		t.Parallel()
+
+		// nolint:gocritic // This is in a test package and does not end up in the build
+		_ = dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+			Name:           "list-app-workspace-one-agent",
+			OrganizationID: owner.OrganizationID,
+			OwnerID:        member.ID,
+		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+			agents[0].Apps = []*proto.App{
+				{
+					Slug: "zero",
+					Url:  "http://zero.dev.coder.com",
+				},
+			}
+			return agents
+		}).Do()
+
+		// nolint:gocritic // This is in a test package and does not end up in the build
+		_ = dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+			Name:           "list-app-workspace-multi-agent",
+			OrganizationID: owner.OrganizationID,
+			OwnerID:        member.ID,
+		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+			agents[0].Apps = []*proto.App{
+				{
+					Slug: "one",
+					Url:  "http://one.dev.coder.com",
+				},
+				{
+					Slug: "two",
+					Url:  "http://two.dev.coder.com",
+				},
+				{
+					Slug: "three",
+					Url:  "http://three.dev.coder.com",
+				},
+			}
+			agents = append(agents, &proto.Agent{
+				Id:   uuid.NewString(),
+				Name: "dev2",
+				Auth: &proto.Agent_Token{
+					Token: uuid.NewString(),
+				},
+				Env: map[string]string{},
+				Apps: []*proto.App{
+					{
+						Slug: "four",
+						Url:  "http://four.dev.coder.com",
+					},
+				},
+			})
+			return agents
+		}).Do()
+
+		tests := []struct {
+			name     string
+			args     toolsdk.WorkspaceListAppsArgs
+			expected []toolsdk.WorkspaceListApp
+			error    string
+		}{
+			{
+				name: "NonExistentWorkspace",
+				args: toolsdk.WorkspaceListAppsArgs{
+					Workspace: "list-appp-workspace-does-not-exist",
+				},
+				error: "failed to find workspace",
+			},
+			{
+				name: "OneAgentOneApp",
+				args: toolsdk.WorkspaceListAppsArgs{
+					Workspace: "list-app-workspace-one-agent",
+				},
+				expected: []toolsdk.WorkspaceListApp{
+					{
+						Name: "zero",
+						URL:  "http://zero.dev.coder.com",
+					},
+				},
+			},
+			{
+				name: "MultiAgent",
+				args: toolsdk.WorkspaceListAppsArgs{
+					Workspace: "list-app-workspace-multi-agent",
+				},
+				error: "multiple agents found, please specify the agent name",
+			},
+			{
+				name: "MultiAgentOneApp",
+				args: toolsdk.WorkspaceListAppsArgs{
+					Workspace: "list-app-workspace-multi-agent.dev2",
+				},
+				expected: []toolsdk.WorkspaceListApp{
+					{
+						Name: "four",
+						URL:  "http://four.dev.coder.com",
+					},
+				},
+			},
+			{
+				name: "MultiAgentMultiApp",
+				args: toolsdk.WorkspaceListAppsArgs{
+					Workspace: "list-app-workspace-multi-agent.dev",
+				},
+				expected: []toolsdk.WorkspaceListApp{
+					{
+						Name: "one",
+						URL:  "http://one.dev.coder.com",
+					},
+					{
+						Name: "three",
+						URL:  "http://three.dev.coder.com",
+					},
+					{
+						Name: "two",
+						URL:  "http://two.dev.coder.com",
+					},
+				},
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				tb, err := toolsdk.NewDeps(memberClient)
+				require.NoError(t, err)
+
+				res, err := testTool(t, toolsdk.WorkspaceListApps, tb, tt.args)
+				if tt.error != "" {
+					require.Error(t, err)
+					require.ErrorContains(t, err, tt.error)
+				} else {
+					require.NoError(t, err)
+					require.Equal(t, tt.expected, res.Apps)
+				}
+			})
+		}
+	})
+
+	t.Run("SendTaskInput", func(t *testing.T) {
+		t.Parallel()
+
+		// Start a fake AgentAPI that accepts GET /status and POST /message.
+		srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodGet && r.URL.Path == "/status" {
+				httpapi.Write(r.Context(), rw, http.StatusOK, agentapi.GetStatusResponse{
+					Status: agentapi.StatusStable,
+				})
+				return
+			}
+			if r.Method == http.MethodPost && r.URL.Path == "/message" {
+				rw.Header().Set("Content-Type", "application/json")
+
+				var req agentapi.PostMessageParams
+				ok := httpapi.Read(r.Context(), rw, r, &req)
+				assert.True(t, ok, "failed to read request")
+
+				assert.Equal(t, req.Content, "frob the baz")
+				assert.Equal(t, req.Type, agentapi.MessageTypeUser)
+
+				httpapi.Write(r.Context(), rw, http.StatusOK, agentapi.PostMessageResponse{
+					Ok: true,
+				})
+				return
+			}
+			rw.WriteHeader(http.StatusInternalServerError)
+		}))
+		t.Cleanup(srv.Close)
+
+		// nolint:gocritic // This is in a test package and does not end up in the build
+		aiTV := dbfake.TemplateVersion(t, store).Seed(database.TemplateVersion{
+			OrganizationID: owner.OrganizationID,
+			CreatedBy:      member.ID,
+			HasAITask: sql.NullBool{
+				Bool:  true,
+				Valid: true,
+			},
+		}).Do()
+
+		ws := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+			Name:           "send-task-input-ws",
+			OrganizationID: owner.OrganizationID,
+			OwnerID:        member.ID,
+			TemplateID:     aiTV.Template.ID,
+		}).WithTask(database.TaskTable{
+			Name:   "send-task-input",
+			Prompt: "send task input",
+		}, &proto.App{Url: srv.URL}).Do()
+		task := ws.Task
+
+		_ = agenttest.New(t, client.URL, ws.AgentToken)
+		coderdtest.NewWorkspaceAgentWaiter(t, client, ws.Workspace.ID).
+			WaitFor(coderdtest.AgentsReady)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Ensure the app is healthy (required to send task input).
+		err = store.UpdateWorkspaceAppHealthByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAppHealthByIDParams{
+			ID:     task.WorkspaceAppID.UUID,
+			Health: database.WorkspaceAppHealthHealthy,
+		})
+		require.NoError(t, err)
+
+		tests := []struct {
+			name  string
+			args  toolsdk.SendTaskInputArgs
+			error string
+		}{
+			{
+				name: "ByUUID",
+				args: toolsdk.SendTaskInputArgs{
+					TaskID: task.ID.String(),
+					Input:  "frob the baz",
+				},
+			},
+			{
+				name: "ByIdentifier",
+				args: toolsdk.SendTaskInputArgs{
+					TaskID: task.Name,
+					Input:  "frob the baz",
+				},
+			},
+			{
+				name:  "NoID",
+				args:  toolsdk.SendTaskInputArgs{},
+				error: "task_id is required",
+			},
+			{
+				name: "NoInput",
+				args: toolsdk.SendTaskInputArgs{
+					TaskID: "send-task-input",
+				},
+				error: "input is required",
+			},
+			{
+				name: "NoTaskByID",
+				args: toolsdk.SendTaskInputArgs{
+					TaskID: uuid.New().String(),
+					Input:  "this is ignored",
+				},
+				error: "Resource not found",
+			},
+			{
+				name: "NoTaskByWorkspaceIdentifier",
+				args: toolsdk.SendTaskInputArgs{
+					TaskID: "non-existent",
+					Input:  "this is ignored",
+				},
+				error: "Resource not found",
+			},
+			{
+				name: "ExistsButNotATask",
+				args: toolsdk.SendTaskInputArgs{
+					TaskID: r.Workspace.ID.String(),
+					Input:  "this is ignored",
+				},
+				error: "Resource not found",
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				tb, err := toolsdk.NewDeps(memberClient)
+				require.NoError(t, err)
+
+				_, err = testTool(t, toolsdk.SendTaskInput, tb, tt.args)
+				if tt.error != "" {
+					require.Error(t, err)
+					require.ErrorContains(t, err, tt.error)
+				} else {
+					require.NoError(t, err)
+				}
+			})
+		}
+	})
+
+	t.Run("GetTaskLogs", func(t *testing.T) {
+		t.Parallel()
+
+		messages := []agentapi.Message{
+			{
+				Id:      0,
+				Content: "welcome",
+				Role:    agentapi.RoleAgent,
+			},
+			{
+				Id:      1,
+				Content: "frob the dazzle",
+				Role:    agentapi.RoleUser,
+			},
+			{
+				Id:      2,
+				Content: "frob dazzled",
+				Role:    agentapi.RoleAgent,
+			},
+		}
+
+		// Start a fake AgentAPI that returns some messages.
+		srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodGet && r.URL.Path == "/messages" {
+				httpapi.Write(r.Context(), rw, http.StatusOK, agentapi.GetMessagesResponse{
+					Messages: messages,
+				})
+				return
+			}
+			rw.WriteHeader(http.StatusInternalServerError)
+		}))
+		t.Cleanup(srv.Close)
+
+		// nolint:gocritic // This is in a test package and does not end up in the build
+		aiTV := dbfake.TemplateVersion(t, store).Seed(database.TemplateVersion{
+			OrganizationID: owner.OrganizationID,
+			CreatedBy:      member.ID,
+			HasAITask: sql.NullBool{
+				Bool:  true,
+				Valid: true,
+			},
+		}).Do()
+
+		ws := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+			Name:           "get-task-logs-ws",
+			OrganizationID: owner.OrganizationID,
+			OwnerID:        member.ID,
+			TemplateID:     aiTV.Template.ID,
+		}).WithTask(database.TaskTable{
+			Name:   "get-task-logs",
+			Prompt: "get task logs",
+		}, &proto.App{Url: srv.URL}).Do()
+		task := ws.Task
+
+		_ = agenttest.New(t, client.URL, ws.AgentToken)
+		coderdtest.NewWorkspaceAgentWaiter(t, client, ws.Workspace.ID).
+			WaitFor(coderdtest.AgentsReady)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Ensure the app is healthy (required to read task logs).
+		err = store.UpdateWorkspaceAppHealthByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAppHealthByIDParams{
+			ID:     task.WorkspaceAppID.UUID,
+			Health: database.WorkspaceAppHealthHealthy,
+		})
+		require.NoError(t, err)
+
+		tests := []struct {
+			name     string
+			args     toolsdk.GetTaskLogsArgs
+			expected []agentapi.Message
+			error    string
+		}{
+			{
+				name: "ByUUID",
+				args: toolsdk.GetTaskLogsArgs{
+					TaskID: task.ID.String(),
+				},
+				expected: messages,
+			},
+			{
+				name: "ByIdentifier",
+				args: toolsdk.GetTaskLogsArgs{
+					TaskID: task.Name,
+				},
+				expected: messages,
+			},
+			{
+				name:  "NoID",
+				args:  toolsdk.GetTaskLogsArgs{},
+				error: "task_id is required",
+			},
+			{
+				name: "NoTaskByID",
+				args: toolsdk.GetTaskLogsArgs{
+					TaskID: uuid.New().String(),
+				},
+				error: "Resource not found",
+			},
+			{
+				name: "NoTaskByWorkspaceIdentifier",
+				args: toolsdk.GetTaskLogsArgs{
+					TaskID: "non-existent",
+				},
+				error: "Resource not found",
+			},
+			{
+				name: "ExistsButNotATask",
+				args: toolsdk.GetTaskLogsArgs{
+					TaskID: r.Workspace.ID.String(),
+				},
+				error: "Resource not found",
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				tb, err := toolsdk.NewDeps(memberClient)
+				require.NoError(t, err)
+
+				res, err := testTool(t, toolsdk.GetTaskLogs, tb, tt.args)
+				if tt.error != "" {
+					require.Error(t, err)
+					require.ErrorContains(t, err, tt.error)
+				} else {
+					require.NoError(t, err)
+					require.Len(t, res.Logs, len(tt.expected))
+					for i, msg := range tt.expected {
+						require.Equal(t, msg.Id, int64(res.Logs[i].ID))
+						require.Equal(t, msg.Content, res.Logs[i].Content)
+						if msg.Role == agentapi.RoleUser {
+							require.Equal(t, codersdk.TaskLogTypeInput, res.Logs[i].Type)
+						} else {
+							require.Equal(t, codersdk.TaskLogTypeOutput, res.Logs[i].Type)
+						}
+						require.Equal(t, msg.Time, res.Logs[i].Time)
+					}
 				}
 			})
 		}

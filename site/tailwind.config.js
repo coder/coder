@@ -83,6 +83,14 @@ module.exports = {
 					"75%": { opacity: 0.3 },
 					"100%": { opacity: 0.2 },
 				},
+				"caret-scan": {
+					"0%": { left: "0%" },
+					"100%": { left: "100%" },
+				},
+			},
+			animation: {
+				loading: "loading 2s ease-in-out infinite alternate",
+				"caret-scan": "caret-scan 3s ease-in-out infinite",
 			},
 		},
 	},

@@ -1,10 +1,9 @@
-import HistoryOutlined from "@mui/icons-material/HistoryOutlined";
-import HubOutlined from "@mui/icons-material/HubOutlined";
 import AlertTitle from "@mui/material/AlertTitle";
 import type * as TypesGen from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";
 import { SidebarIconButton } from "components/FullPageLayout/Sidebar";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
+import { BlocksIcon, HistoryIcon } from "lucide-react";
 import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
 import { AgentRow } from "modules/resources/AgentRow";
 import { WorkspaceTimings } from "modules/workspaces/WorkspaceTiming/WorkspaceTimings";
@@ -131,7 +130,8 @@ export const Workspace: FC<WorkspaceProps> = ({
 								setSidebarOption("resources");
 							}}
 						>
-							<HubOutlined />
+							<BlocksIcon className="size-icon-sm" />
+							<span className="sr-only">Resources</span>
 						</SidebarIconButton>
 						<SidebarIconButton
 							isActive={sidebarOption.value === "history"}
@@ -139,7 +139,8 @@ export const Workspace: FC<WorkspaceProps> = ({
 								setSidebarOption("history");
 							}}
 						>
-							<HistoryOutlined />
+							<HistoryIcon className="size-icon-sm" />
+							<span className="sr-only">History</span>
 						</SidebarIconButton>
 					</div>
 

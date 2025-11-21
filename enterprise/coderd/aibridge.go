@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -23,6 +25,38 @@ const (
 	defaultListInterceptionsLimit = 100
 )
 
+// aibridgeHandler handles all aibridged-related endpoints.
+func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) func(r chi.Router) {
+	return func(r chi.Router) {
+		r.Use(api.RequireFeatureMW(codersdk.FeatureAIBridge))
+		r.Group(func(r chi.Router) {
+			r.Use(middlewares...)
+			r.Get("/interceptions", api.aiBridgeListInterceptions)
+		})
+
+		// This is a bit funky but since aibridge only exposes a HTTP
+		// handler, this is how it has to be.
+		r.HandleFunc("/*", func(rw http.ResponseWriter, r *http.Request) {
+			if api.aibridgedHandler == nil {
+				httpapi.Write(r.Context(), rw, http.StatusNotFound, codersdk.Response{
+					Message: "aibridged handler not mounted",
+				})
+				return
+			}
+
+			// Strip either the experimental or stable prefix.
+			// TODO: experimental route is deprecated and must be removed with Beta.
+			prefixes := []string{"/api/experimental/aibridge", "/api/v2/aibridge"}
+			for _, prefix := range prefixes {
+				if strings.Contains(r.URL.String(), prefix) {
+					http.StripPrefix(prefix, api.aibridgedHandler).ServeHTTP(rw, r)
+					break
+				}
+			}
+		})
+	}
+}
+
 // aiBridgeListInterceptions returns all AIBridge interceptions a user can read.
 // Optional filters with query params
 //
@@ -33,9 +67,10 @@ const (
 // @Tags AIBridge
 // @Param q query string false "Search query in the format `key:value`. Available keys are: initiator, provider, model, started_after, started_before."
 // @Param limit query int false "Page limit"
-// @Param after_id query string false "Cursor pagination after ID"
+// @Param after_id query string false "Cursor pagination after ID (cannot be used with offset)"
+// @Param offset query int false "Offset pagination (cannot be used with after_id)"
 // @Success 200 {object} codersdk.AIBridgeListInterceptionsResponse
-// @Router /api/experimental/aibridge/interceptions [get]
+// @Router /aibridge/interceptions [get]
 func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -44,10 +79,10 @@ func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	if page.Offset != 0 {
+	if page.AfterID != uuid.Nil && page.Offset != 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Offset pagination is not supported.",
-			Detail:  "Offset pagination is not supported for AIBridge interceptions. Use cursor pagination instead with after_id.",
+			Message: "Query parameters have invalid values.",
+			Detail:  "Cannot use both after_id and offset pagination in the same request.",
 		})
 		return
 	}
@@ -72,7 +107,10 @@ func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	var rows []database.AIBridgeInterception
+	var (
+		count int64
+		rows  []database.ListAIBridgeInterceptionsRow
+	)
 	err := api.Database.InTx(func(db database.Store) error {
 		// Ensure the after_id interception exists and is visible to the user.
 		if page.AfterID != uuid.Nil {
@@ -83,6 +121,19 @@ func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Reques
 		}
 
 		var err error
+		// Get the full count of authorized interceptions matching the filter
+		// for pagination purposes.
+		count, err = db.CountAIBridgeInterceptions(ctx, database.CountAIBridgeInterceptionsParams{
+			StartedAfter:  filter.StartedAfter,
+			StartedBefore: filter.StartedBefore,
+			InitiatorID:   filter.InitiatorID,
+			Provider:      filter.Provider,
+			Model:         filter.Model,
+		})
+		if err != nil {
+			return xerrors.Errorf("count authorized aibridge interceptions: %w", err)
+		}
+
 		// This only returns authorized interceptions (when using dbauthz).
 		rows, err = db.ListAIBridgeInterceptions(ctx, filter)
 		if err != nil {
@@ -110,14 +161,15 @@ func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Reques
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AIBridgeListInterceptionsResponse{
+		Count:   count,
 		Results: items,
 	})
 }
 
-func populatedAndConvertAIBridgeInterceptions(ctx context.Context, db database.Store, dbInterceptions []database.AIBridgeInterception) ([]codersdk.AIBridgeInterception, error) {
+func populatedAndConvertAIBridgeInterceptions(ctx context.Context, db database.Store, dbInterceptions []database.ListAIBridgeInterceptionsRow) ([]codersdk.AIBridgeInterception, error) {
 	ids := make([]uuid.UUID, len(dbInterceptions))
 	for i, row := range dbInterceptions {
-		ids[i] = row.ID
+		ids[i] = row.AIBridgeInterception.ID
 	}
 
 	//nolint:gocritic // This is a system function until we implement a join for aibridge interceptions. AIBridge interception subresources use the same authorization call as their parent.
@@ -152,7 +204,13 @@ func populatedAndConvertAIBridgeInterceptions(ctx context.Context, db database.S
 
 	items := make([]codersdk.AIBridgeInterception, len(dbInterceptions))
 	for i, row := range dbInterceptions {
-		items[i] = db2sdk.AIBridgeInterception(row, tokenUsagesMap[row.ID], userPromptsMap[row.ID], toolUsagesMap[row.ID])
+		items[i] = db2sdk.AIBridgeInterception(
+			row.AIBridgeInterception,
+			row.VisibleUser,
+			tokenUsagesMap[row.AIBridgeInterception.ID],
+			userPromptsMap[row.AIBridgeInterception.ID],
+			toolUsagesMap[row.AIBridgeInterception.ID],
+		)
 	}
 
 	return items, nil

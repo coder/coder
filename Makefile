@@ -636,16 +636,17 @@ TAILNETTEST_MOCKS := \
 	tailnet/tailnettest/subscriptionmock.go
 
 AIBRIDGED_MOCKS := \
-	enterprise/x/aibridged/aibridgedmock/clientmock.go \
-	enterprise/x/aibridged/aibridgedmock/poolmock.go
+	enterprise/aibridged/aibridgedmock/clientmock.go \
+	enterprise/aibridged/aibridgedmock/poolmock.go
 
 GEN_FILES := \
 	tailnet/proto/tailnet.pb.go \
 	agent/proto/agent.pb.go \
+	agent/agentsocket/proto/agentsocket.pb.go \
 	provisionersdk/proto/provisioner.pb.go \
 	provisionerd/proto/provisionerd.pb.go \
 	vpn/vpn.pb.go \
-	enterprise/x/aibridged/proto/aibridged.pb.go \
+	enterprise/aibridged/proto/aibridged.pb.go \
 	$(DB_GEN_FILES) \
 	$(SITE_GEN_FILES) \
 	coderd/rbac/object_gen.go \
@@ -676,6 +677,7 @@ gen/db: $(DB_GEN_FILES)
 .PHONY: gen/db
 
 gen/golden-files: \
+	agent/unit/testdata/.gen-golden \
 	cli/testdata/.gen-golden \
 	coderd/.gen-golden \
 	coderd/notifications/.gen-golden \
@@ -695,8 +697,9 @@ gen/mark-fresh:
 		agent/proto/agent.pb.go \
 		provisionersdk/proto/provisioner.pb.go \
 		provisionerd/proto/provisionerd.pb.go \
+		agent/agentsocket/proto/agentsocket.pb.go \
 		vpn/vpn.pb.go \
-		enterprise/x/aibridged/proto/aibridged.pb.go \
+		enterprise/aibridged/proto/aibridged.pb.go \
 		coderd/database/dump.sql \
 		$(DB_GEN_FILES) \
 		site/src/api/typesGenerated.ts \
@@ -767,8 +770,8 @@ codersdk/workspacesdk/agentconnmock/agentconnmock.go: codersdk/workspacesdk/agen
 	go generate ./codersdk/workspacesdk/agentconnmock/
 	touch "$@"
 
-$(AIBRIDGED_MOCKS): enterprise/x/aibridged/client.go enterprise/x/aibridged/pool.go
-	go generate ./enterprise/x/aibridged/aibridgedmock/
+$(AIBRIDGED_MOCKS): enterprise/aibridged/client.go enterprise/aibridged/pool.go
+	go generate ./enterprise/aibridged/aibridgedmock/
 	touch "$@"
 
 agent/agentcontainers/dcspec/dcspec_gen.go: \
@@ -799,6 +802,14 @@ agent/proto/agent.pb.go: agent/proto/agent.proto
 		--go-drpc_opt=paths=source_relative \
 		./agent/proto/agent.proto
 
+agent/agentsocket/proto/agentsocket.pb.go: agent/agentsocket/proto/agentsocket.proto
+	protoc \
+		--go_out=. \
+		--go_opt=paths=source_relative \
+		--go-drpc_out=. \
+		--go-drpc_opt=paths=source_relative \
+		./agent/agentsocket/proto/agentsocket.proto
+
 provisionersdk/proto/provisioner.pb.go: provisionersdk/proto/provisioner.proto
 	protoc \
 		--go_out=. \
@@ -821,13 +832,13 @@ vpn/vpn.pb.go: vpn/vpn.proto
 		--go_opt=paths=source_relative \
 		./vpn/vpn.proto
 
-enterprise/x/aibridged/proto/aibridged.pb.go: enterprise/x/aibridged/proto/aibridged.proto
+enterprise/aibridged/proto/aibridged.pb.go: enterprise/aibridged/proto/aibridged.proto
 	protoc \
 		--go_out=. \
 		--go_opt=paths=source_relative \
 		--go-drpc_out=. \
 		--go-drpc_opt=paths=source_relative \
-		./enterprise/x/aibridged/proto/aibridged.proto
+		./enterprise/aibridged/proto/aibridged.proto
 
 site/src/api/typesGenerated.ts: site/node_modules/.installed $(wildcard scripts/apitypings/*) $(shell find ./codersdk $(FIND_EXCLUSIONS) -type f -name '*.go')
 	# -C sets the directory for the go run command
@@ -951,6 +962,10 @@ clean/golden-files:
 		tailnet/testdata \
 		-type f -name '*.golden' -delete
 .PHONY: clean/golden-files
+
+agent/unit/testdata/.gen-golden: $(wildcard agent/unit/testdata/*.golden) $(GO_SRC_FILES) $(wildcard agent/unit/*_test.go)
+	TZ=UTC go test ./agent/unit -run="TestGraph" -update
+	touch "$@"
 
 cli/testdata/.gen-golden: $(wildcard cli/testdata/*.golden) $(wildcard cli/*.tpl) $(GO_SRC_FILES) $(wildcard cli/*_test.go)
 	TZ=UTC go test ./cli -run="Test(CommandHelp|ServerYAML|ErrorExamples|.*Golden)" -update
@@ -1177,3 +1192,8 @@ endif
 
 dogfood/coder/nix.hash: flake.nix flake.lock
 	sha256sum flake.nix flake.lock >./dogfood/coder/nix.hash
+
+# Count the number of test databases created per test package.
+count-test-databases:
+	PGPASSWORD=postgres psql -h localhost -U postgres -d coder_testing -P pager=off -c 'SELECT test_package, count(*) as count from test_databases GROUP BY test_package ORDER BY count DESC'
+.PHONY: count-test-databases

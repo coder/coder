@@ -325,3 +325,57 @@ func loadDismissedHealthchecks(ctx context.Context, db database.Store, logger sl
 	}
 	return dismissedHealthchecks
 }
+
+// @Summary Debug pprof index
+// @ID debug-pprof-index
+// @Security CoderSessionToken
+// @Success 200
+// @Tags Debug
+// @Router /debug/pprof [get]
+// @x-apidocgen {"skip": true}
+func _debugPprofIndex(http.ResponseWriter, *http.Request) {} //nolint:unused
+
+// @Summary Debug pprof cmdline
+// @ID debug-pprof-cmdline
+// @Security CoderSessionToken
+// @Success 200
+// @Tags Debug
+// @Router /debug/pprof/cmdline [get]
+// @x-apidocgen {"skip": true}
+func _debugPprofCmdline(http.ResponseWriter, *http.Request) {} //nolint:unused
+
+// @Summary Debug pprof profile
+// @ID debug-pprof-profile
+// @Security CoderSessionToken
+// @Success 200
+// @Tags Debug
+// @Router /debug/pprof/profile [get]
+// @x-apidocgen {"skip": true}
+func _debugPprofProfile(http.ResponseWriter, *http.Request) {} //nolint:unused
+
+// @Summary Debug pprof symbol
+// @ID debug-pprof-symbol
+// @Security CoderSessionToken
+// @Success 200
+// @Tags Debug
+// @Router /debug/pprof/symbol [get]
+// @x-apidocgen {"skip": true}
+func _debugPprofSymbol(http.ResponseWriter, *http.Request) {} //nolint:unused
+
+// @Summary Debug pprof trace
+// @ID debug-pprof-trace
+// @Security CoderSessionToken
+// @Success 200
+// @Tags Debug
+// @Router /debug/pprof/trace [get]
+// @x-apidocgen {"skip": true}
+func _debugPprofTrace(http.ResponseWriter, *http.Request) {} //nolint:unused
+
+// @Summary Debug metrics
+// @ID debug-metrics
+// @Security CoderSessionToken
+// @Success 200
+// @Tags Debug
+// @Router /debug/metrics [get]
+// @x-apidocgen {"skip": true}
+func _debugMetrics(http.ResponseWriter, *http.Request) {} //nolint:unused

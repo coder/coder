@@ -68,7 +68,7 @@ func AssertRBAC(t *testing.T, api *coderd.API, client *codersdk.Client) RBACAsse
 			ID:     key.UserID.String(),
 			Roles:  rbac.RoleIdentifiers(roleNames),
 			Groups: roles.Groups,
-			Scope:  key.Scopes,
+			Scope:  key.ScopeSet(),
 		},
 		Recorder: recorder,
 	}

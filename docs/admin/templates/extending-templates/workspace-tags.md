@@ -74,6 +74,9 @@ that every tag set is associated with at least one healthy provisioner.
 > [!NOTE]
 > It may be useful to run at least one provisioner with no additional
 > tag restrictions that is able to take on any job.
+>
+> `coder_workspace_tags` are cumulative.
+> Jobs will only match provisioners that have all tags defined in both your template configuration and `coder_workspace_tags`.
 
 ### Parameters types
 

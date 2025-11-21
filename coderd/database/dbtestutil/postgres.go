@@ -166,6 +166,7 @@ type TBSubset interface {
 	Cleanup(func())
 	Helper()
 	Logf(format string, args ...any)
+	TempDir() string
 }
 
 // Open creates a new PostgreSQL database instance.
