@@ -1103,6 +1103,31 @@ func (q *sqlQuerier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context
 	return err
 }
 
+const deleteExpiredAPIKeys = `-- name: DeleteExpiredAPIKeys :exec
+WITH expired_keys AS (
+	SELECT id
+	FROM api_keys
+	WHERE expires_at <= $1::timestamptz
+	LIMIT $2
+)
+DELETE FROM
+	api_keys
+USING
+	expired_keys
+WHERE
+	api_keys.id = expired_keys.id
+`
+
+type DeleteExpiredAPIKeysParams struct {
+	Now        time.Time `db:"now" json:"now"`
+	LimitCount int32     `db:"limit_count" json:"limit_count"`
+}
+
+func (q *sqlQuerier) DeleteExpiredAPIKeys(ctx context.Context, arg DeleteExpiredAPIKeysParams) error {
+	_, err := q.db.ExecContext(ctx, deleteExpiredAPIKeys, arg.Now, arg.LimitCount)
+	return err
+}
+
 const expirePrebuildsAPIKeys = `-- name: ExpirePrebuildsAPIKeys :exec
 WITH unexpired_prebuilds_workspace_session_tokens AS (
 	SELECT id, SUBSTRING(token_name FROM 38 FOR 36)::uuid AS workspace_id
