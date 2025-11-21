@@ -1,6 +1,11 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import MiniTooltip from "components/MiniTooltip/MiniTooltip";
 import { Stack } from "components/Stack/Stack";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import {
 	type FC,
 	forwardRef,
@@ -69,17 +74,31 @@ export const NotHealthyBadge: FC = () => {
 
 export const NotRegisteredBadge: FC = () => {
 	return (
-		<MiniTooltip title="Workspace Proxy has never come online and needs to be started.">
-			<span css={[styles.badge, styles.warnBadge]}>Never seen</span>
-		</MiniTooltip>
+		<TooltipProvider>
+			<Tooltip delayDuration={0}>
+				<TooltipTrigger asChild>
+					<span css={[styles.badge, styles.warnBadge]}>Never seen</span>
+				</TooltipTrigger>
+				<TooltipContent side="bottom" className="max-w-xs">
+					Workspace Proxy has never come online and needs to be started.
+				</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
 	);
 };
 
 export const NotReachableBadge: FC = () => {
 	return (
-		<MiniTooltip title="Workspace Proxy not responding to http(s) requests.">
-			<span css={[styles.badge, styles.warnBadge]}>Not reachable</span>
-		</MiniTooltip>
+		<TooltipProvider>
+			<Tooltip delayDuration={0}>
+				<TooltipTrigger asChild>
+					<span css={[styles.badge, styles.warnBadge]}>Not reachable</span>
+				</TooltipTrigger>
+				<TooltipContent side="bottom" className="max-w-xs">
+					Workspace Proxy not responding to http(s) requests.
+				</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
 	);
 };
 
