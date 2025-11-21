@@ -7835,3 +7835,79 @@ func TestUpdateAIBridgeInterceptionEnded(t *testing.T) {
 		}
 	})
 }
+
+func TestDeleteExpiredAPIKeys(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+
+	// Constant time for testing
+	now := time.Date(2025, 11, 20, 12, 0, 0, 0, time.UTC)
+	expiredBefore := now.Add(-time.Hour) // Anything before this is expired
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	user := dbgen.User(t, db, database.User{})
+
+	expiredTimes := []time.Time{
+		expiredBefore.Add(-time.Hour * 24 * 365),
+		expiredBefore.Add(-time.Hour * 24),
+		expiredBefore.Add(-time.Hour),
+		expiredBefore.Add(-time.Minute),
+		expiredBefore.Add(-time.Second),
+	}
+	for _, exp := range expiredTimes {
+		// Expired api keys
+		dbgen.APIKey(t, db, database.APIKey{UserID: user.ID, ExpiresAt: exp})
+	}
+
+	unexpiredTimes := []time.Time{
+		expiredBefore.Add(time.Hour * 24 * 365),
+		expiredBefore.Add(time.Hour * 24),
+		expiredBefore.Add(time.Hour),
+		expiredBefore.Add(time.Minute),
+		expiredBefore.Add(time.Second),
+	}
+	for _, unexp := range unexpiredTimes {
+		// Unexpired api keys
+		dbgen.APIKey(t, db, database.APIKey{UserID: user.ID, ExpiresAt: unexp})
+	}
+
+	// All keys are present before deletion
+	keys, err := db.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{
+		LoginType: user.LoginType,
+		UserID:    user.ID,
+	})
+	require.NoError(t, err)
+	require.Len(t, keys, len(expiredTimes)+len(unexpiredTimes))
+
+	// Delete expired keys
+	// First verify the limit works by deleting one at a time
+	err = db.DeleteExpiredAPIKeys(ctx, database.DeleteExpiredAPIKeysParams{
+		Before:     expiredBefore,
+		LimitCount: 1,
+	})
+	require.NoError(t, err)
+
+	// Ensure it was deleted
+	remaining, err := db.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{
+		LoginType: user.LoginType,
+		UserID:    user.ID,
+	})
+	require.NoError(t, err)
+	require.Len(t, remaining, len(expiredTimes)+len(unexpiredTimes)-1)
+
+	// Delete the rest of the expired keys
+	err = db.DeleteExpiredAPIKeys(ctx, database.DeleteExpiredAPIKeysParams{
+		Before:     expiredBefore,
+		LimitCount: 100,
+	})
+	require.NoError(t, err)
+
+	// Ensure only unexpired keys remain
+	remaining, err = db.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{
+		LoginType: user.LoginType,
+		UserID:    user.ID,
+	})
+	require.NoError(t, err)
+	require.Len(t, remaining, len(unexpiredTimes))
+}
