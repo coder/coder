@@ -201,14 +201,6 @@ resource "coder_devcontainer" "my-repository" {
   agent_id         = coder_agent.dev.id
   workspace_folder = "/home/coder/my-repository"
 }
-
-resource "docker_container" "workspace" {
-  count = data.coder_workspace.me.start_count
-  image = "codercom/oss-dogfood:latest"
-  # Dev containers are enabled by default, no env vars needed unless
-  # you want to change the defaults.
-  # ...
-}
 ```
 
 ### Alternative: Project Discovery Mode
