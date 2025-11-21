@@ -2,7 +2,6 @@ package agentapi
 
 import (
 	"context"
-	"database/sql"
 	"io"
 	"net"
 	"net/url"
@@ -57,7 +56,7 @@ type API struct {
 	*SubAgentAPI
 	*tailnet.DRPCService
 
-	cachedWorkspaceFields CachedWorkspaceFields
+	cachedWorkspaceFields *CachedWorkspaceFields
 
 	mu sync.Mutex
 }
@@ -121,20 +120,9 @@ func New(opts Options, workspace database.Workspace) *API {
 
 	// Don't cache details for prebuilds, though the cached fields will eventually be updated
 	// by the refresh routine once the prebuild workspace is claimed.
+	api.cachedWorkspaceFields = &CachedWorkspaceFields{}
 	if !workspace.IsPrebuild() {
-		api.cachedWorkspaceFields = CachedWorkspaceFields{
-			ID:             workspace.ID,
-			OwnerID:        workspace.OwnerID,
-			OrganizationID: workspace.OrganizationID,
-			TemplateID:     workspace.TemplateID,
-			Name:           workspace.Name,
-			OwnerUsername:  workspace.OwnerUsername,
-			TemplateName:   workspace.TemplateName,
-			AutostartSchedule: sql.NullString{
-				String: workspace.AutostartSchedule.String,
-				Valid:  workspace.AutostartSchedule.Valid,
-			},
-		}
+		api.cachedWorkspaceFields.UpdateValues(workspace)
 	}
 
 	api.AnnouncementBannerAPI = &AnnouncementBannerAPI{
@@ -162,7 +150,7 @@ func New(opts Options, workspace database.Workspace) *API {
 
 	api.StatsAPI = &StatsAPI{
 		AgentFn:                   api.agent,
-		Workspace:                 &api.cachedWorkspaceFields,
+		Workspace:                 api.cachedWorkspaceFields,
 		Database:                  opts.Database,
 		Log:                       opts.Log,
 		StatsReporter:             opts.StatsReporter,
@@ -187,7 +175,7 @@ func New(opts Options, workspace database.Workspace) *API {
 
 	api.MetadataAPI = &MetadataAPI{
 		AgentFn:   api.agent,
-		Workspace: &api.cachedWorkspaceFields,
+		Workspace: api.cachedWorkspaceFields,
 		Database:  opts.Database,
 		Pubsub:    opts.Pubsub,
 		Log:       opts.Log,
