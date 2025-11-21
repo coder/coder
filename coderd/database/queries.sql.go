@@ -1120,7 +1120,7 @@ deleted_rows AS (
 		 api_keys.id = expired_keys.id
 	 RETURNING api_keys.id
  )
-SELECT COUNT(*) AS deleted_count FROM deleted_rows
+SELECT COUNT(deleted_rows.id) AS deleted_count FROM deleted_rows
 `
 
 type DeleteExpiredAPIKeysParams struct {
