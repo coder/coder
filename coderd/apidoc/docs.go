@@ -17836,6 +17836,9 @@ const docTemplate = `{
                 "current_state": {
                     "$ref": "#/definitions/codersdk.TaskStateEntry"
                 },
+                "display_name": {
+                    "type": "string"
+                },
                 "id": {
                     "type": "string",
                     "format": "uuid"
