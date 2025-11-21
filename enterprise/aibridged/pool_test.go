@@ -51,7 +51,7 @@ func TestPool(t *testing.T) {
 		SessionKey:  "key",
 		InitiatorID: id,
 		APIKeyID:    apiKeyID1.String(),
-	}, clientFn, newMockMCPFactory(mcpProxy))
+	}, clientFn, newMockMCPFactory(mcpProxy), nil)
 	require.NoError(t, err, "acquire pool instance")
 
 	// ...and it will return it when acquired again.
@@ -59,7 +59,7 @@ func TestPool(t *testing.T) {
 		SessionKey:  "key",
 		InitiatorID: id,
 		APIKeyID:    apiKeyID1.String(),
-	}, clientFn, newMockMCPFactory(mcpProxy))
+	}, clientFn, newMockMCPFactory(mcpProxy), nil)
 	require.NoError(t, err, "acquire pool instance")
 	require.Same(t, inst, instB)
 
@@ -77,7 +77,7 @@ func TestPool(t *testing.T) {
 		SessionKey:  "key",
 		InitiatorID: id2,
 		APIKeyID:    apiKeyID1.String(),
-	}, clientFn, newMockMCPFactory(mcpProxy))
+	}, clientFn, newMockMCPFactory(mcpProxy), nil)
 	require.NoError(t, err, "acquire pool instance")
 	require.NotSame(t, inst, inst2)
 
@@ -95,7 +95,7 @@ func TestPool(t *testing.T) {
 		SessionKey:  "key",
 		InitiatorID: id2,
 		APIKeyID:    apiKeyID2.String(),
-	}, clientFn, newMockMCPFactory(mcpProxy))
+	}, clientFn, newMockMCPFactory(mcpProxy), nil)
 	require.NoError(t, err, "acquire pool instance 2B")
 	require.NotSame(t, inst2, inst2B)
 

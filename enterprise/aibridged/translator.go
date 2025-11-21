@@ -57,6 +57,16 @@ func (t *recorderTranslation) RecordPromptUsage(ctx context.Context, req *aibrid
 }
 
 func (t *recorderTranslation) RecordTokenUsage(ctx context.Context, req *aibridge.TokenUsageRecord) error {
+	merged := req.Metadata
+	if merged == nil {
+		merged = aibridge.Metadata{}
+	}
+
+	// Merge the token usage values into metadata; later we might want to store some of these in their own fields.
+	for k, v := range req.ExtraTokenTypes {
+		merged[k] = v
+	}
+
 	_, err := t.client.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
 		InterceptionId: req.InterceptionID,
 		MsgId:          req.MsgID,

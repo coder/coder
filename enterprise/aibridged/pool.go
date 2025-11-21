@@ -23,7 +23,7 @@ const (
 // Pooler describes a pool of [*aibridge.RequestBridge] instances from which instances can be retrieved.
 // One [*aibridge.RequestBridge] instance is created per given key.
 type Pooler interface {
-	Acquire(ctx context.Context, req Request, clientFn ClientFunc, mcpBootstrapper MCPProxyBuilder) (http.Handler, error)
+	Acquire(ctx context.Context, req Request, clientFn ClientFunc, mcpBootstrapper MCPProxyBuilder, metrics *aibridge.Metrics) (http.Handler, error)
 	Shutdown(ctx context.Context) error
 }
 
@@ -96,7 +96,7 @@ func NewCachedBridgePool(options PoolOptions, providers []aibridge.Provider, log
 //
 // Each returned [*aibridge.RequestBridge] is safe for concurrent use.
 // Each [*aibridge.RequestBridge] is stateful because it has MCP clients which maintain sessions to the configured MCP server.
-func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn ClientFunc, mcpProxyFactory MCPProxyBuilder) (http.Handler, error) {
+func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn ClientFunc, mcpProxyFactory MCPProxyBuilder, metrics *aibridge.Metrics) (http.Handler, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, xerrors.Errorf("acquire: %w", err)
 	}
@@ -154,7 +154,7 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn Cl
 			}
 		}
 
-		bridge, err := aibridge.NewRequestBridge(ctx, p.providers, p.logger, recorder, mcpServers)
+		bridge, err := aibridge.NewRequestBridge(ctx, p.providers, recorder, mcpServers, metrics, p.logger)
 		if err != nil {
 			return nil, xerrors.Errorf("create new request bridge: %w", err)
 		}

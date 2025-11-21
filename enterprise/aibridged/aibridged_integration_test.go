@@ -172,7 +172,7 @@ func TestIntegration(t *testing.T) {
 	// Given: aibridged is started.
 	srv, err := aibridged.New(t.Context(), pool, func(ctx context.Context) (aibridged.DRPCClient, error) {
 		return aiBridgeClient, nil
-	}, logger)
+	}, nil, logger)
 	require.NoError(t, err, "create new aibridged")
 	t.Cleanup(func() {
 		_ = srv.Shutdown(ctx)
