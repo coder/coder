@@ -3,10 +3,16 @@ package dbauthz
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/rbac"
 )
+
+func isWorkspaceRBACObjectEmtpy(rbacObj rbac.Object) bool {
+	// if any of these are true then the rbac.Object work a workspace is considered empty
+	return rbacObj.Owner == "" || rbacObj.OrgID == "" || rbacObj.Owner == uuid.Nil.String() || rbacObj.OrgID == uuid.Nil.String()
+}
 
 type workspaceRBACContextKey struct{}
 
@@ -19,7 +25,7 @@ func WithWorkspaceRBAC(ctx context.Context, rbacObj rbac.Object) (context.Contex
 	if rbacObj.Type != rbac.ResourceWorkspace.Type {
 		return ctx, xerrors.New("RBAC Object must be of type Workspace")
 	}
-	if rbacObj.IsEmpty() {
+	if isWorkspaceRBACObjectEmtpy(rbacObj) {
 		return ctx, xerrors.Errorf("cannot attach empty RBAC object to context: %+v", rbacObj)
 	}
 	if len(rbacObj.ACLGroupList) != 0 || len(rbacObj.ACLUserList) != 0 {
