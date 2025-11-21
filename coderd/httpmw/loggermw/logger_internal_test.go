@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/websocket"
@@ -361,6 +362,31 @@ func TestSafeQueryParams(t *testing.T) {
 			require.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func TestRequestLogger_AuthContext(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	sink := &fakeSink{}
+	logger := slog.Make(sink)
+	logger = logger.Leveled(slog.LevelDebug)
+	logCtx := NewRequestLogger(logger, "GET", time.Now())
+
+	logCtx.WithAuthContext(rbac.Subject{
+		ID:           "test-user-id",
+		FriendlyName: "test name",
+		Email:        "test@coder.com",
+		Type:         rbac.SubjectTypeUser,
+	})
+
+	logCtx.WriteLog(ctx, http.StatusOK)
+
+	require.Len(t, sink.entries, 1, "log was written twice")
+	require.Equal(t, sink.entries[0].Message, "GET")
+	require.Equal(t, sink.entries[0].Fields[0].Value, "test-user-id")
+	require.Equal(t, sink.entries[0].Fields[1].Value, "test name")
+	require.Equal(t, sink.entries[0].Fields[2].Value, "test@coder.com")
 }
 
 type fakeSink struct {
