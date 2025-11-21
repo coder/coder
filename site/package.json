@@ -92,7 +92,7 @@
 		"jszip": "3.10.1",
 		"lodash": "4.17.21",
 		"lucide-react": "0.474.0",
-		"monaco-editor": "0.52.2",
+		"monaco-editor": "0.55.1",
 		"pretty-bytes": "6.1.1",
 		"react": "19.1.1",
 		"react-color": "2.19.3",
