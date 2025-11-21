@@ -61,7 +61,7 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 // Optional filters with query params
 //
 // @Summary List AI Bridge interceptions
-// @ID list-aibridge-interceptions
+// @ID list-ai-bridge-interceptions
 // @Security CoderSessionToken
 // @Produce json
 // @Tags AI Bridge

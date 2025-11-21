@@ -99,7 +99,7 @@ const docTemplate = `{
                     "AI Bridge"
                 ],
                 "summary": "List AI Bridge interceptions",
-                "operationId": "list-aibridge-interceptions",
+                "operationId": "list-ai-bridge-interceptions",
                 "parameters": [
                     {
                         "type": "string",
