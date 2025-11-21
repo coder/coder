@@ -2,7 +2,6 @@ import { Button, type ButtonProps } from "components/Button/Button";
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { useClipboard } from "hooks/useClipboard";
@@ -22,21 +21,19 @@ export const CopyButton: FC<CopyButtonProps> = ({
 	const { showCopiedSuccess, copyToClipboard } = useClipboard();
 
 	return (
-		<TooltipProvider delayDuration={100}>
-			<Tooltip>
-				<TooltipTrigger asChild>
-					<Button
-						size="icon"
-						variant="subtle"
-						onClick={() => copyToClipboard(text)}
-						{...buttonProps}
-					>
-						{showCopiedSuccess ? <CheckIcon /> : <CopyIcon />}
-						<span className="sr-only">{label}</span>
-					</Button>
-				</TooltipTrigger>
-				<TooltipContent>{label}</TooltipContent>
-			</Tooltip>
-		</TooltipProvider>
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<Button
+					size="icon"
+					variant="subtle"
+					onClick={() => copyToClipboard(text)}
+					{...buttonProps}
+				>
+					{showCopiedSuccess ? <CheckIcon /> : <CopyIcon />}
+					<span className="sr-only">{label}</span>
+				</Button>
+			</TooltipTrigger>
+			<TooltipContent>{label}</TooltipContent>
+		</Tooltip>
 	);
 };

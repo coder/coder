@@ -14,7 +14,6 @@ import {
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { useDebouncedValue } from "hooks/debounce";
@@ -684,21 +683,19 @@ export const MultiSelectCombobox = forwardRef<
 																)}
 																{option.label}
 																{option.description && (
-																	<TooltipProvider delayDuration={100}>
-																		<Tooltip>
-																			<TooltipTrigger asChild>
-																				<span className="flex items-center pointer-events-auto">
-																					<Info className="!w-3.5 !h-3.5 text-content-secondary" />
-																				</span>
-																			</TooltipTrigger>
-																			<TooltipContent
-																				side="right"
-																				sideOffset={10}
-																			>
-																				{option.description}
-																			</TooltipContent>
-																		</Tooltip>
-																	</TooltipProvider>
+																	<Tooltip>
+																		<TooltipTrigger asChild>
+																			<span className="flex items-center pointer-events-auto">
+																				<Info className="!w-3.5 !h-3.5 text-content-secondary" />
+																			</span>
+																		</TooltipTrigger>
+																		<TooltipContent
+																			side="right"
+																			sideOffset={10}
+																		>
+																			{option.description}
+																		</TooltipContent>
+																	</Tooltip>
 																)}
 															</div>
 														</CommandItem>

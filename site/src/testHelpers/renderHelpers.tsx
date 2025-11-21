@@ -4,6 +4,7 @@ import {
 	render as testingLibraryRender,
 	waitFor,
 } from "@testing-library/react";
+import { TooltipProvider } from "components/Tooltip/Tooltip";
 import { RequireAuth } from "contexts/auth/RequireAuth";
 import type { ProxyProvider } from "contexts/ProxyContext";
 import { ThemeOverride } from "contexts/ThemeProvider";
@@ -239,7 +240,9 @@ export const waitForLoaderToBeRemoved = async (): Promise<void> => {
 export const renderComponent = (component: React.ReactNode) => {
 	return testingLibraryRender(component, {
 		wrapper: ({ children }) => (
-			<ThemeOverride theme={themes[DEFAULT_THEME]}>{children}</ThemeOverride>
+			<ThemeOverride theme={themes[DEFAULT_THEME]}>
+				<TooltipProvider delayDuration={100}>{children}</TooltipProvider>
+			</ThemeOverride>
 		),
 	});
 };
