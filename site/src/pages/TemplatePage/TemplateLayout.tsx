@@ -157,6 +157,11 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
 								Insights
 							</TabLink>
 						)}
+						{data.permissions.canUpdateTemplate && (
+							<TabLink to="prebuilds" value="prebuilds">
+								Prebuilds
+							</TabLink>
+						)}
 					</TabsList>
 				</Margins>
 			</Tabs>
