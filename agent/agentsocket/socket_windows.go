@@ -5,6 +5,7 @@ package agentsocket
 import (
 	"net"
 
+	"cdr.dev/slog"
 	"golang.org/x/xerrors"
 )
 
@@ -24,4 +25,9 @@ func getDefaultSocketPath() (string, error) {
 func cleanupSocket(_ string) error {
 	// No-op since agentsocket is not supported on Windows
 	return nil
+}
+
+// NewClient creates a DRPC client for the agent socket at the given path.
+func NewClient(path string, logger slog.Logger) (*Client, error) {
+	return nil, xerrors.New("agentsocket is not supported on Windows")
 }

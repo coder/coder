@@ -18,6 +18,25 @@ import (
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 )
 
+// Client wraps a DRPC client with connection management.
+// This type is defined here so it's available on all platforms.
+type Client struct {
+	proto.DRPCAgentSocketClient
+	conn    net.Conn
+	session *yamux.Session
+}
+
+// Close closes the client connection.
+func (c *Client) Close() error {
+	if c.session != nil {
+		_ = c.session.Close()
+	}
+	if c.conn != nil {
+		return c.conn.Close()
+	}
+	return nil
+}
+
 // Server provides access to the DRPCAgentSocketService via a Unix domain socket.
 // Do not invoke Server{} directly. Use NewServer() instead.
 type Server struct {
