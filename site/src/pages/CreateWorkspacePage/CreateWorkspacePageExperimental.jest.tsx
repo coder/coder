@@ -489,17 +489,13 @@ describe("CreateWorkspacePageExperimental", () => {
 			const nameInput = screen.getByRole("textbox", {
 				name: /workspace name/i,
 			});
-			await waitFor(async () => {
-				await userEvent.clear(nameInput);
-				await userEvent.type(nameInput, "my-test-workspace");
-			});
+			await userEvent.clear(nameInput);
+			await userEvent.type(nameInput, "my-test-workspace");
 
 			const createButton = screen.getByRole("button", {
 				name: /create workspace/i,
 			});
-			await waitFor(async () => {
-				await userEvent.click(createButton);
-			});
+			await userEvent.click(createButton);
 
 			await waitFor(() => {
 				expect(API.createWorkspace).toHaveBeenCalledWith(
