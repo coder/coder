@@ -78,6 +78,14 @@ func NewWithCommand(
 	return i, configDir
 }
 
+func NewWithSDKOverride(t testing.TB, override any, args ...string) (*serpent.Invocation, config.Root) {
+	var root cli.RootCmd
+	cmd, err := root.Command(root.AGPL())
+	root.TestOverrideSDKClient = override
+	require.NoError(t, err)
+	return NewWithCommand(t, cmd, args...)
+}
+
 // SetupConfig applies the URL and SessionToken of the client to the config.
 func SetupConfig(t *testing.T, client *codersdk.Client, root config.Root) {
 	err := root.Session().Write(client.SessionToken())
