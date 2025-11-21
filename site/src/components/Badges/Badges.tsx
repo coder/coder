@@ -74,31 +74,27 @@ export const NotHealthyBadge: FC = () => {
 
 export const NotRegisteredBadge: FC = () => {
 	return (
-		<TooltipProvider>
-			<Tooltip delayDuration={0}>
-				<TooltipTrigger asChild>
-					<span css={[styles.badge, styles.warnBadge]}>Never seen</span>
-				</TooltipTrigger>
-				<TooltipContent side="bottom" className="max-w-xs">
-					Workspace Proxy has never come online and needs to be started.
-				</TooltipContent>
-			</Tooltip>
-		</TooltipProvider>
+		<Tooltip delayDuration={0}>
+			<TooltipTrigger asChild>
+				<span css={[styles.badge, styles.warnBadge]}>Never seen</span>
+			</TooltipTrigger>
+			<TooltipContent side="bottom" className="max-w-xs">
+				Workspace Proxy has never come online and needs to be started.
+			</TooltipContent>
+		</Tooltip>
 	);
 };
 
 export const NotReachableBadge: FC = () => {
 	return (
-		<TooltipProvider>
-			<Tooltip delayDuration={0}>
-				<TooltipTrigger asChild>
-					<span css={[styles.badge, styles.warnBadge]}>Not reachable</span>
-				</TooltipTrigger>
-				<TooltipContent side="bottom" className="max-w-xs">
-					Workspace Proxy not responding to http(s) requests.
-				</TooltipContent>
-			</Tooltip>
-		</TooltipProvider>
+		<Tooltip delayDuration={0}>
+			<TooltipTrigger asChild>
+				<span css={[styles.badge, styles.warnBadge]}>Not reachable</span>
+			</TooltipTrigger>
+			<TooltipContent side="bottom" className="max-w-xs">
+				Workspace Proxy not responding to http(s) requests.
+			</TooltipContent>
+		</Tooltip>
 	);
 };
 
