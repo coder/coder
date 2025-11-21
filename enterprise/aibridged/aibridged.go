@@ -10,11 +10,12 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"cdr.dev/slog"
 	"github.com/coder/aibridge"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/retry"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 var _ io.Closer = &Server{}
