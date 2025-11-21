@@ -24,6 +24,7 @@ const ALLOWED_EXTERNAL_APP_PROTOCOLS = [
 	"jetbrains:",
 	"kiro:",
 	"positron:",
+	"antigravity:",
 ];
 
 type GetVSCodeHrefParams = {
