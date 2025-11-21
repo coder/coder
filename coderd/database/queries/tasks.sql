@@ -64,3 +64,14 @@ WHERE
 	id = @id::uuid
 	AND deleted_at IS NULL
 RETURNING *;
+
+
+-- name: UpdateTaskPrompt :one
+UPDATE
+	tasks
+SET
+	prompt = @prompt::text
+WHERE
+	id = @id::uuid
+	AND deleted_at IS NULL
+RETURNING *;
