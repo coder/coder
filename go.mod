@@ -116,7 +116,7 @@ require (
 	github.com/fatih/color v1.18.0
 	github.com/fatih/structs v1.1.0
 	github.com/fatih/structtag v1.2.0
-	github.com/fergusstrange/embedded-postgres v1.32.0
+	github.com/fergusstrange/embedded-postgres v1.33.0
 	github.com/fullsailor/pkcs7 v0.0.0-20190404230743-d7302db945fa
 	github.com/gen2brain/beeep v0.11.1
 	github.com/gliderlabs/ssh v0.3.8
