@@ -19,7 +19,6 @@ import (
 	"github.com/coder/coder/v2/agent/agentsocket"
 	"github.com/coder/coder/v2/agent/agentsocket/proto"
 	"github.com/coder/coder/v2/agent/unit"
-	"github.com/coder/coder/v2/codersdk/drpcsdk"
 )
 
 // tempDirUnixSocket returns a temporary directory that can safely hold unix
@@ -58,7 +57,8 @@ func newSocketClient(t *testing.T, socketPath string) proto.DRPCAgentSocketClien
 	session, err := yamux.Client(conn, config)
 	require.NoError(t, err)
 
-	client := proto.NewDRPCAgentSocketClient(drpcsdk.MultiplexedConn(session))
+	client, err := agentsocket.NewClient(socketPath, slog.Make().Leveled(slog.LevelDebug))
+	require.NoError(t, err)
 
 	t.Cleanup(func() {
 		_ = session.Close()
