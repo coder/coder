@@ -239,5 +239,5 @@ func extractSectionName(section []byte) (string, error) {
 }
 
 func toMdFilename(sectionName string) string {
-	return nonAlphanumericRegex.ReplaceAllLiteralString(strings.ToLower(sectionName), "-") + ".md"
+	return nonAlphanumericRegex.ReplaceAllLiteralString(strings.ReplaceAll(strings.ToLower(sectionName), " ", ""), "-") + ".md"
 }

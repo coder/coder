@@ -68,7 +68,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | [<code>groups</code>](./groups.md)                           | Manage groups                                                                                                                |
 | [<code>prebuilds</code>](./prebuilds.md)                     | Manage Coder prebuilds                                                                                                       |
 | [<code>external-workspaces</code>](./external-workspaces.md) | Create or manage external workspaces                                                                                         |
-| [<code>aibridge</code>](./aibridge.md)                       | Manage AIBridge.                                                                                                             |
+| [<code>aibridge</code>](./aibridge.md)                       | Manage AI Bridge.                                                                                                            |
 
 ## Options
 

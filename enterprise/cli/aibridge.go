@@ -17,7 +17,7 @@ const maxInterceptionsLimit = 1000
 func (r *RootCmd) aibridge() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "aibridge",
-		Short: "Manage AIBridge.",
+		Short: "Manage AI Bridge.",
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
@@ -31,7 +31,7 @@ func (r *RootCmd) aibridge() *serpent.Command {
 func (r *RootCmd) aibridgeInterceptions() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "interceptions",
-		Short: "Manage AIBridge interceptions.",
+		Short: "Manage AI Bridge interceptions.",
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
@@ -55,7 +55,7 @@ func (r *RootCmd) aibridgeInterceptionsList() *serpent.Command {
 
 	return &serpent.Command{
 		Use:   "list",
-		Short: "List AIBridge interceptions as JSON.",
+		Short: "List AI Bridge interceptions as JSON.",
 		Options: serpent.OptionSet{
 			{
 				Flag:        "initiator",

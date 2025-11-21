@@ -3,10 +3,10 @@ coder v0.0.0-devel
 USAGE:
   coder aibridge
 
-  Manage AIBridge.
+  Manage AI Bridge.
 
 SUBCOMMANDS:
-    interceptions    Manage AIBridge interceptions.
+    interceptions    Manage AI Bridge interceptions.
 
 ———
 Run `coder --help` for a list of global options.

@@ -96,10 +96,10 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "AIBridge"
+                    "AI Bridge"
                 ],
-                "summary": "List AIBridge interceptions",
-                "operationId": "list-aibridge-interceptions",
+                "summary": "List AI Bridge interceptions",
+                "operationId": "list-ai-bridge-interceptions",
                 "parameters": [
                     {
                         "type": "string",
