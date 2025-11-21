@@ -70,12 +70,11 @@ func TestConvertStateGolden(t *testing.T) {
 			}
 
 			t.Run(step+"_"+testDirectory.Name(), func(t *testing.T) {
-				// Load the paths before t.Parallel()
+				t.Parallel()
 				testDirectoryPath := filepath.Join(testResourceDirectories, testDirectory.Name())
 				planFile := filepath.Join(testDirectoryPath, testFiles[srcIdc].Name())
 				dotFile := filepath.Join(testDirectoryPath, testFiles[dotIdx].Name())
 
-				t.Parallel()
 				ctx := testutil.Context(t, testutil.WaitMedium)
 				logger := slogtest.Make(t, nil)
 
