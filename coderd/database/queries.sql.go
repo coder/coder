@@ -1107,7 +1107,8 @@ const deleteExpiredAPIKeys = `-- name: DeleteExpiredAPIKeys :exec
 WITH expired_keys AS (
 	SELECT id
 	FROM api_keys
-	WHERE expires_at <= $1::timestamptz
+	-- expired keys only
+	WHERE expires_at < $1::timestamptz
 	LIMIT $2
 )
 DELETE FROM
@@ -1119,12 +1120,12 @@ WHERE
 `
 
 type DeleteExpiredAPIKeysParams struct {
-	Now        time.Time `db:"now" json:"now"`
+	Before     time.Time `db:"before" json:"before"`
 	LimitCount int32     `db:"limit_count" json:"limit_count"`
 }
 
 func (q *sqlQuerier) DeleteExpiredAPIKeys(ctx context.Context, arg DeleteExpiredAPIKeysParams) error {
-	_, err := q.db.ExecContext(ctx, deleteExpiredAPIKeys, arg.Now, arg.LimitCount)
+	_, err := q.db.ExecContext(ctx, deleteExpiredAPIKeys, arg.Before, arg.LimitCount)
 	return err
 }
 

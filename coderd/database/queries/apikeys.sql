@@ -90,7 +90,7 @@ WITH expired_keys AS (
 	SELECT id
 	FROM api_keys
 	-- expired keys only
-	WHERE expires_at < @now::timestamptz
+	WHERE expires_at < @before::timestamptz
 	LIMIT @limit_count
 )
 DELETE FROM
