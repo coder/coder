@@ -140,6 +140,70 @@ during workspace initialization. This only applies to Dev Containers found via
 project discovery. Dev Containers defined with the `coder_devcontainer` resource
 always auto-start regardless of this setting.
 
+## Per-Container Customizations
+
+Individual Dev Containers can be customized using the `customizations.coder` block
+in your `devcontainer.json` file. These customizations allow you to control
+container-specific behavior without modifying your template.
+
+### Ignore Specific Containers
+
+Use the `ignore` option to hide a Dev Container from Coder completely:
+
+```json
+{
+  "name": "My Dev Container",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "customizations": {
+    "coder": {
+      "ignore": true
+    }
+  }
+}
+```
+
+When `ignore` is set to `true`:
+
+- The Dev Container won't appear in the Coder UI
+- Coder won't manage or monitor the container
+
+This is useful when you have Dev Containers in your repository that you don't
+want Coder to manage.
+
+### Per-Container Auto-Start
+
+Control whether individual Dev Containers should auto-start using the
+`autoStart` option:
+
+```json
+{
+  "name": "My Dev Container",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "customizations": {
+    "coder": {
+      "autoStart": true
+    }
+  }
+}
+```
+
+**Important**: The `autoStart` option only applies when global auto-start is
+enabled via `CODER_AGENT_DEVCONTAINERS_DISCOVERY_AUTOSTART_ENABLE=true`. If
+the global setting is disabled, containers won't auto-start regardless of this
+setting.
+
+When `autoStart` is set to `true`:
+
+- The Dev Container automatically builds and starts during workspace
+  initialization
+- Works on a per-container basis (you can enable it for some containers but not
+  others)
+
+When `autoStart` is set to `false` or omitted:
+
+- The Dev Container is discovered and shown in the UI
+- Users must manually start it via the UI
+
 ## Complete Template Example
 
 Here's a simplified template example that uses Dev Containers with manual
