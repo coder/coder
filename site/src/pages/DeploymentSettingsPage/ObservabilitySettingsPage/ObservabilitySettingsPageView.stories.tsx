@@ -54,3 +54,18 @@ type Story = StoryObj<typeof ObservabilitySettingsPageView>;
 export const Page: Story = {};
 
 export const Premium: Story = { args: { isPremium: true } };
+
+export const AIBridge: Story = {
+	args: {
+		featureAIBridgeEnabled: true,
+		options: [
+			{
+				name: "AIBridge Enabled",
+				value: true,
+				group: { name: "AIBridge" },
+				flag: "aibridge-enabled",
+				hidden: false,
+			},
+		],
+	},
+};
