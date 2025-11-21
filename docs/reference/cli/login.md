@@ -12,7 +12,7 @@ coder login [flags] [<url>]
 ## Description
 
 ```console
-By default, the session token is stored in a plain text file. Use the --use-keyring flag or set CODER_USE_KEYRING=true to store the token in the operating system keyring instead.
+By default, the session token is stored in the operating system keyring on macOS and Windows and a plain text file on Linux. Use the --use-keyring flag or CODER_USE_KEYRING environment variable to change the storage mechanism.
 ```
 
 ## Options

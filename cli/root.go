@@ -56,7 +56,7 @@ var (
 	// anything.
 	ErrSilent = xerrors.New("silent error")
 
-	errKeyringNotSupported = xerrors.New("keyring storage is not supported on this operating system; remove the --use-keyring flag to use file-based storage")
+	errKeyringNotSupported = xerrors.New("keyring storage is not supported on this operating system; omit --use-keyring to use file-based storage")
 )
 
 const (
@@ -483,10 +483,12 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 			Flag: varUseKeyring,
 			Env:  envUseKeyring,
 			Description: "Store and retrieve session tokens using the operating system " +
-				"keyring. Currently only supported on Windows. By default, tokens are " +
-				"stored in plain text files.",
-			Value: serpent.BoolOf(&r.useKeyring),
-			Group: globalGroup,
+				"keyring. Enabled by default. If the keyring is not supported on the " +
+				"current platform, file-based storage is used automatically. Set to " +
+				"false to force file-based storage.",
+			Default: "true",
+			Value:   serpent.BoolOf(&r.useKeyring),
+			Group:   globalGroup,
 		},
 		{
 			Flag:        "debug-http",
