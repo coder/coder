@@ -289,8 +289,97 @@ func checksumFileCRC32(ctx context.Context, logger slog.Logger, path string) uin
 	return crc32.ChecksumIEEE(content)
 }
 
+func (e *executor) buildPlan(ctx, killCtx context.Context, env, vars []string, logr logSink, req *proto.PlanRequest) (*proto.PreApplyPlanComplete, error) {
+	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
+	defer span.End()
+
+	planned, err := e.plan(ctx, killCtx, env, vars, logr, req)
+	if err != nil {
+		return nil, xerrors.Errorf("plan: %w", err)
+	}
+
+	planJSON, err := json.Marshal(planned.plan)
+	if err != nil {
+		return nil, xerrors.Errorf("marshal plan: %w", err)
+	}
+
+	state, err := ConvertPlanState(ctx, e.server.logger, planned.plan.PlannedValues.RootModule)
+	if err != nil {
+		return nil, xerrors.Errorf("convert: %w", err)
+	}
+
+	return &proto.PreApplyPlanComplete{
+		Plan:                 planJSON,
+		ResourceReplacements: planned.resourceReplacements,
+		DailyCost:            state.DailyCost,
+	}, nil
+}
+
+// templatePlan will run `terraform graph` to map out all resources and their
+// relationships.
+func (e *executor) templatePlan(ctx, killCtx context.Context, env, vars []string, logr logSink, req *proto.PlanRequest) (*proto.PlanComplete, error) {
+	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
+	defer span.End()
+
+	planned, err := e.plan(ctx, killCtx, env, vars, logr, req)
+	if err != nil {
+		return nil, xerrors.Errorf("plan: %w", err)
+	}
+
+	// Capture the duration of the call to `terraform graph`.
+	graphTimings := newTimingAggregator(database.ProvisionerJobTimingStageGraph)
+	graphTimings.ingest(createGraphTimingsEvent(timingGraphStart))
+
+	state, err := e.planResources(ctx, killCtx, planned.plan)
+	if err != nil {
+		graphTimings.ingest(createGraphTimingsEvent(timingGraphErrored))
+		return nil, xerrors.Errorf("plan resources: %w", err)
+	}
+
+	planJSON, err := json.Marshal(planned.plan)
+	if err != nil {
+		return nil, xerrors.Errorf("marshal plan: %w", err)
+	}
+
+	graphTimings.ingest(createGraphTimingsEvent(timingGraphComplete))
+
+	var moduleFiles []byte
+	// Skipping modules archiving is useful if the caller does not need it, eg during
+	// a workspace build. This removes some added costs of sending the modules
+	// payload back to coderd if coderd is just going to ignore it.
+	if !req.OmitModuleFiles {
+		moduleFiles, err = GetModulesArchive(os.DirFS(e.files.WorkDirectory()))
+		if err != nil {
+			// TODO: we probably want to persist this error or make it louder eventually
+			e.logger.Warn(ctx, "failed to archive terraform modules", slog.Error(err))
+		}
+	}
+
+	msg := &proto.PlanComplete{
+		Parameters:            state.Parameters,
+		Resources:             state.Resources,
+		ExternalAuthProviders: state.ExternalAuthProviders,
+		Timings:               append(e.timings.aggregate(), graphTimings.aggregate()...),
+		Presets:               state.Presets,
+		Plan:                  planJSON,
+		ResourceReplacements:  planned.resourceReplacements,
+		ModuleFiles:           moduleFiles,
+		HasAiTasks:            state.HasAITasks,
+		AiTasks:               state.AITasks,
+		HasExternalAgents:     state.HasExternalAgents,
+	}
+
+	return msg, nil
+}
+
+type planResult struct {
+	planfilePath         string
+	plan                 *tfjson.Plan
+	resourceReplacements []*proto.ResourceReplacement
+}
+
 // revive:disable-next-line:flag-parameter
-func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr logSink, req *proto.PlanRequest) (*proto.PlanComplete, error) {
+func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr logSink, req *proto.PlanRequest) (*planResult, error) {
 	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 
@@ -332,32 +421,9 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		return nil, xerrors.Errorf("terraform plan: %w", err)
 	}
 
-	// Capture the duration of the call to `terraform graph`.
-	graphTimings := newTimingAggregator(database.ProvisionerJobTimingStageGraph)
-	graphTimings.ingest(createGraphTimingsEvent(timingGraphStart))
-
-	state, plan, err := e.planResources(ctx, killCtx, planfilePath)
+	plan, err := e.parsePlan(ctx, killCtx, planfilePath)
 	if err != nil {
-		graphTimings.ingest(createGraphTimingsEvent(timingGraphErrored))
-		return nil, xerrors.Errorf("plan resources: %w", err)
-	}
-	planJSON, err := json.Marshal(plan)
-	if err != nil {
-		return nil, xerrors.Errorf("marshal plan: %w", err)
-	}
-
-	graphTimings.ingest(createGraphTimingsEvent(timingGraphComplete))
-
-	var moduleFiles []byte
-	// Skipping modules archiving is useful if the caller does not need it, eg during
-	// a workspace build. This removes some added costs of sending the modules
-	// payload back to coderd if coderd is just going to ignore it.
-	if !req.OmitModuleFiles {
-		moduleFiles, err = GetModulesArchive(os.DirFS(e.files.WorkDirectory()))
-		if err != nil {
-			// TODO: we probably want to persist this error or make it louder eventually
-			e.logger.Warn(ctx, "failed to archive terraform modules", slog.Error(err))
-		}
+		return nil, xerrors.Errorf("show terraform plan file: %w", err)
 	}
 
 	// When a prebuild claim attempt is made, log a warning if a resource is due to be replaced, since this will obviate
@@ -386,21 +452,11 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		}
 	}
 
-	msg := &proto.PlanComplete{
-		Parameters:            state.Parameters,
-		Resources:             state.Resources,
-		ExternalAuthProviders: state.ExternalAuthProviders,
-		Timings:               append(e.timings.aggregate(), graphTimings.aggregate()...),
-		Presets:               state.Presets,
-		Plan:                  planJSON,
-		ResourceReplacements:  resReps,
-		ModuleFiles:           moduleFiles,
-		HasAiTasks:            state.HasAITasks,
-		AiTasks:               state.AITasks,
-		HasExternalAgents:     state.HasExternalAgents,
-	}
-
-	return msg, nil
+	return &planResult{
+		planfilePath:         planfilePath,
+		plan:                 plan,
+		resourceReplacements: resReps,
+	}, nil
 }
 
 func onlyDataResources(sm tfjson.StateModule) tfjson.StateModule {
@@ -421,18 +477,13 @@ func onlyDataResources(sm tfjson.StateModule) tfjson.StateModule {
 }
 
 // planResources must only be called while the lock is held.
-func (e *executor) planResources(ctx, killCtx context.Context, planfilePath string) (*State, *tfjson.Plan, error) {
+func (e *executor) planResources(ctx, killCtx context.Context, plan *tfjson.Plan) (*State, error) {
 	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 
-	plan, err := e.parsePlan(ctx, killCtx, planfilePath)
-	if err != nil {
-		return nil, nil, xerrors.Errorf("show terraform plan file: %w", err)
-	}
-
 	rawGraph, err := e.graph(ctx, killCtx)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("graph: %w", err)
+		return nil, xerrors.Errorf("graph: %w", err)
 	}
 	modules := []*tfjson.StateModule{}
 	if plan.PriorState != nil {
@@ -450,10 +501,10 @@ func (e *executor) planResources(ctx, killCtx context.Context, planfilePath stri
 
 	state, err := ConvertState(ctx, modules, rawGraph, e.server.logger)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return state, plan, nil
+	return state, nil
 }
 
 // parsePlan must only be called while the lock is held.

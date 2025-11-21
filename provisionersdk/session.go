@@ -130,46 +130,67 @@ func (s *Session) handleRequests() error {
 			resp.Type = &proto.Response_Parse{Parse: complete}
 		}
 		if plan := req.GetPlan(); plan != nil {
-			r := &request[*proto.PlanRequest, *proto.PlanComplete]{
-				req:      plan,
-				session:  s,
-				serverFn: s.server.Plan,
-				cancels:  requests,
-			}
-			complete, err := r.do()
-			if err != nil {
-				return err
-			}
-			resp.Type = &proto.Response_Plan{Plan: complete}
+			switch {
+			case plan.WorkspaceBuild != nil && *plan.WorkspaceBuild:
+				r := &request[*proto.PlanRequest, *proto.PreApplyPlanComplete]{
+					req:      plan,
+					session:  s,
+					serverFn: s.server.BuildPlan,
+					cancels:  requests,
+				}
+				complete, err := r.do()
+				if err != nil {
+					return err
+				}
 
-			if protobuf.Size(resp) > drpcsdk.MaxMessageSize {
-				// It is likely the modules that is pushing the message size over the limit.
-				// Send the modules over a stream of messages instead.
-				s.Logger.Info(s.Context(), "plan response too large, sending modules as stream",
-					slog.F("size_bytes", len(complete.ModuleFiles)),
-				)
-				dataUp, chunks := proto.BytesToDataUpload(proto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, complete.ModuleFiles)
+				resp.Type = &proto.Response_BuildPlan{BuildPlan: complete}
 
-				complete.ModuleFiles = nil // sent over the stream
-				complete.ModuleFilesHash = dataUp.DataHash
+				if complete.Error == "" {
+					planned = true
+				}
+			default:
+				r := &request[*proto.PlanRequest, *proto.PlanComplete]{
+					req:      plan,
+					session:  s,
+					serverFn: s.server.Plan,
+					cancels:  requests,
+				}
+				complete, err := r.do()
+				if err != nil {
+					return err
+				}
+
 				resp.Type = &proto.Response_Plan{Plan: complete}
 
-				err := s.stream.Send(&proto.Response{Type: &proto.Response_DataUpload{DataUpload: dataUp}})
-				if err != nil {
-					complete.Error = fmt.Sprintf("send data upload: %s", err.Error())
-				} else {
-					for i, chunk := range chunks {
-						err := s.stream.Send(&proto.Response{Type: &proto.Response_ChunkPiece{ChunkPiece: chunk}})
-						if err != nil {
-							complete.Error = fmt.Sprintf("send data piece upload %d/%d: %s", i, dataUp.Chunks, err.Error())
-							break
+				if protobuf.Size(resp) > drpcsdk.MaxMessageSize {
+					// It is likely the modules that is pushing the message size over the limit.
+					// Send the modules over a stream of messages instead.
+					s.Logger.Info(s.Context(), "plan response too large, sending modules as stream",
+						slog.F("size_bytes", len(complete.ModuleFiles)),
+					)
+					dataUp, chunks := proto.BytesToDataUpload(proto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, complete.ModuleFiles)
+
+					complete.ModuleFiles = nil // sent over the stream
+					complete.ModuleFilesHash = dataUp.DataHash
+					resp.Type = &proto.Response_Plan{Plan: complete}
+
+					err := s.stream.Send(&proto.Response{Type: &proto.Response_DataUpload{DataUpload: dataUp}})
+					if err != nil {
+						complete.Error = fmt.Sprintf("send data upload: %s", err.Error())
+					} else {
+						for i, chunk := range chunks {
+							err := s.stream.Send(&proto.Response{Type: &proto.Response_ChunkPiece{ChunkPiece: chunk}})
+							if err != nil {
+								complete.Error = fmt.Sprintf("send data piece upload %d/%d: %s", i, dataUp.Chunks, err.Error())
+								break
+							}
 						}
 					}
 				}
-			}
 
-			if complete.Error == "" {
-				planned = true
+				if complete.Error == "" {
+					planned = true
+				}
 			}
 		}
 		if apply := req.GetApply(); apply != nil {
@@ -230,7 +251,7 @@ type pRequest interface {
 }
 
 type pComplete interface {
-	*proto.ParseComplete | *proto.PlanComplete | *proto.ApplyComplete
+	*proto.ParseComplete | *proto.PlanComplete | *proto.ApplyComplete | *proto.PreApplyPlanComplete
 }
 
 // request processes a single request call to the Server and returns its complete result, while also processing cancel

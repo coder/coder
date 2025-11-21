@@ -407,6 +407,22 @@ message PlanRequest {
   // backwards compatibility reasons, the zero value should be the previous
   // behavior of downloading the module files.
   bool omit_module_files = 6;
+  // workspace_build indicates that the provisioner that this is during a workspace
+  // build. This can skip `terraform graph`
+  optional bool workspace_build = 7;
+}
+
+// PreApplyPlanComplete is a cheaper version of PlanComplete when building
+// a workspace. A workspace build will run `terraform apply`, which contains
+// all the state information in `PlanComplete`. So when building a workspace,
+// the first plan can omit certain steps (like terraform graph).
+message PreApplyPlanComplete {
+  string error = 1;
+  bytes plan = 2;
+  repeated ResourceReplacement resource_replacements = 3;
+  int32 dailyCost = 4;
+  repeated Timing timings = 5;
+  repeated Module modules = 6;
 }
 
 // PlanComplete indicates a request to plan completed.
@@ -486,6 +502,8 @@ message Response {
     ApplyComplete apply = 4;
     DataUpload data_upload = 5;
     ChunkPiece chunk_piece = 6;
+    // buildPlan is used for workspace builds, while plan is used for template imports/dry-runs.
+    PreApplyPlanComplete buildPlan = 7;
   }
 }
 
