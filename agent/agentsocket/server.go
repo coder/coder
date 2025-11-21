@@ -76,7 +76,7 @@ func NewServer(path string, logger slog.Logger) (*Server, error) {
 
 	server.listener = listener
 
-	// This context is canceled by s.Stop() when the server is stopped.
+	// This context is canceled by server.Close().
 	// canceling it will close all connections.
 	server.ctx, server.cancel = context.WithCancel(context.Background())
 
