@@ -5262,6 +5262,7 @@ export type TimingStage =
 	| "connect"
 	| "cron"
 	| "graph"
+	| "graph_second"
 	| "init"
 	| "plan"
 	| "start"
@@ -5272,6 +5273,7 @@ export const TimingStages: TimingStage[] = [
 	"connect",
 	"cron",
 	"graph",
+	"graph_second",
 	"init",
 	"plan",
 	"start",

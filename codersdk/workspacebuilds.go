@@ -218,10 +218,11 @@ type TimingStage string
 
 const (
 	// Based on ProvisionerJobTimingStage
-	TimingStageInit  TimingStage = "init"
-	TimingStagePlan  TimingStage = "plan"
-	TimingStageGraph TimingStage = "graph"
-	TimingStageApply TimingStage = "apply"
+	TimingStageInit        TimingStage = "init"
+	TimingStagePlan        TimingStage = "plan"
+	TimingStageGraph       TimingStage = "graph"
+	TimingStageGraphSecond TimingStage = "graph_second"
+	TimingStageApply       TimingStage = "apply"
 	// Based on  WorkspaceAgentScriptTimingStage
 	TimingStageStart TimingStage = "start"
 	TimingStageStop  TimingStage = "stop"

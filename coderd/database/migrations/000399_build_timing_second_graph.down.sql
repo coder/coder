@@ -1,0 +1,1 @@
+-- Leave the enum as is, dropping enum values is not easily supported.
