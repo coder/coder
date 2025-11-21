@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"bytes"
+	"context"
 	"testing"
 	"time"
 
@@ -12,7 +13,6 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty/ptytest"
 )
@@ -21,21 +21,36 @@ func TestShow(t *testing.T) {
 	t.Parallel()
 	t.Run("Exists", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		owner := coderdtest.CreateFirstUser(t, client)
-		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, completeWithAgent())
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, member, template.ID)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-
-		args := []string{
-			"show",
-			workspace.Name,
+		agentID := uuid.UUID{1}
+		workspaceID := uuid.UUID{2}
+		workspace := codersdk.Workspace{
+			Name: "test",
+			ID:   workspaceID,
+			LatestBuild: codersdk.WorkspaceBuild{
+				Status: codersdk.WorkspaceStatusRunning,
+				Resources: []codersdk.WorkspaceResource{
+					{
+						Name: "main",
+						Type: "compute",
+						Agents: []codersdk.WorkspaceAgent{
+							{Name: "smith", ID: agentID, Architecture: "i386", OperatingSystem: "linux"},
+						},
+					},
+				},
+			},
 		}
-		inv, root := clitest.New(t, args...)
-		clitest.SetupConfig(t, member, root)
+		fSDK := &fakeShowSDK{
+			t:                 t,
+			expectedOwner:     codersdk.Me,
+			returnedWorkspace: workspace,
+			expectedAgentID:   agentID,
+			expectedContainerLabels: map[string]string{
+				agentcontainers.DevcontainerConfigFileLabel:  "",
+				agentcontainers.DevcontainerLocalFolderLabel: "",
+			},
+		}
+
+		inv, _ := clitest.NewWithSDKOverride(t, fSDK, "show", workspace.Name)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t).Attach(inv)
 		go func() {
@@ -59,6 +74,45 @@ func TestShow(t *testing.T) {
 		}
 		<-doneChan
 	})
+}
+
+type fakeShowSDK struct {
+	t                       *testing.T
+	expectedOwner           string
+	returnedWorkspace       codersdk.Workspace
+	expectedAgentID         uuid.UUID
+	expectedContainerLabels map[string]string
+}
+
+func (f *fakeShowSDK) WorkspaceByOwnerAndName(_ context.Context, owner string, name string, _ codersdk.WorkspaceOptions) (codersdk.Workspace, error) {
+	assert.Equal(f.t, f.expectedOwner, owner)
+	assert.Equal(f.t, f.returnedWorkspace.Name, name)
+	return f.returnedWorkspace, nil
+}
+
+func (*fakeShowSDK) BuildInfo(_ context.Context) (codersdk.BuildInfoResponse, error) {
+	return codersdk.BuildInfoResponse{
+		Version: "test-version",
+	}, nil
+}
+
+func (f *fakeShowSDK) WorkspaceAgentListeningPorts(_ context.Context, u uuid.UUID) (codersdk.WorkspaceAgentListeningPortsResponse, error) {
+	assert.Equal(f.t, f.expectedAgentID, u)
+	return codersdk.WorkspaceAgentListeningPortsResponse{
+		Ports: []codersdk.WorkspaceAgentListeningPort{
+			{
+				ProcessName: "postgres",
+				Port:        5432,
+				Network:     "tcp",
+			},
+		},
+	}, nil
+}
+
+func (f *fakeShowSDK) WorkspaceAgentListContainers(_ context.Context, u uuid.UUID, m map[string]string) (codersdk.WorkspaceAgentListContainersResponse, error) {
+	assert.Equal(f.t, f.expectedAgentID, u)
+	assert.Equal(f.t, f.expectedContainerLabels, m)
+	return codersdk.WorkspaceAgentListContainersResponse{}, nil
 }
 
 func TestShowDevcontainers_Golden(t *testing.T) {

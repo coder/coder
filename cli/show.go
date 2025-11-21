@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"sort"
 	"sync"
 
@@ -13,6 +14,17 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
+
+// showSDKClient is the subset of codersdk.Client that the show command uses.
+type showSDKClient interface {
+	workspaceGetterByName
+	BuildInfo(context.Context) (codersdk.BuildInfoResponse, error)
+	WorkspaceAgentListeningPorts(context.Context, uuid.UUID) (codersdk.WorkspaceAgentListeningPortsResponse, error)
+	WorkspaceAgentListContainers(context.Context, uuid.UUID, map[string]string) (codersdk.WorkspaceAgentListContainersResponse, error)
+}
+
+// ensure methods track the SDK
+var _ showSDKClient = &codersdk.Client{}
 
 func (r *RootCmd) show() *serpent.Command {
 	var details bool
@@ -31,7 +43,7 @@ func (r *RootCmd) show() *serpent.Command {
 			serpent.RequireNArgs(1),
 		),
 		Handler: func(inv *serpent.Invocation) error {
-			client, err := r.InitClient(inv)
+			client, err := GetClient[showSDKClient](r, inv)
 			if err != nil {
 				return err
 			}
@@ -62,7 +74,7 @@ func (r *RootCmd) show() *serpent.Command {
 	}
 }
 
-func fetchRuntimeResources(inv *serpent.Invocation, client *codersdk.Client, resources ...codersdk.WorkspaceResource) (map[uuid.UUID]codersdk.WorkspaceAgentListeningPortsResponse, map[uuid.UUID]codersdk.WorkspaceAgentListContainersResponse) {
+func fetchRuntimeResources(inv *serpent.Invocation, client showSDKClient, resources ...codersdk.WorkspaceResource) (map[uuid.UUID]codersdk.WorkspaceAgentListeningPortsResponse, map[uuid.UUID]codersdk.WorkspaceAgentListContainersResponse) {
 	ports := make(map[uuid.UUID]codersdk.WorkspaceAgentListeningPortsResponse)
 	devcontainers := make(map[uuid.UUID]codersdk.WorkspaceAgentListContainersResponse)
 	var wg sync.WaitGroup
