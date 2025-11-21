@@ -169,7 +169,7 @@ const TaskRow: FC<TaskRowProps> = ({ task }) => {
 					/>
 				</TableCell>
 				<TableCell className="text-right">
-				<TooltipProvider>
+					<TooltipProvider>
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<Button
