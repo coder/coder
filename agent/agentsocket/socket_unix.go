@@ -3,6 +3,8 @@
 package agentsocket
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"net"
 	"os"
 	"path/filepath"
@@ -41,12 +43,18 @@ func createSocket(path string) (net.Listener, error) {
 
 // getDefaultSocketPath returns the default socket path for Unix-like systems
 func getDefaultSocketPath() (string, error) {
+	randomBytes := make([]byte, 4)
+	if _, err := rand.Read(randomBytes); err != nil {
+		return "", xerrors.Errorf("generate random socket name: %w", err)
+	}
+	randomSuffix := hex.EncodeToString(randomBytes)
+
 	// Try XDG_RUNTIME_DIR first
 	if runtimeDir := os.Getenv("XDG_RUNTIME_DIR"); runtimeDir != "" {
-		return filepath.Join(runtimeDir, "coder-agent.sock"), nil
+		return filepath.Join(runtimeDir, "coder-agent-"+randomSuffix+".sock"), nil
 	}
 
-	return filepath.Join("/tmp", "coder-agent.sock"), nil
+	return filepath.Join("/tmp", "coder-agent-"+randomSuffix+".sock"), nil
 }
 
 // CleanupSocket removes the socket file
