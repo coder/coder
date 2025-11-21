@@ -119,11 +119,11 @@ by setting this to `false`.
 
 Enables automatic discovery of dev containers in git repositories.
 
-When enabled (the default), the agent will:
+When enabled, the agent will:
 
 - Scan the agent directory for git repositories
 - Look for `.devcontainer/devcontainer.json` or `.devcontainer.json` files
-- Register discovered dev containers automatically
+- Surface discovered dev containers automatically in the Coder UI
 - Respect `.gitignore` patterns during discovery
 
 You can disable automatic discovery by setting this to `false` if you prefer to
