@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/pproflabel"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
 
@@ -36,7 +37,7 @@ const (
 // It is the caller's responsibility to call Close on the returned instance.
 //
 // This is for cleaning up old, unused resources from the database that take up space.
-func New(ctx context.Context, logger slog.Logger, db database.Store, clk quartz.Clock) io.Closer {
+func New(ctx context.Context, logger slog.Logger, db database.Store, vals *codersdk.DeploymentValues, clk quartz.Clock) io.Closer {
 	closed := make(chan struct{})
 
 	ctx, cancelFunc := context.WithCancel(ctx)
@@ -89,6 +90,14 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, clk quartz.
 			}); err != nil {
 				return xerrors.Errorf("failed to delete old audit log connection events: %w", err)
 			}
+
+			deleteAIBridgeRecordsBefore := start.Add(-vals.AI.BridgeConfig.Retention.Value())
+			// nolint:gocritic // Needs to run as aibridge context.
+			count, err := tx.DeleteOldAIBridgeRecords(dbauthz.AsAIBridged(ctx), deleteAIBridgeRecordsBefore)
+			if err != nil {
+				return xerrors.Errorf("failed to delete old aibridge records: %w", err)
+			}
+			logger.Debug(ctx, "purged aibridge entries", slog.F("count", count), slog.F("since", deleteAIBridgeRecordsBefore.Format(time.RFC3339)))
 
 			logger.Debug(ctx, "purged old database entries", slog.F("duration", clk.Since(start)))
 
