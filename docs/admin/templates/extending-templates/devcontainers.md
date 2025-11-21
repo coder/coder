@@ -116,12 +116,6 @@ the feature.
 
 Enables the dev containers integration in the Coder agent.
 
-```terraform
-env = [
-  "CODER_AGENT_DEVCONTAINERS_ENABLE=true",  # Enabled by default
-]
-```
-
 The dev containers feature is enabled by default. You can explicitly disable it
 by setting this to `false`.
 
@@ -130,12 +124,6 @@ by setting this to `false`.
 **Default: `true`** • **Added in: v2.25.0**
 
 Enables automatic discovery of dev containers in git repositories.
-
-```terraform
-env = [
-  "CODER_AGENT_DEVCONTAINERS_PROJECT_DISCOVERY_ENABLE=true",  # Enabled by default
-]
-```
 
 When enabled (the default), the agent will:
 
@@ -152,12 +140,6 @@ use only the `coder_devcontainer` resource for explicit configuration.
 **Default: `false`** • **Added in: v2.25.0**
 
 Automatically starts dev containers discovered via project discovery.
-
-```terraform
-env = [
-  "CODER_AGENT_DEVCONTAINERS_DISCOVERY_AUTOSTART_ENABLE=true",  # Disabled by default
-]
-```
 
 When enabled, discovered dev containers will be automatically built and started
 during workspace initialization. This only applies to dev containers found via
