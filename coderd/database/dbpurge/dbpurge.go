@@ -82,11 +82,9 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 				// Leave expired keys for a week to allow the backend to know the difference
 				// between a 404 and an expired key. This purge code is just to bound the size of
 				// the table to something more reasonable.
-				// TODO: Does this matter?
 				Before: dbtime.Time(start.Add(time.Hour * 24 * 7 * -1)),
 				// There could be a lot of expired keys here, so set a limit to prevent this
 				// taking too long.
-				// TODO: Arbitrary numbers are arbitrary...
 				LimitCount: 10000,
 			}); err != nil {
 				return xerrors.Errorf("failed to delete expired api keys: %w", err)
