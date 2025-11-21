@@ -92,7 +92,8 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 			}
 
 			deleteAIBridgeRecordsBefore := start.Add(-vals.AI.BridgeConfig.Retention.Value())
-			count, err := tx.DeleteOldAIBridgeRecords(ctx, deleteAIBridgeRecordsBefore)
+			// nolint:gocritic // Needs to run as aibridge context.
+			count, err := tx.DeleteOldAIBridgeRecords(dbauthz.AsAIBridged(ctx), deleteAIBridgeRecordsBefore)
 			if err != nil {
 				return xerrors.Errorf("failed to delete old aibridge records: %w", err)
 			}

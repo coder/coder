@@ -608,7 +608,7 @@ var (
 						policy.ActionReadPersonal, // Required to read users' external auth links. // TODO: this is too broad; reduce scope to just external_auth_links by creating separate resource.
 					},
 					rbac.ResourceApiKey.Type:               {policy.ActionRead}, // Validate API keys.
-					rbac.ResourceAibridgeInterception.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
+					rbac.ResourceAibridgeInterception.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},
@@ -1724,7 +1724,7 @@ func (q *querier) DeleteOAuth2ProviderAppTokensByAppAndUserID(ctx context.Contex
 }
 
 func (q *querier) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime time.Time) (int32, error) {
-	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAibridgeInterception); err != nil {
 		return -1, err
 	}
 	return q.db.DeleteOldAIBridgeRecords(ctx, beforeTime)
