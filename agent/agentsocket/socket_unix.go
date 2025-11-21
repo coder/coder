@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"time"
 
 	"golang.org/x/xerrors"
 )
@@ -61,7 +62,8 @@ func isSocketAvailable(path string) bool {
 	}
 
 	// Try to connect to see if it's actually listening
-	conn, err := net.Dial("unix", path)
+	dialer := net.Dialer{Timeout: 10 * time.Second}
+	conn, err := dialer.Dial("unix", path)
 	if err != nil {
 		// If we can't connect, the socket is not in use
 		// Socket is available for use

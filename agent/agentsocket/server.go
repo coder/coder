@@ -23,13 +23,14 @@ import (
 type Server struct {
 	logger     slog.Logger
 	path       string
-	listener   net.Listener
-	mu         sync.Mutex
-	ctx        context.Context
-	cancel     context.CancelFunc
-	wg         sync.WaitGroup
 	drpcServer *drpcserver.Server
 	service    *DRPCAgentSocketService
+
+	mu       sync.Mutex
+	listener net.Listener
+	ctx      context.Context
+	cancel   context.CancelFunc
+	wg       sync.WaitGroup
 }
 
 func NewServer(path string, logger slog.Logger) (*Server, error) {
@@ -60,10 +61,6 @@ func NewServer(path string, logger slog.Logger) (*Server, error) {
 		},
 	})
 
-	// This context is canceled by s.Stop() when the server is stopped.
-	// canceling it will close all connections.
-	server.ctx, server.cancel = context.WithCancel(context.Background())
-
 	if server.path == "" {
 		var err error
 		server.path, err = getDefaultSocketPath()
@@ -78,6 +75,10 @@ func NewServer(path string, logger slog.Logger) (*Server, error) {
 	}
 
 	server.listener = listener
+
+	// This context is canceled by s.Stop() when the server is stopped.
+	// canceling it will close all connections.
+	server.ctx, server.cancel = context.WithCancel(context.Background())
 
 	server.logger.Info(server.ctx, "agent socket server started", slog.F("path", server.path))
 
@@ -94,6 +95,7 @@ func (s *Server) Close() error {
 	s.mu.Lock()
 
 	if s.listener == nil {
+		s.mu.Unlock()
 		return nil
 	}
 
@@ -122,7 +124,7 @@ func (s *Server) Close() error {
 }
 
 func (s *Server) acceptConnections() {
-	// In an edge case, Stop() might race with acceptConnections() and set s.listener to nil.
+	// In an edge case, Close() might race with acceptConnections() and set s.listener to nil.
 	// Therefore, we grab a copy of the listener under a lock. We might still get a nil listener,
 	// but then we know close has already run and we can return early.
 	s.mu.Lock()
