@@ -256,16 +256,13 @@ const TaskSidebarMenuItemStatus: FC<{ task: Task }> = ({ task }) => {
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
-				<div
-					className={taskStatusVariants({
-						state: task.workspace.latest_app_status?.state ?? "default",
-					})}
-				>
-					<span className="sr-only">{statusText}</span>
-				</div>
+				<StatusIndicatorDot
+					variant={taskStatusToStatusIndicatorVariant[task.status]}
+					aria-label={task.status}
+				/>
 			</TooltipTrigger>
 			<TooltipContent className="first-letter:capitalize">
-				{statusText}
+				{task.status}
 			</TooltipContent>
 		</Tooltip>
 	);
