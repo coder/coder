@@ -21,6 +21,7 @@ import { TableCell } from "components/Table/Table";
 import {
 	Tooltip,
 	TooltipContent,
+	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import type { FC } from "react";
@@ -109,35 +110,37 @@ const OverflowRolePill: FC<OverflowRolePillProps> = ({ roles }) => {
 	const theme = useTheme();
 
 	return (
-		<Tooltip>
-			<TooltipTrigger asChild>
-				<Pill
-					css={{
-						backgroundColor: theme.palette.background.paper,
-						borderColor: theme.palette.divider,
-					}}
-				>
-					+{roles.length} more
-				</Pill>
-			</TooltipTrigger>
-
-			<TooltipContent className="flex flex-row flex-wrap content-around gap-x-2 gap-y-3 px-4 py-3 border-surface-quaternary">
-				{roles.map((role) => (
+		<TooltipProvider>
+			<Tooltip delayDuration={0}>
+				<TooltipTrigger asChild>
 					<Pill
-						key={role.name}
-						css={role.global ? styles.globalRoleBadge : styles.roleBadge}
+						css={{
+							backgroundColor: theme.palette.background.paper,
+							borderColor: theme.palette.divider,
+						}}
 					>
-						{role.global ? (
-							<MUITooltip title="This user has this role for all organizations.">
-								<span>{role.display_name || role.name}*</span>
-							</MUITooltip>
-						) : (
-							role.display_name || role.name
-						)}
+						+{roles.length} more
 					</Pill>
-				))}
-			</TooltipContent>
-		</Tooltip>
+				</TooltipTrigger>
+
+				<TooltipContent className="flex flex-row flex-wrap content-around gap-x-2 gap-y-3 px-4 py-3 border-surface-quaternary">
+					{roles.map((role) => (
+						<Pill
+							key={role.name}
+							css={role.global ? styles.globalRoleBadge : styles.roleBadge}
+						>
+							{role.global ? (
+								<MUITooltip title="This user has this role for all organizations.">
+									<span>{role.display_name || role.name}*</span>
+								</MUITooltip>
+							) : (
+								role.display_name || role.name
+							)}
+						</Pill>
+					))}
+				</TooltipContent>
+			</Tooltip>
+		</TooltipProvider>
 	);
 };
 
