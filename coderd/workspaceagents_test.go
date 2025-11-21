@@ -5,12 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
-	"net"
 	"net/http"
 	"os"
 	"path/filepath"
-	"runtime"
-	"strconv"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -934,17 +932,45 @@ func TestWorkspaceAgentTailnetDirectDisabled(t *testing.T) {
 	require.False(t, p2p)
 }
 
+type fakeListeningPortsGetter struct {
+	sync.Mutex
+	ports []codersdk.WorkspaceAgentListeningPort
+}
+
+func (g *fakeListeningPortsGetter) GetListeningPorts() ([]codersdk.WorkspaceAgentListeningPort, error) {
+	g.Lock()
+	defer g.Unlock()
+	return slices.Clone(g.ports), nil
+}
+
+func (g *fakeListeningPortsGetter) setPorts(ports ...codersdk.WorkspaceAgentListeningPort) {
+	g.Lock()
+	defer g.Unlock()
+	g.ports = slices.Clone(ports)
+}
+
 func TestWorkspaceAgentListeningPorts(t *testing.T) {
 	t.Parallel()
 
-	setup := func(t *testing.T, apps []*proto.App, dv *codersdk.DeploymentValues) (*codersdk.Client, uint16, uuid.UUID) {
+	testPort := codersdk.WorkspaceAgentListeningPort{
+		Network:     "tcp",
+		ProcessName: "test-app",
+		Port:        44762,
+	}
+	filteredPort := codersdk.WorkspaceAgentListeningPort{
+		Network:     "tcp",
+		ProcessName: "postgres",
+		Port:        5432,
+	}
+
+	setup := func(t *testing.T, apps []*proto.App, dv *codersdk.DeploymentValues) (*codersdk.Client, uuid.UUID, *fakeListeningPortsGetter) {
 		t.Helper()
 
 		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 			DeploymentValues: dv,
 		})
-		coderdPort, err := strconv.Atoi(client.URL.Port())
-		require.NoError(t, err)
+
+		fLPG := &fakeListeningPortsGetter{}
 
 		user := coderdtest.CreateFirstUser(t, client)
 		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -955,228 +981,73 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 			return agents
 		}).Do()
 		_ = agenttest.New(t, client.URL, r.AgentToken, func(o *agent.Options) {
-			o.PortCacheDuration = time.Millisecond
+			o.ListeningPortsGetter = fLPG
 		})
-		resources := coderdtest.AwaitWorkspaceAgents(t, client, r.Workspace.ID)
+		resources := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
 		// #nosec G115 - Safe conversion as TCP port numbers are within uint16 range (0-65535)
-		return client, uint16(coderdPort), resources[0].Agents[0].ID
+		return client, resources[0].Agents[0].ID, fLPG
 	}
 
-	willFilterPort := func(port int) bool {
-		if port < workspacesdk.AgentMinimumListeningPort || port > 65535 {
-			return true
-		}
-		if _, ok := workspacesdk.AgentIgnoredListeningPorts[uint16(port)]; ok {
-			return true
-		}
-
-		return false
-	}
-
-	generateUnfilteredPort := func(t *testing.T) (net.Listener, uint16) {
-		var (
-			l    net.Listener
-			port uint16
-		)
-		require.Eventually(t, func() bool {
-			var err error
-			l, err = net.Listen("tcp", "localhost:0")
-			if err != nil {
-				return false
-			}
-			tcpAddr, _ := l.Addr().(*net.TCPAddr)
-			if willFilterPort(tcpAddr.Port) {
-				_ = l.Close()
-				return false
-			}
-			t.Cleanup(func() {
-				_ = l.Close()
-			})
-
-			// #nosec G115 - Safe conversion as TCP port numbers are within uint16 range (0-65535)
-			port = uint16(tcpAddr.Port)
-			return true
-		}, testutil.WaitShort, testutil.IntervalFast)
-
-		return l, port
-	}
-
-	generateFilteredPort := func(t *testing.T) (net.Listener, uint16) {
-		var (
-			l    net.Listener
-			port uint16
-		)
-		require.Eventually(t, func() bool {
-			for ignoredPort := range workspacesdk.AgentIgnoredListeningPorts {
-				if ignoredPort < 1024 || ignoredPort == 5432 {
-					continue
-				}
-
-				var err error
-				l, err = net.Listen("tcp", fmt.Sprintf("localhost:%d", ignoredPort))
-				if err != nil {
-					continue
-				}
-				t.Cleanup(func() {
-					_ = l.Close()
-				})
-
-				port = ignoredPort
-				return true
-			}
-
-			return false
-		}, testutil.WaitShort, testutil.IntervalFast)
-
-		return l, port
-	}
-
-	t.Run("LinuxAndWindows", func(t *testing.T) {
-		t.Parallel()
-		if runtime.GOOS != "linux" && runtime.GOOS != "windows" {
-			t.Skip("only runs on linux and windows")
-			return
-		}
-
-		for _, tc := range []struct {
-			name  string
-			setDV func(t *testing.T, dv *codersdk.DeploymentValues)
-		}{
-			{
-				name:  "Mainline",
-				setDV: func(*testing.T, *codersdk.DeploymentValues) {},
-			},
-			{
-				name: "BlockDirect",
-				setDV: func(t *testing.T, dv *codersdk.DeploymentValues) {
-					err := dv.DERP.Config.BlockDirect.Set("true")
-					require.NoError(t, err)
-					require.True(t, dv.DERP.Config.BlockDirect.Value())
-				},
-			},
-		} {
-			t.Run("OK_"+tc.name, func(t *testing.T) {
-				t.Parallel()
-
-				dv := coderdtest.DeploymentValues(t)
-				tc.setDV(t, dv)
-				client, coderdPort, agentID := setup(t, nil, dv)
-
-				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-				defer cancel()
-
-				// Generate a random unfiltered port.
-				l, lPort := generateUnfilteredPort(t)
-
-				// List ports and ensure that the port we expect to see is there.
-				res, err := client.WorkspaceAgentListeningPorts(ctx, agentID)
+	for _, tc := range []struct {
+		name  string
+		setDV func(t *testing.T, dv *codersdk.DeploymentValues)
+	}{
+		{
+			name:  "Mainline",
+			setDV: func(*testing.T, *codersdk.DeploymentValues) {},
+		},
+		{
+			name: "BlockDirect",
+			setDV: func(t *testing.T, dv *codersdk.DeploymentValues) {
+				err := dv.DERP.Config.BlockDirect.Set("true")
 				require.NoError(t, err)
-
-				expected := map[uint16]bool{
-					// expect the listener we made
-					lPort: false,
-					// expect the coderdtest server
-					coderdPort: false,
-				}
-				for _, port := range res.Ports {
-					if port.Network == "tcp" {
-						if val, ok := expected[port.Port]; ok {
-							if val {
-								t.Fatalf("expected to find TCP port %d only once in response", port.Port)
-							}
-						}
-						expected[port.Port] = true
-					}
-				}
-				for port, found := range expected {
-					if !found {
-						t.Fatalf("expected to find TCP port %d in response", port)
-					}
-				}
-
-				// Close the listener and check that the port is no longer in the response.
-				require.NoError(t, l.Close())
-				t.Log("checking for ports after listener close:")
-				require.Eventually(t, func() bool {
-					res, err = client.WorkspaceAgentListeningPorts(ctx, agentID)
-					if !assert.NoError(t, err) {
-						return false
-					}
-
-					for _, port := range res.Ports {
-						if port.Network == "tcp" && port.Port == lPort {
-							t.Logf("expected to not find TCP port %d in response", lPort)
-							return false
-						}
-					}
-					return true
-				}, testutil.WaitLong, testutil.IntervalMedium)
-			})
-		}
-
-		t.Run("Filter", func(t *testing.T) {
+				require.True(t, dv.DERP.Config.BlockDirect.Value())
+			},
+		},
+	} {
+		t.Run("OK_"+tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Generate an unfiltered port that we will create an app for and
-			// should not exist in the response.
-			_, appLPort := generateUnfilteredPort(t)
-			app := &proto.App{
-				Slug: "test-app",
-				Url:  fmt.Sprintf("http://localhost:%d", appLPort),
-			}
-
-			// Generate a filtered port that should not exist in the response.
-			_, filteredLPort := generateFilteredPort(t)
-
-			client, coderdPort, agentID := setup(t, []*proto.App{app}, nil)
+			dv := coderdtest.DeploymentValues(t)
+			tc.setDV(t, dv)
+			client, agentID, fLPG := setup(t, nil, dv)
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
+			fLPG.setPorts(testPort)
+
+			// List ports and ensure that the port we expect to see is there.
 			res, err := client.WorkspaceAgentListeningPorts(ctx, agentID)
 			require.NoError(t, err)
+			require.Equal(t, []codersdk.WorkspaceAgentListeningPort{testPort}, res.Ports)
 
-			sawCoderdPort := false
-			for _, port := range res.Ports {
-				if port.Network == "tcp" {
-					if port.Port == appLPort {
-						t.Fatalf("expected to not find TCP port (app port) %d in response", appLPort)
-					}
-					if port.Port == filteredLPort {
-						t.Fatalf("expected to not find TCP port (filtered port) %d in response", filteredLPort)
-					}
-					if port.Port == coderdPort {
-						sawCoderdPort = true
-					}
-				}
-			}
-			if !sawCoderdPort {
-				t.Fatalf("expected to find TCP port (coderd port) %d in response", coderdPort)
-			}
+			// Remove the port and check that the port is no longer in the response.
+			fLPG.setPorts()
+			res, err = client.WorkspaceAgentListeningPorts(ctx, agentID)
+			require.NoError(t, err)
+			require.Empty(t, res.Ports)
 		})
-	})
+	}
 
-	t.Run("Darwin", func(t *testing.T) {
+	t.Run("Filter", func(t *testing.T) {
 		t.Parallel()
-		if runtime.GOOS != "darwin" {
-			t.Skip("only runs on darwin")
-			return
+
+		app := &proto.App{
+			Slug: testPort.ProcessName,
+			Url:  fmt.Sprintf("http://localhost:%d", testPort.Port),
 		}
 
-		client, _, agentID := setup(t, nil, nil)
+		client, agentID, fLPG := setup(t, []*proto.App{app}, nil)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		// Create a TCP listener on a random port.
-		l, err := net.Listen("tcp", "localhost:0")
-		require.NoError(t, err)
-		defer l.Close()
+		fLPG.setPorts(testPort, filteredPort)
 
-		// List ports and ensure that the list is empty because we're on darwin.
 		res, err := client.WorkspaceAgentListeningPorts(ctx, agentID)
 		require.NoError(t, err)
-		require.Len(t, res.Ports, 0)
+		require.Empty(t, res.Ports)
 	})
 }
 
