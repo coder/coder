@@ -1641,10 +1641,10 @@ func (q *querier) DeleteCustomRole(ctx context.Context, arg database.DeleteCusto
 	return q.db.DeleteCustomRole(ctx, arg)
 }
 
-func (q *querier) DeleteExpiredAPIKeys(ctx context.Context, arg database.DeleteExpiredAPIKeysParams) error {
+func (q *querier) DeleteExpiredAPIKeys(ctx context.Context, arg database.DeleteExpiredAPIKeysParams) (int64, error) {
 	// Requires DELETE across all API keys.
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceApiKey); err != nil {
-		return err
+		return 0, err
 	}
 
 	return q.db.DeleteExpiredAPIKeys(ctx, arg)

@@ -78,15 +78,17 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 			if err := tx.ExpirePrebuildsAPIKeys(ctx, dbtime.Time(start)); err != nil {
 				return xerrors.Errorf("failed to expire prebuilds user api keys: %w", err)
 			}
-			if err := tx.DeleteExpiredAPIKeys(ctx, database.DeleteExpiredAPIKeysParams{
+			expiredAPIKeys, err := tx.DeleteExpiredAPIKeys(ctx, database.DeleteExpiredAPIKeysParams{
 				// Leave expired keys for a week to allow the backend to know the difference
 				// between a 404 and an expired key. This purge code is just to bound the size of
 				// the table to something more reasonable.
 				Before: dbtime.Time(start.Add(time.Hour * 24 * 7 * -1)),
 				// There could be a lot of expired keys here, so set a limit to prevent this
 				// taking too long.
+				// This runs every 10 minutes, so it deletes ~1.5m keys per day at most.
 				LimitCount: 10000,
-			}); err != nil {
+			})
+			if err != nil {
 				return xerrors.Errorf("failed to delete expired api keys: %w", err)
 			}
 			deleteOldTelemetryLocksBefore := start.Add(-maxTelemetryHeartbeatAge)
@@ -104,13 +106,17 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 
 			deleteAIBridgeRecordsBefore := start.Add(-vals.AI.BridgeConfig.Retention.Value())
 			// nolint:gocritic // Needs to run as aibridge context.
-			count, err := tx.DeleteOldAIBridgeRecords(dbauthz.AsAIBridged(ctx), deleteAIBridgeRecordsBefore)
+			purgedAIBridgeRecords, err := tx.DeleteOldAIBridgeRecords(dbauthz.AsAIBridged(ctx), deleteAIBridgeRecordsBefore)
 			if err != nil {
 				return xerrors.Errorf("failed to delete old aibridge records: %w", err)
 			}
-			logger.Debug(ctx, "purged aibridge entries", slog.F("count", count), slog.F("since", deleteAIBridgeRecordsBefore.Format(time.RFC3339)))
+			logger.Debug(ctx, "purged aibridge entries", slog.F("purgedAIBridgeRecords", purgedAIBridgeRecords), slog.F("since", deleteAIBridgeRecordsBefore.Format(time.RFC3339)))
 
-			logger.Debug(ctx, "purged old database entries", slog.F("duration", clk.Since(start)))
+			logger.Debug(ctx, "purged old database entries",
+				slog.F("expired_api_keys", expiredAPIKeys),
+				slog.F("ai_bridge_records", purgedAIBridgeRecords),
+				slog.F("duration", clk.Since(start)),
+			)
 
 			return nil
 		}, database.DefaultTXOptions().WithID("db_purge")); err != nil {

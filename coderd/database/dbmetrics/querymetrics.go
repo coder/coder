@@ -312,7 +312,7 @@ func (m queryMetricsStore) DeleteCustomRole(ctx context.Context, arg database.De
 	return r0
 }
 
-func (m queryMetricsStore) DeleteExpiredAPIKeys(ctx context.Context, arg database.DeleteExpiredAPIKeysParams) error {
+func (m queryMetricsStore) DeleteExpiredAPIKeys(ctx context.Context, arg database.DeleteExpiredAPIKeysParams) (int64, error) {
 	start := time.Now()
 	r0 := m.s.DeleteExpiredAPIKeys(ctx, arg)
 	m.queryLatencies.WithLabelValues("DeleteExpiredAPIKeys").Observe(time.Since(start).Seconds())

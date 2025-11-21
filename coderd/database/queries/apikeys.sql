@@ -85,20 +85,24 @@ DELETE FROM
 WHERE
 	user_id = $1;
 
--- name: DeleteExpiredAPIKeys :exec
+-- name: DeleteExpiredAPIKeys :one
 WITH expired_keys AS (
 	SELECT id
 	FROM api_keys
 	-- expired keys only
 	WHERE expires_at < @before::timestamptz
 	LIMIT @limit_count
-)
-DELETE FROM
-	api_keys
-USING
-	expired_keys
-WHERE
-	api_keys.id = expired_keys.id
+),
+deleted_rows AS (
+	 DELETE FROM
+		 api_keys
+	 USING
+		 expired_keys
+	 WHERE
+		 api_keys.id = expired_keys.id
+	 RETURNING api_keys.id
+ )
+SELECT COUNT(deleted_rows.id) AS deleted_count FROM deleted_rows;
 ;
 
 -- name: ExpirePrebuildsAPIKeys :exec

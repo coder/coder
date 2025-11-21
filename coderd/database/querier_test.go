@@ -7882,11 +7882,12 @@ func TestDeleteExpiredAPIKeys(t *testing.T) {
 
 	// Delete expired keys
 	// First verify the limit works by deleting one at a time
-	err = db.DeleteExpiredAPIKeys(ctx, database.DeleteExpiredAPIKeysParams{
+	deletedCount, err := db.DeleteExpiredAPIKeys(ctx, database.DeleteExpiredAPIKeysParams{
 		Before:     expiredBefore,
 		LimitCount: 1,
 	})
 	require.NoError(t, err)
+	require.Equal(t, int64(1), deletedCount)
 
 	// Ensure it was deleted
 	remaining, err := db.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{
@@ -7897,11 +7898,12 @@ func TestDeleteExpiredAPIKeys(t *testing.T) {
 	require.Len(t, remaining, len(expiredTimes)+len(unexpiredTimes)-1)
 
 	// Delete the rest of the expired keys
-	err = db.DeleteExpiredAPIKeys(ctx, database.DeleteExpiredAPIKeysParams{
+	deletedCount, err = db.DeleteExpiredAPIKeys(ctx, database.DeleteExpiredAPIKeysParams{
 		Before:     expiredBefore,
 		LimitCount: 100,
 	})
 	require.NoError(t, err)
+	require.Equal(t, int64(len(expiredTimes)-1), deletedCount)
 
 	// Ensure only unexpired keys remain
 	remaining, err = db.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{
