@@ -125,20 +125,29 @@ func (s GlobalSnapshot) IsHardLimited(presetID uuid.UUID) bool {
 }
 
 // filterExpiredWorkspaces splits running workspaces into expired and non-expired
-// based on the preset's TTL.
-// If TTL is missing or zero, all workspaces are considered non-expired.
+// based on the preset's TTL and last_invalidated_at timestamp.
+// A prebuild is considered expired if:
+// 1. The preset has been invalidated (last_invalidated_at is set), OR
+// 2. It exceeds the preset's TTL (if TTL is set)
+// If TTL is missing or zero, only last_invalidated_at is checked.
 func filterExpiredWorkspaces(preset database.GetTemplatePresetsWithPrebuildsRow, runningWorkspaces []database.GetRunningPrebuiltWorkspacesRow) (nonExpired []database.GetRunningPrebuiltWorkspacesRow, expired []database.GetRunningPrebuiltWorkspacesRow) {
-	if !preset.Ttl.Valid {
-		return runningWorkspaces, expired
-	}
-
-	ttl := time.Duration(preset.Ttl.Int32) * time.Second
-	if ttl <= 0 {
-		return runningWorkspaces, expired
-	}
-
 	for _, prebuild := range runningWorkspaces {
-		if time.Since(prebuild.CreatedAt) > ttl {
+		isExpired := false
+
+		// Check if prebuild was created before last invalidation
+		if preset.LastInvalidatedAt.Valid && prebuild.CreatedAt.Before(preset.LastInvalidatedAt.Time) {
+			isExpired = true
+		}
+
+		// Check TTL expiration if set
+		if !isExpired && preset.Ttl.Valid {
+			ttl := time.Duration(preset.Ttl.Int32) * time.Second
+			if ttl > 0 && time.Since(prebuild.CreatedAt) > ttl {
+				isExpired = true
+			}
+		}
+
+		if isExpired {
 			expired = append(expired, prebuild)
 		} else {
 			nonExpired = append(nonExpired, prebuild)

@@ -2481,6 +2481,18 @@ export const InsightsReportIntervals: InsightsReportInterval[] = [
 	"week",
 ];
 
+// From codersdk/templates.go
+export interface InvalidatePresetsResponse {
+	readonly invalidated: readonly InvalidatedPreset[];
+}
+
+// From codersdk/templates.go
+export interface InvalidatedPreset {
+	readonly template_name: string;
+	readonly template_version_name: string;
+	readonly preset_name: string;
+}
+
 // From codersdk/workspaceagents.go
 export interface IssueReconnectingPTYSignedTokenRequest {
 	/**
