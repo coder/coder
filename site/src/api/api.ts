@@ -1177,6 +1177,16 @@ class ApiMethods {
 		return response.data;
 	};
 
+	invalidateTemplatePrebuilds = async (
+		templateId: string,
+	): Promise<{ invalidated_presets: string[] }> => {
+		const response = await this.axios.post<{
+			invalidated_presets: string[];
+		}>(`/api/v2/templates/${templateId}/prebuilds/invalidate`);
+
+		return response.data;
+	};
+
 	getWorkspace = async (
 		workspaceId: string,
 		params?: TypesGen.WorkspaceOptions,

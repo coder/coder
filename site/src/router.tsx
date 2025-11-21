@@ -287,6 +287,10 @@ const TemplateInsightsPage = lazy(
 	() =>
 		import("./pages/TemplatePage/TemplateInsightsPage/TemplateInsightsPage"),
 );
+const TemplatePrebuildsPage = lazy(
+	() =>
+		import("./pages/TemplatePage/TemplatePrebuildsPage/TemplatePrebuildsPage"),
+);
 const PremiumPage = lazy(
 	() => import("./pages/DeploymentSettingsPage/PremiumPage/PremiumPage"),
 );
@@ -361,6 +365,7 @@ const templateRouter = () => {
 					<Route path="versions" element={<TemplateVersionsPage />} />
 					<Route path="embed" element={<TemplateEmbedExperimentRouter />} />
 					<Route path="insights" element={<TemplateInsightsPage />} />
+					<Route path="prebuilds" element={<TemplatePrebuildsPage />} />
 				</Route>
 
 				<Route path="workspace" element={<CreateWorkspaceExperimentRouter />} />
