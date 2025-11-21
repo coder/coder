@@ -1315,6 +1315,13 @@ func (s *MethodTestSuite) TestTemplate() {
 		dbm.EXPECT().UpsertTemplateUsageStats(gomock.Any()).Return(nil).AnyTimes()
 		check.Asserts(rbac.ResourceSystem, policy.ActionUpdate)
 	}))
+	s.Run("UpdatePresetsLastInvalidatedAt", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		t1 := testutil.Fake(s.T(), faker, database.Template{})
+		arg := database.UpdatePresetsLastInvalidatedAtParams{LastInvalidatedAt: sql.NullTime{Valid: true, Time: dbtime.Now()}, TemplateID: t1.ID}
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), t1.ID).Return(t1, nil).AnyTimes()
+		dbm.EXPECT().UpdatePresetsLastInvalidatedAt(gomock.Any(), arg).Return([]database.UpdatePresetsLastInvalidatedAtRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(t1, policy.ActionUpdate)
+	}))
 }
 
 func (s *MethodTestSuite) TestUser() {

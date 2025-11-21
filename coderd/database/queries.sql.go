@@ -8752,6 +8752,7 @@ SELECT
 		tvp.scheduling_timezone,
 		tvp.invalidate_after_secs   AS ttl,
 		tvp.prebuild_status,
+		tvp.last_invalidated_at,
 		t.deleted,
 		t.deprecated != ''          AS deprecated
 FROM templates t
@@ -8777,6 +8778,7 @@ type GetTemplatePresetsWithPrebuildsRow struct {
 	SchedulingTimezone  string         `db:"scheduling_timezone" json:"scheduling_timezone"`
 	Ttl                 sql.NullInt32  `db:"ttl" json:"ttl"`
 	PrebuildStatus      PrebuildStatus `db:"prebuild_status" json:"prebuild_status"`
+	LastInvalidatedAt   sql.NullTime   `db:"last_invalidated_at" json:"last_invalidated_at"`
 	Deleted             bool           `db:"deleted" json:"deleted"`
 	Deprecated          bool           `db:"deprecated" json:"deprecated"`
 }
@@ -8807,6 +8809,7 @@ func (q *sqlQuerier) GetTemplatePresetsWithPrebuilds(ctx context.Context, templa
 			&i.SchedulingTimezone,
 			&i.Ttl,
 			&i.PrebuildStatus,
+			&i.LastInvalidatedAt,
 			&i.Deleted,
 			&i.Deprecated,
 		); err != nil {
@@ -8940,7 +8943,7 @@ func (q *sqlQuerier) GetActivePresetPrebuildSchedules(ctx context.Context) ([]Te
 }
 
 const getPresetByID = `-- name: GetPresetByID :one
-SELECT tvp.id, tvp.template_version_id, tvp.name, tvp.created_at, tvp.desired_instances, tvp.invalidate_after_secs, tvp.prebuild_status, tvp.scheduling_timezone, tvp.is_default, tvp.description, tvp.icon, tv.template_id, tv.organization_id FROM
+SELECT tvp.id, tvp.template_version_id, tvp.name, tvp.created_at, tvp.desired_instances, tvp.invalidate_after_secs, tvp.prebuild_status, tvp.scheduling_timezone, tvp.is_default, tvp.description, tvp.icon, tvp.last_invalidated_at, tv.template_id, tv.organization_id FROM
 	template_version_presets tvp
 	INNER JOIN template_versions tv ON tvp.template_version_id = tv.id
 WHERE tvp.id = $1
@@ -8958,6 +8961,7 @@ type GetPresetByIDRow struct {
 	IsDefault           bool           `db:"is_default" json:"is_default"`
 	Description         string         `db:"description" json:"description"`
 	Icon                string         `db:"icon" json:"icon"`
+	LastInvalidatedAt   sql.NullTime   `db:"last_invalidated_at" json:"last_invalidated_at"`
 	TemplateID          uuid.NullUUID  `db:"template_id" json:"template_id"`
 	OrganizationID      uuid.UUID      `db:"organization_id" json:"organization_id"`
 }
@@ -8977,6 +8981,7 @@ func (q *sqlQuerier) GetPresetByID(ctx context.Context, presetID uuid.UUID) (Get
 		&i.IsDefault,
 		&i.Description,
 		&i.Icon,
+		&i.LastInvalidatedAt,
 		&i.TemplateID,
 		&i.OrganizationID,
 	)
@@ -8985,7 +8990,7 @@ func (q *sqlQuerier) GetPresetByID(ctx context.Context, presetID uuid.UUID) (Get
 
 const getPresetByWorkspaceBuildID = `-- name: GetPresetByWorkspaceBuildID :one
 SELECT
-	template_version_presets.id, template_version_presets.template_version_id, template_version_presets.name, template_version_presets.created_at, template_version_presets.desired_instances, template_version_presets.invalidate_after_secs, template_version_presets.prebuild_status, template_version_presets.scheduling_timezone, template_version_presets.is_default, template_version_presets.description, template_version_presets.icon
+	template_version_presets.id, template_version_presets.template_version_id, template_version_presets.name, template_version_presets.created_at, template_version_presets.desired_instances, template_version_presets.invalidate_after_secs, template_version_presets.prebuild_status, template_version_presets.scheduling_timezone, template_version_presets.is_default, template_version_presets.description, template_version_presets.icon, template_version_presets.last_invalidated_at
 FROM
 	template_version_presets
 	INNER JOIN workspace_builds ON workspace_builds.template_version_preset_id = template_version_presets.id
@@ -9008,6 +9013,7 @@ func (q *sqlQuerier) GetPresetByWorkspaceBuildID(ctx context.Context, workspaceB
 		&i.IsDefault,
 		&i.Description,
 		&i.Icon,
+		&i.LastInvalidatedAt,
 	)
 	return i, err
 }
@@ -9089,7 +9095,7 @@ func (q *sqlQuerier) GetPresetParametersByTemplateVersionID(ctx context.Context,
 
 const getPresetsByTemplateVersionID = `-- name: GetPresetsByTemplateVersionID :many
 SELECT
-	id, template_version_id, name, created_at, desired_instances, invalidate_after_secs, prebuild_status, scheduling_timezone, is_default, description, icon
+	id, template_version_id, name, created_at, desired_instances, invalidate_after_secs, prebuild_status, scheduling_timezone, is_default, description, icon, last_invalidated_at
 FROM
 	template_version_presets
 WHERE
@@ -9117,6 +9123,7 @@ func (q *sqlQuerier) GetPresetsByTemplateVersionID(ctx context.Context, template
 			&i.IsDefault,
 			&i.Description,
 			&i.Icon,
+			&i.LastInvalidatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -9142,7 +9149,8 @@ INSERT INTO template_version_presets (
 	scheduling_timezone,
 	is_default,
 	description,
-	icon
+	icon,
+	last_invalidated_at
 )
 VALUES (
 	$1,
@@ -9154,8 +9162,9 @@ VALUES (
 	$7,
 	$8,
 	$9,
-	$10
-) RETURNING id, template_version_id, name, created_at, desired_instances, invalidate_after_secs, prebuild_status, scheduling_timezone, is_default, description, icon
+	$10,
+	$11
+) RETURNING id, template_version_id, name, created_at, desired_instances, invalidate_after_secs, prebuild_status, scheduling_timezone, is_default, description, icon, last_invalidated_at
 `
 
 type InsertPresetParams struct {
@@ -9169,6 +9178,7 @@ type InsertPresetParams struct {
 	IsDefault           bool          `db:"is_default" json:"is_default"`
 	Description         string        `db:"description" json:"description"`
 	Icon                string        `db:"icon" json:"icon"`
+	LastInvalidatedAt   sql.NullTime  `db:"last_invalidated_at" json:"last_invalidated_at"`
 }
 
 func (q *sqlQuerier) InsertPreset(ctx context.Context, arg InsertPresetParams) (TemplateVersionPreset, error) {
@@ -9183,6 +9193,7 @@ func (q *sqlQuerier) InsertPreset(ctx context.Context, arg InsertPresetParams) (
 		arg.IsDefault,
 		arg.Description,
 		arg.Icon,
+		arg.LastInvalidatedAt,
 	)
 	var i TemplateVersionPreset
 	err := row.Scan(
@@ -9197,6 +9208,7 @@ func (q *sqlQuerier) InsertPreset(ctx context.Context, arg InsertPresetParams) (
 		&i.IsDefault,
 		&i.Description,
 		&i.Icon,
+		&i.LastInvalidatedAt,
 	)
 	return i, err
 }
@@ -9290,6 +9302,57 @@ type UpdatePresetPrebuildStatusParams struct {
 func (q *sqlQuerier) UpdatePresetPrebuildStatus(ctx context.Context, arg UpdatePresetPrebuildStatusParams) error {
 	_, err := q.db.ExecContext(ctx, updatePresetPrebuildStatus, arg.Status, arg.PresetID)
 	return err
+}
+
+const updatePresetsLastInvalidatedAt = `-- name: UpdatePresetsLastInvalidatedAt :many
+UPDATE
+	template_version_presets tvp
+SET
+	last_invalidated_at = $1
+FROM
+	templates t
+	JOIN template_versions tv ON tv.id = t.active_version_id
+WHERE
+	t.id = $2
+	AND tvp.template_version_id = tv.id
+RETURNING
+	t.name AS template_name,
+	tv.name AS template_version_name,
+	tvp.name AS template_version_preset_name
+`
+
+type UpdatePresetsLastInvalidatedAtParams struct {
+	LastInvalidatedAt sql.NullTime `db:"last_invalidated_at" json:"last_invalidated_at"`
+	TemplateID        uuid.UUID    `db:"template_id" json:"template_id"`
+}
+
+type UpdatePresetsLastInvalidatedAtRow struct {
+	TemplateName              string `db:"template_name" json:"template_name"`
+	TemplateVersionName       string `db:"template_version_name" json:"template_version_name"`
+	TemplateVersionPresetName string `db:"template_version_preset_name" json:"template_version_preset_name"`
+}
+
+func (q *sqlQuerier) UpdatePresetsLastInvalidatedAt(ctx context.Context, arg UpdatePresetsLastInvalidatedAtParams) ([]UpdatePresetsLastInvalidatedAtRow, error) {
+	rows, err := q.db.QueryContext(ctx, updatePresetsLastInvalidatedAt, arg.LastInvalidatedAt, arg.TemplateID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UpdatePresetsLastInvalidatedAtRow
+	for rows.Next() {
+		var i UpdatePresetsLastInvalidatedAtRow
+		if err := rows.Scan(&i.TemplateName, &i.TemplateVersionName, &i.TemplateVersionPresetName); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const deleteOldProvisionerDaemons = `-- name: DeleteOldProvisionerDaemons :exec

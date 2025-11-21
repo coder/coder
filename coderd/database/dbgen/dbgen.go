@@ -1428,6 +1428,7 @@ func Preset(t testing.TB, db database.Store, seed database.InsertPresetParams) d
 		IsDefault:           seed.IsDefault,
 		Description:         seed.Description,
 		Icon:                seed.Icon,
+		LastInvalidatedAt:   seed.LastInvalidatedAt,
 	})
 	require.NoError(t, err, "insert preset")
 	return preset

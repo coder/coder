@@ -6002,6 +6002,41 @@ const docTemplate = `{
                 }
             }
         },
+        "/templates/{template}/prebuilds/invalidate": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Invalidate presets for template",
+                "operationId": "invalidate-presets-for-template",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template ID",
+                        "name": "template",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.InvalidatePresetsResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/templates/{template}/versions": {
             "get": {
                 "security": [
@@ -14891,6 +14926,31 @@ const docTemplate = `{
                 "InsightsReportIntervalDay",
                 "InsightsReportIntervalWeek"
             ]
+        },
+        "codersdk.InvalidatePresetsResponse": {
+            "type": "object",
+            "properties": {
+                "invalidated": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.InvalidatedPreset"
+                    }
+                }
+            }
+        },
+        "codersdk.InvalidatedPreset": {
+            "type": "object",
+            "properties": {
+                "preset_name": {
+                    "type": "string"
+                },
+                "template_name": {
+                    "type": "string"
+                },
+                "template_version_name": {
+                    "type": "string"
+                }
+            }
         },
         "codersdk.IssueReconnectingPTYSignedTokenRequest": {
             "type": "object",
