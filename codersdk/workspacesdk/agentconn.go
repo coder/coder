@@ -61,6 +61,7 @@ type AgentConn interface {
 	PrometheusMetrics(ctx context.Context) ([]byte, error)
 	ReconnectingPTY(ctx context.Context, id uuid.UUID, height uint16, width uint16, command string, initOpts ...AgentReconnectingPTYInitOption) (net.Conn, error)
 	RecreateDevcontainer(ctx context.Context, devcontainerID string) (codersdk.Response, error)
+	DeleteDevcontainer(ctx context.Context, devcontainerID string) error
 	LS(ctx context.Context, path string, req LSRequest) (LSResponse, error)
 	ReadFile(ctx context.Context, path string, offset, limit int64) (io.ReadCloser, string, error)
 	WriteFile(ctx context.Context, path string, reader io.Reader) error
@@ -479,6 +480,22 @@ func (c *agentConn) RecreateDevcontainer(ctx context.Context, devcontainerID str
 		return codersdk.Response{}, xerrors.Errorf("decode response body: %w", err)
 	}
 	return m, nil
+}
+
+// DeleteDevcontainer deletes a devcontainer with the given container ID.
+// This will stop the sub-agent and remove the container.
+func (c *agentConn) DeleteDevcontainer(ctx context.Context, devcontainerID string) error {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodDelete, "/api/v0/containers/devcontainers/"+devcontainerID, nil)
+	if err != nil {
+		return xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return codersdk.ReadBodyAsError(res)
+	}
+	return nil
 }
 
 type LSRequest struct {

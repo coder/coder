@@ -126,6 +126,20 @@ func (mr *MockAgentConnMockRecorder) DebugManifest(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DebugManifest", reflect.TypeOf((*MockAgentConn)(nil).DebugManifest), ctx)
 }
 
+// DeleteDevcontainer mocks base method.
+func (m *MockAgentConn) DeleteDevcontainer(ctx context.Context, devcontainerID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteDevcontainer", ctx, devcontainerID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteDevcontainer indicates an expected call of DeleteDevcontainer.
+func (mr *MockAgentConnMockRecorder) DeleteDevcontainer(ctx, devcontainerID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteDevcontainer", reflect.TypeOf((*MockAgentConn)(nil).DeleteDevcontainer), ctx, devcontainerID)
+}
+
 // DialContext mocks base method.
 func (m *MockAgentConn) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	m.ctrl.T.Helper()

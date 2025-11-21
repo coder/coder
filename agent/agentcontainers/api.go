@@ -743,6 +743,7 @@ func (api *API) Routes() http.Handler {
 	// /-route was dropped. We can drop the /devcontainers prefix here too.
 	r.Route("/devcontainers/{devcontainer}", func(r chi.Router) {
 		r.Post("/recreate", api.handleDevcontainerRecreate)
+		r.Delete("/", api.handleDevcontainerDelete)
 	})
 
 	return r
@@ -1279,6 +1280,107 @@ func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Reques
 	httpapi.Write(ctx, w, http.StatusAccepted, codersdk.Response{
 		Message: "Devcontainer recreation initiated",
 		Detail:  fmt.Sprintf("Recreation process for devcontainer %q has started.", dc.Name),
+	})
+}
+
+// handleDevcontainerDelete handles the HTTP request to delete a
+// devcontainer by stopping the sub-agent and removing the container.
+func (api *API) handleDevcontainerDelete(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	devcontainerID := chi.URLParam(r, "devcontainer")
+
+	if devcontainerID == "" {
+		httpapi.Write(ctx, w, http.StatusBadRequest, codersdk.Response{
+			Message: "Missing devcontainer ID",
+			Detail:  "Devcontainer ID is required to delete a devcontainer.",
+		})
+		return
+	}
+
+	api.mu.Lock()
+	defer api.mu.Unlock()
+
+	// Find the devcontainer by ID
+	var dc codersdk.WorkspaceAgentDevcontainer
+	var workspaceFolder string
+	for folder, knownDC := range api.knownDevcontainers {
+		if knownDC.ID.String() == devcontainerID {
+			dc = knownDC
+			workspaceFolder = folder
+			break
+		}
+	}
+
+	if dc.ID == uuid.Nil {
+		httpapi.Write(ctx, w, http.StatusNotFound, codersdk.Response{
+			Message: "Devcontainer not found.",
+			Detail:  fmt.Sprintf("Could not find devcontainer with ID: %q", devcontainerID),
+		})
+		return
+	}
+
+	// Cannot delete while starting
+	if dc.Status == codersdk.WorkspaceAgentDevcontainerStatusStarting {
+		httpapi.Write(ctx, w, http.StatusConflict, codersdk.Response{
+			Message: "Cannot delete devcontainer while starting",
+			Detail:  fmt.Sprintf("Devcontainer %q is currently starting. Wait for it to finish before deleting.", dc.Name),
+		})
+		return
+	}
+
+	logger := api.logger.With(
+		slog.F("devcontainer_id", dc.ID),
+		slog.F("devcontainer_name", dc.Name),
+		slog.F("workspace_folder", dc.WorkspaceFolder),
+	)
+
+	logger.Info(ctx, "deleting devcontainer")
+
+	// Stop the sub-agent if it's running
+	if proc, ok := api.injectedSubAgentProcs[workspaceFolder]; ok {
+		logger.Debug(ctx, "stopping sub-agent process")
+		proc.stop()
+
+		// Delete the sub-agent from the backend if it was registered
+		if proc.agent.ID != uuid.Nil {
+			// Unlock while doing the delete operation
+			api.mu.Unlock()
+			client := *api.subAgentClient.Load()
+			if err := client.Delete(ctx, proc.agent.ID); err != nil {
+				api.mu.Lock()
+				logger.Error(ctx, "failed to delete sub-agent", slog.Error(err))
+				httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
+					Message: "Failed to delete sub-agent.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+			api.mu.Lock()
+			logger.Debug(ctx, "sub-agent deleted successfully")
+		}
+
+		// Clean up the sub-agent process from the map
+		delete(api.injectedSubAgentProcs, workspaceFolder)
+	}
+
+	// Remove the devcontainer from all tracking maps
+	delete(api.knownDevcontainers, workspaceFolder)
+	delete(api.devcontainerLogSourceIDs, workspaceFolder)
+	delete(api.configFileModifiedTimes, dc.ConfigPath)
+	delete(api.recreateSuccessTimes, workspaceFolder)
+	delete(api.recreateErrorTimes, workspaceFolder)
+	delete(api.ignoredDevcontainers, workspaceFolder)
+	delete(api.usingWorkspaceFolderName, workspaceFolder)
+	delete(api.devcontainerNames, dc.Name)
+
+	// Broadcast the update so clients know the devcontainer is gone
+	api.broadcastUpdatesLocked()
+
+	logger.Info(ctx, "devcontainer deleted successfully")
+
+	httpapi.Write(ctx, w, http.StatusOK, codersdk.Response{
+		Message: "Devcontainer deleted successfully",
+		Detail:  fmt.Sprintf("Devcontainer %q has been deleted. The container and sub-agent have been stopped and removed.", dc.Name),
 	})
 }
 
