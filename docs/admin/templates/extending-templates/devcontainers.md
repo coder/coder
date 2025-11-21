@@ -1,20 +1,20 @@
-# Configure a template for dev containers
+# Configure a template for Dev Containers
 
-To enable dev containers in workspaces, configure your template with the dev containers
+To enable Dev Containers in workspaces, configure your template with the Dev Containers
 modules and configurations outlined in this doc.
 
 > [!NOTE]
 >
-> Dev containers require a **Linux or macOS workspace**. Windows is not supported.
+> Dev Containers require a **Linux or macOS workspace**. Windows is not supported.
 
 ## Configuration Modes
 
-There are two approaches to configuring dev containers in Coder:
+There are two approaches to configuring Dev Containers in Coder:
 
 ### Manual Configuration
 
-Use the [`coder_devcontainer`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/devcontainer) Terraform resource to explicitly define which dev
-containers should be started in your workspace. This approach provides:
+Use the [`coder_devcontainer`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/devcontainer) Terraform resource to explicitly define which Dev
+Containers should be started in your workspace. This approach provides:
 
 - Predictable behavior and explicit control
 - Clear template configuration
@@ -25,7 +25,7 @@ This is the recommended approach for most use cases.
 
 ### Project Discovery
 
-Enable automatic discovery of dev containers in git repositories. Project discovery automatically scans git repositories for `.devcontainer/devcontainer.json` or `.devcontainer.json` files and surfaces them in the Coder UI. See the [Environment Variables](#environment-variables) section for detailed configuration options.
+Enable automatic discovery of Dev Containers in git repositories. Project discovery automatically scans git repositories for `.devcontainer/devcontainer.json` or `.devcontainer.json` files and surfaces them in the Coder UI. See the [Environment Variables](#environment-variables) section for detailed configuration options.
 
 ## Install the Dev Containers CLI
 
@@ -47,7 +47,7 @@ Alternatively, install the devcontainer CLI manually in your base image.
 
 The
 [`coder_devcontainer`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/devcontainer)
-resource automatically starts a dev container in your workspace, ensuring it's
+resource automatically starts a Dev Container in your workspace, ensuring it's
 ready when you access the workspace:
 
 ```terraform
@@ -74,11 +74,11 @@ resource "coder_devcontainer" "my-repository" {
 
 ## Enable Dev Containers Integration
 
-Dev containers integration is **enabled by default** in Coder 2.24.0 and later.
+Dev Containers integration is **enabled by default** in Coder 2.24.0 and later.
 You don't need to set any environment variables unless you want to change the
 default behavior.
 
-If you need to explicitly disable dev containers, set the
+If you need to explicitly disable Dev Containers, set the
 `CODER_AGENT_DEVCONTAINERS_ENABLE` environment variable to `false`:
 
 ```terraform
@@ -98,7 +98,7 @@ details on available configuration options.
 
 ## Environment Variables
 
-The following environment variables control dev container behavior in your
+The following environment variables control Dev Container behavior in your
 workspace. Both `CODER_AGENT_DEVCONTAINERS_ENABLE` and
 `CODER_AGENT_DEVCONTAINERS_PROJECT_DISCOVERY_ENABLE` are **enabled by default**,
 so you typically don't need to set them unless you want to explicitly disable
@@ -108,22 +108,22 @@ the feature.
 
 **Default: `true`** • **Added in: v2.24.0**
 
-Enables the dev containers integration in the Coder agent.
+Enables the Dev Containers integration in the Coder agent.
 
-The dev containers feature is enabled by default. You can explicitly disable it
+The Dev Containers feature is enabled by default. You can explicitly disable it
 by setting this to `false`.
 
 ### CODER_AGENT_DEVCONTAINERS_PROJECT_DISCOVERY_ENABLE
 
 **Default: `true`** • **Added in: v2.25.0**
 
-Enables automatic discovery of dev containers in git repositories.
+Enables automatic discovery of Dev Containers in git repositories.
 
 When enabled, the agent will:
 
 - Scan the agent directory for git repositories
 - Look for `.devcontainer/devcontainer.json` or `.devcontainer.json` files
-- Surface discovered dev containers automatically in the Coder UI
+- Surface discovered Dev Containers automatically in the Coder UI
 - Respect `.gitignore` patterns during discovery
 
 You can disable automatic discovery by setting this to `false` if you prefer to
@@ -133,16 +133,16 @@ use only the `coder_devcontainer` resource for explicit configuration.
 
 **Default: `false`** • **Added in: v2.25.0**
 
-Automatically starts dev containers discovered via project discovery.
+Automatically starts Dev Containers discovered via project discovery.
 
-When enabled, discovered dev containers will be automatically built and started
-during workspace initialization. This only applies to dev containers found via
-project discovery. Dev containers defined with the `coder_devcontainer` resource
+When enabled, discovered Dev Containers will be automatically built and started
+during workspace initialization. This only applies to Dev Containers found via
+project discovery. Dev Containers defined with the `coder_devcontainer` resource
 always auto-start regardless of this setting.
 
 ## Complete Template Example
 
-Here's a simplified template example that uses dev containers with manual
+Here's a simplified template example that uses Dev Containers with manual
 configuration:
 
 ```terraform
@@ -181,7 +181,7 @@ resource "coder_devcontainer" "my-repository" {
 
 ### Alternative: Project Discovery Mode
 
-You can enable automatic starting of discovered dev containers:
+You can enable automatic starting of discovered Dev Containers:
 
 ```terraform
 resource "docker_container" "workspace" {
