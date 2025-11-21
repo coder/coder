@@ -111,12 +111,16 @@ func (a *MetadataAPI) BatchUpdateMetadata(ctx context.Context, req *agentproto.B
 
 	// Inject RBAC object into context for dbauthz fast path, avoid having to
 	// call GetWorkspaceByAgentID on every metadata update.
-	rbacCtx, err := dbauthz.WithWorkspaceRBAC(ctx, a.Workspace.AsDatabaseWorkspace().RBACObject())
-	if err != nil {
-		// Don't use error level here; that will fail the call but in reality an invalid object here is okay
-		// since we will then just fallback to the actual GetWorkspaceByAgentID call in dbauthz.
-		a.Log.Warn(ctx, "cached RBAC Workspace context wrapping was invalid", slog.Error(err))
+	rbacCtx := ctx
+	if dbws, ok := a.Workspace.AsDatabaseWorkspace(); ok {
+		rbacCtx, err = dbauthz.WithWorkspaceRBAC(ctx, dbws.RBACObject())
+		if err != nil {
+			// Don't error level log here, will exit the function. We want to fall back to GetWorkspaceByAgentID.
+			//nolint:gocritic
+			a.Log.Debug(ctx, "Cached workspace was present but RBAC object was invalid", slog.F("err", err))
+		}
 	}
+
 	err = a.Database.UpdateWorkspaceAgentMetadata(rbacCtx, dbUpdate)
 	if err != nil {
 		return nil, xerrors.Errorf("update workspace agent metadata in database: %w", err)

@@ -5510,25 +5510,15 @@ func (q *querier) UpdateWorkspaceAgentMetadata(ctx context.Context, arg database
 	// Fast path: Check if we have an RBAC object in context.
 	// This is set by the workspace agent RPC handler to avoid the expensive
 	// GetWorkspaceByAgentID query for every metadata update.
-	//
-	// NOTE: The cached RBAC object is refreshed every 5 minutes. After a prebuild
-	// claim, there may be up to a 5-minute window where this uses stale owner_id.
+	// NOTE: The cached RBAC object is refreshed every 5 minutes in agentapi/api.go.
 	if rbacObj, ok := WorkspaceRBACFromContext(ctx); ok {
-		// Verify the RBAC object is valid (has required fields).
-		if !rbacObj.IsEmpty() && rbacObj.Type == rbac.ResourceWorkspace.Type {
-			act, ok := ActorFromContext(ctx)
-			if !ok {
-				return ErrNoActor
-			}
-			// Errors here will result in falling back to the GetWorkspaceAgentByID query, skipping
-			// the cache in case the cached data is stale.
-
-			if err := q.auth.Authorize(ctx, act, policy.ActionUpdate, rbacObj); err == nil {
-				return q.db.UpdateWorkspaceAgentMetadata(ctx, arg)
-			}
-			q.log.Debug(ctx, "fast path authorization failed, using slow path",
-				slog.F("agent_id", arg.WorkspaceAgentID))
+		// Errors here will result in falling back to the GetWorkspaceAgentByID query, skipping
+		// the cache in case the cached data is stale.
+		if err := q.authorizeContext(ctx, policy.ActionUpdate, rbacObj); err == nil {
+			return q.db.UpdateWorkspaceAgentMetadata(ctx, arg)
 		}
+		q.log.Debug(ctx, "fast path authorization failed, using slow path",
+			slog.F("agent_id", arg.WorkspaceAgentID))
 	}
 
 	// Slow path: Fallback to fetching the workspace for authorization if the RBAC object is not present (or is invalid)

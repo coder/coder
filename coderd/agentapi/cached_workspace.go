@@ -73,9 +73,14 @@ func (cws *CachedWorkspaceFields) UpdateValues(ws database.Workspace) {
 	cws.AutostartSchedule = ws.AutostartSchedule
 }
 
-func (cws *CachedWorkspaceFields) AsDatabaseWorkspace() database.Workspace {
+// Returns the Workspace, true, unless the workspace has not been cached (nuked or was a prebuild).
+func (cws *CachedWorkspaceFields) AsDatabaseWorkspace() (database.Workspace, bool) {
 	cws.lock.RLock()
 	defer cws.lock.RUnlock()
+	// Should we be more explicit about all fields being set to be valid?
+	if cws.Equal(&CachedWorkspaceFields{}) {
+		return database.Workspace{}, false
+	}
 	return database.Workspace{
 		ID:                cws.ID,
 		OwnerID:           cws.OwnerID,
@@ -85,5 +90,5 @@ func (cws *CachedWorkspaceFields) AsDatabaseWorkspace() database.Workspace {
 		OwnerUsername:     cws.OwnerUsername,
 		TemplateName:      cws.TemplateName,
 		AutostartSchedule: cws.AutostartSchedule,
-	}
+	}, true
 }
