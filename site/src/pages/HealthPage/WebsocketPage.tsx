@@ -1,7 +1,11 @@
 import { useTheme } from "@emotion/react";
 import type { HealthcheckReport } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
-import MiniTooltip from "components/MiniTooltip/MiniTooltip";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { CodeIcon } from "lucide-react";
 import { useOutletContext } from "react-router";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
@@ -45,11 +49,14 @@ const WebsocketPage = () => {
 				})}
 
 				<section>
-					<MiniTooltip title="Code">
-						<Pill icon={<CodeIcon className="size-icon-sm" />}>
-							{websocket.code}
-						</Pill>
-					</MiniTooltip>
+					<Tooltip delayDuration={0}>
+						<TooltipTrigger asChild>
+							<Pill icon={<CodeIcon className="size-icon-sm" />}>
+								{websocket.code}
+							</Pill>
+						</TooltipTrigger>
+						<TooltipContent side="bottom">Code</TooltipContent>
+					</Tooltip>
 				</section>
 
 				<section>

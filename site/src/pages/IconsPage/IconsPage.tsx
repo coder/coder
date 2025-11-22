@@ -6,12 +6,16 @@ import TextField from "@mui/material/TextField";
 import { CopyableValue } from "components/CopyableValue/CopyableValue";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Margins } from "components/Margins/Margins";
-import MiniTooltip from "components/MiniTooltip/MiniTooltip";
 import {
 	PageHeader,
 	PageHeaderSubtitle,
 	PageHeaderTitle,
 } from "components/PageHeader/PageHeader";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { SearchIcon, XIcon } from "lucide-react";
 import { type FC, type ReactNode, useMemo, useState } from "react";
 import {
@@ -75,15 +79,19 @@ const IconsPage: FC = () => {
 			<Margins>
 				<PageHeader
 					actions={
-						<MiniTooltip
-							side="bottom"
-							align="end"
-							title="You can suggest a new icon by submitting a Pull Request to our public GitHub repository. Just keep in mind that it should be relevant to many Coder users, and redistributable under a permissive license."
-						>
-							<Link href="https://github.com/coder/coder/tree/main/site/static/icon">
-								Suggest an icon
-							</Link>
-						</MiniTooltip>
+						<Tooltip delayDuration={0}>
+							<TooltipTrigger asChild>
+								<Link href="https://github.com/coder/coder/tree/main/site/static/icon">
+									Suggest an icon
+								</Link>
+							</TooltipTrigger>
+							<TooltipContent side="bottom" align="end" className="max-w-xs">
+								You can suggest a new icon by submitting a Pull Request to our
+								public GitHub repository. Just keep in mind that it should be
+								relevant to many Coder users, and redistributable under a
+								permissive license.
+							</TooltipContent>
+						</Tooltip>
 					}
 				>
 					<PageHeaderTitle>Icons</PageHeaderTitle>
@@ -116,14 +124,17 @@ const IconsPage: FC = () => {
 						),
 						endAdornment: searchInputText && (
 							<InputAdornment position="end">
-								<MiniTooltip title="Clear filter">
-									<IconButton
-										size="small"
-										onClick={() => setSearchInputText("")}
-									>
-										<XIcon className="size-icon-xs" />
-									</IconButton>
-								</MiniTooltip>
+								<Tooltip delayDuration={0}>
+									<TooltipTrigger asChild>
+										<IconButton
+											size="small"
+											onClick={() => setSearchInputText("")}
+										>
+											<XIcon className="size-icon-xs" />
+										</IconButton>
+									</TooltipTrigger>
+									<TooltipContent side="bottom">Clear filter</TooltipContent>
+								</Tooltip>
 							</InputAdornment>
 						),
 					}}

@@ -1,10 +1,15 @@
 import IconButton from "@mui/material/IconButton";
 import InputAdornment from "@mui/material/InputAdornment";
 import TextField, { type TextFieldProps } from "@mui/material/TextField";
-import MiniTooltip from "components/MiniTooltip/MiniTooltip";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { SearchIcon, XIcon } from "lucide-react";
 import { type FC, useLayoutEffect, useRef } from "react";
+
 export type SearchFieldProps = Omit<TextFieldProps, "onChange"> & {
 	onChange: (query: string) => void;
 	autoFocus?: boolean;
@@ -47,17 +52,20 @@ export const SearchField: FC<SearchFieldProps> = ({
 				),
 				endAdornment: value !== "" && (
 					<InputAdornment position="end">
-						<MiniTooltip title="Clear search">
-							<IconButton
-								size="small"
-								onClick={() => {
-									onChange("");
-								}}
-							>
-								<XIcon className="size-icon-xs" />
-								<span className="sr-only">Clear search</span>
-							</IconButton>
-						</MiniTooltip>
+						<Tooltip delayDuration={0}>
+							<TooltipTrigger asChild>
+								<IconButton
+									size="small"
+									onClick={() => {
+										onChange("");
+									}}
+								>
+									<XIcon className="size-icon-xs" />
+									<span className="sr-only">Clear search</span>
+								</IconButton>
+							</TooltipTrigger>
+							<TooltipContent side="bottom">Clear search</TooltipContent>
+						</Tooltip>
 					</InputAdornment>
 				),
 				...InputProps,

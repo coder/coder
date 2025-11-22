@@ -1,7 +1,11 @@
 import { css, type Interpolation, type Theme } from "@emotion/react";
 import IconButton from "@mui/material/IconButton";
 import { CopyableValue } from "components/CopyableValue/CopyableValue";
-import MiniTooltip from "components/MiniTooltip/MiniTooltip";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { type FC, useState } from "react";
 
@@ -38,18 +42,21 @@ export const SensitiveValue: FC<SensitiveValueProps> = ({ value }) => {
 			>
 				{displayValue}
 			</CopyableValue>
-			<MiniTooltip title={buttonLabel}>
-				<IconButton
-					css={styles.button}
-					onClick={() => {
-						setShouldDisplay((value) => !value);
-					}}
-					size="small"
-					aria-label={buttonLabel}
-				>
-					{icon}
-				</IconButton>
-			</MiniTooltip>
+			<Tooltip delayDuration={0}>
+				<TooltipTrigger asChild>
+					<IconButton
+						css={styles.button}
+						onClick={() => {
+							setShouldDisplay((value) => !value);
+						}}
+						size="small"
+						aria-label={buttonLabel}
+					>
+						{icon}
+					</IconButton>
+				</TooltipTrigger>
+				<TooltipContent side="bottom">{buttonLabel}</TooltipContent>
+			</Tooltip>
 		</div>
 	);
 };

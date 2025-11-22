@@ -21,8 +21,12 @@ import type {
 } from "api/typesGenerated";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
-import MiniTooltip from "components/MiniTooltip/MiniTooltip";
 import { Stack } from "components/Stack/Stack";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { useAuthenticated } from "hooks";
 import {
 	castNotificationMethod,
@@ -199,9 +203,14 @@ const NotificationsPage: FC = () => {
 															css={styles.listItemEndIcon}
 															aria-label="Delivery method"
 														>
-															<MiniTooltip title={`Delivery via ${label}`}>
-																<Icon aria-label={label} />
-															</MiniTooltip>
+															<Tooltip delayDuration={0}>
+																<TooltipTrigger asChild>
+																	<Icon aria-label={label} />
+																</TooltipTrigger>
+																<TooltipContent side="bottom">
+																	Delivery via {label}
+																</TooltipContent>
+															</Tooltip>
 														</ListItemIcon>
 													</ListItem>
 													{!isLastItem && <Divider />}

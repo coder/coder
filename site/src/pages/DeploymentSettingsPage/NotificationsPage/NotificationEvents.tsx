@@ -15,8 +15,12 @@ import type { DeploymentValues } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { Button } from "components/Button/Button";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import MiniTooltip from "components/MiniTooltip/MiniTooltip";
 import { Stack } from "components/Stack/Stack";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import {
 	castNotificationMethod,
 	methodIcons,
@@ -186,23 +190,26 @@ const MethodToggleGroup: FC<MethodToggleGroupProps> = ({
 				const Icon = methodIcons[method];
 				const label = methodLabels[method];
 				return (
-					<MiniTooltip key={method} title={label}>
-						<ToggleButton
-							value={method}
-							css={styles.toggleButton}
-							onClick={(e) => {
-								// Retain the value if the user clicks the same button, ensuring
-								// at least one value remains selected.
-								if (method === value) {
-									e.preventDefault();
-									e.stopPropagation();
-									return;
-								}
-							}}
-						>
-							<Icon aria-label={label} />
-						</ToggleButton>
-					</MiniTooltip>
+					<Tooltip delayDuration={0} key={method}>
+						<TooltipTrigger asChild>
+							<ToggleButton
+								value={method}
+								css={styles.toggleButton}
+								onClick={(e) => {
+									// Retain the value if the user clicks the same button, ensuring
+									// at least one value remains selected.
+									if (method === value) {
+										e.preventDefault();
+										e.stopPropagation();
+										return;
+									}
+								}}
+							>
+								<Icon aria-label={label} />
+							</ToggleButton>
+						</TooltipTrigger>
+						<TooltipContent side="bottom">{label}</TooltipContent>
+					</Tooltip>
 				);
 			})}
 		</ToggleButtonGroup>

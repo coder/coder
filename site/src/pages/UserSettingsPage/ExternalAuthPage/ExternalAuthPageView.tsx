@@ -15,7 +15,6 @@ import {
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
 import { Loader } from "components/Loader/Loader";
-import MiniTooltip from "components/MiniTooltip/MiniTooltip";
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import {
@@ -27,6 +26,11 @@ import {
 	TableRow,
 } from "components/Table/Table";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import type { ExternalAuthPollingState } from "hooks/useExternalAuth";
 import { EllipsisVertical, RefreshCcwIcon } from "lucide-react";
 import { type FC, useCallback, useEffect, useState } from "react";
@@ -136,12 +140,14 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 					 * attempt to authenticate when the token expires.
 					 */}
 					{link?.has_refresh_token && authenticated && (
-						<MiniTooltip
-							title="Authentication token will automatically refresh when expired."
-							side="right"
-						>
-							<RefreshCcwIcon className="size-3" />
-						</MiniTooltip>
+						<Tooltip delayDuration={0}>
+							<TooltipTrigger asChild>
+								<RefreshCcwIcon className="size-3" />
+							</TooltipTrigger>
+							<TooltipContent side="right" className="max-w-xs">
+								Authentication token will automatically refresh when expired.
+							</TooltipContent>
+						</Tooltip>
 					)}
 
 					{link?.validate_error && (

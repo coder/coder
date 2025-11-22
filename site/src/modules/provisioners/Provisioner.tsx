@@ -1,7 +1,11 @@
 import { useTheme } from "@emotion/react";
 import type { HealthMessage, ProvisionerDaemon } from "api/typesGenerated";
-import MiniTooltip from "components/MiniTooltip/MiniTooltip";
 import { Pill } from "components/Pill/Pill";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { Building2Icon, UserIcon } from "lucide-react";
 import type { FC } from "react";
 import { createDayString } from "utils/createDayString";
@@ -74,17 +78,20 @@ export const Provisioner: FC<ProvisionerProps> = ({
 						justifyContent: "right",
 					}}
 				>
-					<MiniTooltip title="Scope">
-						<Pill size="lg" icon={iconScope}>
-							<span
-								css={{
-									":first-letter": { textTransform: "uppercase" },
-								}}
-							>
-								{daemonScope}
-							</span>
-						</Pill>
-					</MiniTooltip>
+					<Tooltip delayDuration={0}>
+						<TooltipTrigger asChild>
+							<Pill size="lg" icon={iconScope}>
+								<span
+									css={{
+										":first-letter": { textTransform: "uppercase" },
+									}}
+								>
+									{daemonScope}
+								</span>
+							</Pill>
+						</TooltipTrigger>
+						<TooltipContent side="bottom">Scope</TooltipContent>
+					</Tooltip>
 					{extraTags.map(([key, value]) => (
 						<ProvisionerTag key={key} tagName={key} tagValue={value} />
 					))}

@@ -4,7 +4,11 @@ import { health, refreshHealth } from "api/queries/debug";
 import type { HealthSeverity } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
-import MiniTooltip from "components/MiniTooltip/MiniTooltip";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import kebabCase from "lodash/fp/kebabCase";
 import { BellOffIcon, RotateCcwIcon } from "lucide-react";
 import { DashboardFullPage } from "modules/dashboard/DashboardLayout";
@@ -76,22 +80,27 @@ export const HealthLayout: FC = () => {
 								<div className="flex items-center justify-between">
 									<HealthIcon size={32} severity={healthStatus.severity} />
 
-									<MiniTooltip title="Refresh health checks">
-										<IconButton
-											size="small"
-											disabled={isRefreshing}
-											data-testid="healthcheck-refresh-button"
-											onClick={() => {
-												forceRefresh();
-											}}
-										>
-											{isRefreshing ? (
-												<CircularProgress size={16} />
-											) : (
-												<RotateCcwIcon className="size-5" />
-											)}
-										</IconButton>
-									</MiniTooltip>
+									<Tooltip delayDuration={0}>
+										<TooltipTrigger asChild>
+											<IconButton
+												size="small"
+												disabled={isRefreshing}
+												data-testid="healthcheck-refresh-button"
+												onClick={() => {
+													forceRefresh();
+												}}
+											>
+												{isRefreshing ? (
+													<CircularProgress size={16} />
+												) : (
+													<RotateCcwIcon className="size-5" />
+												)}
+											</IconButton>
+										</TooltipTrigger>
+										<TooltipContent side="bottom">
+											Refresh health checks
+										</TooltipContent>
+									</Tooltip>
 								</div>
 								<div className="font-medium mt-4">
 									{healthStatus.healthy ? "Healthy" : "Unhealthy"}

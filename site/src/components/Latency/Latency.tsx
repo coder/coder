@@ -1,7 +1,11 @@
 import { useTheme } from "@emotion/react";
 import CircularProgress from "@mui/material/CircularProgress";
 import { Abbr } from "components/Abbr/Abbr";
-import MiniTooltip from "components/MiniTooltip/MiniTooltip";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { CircleHelpIcon } from "lucide-react";
 import type { FC } from "react";
 import { cn } from "utils/cn";
@@ -24,31 +28,38 @@ export const Latency: FC<LatencyProps> = ({
 
 	if (isLoading) {
 		return (
-			<MiniTooltip title="Loading latency...">
-				{/**
-				 * Spinning progress icon must be placed inside a fixed-size container,
-				 * to ensure tooltip remains stationary when opened
-				 */}
-				<div
-					className={cn(
-						"size-4 flex flex-wrap place-content-center",
-						className,
-					)}
-				>
-					<CircularProgress className="!size-icon-xs" style={{ color }} />
-				</div>
-			</MiniTooltip>
+			<Tooltip delayDuration={0}>
+				<TooltipTrigger asChild>
+					{/**
+					 * Spinning progress icon must be placed inside a fixed-size container,
+					 * to ensure tooltip remains stationary when opened
+					 */}
+					<div
+						className={cn(
+							"size-4 flex flex-wrap place-content-center",
+							className,
+						)}
+					>
+						<CircularProgress className="!size-icon-xs" style={{ color }} />
+					</div>
+				</TooltipTrigger>
+				<TooltipContent side="bottom">Loading latency...</TooltipContent>
+			</Tooltip>
 		);
 	}
 
 	if (!latency) {
 		return (
-			<MiniTooltip title="Latency not available">
-				<CircleHelpIcon
-					className={cn("!size-icon-sm", className)}
-					style={{ color }}
-				/>
-			</MiniTooltip>
+			<Tooltip delayDuration={0}>
+				<TooltipTrigger asChild>
+					<CircleHelpIcon
+						aria-label="Latency not available"
+						className={cn("!size-icon-sm", className)}
+						style={{ color }}
+					/>
+				</TooltipTrigger>
+				<TooltipContent side="bottom">Latency not available</TooltipContent>
+			</Tooltip>
 		);
 	}
 

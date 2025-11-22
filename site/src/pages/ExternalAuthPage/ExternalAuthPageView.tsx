@@ -5,8 +5,12 @@ import type { ExternalAuth, ExternalAuthDevice } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { Avatar } from "components/Avatar/Avatar";
 import { GitDeviceAuth } from "components/GitDeviceAuth/GitDeviceAuth";
-import MiniTooltip from "components/MiniTooltip/MiniTooltip";
 import { SignInLayout } from "components/SignInLayout/SignInLayout";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { Welcome } from "components/Welcome/Welcome";
 import { ExternalLinkIcon, RotateCwIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
@@ -82,18 +86,23 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 							return;
 						}
 						return (
-							<MiniTooltip key={install.id} title={install.account.login}>
-								<Link
-									href={install.account.profile_url}
-									target="_blank"
-									rel="noreferrer"
-								>
-									<Avatar
-										src={install.account.avatar_url}
-										fallback={install.account.login}
-									/>
-								</Link>
-							</MiniTooltip>
+							<Tooltip delayDuration={0} key={install.id}>
+								<TooltipTrigger asChild>
+									<Link
+										href={install.account.profile_url}
+										target="_blank"
+										rel="noreferrer"
+									>
+										<Avatar
+											src={install.account.avatar_url}
+											fallback={install.account.login}
+										/>
+									</Link>
+								</TooltipTrigger>
+								<TooltipContent side="bottom">
+									{install.account.login}
+								</TooltipContent>
+							</Tooltip>
 						);
 					})}
 					&nbsp;

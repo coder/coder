@@ -4,7 +4,6 @@ import Skeleton from "@mui/material/Skeleton";
 import type { GetLicensesResponse } from "api/api";
 import type { Feature, UserStatusChangeCount } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
-import MiniTooltip from "components/MiniTooltip/MiniTooltip";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -12,6 +11,11 @@ import {
 } from "components/SettingsHeader/SettingsHeader";
 import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { useWindowSize } from "hooks/useWindowSize";
 import { PlusIcon, RotateCwIcon } from "lucide-react";
 import type { FC } from "react";
@@ -80,18 +84,24 @@ const LicensesSettingsPageView: FC<Props> = ({
 							Add a license
 						</Link>
 					</Button>
-					<MiniTooltip title="Refresh license entitlements. This is done automatically every 10 minutes.">
-						<Button
-							disabled={isRefreshing}
-							onClick={refreshEntitlements}
-							variant="outline"
-						>
-							<Spinner loading={isRefreshing}>
-								<RotateCwIcon className="size-icon-xs" />
-							</Spinner>
-							Refresh
-						</Button>
-					</MiniTooltip>
+					<Tooltip delayDuration={0}>
+						<TooltipTrigger asChild>
+							<Button
+								disabled={isRefreshing}
+								onClick={refreshEntitlements}
+								variant="outline"
+							>
+								<Spinner loading={isRefreshing}>
+									<RotateCwIcon className="size-icon-xs" />
+								</Spinner>
+								Refresh
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent side="bottom" className="max-w-xs">
+							Refresh license entitlements. This is done automatically every 10
+							minutes.
+						</TooltipContent>
+					</Tooltip>
 				</Stack>
 			</Stack>
 

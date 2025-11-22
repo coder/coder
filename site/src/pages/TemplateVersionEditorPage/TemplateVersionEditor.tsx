@@ -22,7 +22,11 @@ import {
 } from "components/FullPageLayout/Topbar";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
-import MiniTooltip from "components/MiniTooltip/MiniTooltip";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import {
 	ChevronLeftIcon,
 	ExternalLinkIcon,
@@ -217,11 +221,16 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 					data-testid="topbar"
 				>
 					<div>
-						<MiniTooltip title="Back to the template">
-							<TopbarIconButton component={RouterLink} to={templateLink}>
-								<ChevronLeftIcon className="size-icon-sm" />
-							</TopbarIconButton>
-						</MiniTooltip>
+						<Tooltip delayDuration={0}>
+							<TooltipTrigger asChild>
+								<TopbarIconButton component={RouterLink} to={templateLink}>
+									<ChevronLeftIcon className="size-icon-sm" />
+								</TopbarIconButton>
+							</TooltipTrigger>
+							<TooltipContent side="bottom">
+								Back to the template
+							</TooltipContent>
+						</Tooltip>
 					</div>
 
 					<TopbarData>
@@ -367,17 +376,20 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 									},
 								}}
 							>
-								<MiniTooltip title="Create File" side="top">
-									<IconButton
-										aria-label="Create File"
-										onClick={(event) => {
-											setCreateFileOpen(true);
-											event.currentTarget.blur();
-										}}
-									>
-										<PlusIcon className="size-icon-xs" />
-									</IconButton>
-								</MiniTooltip>
+								<Tooltip delayDuration={0}>
+									<TooltipTrigger asChild>
+										<IconButton
+											aria-label="Create File"
+											onClick={(event) => {
+												setCreateFileOpen(true);
+												event.currentTarget.blur();
+											}}
+										>
+											<PlusIcon className="size-icon-xs" />
+										</IconButton>
+									</TooltipTrigger>
+									<TooltipContent>Create File</TooltipContent>
+								</Tooltip>
 							</div>
 							<CreateFileDialog
 								fileTree={fileTree}

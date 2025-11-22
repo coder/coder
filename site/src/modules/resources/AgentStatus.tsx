@@ -12,7 +12,11 @@ import {
 	HelpTooltipTitle,
 	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
-import MiniTooltip from "components/MiniTooltip/MiniTooltip";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { TriangleAlertIcon } from "lucide-react";
 import type { FC } from "react";
 
@@ -35,13 +39,16 @@ const ReadyLifecycle: FC = () => {
 
 const StartingLifecycle: FC = () => {
 	return (
-		<MiniTooltip title="Starting...">
-			<div
-				role="status"
-				aria-label="Starting..."
-				css={[styles.status, styles.connecting]}
-			/>
-		</MiniTooltip>
+		<Tooltip delayDuration={0}>
+			<TooltipTrigger asChild>
+				<div
+					role="status"
+					aria-label="Starting..."
+					css={[styles.status, styles.connecting]}
+				/>
+			</TooltipTrigger>
+			<TooltipContent side="bottom">Starting...</TooltipContent>
+		</Tooltip>
 	);
 };
 
@@ -110,13 +117,16 @@ const StartErrorLifecycle: FC<AgentStatusProps> = ({ agent }) => {
 
 const ShuttingDownLifecycle: FC = () => {
 	return (
-		<MiniTooltip title="Stopping...">
-			<div
-				role="status"
-				aria-label="Stopping..."
-				css={[styles.status, styles.connecting]}
-			/>
-		</MiniTooltip>
+		<Tooltip delayDuration={0}>
+			<TooltipTrigger asChild>
+				<div
+					role="status"
+					aria-label="Stopping..."
+					css={[styles.status, styles.connecting]}
+				/>
+			</TooltipTrigger>
+			<TooltipContent side="bottom">Stopping...</TooltipContent>
+		</Tooltip>
 	);
 };
 
@@ -170,13 +180,16 @@ const ShutdownErrorLifecycle: FC<AgentStatusProps> = ({ agent }) => {
 
 const OffLifecycle: FC = () => {
 	return (
-		<MiniTooltip title="Stopped">
-			<div
-				role="status"
-				aria-label="Stopped"
-				css={[styles.status, styles.disconnected]}
-			/>
-		</MiniTooltip>
+		<Tooltip delayDuration={0}>
+			<TooltipTrigger asChild>
+				<div
+					role="status"
+					aria-label="Stopped"
+					css={[styles.status, styles.disconnected]}
+				/>
+			</TooltipTrigger>
+			<TooltipContent side="bottom">Stopped</TooltipContent>
+		</Tooltip>
 	);
 };
 
@@ -218,25 +231,31 @@ const ConnectedStatus: FC<AgentStatusProps> = ({ agent }) => {
 
 const DisconnectedStatus: FC = () => {
 	return (
-		<MiniTooltip title="Disconnected">
-			<div
-				role="status"
-				aria-label="Disconnected"
-				css={[styles.status, styles.disconnected]}
-			/>
-		</MiniTooltip>
+		<Tooltip delayDuration={0}>
+			<TooltipTrigger asChild>
+				<div
+					role="status"
+					aria-label="Disconnected"
+					css={[styles.status, styles.disconnected]}
+				/>
+			</TooltipTrigger>
+			<TooltipContent side="bottom">Disconnected</TooltipContent>
+		</Tooltip>
 	);
 };
 
 const ConnectingStatus: FC = () => {
 	return (
-		<MiniTooltip title="Connecting...">
-			<div
-				role="status"
-				aria-label="Connecting..."
-				css={[styles.status, styles.connecting]}
-			/>
-		</MiniTooltip>
+		<Tooltip delayDuration={0}>
+			<TooltipTrigger asChild>
+				<div
+					role="status"
+					aria-label="Connecting..."
+					css={[styles.status, styles.connecting]}
+				/>
+			</TooltipTrigger>
+			<TooltipContent side="bottom">Connecting...</TooltipContent>
+		</Tooltip>
 	);
 };
 

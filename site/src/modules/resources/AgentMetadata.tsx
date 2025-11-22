@@ -6,8 +6,12 @@ import type {
 	WorkspaceAgentMetadata,
 } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
-import MiniTooltip from "components/MiniTooltip/MiniTooltip";
 import { Stack } from "components/Stack/Stack";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import dayjs from "dayjs";
 import {
 	type FC,
@@ -183,11 +187,16 @@ const MetadataItem: FC<MetadataItemProps> = ({ item }) => {
 		status === "loading" ? (
 			<Skeleton width={65} height={12} variant="text" className="mt-[6px]" />
 		) : status === "stale" ? (
-			<MiniTooltip title="This data is stale and no longer up to date">
-				<StaticWidth className="text-ellipsis overflow-hidden whitespace-nowrap max-w-64 text-sm text-content-disabled cursor-pointer">
-					{item.result.value}
-				</StaticWidth>
-			</MiniTooltip>
+			<Tooltip delayDuration={0}>
+				<TooltipTrigger asChild>
+					<StaticWidth className="text-ellipsis overflow-hidden whitespace-nowrap max-w-64 text-sm text-content-disabled cursor-pointer">
+						{item.result.value}
+					</StaticWidth>
+				</TooltipTrigger>
+				<TooltipContent side="bottom">
+					This data is stale and no longer up to date
+				</TooltipContent>
+			</Tooltip>
 		) : (
 			<StaticWidth
 				className={cn(

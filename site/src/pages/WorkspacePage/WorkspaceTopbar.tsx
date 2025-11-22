@@ -18,7 +18,11 @@ import {
 	HelpTooltipContent,
 	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
-import MiniTooltip from "components/MiniTooltip/MiniTooltip";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { ChevronLeftIcon, CircleDollarSign, TrashIcon } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { linkToTemplate, useLinks } from "modules/navigation";
@@ -108,11 +112,14 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 
 	return (
 		<Topbar css={{ gridArea: "topbar" }}>
-			<MiniTooltip title="Back to workspaces">
-				<TopbarIconButton component={RouterLink} to="/workspaces">
-					<ChevronLeftIcon className="size-icon-sm" />
-				</TopbarIconButton>
-			</MiniTooltip>
+			<Tooltip delayDuration={0}>
+				<TooltipTrigger asChild>
+					<TopbarIconButton component={RouterLink} to="/workspaces">
+						<ChevronLeftIcon className="size-icon-sm" />
+					</TopbarIconButton>
+				</TooltipTrigger>
+				<TooltipContent side="bottom">Back to workspaces</TooltipContent>
+			</Tooltip>
 
 			<div css={styles.topbarLeft}>
 				<TopbarData>
