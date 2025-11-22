@@ -1,12 +1,12 @@
 import { MockWorkspaceResource } from "testHelpers/entities";
-import { renderComponent } from "testHelpers/renderHelpers";
+import { render } from "testHelpers/renderHelpers";
 import { screen } from "@testing-library/react";
 import type { WorkspaceResourceMetadata } from "api/typesGenerated";
 import { ResourceCard } from "./ResourceCard";
 
 describe("Resource Card", () => {
 	it("renders daily cost and metadata tiles", async () => {
-		renderComponent(
+		render(
 			<ResourceCard resource={MockWorkspaceResource} agentRow={() => <></>} />,
 		);
 		expect(
@@ -45,9 +45,7 @@ describe("Resource Card", () => {
 			],
 		};
 
-		renderComponent(
-			<ResourceCard resource={mockResource} agentRow={() => <></>} />,
-		);
+		render(<ResourceCard resource={mockResource} agentRow={() => <></>} />);
 		expect(screen.getByText(mockResource.daily_cost)).toBeInTheDocument();
 		expect(
 			screen.getByText(mockResource.metadata?.[0].value),
@@ -92,9 +90,7 @@ describe("Resource Card", () => {
 			],
 		};
 
-		renderComponent(
-			<ResourceCard resource={mockResource} agentRow={() => <></>} />,
-		);
+		render(<ResourceCard resource={mockResource} agentRow={() => <></>} />);
 		expect(screen.queryByText(mockResource.daily_cost)).not.toBeInTheDocument();
 		expect(
 			screen.getByText(mockResource.metadata?.[0].value),

@@ -13,6 +13,7 @@ import { QueryClient, QueryClientProvider } from "react-query";
 import { withRouter } from "storybook-addon-remix-react-router";
 import "theme/globalFonts";
 import type { Decorator, Loader, Parameters } from "@storybook/react-vite";
+import { TooltipProvider } from "../src/components/Tooltip/Tooltip";
 import themes from "../src/theme";
 
 DecoratorHelpers.initializeThemeState(Object.keys(themes), "dark");
@@ -109,7 +110,20 @@ const withTheme: Decorator = (Story, context) => {
 	);
 };
 
-export const decorators: Decorator[] = [withRouter, withQuery, withTheme];
+const withTooltip: Decorator = (Story) => {
+	return (
+		<TooltipProvider>
+			<Story />
+		</TooltipProvider>
+	);
+};
+
+export const decorators: Decorator[] = [
+	withRouter,
+	withQuery,
+	withTheme,
+	withTooltip,
+];
 
 // Try to fix storybook rendering fonts inconsistently
 // https://www.chromatic.com/docs/font-loading/#solution-c-check-fonts-have-loaded-in-a-loader

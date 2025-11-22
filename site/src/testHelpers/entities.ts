@@ -1043,7 +1043,7 @@ export const MockWorkspaceAppStatus: TypesGen.WorkspaceAppStatus = {
 	icon: "",
 };
 
-const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
+export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
 	...MockWorkspaceAgent,
 	id: "test-workspace-agent-2",
 	name: "another-workspace-agent",
