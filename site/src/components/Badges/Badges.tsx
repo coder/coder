@@ -3,7 +3,6 @@ import { Stack } from "components/Stack/Stack";
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import {
