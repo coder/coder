@@ -11740,6 +11740,9 @@ const docTemplate = `{
                 },
                 "openai": {
                     "$ref": "#/definitions/codersdk.AIBridgeOpenAIConfig"
+                },
+                "retention": {
+                    "type": "integer"
                 }
             }
         },

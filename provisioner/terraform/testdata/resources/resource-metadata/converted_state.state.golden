@@ -1,0 +1,65 @@
+{
+  "Resources": [
+    {
+      "name": "about",
+      "type": "null_resource",
+      "agents": [
+        {
+          "id": "9a5911cd-2335-4050-aba8-4c26ba1ca704",
+          "name": "main",
+          "operating_system": "linux",
+          "architecture": "amd64",
+          "Auth": {
+            "Token": "2b4471d9-1281-45bf-8be2-9b182beb9285"
+          },
+          "connection_timeout_seconds": 120,
+          "metadata": [
+            {
+              "key": "process_count",
+              "display_name": "Process Count",
+              "script": "ps -ef | wc -l",
+              "interval": 5,
+              "timeout": 1,
+              "order": 7
+            }
+          ],
+          "display_apps": {
+            "vscode": true,
+            "web_terminal": true,
+            "ssh_helper": true,
+            "port_forwarding_helper": true
+          },
+          "resources_monitoring": {},
+          "api_key_scope": "all"
+        }
+      ],
+      "metadata": [
+        {
+          "key": "hello",
+          "value": "world"
+        },
+        {
+          "key": "null",
+          "is_null": true
+        },
+        {
+          "key": "empty"
+        },
+        {
+          "key": "secret",
+          "value": "squirrel",
+          "sensitive": true
+        }
+      ],
+      "hide": true,
+      "icon": "/icon/server.svg",
+      "daily_cost": 29
+    }
+  ],
+  "Parameters": [],
+  "Presets": [],
+  "ExternalAuthProviders": [],
+  "AITasks": [],
+  "HasAITasks": false,
+  "HasExternalAgents": false
+}
