@@ -63,7 +63,8 @@ type Template struct {
 	MaxPortShareLevel    WorkspaceAgentPortShareLevel `json:"max_port_share_level"`
 	CORSBehavior         CORSBehavior                 `json:"cors_behavior"`
 
-	UseClassicParameterFlow bool `json:"use_classic_parameter_flow"`
+	UseClassicParameterFlow    bool `json:"use_classic_parameter_flow"`
+	UseTerraformWorkspaceCache bool `json:"use_terraform_workspace_cache"`
 }
 
 // WeekdaysToBitmap converts a list of weekdays to a bitmap in accordance with
@@ -263,6 +264,11 @@ type UpdateTemplateMeta struct {
 	// made the default.
 	// An "opt-out" is present in case the new feature breaks some existing templates.
 	UseClassicParameterFlow *bool `json:"use_classic_parameter_flow,omitempty"`
+	// UseTerraformWorkspaceCache allows optionally specifying whether to use cached
+	// terraform directories for workspaces created from this template. This field
+	// only applies when the correct experiment is enabled. This field is subject to
+	// being removed in the future.
+	UseTerraformWorkspaceCache *bool `json:"use_terraform_workspace_cache,omitempty"`
 }
 
 type TemplateExample struct {
@@ -506,4 +512,35 @@ func (c *Client) StarterTemplates(ctx context.Context) ([]TemplateExample, error
 	}
 	var templateExamples []TemplateExample
 	return templateExamples, json.NewDecoder(res.Body).Decode(&templateExamples)
+}
+
+type InvalidatePresetsResponse struct {
+	Invalidated []InvalidatedPreset `json:"invalidated"`
+}
+
+type InvalidatedPreset struct {
+	TemplateName        string `json:"template_name"`
+	TemplateVersionName string `json:"template_version_name"`
+	PresetName          string `json:"preset_name"`
+}
+
+// InvalidateTemplatePresets invalidates all presets for the
+// template's active version by setting last_invalidated_at timestamp.
+// The reconciler will then mark these prebuilds as expired and create new ones.
+func (c *Client) InvalidateTemplatePresets(ctx context.Context, template uuid.UUID) (InvalidatePresetsResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost,
+		fmt.Sprintf("/api/v2/templates/%s/prebuilds/invalidate", template),
+		nil,
+	)
+	if err != nil {
+		return InvalidatePresetsResponse{}, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return InvalidatePresetsResponse{}, ReadBodyAsError(res)
+	}
+
+	var response InvalidatePresetsResponse
+	return response, json.NewDecoder(res.Body).Decode(&response)
 }

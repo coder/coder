@@ -56,6 +56,7 @@ const validFormValues: FormValues = {
 	max_port_share_level: "owner",
 	use_classic_parameter_flow: true,
 	cors_behavior: "simple",
+	use_terraform_workspace_cache: false,
 };
 
 const renderTemplateSettingsPage = async () => {

@@ -600,6 +600,9 @@ func TestExpiredPrebuilds(t *testing.T) {
 		running int32
 		desired int32
 		expired int32
+
+		invalidated int32
+
 		checkFn func(runningPrebuilds []database.GetRunningPrebuiltWorkspacesRow, state prebuilds.ReconciliationState, actions []*prebuilds.ReconciliationActions)
 	}{
 		// With 2 running prebuilds, none of which are expired, and the desired count is met,
@@ -712,6 +715,52 @@ func TestExpiredPrebuilds(t *testing.T) {
 				validateActions(t, expectedActions, actions)
 			},
 		},
+		{
+			name:        "preset has been invalidated - both instances expired",
+			running:     2,
+			desired:     2,
+			expired:     0,
+			invalidated: 2,
+			checkFn: func(runningPrebuilds []database.GetRunningPrebuiltWorkspacesRow, state prebuilds.ReconciliationState, actions []*prebuilds.ReconciliationActions) {
+				expectedState := prebuilds.ReconciliationState{Actual: 2, Desired: 2, Expired: 2}
+				expectedActions := []*prebuilds.ReconciliationActions{
+					{
+						ActionType: prebuilds.ActionTypeDelete,
+						DeleteIDs:  []uuid.UUID{runningPrebuilds[0].ID, runningPrebuilds[1].ID},
+					},
+					{
+						ActionType: prebuilds.ActionTypeCreate,
+						Create:     2,
+					},
+				}
+
+				validateState(t, expectedState, state)
+				validateActions(t, expectedActions, actions)
+			},
+		},
+		{
+			name:        "preset has been invalidated, but one prebuild instance is newer",
+			running:     2,
+			desired:     2,
+			expired:     0,
+			invalidated: 1,
+			checkFn: func(runningPrebuilds []database.GetRunningPrebuiltWorkspacesRow, state prebuilds.ReconciliationState, actions []*prebuilds.ReconciliationActions) {
+				expectedState := prebuilds.ReconciliationState{Actual: 2, Desired: 2, Expired: 1}
+				expectedActions := []*prebuilds.ReconciliationActions{
+					{
+						ActionType: prebuilds.ActionTypeDelete,
+						DeleteIDs:  []uuid.UUID{runningPrebuilds[0].ID},
+					},
+					{
+						ActionType: prebuilds.ActionTypeCreate,
+						Create:     1,
+					},
+				}
+
+				validateState(t, expectedState, state)
+				validateActions(t, expectedActions, actions)
+			},
+		},
 	}
 
 	for _, tc := range cases {
@@ -719,7 +768,17 @@ func TestExpiredPrebuilds(t *testing.T) {
 			t.Parallel()
 
 			// GIVEN: a preset.
-			defaultPreset := preset(true, tc.desired, current)
+			now := time.Now()
+			invalidatedAt := now.Add(1 * time.Minute)
+
+			var muts []func(row database.GetTemplatePresetsWithPrebuildsRow) database.GetTemplatePresetsWithPrebuildsRow
+			if tc.invalidated > 0 {
+				muts = append(muts, func(row database.GetTemplatePresetsWithPrebuildsRow) database.GetTemplatePresetsWithPrebuildsRow {
+					row.LastInvalidatedAt = sql.NullTime{Valid: true, Time: invalidatedAt}
+					return row
+				})
+			}
+			defaultPreset := preset(true, tc.desired, current, muts...)
 			presets := []database.GetTemplatePresetsWithPrebuildsRow{
 				defaultPreset,
 			}
@@ -727,11 +786,22 @@ func TestExpiredPrebuilds(t *testing.T) {
 			// GIVEN: running prebuilt workspaces for the preset.
 			running := make([]database.GetRunningPrebuiltWorkspacesRow, 0, tc.running)
 			expiredCount := 0
+			invalidatedCount := 0
 			ttlDuration := time.Duration(defaultPreset.Ttl.Int32)
 			for range tc.running {
 				name, err := prebuilds.GenerateName()
 				require.NoError(t, err)
+
 				prebuildCreateAt := time.Now()
+				if int(tc.invalidated) > invalidatedCount {
+					prebuildCreateAt = prebuildCreateAt.Add(-ttlDuration - 10*time.Second)
+					invalidatedCount++
+				} else if invalidatedCount > 0 {
+					// Only `tc.invalidated` instances have been invalidated,
+					// so the next instance is assumed to be created after `invalidatedAt`.
+					prebuildCreateAt = invalidatedAt.Add(1 * time.Minute)
+				}
+
 				if int(tc.expired) > expiredCount {
 					// Update the prebuild workspace createdAt to exceed its TTL (5 seconds)
 					prebuildCreateAt = prebuildCreateAt.Add(-ttlDuration - 10*time.Second)

@@ -17,6 +17,7 @@ import type {
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
+import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
@@ -206,6 +207,11 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 												)}
 												{workspace.outdated && (
 													<WorkspaceOutdatedTooltip workspace={workspace} />
+												)}
+												{workspace.task_id && (
+													<Badge size="xs" variant="default">
+														Task
+													</Badge>
 												)}
 											</Stack>
 										}

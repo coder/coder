@@ -145,13 +145,12 @@ func TestTelemetry(t *testing.T) {
 			AgentID:      taskWsAgent.ID,
 		})
 		taskWB := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-			Transition:         database.WorkspaceTransitionStart,
-			Reason:             database.BuildReasonAutostart,
-			WorkspaceID:        taskWs.ID,
-			TemplateVersionID:  tv.ID,
-			JobID:              taskJob.ID,
-			HasAITask:          sql.NullBool{Valid: true, Bool: true},
-			AITaskSidebarAppID: uuid.NullUUID{Valid: true, UUID: taskWsApp.ID},
+			Transition:        database.WorkspaceTransitionStart,
+			Reason:            database.BuildReasonAutostart,
+			WorkspaceID:       taskWs.ID,
+			TemplateVersionID: tv.ID,
+			JobID:             taskJob.ID,
+			HasAITask:         sql.NullBool{Valid: true, Bool: true},
 		})
 		task := dbgen.Task(t, db, database.TaskTable{
 			OwnerID:            user.ID,

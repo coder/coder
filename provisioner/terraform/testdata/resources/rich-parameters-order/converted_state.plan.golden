@@ -1,0 +1,49 @@
+{
+  "Resources": [
+    {
+      "name": "dev",
+      "type": "null_resource",
+      "agents": [
+        {
+          "name": "dev",
+          "operating_system": "windows",
+          "architecture": "arm64",
+          "Auth": {
+            "Token": ""
+          },
+          "connection_timeout_seconds": 120,
+          "display_apps": {
+            "vscode": true,
+            "web_terminal": true,
+            "ssh_helper": true,
+            "port_forwarding_helper": true
+          },
+          "resources_monitoring": {},
+          "api_key_scope": "all"
+        }
+      ]
+    }
+  ],
+  "Parameters": [
+    {
+      "name": "Example",
+      "type": "string",
+      "required": true,
+      "order": 55,
+      "form_type": 4
+    },
+    {
+      "name": "Sample",
+      "description": "blah blah",
+      "type": "string",
+      "default_value": "ok",
+      "order": 99,
+      "form_type": 4
+    }
+  ],
+  "Presets": [],
+  "ExternalAuthProviders": [],
+  "AITasks": [],
+  "HasAITasks": false,
+  "HasExternalAgents": false
+}

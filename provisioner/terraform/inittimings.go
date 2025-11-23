@@ -137,30 +137,3 @@ func (t *timingAggregator) finishPrevious(ts time.Time, s *timingSpan) {
 
 	t.lookupMu.Unlock()
 }
-
-// mergeInitTimings merges manual init timings with existing timings that are
-// sourced by the logs. This is done because prior to Terraform v1.9, init logs
-// did not have a `-json` formatting option.
-// So before v1.9, the init stage is manually timed outside the `terraform init`.
-// After v1.9, the init stage is timed via logs.
-func mergeInitTimings(manualInit []*proto.Timing, existing []*proto.Timing) []*proto.Timing {
-	initFailed := slices.ContainsFunc(existing, func(timing *proto.Timing) bool {
-		return timing.State == proto.TimingState_FAILED
-	})
-
-	if initFailed {
-		// The init logs do not provide enough information for failed init timings.
-		// So use the manual timings in this case.
-		return append(manualInit, existing...)
-	}
-
-	hasInitStage := slices.ContainsFunc(existing, func(timing *proto.Timing) bool {
-		return timing.Stage == string(database.ProvisionerJobTimingStageInit)
-	})
-
-	if hasInitStage {
-		return existing
-	}
-
-	return append(manualInit, existing...)
-}

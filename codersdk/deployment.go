@@ -3340,6 +3340,27 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "bedrock_small_fast_model",
 		},
 		{
+			Name:        "AIBridge Inject Coder MCP tools",
+			Description: "Whether to inject Coder's MCP tools into intercepted AIBridge requests (requires the \"oauth2\" and \"mcp-server-http\" experiments to be enabled).",
+			Flag:        "aibridge-inject-coder-mcp-tools",
+			Env:         "CODER_AIBRIDGE_INJECT_CODER_MCP_TOOLS",
+			Value:       &c.AI.BridgeConfig.InjectCoderMCPTools,
+			Default:     "false",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "inject_coder_mcp_tools",
+		},
+		{
+			Name:        "AIBridge Data Retention Duration",
+			Description: "Length of time to retain data such as interceptions and all related records (token, prompt, tool use).",
+			Flag:        "aibridge-retention",
+			Env:         "CODER_AIBRIDGE_RETENTION",
+			Value:       &c.AI.BridgeConfig.Retention,
+			Default:     "1440h", // 60 days.
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "retention",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
 			Name: "Enable Authorization Recordings",
 			Description: "All api requests will have a header including all authorization calls made during the request. " +
 				"This is used for debugging purposes and only available for dev builds.",
@@ -3358,10 +3379,12 @@ Write out the current server config as YAML to stdout.`,
 }
 
 type AIBridgeConfig struct {
-	Enabled   serpent.Bool            `json:"enabled" typescript:",notnull"`
-	OpenAI    AIBridgeOpenAIConfig    `json:"openai" typescript:",notnull"`
-	Anthropic AIBridgeAnthropicConfig `json:"anthropic" typescript:",notnull"`
-	Bedrock   AIBridgeBedrockConfig   `json:"bedrock" typescript:",notnull"`
+	Enabled             serpent.Bool            `json:"enabled" typescript:",notnull"`
+	OpenAI              AIBridgeOpenAIConfig    `json:"openai" typescript:",notnull"`
+	Anthropic           AIBridgeAnthropicConfig `json:"anthropic" typescript:",notnull"`
+	Bedrock             AIBridgeBedrockConfig   `json:"bedrock" typescript:",notnull"`
+	InjectCoderMCPTools serpent.Bool            `json:"inject_coder_mcp_tools" typescript:",notnull"`
+	Retention           serpent.Duration        `json:"retention" typescript:",notnull"`
 }
 
 type AIBridgeOpenAIConfig struct {
@@ -3635,6 +3658,8 @@ const (
 	ExperimentOAuth2             Experiment = "oauth2"               // Enables OAuth2 provider functionality.
 	ExperimentMCPServerHTTP      Experiment = "mcp-server-http"      // Enables the MCP HTTP server functionality.
 	ExperimentWorkspaceSharing   Experiment = "workspace-sharing"    // Enables updating workspace ACLs for sharing with users and groups.
+	// ExperimentTerraformWorkspace uses the "Terraform Workspaces" feature, not to be confused with Coder Workspaces.
+	ExperimentTerraformWorkspace Experiment = "terraform-directory-reuse" // Enables reuse of existing terraform directory for builds
 )
 
 func (e Experiment) DisplayName() string {
@@ -3655,6 +3680,8 @@ func (e Experiment) DisplayName() string {
 		return "MCP HTTP Server Functionality"
 	case ExperimentWorkspaceSharing:
 		return "Workspace Sharing"
+	case ExperimentTerraformWorkspace:
+		return "Terraform Directory Reuse"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "web-push" -> "Web Push", "mcp-server-http" -> "Mcp Server Http"

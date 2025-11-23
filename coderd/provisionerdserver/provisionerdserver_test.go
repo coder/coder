@@ -26,6 +26,8 @@ import (
 	"storj.io/drpc"
 
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 
@@ -59,24 +61,24 @@ import (
 )
 
 func testTemplateScheduleStore() *atomic.Pointer[schedule.TemplateScheduleStore] {
-	ptr := &atomic.Pointer[schedule.TemplateScheduleStore]{}
+	poitr := &atomic.Pointer[schedule.TemplateScheduleStore]{}
 	store := schedule.NewAGPLTemplateScheduleStore()
-	ptr.Store(&store)
-	return ptr
+	poitr.Store(&store)
+	return poitr
 }
 
 func testUserQuietHoursScheduleStore() *atomic.Pointer[schedule.UserQuietHoursScheduleStore] {
-	ptr := &atomic.Pointer[schedule.UserQuietHoursScheduleStore]{}
+	poitr := &atomic.Pointer[schedule.UserQuietHoursScheduleStore]{}
 	store := schedule.NewAGPLUserQuietHoursScheduleStore()
-	ptr.Store(&store)
-	return ptr
+	poitr.Store(&store)
+	return poitr
 }
 
 func testUsageInserter() *atomic.Pointer[usage.Inserter] {
-	ptr := &atomic.Pointer[usage.Inserter]{}
+	poitr := &atomic.Pointer[usage.Inserter]{}
 	inserter := usage.NewAGPLInserter()
-	ptr.Store(&inserter)
-	return ptr
+	poitr.Store(&inserter)
+	return poitr
 }
 
 func TestAcquireJob_LongPoll(t *testing.T) {
@@ -450,6 +452,7 @@ func TestAcquireJob(t *testing.T) {
 					TemplateId:                    template.ID.String(),
 					TemplateName:                  template.Name,
 					TemplateVersion:               version.Name,
+					TemplateVersionId:             version.ID.String(),
 					WorkspaceOwnerSessionToken:    sessionToken,
 					WorkspaceOwnerSshPublicKey:    sshKey.PublicKey,
 					WorkspaceOwnerSshPrivateKey:   sshKey.PrivateKey,
@@ -474,8 +477,9 @@ func TestAcquireJob(t *testing.T) {
 				})
 				want, err := json.Marshal(&proto.AcquiredJob_WorkspaceBuild_{
 					WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
-						WorkspaceBuildId: build.ID.String(),
-						WorkspaceName:    workspace.Name,
+						ExpReuseTerraformWorkspace: ptr.Ref(false),
+						WorkspaceBuildId:           build.ID.String(),
+						WorkspaceName:              workspace.Name,
 						VariableValues: []*sdkproto.VariableValue{
 							{
 								Name:      "first",
@@ -629,6 +633,7 @@ func TestAcquireJob(t *testing.T) {
 					Metadata: &sdkproto.Metadata{
 						CoderUrl:             (&url.URL{}).String(),
 						WorkspaceOwnerGroups: []string{database.EveryoneGroup},
+						TemplateVersionId:    uuid.Nil.String(),
 					},
 				},
 			})
@@ -677,6 +682,7 @@ func TestAcquireJob(t *testing.T) {
 					Metadata: &sdkproto.Metadata{
 						CoderUrl:             (&url.URL{}).String(),
 						WorkspaceOwnerGroups: []string{database.EveryoneGroup},
+						TemplateVersionId:    version.ID.String(),
 					},
 				},
 			})
@@ -3134,7 +3140,6 @@ func TestCompleteJob(t *testing.T) {
 					}
 
 					require.Equal(t, tc.expectAppID, task.WorkspaceAppID)
-					require.Equal(t, tc.expectAppID, build.AITaskSidebarAppID)
 
 					if tc.expectUsageEvent {
 						// Check that a usage event was collected.
@@ -4159,7 +4164,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 	defOrg, err := db.GetDefaultOrganization(context.Background())
 	require.NoError(t, err, "default org not found")
 
-	deploymentValues := &codersdk.DeploymentValues{}
+	deploymentValues := coderdtest.DeploymentValues(t)
 	var externalAuthConfigs []*externalauth.Config
 	tss := testTemplateScheduleStore()
 	uqhss := testUserQuietHoursScheduleStore()
@@ -4282,6 +4287,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		notifEnq,
 		&op,
 		provisionerdserver.NewMetrics(logger),
+		coderd.ReadExperiments(logger, deploymentValues.Experiments),
 	)
 	require.NoError(t, err)
 	return srv, db, ps, daemon
@@ -4393,11 +4399,11 @@ type fakeUsageInserter struct {
 var _ usage.Inserter = &fakeUsageInserter{}
 
 func newFakeUsageInserter() (*fakeUsageInserter, *atomic.Pointer[usage.Inserter]) {
-	ptr := &atomic.Pointer[usage.Inserter]{}
+	poitr := &atomic.Pointer[usage.Inserter]{}
 	fake := &fakeUsageInserter{}
 	var inserter usage.Inserter = fake
-	ptr.Store(&inserter)
-	return fake, ptr
+	poitr.Store(&inserter)
+	return fake, poitr
 }
 
 func (f *fakeUsageInserter) InsertDiscreteUsageEvent(_ context.Context, _ database.Store, event usagetypes.DiscreteEvent) error {
@@ -4448,19 +4454,18 @@ func seedPreviousWorkspaceStartWithAITask(ctx context.Context, t testing.TB, db 
 	agt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
 		ResourceID: res.ID,
 	})
-	wa := dbgen.WorkspaceApp(t, db, database.WorkspaceApp{
+	_ = dbgen.WorkspaceApp(t, db, database.WorkspaceApp{
 		AgentID: agt.ID,
 	})
 	_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-		BuildNumber:        1,
-		HasAITask:          sql.NullBool{Valid: true, Bool: true},
-		AITaskSidebarAppID: uuid.NullUUID{Valid: true, UUID: wa.ID},
-		ID:                 w.ID,
-		InitiatorID:        w.OwnerID,
-		JobID:              prevJob.ID,
-		TemplateVersionID:  tvs[0].ID,
-		Transition:         database.WorkspaceTransitionStart,
-		WorkspaceID:        w.ID,
+		BuildNumber:       1,
+		HasAITask:         sql.NullBool{Valid: true, Bool: true},
+		ID:                w.ID,
+		InitiatorID:       w.OwnerID,
+		JobID:             prevJob.ID,
+		TemplateVersionID: tvs[0].ID,
+		Transition:        database.WorkspaceTransitionStart,
+		WorkspaceID:       w.ID,
 	})
 	return nil
 }

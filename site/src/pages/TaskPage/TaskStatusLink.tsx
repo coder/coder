@@ -30,15 +30,21 @@ export const TaskStatusLink: FC<TaskStatusLinkProps> = ({ uri }) => {
 					switch (type) {
 						case "pull":
 							icon = <GitPullRequestArrowIcon />;
-							label = number
-								? `${org}/${repo}#${number}`
-								: `${org}/${repo} pull request`;
+							label =
+								number === "new"
+									? `${org}/${repo} open pull request`
+									: number
+										? `${org}/${repo}#${number}`
+										: `${org}/${repo} pull request`;
 							break;
 						case "issues":
 							icon = <BugIcon />;
-							label = number
-								? `${org}/${repo}#${number}`
-								: `${org}/${repo} issue`;
+							label =
+								number === "new"
+									? `${org}/${repo} create new issue`
+									: number
+										? `${org}/${repo}#${number}`
+										: `${org}/${repo} issue`;
 							break;
 						default:
 							icon = <ExternalImage src="/icon/github.svg" />;
@@ -52,6 +58,7 @@ export const TaskStatusLink: FC<TaskStatusLinkProps> = ({ uri }) => {
 		}
 	} catch (_error) {
 		// Invalid URL, probably.
+		return null;
 	}
 
 	return (

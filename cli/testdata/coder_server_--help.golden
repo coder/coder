@@ -106,8 +106,17 @@ AIBRIDGE OPTIONS:
           See
           https://docs.claude.com/en/docs/claude-code/settings#environment-variables.
 
+      --aibridge-retention duration, $CODER_AIBRIDGE_RETENTION (default: 1440h)
+          Length of time to retain data such as interceptions and all related
+          records (token, prompt, tool use).
+
       --aibridge-enabled bool, $CODER_AIBRIDGE_ENABLED (default: false)
           Whether to start an in-memory aibridged instance.
+
+      --aibridge-inject-coder-mcp-tools bool, $CODER_AIBRIDGE_INJECT_CODER_MCP_TOOLS (default: false)
+          Whether to inject Coder's MCP tools into intercepted AIBridge requests
+          (requires the "oauth2" and "mcp-server-http" experiments to be
+          enabled).
 
       --aibridge-openai-base-url string, $CODER_AIBRIDGE_OPENAI_BASE_URL (default: https://api.openai.com/v1/)
           The base URL of the OpenAI API.

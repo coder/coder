@@ -10,7 +10,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -22,6 +21,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/provisionersdk/tfpath"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/tracing"
@@ -38,10 +38,10 @@ type executor struct {
 	server     *server
 	mut        *sync.Mutex
 	binaryPath string
-	// cachePath and workdir must not be used by multiple processes at once.
+	// cachePath and files must not be used by multiple processes at once.
 	cachePath     string
 	cliConfigPath string
-	workdir       string
+	files         tfpath.Layouter
 	// used to capture execution times at various stages
 	timings *timingAggregator
 }
@@ -90,7 +90,7 @@ func (e *executor) execWriteOutput(ctx, killCtx context.Context, args, env []str
 
 	// #nosec
 	cmd := exec.CommandContext(killCtx, e.binaryPath, args...)
-	cmd.Dir = e.workdir
+	cmd.Dir = e.files.WorkDirectory()
 	if env == nil {
 		// We don't want to passthrough host env when unset.
 		env = []string{}
@@ -131,7 +131,7 @@ func (e *executor) execParseJSON(ctx, killCtx context.Context, args, env []strin
 
 	// #nosec
 	cmd := exec.CommandContext(killCtx, e.binaryPath, args...)
-	cmd.Dir = e.workdir
+	cmd.Dir = e.files.WorkDirectory()
 	cmd.Env = env
 	out := &bytes.Buffer{}
 	stdErr := &bytes.Buffer{}
@@ -225,7 +225,7 @@ func (e *executor) init(ctx, killCtx context.Context, logr logSink) error {
 	defer e.mut.Unlock()
 
 	// Record lock file checksum before init
-	lockFilePath := filepath.Join(e.workdir, ".terraform.lock.hcl")
+	lockFilePath := e.files.TerraformLockFile()
 	preInitChecksum := checksumFileCRC32(ctx, e.logger, lockFilePath)
 
 	outWriter, doneOut := e.provisionLogWriter(logr)
@@ -289,14 +289,6 @@ func checksumFileCRC32(ctx context.Context, logger slog.Logger, path string) uin
 	return crc32.ChecksumIEEE(content)
 }
 
-func getPlanFilePath(workdir string) string {
-	return filepath.Join(workdir, "terraform.tfplan")
-}
-
-func getStateFilePath(workdir string) string {
-	return filepath.Join(workdir, "terraform.tfstate")
-}
-
 // revive:disable-next-line:flag-parameter
 func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr logSink, req *proto.PlanRequest) (*proto.PlanComplete, error) {
 	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
@@ -307,7 +299,7 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 
 	metadata := req.Metadata
 
-	planfilePath := getPlanFilePath(e.workdir)
+	planfilePath := e.files.PlanFilePath()
 	args := []string{
 		"plan",
 		"-no-color",
@@ -333,7 +325,9 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		<-doneErr
 	}()
 
+	endStage := e.timings.startStage(database.ProvisionerJobTimingStagePlan)
 	err := e.execWriteOutput(ctx, killCtx, args, env, outWriter, errWriter)
+	endStage(err)
 	if err != nil {
 		return nil, xerrors.Errorf("terraform plan: %w", err)
 	}
@@ -359,7 +353,7 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 	// a workspace build. This removes some added costs of sending the modules
 	// payload back to coderd if coderd is just going to ignore it.
 	if !req.OmitModuleFiles {
-		moduleFiles, err = GetModulesArchive(os.DirFS(e.workdir))
+		moduleFiles, err = GetModulesArchive(os.DirFS(e.files.WorkDirectory()))
 		if err != nil {
 			// TODO: we probably want to persist this error or make it louder eventually
 			e.logger.Warn(ctx, "failed to archive terraform modules", slog.Error(err))
@@ -544,14 +538,18 @@ func (e *executor) graph(ctx, killCtx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	args := []string{"graph"}
+	args := []string{
+		"graph",
+		// TODO: When the plan is present, we should probably use it?
+		// "-plan=" + e.files.PlanFilePath(),
+	}
 	if ver.GreaterThanOrEqual(version170) {
 		args = append(args, "-type=plan")
 	}
 	var out strings.Builder
 	cmd := exec.CommandContext(killCtx, e.binaryPath, args...) // #nosec
 	cmd.Stdout = &out
-	cmd.Dir = e.workdir
+	cmd.Dir = e.files.WorkDirectory()
 	cmd.Env = e.basicEnv()
 
 	e.server.logger.Debug(ctx, "executing terraform command graph",
@@ -588,7 +586,7 @@ func (e *executor) apply(
 		"-auto-approve",
 		"-input=false",
 		"-json",
-		getPlanFilePath(e.workdir),
+		e.files.PlanFilePath(),
 	}
 
 	outWriter, doneOut := e.provisionLogWriter(logr)
@@ -600,26 +598,32 @@ func (e *executor) apply(
 		<-doneErr
 	}()
 
+	// `terraform apply`
+	endStage := e.timings.startStage(database.ProvisionerJobTimingStageApply)
 	err := e.execWriteOutput(ctx, killCtx, args, env, outWriter, errWriter)
+	endStage(err)
 	if err != nil {
 		return nil, xerrors.Errorf("terraform apply: %w", err)
 	}
+
+	// `terraform show` & `terraform graph`
 	state, err := e.stateResources(ctx, killCtx)
 	if err != nil {
 		return nil, err
 	}
-	statefilePath := getStateFilePath(e.workdir)
+	statefilePath := e.files.StateFilePath()
 	stateContent, err := os.ReadFile(statefilePath)
 	if err != nil {
 		return nil, xerrors.Errorf("read statefile %q: %w", statefilePath, err)
 	}
 
+	agg := e.timings.aggregate()
 	return &proto.ApplyComplete{
 		Parameters:            state.Parameters,
 		Resources:             state.Resources,
 		ExternalAuthProviders: state.ExternalAuthProviders,
 		State:                 stateContent,
-		Timings:               e.timings.aggregate(),
+		Timings:               agg,
 		AiTasks:               state.AITasks,
 	}, nil
 }
