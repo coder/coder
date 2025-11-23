@@ -1762,4 +1762,15 @@ The small fast model to use when making requests to the AWS Bedrock API. Claude 
 | YAML        | <code>aibridge.inject_coder_mcp_tools</code>        |
 | Default     | <code>false</code>                                  |
 
-Whether to inject Coder's MCP tools into intercepted AI Bridge requests (requires the "oauth2" and "mcp-server-http" experiments to be enabled).
+Whether to inject Coder's MCP tools into intercepted AIBridge requests (requires the "oauth2" and "mcp-server-http" experiments to be enabled).
+
+### --aibridge-retention
+
+|             |                                        |
+|-------------|----------------------------------------|
+| Type        | <code>duration</code>                  |
+| Environment | <code>$CODER_AIBRIDGE_RETENTION</code> |
+| YAML        | <code>aibridge.retention</code>        |
+| Default     | <code>1440h</code>                     |
+
+Length of time to retain data such as interceptions and all related records (token, prompt, tool use).

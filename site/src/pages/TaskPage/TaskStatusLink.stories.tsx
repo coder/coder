@@ -17,6 +17,12 @@ const meta: Meta<typeof TaskStatusLink> = {
 export default meta;
 type Story = StoryObj<typeof TaskStatusLink>;
 
+export const GitHubNewPR: Story = {
+	args: {
+		uri: "https://github.com/coder/coder/pull/new/fix-deleted-template-button",
+	},
+};
+
 export const GithubPRNumber: Story = {
 	args: {
 		uri: "https://github.com/org/repo/pull/1234",
@@ -26,6 +32,12 @@ export const GithubPRNumber: Story = {
 export const GitHubPRNoNumber: Story = {
 	args: {
 		uri: "https://github.com/org/repo/pull",
+	},
+};
+
+export const GitHubNewIssue: Story = {
+	args: {
+		uri: "https://github.com/coder/coder/issues/new?template=BLANK_ISSUE",
 	},
 };
 
@@ -68,5 +80,17 @@ export const File: Story = {
 export const Long: Story = {
 	args: {
 		uri: "https://dev.coder.com/this-is-a/long-url/to-test/how-the-truncation/looks",
+	},
+};
+
+export const InvalidPathNotRendered: Story = {
+	args: {
+		uri: "/path/to/foo",
+	},
+};
+
+export const InvalidRelativePathNotRendered: Story = {
+	args: {
+		uri: "path/to/foo",
 	},
 };
