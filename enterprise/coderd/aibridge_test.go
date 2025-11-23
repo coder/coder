@@ -176,9 +176,11 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		// Time comparison
 		require.Len(t, res.Results, 2)
 		require.Equal(t, res.Results[0].ID, i2SDK.ID)
-		require.NotNil(t, now, res.Results[0].EndedAt)
+		require.NotNil(t, res.Results[0].EndedAt)
 		require.WithinDuration(t, now, *res.Results[0].EndedAt, 5*time.Second)
 		res.Results[0].EndedAt = i2SDK.EndedAt
+		require.NotNil(t, res.Results[1].EndedAt)
+		res.Results[1].EndedAt = i1SDK.EndedAt
 
 		require.Equal(t, []codersdk.AIBridgeInterception{i2SDK, i1SDK}, res.Results)
 	})
