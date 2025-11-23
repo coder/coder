@@ -103,11 +103,12 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		// Insert a bunch of test data.
 		now := dbtime.Now()
 		i1ApiKey := sql.NullString{String: "some-api-key", Valid: true}
+		i1EndedAt := now.Add(-time.Hour + time.Minute)
 		i1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			APIKeyID:    i1ApiKey,
 			InitiatorID: user1.ID,
 			StartedAt:   now.Add(-time.Hour),
-		}, nil)
+		}, &i1EndedAt)
 		i1tok1 := dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
 			InterceptionID: i1.ID,
 			CreatedAt:      now,
@@ -217,11 +218,12 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 			randomOffset, err := cryptorand.Intn(10000)
 			require.NoError(t, err)
 			randomOffsetDur := time.Duration(randomOffset) * time.Second
+			endedAt := now.Add(randomOffsetDur + time.Minute)
 			interception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 				ID:          uuid.UUID{byte(i + 10)},
 				InitiatorID: firstUser.UserID,
 				StartedAt:   now.Add(randomOffsetDur),
-			}, nil)
+			}, &endedAt)
 			allInterceptionIDs = append(allInterceptionIDs, interception.ID)
 		}
 
@@ -315,10 +317,11 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		secondUserClient, secondUser := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
 
 		now := dbtime.Now()
+		i1EndedAt := now.Add(time.Minute)
 		i1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID: firstUser.UserID,
 			StartedAt:   now,
-		}, nil)
+		}, &i1EndedAt)
 		i2 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID: secondUser.ID,
 			StartedAt:   now.Add(-time.Hour),
@@ -374,13 +377,14 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 
 		// Insert a bunch of test data with varying filterable fields.
 		now := dbtime.Now()
+		i1EndedAt := now.Add(time.Minute)
 		i1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			ID:          uuid.MustParse("00000000-0000-0000-0000-000000000001"),
 			InitiatorID: user1.ID,
 			Provider:    "one",
 			Model:       "one",
 			StartedAt:   now,
-		}, nil)
+		}, &i1EndedAt)
 		i2 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			ID:          uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 			InitiatorID: user1.ID,
