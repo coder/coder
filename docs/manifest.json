@@ -1131,6 +1131,10 @@
 							"path": "./reference/api/general.md"
 						},
 						{
+							"title": "AI Bridge",
+							"path": "./reference/api/aibridge.md"
+						},
+						{
 							"title": "Agents",
 							"path": "./reference/api/agents.md"
 						},
@@ -1177,6 +1181,10 @@
 						{
 							"title": "Git",
 							"path": "./reference/api/git.md"
+						},
+						{
+							"title": "InitScript",
+							"path": "./reference/api/initscript.md"
 						},
 						{
 							"title": "Insights",
@@ -1240,17 +1248,17 @@
 					"children": [
 						{
 							"title": "aibridge",
-							"description": "Manage AIBridge.",
+							"description": "Manage AI Bridge.",
 							"path": "reference/cli/aibridge.md"
 						},
 						{
 							"title": "aibridge interceptions",
-							"description": "Manage AIBridge interceptions.",
+							"description": "Manage AI Bridge interceptions.",
 							"path": "reference/cli/aibridge_interceptions.md"
 						},
 						{
 							"title": "aibridge interceptions list",
-							"description": "List AIBridge interceptions as JSON.",
+							"description": "List AI Bridge interceptions as JSON.",
 							"path": "reference/cli/aibridge_interceptions_list.md"
 						},
 						{
