@@ -60,7 +60,9 @@ jobs:
             echo "github_username=${GITHUB_ACTOR}" >> "${GITHUB_OUTPUT}"
 
             echo "Using PR URL: ${INPUTS_PR_URL}"
-            echo "pr_url=${INPUTS_PR_URL}" >> "${GITHUB_OUTPUT}"
+            # Convert /pull/ to /issues/ for create-task-action compatibility
+            ISSUE_URL="${INPUTS_PR_URL/\/pull\//\/issues\/}"
+            echo "pr_url=${ISSUE_URL}" >> "${GITHUB_OUTPUT}"
 
             # Extract PR number from URL for later use
             PR_NUMBER=$(echo "${INPUTS_PR_URL}" | grep -oP '(?<=pull/)\d+')
@@ -73,7 +75,9 @@ jobs:
             echo "github_username=${GITHUB_EVENT_USER_LOGIN}" >> "${GITHUB_OUTPUT}"
 
             echo "Using PR URL: ${GITHUB_EVENT_PR_HTML_URL}"
-            echo "pr_url=${GITHUB_EVENT_PR_HTML_URL}" >> "${GITHUB_OUTPUT}"
+            # Convert /pull/ to /issues/ for create-task-action compatibility
+            ISSUE_URL="${GITHUB_EVENT_PR_HTML_URL/\/pull\//\/issues\/}"
+            echo "pr_url=${ISSUE_URL}" >> "${GITHUB_OUTPUT}"
             echo "pr_number=${GITHUB_EVENT_PR_NUMBER}" >> "${GITHUB_OUTPUT}"
 
           else
