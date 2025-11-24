@@ -686,7 +686,7 @@ func (api *API) taskUpdateInput(rw http.ResponseWriter, r *http.Request) {
 
 	if strings.TrimSpace(req.Input) == "" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Input is required, and should not be empty.",
+			Message: "Task input is required.",
 		})
 		return
 	}
