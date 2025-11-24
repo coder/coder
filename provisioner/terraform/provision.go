@@ -67,6 +67,55 @@ func (s *server) setupContexts(parent context.Context, canceledOrComplete <-chan
 	return ctx, cancel, killCtx, kill
 }
 
+// Graph must be run after a plan or apply step.
+func (s *server) Graph(
+	sess *provisionersdk.Session, request *proto.GraphRequest, canceledOrComplete <-chan struct{},
+) *proto.GraphComplete {
+	ctx, span := s.startTrace(sess.Context(), tracing.FuncName())
+	defer span.End()
+	ctx, cancel, killCtx, kill := s.setupContexts(ctx, canceledOrComplete)
+	defer cancel()
+	defer kill()
+
+	e := s.executor(sess.Files, database.ProvisionerJobTimingStageGraph)
+	if err := e.checkMinVersion(ctx); err != nil {
+		return provisionersdk.GraphErrorf("%s", err.Error())
+	}
+	logTerraformEnvVars(sess)
+
+	// If we're destroying, exit early if there's no state. This is necessary to
+	// avoid any cases where a workspace is "locked out" of terraform due to
+	// e.g. bad template param values and cannot be deleted. This is just for
+	// contingency, in the future we will try harder to prevent workspaces being
+	// broken this hard.
+	if request.Metadata.GetWorkspaceTransition() == proto.WorkspaceTransition_DESTROY && len(sess.Config.State) == 0 {
+		sess.ProvisionLog(proto.LogLevel_INFO, "The terraform state does not exist, there is nothing to do")
+		return &proto.GraphComplete{}
+	}
+
+	// The terraform directory should be ready from the previous steps.
+	planfilePath := e.files.PlanFilePath()
+	endGraph := e.timings.startStage(database.ProvisionerJobTimingStageGraph)
+	// TODO: Apply & plan have different ways of running the graph step.
+	state, _, err := e.planResources(ctx, killCtx, planfilePath)
+	endGraph(err)
+	if err != nil {
+		return provisionersdk.GraphErrorf("plan resources: %s", err)
+	}
+
+	return &proto.GraphComplete{
+		Error:                 "",
+		Resources:             state.Resources,
+		Parameters:            state.Parameters,
+		ExternalAuthProviders: state.ExternalAuthProviders,
+		Timings:               e.timings.aggregate(),
+		Presets:               state.Presets,
+		HasAiTasks:            state.HasAITasks,
+		AiTasks:               state.AITasks,
+		HasExternalAgents:     state.HasExternalAgents,
+	}
+}
+
 func (s *server) Plan(
 	sess *provisionersdk.Session, request *proto.PlanRequest, canceledOrComplete <-chan struct{},
 ) *proto.PlanComplete {
@@ -92,6 +141,7 @@ func (s *server) Plan(
 		return &proto.PlanComplete{}
 	}
 
+	// TODO: If the statefile is already written from the graph step, we do not need to write it again.
 	statefilePath := sess.Files.StateFilePath()
 	if len(sess.Config.State) > 0 {
 		err := os.WriteFile(statefilePath, sess.Config.State, 0o600)
@@ -112,6 +162,7 @@ func (s *server) Plan(
 	initTimings := newTimingAggregator(database.ProvisionerJobTimingStageInit)
 	endStage := initTimings.startStage(database.ProvisionerJobTimingStageInit)
 
+	// TODO: If we ran grpah, init has already been run, so we can skip it here.
 	err = e.init(ctx, killCtx, sess)
 	endStage(err)
 	if err != nil {

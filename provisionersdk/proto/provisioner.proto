@@ -393,6 +393,13 @@ message ParseComplete {
   map<string, string> workspace_tags = 4;
 }
 
+message GraphRequest {
+  Metadata metadata = 1;
+  repeated RichParameterValue rich_parameter_values = 2;
+  repeated VariableValue variable_values = 3;
+  repeated RichParameterValue previous_parameter_values = 5;
+}
+
 // PlanRequest asks the provisioner to plan what resources & parameters it will create
 message PlanRequest {
   Metadata metadata = 1;
@@ -407,6 +414,20 @@ message PlanRequest {
   // backwards compatibility reasons, the zero value should be the previous
   // behavior of downloading the module files.
   bool omit_module_files = 6;
+}
+
+message GraphComplete {
+  string error = 1;
+  repeated Resource resources = 2;
+  repeated RichParameter parameters = 3;
+  repeated ExternalAuthProviderResource external_auth_providers = 4;
+  repeated Timing timings = 6;
+//  repeated Module modules = 7;
+  repeated Preset presets = 8;
+
+  bool has_ai_tasks = 9;
+  repeated provisioner.AITask ai_tasks = 10;
+  bool has_external_agents = 11;
 }
 
 // PlanComplete indicates a request to plan completed.
@@ -475,6 +496,7 @@ message Request {
     PlanRequest plan = 3;
     ApplyRequest apply = 4;
     CancelRequest cancel = 5;
+    GraphRequest graph = 6;
   }
 }
 
@@ -486,6 +508,7 @@ message Response {
     ApplyComplete apply = 4;
     DataUpload data_upload = 5;
     ChunkPiece chunk_piece = 6;
+    GraphComplete graph = 7;
   }
 }
 
