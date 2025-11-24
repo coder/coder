@@ -92,7 +92,7 @@ type Options struct {
 	Devcontainers                bool
 	DevcontainerAPIOptions       []agentcontainers.Option // Enable Devcontainers for these to be effective.
 	Clock                        quartz.Clock
-	SocketPath                   string // Path for the agent socket server
+	SocketPath                   string // Path for the agent socket server socket
 }
 
 type Client interface {
