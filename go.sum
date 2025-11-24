@@ -927,8 +927,8 @@ github.com/coder/boundary v1.0.1-0.20250925154134-55a44f2a7945 h1:hDUf02kTX8EGR3
 github.com/coder/boundary v1.0.1-0.20250925154134-55a44f2a7945/go.mod h1:d1AMFw81rUgrGHuZzWdPNhkY0G8w7pvLNLYF0e3ceC4=
 github.com/coder/bubbletea v1.2.2-0.20241212190825-007a1cdb2c41 h1:SBN/DA63+ZHwuWwPHPYoCZ/KLAjHv5g4h2MS4f2/MTI=
 github.com/coder/bubbletea v1.2.2-0.20241212190825-007a1cdb2c41/go.mod h1:I9ULxr64UaOSUv7hcb3nX4kowodJCVS7vt7VVJk/kW4=
-github.com/coder/clistat v1.1.1 h1:T45dlwr7fSmjLPGLk7QRKgynnDeMOPoraHSGtLIHY3s=
-github.com/coder/clistat v1.1.1/go.mod h1:F+gLef+F9chVrleq808RBxdaoq52R4VLopuLdAsh8Y4=
+github.com/coder/clistat v1.1.2 h1:1WzCsEQ/VFBNyxu5ryy0Pdb6rrMh+byCp3aZMkn9k/E=
+github.com/coder/clistat v1.1.2/go.mod h1:F+gLef+F9chVrleq808RBxdaoq52R4VLopuLdAsh8Y4=
 github.com/coder/flog v1.1.0 h1:kbAes1ai8fIS5OeV+QAnKBQE22ty1jRF/mcAwHpLBa4=
 github.com/coder/flog v1.1.0/go.mod h1:UQlQvrkJBvnRGo69Le8E24Tcl5SJleAAR7gYEHzAmdQ=
 github.com/coder/glog v1.0.1-0.20220322161911-7365fe7f2cd1/go.mod h1:EWib/APOK0SL3dFbYqvxE3UYd8E6s1ouQ7iEp/0LWV4=
