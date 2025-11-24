@@ -6,7 +6,6 @@ import (
 	"context"
 	"net"
 
-	"cdr.dev/slog"
 	"golang.org/x/xerrors"
 )
 
@@ -29,6 +28,6 @@ func cleanupSocket(_ string) error {
 }
 
 // NewClient creates a DRPC client for the agent socket at the given path.
-func NewClient(_ context.Context, _ string, _ slog.Logger) (*Client, error) {
+func NewClient(_ context.Context, _ string) (*Client, error) {
 	return nil, xerrors.New("agentsocket is not supported on Windows")
 }
