@@ -1177,13 +1177,12 @@ class ApiMethods {
 		return response.data;
 	};
 
-	invalidateTemplatePrebuilds = async (
+	invalidateTemplatePresets = async (
 		templateId: string,
-	): Promise<{ invalidated_presets: string[] }> => {
-		const response = await this.axios.post<{
-			invalidated_presets: string[];
-		}>(`/api/v2/templates/${templateId}/prebuilds/invalidate`);
-
+	): Promise<TypesGen.InvalidatePresetsResponse> => {
+		const response = await this.axios.post<TypesGen.InvalidatePresetsResponse>(
+			`/api/v2/templates/${templateId}/prebuilds/invalidate`,
+		);
 		return response.data;
 	};
 

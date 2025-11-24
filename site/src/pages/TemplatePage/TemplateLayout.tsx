@@ -157,7 +157,7 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
 								Insights
 							</TabLink>
 						)}
-						{data.permissions.canUpdateTemplate && (
+						{data.permissions.canUpdateTemplate /* TODO template_rbac */ && (
 							<TabLink to="prebuilds" value="prebuilds">
 								Prebuilds
 							</TabLink>
