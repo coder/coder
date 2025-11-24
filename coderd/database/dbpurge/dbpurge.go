@@ -110,11 +110,10 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 			if err != nil {
 				return xerrors.Errorf("failed to delete old aibridge records: %w", err)
 			}
-			logger.Debug(ctx, "purged aibridge entries", slog.F("purged", purgedAIBridgeRecords), slog.F("since", deleteAIBridgeRecordsBefore.Format(time.RFC3339)))
 
 			logger.Debug(ctx, "purged old database entries",
 				slog.F("expired_api_keys", expiredAPIKeys),
-				slog.F("ai_bridge_records", purgedAIBridgeRecords),
+				slog.F("aibridge_records", purgedAIBridgeRecords),
 				slog.F("duration", clk.Since(start)),
 			)
 
