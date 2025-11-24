@@ -74,7 +74,7 @@ if [[ ${#MISSING_FROM_MANIFEST[@]} -gt 0 ]]; then
 	echo -e "${RED}✗ Files in $API_DIR missing from manifest.json:${NC}"
 	for file in "${MISSING_FROM_MANIFEST[@]}"; do
 		echo -e "  ${RED}- $file${NC}"
-		((ERROR_COUNT++))
+		ERROR_COUNT=$((ERROR_COUNT + 1))
 	done
 	echo ""
 else
@@ -86,7 +86,7 @@ if [[ ${#MISSING_FILES[@]} -gt 0 ]]; then
 	echo -e "${YELLOW}⚠ Manifest entries without corresponding files:${NC}"
 	for path in "${MISSING_FILES[@]}"; do
 		echo -e "  ${YELLOW}- $path${NC}"
-		((ERROR_COUNT++))
+		ERROR_COUNT=$((ERROR_COUNT + 1))
 	done
 	echo ""
 else
