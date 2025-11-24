@@ -16,18 +16,19 @@ import {
 	updateUserNotificationPreferences,
 	userNotificationPreferences,
 } from "api/queries/notifications";
-import type {
-	NotificationPreference,
-	NotificationTemplate,
-} from "api/typesGenerated";
+import type { NotificationTemplate } from "api/typesGenerated";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "hooks";
 import {
 	castNotificationMethod,
+	isTaskNotification,
 	methodIcons,
 	methodLabels,
+	notificationIsDisabled,
+	selectDisabledPreferences,
+	TasksNotificationAlertDismissedKey,
 } from "modules/notifications/utils";
 import type { Permissions } from "modules/permissions";
 import { type FC, Fragment, useEffect } from "react";
@@ -181,6 +182,17 @@ const NotificationsPage: FC = () => {
 																			[tmpl.id]: !checked,
 																		},
 																	});
+
+																	// Clear the Tasks page warning dismissal when enabling a task notification
+																	// This ensures that if the user disables task notifications again later,
+																	// they will see the warning alert again.
+																	if (isTaskNotification(tmpl) && checked) {
+																		localStorage.setItem(
+																			TasksNotificationAlertDismissedKey,
+																			"false",
+																		);
+																	}
+
 																	displaySuccess(
 																		"Notification preferences updated",
 																	);
@@ -239,26 +251,6 @@ function canSeeNotificationGroup(
 		default:
 			return false;
 	}
-}
-
-function notificationIsDisabled(
-	disabledPreferences: Record<string, boolean>,
-	tmpl: NotificationTemplate,
-): boolean {
-	return (
-		(!tmpl.enabled_by_default && disabledPreferences[tmpl.id] === undefined) ||
-		!!disabledPreferences[tmpl.id]
-	);
-}
-
-function selectDisabledPreferences(data: NotificationPreference[]) {
-	return data.reduce(
-		(acc, pref) => {
-			acc[pref.id] = pref.disabled;
-			return acc;
-		},
-		{} as Record<string, boolean>,
-	);
 }
 
 const styles = {

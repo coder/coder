@@ -1,6 +1,7 @@
 import {
 	MockDisplayNameTasks,
 	MockInitializingTasks,
+	MockSystemNotificationTemplates,
 	MockTasks,
 	MockTemplate,
 	MockUserOwner,
@@ -213,5 +214,144 @@ export const InitializingTasks: Story = {
 				data: [MockTemplate],
 			},
 		],
+	},
+};
+
+export const AllTaskNotificationsDisabledAlertVisible: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["tasks", { owner: MockUserOwner.username }],
+				data: MockTasks,
+			},
+			{
+				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
+				data: [MockTemplate],
+			},
+			{
+				// User notification preferences: empty because user hasn't changed defaults
+				// Task notifications are disabled by default (enabled_by_default: false)
+				key: ["users", MockUserOwner.id, "notifications", "preferences"],
+				data: [],
+			},
+			{
+				// System notification templates: includes task notifications with enabled_by_default: false
+				key: ["notifications", "templates", "system"],
+				data: MockSystemNotificationTemplates,
+			},
+		],
+	},
+	beforeEach: () => {
+		// Mock localStorage to not contain warning dismissal
+		spyOn(Storage.prototype, "getItem").mockReturnValue(null);
+		// Prevent actual localStorage writes during the story
+		spyOn(Storage.prototype, "setItem").mockImplementation(() => {});
+	},
+};
+
+export const AllTaskNotificationsDisabledAlertDismissed: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["tasks", { owner: MockUserOwner.username }],
+				data: MockTasks,
+			},
+			{
+				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
+				data: [MockTemplate],
+			},
+			{
+				// User notification preferences: empty because user hasn't changed defaults
+				// Task notifications are disabled by default (enabled_by_default: false)
+				key: ["users", MockUserOwner.id, "notifications", "preferences"],
+				data: [],
+			},
+			{
+				// System notification templates: includes task notifications with enabled_by_default: false
+				key: ["notifications", "templates", "system"],
+				data: MockSystemNotificationTemplates,
+			},
+		],
+	},
+	beforeEach: () => {
+		// Mock localStorage to contain warning dismissal
+		spyOn(Storage.prototype, "getItem").mockReturnValue("true");
+		// Prevent actual localStorage writes during the story
+		spyOn(Storage.prototype, "setItem").mockImplementation(() => {});
+	},
+};
+
+export const OneTaskNotificationEnabledAlertHidden: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["tasks", { owner: MockUserOwner.username }],
+				data: MockTasks,
+			},
+			{
+				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
+				data: [MockTemplate],
+			},
+			{
+				// User has explicitly enabled one task notification (Task Working)
+				// Since at least one task notification is enabled, the warning alert should not appear
+				key: ["users", MockUserOwner.id, "notifications", "preferences"],
+				data: [
+					{
+						id: "bd4b7168-d05e-4e19-ad0f-3593b77aa90f", // Task Working
+						disabled: false,
+						updated_at: new Date().toISOString(),
+					},
+				],
+			},
+			{
+				// System notification templates: includes task notifications with enabled_by_default: false
+				key: ["notifications", "templates", "system"],
+				data: MockSystemNotificationTemplates,
+			},
+		],
+	},
+	beforeEach: () => {
+		// Mock localStorage to not contain warning dismissal
+		spyOn(Storage.prototype, "getItem").mockReturnValue(null);
+		// Prevent actual localStorage writes during the story
+		spyOn(Storage.prototype, "setItem").mockImplementation(() => {});
+	},
+};
+
+export const AllTaskNotificationsExplicitlyDisabledAlertVisible: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["tasks", { owner: MockUserOwner.username }],
+				data: MockTasks,
+			},
+			{
+				key: getTemplatesQueryKey({ q: "has-ai-task:true" }),
+				data: [MockTemplate],
+			},
+			{
+				// User has explicitly disabled a task notification
+				key: ["users", MockUserOwner.id, "notifications", "preferences"],
+				data: [
+					{
+						id: "d4a6271c-cced-4ed0-84ad-afd02a9c7799", // Task Idle
+						disabled: true,
+						updated_at: "2024-08-06T11:58:37.755053Z",
+					},
+				],
+			},
+			{
+				// System notification templates: includes task notifications with enabled_by_default: false
+				key: ["notifications", "templates", "system"],
+				data: MockSystemNotificationTemplates,
+			},
+		],
+	},
+	beforeEach: () => {
+		// Mock localStorage to not contain warning dismissal
+		spyOn(Storage.prototype, "getItem").mockReturnValue(null);
+		// Prevent actual localStorage writes during the story
+		spyOn(Storage.prototype, "setItem").mockImplementation(() => {});
 	},
 };

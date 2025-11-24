@@ -18,8 +18,9 @@ import {
 	systemNotificationTemplatesKey,
 	userNotificationPreferencesKey,
 } from "api/queries/notifications";
-import { expect, spyOn, userEvent, within } from "storybook/test";
+import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { TasksNotificationAlertDismissedKey } from "../../../modules/notifications/utils";
 import NotificationsPage from "./NotificationsPage";
 
 const meta = {
@@ -183,5 +184,75 @@ export const DisableInvalidTemplate: Story = {
 	],
 	play: async () => {
 		await within(document.body).findByText("Error disabling notification");
+	},
+};
+
+export const EnablingTaskNotificationClearsAlertDismissal: Story = {
+	parameters: {
+		queries: [
+			{
+				// User notification preferences: empty because user hasn't changed defaults
+				// Task notifications are disabled by default (enabled_by_default: false)
+				key: ["users", MockUserOwner.id, "notifications", "preferences"],
+				data: [],
+			},
+			{
+				// System notification templates: includes task notifications with enabled_by_default: false
+				key: ["notifications", "templates", "system"],
+				data: MockSystemNotificationTemplates,
+			},
+			{
+				key: customNotificationTemplatesKey,
+				data: MockCustomNotificationTemplates,
+			},
+			{
+				key: notificationDispatchMethodsKey,
+				data: MockNotificationMethodsResponse,
+			},
+		],
+	},
+	beforeEach: () => {
+		// Mock the API call to update notification preferences
+		spyOn(API, "putUserNotificationPreferences").mockResolvedValue([
+			{
+				id: "d4a6271c-cced-4ed0-84ad-afd02a9c7799",
+				disabled: false,
+				updated_at: new Date().toISOString(),
+			},
+		]);
+
+		// Mock localStorage as if the alert was previously dismissed
+		const mockLocalStorage: Record<string, string> = {
+			TasksNotificationAlertDismissedKey: "true",
+		};
+
+		spyOn(Storage.prototype, "getItem").mockImplementation((key: string) => {
+			return mockLocalStorage[key] || null;
+		});
+
+		spyOn(Storage.prototype, "setItem").mockImplementation(
+			(key: string, value: string) => {
+				mockLocalStorage[key] = value;
+			},
+		);
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+
+		await step("Enable Task Idle notification", async () => {
+			// Find the Task Idle checkbox by its label text
+			const taskIdleToggle = canvas.getByLabelText("Task Idle");
+
+			// Click to enable it
+			await userEvent.click(taskIdleToggle);
+
+			// Verify localStorage was updated to "false" to show the warning alert again
+			// on the tasks page
+			await waitFor(() => {
+				expect(
+					localStorage.getItem(TasksNotificationAlertDismissedKey),
+				).toEqual("false");
+			});
+		});
 	},
 };
