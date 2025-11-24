@@ -1135,6 +1135,10 @@
 							"path": "./reference/api/agents.md"
 						},
 						{
+							"title": "AIBridge",
+							"path": "./reference/api/aibridge.md"
+						},
+						{
 							"title": "Applications",
 							"path": "./reference/api/applications.md"
 						},
@@ -1163,6 +1167,10 @@
 							"path": "./reference/api/enterprise.md"
 						},
 						{
+							"title": "Experimental",
+							"path": "./reference/api/experimental.md"
+						},
+						{
 							"title": "Files",
 							"path": "./reference/api/files.md"
 						},
@@ -1175,8 +1183,16 @@
 							"path": "./reference/api/insights.md"
 						},
 						{
+							"title": "InitScript",
+							"path": "./reference/api/initscript.md"
+						},
+						{
 							"title": "Members",
 							"path": "./reference/api/members.md"
+						},
+						{
+							"title": "Notifications",
+							"path": "./reference/api/notifications.md"
 						},
 						{
 							"title": "Organizations",
@@ -1185,6 +1201,14 @@
 						{
 							"title": "PortSharing",
 							"path": "./reference/api/portsharing.md"
+						},
+						{
+							"title": "Prebuilds",
+							"path": "./reference/api/prebuilds.md"
+						},
+						{
+							"title": "Provisioning",
+							"path": "./reference/api/provisioning.md"
 						},
 						{
 							"title": "Schemas",
