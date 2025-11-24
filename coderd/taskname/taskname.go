@@ -145,7 +145,7 @@ func generateFromPrompt(prompt string) (TaskName, error) {
 
 	// Generate task name from truncated prompt
 	name := strings.ToLower(truncatedForName)
-	name = strings.ReplaceAll(name, " ", "-")
+	name = regexp.MustCompile(`\s+`).ReplaceAllString(name, "-")
 	name = regexp.MustCompile(`[^a-z0-9-]+`).ReplaceAllString(name, "")
 	name = regexp.MustCompile(`-+`).ReplaceAllString(name, "-")
 	name = strings.Trim(name, "-")
