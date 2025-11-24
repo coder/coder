@@ -112,9 +112,8 @@ func generateFallback() TaskName {
 	// We have a 5 character suffix `-ffff`.
 	// This leaves us with 27 characters for the name.
 	//
-	// Unfortunately, `namesgenerator.GetRandomName(0)` will
-	// generate names that are longer than 27 characters, so
-	// we just trim these down to length.
+	// `namesgenerator.GetRandomName(0)` can generate names
+	// up to 27 characters, but we truncate defensively.
 	name := strings.ReplaceAll(namesgenerator.GetRandomName(0), "_", "-")
 	name = name[:min(len(name), 27)]
 	name = strings.TrimSuffix(name, "-")
@@ -297,8 +296,15 @@ func anthropicDataStream(ctx context.Context, client anthropic.Client, model ant
 	}
 
 	return aisdk.AnthropicToDataStream(client.Messages.NewStreaming(ctx, anthropic.MessageNewParams{
-		Model:     model,
-		MaxTokens: 50,
+		Model: model,
+		// MaxTokens is set to 100 based on the maximum expected output size.
+		// The worst-case JSON output is 134 characters:
+		//   - Base structure: 43 chars (including formatting)
+		//   - task_name: 27 chars max
+		//   - display_name: 64 chars max
+		// Using Anthropic's token counting API, this worst-case output tokenizes to 70 tokens.
+		// We set MaxTokens to 100 to provide a safety buffer.
+		MaxTokens: 100,
 		System:    system,
 		Messages:  messages,
 	})), nil
