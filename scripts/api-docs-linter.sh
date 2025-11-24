@@ -17,13 +17,13 @@ echo "========================"
 echo ""
 
 if [[ ! -d "$API_DIR" ]]; then
-  echo -e "${RED}Error: API directory not found: $API_DIR${NC}"
-  exit 1
+	echo -e "${RED}Error: API directory not found: $API_DIR${NC}"
+	exit 1
 fi
 
 if [[ ! -f "$MANIFEST" ]]; then
-  echo -e "${RED}Error: Manifest file not found: $MANIFEST${NC}"
-  exit 1
+	echo -e "${RED}Error: Manifest file not found: $MANIFEST${NC}"
+	exit 1
 fi
 
 # Get all .md files in the API directory (excluding index.md)
@@ -43,55 +43,55 @@ echo ""
 # Check for files in API dir that are missing from manifest
 MISSING_FROM_MANIFEST=()
 for file in "${API_FILES[@]}"; do
-  found=false
-  for manifest_path in "${MANIFEST_PATHS[@]}"; do
-    if [[ "$manifest_path" == "$file" ]]; then
-      found=true
-      break
-    fi
-  done
-  
-  if [[ "$found" == "false" ]]; then
-    MISSING_FROM_MANIFEST+=("$file")
-  fi
+	found=false
+	for manifest_path in "${MANIFEST_PATHS[@]}"; do
+		if [[ "$manifest_path" == "$file" ]]; then
+			found=true
+			break
+		fi
+	done
+
+	if [[ "$found" == "false" ]]; then
+		MISSING_FROM_MANIFEST+=("$file")
+	fi
 done
 
 # Check for manifest entries that don't have corresponding files
 MISSING_FILES=()
 for manifest_path in "${MANIFEST_PATHS[@]}"; do
-  # Convert manifest path format (./reference/api/...) to filesystem path (docs/reference/api/...)
-  fs_path="docs/${manifest_path#./}"
-  
-  if [[ ! -f "$fs_path" ]]; then
-    MISSING_FILES+=("$manifest_path")
-  fi
+	# Convert manifest path format (./reference/api/...) to filesystem path (docs/reference/api/...)
+	fs_path="docs/${manifest_path#./}"
+
+	if [[ ! -f "$fs_path" ]]; then
+		MISSING_FILES+=("$manifest_path")
+	fi
 done
 
 # Report results
 ERROR_COUNT=0
 
 if [[ ${#MISSING_FROM_MANIFEST[@]} -gt 0 ]]; then
-  echo -e "${RED}✗ Files in $API_DIR missing from manifest.json:${NC}"
-  for file in "${MISSING_FROM_MANIFEST[@]}"; do
-    echo -e "  ${RED}- $file${NC}"
-    ((ERROR_COUNT++))
-  done
-  echo ""
+	echo -e "${RED}✗ Files in $API_DIR missing from manifest.json:${NC}"
+	for file in "${MISSING_FROM_MANIFEST[@]}"; do
+		echo -e "  ${RED}- $file${NC}"
+		((ERROR_COUNT++))
+	done
+	echo ""
 else
-  echo -e "${GREEN}✓ All API files are listed in manifest.json${NC}"
-  echo ""
+	echo -e "${GREEN}✓ All API files are listed in manifest.json${NC}"
+	echo ""
 fi
 
 if [[ ${#MISSING_FILES[@]} -gt 0 ]]; then
-  echo -e "${YELLOW}⚠ Manifest entries without corresponding files:${NC}"
-  for path in "${MISSING_FILES[@]}"; do
-    echo -e "  ${YELLOW}- $path${NC}"
-    ((ERROR_COUNT++))
-  done
-  echo ""
+	echo -e "${YELLOW}⚠ Manifest entries without corresponding files:${NC}"
+	for path in "${MISSING_FILES[@]}"; do
+		echo -e "  ${YELLOW}- $path${NC}"
+		((ERROR_COUNT++))
+	done
+	echo ""
 else
-  echo -e "${GREEN}✓ All manifest entries have corresponding files${NC}"
-  echo ""
+	echo -e "${GREEN}✓ All manifest entries have corresponding files${NC}"
+	echo ""
 fi
 
 # Summary
@@ -104,9 +104,9 @@ echo "Missing files: ${#MISSING_FILES[@]}"
 echo ""
 
 if [[ $ERROR_COUNT -gt 0 ]]; then
-  echo -e "${RED}Linter found $ERROR_COUNT issue(s)${NC}"
-  exit 1
+	echo -e "${RED}Linter found $ERROR_COUNT issue(s)${NC}"
+	exit 1
 else
-  echo -e "${GREEN}✓ All checks passed!${NC}"
-  exit 0
+	echo -e "${GREEN}✓ All checks passed!${NC}"
+	exit 0
 fi
