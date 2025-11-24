@@ -148,42 +148,8 @@ func (s *Server) acceptConnections() {
 		return
 	}
 
-	for {
-		select {
-		case <-s.ctx.Done():
-			return
-		default:
-		}
-
-		conn, err := listener.Accept()
-		if err != nil {
-			s.logger.Warn(s.ctx, "error accepting connection", slog.Error(err))
-			continue
-		}
-
-		s.mu.Lock()
-		if s.listener == nil {
-			s.mu.Unlock()
-			_ = conn.Close()
-			return
-		}
-		s.wg.Add(1)
-		s.mu.Unlock()
-
-		go func() {
-			defer s.wg.Done()
-			s.handleConnection(conn)
-		}()
-	}
-}
-
-func (s *Server) handleConnection(conn net.Conn) {
-	defer conn.Close()
-
-	s.logger.Debug(s.ctx, "new connection accepted", slog.F("remote_addr", conn.RemoteAddr()))
-
-	err := s.drpcServer.ServeOne(s.ctx, conn)
+	err := s.drpcServer.Serve(s.ctx, listener)
 	if err != nil {
-		s.logger.Debug(s.ctx, "drpc server finished", slog.Error(err))
+		s.logger.Warn(s.ctx, "error serving drpc server", slog.Error(err))
 	}
 }
