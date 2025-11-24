@@ -331,7 +331,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 			InitiatorID: firstUser.UserID,
 			StartedAt:   now,
 		}, &i1EndedAt)
-		i2 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 			InitiatorID: firstUser.UserID,
 			StartedAt:   now.Add(-time.Hour),
 		}, nil)
@@ -344,10 +344,6 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		require.EqualValues(t, 1, res.Count)
 		require.Len(t, res.Results, 1)
 		require.Equal(t, i1SDK.ID, res.Results[0].ID)
-
-		for _, result := range res.Results {
-			require.NotEqual(t, i2.ID, result.ID, "inflight interception should not be returned")
-		}
 	})
 
 	t.Run("Authorized", func(t *testing.T) {
