@@ -8,7 +8,6 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/hashicorp/yamux"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
 
@@ -22,15 +21,11 @@ import (
 // This type is defined here so it's available on all platforms.
 type Client struct {
 	proto.DRPCAgentSocketClient
-	conn    net.Conn
-	session *yamux.Session
+	conn net.Conn
 }
 
 // Close closes the client connection.
 func (c *Client) Close() error {
-	if c.session != nil {
-		_ = c.session.Close()
-	}
 	if c.conn != nil {
 		return c.conn.Close()
 	}
@@ -187,17 +182,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 
 	s.logger.Debug(s.ctx, "new connection accepted", slog.F("remote_addr", conn.RemoteAddr()))
 
-	config := yamux.DefaultConfig()
-	config.LogOutput = nil
-	config.Logger = slog.Stdlib(s.ctx, s.logger.Named("agentsocket-yamux"), slog.LevelInfo)
-	session, err := yamux.Server(conn, config)
-	if err != nil {
-		s.logger.Warn(s.ctx, "failed to create yamux session", slog.Error(err))
-		return
-	}
-	defer session.Close()
-
-	err = s.drpcServer.Serve(s.ctx, session)
+	err := s.drpcServer.ServeOne(s.ctx, conn)
 	if err != nil {
 		s.logger.Debug(s.ctx, "drpc server finished", slog.Error(err))
 	}

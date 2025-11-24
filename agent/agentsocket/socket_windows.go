@@ -3,6 +3,7 @@
 package agentsocket
 
 import (
+	"context"
 	"net"
 
 	"cdr.dev/slog"
@@ -28,6 +29,6 @@ func cleanupSocket(_ string) error {
 }
 
 // NewClient creates a DRPC client for the agent socket at the given path.
-func NewClient(path string, logger slog.Logger) (*Client, error) {
+func NewClient(_ context.Context, _ string, _ slog.Logger) (*Client, error) {
 	return nil, xerrors.New("agentsocket is not supported on Windows")
 }

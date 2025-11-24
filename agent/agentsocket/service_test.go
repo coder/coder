@@ -5,13 +5,11 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"net"
 	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
 
-	"github.com/hashicorp/yamux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -19,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentsocket"
 	"github.com/coder/coder/v2/agent/agentsocket/proto"
 	"github.com/coder/coder/v2/agent/unit"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // tempDirUnixSocket returns a temporary directory that can safely hold unix
@@ -49,20 +48,14 @@ func tempDirUnixSocket(t *testing.T) string {
 func newSocketClient(t *testing.T, socketPath string) proto.DRPCAgentSocketClient {
 	t.Helper()
 
-	conn, err := net.Dial("unix", socketPath)
-	require.NoError(t, err)
-
-	config := yamux.DefaultConfig()
-	config.Logger = nil
-	session, err := yamux.Client(conn, config)
-	require.NoError(t, err)
-
-	client, err := agentsocket.NewClient(socketPath, slog.Make().Leveled(slog.LevelDebug))
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	client, err := agentsocket.NewClient(ctx, socketPath)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		_ = session.Close()
-		_ = conn.Close()
+		cancel()
+		_ = client.Close()
 	})
 	return client
 }

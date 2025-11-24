@@ -1947,17 +1947,17 @@ func (a *agent) Close() error {
 		}
 	}
 
-	if a.socketServer != nil {
-		if err := a.socketServer.Close(); err != nil {
-			a.logger.Error(a.hardCtx, "socket server close", slog.Error(err))
-		}
-	}
-
 	a.setLifecycle(lifecycleState)
 
 	err = a.scriptRunner.Close()
 	if err != nil {
 		a.logger.Error(a.hardCtx, "script runner close", slog.Error(err))
+	}
+
+	if a.socketServer != nil {
+		if err := a.socketServer.Close(); err != nil {
+			a.logger.Error(a.hardCtx, "socket server close", slog.Error(err))
+		}
 	}
 
 	if err := a.containerAPI.Close(); err != nil {
