@@ -49,7 +49,6 @@ func newSocketClient(t *testing.T, socketPath string) proto.DRPCAgentSocketClien
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
 	client, err := agentsocket.NewClient(ctx, socketPath)
 	require.NoError(t, err)
 
