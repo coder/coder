@@ -1131,6 +1131,10 @@
 							"path": "./reference/api/general.md"
 						},
 						{
+							"title": "AI Bridge",
+							"path": "./reference/api/aibridge.md"
+						},
+						{
 							"title": "Agents",
 							"path": "./reference/api/agents.md"
 						},
@@ -1163,12 +1167,20 @@
 							"path": "./reference/api/enterprise.md"
 						},
 						{
+							"title": "Experimental",
+							"path": "./reference/api/experimental.md"
+						},
+						{
 							"title": "Files",
 							"path": "./reference/api/files.md"
 						},
 						{
 							"title": "Git",
 							"path": "./reference/api/git.md"
+						},
+						{
+							"title": "InitScript",
+							"path": "./reference/api/initscript.md"
 						},
 						{
 							"title": "Insights",
@@ -1179,12 +1191,24 @@
 							"path": "./reference/api/members.md"
 						},
 						{
+							"title": "Notifications",
+							"path": "./reference/api/notifications.md"
+						},
+						{
 							"title": "Organizations",
 							"path": "./reference/api/organizations.md"
 						},
 						{
 							"title": "PortSharing",
 							"path": "./reference/api/portsharing.md"
+						},
+						{
+							"title": "Prebuilds",
+							"path": "./reference/api/prebuilds.md"
+						},
+						{
+							"title": "Provisioning",
+							"path": "./reference/api/provisioning.md"
 						},
 						{
 							"title": "Schemas",
